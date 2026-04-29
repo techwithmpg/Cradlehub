@@ -111,3 +111,16 @@
 - src/app/api/customers/lookup/route.ts
 
 **Build:** ✅ Passing
+
+### 2026-04-29 — Kimi/Codex (Sprint 5 — CRM Workspace)
+
+**Files Created:**
+- src/app/(dashboard)/crm/page.tsx
+- src/app/(dashboard)/crm/repeats/page.tsx
+- src/app/(dashboard)/crm/lapsed/page.tsx
+- src/app/(dashboard)/crm/[customerId]/page.tsx
+- src/components/features/dashboard/customer-search.tsx
+- src/components/features/dashboard/customer-notes-form.tsx
+- src/app/api/customers/search/route.ts
+
+**Build:** ✅ Passing
