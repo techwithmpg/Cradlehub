@@ -133,3 +133,18 @@
 - src/app/(dashboard)/staff-portal/stats/page.tsx
 
 **Build:** ✅ Passing
+
+### 2026-04-29 — Kimi/Codex (Sprint 7 — Online Booking Flow)
+
+**Files Created:**
+- src/app/(public)/layout.tsx
+- src/app/(public)/book/page.tsx (Step 1: branch)
+- src/app/(public)/book/[branchId]/page.tsx (Step 2: service)
+- src/app/(public)/book/[branchId]/[serviceId]/page.tsx (Step 3: time)
+- src/app/(public)/book/confirm/page.tsx (Step 4: details)
+- src/app/(public)/book/success/page.tsx (confirmation)
+- src/components/features/booking/booking-progress.tsx
+- src/components/features/booking/slot-picker.tsx
+- src/components/features/booking/booking-form.tsx
+
+**Build:** ✅ Passing
