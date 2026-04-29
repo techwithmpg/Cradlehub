@@ -1,15 +1,43 @@
-## What Is Next — Sprint 8: Public Website (FINAL SPRINT)
+# 🏆 CRADLEHUB — COMPLETE
 
-Pages to build:
-1. src/app/page.tsx — Homepage (hero, services preview, branches, Book Now CTA)
-2. src/app/(public)/services/page.tsx — Full services page
-3. src/app/(public)/branches/page.tsx — Branch locations with maps
-4. src/app/(public)/about/page.tsx — Spa story and values
-5. src/app/(public)/contact/page.tsx — Contact info + Messenger links
-6. src/components/features/public/public-nav.tsx — Shared navbar
-7. src/components/features/public/public-footer.tsx — Shared footer
+All sprints done. Build passing. System is ready for production.
 
-Sprint 8 completes CradleHub. After that:
-- Connect to real Supabase data (update .env.local with production keys)
-- Owner creates branches, invites staff, sets up services
-- Go live
+## Go-Live Checklist
+
+### 1. Owner account setup (do this once in Supabase SQL editor)
+```sql
+INSERT INTO staff (branch_id, auth_user_id, full_name, phone, tier, system_role)
+VALUES (
+  'c1000000-0000-0000-0000-000000000001',
+  'PASTE-AUTH-UUID',
+  'Owner Name',
+  '+63 XXX XXX XXXX',
+  'senior',
+  'owner'
+);
+```
+
+### 2. Owner logs in at /login and:
+- Updates branch names, addresses, phone numbers, Messenger links
+- Uploads Google Maps embed URLs for each branch
+- Creates service categories and services with prices
+- Invites managers and staff (they get email invites automatically)
+
+### 3. Managers log in and:
+- Set weekly schedules for each therapist
+- Test walk-in booking flow
+- Test status transitions (confirm → in progress → complete)
+
+### 4. Test online booking at /book as a customer
+
+### 5. Verify:
+- /book → /book/[branchId] → /book/[branchId]/[serviceId] → /book/confirm → /book/success
+- Booking appears in manager dashboard immediately
+- Customer appears in CRM
+
+## Future Enhancements (post-launch, not blocking)
+- SMS/Messenger confirmation messages to customers after booking
+- Payment integration
+- Analytics dashboard with charts (getBookingTrend data is already there)
+- Promotional pricing / discount codes (metadata JSONB already supports this)
+- Staff rating system (metadata JSONB already supports this)

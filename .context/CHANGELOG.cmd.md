@@ -148,3 +148,22 @@
 - src/components/features/booking/booking-form.tsx
 
 **Build:** ✅ Passing
+
+### 2026-04-29 — Kimi/Codex (Sprint 8 — Public Website) 🎉
+
+**Files Created:**
+- src/app/page.tsx (homepage — replaced placeholder)
+- src/app/(public)/services/page.tsx
+- src/app/(public)/branches/page.tsx
+- src/app/(public)/about/page.tsx
+- src/app/(public)/contact/page.tsx
+- src/components/features/public/public-nav.tsx
+- src/components/features/public/public-footer.tsx
+- src/components/features/public/service-card.tsx
+- src/components/features/public/branch-card.tsx
+- src/app/(public)/layout.tsx (updated with nav + footer)
+
+**Build:** ✅ Passing
+
+**STATUS: CRADLEHUB IS COMPLETE ✅**
+All 8 sprints committed. System is production-ready pending data setup.
