@@ -94,3 +94,20 @@
 - src/components/features/dashboard/empty-state.tsx
 
 **Build:** ✅ Passing
+
+### 2026-04-29 — Kimi/Codex (Sprint 4 — Manager Workspace)
+
+**Files Created:**
+- src/app/(dashboard)/manager/page.tsx (schedule timeline)
+- src/app/(dashboard)/manager/walkin/page.tsx
+- src/app/(dashboard)/manager/bookings/page.tsx
+- src/app/(dashboard)/manager/staff/page.tsx
+- src/components/features/dashboard/schedule-timeline.tsx
+- src/components/features/dashboard/booking-action-menu.tsx
+- src/components/features/dashboard/walkin-form.tsx
+- src/components/features/dashboard/schedule-manager.tsx
+- src/components/features/dashboard/time-slot-grid.tsx
+- src/app/api/manager/context/route.ts
+- src/app/api/customers/lookup/route.ts
+
+**Build:** ✅ Passing

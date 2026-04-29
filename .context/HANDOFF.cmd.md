@@ -1,19 +1,16 @@
-# 🤝 HANDOFF — Sprint 3
+# 🤝 HANDOFF — Sprint 4
 
 | Field | Value |
 |-------|-------|
-| Agent | Kimi/Codex (Sprint 3) |
+| Agent | Kimi/Codex (Sprint 4) |
 | Build | ✅ Passing |
 
-## What Is Next — Sprint 4: Manager / Front Desk Workspace
-1. /manager/page.tsx — today's schedule timeline (all staff, all bookings, time grid)
-2. /manager/walkin/page.tsx — walk-in entry form with phone lookup
-3. /manager/bookings/page.tsx — status management (confirm → start → complete)
-4. /manager/staff/page.tsx — schedule management, overrides, blocked times
+## What Is Next — Sprint 5: CRM Workspace
+1. /crm/page.tsx — customer list with search + repeat/lapsed tabs
+2. /crm/[customerId]/page.tsx — full customer profile + booking history
+3. CRM can update notes and preferred therapist
 
-## Key Notes
-- Owner workspace reads data with getOwnerDashboardAction, getAllBookingsOwner etc
-- Branch detail page is split: Server page + Client BranchEditForm (for useActionState)
-- Staff invite loads branches server-side; /api/branches is available for lightweight client integrations
-- All status/type badges are reusable — import from @/components/features/dashboard/
-- formatCurrency and formatTime are in @/lib/utils — use throughout Sprint 4
+## Sprint 6 after that: Staff Portal
+1. /staff-portal/page.tsx — today's bookings (no PII)
+2. /staff-portal/week/page.tsx — weekly schedule view
+3. /staff-portal/stats/page.tsx — personal monthly stats
