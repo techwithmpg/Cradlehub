@@ -95,3 +95,54 @@ export async function createBlockedTimeAction(rawInput: unknown) {
   revalidatePath("/manager/staff");
   return { success: true };
 }
+
+// ── Delete a blocked time ──────────────────────────────────────────────────
+export async function deleteBlockedTimeAction(blockedTimeId: string) {
+  const ctx = await getManagerContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  const { data: branchStaff, error: branchStaffError } = await ctx.supabase
+    .from("staff")
+    .select("id")
+    .eq("branch_id", ctx.me.branch_id);
+  if (branchStaffError) return { success: false, error: branchStaffError.message };
+
+  const staffIds = (branchStaff ?? []).map((s) => s.id);
+  if (staffIds.length === 0) return { success: false, error: "No staff found in this branch" };
+
+  // Only delete blocks belonging to staff in this manager's branch
+  const { error } = await ctx.supabase
+    .from("blocked_times")
+    .delete()
+    .eq("id", blockedTimeId)
+    .in("staff_id", staffIds);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/manager/staff");
+  return { success: true };
+}
+
+// ── Delete a schedule override ────────────────────────────────────────────
+export async function deleteScheduleOverrideAction(overrideId: string) {
+  const ctx = await getManagerContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  const { data: branchStaff, error: branchStaffError } = await ctx.supabase
+    .from("staff")
+    .select("id")
+    .eq("branch_id", ctx.me.branch_id);
+  if (branchStaffError) return { success: false, error: branchStaffError.message };
+
+  const staffIds = (branchStaff ?? []).map((s) => s.id);
+  if (staffIds.length === 0) return { success: false, error: "No staff found in this branch" };
+
+  const { error } = await ctx.supabase
+    .from("schedule_overrides")
+    .delete()
+    .eq("id", overrideId)
+    .in("staff_id", staffIds);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/manager/staff");
+  return { success: true };
+}

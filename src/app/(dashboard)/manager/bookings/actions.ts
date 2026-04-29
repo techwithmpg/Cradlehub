@@ -141,6 +141,19 @@ export async function editBookingAction(rawInput: unknown) {
     } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
   }
 
+  // Set attribution so trigger writes changed_by to booking_events
+  await (
+    supabase as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
+    }
+  )
+    .rpc("set_config", {
+      setting:  "app.current_staff_id",
+      value:    me.id,
+      is_local: true,
+    })
+    .catch(() => {});
+
   const { error } = await supabase
     .from("bookings")
     .update(updates)

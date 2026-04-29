@@ -45,3 +45,22 @@ export async function getStaffOverrides(staffId: string, fromDate: string) {
   if (error) throw new Error(error.message);
   return data ?? [];
 }
+
+// ── Blocked times for a staff member over a date range ────────────────────
+export async function getBlockedTimes(
+  staffId:  string,
+  fromDate: string,
+  toDate:   string
+) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("blocked_times")
+    .select("*")
+    .eq("staff_id", staffId)
+    .gte("block_date", fromDate)
+    .lte("block_date", toDate)
+    .order("block_date")
+    .order("start_time");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
