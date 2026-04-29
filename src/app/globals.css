@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-dm-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,6 +49,40 @@
 }
 
 :root {
+  --font-sans: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+
+  /* CradleHub design tokens */
+  --ch-sidebar-bg:         #1c1917;
+  --ch-sidebar-border:     #292524;
+  --ch-sidebar-text:       #a8a29e;
+  --ch-sidebar-text-hover: #e7e5e4;
+  --ch-sidebar-active-bg:  #292524;
+  --ch-sidebar-active:     #fafaf9;
+  --ch-accent:             #d97706;
+  --ch-accent-light:       #fef3c7;
+  --ch-page-bg:            #fafaf9;
+  --ch-surface:            #ffffff;
+  --ch-border:             #e7e5e4;
+  --ch-text:               #1c1917;
+  --ch-text-muted:         #78716c;
+  --ch-text-subtle:        #a8a29e;
+
+  /* Role badge colors */
+  --ch-owner-bg:           #ede9fe;
+  --ch-owner-text:         #5b21b6;
+  --ch-manager-bg:         #fef3c7;
+  --ch-manager-text:       #92400e;
+  --ch-crm-bg:             #e0f2fe;
+  --ch-crm-text:           #075985;
+  --ch-staff-bg:           #dcfce7;
+  --ch-staff-text:         #166534;
+
+  --spa-black: #080808;
+  --spa-charcoal: #131313;
+  --spa-gold: #d6a84f;
+  --spa-gold-soft: #f6e3a1;
+  --spa-cream: #f8f2df;
+  --spa-muted: #c9bc9a;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -122,9 +156,38 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--ch-page-bg);
+    color: var(--ch-text);
   }
   html {
     @apply font-sans;
   }
+}
+
+@keyframes spa-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spa-glow {
+  from {
+    box-shadow: 0 0 0 rgba(245, 197, 66, 0.1);
+  }
+  to {
+    box-shadow: 0 10px 34px rgba(245, 197, 66, 0.18);
+  }
+}
+
+.spa-fade-up {
+  animation: spa-fade-up 520ms ease-out both;
+}
+
+.spa-button-glow {
+  animation: spa-glow 700ms ease-out both;
 }

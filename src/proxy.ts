@@ -4,15 +4,15 @@ import { createServerClient } from "@supabase/ssr";
 
 /** Maps system_role → dashboard workspace prefix */
 const ROLE_WORKSPACE: Record<string, string> = {
-  owner:   "/owner",
+  owner: "/owner",
   manager: "/manager",
-  crm:     "/crm",
-  staff:   "/staff-portal",
+  crm: "/crm",
+  staff: "/staff-portal",
 };
 
 const PROTECTED_PREFIXES = ["/owner", "/manager", "/crm", "/staff-portal"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always refresh the session token

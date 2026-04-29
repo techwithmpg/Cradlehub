@@ -1,29 +1,28 @@
-# 🤝 HANDOFF
+# 🤝 HANDOFF — Sprint 2
 
 | Field | Value |
 |-------|-------|
-| **Agent** | Codex/Kimi (Sprint 1) |
-| **Build Status** | ✅ Passing |
-| **Mood** | Engine is complete |
+| Agent | Kimi/Codex (Sprint 2) |
+| Build | ✅ Passing |
+| Mood  | Shell is up. Every workspace has a route. |
 
 ## What I Did
-Built the entire server engine for CradleHub. All 10 business rules are encoded.
-Zero UI — pure server logic only.
+- Auth: login page + server action + role-based redirect
+- Dashboard: sidebar + header + layout — all workspaces use this shell
+- 16 placeholder pages across owner/manager/crm/staff-portal
+- Design tokens established in globals.css — use var(--ch-*) throughout
 
-## What Is Next
-**Sprint 2 — Authentication + Dashboard Shell:**
-1. `src/app/(auth)/login/page.tsx` — email/password login form
-2. `src/app/(dashboard)/layout.tsx` — shared sidebar + header for all workspaces
-3. Role-aware sidebar nav links (owner/manager/crm/staff show different items)
-4. User profile dropdown in header (name, role badge, logout)
+## What Is Next — Sprint 3: Owner Workspace
+1. /owner/page.tsx — real overview with stats cards + revenue chart
+2. /owner/branches/page.tsx — branch list + create/edit forms
+3. /owner/staff/page.tsx — staff list + invite form
+4. /owner/services/page.tsx — service + category management
+5. /owner/bookings/page.tsx — cross-branch booking list with filters
 
-## Critical Things to Know
-- ALL bookings are auto-confirmed (status='confirmed'). No pending state.
-- "Any therapist" uses seniority assignment — see `src/lib/engine/availability.ts`
-- Price snapshot goes into booking metadata on every INSERT — see `src/lib/engine/snapshot.ts`
-- `set_config('app.current_staff_id', ...)` must be called before status changes so
-  the trigger can write changed_by to booking_events
-- Admin client (admin.ts) is used for: public booking creation, staff invite.
-  Never import admin client in anything under 'use client'
-- `editBookingAction` re-checks availability AND re-snapshots metadata when
-  service changes — this is intentional
+## Critical Notes
+- Dashboard layout reads system_role from staff table on EVERY request
+- Header logout is a Server Action (form POST) — no client JS needed
+- Sidebar is 'use client' for mobile collapse — desktop renders server-side within it
+- All design tokens are CSS variables (var(--ch-*)) — use these in Sprint 3+ pages
+- PageHeader component is the standard page title — use it on every dashboard page
+- DM Sans loaded via next/font — variable is --font-dm-sans

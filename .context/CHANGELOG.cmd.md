@@ -56,3 +56,25 @@
   RULE 10 Manager can edit any booking field, availability re-checked on time/staff/service change
 
 **Build status:** ✅ Passing
+
+### 2026-04-29 — Kimi/Codex (Sprint 2 — Auth + Dashboard Shell)
+
+**Files Created:**
+- src/proxy.ts (renamed from middleware.ts)
+- src/app/(auth)/layout.tsx
+- src/app/(auth)/login/page.tsx
+- src/app/(auth)/login/actions.ts
+- src/app/(dashboard)/layout.tsx
+- src/components/features/dashboard/nav-config.ts
+- src/components/features/dashboard/sidebar.tsx
+- src/components/features/dashboard/header.tsx
+- src/components/features/dashboard/role-badge.tsx
+- src/components/features/dashboard/page-header.tsx
+- 16 placeholder dashboard pages
+
+**Design system established:**
+- Warm charcoal sidebar (#1C1917) + amber accent (#D97706)
+- DM Sans typography
+- Role badge colors: owner=violet, manager=amber, crm=sky, staff=green
+
+**Build:** ✅ Passing | **Middleware warning:** ✅ Resolved
