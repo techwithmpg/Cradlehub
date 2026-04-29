@@ -78,3 +78,19 @@
 - Role badge colors: owner=violet, manager=amber, crm=sky, staff=green
 
 **Build:** ✅ Passing | **Middleware warning:** ✅ Resolved
+
+### 2026-04-29 — Kimi/Codex (Sprint 3 — Owner Workspace)
+
+**Files Created:**
+- src/app/(dashboard)/owner/page.tsx (overview dashboard)
+- src/app/(dashboard)/owner/branches/page.tsx + new/page.tsx + [branchId]/page.tsx + branch-edit-form.tsx
+- src/app/(dashboard)/owner/staff/page.tsx + new/page.tsx
+- src/app/(dashboard)/owner/services/page.tsx
+- src/app/(dashboard)/owner/bookings/page.tsx
+- src/app/api/branches/route.ts
+- src/components/features/dashboard/stat-card.tsx
+- src/components/features/dashboard/booking-status-badge.tsx
+- src/components/features/dashboard/booking-type-badge.tsx
+- src/components/features/dashboard/empty-state.tsx
+
+**Build:** ✅ Passing
