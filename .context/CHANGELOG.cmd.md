@@ -124,3 +124,12 @@
 - src/app/api/customers/search/route.ts
 
 **Build:** ✅ Passing
+
+### 2026-04-29 — Kimi/Codex (Sprint 6 — Staff Portal)
+
+**Files Created:**
+- src/app/(dashboard)/staff-portal/page.tsx
+- src/app/(dashboard)/staff-portal/week/page.tsx
+- src/app/(dashboard)/staff-portal/stats/page.tsx
+
+**Build:** ✅ Passing
