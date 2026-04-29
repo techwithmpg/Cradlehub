@@ -1,52 +1,155 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getManagerDashboardStats, getTodaysSchedule, getWeekSchedule } from "@/lib/queries/bookings";
+import { updateBookingStatusSchema, editBookingSchema } from "@/lib/validations/booking";
+import { assertSlotAvailable } from "@/lib/engine/availability";
+import { computeEndTime } from "@/lib/engine/booking-time";
+import { buildBookingSnapshot } from "@/lib/engine/snapshot";
+import { revalidatePath } from "next/cache";
+import type { Database } from "@/types/supabase";
 
-type ManagerContext = {
-  me: { id: string; branch_id: string; system_role: string };
-};
-
-async function getManagerContext(): Promise<ManagerContext | null> {
+// ── Auth helper ────────────────────────────────────────────────────────────
+async function getManagerContext() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-
   const { data: me } = await supabase
     .from("staff")
     .select("id, branch_id, system_role")
     .eq("auth_user_id", user.id)
     .single();
-
-  if (!me || me.system_role !== "manager" || !me.branch_id) return null;
-  return {
-    me: {
-      id: me.id,
-      branch_id: me.branch_id,
-      system_role: me.system_role,
-    },
-  };
+  if (!me || !me.branch_id || !["manager", "owner"].includes(me.system_role)) return null;
+  return { supabase, me };
 }
 
-// -- Manager dashboard data (today stats + schedule) ------------------------
-export async function getManagerDashboardAction(date: string) {
+// ── Status transition ──────────────────────────────────────────────────────
+export async function updateBookingStatusAction(rawInput: unknown) {
+  const parsed = updateBookingStatusSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
   const ctx = await getManagerContext();
-  if (!ctx) return { error: "Unauthorized" };
+  if (!ctx) return { success: false, error: "Unauthorized" };
+  const { supabase, me } = ctx;
 
-  const [stats, schedule] = await Promise.all([
-    getManagerDashboardStats(ctx.me.branch_id, date),
-    getTodaysSchedule(ctx.me.branch_id, date),
-  ]);
+  // Set attribution for trigger
+  await (
+    supabase as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
+    }
+  )
+    .rpc("set_config", {
+      setting: "app.current_staff_id",
+      value: me.id,
+      is_local: true,
+    })
+    .catch(() => {});
 
-  return { stats, schedule };
+  const { error } = await supabase
+    .from("bookings")
+    .update({ status: parsed.data.status })
+    .eq("id", parsed.data.bookingId)
+    .eq("branch_id", me.branch_id); // RLS-equivalent guard
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/manager");
+  revalidatePath("/manager/bookings");
+  return { success: true };
 }
 
-// -- Week view for manager planning -----------------------------------------
-export async function getManagerWeekAction(fromDate: string, toDate: string) {
-  const ctx = await getManagerContext();
-  if (!ctx) return { error: "Unauthorized" };
+// ── Edit booking (reschedule, change therapist, etc.) ────────────────────
+export async function editBookingAction(rawInput: unknown) {
+  const parsed = editBookingSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
 
-  return getWeekSchedule(ctx.me.branch_id, fromDate, toDate);
+  const ctx = await getManagerContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+  const { supabase, me } = ctx;
+
+  const { bookingId, notes, ...changes } = parsed.data;
+
+  // Fetch current booking to fill in unchanged fields for validation
+  const { data: current } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", bookingId)
+    .eq("branch_id", me.branch_id)
+    .single();
+
+  if (!current) return { success: false, error: "Booking not found" };
+
+  const resolvedServiceId = changes.serviceId ?? current.service_id;
+  const resolvedStaffId   = changes.staffId   ?? current.staff_id;
+  const resolvedDate      = changes.date       ?? current.booking_date;
+  const resolvedStartTime = changes.startTime  ?? current.start_time;
+
+  const updates: Database["public"]["Tables"]["bookings"]["Update"] = {};
+
+  // If time, staff, or service changed — verify availability
+  if (changes.staffId || changes.date || changes.startTime || changes.serviceId) {
+    try {
+      await assertSlotAvailable({
+        branchId:  me.branch_id,
+        serviceId: resolvedServiceId,
+        staffId:   resolvedStaffId,
+        date:      resolvedDate,
+        startTime: resolvedStartTime,
+      });
+    } catch {
+      return { success: false, error: "That time slot is no longer available" };
+    }
+
+    updates.end_time = await computeEndTime(resolvedStartTime, resolvedServiceId);
+    if (changes.staffId)   updates.staff_id   = changes.staffId;
+    if (changes.serviceId) updates.service_id = changes.serviceId;
+    if (changes.date)      updates.booking_date = changes.date;
+    if (changes.startTime) updates.start_time   = changes.startTime;
+
+    // Re-snapshot if service changed
+    if (changes.serviceId) {
+      const existing = (current.metadata ?? {}) as Record<string, unknown>;
+      const nextMetadata: Record<string, unknown> = {
+        ...existing,
+        ...(await buildBookingSnapshot(me.branch_id, resolvedServiceId)),
+        customer_notes: existing["customer_notes"] ?? null,
+      };
+      updates.metadata = nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
+    }
+  }
+
+  if (changes.type !== undefined) {
+    updates.type = changes.type;
+    updates.travel_buffer_mins =
+      changes.type === "home_service"
+        ? (changes.travelBufferMins ?? 30)
+        : null;
+  }
+
+  if (changes.travelBufferMins !== undefined && changes.type === undefined) {
+    updates.travel_buffer_mins = changes.travelBufferMins;
+  }
+
+  if (notes !== undefined) {
+    const existing = ((updates.metadata ?? current.metadata ?? {}) as Record<string, unknown>);
+    updates.metadata = {
+      ...existing,
+      customer_notes: notes,
+    } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
+  }
+
+  const { error } = await supabase
+    .from("bookings")
+    .update(updates)
+    .eq("id", bookingId)
+    .eq("branch_id", me.branch_id);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/manager");
+  revalidatePath("/manager/bookings");
+  return { success: true };
 }

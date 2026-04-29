@@ -2,30 +2,28 @@
 
 | Field | Value |
 |-------|-------|
-| **Agent** | Codex (Phase 0) |
+| **Agent** | Codex/Kimi (Sprint 1) |
 | **Build Status** | ✅ Passing |
-| **Mood** | Clean start |
+| **Mood** | Engine is complete |
 
 ## What I Did
-- Created E:\cradlehub with Next.js 15 + TypeScript strict
-- Installed all runtime + dev deps
-- Initialized shadcn/ui (New York, Neutral) + all components
-- Created full App Router structure (public, auth, dashboard route groups)
-- Created Supabase browser/server/admin clients + session middleware
-- Created role-aware middleware with workspace routing
-- Created types, constants, utilities with CradleHub-specific values
-- Created all .context/ governance files
-- pnpm build ✅  pnpm lint ✅  pnpm type-check ✅
+Built the entire server engine for CradleHub. All 10 business rules are encoded.
+Zero UI — pure server logic only.
 
 ## What Is Next
-1. Copy the 7 SQL migration files into `supabase\migrations\`
-2. Run `npx supabase login` then `npx supabase link --project-ref lsrbwqhvzjfpiabeolkv`
-3. Mark all 7 as applied: `npx supabase migration repair --status applied 202604290000XX`
-4. Run `pnpm db:types` to generate real TypeScript types
-5. Begin Phase 1 — task 1.1: Login page at `src/app/(auth)/login/page.tsx`
+**Sprint 2 — Authentication + Dashboard Shell:**
+1. `src/app/(auth)/login/page.tsx` — email/password login form
+2. `src/app/(dashboard)/layout.tsx` — shared sidebar + header for all workspaces
+3. Role-aware sidebar nav links (owner/manager/crm/staff show different items)
+4. User profile dropdown in header (name, role badge, logout)
 
-## Watch Out For
-- `src/types/supabase.ts` is a placeholder until `pnpm db:types` is run
-- Admin client uses SERVICE ROLE key — never import in client components
-- `get_available_slots` RPC is SECURITY DEFINER — call via anon client RPC, not admin
-- The `(dashboard)` route group requires a staff record with matching auth_user_id
+## Critical Things to Know
+- ALL bookings are auto-confirmed (status='confirmed'). No pending state.
+- "Any therapist" uses seniority assignment — see `src/lib/engine/availability.ts`
+- Price snapshot goes into booking metadata on every INSERT — see `src/lib/engine/snapshot.ts`
+- `set_config('app.current_staff_id', ...)` must be called before status changes so
+  the trigger can write changed_by to booking_events
+- Admin client (admin.ts) is used for: public booking creation, staff invite.
+  Never import admin client in anything under 'use client'
+- `editBookingAction` re-checks availability AND re-snapshots metadata when
+  service changes — this is intentional
