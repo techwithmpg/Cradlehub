@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/", label: "Home" },
   { href: "/about", label: "About" },
   { href: "/services", label: "Services" },
+  { href: "/#testimonials", label: "Testimonials" },
   { href: "/contact", label: "Contact" },
 ];
 
@@ -16,6 +17,9 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+
+  const isHome = pathname === "/";
+  const isHeroMode = !scrolled && isHome;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -37,20 +41,32 @@ export function SiteHeader() {
             : "bg-transparent"
         }`}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-12 py-5">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#163A2B] text-[#C8A96B] transition-transform duration-300 group-hover:scale-105">
+            <div
+              className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-500 ${
+                isHeroMode
+                  ? "bg-white/10 text-[#C8A96B] ring-1 ring-white/20"
+                  : "bg-[#163A2B] text-[#C8A96B]"
+              }`}
+            >
               <Leaf className="h-5 w-5" />
             </div>
             <div className="flex flex-col leading-none">
               <span
-                className="text-[15px] font-semibold tracking-wide"
-                style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                className="text-[15px] font-semibold tracking-wide transition-colors duration-500"
+                style={{
+                  fontFamily: "var(--sp-font-display)",
+                  color: isHeroMode ? "#FCFAF5" : "#163A2B",
+                }}
               >
                 Cradle
               </span>
-              <span className="text-[10px] tracking-[0.12em] uppercase" style={{ color: "#6B7A6F" }}>
+              <span
+                className="text-[10px] tracking-[0.12em] uppercase transition-colors duration-500"
+                style={{ color: isHeroMode ? "rgba(247,243,235,0.55)" : "#6B7A6F" }}
+              >
                 Massage & Wellness
               </span>
             </div>
@@ -63,11 +79,17 @@ export function SiteHeader() {
                 key={link.href}
                 href={link.href}
                 className={`relative text-[13px] font-medium tracking-wide transition-colors duration-300 ${
-                  pathname === link.href ? "text-[#163A2B]" : "text-[#6B7A6F] hover:text-[#163A2B]"
+                  pathname === link.href.split("#")[0]
+                    ? isHeroMode
+                      ? "text-white"
+                      : "text-[#163A2B]"
+                    : isHeroMode
+                    ? "text-white/70 hover:text-white"
+                    : "text-[#6B7A6F] hover:text-[#163A2B]"
                 }`}
               >
                 {link.label}
-                {pathname === link.href && (
+                {pathname === link.href.split("#")[0] && (
                   <span className="absolute -bottom-1 left-0 right-0 h-[1.5px] bg-[#C8A96B] rounded-full" />
                 )}
               </Link>
@@ -78,18 +100,24 @@ export function SiteHeader() {
           <div className="flex items-center gap-4">
             <Link
               href="/book"
-              className="hidden md:inline-flex items-center rounded-full px-6 py-2.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-lg"
+              className="hidden md:inline-flex items-center rounded-full px-6 py-2.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
               style={{
                 background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
                 color: "#10261D",
-                boxShadow: "0 4px 16px rgba(200,169,107,0.35)",
+                boxShadow: isHeroMode
+                  ? "0 4px 20px rgba(200,169,107,0.45)"
+                  : "0 4px 16px rgba(200,169,107,0.35)",
               }}
             >
               Book Appointment
             </Link>
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="md:hidden flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE4D3] text-[#163A2B] transition-colors hover:bg-[#EDE4D3]"
+              className={`md:hidden flex h-10 w-10 items-center justify-center rounded-full border transition-colors duration-300 ${
+                isHeroMode
+                  ? "border-white/30 text-white hover:bg-white/10"
+                  : "border-[#EDE4D3] text-[#163A2B] hover:bg-[#EDE4D3]"
+              }`}
               aria-label="Toggle menu"
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -118,7 +146,7 @@ export function SiteHeader() {
                   key={link.href}
                   href={link.href}
                   className={`text-lg font-medium transition-colors ${
-                    pathname === link.href ? "text-[#163A2B]" : "text-[#6B7A6F] hover:text-[#163A2B]"
+                    pathname === link.href.split("#")[0] ? "text-[#163A2B]" : "text-[#6B7A6F] hover:text-[#163A2B]"
                   }`}
                   style={{ fontFamily: "var(--sp-font-display)" }}
                 >

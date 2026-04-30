@@ -12,7 +12,9 @@ export default function HomePage() {
       <AboutSection />
       <ServicesSection />
       <CtaBannerSection />
-      <TestimonialsSection />
+      <div id="testimonials">
+        <TestimonialsSection />
+      </div>
       <BookingCtaSection />
     </div>
   );
