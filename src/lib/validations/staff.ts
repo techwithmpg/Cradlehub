@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { STAFF_TYPES } from "@/constants/staff";
 
-const uuid = z.string().uuid("Invalid ID");
+// z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
+const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
 
 export const createStaffSchema = z.object({

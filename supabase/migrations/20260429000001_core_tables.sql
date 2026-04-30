@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS staff (
                 CHECK (tier IN ('senior', 'mid', 'junior')),
   system_role   TEXT        NOT NULL DEFAULT 'staff'
                 CHECK (system_role IN ('owner', 'manager', 'crm', 'staff')),
+  staff_type    TEXT        NOT NULL DEFAULT 'therapist'
+                CHECK (staff_type IN ('therapist', 'nail_tech', 'aesthetician', 'csr', 'driver', 'utility', 'salon_head', 'managerial')),
+  is_head       BOOLEAN     NOT NULL DEFAULT FALSE,
   is_active     BOOLEAN     NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -75,6 +78,8 @@ COMMENT ON TABLE  staff             IS 'All staff across all branches. system_ro
 COMMENT ON COLUMN staff.auth_user_id IS 'Links to Supabase Auth. NULL = staff member has no system login yet.';
 COMMENT ON COLUMN staff.tier         IS 'Therapist classification (senior/mid/junior). Label only — does not affect access.';
 COMMENT ON COLUMN staff.system_role  IS 'owner | manager | crm | staff. Controls workspace routing on login.';
+COMMENT ON COLUMN staff.staff_type   IS 'Real-world job function. Separate from system_role which controls app access.';
+COMMENT ON COLUMN staff.is_head      IS 'TRUE if this staff member is a department head or supervisor.';
 COMMENT ON COLUMN staff.branch_id    IS 'Primary branch assignment. Owner can see all branches regardless.';
 
 

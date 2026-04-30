@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
@@ -56,8 +56,8 @@ export default async function UtilityPanelPage() {
       <div
         style={{
           backgroundColor: "var(--cs-surface-warm)",
-          border: "1px solid var(--cs-border-light)",
-          borderRadius: "var(--cs-radius-lg)",
+          border: "1px solid var(--cs-border-soft)",
+          borderRadius: "var(--cs-r-lg)",
           padding: "2rem",
           textAlign: "center",
           marginBottom: "1.5rem",
@@ -108,9 +108,9 @@ export default async function UtilityPanelPage() {
               alignItems: "flex-start",
               gap: "0.75rem",
               padding: "1rem",
-              borderRadius: "var(--cs-radius-lg)",
+              borderRadius: "var(--cs-r-lg)",
               backgroundColor: "var(--cs-surface-warm)",
-              border: "1px solid var(--cs-border-light)",
+              border: "1px solid var(--cs-border-soft)",
               opacity: 0.7,
             }}
           >
@@ -154,3 +154,4 @@ export default async function UtilityPanelPage() {
     </div>
   );
 }
+

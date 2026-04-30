@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/features/dashboard/page-header";
+﻿import { PageHeader } from "@/components/features/dashboard/page-header";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { StatCard } from "@/components/features/dashboard/stat-card";
@@ -45,7 +45,7 @@ function getGreeting(): string {
 }
 
 function statusStripColor(status: string): string {
-  if (status === "completed") return "var(--cs-sage)";
+  if (status === "completed") return "var(--cs-success)";
   if (status === "in_progress") return "var(--cs-sand)";
   if (status === "cancelled" || status === "no_show") return "var(--cs-text-muted)";
   return "var(--cs-sand)";
@@ -93,49 +93,41 @@ export default async function StaffTodayPage() {
         })}
       />
 
-      <div
-        style={{
-          padding: "0.875rem 1.25rem",
-          backgroundColor: "var(--cs-sand-lighter)",
-          border: "1px solid var(--cs-border)",
-          borderRadius: 10,
-          marginBottom: "1.25rem",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.75rem",
-        }}
-      >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            backgroundColor: "var(--cs-sand)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "1rem",
-            fontWeight: 700,
-            color: "#fff",
-            flexShrink: 0,
-          }}
-        >
+      {/* Workspace identity strip */}
+      <div style={{
+        display:      "flex",
+        alignItems:   "center",
+        gap:          12,
+        padding:      "14px 16px",
+        background:   "var(--cs-staff-bg)",
+        border:       "1px solid rgba(138,106,90,0.15)",
+        borderLeft:   "3px solid var(--cs-staff-accent)",
+        borderRadius: "var(--cs-r-md)",
+        marginBottom: "1.25rem",
+      }}>
+        <div style={{
+          width:          40,
+          height:         40,
+          borderRadius:   "50%",
+          background:     "linear-gradient(135deg, var(--cs-staff-accent), var(--cs-sand))",
+          display:        "flex",
+          alignItems:     "center",
+          justifyContent: "center",
+          fontSize:       16,
+          fontWeight:     700,
+          color:          "#fff",
+          flexShrink:     0,
+        }}>
           {staff.full_name.charAt(0).toUpperCase()}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--cs-text)" }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-staff-text)" }}>
             Good {getGreeting()}, {staff.full_name.split(" ")[0]}
           </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+          <div style={{ fontSize: 11.5, color: "var(--cs-text-muted)" }}>
             {STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Staff"}
-            {staff.tier && (
-              <span style={{ marginLeft: 6 }}>
-                &middot; {tierLabel(staff.tier)}
-              </span>
-            )}
-            <span style={{ marginLeft: 6 }}>
-              &middot; {bookings.length} appointment{bookings.length !== 1 ? "s" : ""} today
-            </span>
+            {staff.tier && <span style={{ marginLeft: 6 }}>&middot; {tierLabel(staff.tier)}</span>}
+            <span style={{ marginLeft: 6 }}>&middot; {bookings.length} appointment{bookings.length !== 1 ? "s" : ""} today</span>
           </div>
         </div>
       </div>
@@ -145,11 +137,11 @@ export default async function StaffTodayPage() {
           style={{
             padding: "0.75rem 1rem",
             marginBottom: "1.25rem",
-            backgroundColor: "var(--cs-sage-light)",
-            border: "1px solid var(--cs-sage)",
+            backgroundColor: "var(--cs-success-bg)",
+            border: "1px solid var(--cs-success)",
             borderRadius: 8,
             fontSize: "0.8125rem",
-            color: "var(--cs-sage)",
+            color: "var(--cs-success)",
           }}
         >
           <strong>Supervisor View</strong> &mdash; Department oversight and team scheduling tools are coming soon.
@@ -202,7 +194,7 @@ export default async function StaffTodayPage() {
                   padding: "1rem",
                   borderBottom: i < bookings.length - 1 ? "1px solid var(--cs-border)" : "none",
                   backgroundColor:
-                    booking.status === "in_progress" ? "var(--cs-sand-lighter)" : "transparent",
+                    booking.status === "in_progress" ? "var(--cs-sand-mist)" : "transparent",
                 }}
               >
                 <div
@@ -270,3 +262,4 @@ export default async function StaffTodayPage() {
     </div>
   );
 }
+

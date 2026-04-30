@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { RoleBadge } from "@/components/features/dashboard/role-badge";
@@ -110,7 +110,7 @@ export default async function OwnerStaffPage({
                 padding: "5px 14px",
                 borderRadius: 6,
                 border: "1px solid var(--cs-border)",
-                backgroundColor: isActive ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                backgroundColor: isActive ? "var(--cs-sand-mist)" : "var(--cs-surface)",
                 color: isActive ? "var(--cs-sand)" : "var(--cs-text-muted)",
                 fontSize: "0.8125rem",
                 textDecoration: "none",
@@ -278,7 +278,7 @@ export default async function OwnerStaffPage({
                         width: 36,
                         height: 36,
                         borderRadius: "50%",
-                        backgroundColor: "var(--cs-sand-lighter)",
+                        backgroundColor: "var(--cs-sand-mist)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -305,7 +305,7 @@ export default async function OwnerStaffPage({
                       style={{
                         fontSize: "0.7rem",
                         color: "var(--cs-sand)",
-                        backgroundColor: "var(--cs-sand-lighter)",
+                        backgroundColor: "var(--cs-sand-mist)",
                         padding: "2px 8px",
                         borderRadius: 4,
                         fontWeight: 600,
@@ -424,3 +424,4 @@ export default async function OwnerStaffPage({
     </div>
   );
 }
+

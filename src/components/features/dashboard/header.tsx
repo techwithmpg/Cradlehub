@@ -1,7 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { RoleBadge } from "./role-badge";
+import { redirect }     from "next/navigation";
 
 async function logoutAction() {
   "use server";
@@ -10,14 +8,24 @@ async function logoutAction() {
   redirect("/login");
 }
 
-const WORKSPACE_TITLES: Record<string, string> = {
+const WORKSPACE_LABEL: Record<string, string> = {
   owner:             "Owner's Suite",
-  manager:           "Operations Dashboard",
-  assistant_manager: "Operations Dashboard",
+  manager:           "Operations",
+  assistant_manager: "Operations",
   store_manager:     "Branch Operations",
-  crm:               "CRM Hub",
   csr:               "Front Desk",
+  crm:               "CRM Hub",
   staff:             "Therapist Workspace",
+};
+
+const ROLE_ACCENT: Record<string, string> = {
+  owner:             "var(--cs-owner-accent)",
+  manager:           "var(--cs-manager-accent)",
+  assistant_manager: "var(--cs-manager-accent)",
+  store_manager:     "var(--cs-manager-accent)",
+  csr:               "var(--cs-csr-accent)",
+  crm:               "var(--cs-crm-accent)",
+  staff:             "var(--cs-staff-accent)",
 };
 
 type HeaderProps = {
@@ -26,55 +34,103 @@ type HeaderProps = {
 };
 
 export function Header({ role, fullName }: HeaderProps) {
-  const workspaceTitle = WORKSPACE_TITLES[role] ?? "CradleHub";
+  const label  = WORKSPACE_LABEL[role] ?? "Dashboard";
+  const accent = ROLE_ACCENT[role] ?? "var(--cs-sand)";
 
   return (
     <header style={{
-      height:          56,
-      backgroundColor: "rgba(249, 246, 240, 0.94)",
-      backdropFilter:  "blur(12px)",
-      borderBottom:    "1px solid var(--cs-border)",
+      height:          52,
+      backgroundColor: "var(--cs-surface)",
+      borderBottom:    "1px solid var(--cs-border-soft)",
       display:         "flex",
       alignItems:      "center",
       justifyContent:  "space-between",
-      padding:         "0 1.5rem",
+      padding:         "0 20px",
       position:        "sticky",
       top:             0,
       zIndex:          20,
+      boxShadow:       "var(--cs-shadow-xs)",
     }}>
-      {/* Left: workspace label */}
-      <div style={{ paddingLeft: 44 }} className="md:pl-0">
+
+      {/* Left – workspace breadcrumb */}
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 40 }}
+        className="md:pl-0"
+      >
+        <div style={{
+          width:        6,
+          height:       6,
+          borderRadius: "50%",
+          background:   accent,
+          flexShrink:   0,
+        }} />
         <span style={{
-          fontSize:   "0.9375rem",
-          fontWeight: 600,
+          fontSize:   13,
+          fontWeight: 500,
           color:      "var(--cs-text)",
-          fontFamily: "var(--font-display)",
+          fontFamily: "var(--cs-font-body)",
         }}>
-          {workspaceTitle}
+          {label}
         </span>
       </div>
 
-      {/* Right */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div className="hidden sm:flex" style={{ alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)" }}>
-            {fullName}
-          </span>
-          <RoleBadge role={role} />
+      {/* Right – date + user + sign out */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+        <div style={{
+          fontSize:           11.5,
+          color:              "var(--cs-text-subtle)",
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          {new Date().toLocaleDateString("en-PH", {
+            weekday: "short", month: "short", day: "numeric",
+          })}
         </div>
+
+        <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{
+            width:          26,
+            height:         26,
+            borderRadius:   "50%",
+            background:     `${accent}22`,
+            border:         `1.5px solid ${accent}40`,
+            display:        "flex",
+            alignItems:     "center",
+            justifyContent: "center",
+            fontSize:       10,
+            fontWeight:     600,
+            color:          accent,
+          }}>
+            {fullName.charAt(0).toUpperCase()}
+          </div>
+          <span
+            className="hidden sm:block"
+            style={{ fontSize: 12.5, color: "var(--cs-text-secondary)" }}
+          >
+            {fullName.split(" ")[0]}
+          </span>
+        </div>
+
+        <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 2px" }} />
+
         <form action={logoutAction}>
-          <Button
+          <button
             type="submit"
-            variant="ghost"
-            size="sm"
             style={{
-              fontSize:   "0.8125rem",
-              color:      "var(--cs-text-muted)",
-              padding:    "0.25rem 0.625rem",
+              padding:      "5px 10px",
+              fontSize:     11.5,
+              color:        "var(--cs-text-muted)",
+              background:   "transparent",
+              border:       "none",
+              cursor:       "pointer",
+              borderRadius: "var(--cs-r-xs)",
+              transition:   "var(--cs-trans)",
             }}
           >
             Sign out
-          </Button>
+          </button>
         </form>
       </div>
     </header>

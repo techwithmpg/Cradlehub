@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { CustomerSegmentBadge } from "@/components/features/crm/customer-segment-badge";
@@ -71,7 +71,7 @@ export default async function LapsedPage() {
                 padding: "5px 14px",
                 borderRadius: 6,
                 border: "1px solid var(--cs-border)",
-                backgroundColor: isActive ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                backgroundColor: isActive ? "var(--cs-sand-mist)" : "var(--cs-surface)",
                 color: isActive ? "var(--cs-sand)" : "var(--cs-text-muted)",
                 fontSize: "0.8125rem",
                 textDecoration: "none",
@@ -164,3 +164,4 @@ export default async function LapsedPage() {
     </div>
   );
 }
+

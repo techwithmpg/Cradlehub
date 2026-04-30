@@ -9,28 +9,47 @@ import { revalidatePath } from "next/cache";
 async function requireOwner() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return { error: "Not logged in" } as const;
   const { data: me } = await supabase
     .from("staff").select("system_role").eq("auth_user_id", user.id).single();
-  if (me?.system_role !== "owner") return null;
+  if (!me) return { error: "No staff record linked to this account. Ask an owner to set your auth_user_id." } as const;
+  if (me.system_role !== "owner") return { error: "Owner access required" } as const;
   return { supabase, admin: createAdminClient() };
 }
 
 async function requireOwnerOrManager() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return { error: "Not logged in" } as const;
   const { data: me } = await supabase
     .from("staff").select("id, branch_id, system_role").eq("auth_user_id", user.id).single();
-  if (!me || !["owner", "manager"].includes(me.system_role)) return null;
+  if (!me) return { error: "No staff record linked to this account" } as const;
+  if (!["owner", "manager"].includes(me.system_role)) {
+    return { error: "Owner or manager access required" } as const;
+  }
   return { supabase, admin: createAdminClient(), me };
 }
 
-type OwnerContext = NonNullable<Awaited<ReturnType<typeof requireOwner>>>;
-type ManagerContext = NonNullable<Awaited<ReturnType<typeof requireOwnerOrManager>>>;
+type OwnerContext = Extract<Awaited<ReturnType<typeof requireOwner>>, { supabase: unknown }>;
+type ManagerContext = Extract<Awaited<ReturnType<typeof requireOwnerOrManager>>, { supabase: unknown }>;
+
+function isMissingStaffOrgColumnsError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('column staff.staff_type does not exist') ||
+    m.includes('column "staff_type" does not exist') ||
+    m.includes('column staff.is_head does not exist') ||
+    m.includes('column "is_head" does not exist') ||
+    m.includes('in the schema cache') // Supabase schema-cache variant
+  );
+}
 
 async function syncStaffServices(
-  supabase: OwnerContext["supabase"] | ManagerContext["supabase"],
+  supabase:
+    | OwnerContext["supabase"]
+    | OwnerContext["admin"]
+    | ManagerContext["supabase"]
+    | ManagerContext["admin"],
   staffId: string,
   serviceIds: string[] | undefined
 ) {
@@ -54,7 +73,7 @@ export async function createStaffAction(rawInput: unknown) {
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
   const ctx = await requireOwner();
-  if (!ctx) return { success: false, error: "Unauthorized" };
+  if ("error" in ctx) return { success: false, error: ctx.error };
 
   const { data: d } = parsed;
 
@@ -64,26 +83,39 @@ export async function createStaffAction(rawInput: unknown) {
   );
   if (authErr) return { success: false, error: `Auth invite failed: ${authErr.message}` };
 
-  const { data: staffRow, error } = await ctx.supabase
+  const payload = {
+    branch_id:    d.branchId,
+    auth_user_id: authUser.user.id,
+    full_name:    d.fullName,
+    phone:        d.phone       ?? null,
+    tier:         d.tier,
+    system_role:  d.systemRole,
+    staff_type:   d.staffType,
+    is_head:      d.isHead,
+  };
+
+  let result = await ctx.supabase
     .from("staff")
-    .insert({
-      branch_id:    d.branchId,
-      auth_user_id: authUser.user.id,
-      full_name:    d.fullName,
-      phone:        d.phone       ?? null,
-      tier:         d.tier,
-      system_role:  d.systemRole,
-      staff_type:   d.staffType,
-      is_head:      d.isHead,
-    })
+    .insert(payload)
     .select("id")
     .single();
 
-  if (error) return { success: false, error: error.message };
+  // Backward compatibility: if staff_type/is_head columns don't exist yet
+  if (result.error && isMissingStaffOrgColumnsError(result.error.message)) {
+    const { staff_type: _st, is_head: _ih, ...legacyPayload } = payload;
+    result = await ctx.supabase
+      .from("staff")
+      .insert(legacyPayload)
+      .select("id")
+      .single();
+  }
+
+  if (result.error) return { success: false, error: result.error.message };
+  const staffRow = result.data;
 
   if (staffRow && d.serviceIds && d.serviceIds.length > 0) {
     try {
-      await syncStaffServices(ctx.supabase, staffRow.id, d.serviceIds);
+      await syncStaffServices(ctx.admin, staffRow.id, d.serviceIds);
     } catch (e) {
       return { success: false, error: `Staff created but failed to set services: ${(e as Error).message}` };
     }
@@ -96,7 +128,7 @@ export async function createStaffAction(rawInput: unknown) {
 // ── Generate invite link (owner or manager) ───────────────────────────────
 export async function generateInviteAction(rawInput: unknown) {
   const ctx = await requireOwnerOrManager();
-  if (!ctx) return { success: false, error: "Unauthorized" };
+  if ("error" in ctx) return { success: false, error: ctx.error };
 
   const { branchId, email } = rawInput as { branchId?: string; email?: string };
 
@@ -108,25 +140,37 @@ export async function generateInviteAction(rawInput: unknown) {
   const targetBranch = branchId || ctx.me.branch_id;
   if (!targetBranch) return { success: false, error: "Branch is required" };
 
-  const { data, error } = await ctx.supabase
+  const payload = {
+    branch_id:    targetBranch,
+    full_name:    "Pending Invitation",
+    phone:        "0000000000",
+    tier:         "junior",
+    system_role:  "staff",
+    staff_type:   "therapist" as const,
+    is_head:      false,
+    is_active:    false,
+  };
+
+  let result = await ctx.supabase
     .from("staff")
-    .insert({
-      branch_id:    targetBranch,
-      full_name:    "Pending Invitation",
-      phone:        "0000000000",
-      tier:         "junior",
-      system_role:  "staff",
-      staff_type:   "therapist",
-      is_head:      false,
-      is_active:    false,
-    })
+    .insert(payload)
     .select("id")
     .single();
 
-  if (error) return { success: false, error: error.message };
+  // Backward compatibility: if staff_type/is_head columns don't exist yet
+  if (result.error && isMissingStaffOrgColumnsError(result.error.message)) {
+    const { staff_type: _st, is_head: _ih, ...legacyPayload } = payload;
+    result = await ctx.supabase
+      .from("staff")
+      .insert(legacyPayload)
+      .select("id")
+      .single();
+  }
+
+  if (result.error) return { success: false, error: result.error.message };
 
   revalidatePath("/owner/staff");
-  return { success: true, staffId: data.id };
+  return { success: true, staffId: result.data.id };
 }
 
 // ── Onboard: claim invite by creating auth account ────────────────────────
@@ -196,7 +240,7 @@ export async function updateStaffAction(rawInput: unknown) {
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
   const ctx = await requireOwnerOrManager();
-  if (!ctx) return { success: false, error: "Unauthorized" };
+  if ("error" in ctx) return { success: false, error: ctx.error };
 
   const { staffId, serviceIds, ...updates } = parsed.data;
 
@@ -209,25 +253,36 @@ export async function updateStaffAction(rawInput: unknown) {
     }
   }
 
-  const { error } = await ctx.supabase
+  const updatePayload = {
+    ...(updates.fullName   !== undefined && { full_name:    updates.fullName }),
+    ...(updates.phone      !== undefined && { phone:        updates.phone }),
+    ...(updates.tier       !== undefined && { tier:         updates.tier }),
+    ...(updates.systemRole !== undefined && { system_role:  updates.systemRole }),
+    ...(updates.staffType  !== undefined && { staff_type:   updates.staffType }),
+    ...(updates.isHead     !== undefined && { is_head:      updates.isHead }),
+    ...(updates.branchId   !== undefined && { branch_id:    updates.branchId }),
+    ...(updates.isActive   !== undefined && { is_active:    updates.isActive }),
+  };
+
+  let updateResult = await ctx.supabase
     .from("staff")
-    .update({
-      ...(updates.fullName   !== undefined && { full_name:    updates.fullName }),
-      ...(updates.phone      !== undefined && { phone:        updates.phone }),
-      ...(updates.tier       !== undefined && { tier:         updates.tier }),
-      ...(updates.systemRole !== undefined && { system_role:  updates.systemRole }),
-      ...(updates.staffType  !== undefined && { staff_type:   updates.staffType }),
-      ...(updates.isHead     !== undefined && { is_head:      updates.isHead }),
-      ...(updates.branchId   !== undefined && { branch_id:    updates.branchId }),
-      ...(updates.isActive   !== undefined && { is_active:    updates.isActive }),
-    })
+    .update(updatePayload)
     .eq("id", staffId);
 
-  if (error) return { success: false, error: error.message };
+  // Backward compatibility: if staff_type/is_head columns don't exist yet
+  if (updateResult.error && isMissingStaffOrgColumnsError(updateResult.error.message)) {
+    const { staff_type: _st, is_head: _ih, ...legacyPayload } = updatePayload;
+    updateResult = await ctx.supabase
+      .from("staff")
+      .update(legacyPayload)
+      .eq("id", staffId);
+  }
+
+  if (updateResult.error) return { success: false, error: updateResult.error.message };
 
   if (serviceIds !== undefined) {
     try {
-      await syncStaffServices(ctx.supabase, staffId, serviceIds);
+      await syncStaffServices(ctx.admin, staffId, serviceIds);
     } catch (e) {
       return { success: false, error: `Profile updated but failed to sync services: ${(e as Error).message}` };
     }

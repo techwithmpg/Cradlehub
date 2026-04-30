@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/features/dashboard/page-header";
+﻿import { PageHeader } from "@/components/features/dashboard/page-header";
 
 const COMING_SOON_REPORTS = [
   { icon: "📊", label: "Daily Branch Summary", desc: "Revenue, bookings, and staff utilization for the day" },
@@ -22,8 +22,8 @@ export default function ManagerReportsPage() {
       <div
         style={{
           backgroundColor: "var(--cs-surface-warm)",
-          border: "1px solid var(--cs-border-light)",
-          borderRadius: "var(--cs-radius-lg)",
+          border: "1px solid var(--cs-border-soft)",
+          borderRadius: "var(--cs-r-lg)",
           padding: "2rem",
           textAlign: "center",
           marginBottom: "1.5rem",
@@ -73,9 +73,9 @@ export default function ManagerReportsPage() {
               alignItems: "flex-start",
               gap: "0.75rem",
               padding: "1rem",
-              borderRadius: "var(--cs-radius-lg)",
+              borderRadius: "var(--cs-r-lg)",
               backgroundColor: "var(--cs-surface-warm)",
-              border: "1px solid var(--cs-border-light)",
+              border: "1px solid var(--cs-border-soft)",
               opacity: 0.7,
             }}
           >
@@ -101,3 +101,4 @@ export default function ManagerReportsPage() {
     </div>
   );
 }
+

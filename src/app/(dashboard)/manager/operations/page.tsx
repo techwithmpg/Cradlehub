@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/features/dashboard/page-header";
+﻿import { PageHeader } from "@/components/features/dashboard/page-header";
 import Link from "next/link";
 
 const AVAILABLE_TOOLS = [
@@ -56,13 +56,13 @@ export default function ManagerOperationsPage() {
                 alignItems: "flex-start",
                 gap: "0.75rem",
                 padding: "1rem",
-                borderRadius: "var(--cs-radius-lg)",
+                borderRadius: "var(--cs-r-lg)",
                 backgroundColor: "var(--cs-surface)",
-                border: "1px solid var(--cs-border-light)",
+                border: "1px solid var(--cs-border-soft)",
                 boxShadow: "var(--cs-shadow-sm)",
                 textDecoration: "none",
                 color: "var(--cs-text)",
-                transition: "var(--cs-transition)",
+                transition: "var(--cs-trans)",
               }}
             >
               <span style={{ fontSize: 20, lineHeight: 1 }}>{tool.icon}</span>
@@ -115,9 +115,9 @@ export default function ManagerOperationsPage() {
                 alignItems: "flex-start",
                 gap: "0.75rem",
                 padding: "1rem",
-                borderRadius: "var(--cs-radius-lg)",
+                borderRadius: "var(--cs-r-lg)",
                 backgroundColor: "var(--cs-surface-warm)",
-                border: "1px solid var(--cs-border-light)",
+                border: "1px solid var(--cs-border-soft)",
                 opacity: 0.7,
               }}
             >
@@ -144,3 +144,4 @@ export default function ManagerOperationsPage() {
     </div>
   );
 }
+

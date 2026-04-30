@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(pnpm type-check *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(pnpm build *)"
     ]
   }
 }

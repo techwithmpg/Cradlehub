@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
@@ -180,7 +180,7 @@ export default async function StaffStatsPage({
                   fontWeight: 700,
                   color:
                     completionRate >= 80
-                      ? "var(--cs-sage)"
+                      ? "var(--cs-success)"
                       : completionRate >= 60
                         ? "var(--cs-sand)"
                         : "var(--cs-manager-accent)",
@@ -205,7 +205,7 @@ export default async function StaffStatsPage({
                   borderRadius: 4,
                   backgroundColor:
                     completionRate >= 80
-                      ? "var(--cs-sage)"
+                      ? "var(--cs-success)"
                       : completionRate >= 60
                         ? "var(--cs-sand)"
                         : "var(--cs-manager-accent)",
@@ -239,7 +239,7 @@ export default async function StaffStatsPage({
               {
                 label: "Completed sessions",
                 value: stats.completed,
-                color: "var(--cs-sage)",
+                color: "var(--cs-success)",
                 pct: completionRate,
               },
               {
@@ -321,3 +321,4 @@ export default async function StaffStatsPage({
     </div>
   );
 }
+

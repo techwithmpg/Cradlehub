@@ -1,50 +1,92 @@
-import { faqEntries, testimonials } from "@/lib/public/public-site-data";
+import { ScrollReveal } from "./scroll-reveal";
+import { Star } from "lucide-react";
+
+const testimonials = [
+  {
+    name: "Maria Clara R.",
+    role: "Regular Client",
+    text: "The deep tissue massage at Cradle completely changed how I feel after long work weeks. The therapists truly listen to your body and adjust pressure perfectly. I leave feeling light and renewed every single time.",
+    rating: 5,
+    initials: "MC",
+  },
+  {
+    name: "James Patrick L.",
+    role: "First-time Visitor",
+    text: "I was amazed by the ambience the moment I walked in. The hot stone therapy was unlike anything I have experienced — warm, deeply relaxing, and genuinely therapeutic. This is now my go-to spa in Bacolod.",
+    rating: 5,
+    initials: "JP",
+  },
+  {
+    name: "Anna Marie S.",
+    role: "Monthly Member",
+    text: "My husband and I booked the couples massage for our anniversary, and it was absolutely perfect. The private suite, the calming music, and the skilled hands of the therapists made it a memory we will cherish.",
+    rating: 5,
+    initials: "AM",
+  },
+];
 
 export function TestimonialsSection() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 md:py-12">
-      <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold text-[#fff6de] md:text-3xl">
-            Client Reviews
-          </h2>
-          <p className="mt-1.5 max-w-2xl text-sm text-[#f8ecd1]/78 md:text-base">
-            Realistic sample testimonials for now. Final client reviews can be connected later.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {testimonials.map((review) => (
-              <article
-                key={review.id}
-                className="rounded-2xl border border-[#f6e3a1]/16 bg-[linear-gradient(170deg,rgba(39,27,18,0.76),rgba(25,18,13,0.72))] p-4 shadow-[0_10px_26px_rgba(9,6,4,0.18)]"
-              >
-                <p className="text-sm font-medium text-[#e7c873]">{review.highlight}</p>
-                <p className="mt-1.5 text-sm leading-relaxed text-[#f8ecd1]/80">
-                  &ldquo;{review.quote}&rdquo;
-                </p>
-                <p className="mt-2 text-xs tracking-[0.18em] text-[#f6e3a1]/58 uppercase">
-                  {review.customer}
-                </p>
-              </article>
-            ))}
-          </div>
+    <section className="py-24 lg:py-32" style={{ background: "#F7F3EB" }}>
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <ScrollReveal>
+            <p
+              className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
+              style={{ color: "#C8A96B" }}
+            >
+              Testimonials
+            </p>
+            <h2
+              className="text-3xl sm:text-4xl font-medium leading-tight"
+              style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+            >
+              What Our Clients Say
+            </h2>
+          </ScrollReveal>
         </div>
 
-        <aside className="rounded-3xl border border-[#f6e3a1]/16 bg-[linear-gradient(180deg,rgba(38,26,18,0.75),rgba(24,17,12,0.7))] p-5">
-          <h2 className="font-heading text-xl font-semibold text-[#fff6de] md:text-2xl">Frequently Asked</h2>
-          <div className="mt-3 space-y-2.5">
-            {faqEntries.map((faq) => (
-              <details
-                key={faq.question}
-                className="rounded-xl border border-[#f6e3a1]/16 bg-[#261a12]/55 px-3.5 py-3"
-              >
-                <summary className="cursor-pointer list-none text-sm font-medium text-[#f8ecd1]">
-                  {faq.question}
-                </summary>
-                <p className="mt-2 text-sm text-[#f8ecd1]/72">{faq.answer}</p>
-              </details>
-            ))}
-          </div>
-        </aside>
+        <div className="grid md:grid-cols-3 gap-8">
+          {testimonials.map((t, i) => (
+            <ScrollReveal key={t.name} delay={i * 120} variant="scale">
+              <div className="h-full bg-white rounded-2xl p-8 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500">
+                {/* Stars */}
+                <div className="flex gap-1 mb-5">
+                  {Array.from({ length: t.rating }).map((_, si) => (
+                    <Star
+                      key={si}
+                      className="h-4 w-4 fill-[#C8A96B] text-[#C8A96B]"
+                    />
+                  ))}
+                </div>
+
+                <p
+                  className="text-[14px] leading-relaxed mb-8"
+                  style={{ color: "#6B7A6F" }}
+                >
+                  &ldquo;{t.text}&rdquo;
+                </p>
+
+                <div className="flex items-center gap-3 mt-auto">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#163A2B] text-[#C8A96B] text-[12px] font-semibold">
+                    {t.initials}
+                  </div>
+                  <div>
+                    <p
+                      className="text-[13px] font-semibold"
+                      style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                    >
+                      {t.name}
+                    </p>
+                    <p className="text-[11px]" style={{ color: "#9AA89A" }}>
+                      {t.role}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </ScrollReveal>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
@@ -76,7 +76,7 @@ const CATEGORIES = [
   },
   {
     title: "🌐 Public Facing",
-    color: "var(--cs-clay)",
+    color: "var(--cs-sand-light)",
     links: [
       { icon: "🏠", label: "Homepage", href: "/" },
       { icon: "📅", label: "Book Online", href: "/book" },
@@ -156,10 +156,10 @@ export default async function DevPanelPage() {
           style={{
             padding: "6px 12px",
             borderRadius: 6,
-            backgroundColor: process.env.NODE_ENV !== "production" ? "var(--cs-sage-light)" : "var(--cs-surface)",
+            backgroundColor: process.env.NODE_ENV !== "production" ? "var(--cs-success-bg)" : "var(--cs-surface)",
             border: "1px solid var(--cs-border)",
             fontSize: "0.8125rem",
-            color: process.env.NODE_ENV !== "production" ? "var(--cs-sage)" : "var(--cs-text)",
+            color: process.env.NODE_ENV !== "production" ? "var(--cs-success)" : "var(--cs-text)",
           }}
         >
           NODE_ENV: {process.env.NODE_ENV ?? "undefined"}
@@ -168,10 +168,10 @@ export default async function DevPanelPage() {
           style={{
             padding: "6px 12px",
             borderRadius: 6,
-            backgroundColor: devMode ? "var(--cs-sage-light)" : "var(--cs-surface)",
+            backgroundColor: devMode ? "var(--cs-success-bg)" : "var(--cs-surface)",
             border: "1px solid var(--cs-border)",
             fontSize: "0.8125rem",
-            color: devMode ? "var(--cs-sage)" : "var(--cs-text)",
+            color: devMode ? "var(--cs-success)" : "var(--cs-text)",
           }}
         >
           DEV_ALLOW_ALL_MODULES: {devMode ? "true ✅" : "false"}
@@ -238,11 +238,11 @@ export default async function DevPanelPage() {
                     alignItems: "center",
                     gap: "0.625rem",
                     padding: "0.5rem 0.75rem",
-                    borderRadius: "var(--cs-radius-sm)",
+                    borderRadius: "var(--cs-r-sm)",
                     textDecoration: "none",
                     color: "var(--cs-text-secondary)",
                     fontSize: "0.875rem",
-                    transition: "var(--cs-transition)",
+                    transition: "var(--cs-trans)",
                   }}
                 >
                   <span style={{ fontSize: 16, flexShrink: 0 }}>{link.icon}</span>
@@ -312,9 +312,9 @@ export default async function DevPanelPage() {
                       fontSize: "0.6875rem",
                       fontWeight: 600,
                       padding: "2px 8px",
-                      borderRadius: "var(--cs-radius-pill)",
-                      backgroundColor: branch.is_active ? "var(--cs-sage-light)" : "var(--cs-border)",
-                      color: branch.is_active ? "var(--cs-sage)" : "var(--cs-text-muted)",
+                      borderRadius: "var(--cs-r-pill)",
+                      backgroundColor: branch.is_active ? "var(--cs-success-bg)" : "var(--cs-border)",
+                      color: branch.is_active ? "var(--cs-success)" : "var(--cs-text-muted)",
                     }}
                   >
                     {branch.is_active ? "Active" : "Inactive"}
@@ -328,7 +328,7 @@ export default async function DevPanelPage() {
                       alignItems: "center",
                       gap: "0.625rem",
                       padding: "0.5rem 0.75rem",
-                      borderRadius: "var(--cs-radius-sm)",
+                      borderRadius: "var(--cs-r-sm)",
                       textDecoration: "none",
                       color: "var(--cs-text-secondary)",
                       fontSize: "0.875rem",
@@ -345,7 +345,7 @@ export default async function DevPanelPage() {
                       alignItems: "center",
                       gap: "0.625rem",
                       padding: "0.5rem 0.75rem",
-                      borderRadius: "var(--cs-radius-sm)",
+                      borderRadius: "var(--cs-r-sm)",
                       textDecoration: "none",
                       color: "var(--cs-text-secondary)",
                       fontSize: "0.875rem",
@@ -362,7 +362,7 @@ export default async function DevPanelPage() {
                       alignItems: "center",
                       gap: "0.625rem",
                       padding: "0.5rem 0.75rem",
-                      borderRadius: "var(--cs-radius-sm)",
+                      borderRadius: "var(--cs-r-sm)",
                       textDecoration: "none",
                       color: "var(--cs-text-secondary)",
                       fontSize: "0.875rem",
@@ -381,3 +381,4 @@ export default async function DevPanelPage() {
     </div>
   );
 }
+

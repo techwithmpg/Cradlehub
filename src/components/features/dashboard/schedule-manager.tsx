@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -200,7 +200,7 @@ export function ScheduleManager({
       padding: "5px 12px",
       borderRadius: 5,
       border: `1px solid ${active ? "var(--cs-sand)" : "var(--cs-border)"}`,
-      backgroundColor: active ? "var(--cs-sand-lighter)" : "transparent",
+      backgroundColor: active ? "var(--cs-sand-mist)" : "transparent",
       color: active ? "var(--cs-sand)" : "var(--cs-text-muted)",
       fontSize: "0.8125rem",
       fontWeight: active ? 600 : 400,
@@ -565,3 +565,4 @@ export function ScheduleManager({
     </div>
   );
 }
+

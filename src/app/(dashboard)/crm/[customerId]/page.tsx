@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
@@ -257,8 +257,8 @@ export default async function CustomerProfilePage({
                 fontSize: "0.75rem",
                 fontWeight: 600,
                 padding: "2px 8px",
-                borderRadius: "var(--cs-radius-pill)",
-                backgroundColor: "var(--cs-sand-lighter)",
+                borderRadius: "var(--cs-r-pill)",
+                backgroundColor: "var(--cs-sand-mist)",
                 color: "var(--cs-sand)",
               }}
             >
@@ -426,7 +426,7 @@ export default async function CustomerProfilePage({
                       alignItems: "center",
                       gap: 8,
                       padding: "0.625rem 0.5rem",
-                      borderRadius: "var(--cs-radius-sm)",
+                      borderRadius: "var(--cs-r-sm)",
                       color: "var(--cs-text-muted)",
                       fontSize: "0.8125rem",
                       opacity: 0.6,
@@ -446,11 +446,11 @@ export default async function CustomerProfilePage({
                       alignItems: "center",
                       gap: 8,
                       padding: "0.625rem 0.5rem",
-                      borderRadius: "var(--cs-radius-sm)",
+                      borderRadius: "var(--cs-r-sm)",
                       color: "var(--cs-text-secondary)",
                       fontSize: "0.8125rem",
                       textDecoration: "none",
-                      transition: "var(--cs-transition)",
+                      transition: "var(--cs-trans)",
                     }}
                   >
                     <span>{action.icon}</span>

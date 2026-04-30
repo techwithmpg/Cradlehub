@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/features/dashboard/page-header";
+﻿import { PageHeader } from "@/components/features/dashboard/page-header";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { getMyWeekAction } from "../actions";
@@ -150,7 +150,7 @@ export default async function StaffWeekPage() {
                   display: "flex",
                   alignItems: "center",
                   padding: "0.625rem 1rem",
-                  backgroundColor: isToday ? "var(--cs-sand-lighter)" : "var(--cs-warm-white)",
+                  backgroundColor: isToday ? "var(--cs-sand-mist)" : "var(--cs-bg)",
                   borderBottom: "1px solid var(--cs-border)",
                   gap: "0.875rem",
                 }}
@@ -316,3 +316,4 @@ export default async function StaffWeekPage() {
     </div>
   );
 }
+

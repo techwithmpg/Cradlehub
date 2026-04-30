@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/features/dashboard/page-header";
+﻿import { PageHeader } from "@/components/features/dashboard/page-header";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { getStaffByBranch, getStaffSchedule, getStaffOverrides, getBlockedTimes } from "@/lib/queries/staff";
 import { createClient } from "@/lib/supabase/server";
@@ -89,7 +89,7 @@ export default async function ManagerStaffPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: "0.75rem",
-                    backgroundColor: "var(--cs-warm-white)",
+                    backgroundColor: "var(--cs-bg)",
                   }}
                 >
                   <div
@@ -130,7 +130,7 @@ export default async function ManagerStaffPage() {
                             width: 22,
                             height: 22,
                             borderRadius: 4,
-                            backgroundColor: hasSchedule ? "var(--cs-sand-lighter)" : "var(--cs-border)",
+                            backgroundColor: hasSchedule ? "var(--cs-sand-mist)" : "var(--cs-border)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -161,3 +161,4 @@ export default async function ManagerStaffPage() {
     </div>
   );
 }
+

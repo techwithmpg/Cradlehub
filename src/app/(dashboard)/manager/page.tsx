@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
@@ -141,6 +141,40 @@ export default async function ManagerTodayPage() {
 
   return (
     <div>
+      {/* Workspace identity strip */}
+      <div style={{
+        display:      "flex",
+        alignItems:   "center",
+        gap:          10,
+        padding:      "12px 14px",
+        background:   "var(--cs-manager-bg)",
+        border:       "1px solid rgba(90,122,138,0.15)",
+        borderRadius: "var(--cs-r-md)",
+        marginBottom: "1.25rem",
+      }}>
+        <div style={{
+          width:          36,
+          height:         36,
+          borderRadius:   "var(--cs-r-sm)",
+          background:     "rgba(90,122,138,0.15)",
+          display:        "flex",
+          alignItems:     "center",
+          justifyContent: "center",
+          fontSize:       18,
+          flexShrink:     0,
+        }}>
+          ▸
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-manager-text)" }}>
+            Operations Dashboard — {branchName}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--cs-text-muted)" }}>
+            {new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })} · Daily operations, live bookings, and branch activity
+          </div>
+        </div>
+      </div>
+
       <PageHeader
         title={`Today — ${branchName}`}
         description={`${new Date().toLocaleDateString("en-PH", {
@@ -148,7 +182,6 @@ export default async function ManagerTodayPage() {
           month: "long",
           day: "numeric",
         })} · Daily operations, live bookings, and branch activity`}
-        icon="📋"
       />
 
       {/* Stats */}
@@ -204,8 +237,8 @@ export default async function ManagerTodayPage() {
                 fontSize: "0.75rem",
                 fontWeight: 600,
                 padding: "2px 8px",
-                borderRadius: "var(--cs-radius-pill)",
-                backgroundColor: "var(--cs-sand-lighter)",
+                borderRadius: "var(--cs-r-pill)",
+                backgroundColor: "var(--cs-sand-mist)",
                 color: "var(--cs-sand)",
               }}
             >
@@ -268,7 +301,7 @@ export default async function ManagerTodayPage() {
                           booking.status === "in_progress"
                             ? "var(--cs-sand)"
                             : booking.status === "completed"
-                            ? "var(--cs-sage)"
+                            ? "var(--cs-success)"
                             : booking.status === "cancelled" || booking.status === "no_show"
                             ? "var(--cs-error)"
                             : "var(--cs-border)",
@@ -375,8 +408,8 @@ export default async function ManagerTodayPage() {
                       alignItems: "center",
                       justifyContent: "space-between",
                       padding: "0.625rem 0.75rem",
-                      borderRadius: "var(--cs-radius-sm)",
-                      backgroundColor: "var(--cs-sand-lighter)",
+                      borderRadius: "var(--cs-r-sm)",
+                      backgroundColor: "var(--cs-sand-mist)",
                       textDecoration: "none",
                       color: "var(--cs-text)",
                       fontSize: "0.8125rem",
@@ -436,11 +469,11 @@ export default async function ManagerTodayPage() {
                     alignItems: "center",
                     gap: 8,
                     padding: "0.625rem 0.5rem",
-                    borderRadius: "var(--cs-radius-sm)",
+                    borderRadius: "var(--cs-r-sm)",
                     textDecoration: "none",
                     color: "var(--cs-text-secondary)",
                     fontSize: "0.8125rem",
-                    transition: "var(--cs-transition)",
+                    transition: "var(--cs-trans)",
                   }}
 
                 >
@@ -478,9 +511,9 @@ export default async function ManagerTodayPage() {
                   fontSize: "0.75rem",
                   fontWeight: 600,
                   padding: "2px 8px",
-                  borderRadius: "var(--cs-radius-pill)",
-                  backgroundColor: "var(--cs-sage-light)",
-                  color: "var(--cs-sage)",
+                  borderRadius: "var(--cs-r-pill)",
+                  backgroundColor: "var(--cs-success-bg)",
+                  color: "var(--cs-success)",
                 }}
               >
                 {staff.length} active
@@ -543,3 +576,4 @@ export default async function ManagerTodayPage() {
     </div>
   );
 }
+

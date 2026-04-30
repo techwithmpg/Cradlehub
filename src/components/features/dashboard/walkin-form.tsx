@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -233,7 +233,7 @@ export function WalkinForm() {
                   bookingType === option.value ? "var(--cs-sand)" : "var(--cs-border)"
                 }`,
                 backgroundColor:
-                  bookingType === option.value ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                  bookingType === option.value ? "var(--cs-sand-mist)" : "var(--cs-surface)",
                 color: bookingType === option.value ? "var(--cs-sand)" : "var(--cs-text)",
                 fontSize: "0.875rem",
                 fontWeight: bookingType === option.value ? 600 : 400,
@@ -393,7 +393,7 @@ export function WalkinForm() {
                   padding: "10px 12px",
                   borderRadius: 8,
                   border: `1.5px solid ${isSelected ? "var(--cs-sand)" : "var(--cs-border)"}`,
-                  backgroundColor: isSelected ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                  backgroundColor: isSelected ? "var(--cs-sand-mist)" : "var(--cs-surface)",
                   textAlign: "left",
                   cursor: "pointer",
                 }}
@@ -470,7 +470,7 @@ export function WalkinForm() {
               style={{
                 marginTop: "0.75rem",
                 padding: "8px 12px",
-                backgroundColor: "var(--cs-sand-lighter)",
+                backgroundColor: "var(--cs-sand-mist)",
                 border: "1px solid var(--cs-sand)",
                 borderRadius: 6,
                 fontSize: "0.875rem",
@@ -524,3 +524,4 @@ export function WalkinForm() {
     </form>
   );
 }
+

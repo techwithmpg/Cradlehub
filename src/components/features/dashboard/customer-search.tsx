@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -133,7 +133,7 @@ export function CustomerSearch() {
                   cursor: "pointer",
                 }}
                 onMouseEnter={(event) => {
-                  event.currentTarget.style.backgroundColor = "var(--cs-warm-white)";
+                  event.currentTarget.style.backgroundColor = "var(--cs-bg)";
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.backgroundColor = "transparent";
@@ -208,3 +208,4 @@ export function CustomerSearch() {
     </div>
   );
 }
+

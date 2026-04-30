@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -74,13 +74,13 @@ export function InviteForm({ branches }: { branches: BranchRow[] }) {
         <div
           style={{
             padding: "1rem",
-            backgroundColor: "var(--cs-sage-light)",
-            border: "1px solid var(--cs-sage)",
+            backgroundColor: "var(--cs-success-bg)",
+            border: "1px solid var(--cs-success)",
             borderRadius: 8,
             marginBottom: "1.5rem",
           }}
         >
-          <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-sage)", marginBottom: "0.5rem" }}>
+          <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-success)", marginBottom: "0.5rem" }}>
             ✅ Invite link generated
           </div>
           <div
@@ -157,7 +157,7 @@ export function InviteForm({ branches }: { branches: BranchRow[] }) {
             style={{
               padding: "0.75rem",
               backgroundColor: "var(--cs-surface-warm)",
-              border: "1px solid var(--cs-border-light)",
+              border: "1px solid var(--cs-border-soft)",
               borderRadius: 8,
               fontSize: "0.8125rem",
               color: "var(--cs-text-muted)",
@@ -201,3 +201,4 @@ export function InviteForm({ branches }: { branches: BranchRow[] }) {
     </div>
   );
 }
+

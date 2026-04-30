@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
@@ -37,8 +37,8 @@ export function OnboardForm({ staffId }: { staffId: string }) {
     return (
       <div
         style={{
-          backgroundColor: "var(--cs-sage-light)",
-          border: "1px solid var(--cs-sage)",
+          backgroundColor: "var(--cs-success-bg)",
+          border: "1px solid var(--cs-success)",
           borderRadius: 10,
           padding: "2rem",
           textAlign: "center",

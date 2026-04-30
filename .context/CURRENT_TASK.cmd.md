@@ -2,16 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Task ID** | `SEC-AUDIT-001` |
-| **Description** | `Security and role-routing audit across auth, workspaces, API routes, actions, queries, and RLS` |
+| **Task ID** | `PUB-REDESIGN-001` |
+| **Description** | `Audit and remove existing public pages for redesign` |
 | **Agent** | `Kimi DevCoder` |
-| **Status** | `IN PROGRESS` |
+| **Status** | `IN_PROGRESS` |
 
 ## Notes
-- Audit who the logged-in user maps to (`auth_user_id` → `staff`), including inactive/missing staff handling.
-- Verify workspace routing by `system_role` + `staff_type` (`/owner`, `/manager`, `/crm`, `/staff-portal`, `/driver`, `/utility`).
-- Check branch scoping and data exposure across owner/manager/crm/staff/driver/utility surfaces.
-- Review API routes and server actions for session checks, role checks, and branch enforcement.
-- Review Supabase RLS policy coverage and identify broad/missing policies.
-- Run verification commands: `pnpm type-check`, `pnpm build`, `pnpm lint`.
-- Do not implement fixes unless a clearly safe, minimal correction is requested.
+- Audit complete: identified all public-facing pages, components, and assets.
+- Public pages replaced with minimal placeholders to preserve route structure.
+- Public-only components and styles removed.
+- Online booking server action preserved at `src/lib/actions/online-booking.ts`.
+- Dashboard, auth, API routes, Supabase logic, and shared UI components untouched.

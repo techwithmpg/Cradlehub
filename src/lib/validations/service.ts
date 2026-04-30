@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const uuid = z.string().uuid("Invalid ID");
+// z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
+const uuid = z.guid("Invalid ID");
 
 export const createServiceCategorySchema = z.object({
   name:         z.string().min(2).max(100),

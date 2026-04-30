@@ -1,98 +1,107 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Home, ShieldCheck, Stars } from "lucide-react";
-import { BookNowButton } from "@/components/public/book-now-button";
-import { SpaVisual } from "@/components/public/spa-visual";
+import { SPA_IMAGES } from "@/constants/spa-images";
+import { Check } from "lucide-react";
 
-const heroTrustItems = [
-  "Instant confirmation",
-  "Home service available",
-  "Choose therapist or any available",
-  "Staff-managed rescheduling",
+const trustPoints = [
+  "Professional Therapists",
+  "Relaxing Ambience",
+  "Personalized Care",
 ];
 
 export function HeroSection() {
   return (
-    <section className="relative overflow-hidden border-b border-[#f6e3a1]/18">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(255,246,220,0.24),transparent_40%),radial-gradient(circle_at_20%_20%,rgba(214,168,79,0.24),transparent_45%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(38,25,17,0.94),rgba(24,16,11,0.84)_46%,rgba(20,13,9,0.92))]" />
-      <div className="spa-fade-up relative mx-auto grid w-full max-w-6xl gap-6 px-4 py-10 sm:px-6 md:grid-cols-[1.08fr_0.92fr] md:py-14">
-        <div className="space-y-5">
-          <p className="inline-flex items-center rounded-full border border-[#f6e3a1]/35 bg-[#f6e3a1]/10 px-3 py-1 text-[11px] tracking-[0.18em] text-[#f6e3a1] uppercase">
-            Bacolod Premium Wellness
+    <section className="relative min-h-[100dvh] flex items-center overflow-hidden">
+      {/* Background Image */}
+      <div className="absolute inset-0">
+        <Image
+          src={SPA_IMAGES.hero}
+          alt="Luxury spa treatment room"
+          fill
+          priority
+          className="object-cover"
+          sizes="100vw"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(16,38,29,0.82) 0%, rgba(22,58,43,0.65) 50%, rgba(16,38,29,0.75) 100%)",
+          }}
+        />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 mx-auto max-w-7xl px-6 py-32 w-full">
+        <div className="max-w-2xl">
+          <p
+            className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-6"
+            style={{ color: "#C8A96B" }}
+          >
+            Wellness & Relaxation
           </p>
-          <h1 className="font-heading text-3xl leading-tight font-semibold text-[#fff7e7] sm:text-4xl md:text-5xl">
-            Premium massage &amp; wellness booking in under 60 seconds.
+          <h1
+            className="text-4xl sm:text-5xl lg:text-6xl font-medium leading-[1.1] mb-6"
+            style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
+          >
+            Relax, Restore,
+            <br />
+            <span style={{ color: "#C8A96B" }}>Rejuvenate</span>
           </h1>
-          <p className="max-w-xl text-base text-[#fdf3dc]/84 sm:text-lg">
-            Book in-spa or home service appointments, choose your preferred therapist,
-            or let us assign the best available specialist.
+          <p
+            className="text-[15px] sm:text-[16px] leading-relaxed mb-10 max-w-lg"
+            style={{ color: "rgba(247,243,235,0.75)" }}
+          >
+            Experience luxury massage and wellness treatments in a calm, restorative space.
+            Let our skilled therapists guide you back to balance.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <BookNowButton
-              size="lg"
-              className="h-11 rounded-full bg-[#d6a84f] px-6 font-semibold text-[#1f140d] shadow-[0_14px_28px_rgba(214,168,79,0.33)] hover:bg-[#e7c873]"
+
+          <div className="flex flex-wrap items-center gap-4 mb-10">
+            <Link
+              href="/book"
+              className="inline-flex items-center rounded-full px-8 py-3.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+              style={{
+                background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
+                color: "#10261D",
+                boxShadow: "0 6px 24px rgba(200,169,107,0.45)",
+              }}
             >
               Book Appointment
-            </BookNowButton>
+            </Link>
             <Link
               href="/services"
-              className="inline-flex h-11 items-center rounded-full border border-[#f6e3a1]/45 bg-[#1b120c]/50 px-5 text-sm font-medium text-[#f8ecd1] transition hover:border-[#f6e3a1]/80 hover:bg-[#241810]/70"
+              className="inline-flex items-center rounded-full px-8 py-3.5 text-[12px] font-medium tracking-widest uppercase border transition-all duration-300 hover:bg-white/10"
+              style={{
+                borderColor: "rgba(247,243,235,0.25)",
+                color: "rgba(247,243,235,0.9)",
+              }}
             >
-              View Services <ArrowRight className="ml-2 h-4 w-4" />
+              Explore Services
             </Link>
           </div>
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {heroTrustItems.map((item, index) => (
-              <li key={item} className="flex items-center gap-2 rounded-full border border-[#f6e3a1]/18 bg-[#2a1c13]/55 px-3 py-1.5 text-sm text-[#f6e3a1]/90">
-                {index === 1 ? (
-                  <Home className="h-4 w-4 text-[#e7c873]" />
-                ) : index === 0 ? (
-                  <ShieldCheck className="h-4 w-4 text-[#e7c873]" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 text-[#e7c873]" />
-                )}
-                <span>{item}</span>
-              </li>
+
+          <div className="flex flex-wrap items-center gap-5">
+            {trustPoints.map((point) => (
+              <div key={point} className="flex items-center gap-2">
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#C8A96B]/20">
+                  <Check className="h-3 w-3 text-[#C8A96B]" />
+                </div>
+                <span className="text-[12px] font-medium" style={{ color: "rgba(247,243,235,0.65)" }}>
+                  {point}
+                </span>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
-        <aside className="space-y-3 rounded-3xl border border-[#f6e3a1]/18 bg-[linear-gradient(180deg,rgba(27,18,12,0.84),rgba(22,15,10,0.74))] p-4 shadow-[0_20px_46px_rgba(10,6,4,0.48)]">
-          <SpaVisual
-            title="Spa Atmosphere"
-            caption="Calm lighting, aromatherapy, and private treatment suites."
-          />
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="rounded-xl border border-[#f6e3a1]/18 bg-[#24180f]/65 p-2.5 text-[#f7ebcd]">
-              <p className="font-semibold">Private rooms</p>
-            </div>
-            <div className="rounded-xl border border-[#f6e3a1]/18 bg-[#24180f]/65 p-2.5 text-[#f7ebcd]">
-              <p className="font-semibold">Home service available</p>
-            </div>
-            <div className="rounded-xl border border-[#f6e3a1]/18 bg-[#24180f]/65 p-2.5 text-[#f7ebcd]">
-              <p className="font-semibold">Auto-confirmed booking</p>
-            </div>
-          </div>
-          <div className="rounded-xl border border-[#f6e3a1]/18 bg-[#20150f]/70 p-3 text-sm text-[#f6e3a1]/86">
-            <p className="inline-flex items-center gap-2 font-semibold">
-              <Stars className="h-4 w-4 text-[#e7c873]" />
-              Luxury care, faster booking
-            </p>
-            <p className="mt-1 text-xs text-[#f6e3a1]/74">
-              High-touch service quality with staff-assisted scheduling support.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-lg border border-[#f6e3a1]/15 bg-[#251910]/55 p-2">
-              <p className="text-[#e7c873]">4-step flow</p>
-              <p className="text-[#f7edcf]/80">Fast booking wizard</p>
-            </div>
-            <div className="rounded-lg border border-[#f6e3a1]/15 bg-[#251910]/55 p-2">
-              <p className="text-[#e7c873]">Staff support</p>
-              <p className="text-[#f7edcf]/80">Reschedule help</p>
-            </div>
-          </div>
-        </aside>
       </div>
+
+      {/* Bottom fade */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-24"
+        style={{
+          background: "linear-gradient(to top, #F7F3EB, transparent)",
+        }}
+      />
     </section>
   );
 }

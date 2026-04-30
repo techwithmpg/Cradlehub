@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Sign In | CradleHub",
@@ -16,7 +16,7 @@ export default function AuthLayout({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "var(--cs-warm-white)",
+        backgroundColor: "var(--cs-bg)",
         padding: "2rem 1rem",
       }}
     >
@@ -24,3 +24,4 @@ export default function AuthLayout({
     </div>
   );
 }
+

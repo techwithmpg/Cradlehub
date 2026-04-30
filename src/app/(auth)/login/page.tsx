@@ -2,9 +2,6 @@
 
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const initialState: LoginState = {};
 
@@ -13,123 +10,127 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight:       "100vh",
-      backgroundColor: "var(--cs-warm-white)",
-      display:         "flex",
-      alignItems:      "center",
-      justifyContent:  "center",
-      padding:         "2rem 1rem",
+      minHeight:      "100vh",
+      background:     "var(--cs-bg)",
+      display:        "flex",
+      alignItems:     "center",
+      justifyContent: "center",
+      padding:        "2rem 1rem",
     }}>
-      <div style={{ width: "100%", maxWidth: 400 }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
 
-        {/* Brand */}
-        <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
+        {/* Brand mark */}
+        <div style={{ textAlign: "center", marginBottom: "2.25rem" }}>
           <div style={{
-            width: 56, height: 56, borderRadius: "var(--cs-radius-lg)",
-            background: "linear-gradient(135deg, var(--cs-sand), var(--cs-clay))",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 1.125rem",
-            boxShadow: "var(--cs-shadow-md)",
+            width:          48,
+            height:         48,
+            borderRadius:   "var(--cs-r-md)",
+            background:     "linear-gradient(135deg, var(--cs-sand), var(--cs-sand-light))",
+            display:        "flex",
+            alignItems:     "center",
+            justifyContent: "center",
+            margin:         "0 auto 14px",
+            boxShadow:      "var(--cs-shadow-md)",
           }}>
             <span style={{
-              color: "#fff", fontSize: 24, fontWeight: 700,
-              fontFamily: "var(--font-display)",
-            }}>C</span>
+              color:         "#fff",
+              fontSize:      20,
+              fontWeight:    600,
+              fontFamily:    "var(--cs-font-display)",
+              letterSpacing: "0.05em",
+            }}>
+              C
+            </span>
           </div>
           <h1 style={{
-            fontSize:   "1.625rem",
-            fontWeight: 600,
-            color:      "var(--cs-text)",
-            marginBottom: "0.375rem",
-            fontFamily: "var(--font-display)",
+            fontSize:     18,
+            fontWeight:   600,
+            color:        "var(--cs-text)",
+            marginBottom: "0.25rem",
+            margin:       "0 0 0.25rem",
           }}>
             Welcome back
           </h1>
-          <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)" }}>
-            Sign in to your Cradle Spa workspace
+          <p style={{ fontSize: 13, color: "var(--cs-text-muted)", margin: 0 }}>
+            Sign in to your workspace
           </p>
         </div>
 
-        {/* Card */}
+        {/* Login card */}
         <div style={{
-          backgroundColor: "var(--cs-surface)",
-          borderRadius:    "var(--cs-radius-xl)",
-          padding:         "2rem",
-          boxShadow:       "var(--cs-shadow-lg)",
-          border:          "1px solid var(--cs-border-light)",
+          background:    "var(--cs-surface)",
+          borderRadius:  "var(--cs-r-xl)",
+          padding:       "1.75rem",
+          border:        "1px solid var(--cs-border-soft)",
+          boxShadow:     "var(--cs-shadow-lg)",
         }}>
-          <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.125rem" }}>
+          <form action={formAction}>
 
             {state.error && (
               <div style={{
-                padding: "0.75rem 1rem",
-                backgroundColor: "var(--cs-error-light)",
-                border: "1px solid #E8B8B0",
-                borderRadius: "var(--cs-radius-sm)",
-                fontSize: "0.875rem",
-                color: "#8A3A2A",
+                padding:      "9px 12px",
+                background:   "var(--cs-error-bg)",
+                border:       "1px solid #E8CCCC",
+                borderRadius: "var(--cs-r-sm)",
+                fontSize:     12.5,
+                color:        "var(--cs-error-text)",
+                marginBottom: "1.125rem",
               }}>
                 {state.error}
               </div>
             )}
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <Label htmlFor="email" style={{ color: "var(--cs-text-secondary)", fontSize: "0.875rem" }}>
-                Email address
-              </Label>
-              <Input id="email" name="email" type="email" autoComplete="email" autoFocus
+            <div style={{ marginBottom: "1rem" }}>
+              <label htmlFor="email">Email address</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                autoFocus
                 placeholder="you@cradlespa.com"
-                style={{ borderColor: "var(--cs-border)" }}
+                style={{ marginTop: 4 }}
               />
               {state.fieldErrors?.email && (
-                <p style={{ fontSize: "0.8125rem", color: "var(--cs-error)", margin: 0 }}>
+                <p style={{ fontSize: 11.5, color: "var(--cs-error)", marginTop: 3, marginBottom: 0 }}>
                   {state.fieldErrors.email}
                 </p>
               )}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <Label htmlFor="password" style={{ color: "var(--cs-text-secondary)", fontSize: "0.875rem" }}>
-                Password
-              </Label>
-              <Input id="password" name="password" type="password" autoComplete="current-password"
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
-                style={{ borderColor: "var(--cs-border)" }}
+                style={{ marginTop: 4 }}
               />
               {state.fieldErrors?.password && (
-                <p style={{ fontSize: "0.8125rem", color: "var(--cs-error)", margin: 0 }}>
+                <p style={{ fontSize: 11.5, color: "var(--cs-error)", marginTop: 3, marginBottom: 0 }}>
                   {state.fieldErrors.password}
                 </p>
               )}
             </div>
 
-            <Button
+            <button
               type="submit"
               disabled={pending}
-              style={{
-                width:           "100%",
-                marginTop:       "0.375rem",
-                height:          44,
-                background:      "linear-gradient(135deg, var(--cs-sand), var(--cs-clay))",
-                color:           "#fff",
-                border:          "none",
-                borderRadius:    "var(--cs-radius-md)",
-                fontSize:        "0.9375rem",
-                fontWeight:      600,
-                opacity:         pending ? 0.7 : 1,
-                boxShadow:       pending ? "none" : "0 4px 12px rgba(166,123,91,0.3)",
-              }}
+              className="cs-btn cs-btn-primary"
+              style={{ width: "100%", height: 42, fontSize: 13.5 }}
             >
               {pending ? "Signing in…" : "Sign in"}
-            </Button>
+            </button>
           </form>
         </div>
 
         <p style={{
-          textAlign: "center",
-          fontSize:  "0.8125rem",
-          color:     "var(--cs-text-muted)",
-          marginTop: "1.5rem",
+          textAlign:  "center",
+          fontSize:   11.5,
+          color:      "var(--cs-text-subtle)",
+          marginTop:  "1.25rem",
         }}>
           Cradle Massage &amp; Wellness Spa — Staff Portal
         </p>

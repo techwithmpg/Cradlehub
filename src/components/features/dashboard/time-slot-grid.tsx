@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 
@@ -160,7 +160,7 @@ export function TimeSlotGrid({
                       padding: "6px 4px",
                       borderRadius: 6,
                       border: `1.5px solid ${isSelected ? "var(--cs-sand)" : "var(--cs-border)"}`,
-                      backgroundColor: isSelected ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                      backgroundColor: isSelected ? "var(--cs-sand-mist)" : "var(--cs-surface)",
                       color: isSelected ? "var(--cs-sand)" : "var(--cs-text)",
                       fontSize: "0.8125rem",
                       fontWeight: isSelected ? 600 : 400,
@@ -179,3 +179,4 @@ export function TimeSlotGrid({
     </div>
   );
 }
+

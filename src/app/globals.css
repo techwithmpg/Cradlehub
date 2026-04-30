@@ -48,72 +48,107 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ============================================================
+   CRADLEHUB INTERNAL DESIGN SYSTEM
+   Use --cs-* variables ONLY in dashboard components.
+   Public site uses --pw-* (completely separate system).
+   ============================================================ */
+
 :root {
-  --font-sans: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
-  --font-display: var(--font-playfair), "Playfair Display", Georgia, serif;
-  --font-body: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
 
-  /* Core palette — warm earth tones */
-  --cs-warm-white:    #F9F6F0;
-  --cs-surface:       #FFFFFF;
-  --cs-surface-warm:  #FDF9F5;
-  --cs-border:        #EAE0D5;
-  --cs-border-light:  #F2EBE0;
+  /* ── Core surfaces ────────────────────────────────────────── */
+  --cs-bg:             #F5F2EE;
+  --cs-surface:        #FFFFFF;
+  --cs-surface-warm:   #FAF8F5;
+  --cs-surface-raised: #FFFFFF;
 
-  /* Brand gradient accent */
-  --cs-sand:          #A67B5B;
-  --cs-clay:          #C7A27C;
-  --cs-sand-light:    #E6C9A8;
-  --cs-sand-lighter:  #F5EDE3;
-  --cs-sage:          #8A9A8B;
-  --cs-sage-light:    #EAF0EA;
+  /* ── Borders ──────────────────────────────────────────────── */
+  --cs-border:         #EAE4DC;
+  --cs-border-soft:    #F0ECE5;
+  --cs-border-strong:  #D4C8BC;
 
-  /* Text */
-  --cs-text:          #2C2A29;
-  --cs-text-secondary:#6B5D52;
-  --cs-text-muted:    #9C8878;
-  --cs-text-inverse:  #F9F6F0;
+  /* ── Brand accent – Cradle Sand ─────────────────────────── */
+  --cs-sand:           #A67B5B;
+  --cs-sand-dark:      #8A6347;
+  --cs-sand-light:     #C4966E;
+  --cs-sand-mist:      #F5EDE3;
+  --cs-sand-tint:      #FBF7F2;
 
-  /* Sidebar — warm dark */
-  --cs-sidebar-bg:    #2C2A29;
-  --cs-sidebar-hover: #3D3835;
-  --cs-sidebar-active:#4A4540;
-  --cs-sidebar-text:  #B5A898;
-  --cs-sidebar-label: #8A7D73;
+  /* ── Workspace accent colors (role identity) ──────────────── */
+  --cs-owner-accent:       #7A5A8A;
+  --cs-owner-bg:           #F3EEF8;
+  --cs-owner-text:         #4A2A6A;
+  --cs-manager-accent:     #5A7A8A;
+  --cs-manager-bg:         #EEF3F8;
+  --cs-manager-text:       #2A4A6A;
+  --cs-csr-accent:         #8A7A5A;
+  --cs-csr-bg:             #F8F5EE;
+  --cs-csr-text:           #5A4A2A;
+  --cs-crm-accent:         #5A8A6A;
+  --cs-crm-bg:             #EEF8F2;
+  --cs-crm-text:           #2A5A3A;
+  --cs-staff-accent:       #8A6A5A;
+  --cs-staff-bg:           #F8F0EE;
+  --cs-staff-text:         #5A3A2A;
 
-  /* Status colors */
-  --cs-success:       #8A9A8B;
-  --cs-success-light: #EAF0EA;
-  --cs-warning:       #C7A27C;
-  --cs-warning-light: #FAF0E4;
-  --cs-error:         #C17B6B;
-  --cs-error-light:   #FAF0EE;
-  --cs-info:          #7B94A8;
-  --cs-info-light:    #EDF3F8;
+  /* ── Status palette ──────────────────────────────────────── */
+  --cs-success:        #5A8A6A;
+  --cs-success-bg:     #EEF8F2;
+  --cs-success-text:   #1A4A2A;
+  --cs-warning:        #8A7A5A;
+  --cs-warning-bg:     #F8F5EE;
+  --cs-warning-text:   #4A3A1A;
+  --cs-error:          #8A5A5A;
+  --cs-error-bg:       #F8EEEE;
+  --cs-error-text:     #5A1A1A;
+  --cs-info:           #5A6A8A;
+  --cs-info-bg:        #EEF0F8;
+  --cs-info-text:      #1A2A5A;
+  --cs-neutral:        #8A8078;
+  --cs-neutral-bg:     #F0EDE8;
+  --cs-neutral-text:   #3A3028;
 
-  /* Workspace accent colors (role-specific) */
-  --cs-owner-accent:  #A67B5B;
-  --cs-manager-accent:#7B94A8;
-  --cs-crm-accent:    #8A9A8B;
-  --cs-csr-accent:    #C7A27C;
-  --cs-staff-accent:  #9A8A7B;
+  /* ── Text scale ──────────────────────────────────────────── */
+  --cs-text:           #1E1916;
+  --cs-text-secondary: #6B5D52;
+  --cs-text-muted:     #9C8878;
+  --cs-text-subtle:    #BFB4AA;
+  --cs-text-inverse:   #F5F2EE;
 
-  /* Shadows — floating, soft */
-  --cs-shadow-sm:     0 2px 8px rgba(44, 42, 41, 0.06), 0 1px 2px rgba(44, 42, 41, 0.04);
-  --cs-shadow-md:     0 8px 24px rgba(44, 42, 41, 0.08), 0 2px 6px rgba(44, 42, 41, 0.04);
-  --cs-shadow-lg:     0 16px 40px rgba(44, 42, 41, 0.10), 0 4px 12px rgba(44, 42, 41, 0.06);
-  --cs-shadow-glow:   0 0 0 3px rgba(166, 123, 91, 0.15);
+  /* ── Sidebar ─────────────────────────────────────────────── */
+  --cs-sidebar:        #1E1916;
+  --cs-sidebar-hover:  #2A2420;
+  --cs-sidebar-active: #332C28;
+  --cs-sidebar-text:   #B5A898;
+  --cs-sidebar-muted:  #7A6D65;
+  --cs-sidebar-border: rgba(255,255,255,0.05);
 
-  /* Radii */
-  --cs-radius-sm:     8px;
-  --cs-radius-md:     12px;
-  --cs-radius-lg:     16px;
-  --cs-radius-xl:     20px;
-  --cs-radius-pill:   100px;
+  /* ── Typography ──────────────────────────────────────────── */
+  --cs-font-display: var(--font-playfair), 'Playfair Display', Georgia, serif;
+  --cs-font-body:    var(--font-dm-sans), 'DM Sans', system-ui, sans-serif;
+  --cs-font-mono:    'JetBrains Mono', 'Fira Code', monospace;
 
-  /* Transitions */
-  --cs-transition:    all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1);
+  /* ── Shadows ─────────────────────────────────────────────── */
+  --cs-shadow-xs: 0 1px 4px rgba(30,25,22,0.04);
+  --cs-shadow-sm: 0 2px 8px rgba(30,25,22,0.06), 0 1px 2px rgba(30,25,22,0.04);
+  --cs-shadow-md: 0 6px 20px rgba(30,25,22,0.07), 0 2px 6px rgba(30,25,22,0.04);
+  --cs-shadow-lg: 0 12px 36px rgba(30,25,22,0.09), 0 3px 10px rgba(30,25,22,0.05);
+  --cs-focus-ring: 0 0 0 3px rgba(166,123,91,0.2);
 
+  /* ── Radii ───────────────────────────────────────────────── */
+  --cs-r-xs:   4px;
+  --cs-r-sm:   6px;
+  --cs-r-md:   10px;
+  --cs-r-lg:   14px;
+  --cs-r-xl:   18px;
+  --cs-r-pill: 100px;
+
+  /* ── Transition ──────────────────────────────────────────── */
+  --cs-ease:     cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --cs-duration: 200ms;
+  --cs-trans:    all var(--cs-duration) var(--cs-ease);
+
+  /* ── Shadcn component tokens (required for shadcn UI) ────── */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -183,66 +218,235 @@
 }
 
 @layer base {
-  * {
+  *, *::before, *::after {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
   }
   body {
-    background-color: var(--cs-warm-white);
-    color: var(--cs-text);
-    font-family: var(--font-body);
+    font-family:            var(--cs-font-body);
+    background-color:       var(--cs-bg);
+    color:                  var(--cs-text);
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    line-height:            1.5;
+    font-size:              14px;
   }
   html {
     @apply font-sans;
   }
 }
 
-/* Brand gradient text utility */
-.brand-gradient {
-  background: linear-gradient(135deg, var(--cs-sand), var(--cs-clay));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Card utility */
+/* ── Card ─────────────────────────────────────────────────── */
 .cs-card {
-  background: var(--cs-surface);
-  border-radius: var(--cs-radius-lg);
-  box-shadow: var(--cs-shadow-sm);
-  border: 1px solid var(--cs-border-light);
-  transition: var(--cs-transition);
+  background:    var(--cs-surface);
+  border:        1px solid var(--cs-border-soft);
+  border-radius: var(--cs-r-lg);
+  box-shadow:    var(--cs-shadow-xs);
 }
-.cs-card:hover { box-shadow: var(--cs-shadow-md); }
 
-/* KPI card */
+/* ── KPI metric card ──────────────────────────────────────── */
+.cs-metric {
+  background:    var(--cs-surface);
+  border:        1px solid var(--cs-border-soft);
+  border-radius: var(--cs-r-md);
+  padding:       1rem 1.125rem;
+  transition:    box-shadow var(--cs-duration) var(--cs-ease);
+}
+.cs-metric:hover { box-shadow: var(--cs-shadow-sm); }
+
+/* legacy alias kept for backward compat */
 .cs-kpi {
-  background: var(--cs-surface);
-  border-radius: var(--cs-radius-md);
-  box-shadow: var(--cs-shadow-sm);
-  padding: 1.125rem 1.25rem;
-  transition: var(--cs-transition);
+  background:    var(--cs-surface);
+  border:        1px solid var(--cs-border-soft);
+  border-radius: var(--cs-r-md);
+  padding:       1rem 1.125rem;
+  transition:    box-shadow var(--cs-duration) var(--cs-ease);
 }
-.cs-kpi:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--cs-shadow-md);
+.cs-kpi:hover { box-shadow: var(--cs-shadow-sm); }
+
+/* ── Section divider ──────────────────────────────────────── */
+.cs-divider {
+  height:     1px;
+  background: var(--cs-border-soft);
+  border:     none;
+  margin:     0;
 }
 
-@keyframes spa-fade-up {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ── Badge ────────────────────────────────────────────────── */
+.cs-badge {
+  display:         inline-flex;
+  align-items:     center;
+  padding:         2px 8px;
+  border-radius:   var(--cs-r-pill);
+  font-size:       11px;
+  font-weight:     500;
+  letter-spacing:  0.02em;
+  line-height:     1.5;
+  white-space:     nowrap;
 }
 
-@keyframes spa-glow {
-  from { box-shadow: 0 0 0 rgba(245, 197, 66, 0.1); }
-  to { box-shadow: 0 10px 34px rgba(245, 197, 66, 0.18); }
+/* ── Focus ring on interactive elements ───────────────────── */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline:    none;
+  box-shadow: var(--cs-focus-ring);
 }
 
-.spa-fade-up {
-  animation: spa-fade-up 520ms ease-out both;
+/* ── Thin warm scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--cs-border-strong); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cs-text-subtle); }
+
+/* ── Button system ────────────────────────────────────────── */
+.cs-btn {
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             6px;
+  padding:         7px 14px;
+  font-size:       12.5px;
+  font-weight:     500;
+  border-radius:   var(--cs-r-sm);
+  border:          none;
+  cursor:          pointer;
+  transition:      var(--cs-trans);
+  text-decoration: none;
+  line-height:     1;
+  white-space:     nowrap;
+  font-family:     var(--cs-font-body);
+}
+.cs-btn-primary {
+  background: linear-gradient(135deg, var(--cs-sand), var(--cs-sand-light));
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(166,123,91,0.25);
+}
+.cs-btn-primary:hover {
+  background: linear-gradient(135deg, var(--cs-sand-dark), var(--cs-sand));
+  box-shadow: 0 3px 10px rgba(166,123,91,0.35);
+}
+.cs-btn-secondary {
+  background:  var(--cs-surface);
+  color:       var(--cs-text-secondary);
+  border:      1px solid var(--cs-border);
+}
+.cs-btn-secondary:hover {
+  background:   var(--cs-surface-warm);
+  border-color: var(--cs-border-strong);
+}
+.cs-btn-ghost {
+  background: transparent;
+  color:      var(--cs-text-muted);
+}
+.cs-btn-ghost:hover {
+  background: var(--cs-sand-tint);
+  color:      var(--cs-text-secondary);
+}
+.cs-btn-danger {
+  background: var(--cs-error-bg);
+  color:      var(--cs-error-text);
+  border:     1px solid var(--cs-error-bg);
+}
+.cs-btn-danger:hover { background: #EFDDDD; }
+.cs-btn-sm { padding: 5px 10px; font-size: 11.5px; }
+.cs-btn-lg { padding: 10px 20px; font-size: 13.5px; }
+.cs-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ============================================================
+   SPA PUBLIC DESIGN SYSTEM
+   Used exclusively on public-facing spa pages.
+   ============================================================ */
+
+.sp-public {
+  --sp-forest:        #163A2B;
+  --sp-forest-dark:   #10261D;
+  --sp-forest-light:  #1E4D3A;
+  --sp-gold:          #C8A96B;
+  --sp-gold-rich:     #B68A3C;
+  --sp-gold-light:    #E8D5A3;
+  --sp-cream:         #F7F3EB;
+  --sp-ivory:         #FCFAF5;
+  --sp-beige:         #EDE4D3;
+  --sp-beige-light:   #F5EFE6;
+  --sp-charcoal:      #2A332E;
+  --sp-text:          #1E2A24;
+  --sp-text-muted:    #6B7A6F;
+  --sp-text-light:    #9AA89A;
+  --sp-white:         #FFFFFF;
+
+  --sp-font-display: var(--font-playfair), 'Playfair Display', Georgia, serif;
+  --sp-font-accent:  var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  --sp-font-body:    var(--font-dm-sans), 'DM Sans', system-ui, sans-serif;
+
+  --sp-shadow-sm: 0 2px 12px rgba(22, 58, 43, 0.06);
+  --sp-shadow-md: 0 8px 32px rgba(22, 58, 43, 0.09);
+  --sp-shadow-lg: 0 16px 48px rgba(22, 58, 43, 0.12);
+  --sp-shadow-gold: 0 8px 28px rgba(200, 169, 107, 0.25);
+
+  --sp-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  background-color: var(--sp-cream);
+  color: var(--sp-text);
 }
 
-.spa-button-glow {
-  animation: spa-glow 700ms ease-out both;
+.sp-public body {
+  background-color: var(--sp-cream);
+  color: var(--sp-text);
+}
+
+/* Scroll reveal animations */
+.sp-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s var(--sp-ease), transform 0.7s var(--sp-ease);
+}
+.sp-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sp-reveal-scale {
+  opacity: 0;
+  transform: scale(0.96) translateY(16px);
+  transition: opacity 0.65s var(--sp-ease), transform 0.65s var(--sp-ease);
+}
+.sp-reveal-scale.is-visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-reveal, .sp-reveal-scale {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ── Table system ─────────────────────────────────────────── */
+.cs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cs-table th {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cs-text-muted);
+  border-bottom: 1.5px solid var(--cs-border);
+  white-space: nowrap;
+}
+.cs-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--cs-border-soft);
+  vertical-align: middle;
+  color: var(--cs-text-secondary);
+}
+.cs-table tr:last-child td { border-bottom: none; }
+.cs-table tr:hover td { background: var(--cs-sand-tint); }
+.cs-table-wrap {
+  background:    var(--cs-surface);
+  border:        1px solid var(--cs-border-soft);
+  border-radius: var(--cs-r-lg);
+  overflow:      hidden;
+  box-shadow:    var(--cs-shadow-xs);
 }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { CustomerSearch } from "@/components/features/dashboard/customer-search";
@@ -171,7 +171,7 @@ export default async function CrmPage({
               width: 40,
               height: 40,
               borderRadius: "50%",
-              backgroundColor: "var(--cs-sage-light)",
+              backgroundColor: "var(--cs-success-bg)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -206,7 +206,7 @@ export default async function CrmPage({
               width: 40,
               height: 40,
               borderRadius: "50%",
-              backgroundColor: "var(--cs-sand-lighter)",
+              backgroundColor: "var(--cs-sand-mist)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -309,7 +309,7 @@ export default async function CrmPage({
                 padding: "5px 14px",
                 borderRadius: 6,
                 border: "1px solid var(--cs-border)",
-                backgroundColor: isActive ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                backgroundColor: isActive ? "var(--cs-sand-mist)" : "var(--cs-surface)",
                 color: isActive ? "var(--cs-sand)" : "var(--cs-text-muted)",
                 fontSize: "0.8125rem",
                 textDecoration: "none",
@@ -628,9 +628,9 @@ function CrmEmptyState() {
               href={card.href}
               style={{
                 padding: "1rem",
-                borderRadius: "var(--cs-radius-lg)",
+                borderRadius: "var(--cs-r-lg)",
                 backgroundColor: "var(--cs-surface-warm)",
-                border: "1px solid var(--cs-border-light)",
+                border: "1px solid var(--cs-border-soft)",
                 textDecoration: "none",
                 color: "var(--cs-text)",
               }}
@@ -648,9 +648,9 @@ function CrmEmptyState() {
               key={card.title}
               style={{
                 padding: "1rem",
-                borderRadius: "var(--cs-radius-lg)",
+                borderRadius: "var(--cs-r-lg)",
                 backgroundColor: "var(--cs-surface-warm)",
-                border: "1px solid var(--cs-border-light)",
+                border: "1px solid var(--cs-border-soft)",
                 opacity: 0.6,
               }}
             >
@@ -685,3 +685,4 @@ function CrmEmptyState() {
     </div>
   );
 }
+

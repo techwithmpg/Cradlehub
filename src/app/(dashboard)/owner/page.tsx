@@ -1,4 +1,4 @@
-import { StatCard } from "@/components/features/dashboard/stat-card";
+﻿import { StatCard } from "@/components/features/dashboard/stat-card";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { getOwnerDashboardAction, getOwnerBookingsAction } from "./bookings/actions";
@@ -23,36 +23,39 @@ export default async function OwnerOverviewPage() {
 
   return (
     <div>
-      {/* Strategic header */}
+      {/* Workspace identity strip */}
       <div style={{
-        marginBottom: "1.75rem",
-        paddingBottom: "1.25rem",
-        borderBottom: "1px solid var(--cs-border-light)",
-        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+        display:      "flex",
+        alignItems:   "center",
+        gap:          10,
+        padding:      "12px 14px",
+        background:   "var(--cs-owner-bg)",
+        border:       "1px solid rgba(122,90,138,0.15)",
+        borderRadius: "var(--cs-r-md)",
+        marginBottom: "1.25rem",
       }}>
+        <div style={{
+          width:          36,
+          height:         36,
+          borderRadius:   "var(--cs-r-sm)",
+          background:     "rgba(122,90,138,0.15)",
+          display:        "flex",
+          alignItems:     "center",
+          justifyContent: "center",
+          fontSize:       18,
+          flexShrink:     0,
+        }}>
+          ◆
+        </div>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.25rem" }}>
-            <span style={{ fontSize: 20 }}>💎</span>
-            <h2 style={{
-              fontSize: "1.125rem", fontWeight: 600,
-              color: "var(--cs-text)", margin: 0,
-              fontFamily: "var(--font-display)",
-            }}>
-              Owner&apos;s Suite
-            </h2>
-            <span style={{
-              fontSize: "0.6875rem", fontWeight: 600,
-              padding: "2px 8px", borderRadius: "var(--cs-radius-pill)",
-              backgroundColor: "var(--cs-sand-lighter)",
-              color: "var(--cs-sand)",
-              letterSpacing: "0.05em", textTransform: "uppercase" as const,
-            }}>
-              Strategic View
-            </span>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-owner-text)" }}>
+            Owner&apos;s Suite
           </div>
-          <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", margin: 0 }}>
-            {new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-          </p>
+          <div style={{ fontSize: 11.5, color: "var(--cs-text-muted)" }}>
+            {new Date().toLocaleDateString("en-PH", {
+              weekday: "long", month: "long", day: "numeric", year: "numeric",
+            })}
+          </div>
         </div>
       </div>
 
@@ -63,11 +66,11 @@ export default async function OwnerOverviewPage() {
         gap: "0.875rem",
         marginBottom: "1.75rem",
       }}>
-        <StatCard label="Today&apos;s Bookings" value={statsData?.total_bookings ?? 0} sub="all branches" accent />
-        <StatCard label="Completed" value={statsData?.total_completed ?? 0} sub="today" trend="up" />
-        <StatCard label="Today's Revenue" value={formatCurrency(statsData?.total_revenue ?? 0)} sub="completed sessions" accent />
-        <StatCard label="Active Branches" value={branches.length} />
-        <StatCard label="Team Members" value={activeStaff} sub="on roster" />
+        <StatCard label="Today's Bookings" value={statsData?.total_bookings ?? 0} sub="all branches" accent accentColor="var(--cs-owner-accent)" />
+        <StatCard label="Completed" value={statsData?.total_completed ?? 0} sub="today" trend="up" accentColor="var(--cs-owner-accent)" />
+        <StatCard label="Today's Revenue" value={formatCurrency(statsData?.total_revenue ?? 0)} sub="completed sessions" accent accentColor="var(--cs-owner-accent)" />
+        <StatCard label="Active Branches" value={branches.length} accentColor="var(--cs-owner-accent)" />
+        <StatCard label="Team Members" value={activeStaff} sub="on roster" accentColor="var(--cs-owner-accent)" />
       </div>
 
       {/* Two-column layout */}
@@ -87,8 +90,8 @@ export default async function OwnerOverviewPage() {
             </div>
             <span style={{
               marginLeft: "auto", fontSize: "0.75rem", fontWeight: 600,
-              padding: "2px 8px", borderRadius: "var(--cs-radius-pill)",
-              backgroundColor: "var(--cs-sand-lighter)", color: "var(--cs-sand)",
+              padding: "2px 8px", borderRadius: "var(--cs-r-pill)",
+              backgroundColor: "var(--cs-sand-mist)", color: "var(--cs-sand)",
             }}>
               {bookingsData.length} total
             </span>
@@ -104,7 +107,7 @@ export default async function OwnerOverviewPage() {
                 <div key={b.id} style={{
                   display: "flex", alignItems: "center", gap: "0.875rem",
                   padding: "0.75rem 0",
-                  borderBottom: i < bookingsData.length - 1 ? "1px solid var(--cs-border-light)" : "none",
+                  borderBottom: i < bookingsData.length - 1 ? "1px solid var(--cs-border-soft)" : "none",
                 }}>
                   <div style={{ minWidth: 52, fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-sand)" }}>
                     {formatTime(b.start_time)}
@@ -137,7 +140,7 @@ export default async function OwnerOverviewPage() {
               </div>
             </div>
             {statsData?.by_branch?.map((b: BranchStat) => (
-              <div key={b.name} style={{ padding: "0.75rem 0", borderBottom: "1px solid var(--cs-border-light)" }}>
+              <div key={b.name} style={{ padding: "0.75rem 0", borderBottom: "1px solid var(--cs-border-soft)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>{b.name}</span>
                   <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--cs-sand)" }}>{formatCurrency(b.revenue)}</span>
@@ -150,7 +153,7 @@ export default async function OwnerOverviewPage() {
                   <div style={{
                     height: "100%",
                     width: `${b.total > 0 ? Math.round(b.completed / b.total * 100) : 0}%`,
-                    backgroundColor: "var(--cs-sage)",
+                    backgroundColor: "var(--cs-success)",
                     borderRadius: 2,
                   }} />
                 </div>
@@ -174,11 +177,11 @@ export default async function OwnerOverviewPage() {
               <a key={action.href} href={action.href} style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "0.625rem 0.5rem",
-                borderRadius: "var(--cs-radius-sm)",
+                borderRadius: "var(--cs-r-sm)",
                 textDecoration: "none",
                 color: "var(--cs-text-secondary)",
                 fontSize: "0.8125rem",
-                transition: "var(--cs-transition)",
+                transition: "var(--cs-trans)",
               }}>
                 <span>{action.icon}</span>
                 {action.label}
@@ -190,3 +193,4 @@ export default async function OwnerOverviewPage() {
     </div>
   );
 }
+

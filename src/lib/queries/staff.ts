@@ -15,7 +15,9 @@ function isMissingStaffOrgColumnsError(message: string): boolean {
     m.includes('column staff.staff_type does not exist') ||
     m.includes('column "staff_type" does not exist') ||
     m.includes('column staff.is_head does not exist') ||
-    m.includes('column "is_head" does not exist')
+    m.includes('column "is_head" does not exist') ||
+    m.includes("could not find the 'is_head' column") ||
+    m.includes("could not find the 'staff_type' column")
   );
 }
 
@@ -62,15 +64,41 @@ export async function getStaffByBranch(branchId: string) {
   throw new Error(primary.error.message);
 }
 
+const STAFF_COLUMNS_LEGACY =
+  "id, branch_id, auth_user_id, full_name, phone, tier, system_role, is_active, created_at, updated_at";
+
+function injectStaffDefaults(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...row,
+    staff_type: (row.staff_type as string) ?? "therapist",
+    is_head: (row.is_head as boolean) ?? false,
+  };
+}
+
 export async function getAllStaff() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const primary = await supabase
     .from("staff")
     .select("*, branches ( id, name )")
     .order("tier")
     .order("full_name");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+
+  if (!primary.error) {
+    return (primary.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  if (isMissingStaffOrgColumnsError(primary.error.message)) {
+    const fallback = await supabase
+      .from("staff")
+      .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
+      .order("tier")
+      .order("full_name");
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  throw new Error(primary.error.message);
 }
 
 export async function getStaffServices(staffId: string) {
@@ -139,13 +167,28 @@ export async function getBlockedTimes(
 // ── Pending staff (invite generated but not yet active) ───────────────────
 export async function getPendingStaff() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const primary = await supabase
     .from("staff")
     .select("*, branches ( id, name )")
     .eq("is_active", false)
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+
+  if (!primary.error) {
+    return (primary.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  if (isMissingStaffOrgColumnsError(primary.error.message)) {
+    const fallback = await supabase
+      .from("staff")
+      .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
+      .eq("is_active", false)
+      .order("created_at", { ascending: false });
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  throw new Error(primary.error.message);
 }
 
 // ── Staff record for onboarding claim verification ────────────────────────
