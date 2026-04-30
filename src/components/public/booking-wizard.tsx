@@ -223,9 +223,9 @@ export function BookingWizard() {
         {/* Stepper */}
         {step < 5 && (
           <div className="flex items-center justify-center mb-12">
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-1 sm:gap-3">
               {steps.map((s, i) => (
-                <div key={s.id} className="flex items-center gap-2 sm:gap-4">
+                <div key={s.id} className="flex items-center gap-1 sm:gap-3">
                   <div className="flex flex-col items-center">
                     <div
                       className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-[12px] sm:text-[13px] font-semibold transition-all duration-300 ${
@@ -248,7 +248,7 @@ export function BookingWizard() {
                   </div>
                   {i < steps.length - 1 && (
                     <div
-                      className={`w-8 sm:w-16 h-[2px] rounded-full transition-colors duration-300 ${
+                      className={`w-5 sm:w-12 lg:w-16 h-0.5 rounded-full transition-colors duration-300 ${
                         step > s.id ? "bg-[#C8A96B]" : "bg-[#EDE4D3]"
                       }`}
                     />
@@ -657,7 +657,7 @@ function StepDateTime({
           <p className="text-[12px] font-semibold uppercase tracking-wide mb-3" style={{ color: "#9AA89A" }}>
             Date
           </p>
-          <div className="bg-white rounded-xl border border-[#EDE4D3] p-3 inline-block">
+          <div className="bg-white rounded-xl border border-[#EDE4D3] p-3 overflow-x-auto flex justify-center md:justify-start">
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -682,7 +682,7 @@ function StepDateTime({
               </p>
             </div>
           ) : loading ? (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {Array.from({ length: 9 }).map((_, i) => (
                 <Skeleton key={i} className="h-10 rounded-lg" />
               ))}
@@ -697,7 +697,7 @@ function StepDateTime({
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {availableSlots.map((slot) => (
                 <button
                   key={slot.slot_time}

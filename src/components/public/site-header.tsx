@@ -78,19 +78,19 @@ export function SiteHeader() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`relative text-[13px] font-medium tracking-wide transition-colors duration-300 ${
+                className={`relative text-[11px] font-semibold tracking-widest uppercase transition-colors duration-300 ${
                   pathname === link.href.split("#")[0]
                     ? isHeroMode
                       ? "text-white"
                       : "text-[#163A2B]"
                     : isHeroMode
-                    ? "text-white/70 hover:text-white"
+                    ? "text-white/65 hover:text-white"
                     : "text-[#6B7A6F] hover:text-[#163A2B]"
                 }`}
               >
                 {link.label}
                 {pathname === link.href.split("#")[0] && (
-                  <span className="absolute -bottom-1 left-0 right-0 h-[1.5px] bg-[#C8A96B] rounded-full" />
+                  <span className="absolute -bottom-1.5 left-0 right-0 h-[1.5px] bg-[#C8A96B] rounded-full" />
                 )}
               </Link>
             ))}
@@ -134,7 +134,7 @@ export function SiteHeader() {
       >
         <div className="absolute inset-0 bg-[#10261D]/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
         <div
-          className={`absolute right-0 top-0 h-full w-[280px] bg-[#FCFAF5] shadow-2xl transition-transform duration-500 ${
+          className={`absolute right-0 top-0 h-full w-70 bg-[#FCFAF5] shadow-2xl transition-transform duration-500 ${
             mobileOpen ? "translate-x-0" : "translate-x-full"
           }`}
           style={{ transitionTimingFunction: "cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}

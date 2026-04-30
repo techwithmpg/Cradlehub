@@ -1,5 +1,5 @@
 import { ScrollReveal } from "./scroll-reveal";
-import { Star } from "lucide-react";
+import { Star, Quote } from "lucide-react";
 
 const testimonials = [
   {
@@ -49,26 +49,31 @@ export function TestimonialsSection() {
         <div className="grid md:grid-cols-3 gap-8">
           {testimonials.map((t, i) => (
             <ScrollReveal key={t.name} delay={i * 120} variant="scale">
-              <div className="h-full bg-white rounded-2xl p-8 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500">
+              <div className="h-full bg-white rounded-2xl p-8 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 flex flex-col">
+                {/* Quote icon */}
+                <div className="mb-5">
+                  <Quote className="h-7 w-7" style={{ color: "#C8A96B", opacity: 0.5 }} />
+                </div>
+
                 {/* Stars */}
                 <div className="flex gap-1 mb-5">
                   {Array.from({ length: t.rating }).map((_, si) => (
-                    <Star
-                      key={si}
-                      className="h-4 w-4 fill-[#C8A96B] text-[#C8A96B]"
-                    />
+                    <Star key={si} className="h-3.5 w-3.5 fill-[#C8A96B] text-[#C8A96B]" />
                   ))}
                 </div>
 
                 <p
-                  className="text-[14px] leading-relaxed mb-8"
+                  className="text-[14px] leading-relaxed flex-1 mb-8"
                   style={{ color: "#6B7A6F" }}
                 >
                   &ldquo;{t.text}&rdquo;
                 </p>
 
-                <div className="flex items-center gap-3 mt-auto">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#163A2B] text-[#C8A96B] text-[12px] font-semibold">
+                <div className="flex items-center gap-3 pt-6 border-t" style={{ borderColor: "#F0ECE5" }}>
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ring-2 ring-offset-2 ring-[#C8A96B]"
+                    style={{ background: "#163A2B", color: "#C8A96B" }}
+                  >
                     {t.initials}
                   </div>
                   <div>

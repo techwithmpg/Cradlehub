@@ -62,7 +62,7 @@ export function HeroSection() {
         {/* Main hero content — centered vertically, aligned within container */}
         <div className="flex flex-1 items-center">
           <div className="mx-auto w-full max-w-7xl px-6 lg:px-12 py-16 lg:py-24">
-            <div className="mx-auto max-w-2xl text-center md:mx-0 md:text-left">
+            <div className="mx-auto max-w-2xl text-center">
               {/* Eyebrow */}
               <p
                 className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-5"
@@ -83,7 +83,7 @@ export function HeroSection() {
 
               {/* Subhead */}
               <p
-                className="text-[15px] sm:text-[16px] leading-relaxed mb-10 max-w-lg mx-auto md:mx-0"
+                className="text-[15px] sm:text-[16px] leading-relaxed mb-10 max-w-lg mx-auto"
                 style={{ color: "rgba(247,243,235,0.78)" }}
               >
                 Experience luxury massage and wellness treatments in a calm, restorative space.
@@ -91,7 +91,7 @@ export function HeroSection() {
               </p>
 
               {/* CTA row */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-10">
+              <div className="flex flex-wrap items-center justify-center gap-4 mb-10">
                 <Link
                   href="/book"
                   className="inline-flex items-center rounded-full px-8 py-3.5 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
@@ -116,7 +116,7 @@ export function HeroSection() {
               </div>
 
               {/* Trust points */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-5">
+              <div className="flex flex-wrap items-center justify-center gap-5">
                 {trustPoints.map((point) => (
                   <div key={point} className="flex items-center gap-2">
                     <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#C8A96B]/20">
