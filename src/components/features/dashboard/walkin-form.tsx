@@ -182,7 +182,7 @@ export function WalkinForm() {
 
   if (!ctx) {
     return (
-      <div style={{ padding: "1rem", color: "var(--ch-text-muted)", fontSize: "0.875rem" }}>
+      <div style={{ padding: "1rem", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
         Loading branch context…
       </div>
     );
@@ -230,11 +230,11 @@ export function WalkinForm() {
                 padding: "6px 16px",
                 borderRadius: 6,
                 border: `1.5px solid ${
-                  bookingType === option.value ? "var(--ch-accent)" : "var(--ch-border)"
+                  bookingType === option.value ? "var(--cs-sand)" : "var(--cs-border)"
                 }`,
                 backgroundColor:
-                  bookingType === option.value ? "var(--ch-accent-light)" : "var(--ch-surface)",
-                color: bookingType === option.value ? "var(--ch-accent)" : "var(--ch-text)",
+                  bookingType === option.value ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                color: bookingType === option.value ? "var(--cs-sand)" : "var(--cs-text)",
                 fontSize: "0.875rem",
                 fontWeight: bookingType === option.value ? 600 : 400,
                 cursor: "pointer",
@@ -262,13 +262,13 @@ export function WalkinForm() {
                 width: 72,
                 height: 36,
                 borderRadius: 6,
-                border: "1px solid var(--ch-border)",
+                border: "1px solid var(--cs-border)",
                 padding: "0 0.5rem",
                 fontSize: "0.875rem",
-                backgroundColor: "var(--ch-surface)",
+                backgroundColor: "var(--cs-surface)",
               }}
             />
-            <span style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>minutes</span>
+            <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>minutes</span>
           </div>
         )}
       </div>
@@ -278,7 +278,7 @@ export function WalkinForm() {
           style={{
             fontSize: "0.8125rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.75rem",
@@ -307,7 +307,7 @@ export function WalkinForm() {
                     top: "50%",
                     transform: "translateY(-50%)",
                     fontSize: "0.75rem",
-                    color: "var(--ch-text-muted)",
+                    color: "var(--cs-text-muted)",
                   }}
                 >
                   Looking up…
@@ -360,7 +360,7 @@ export function WalkinForm() {
           style={{
             fontSize: "0.8125rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.75rem",
@@ -392,8 +392,8 @@ export function WalkinForm() {
                 style={{
                   padding: "10px 12px",
                   borderRadius: 8,
-                  border: `1.5px solid ${isSelected ? "var(--ch-accent)" : "var(--ch-border)"}`,
-                  backgroundColor: isSelected ? "var(--ch-accent-light)" : "var(--ch-surface)",
+                  border: `1.5px solid ${isSelected ? "var(--cs-sand)" : "var(--cs-border)"}`,
+                  backgroundColor: isSelected ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
                   textAlign: "left",
                   cursor: "pointer",
                 }}
@@ -402,12 +402,12 @@ export function WalkinForm() {
                   style={{
                     fontSize: "0.875rem",
                     fontWeight: 500,
-                    color: isSelected ? "var(--ch-accent)" : "var(--ch-text)",
+                    color: isSelected ? "var(--cs-sand)" : "var(--cs-text)",
                   }}
                 >
                   {service.name}
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginTop: 2 }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginTop: 2 }}>
                   {service.duration_minutes} min · {formatCurrencyLocal(Number(price))}
                 </div>
               </button>
@@ -422,7 +422,7 @@ export function WalkinForm() {
             style={{
               fontSize: "0.8125rem",
               fontWeight: 600,
-              color: "var(--ch-text-muted)",
+              color: "var(--cs-text-muted)",
               textTransform: "uppercase",
               letterSpacing: "0.05em",
               marginBottom: "0.75rem",
@@ -431,7 +431,7 @@ export function WalkinForm() {
             Date &amp; Time
           </legend>
 
-          <div style={{ marginBottom: "0.75rem", fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>
+          <div style={{ marginBottom: "0.75rem", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
             {selectedService?.services?.name
               ? `Selected service: ${selectedService.services.name}`
               : "Choose an available slot"}
@@ -448,11 +448,11 @@ export function WalkinForm() {
               style={{
                 height: 36,
                 borderRadius: 6,
-                border: "1px solid var(--ch-border)",
+                border: "1px solid var(--cs-border)",
                 padding: "0 0.75rem",
                 fontSize: "0.875rem",
-                backgroundColor: "var(--ch-surface)",
-                color: "var(--ch-text)",
+                backgroundColor: "var(--cs-surface)",
+                color: "var(--cs-text)",
               }}
             />
           </div>
@@ -470,11 +470,11 @@ export function WalkinForm() {
               style={{
                 marginTop: "0.75rem",
                 padding: "8px 12px",
-                backgroundColor: "var(--ch-accent-light)",
-                border: "1px solid var(--ch-accent)",
+                backgroundColor: "var(--cs-sand-lighter)",
+                border: "1px solid var(--cs-sand)",
                 borderRadius: 6,
                 fontSize: "0.875rem",
-                color: "var(--ch-accent)",
+                color: "var(--cs-sand)",
                 fontWeight: 500,
               }}
             >
@@ -498,11 +498,11 @@ export function WalkinForm() {
           rows={3}
           style={{
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
+            border: "1px solid var(--cs-border)",
             padding: "0.5rem 0.75rem",
             fontSize: "0.875rem",
-            color: "var(--ch-text)",
-            backgroundColor: "var(--ch-surface)",
+            color: "var(--cs-text)",
+            backgroundColor: "var(--cs-surface)",
             resize: "vertical",
             fontFamily: "inherit",
           }}
@@ -513,7 +513,7 @@ export function WalkinForm() {
         type="submit"
         disabled={isPending || !selected || !serviceId || !fullName || !phone}
         style={{
-          backgroundColor: "var(--ch-accent)",
+          backgroundColor: "var(--cs-sand)",
           color: "#fff",
           border: "none",
           opacity: isPending || !selected || !serviceId || !fullName || !phone ? 0.5 : 1,

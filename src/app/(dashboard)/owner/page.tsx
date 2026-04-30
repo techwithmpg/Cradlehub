@@ -1,270 +1,191 @@
-import { PageHeader } from "@/components/features/dashboard/page-header";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
-import {
-  getOwnerDashboardAction,
-  getOwnerBookingsAction,
-} from "@/app/(dashboard)/owner/bookings/actions";
+import { getOwnerDashboardAction, getOwnerBookingsAction } from "./bookings/actions";
 import { getAllBranches } from "@/lib/queries/branches";
 import { getAllStaff } from "@/lib/queries/staff";
 import { formatCurrency, formatTime } from "@/lib/utils";
+type BranchStat = { name: string; revenue: number; total: number; completed: number };
 
-type BranchSummary = {
-  name: string;
-  total: number;
-  completed: number;
-  revenue: number;
-};
-
-type OwnerDashboardStats = {
-  total_bookings: number;
-  total_completed: number;
-  total_cancelled: number;
-  total_revenue: number;
-  by_branch: BranchSummary[];
-};
-
-type BranchRel = { name: string } | { name: string }[] | null;
-type ServiceRel = { name: string } | { name: string }[] | null;
-type StaffRel = { full_name: string } | { full_name: string }[] | null;
-type CustomerRel = { full_name: string } | { full_name: string }[] | null;
-
-type OwnerBookingRow = {
-  id: string;
-  start_time: string;
-  type: string;
-  status: string;
-  branches: BranchRel;
-  services: ServiceRel;
-  staff: StaffRel;
-  customers: CustomerRel;
-};
-
-function today(): string {
-  return new Date().toISOString().split("T")[0]!;
-}
-
-function readName(relation: BranchRel | ServiceRel): string {
-  if (!relation) return "—";
-  if (Array.isArray(relation)) return relation[0]?.name ?? "—";
-  return relation.name;
-}
-
-function readFullName(relation: StaffRel | CustomerRel): string {
-  if (!relation) return "—";
-  if (Array.isArray(relation)) return relation[0]?.full_name ?? "—";
-  return relation.full_name;
-}
+function today() { return new Date().toISOString().split("T")[0]!; }
 
 export default async function OwnerOverviewPage() {
-  const [statsResult, recentBookingsResult, branches, staff] = await Promise.all([
+  const [stats, recentBookings, branches, staff] = await Promise.all([
     getOwnerDashboardAction(today()),
     getOwnerBookingsAction({ fromDate: today(), toDate: today() }),
     getAllBranches(),
     getAllStaff(),
   ]);
 
-  const statsData: OwnerDashboardStats | null =
-    "error" in statsResult ? null : (statsResult as OwnerDashboardStats);
-  const bookingsData: OwnerBookingRow[] =
-    "error" in recentBookingsResult
-      ? []
-      : (recentBookingsResult as OwnerBookingRow[]);
+  const statsData = "error" in stats ? null : stats;
+  const bookingsData = "error" in recentBookings ? [] : recentBookings;
+  const activeStaff = staff.filter((s) => s.is_active).length;
 
   return (
     <div>
-      <PageHeader
-        title="Overview"
-        description={`Today — ${new Date().toLocaleDateString("en-PH", {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-        })}`}
-      />
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: "0.75rem",
-          marginBottom: "2rem",
-        }}
-      >
-        <StatCard
-          label="Today's Bookings"
-          value={statsData?.total_bookings ?? 0}
-          sub="all branches"
-          accent
-        />
-        <StatCard label="Completed" value={statsData?.total_completed ?? 0} sub="today" />
-        <StatCard
-          label="Revenue Today"
-          value={formatCurrency(statsData?.total_revenue ?? 0)}
-          sub="completed bookings"
-          accent
-        />
-        <StatCard label="Active Branches" value={branches.length} />
-        <StatCard
-          label="Total Staff"
-          value={staff.filter((s) => s.is_active).length}
-          sub="active therapists"
-        />
+      {/* Strategic header */}
+      <div style={{
+        marginBottom: "1.75rem",
+        paddingBottom: "1.25rem",
+        borderBottom: "1px solid var(--cs-border-light)",
+        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+      }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.25rem" }}>
+            <span style={{ fontSize: 20 }}>💎</span>
+            <h2 style={{
+              fontSize: "1.125rem", fontWeight: 600,
+              color: "var(--cs-text)", margin: 0,
+              fontFamily: "var(--font-display)",
+            }}>
+              Owner&apos;s Suite
+            </h2>
+            <span style={{
+              fontSize: "0.6875rem", fontWeight: 600,
+              padding: "2px 8px", borderRadius: "var(--cs-radius-pill)",
+              backgroundColor: "var(--cs-sand-lighter)",
+              color: "var(--cs-sand)",
+              letterSpacing: "0.05em", textTransform: "uppercase" as const,
+            }}>
+              Strategic View
+            </span>
+          </div>
+          <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", margin: 0 }}>
+            {new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+          </p>
+        </div>
       </div>
 
-      {statsData?.by_branch && statsData.by_branch.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
-          <div
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--ch-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "0.75rem",
-            }}
-          >
-            By Branch
+      {/* KPI Grid */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+        gap: "0.875rem",
+        marginBottom: "1.75rem",
+      }}>
+        <StatCard label="Today&apos;s Bookings" value={statsData?.total_bookings ?? 0} sub="all branches" accent />
+        <StatCard label="Completed" value={statsData?.total_completed ?? 0} sub="today" trend="up" />
+        <StatCard label="Today's Revenue" value={formatCurrency(statsData?.total_revenue ?? 0)} sub="completed sessions" accent />
+        <StatCard label="Active Branches" value={branches.length} />
+        <StatCard label="Team Members" value={activeStaff} sub="on roster" />
+      </div>
+
+      {/* Two-column layout */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 340px",
+        gap: "1.25rem",
+        alignItems: "start",
+      }}>
+
+        {/* Left: Today's bookings */}
+        <div className="cs-card" style={{ padding: "1.25rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+            <span style={{ fontSize: 16 }}>📋</span>
+            <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--cs-text)", fontFamily: "var(--font-display)" }}>
+              Today&apos;s Bookings
+            </div>
+            <span style={{
+              marginLeft: "auto", fontSize: "0.75rem", fontWeight: 600,
+              padding: "2px 8px", borderRadius: "var(--cs-radius-pill)",
+              backgroundColor: "var(--cs-sand-lighter)", color: "var(--cs-sand)",
+            }}>
+              {bookingsData.length} total
+            </span>
           </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "0.75rem",
-            }}
-          >
-            {statsData.by_branch.map((b) => (
-              <div
-                key={b.name}
-                style={{
-                  backgroundColor: "var(--ch-surface)",
-                  border: "1px solid var(--ch-border)",
-                  borderRadius: 10,
-                  padding: "0.875rem 1rem",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                    color: "var(--ch-text)",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  {b.name}
+
+          {bookingsData.length === 0 ? (
+            <div style={{ padding: "2rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
+              No bookings scheduled for today
+            </div>
+          ) : (
+            <div>
+              {bookingsData.map((b, i: number) => (
+                <div key={b.id} style={{
+                  display: "flex", alignItems: "center", gap: "0.875rem",
+                  padding: "0.75rem 0",
+                  borderBottom: i < bookingsData.length - 1 ? "1px solid var(--cs-border-light)" : "none",
+                }}>
+                  <div style={{ minWidth: 52, fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-sand)" }}>
+                    {formatTime(b.start_time)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {b.customers?.full_name ?? "—"}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                      {b.services?.name} · {b.staff?.full_name} · {b.branches?.name}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                    <BookingTypeBadge type={b.type} />
+                    <BookingStatusBadge status={b.status} />
+                  </div>
                 </div>
-                <div
-                  style={{
-                    fontSize: "0.8125rem",
-                    color: "var(--ch-text-muted)",
-                    display: "flex",
-                    gap: "1rem",
-                  }}
-                >
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: Branch performance + Quick Actions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div className="cs-card" style={{ padding: "1.25rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+              <span style={{ fontSize: 16 }}>🏢</span>
+              <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--cs-text)", fontFamily: "var(--font-display)" }}>
+                Branch Performance
+              </div>
+            </div>
+            {statsData?.by_branch?.map((b: BranchStat) => (
+              <div key={b.name} style={{ padding: "0.75rem 0", borderBottom: "1px solid var(--cs-border-light)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>{b.name}</span>
+                  <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--cs-sand)" }}>{formatCurrency(b.revenue)}</span>
+                </div>
+                <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                   <span>{b.total} bookings</span>
-                  <span>{b.completed} done</span>
-                  <span style={{ color: "var(--ch-accent)" }}>{formatCurrency(b.revenue)}</span>
+                  <span>{b.completed} completed</span>
+                </div>
+                <div style={{ height: 3, backgroundColor: "var(--cs-border)", borderRadius: 2, marginTop: 6 }}>
+                  <div style={{
+                    height: "100%",
+                    width: `${b.total > 0 ? Math.round(b.completed / b.total * 100) : 0}%`,
+                    backgroundColor: "var(--cs-sage)",
+                    borderRadius: 2,
+                  }} />
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
 
-      <div>
-        <div
-          style={{
-            fontSize: "0.8125rem",
-            fontWeight: 600,
-            color: "var(--ch-text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            marginBottom: "0.75rem",
-          }}
-        >
-          Today's Bookings
-        </div>
-
-        {bookingsData.length === 0 ? (
-          <div
-            style={{
-              padding: "2rem",
-              textAlign: "center",
-              color: "var(--ch-text-subtle)",
-              fontSize: "0.875rem",
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
-              borderRadius: 10,
-            }}
-          >
-            No bookings today yet
-          </div>
-        ) : (
-          <div
-            style={{
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
-              borderRadius: 10,
-              overflow: "hidden",
-            }}
-          >
-            {bookingsData.map((b, i) => (
-              <div
-                key={b.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1rem",
-                  padding: "0.75rem 1rem",
-                  borderBottom: i < bookingsData.length - 1 ? "1px solid var(--ch-border)" : "none",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "0.8125rem",
-                    fontWeight: 500,
-                    color: "var(--ch-text)",
-                    minWidth: 52,
-                  }}
-                >
-                  {formatTime(b.start_time)}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: "0.875rem",
-                      fontWeight: 500,
-                      color: "var(--ch-text)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {readFullName(b.customers)}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.8125rem",
-                      color: "var(--ch-text-muted)",
-                    }}
-                  >
-                    {readName(b.services)} · {readFullName(b.staff)}
-                  </div>
-                </div>
-
-                <div className="hidden sm:block" style={{ fontSize: "0.75rem", color: "var(--ch-text-subtle)" }}>
-                  {readName(b.branches)}
-                </div>
-
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <BookingTypeBadge type={b.type} />
-                  <BookingStatusBadge status={b.status} />
-                </div>
+          <div className="cs-card" style={{ padding: "1.25rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.875rem" }}>
+              <span style={{ fontSize: 16 }}>💡</span>
+              <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--cs-text)", fontFamily: "var(--font-display)" }}>
+                Quick Actions
               </div>
+            </div>
+            {[
+              { icon: "👥", label: "Invite staff member", href: "/owner/staff/new" },
+              { icon: "✨", label: "Add new service", href: "/owner/services/new" },
+              { icon: "🏢", label: "Manage branches", href: "/owner/branches" },
+              { icon: "📊", label: "View all bookings", href: "/owner/bookings" },
+            ].map(action => (
+              <a key={action.href} href={action.href} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "0.625rem 0.5rem",
+                borderRadius: "var(--cs-radius-sm)",
+                textDecoration: "none",
+                color: "var(--cs-text-secondary)",
+                fontSize: "0.8125rem",
+                transition: "var(--cs-transition)",
+              }}>
+                <span>{action.icon}</span>
+                {action.label}
+              </a>
             ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

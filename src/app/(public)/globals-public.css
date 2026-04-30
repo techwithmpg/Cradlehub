@@ -1,0 +1,87 @@
+/* ============================================================
+   CRADLE SPA — Public Website Design System
+   COMPLETELY SEPARATE from dashboard (--cs-*) tokens.
+   Use --pw-* variables ONLY in public-facing components.
+   ============================================================ */
+
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-display: var(--font-cormorant), Georgia, serif;
+}
+
+:root {
+  /* Forest palette */
+  --pw-forest-deep:    #192B19;   /* hero, dark sections */
+  --pw-forest:         #2D4A2D;   /* primary brand green */
+  --pw-forest-mid:     #3D6A3D;   /* medium green */
+  --pw-sage:           #7A9A7A;   /* accent, positive states */
+  --pw-mist:           #EBF2EB;   /* lightest green tint */
+  --pw-moss:           #D4E4D4;   /* soft green surface */
+
+  /* Champagne gold */
+  --pw-gold:           #C9A96E;   /* primary accent */
+  --pw-gold-light:     #F2E8D0;   /* gold tint backgrounds */
+  --pw-gold-mist:      #FAF6EE;   /* very light gold */
+
+  /* Neutrals */
+  --pw-cream:          #F7F3ED;   /* main page background */
+  --pw-white:          #FFFFFF;   /* card surfaces */
+  --pw-ink:            #1A1814;   /* primary text */
+  --pw-warm:           #6B6057;   /* secondary text */
+  --pw-warm-light:     #ADA49A;   /* muted text, hints */
+  --pw-border:         #E2D9CE;   /* soft warm border */
+  --pw-border-light:   #EEE8E0;   /* ultra-soft divider */
+
+  /* Typography */
+  --pw-font-display: var(--font-cormorant), Georgia, 'Times New Roman', serif;
+  --pw-font-body:    var(--font-dm-sans), system-ui, sans-serif;
+
+  /* Spacing */
+  --pw-section:     64px;
+  --pw-section-sm:  40px;
+
+  /* Shadows */
+  --pw-shadow-sm:   0 2px 12px rgba(25, 43, 25, 0.06);
+  --pw-shadow-md:   0 8px 32px rgba(25, 43, 25, 0.09);
+  --pw-shadow-lg:   0 16px 48px rgba(25, 43, 25, 0.12);
+
+  /* Radii */
+  --pw-radius:      4px;
+  --pw-radius-lg:   8px;
+
+  /* Transitions */
+  --pw-ease:        cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --pw-duration:    280ms;
+}
+
+/* Widget / contact form elements */
+select,
+input[type="text"],
+input[type="tel"],
+input[type="email"],
+input[type="date"],
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--pw-font-body);
+  border: 1px solid var(--pw-border);
+  border-radius: var(--pw-radius);
+  background: var(--pw-white);
+  color: var(--pw-ink);
+  outline: none;
+  transition: border-color var(--pw-duration) var(--pw-ease);
+  appearance: none;
+  -webkit-appearance: none;
+}
+select:focus,
+input:focus,
+textarea:focus {
+  border-color: var(--pw-gold);
+}
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}

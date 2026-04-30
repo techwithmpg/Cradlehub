@@ -14,7 +14,7 @@ async function getMyStaffRecord() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("id, full_name, tier, system_role, branch_id")
+    .select("id, full_name, tier, system_role, staff_type, branch_id")
     .eq("auth_user_id", user.id)
     .single();
   return me ?? null;

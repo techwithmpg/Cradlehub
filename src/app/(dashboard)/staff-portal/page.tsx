@@ -5,6 +5,7 @@ import { StatCard } from "@/components/features/dashboard/stat-card";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { getMyTodayAction } from "./actions";
 import { formatTime } from "@/lib/utils";
+import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import type { Database } from "@/types/supabase";
 
 type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
@@ -25,7 +26,7 @@ type StaffTodayBooking = Pick<
   customers: CustomerRelation;
 };
 
-type StaffLite = Pick<StaffRow, "id" | "full_name" | "tier" | "system_role" | "branch_id">;
+type StaffLite = Pick<StaffRow, "id" | "full_name" | "tier" | "system_role" | "staff_type" | "branch_id">;
 
 type TodayActionResult =
   | { error: string }
@@ -44,10 +45,17 @@ function getGreeting(): string {
 }
 
 function statusStripColor(status: string): string {
-  if (status === "completed") return "var(--ch-staff-text)";
-  if (status === "in_progress") return "var(--ch-owner-text)";
-  if (status === "cancelled" || status === "no_show") return "var(--ch-text-subtle)";
-  return "var(--ch-accent)";
+  if (status === "completed") return "var(--cs-sage)";
+  if (status === "in_progress") return "var(--cs-sand)";
+  if (status === "cancelled" || status === "no_show") return "var(--cs-text-muted)";
+  return "var(--cs-sand)";
+}
+
+function tierLabel(tier: string | null): string {
+  if (tier === "senior") return "Senior";
+  if (tier === "mid") return "Mid";
+  if (tier === "junior") return "Amateur";
+  return tier ?? "";
 }
 
 export default async function StaffTodayPage() {
@@ -60,7 +68,7 @@ export default async function StaffTodayPage() {
         style={{
           padding: "2rem",
           textAlign: "center",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           fontSize: "0.875rem",
         }}
       >
@@ -88,8 +96,8 @@ export default async function StaffTodayPage() {
       <div
         style={{
           padding: "0.875rem 1.25rem",
-          backgroundColor: "var(--ch-accent-light)",
-          border: "1px solid var(--ch-border)",
+          backgroundColor: "var(--cs-sand-lighter)",
+          border: "1px solid var(--cs-border)",
           borderRadius: 10,
           marginBottom: "1.25rem",
           display: "flex",
@@ -102,7 +110,7 @@ export default async function StaffTodayPage() {
             width: 40,
             height: 40,
             borderRadius: "50%",
-            backgroundColor: "var(--ch-accent)",
+            backgroundColor: "var(--cs-sand)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -114,15 +122,39 @@ export default async function StaffTodayPage() {
         >
           {staff.full_name.charAt(0).toUpperCase()}
         </div>
-        <div>
-          <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--ch-text)" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--cs-text)" }}>
             Good {getGreeting()}, {staff.full_name.split(" ")[0]}
           </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>
-            {bookings.length} appointment{bookings.length !== 1 ? "s" : ""} scheduled today
+          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+            {STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Staff"}
+            {staff.tier && (
+              <span style={{ marginLeft: 6 }}>
+                &middot; {tierLabel(staff.tier)}
+              </span>
+            )}
+            <span style={{ marginLeft: 6 }}>
+              &middot; {bookings.length} appointment{bookings.length !== 1 ? "s" : ""} today
+            </span>
           </div>
         </div>
       </div>
+
+      {staff.staff_type === "salon_head" && (
+        <div
+          style={{
+            padding: "0.75rem 1rem",
+            marginBottom: "1.25rem",
+            backgroundColor: "var(--cs-sage-light)",
+            border: "1px solid var(--cs-sage)",
+            borderRadius: 8,
+            fontSize: "0.8125rem",
+            color: "var(--cs-sage)",
+          }}
+        >
+          <strong>Supervisor View</strong> &mdash; Department oversight and team scheduling tools are coming soon.
+        </div>
+      )}
 
       {bookings.length > 0 && (
         <div
@@ -147,8 +179,8 @@ export default async function StaffTodayPage() {
       ) : (
         <div
           style={{
-            backgroundColor: "var(--ch-surface)",
-            border: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
             borderRadius: 10,
             overflow: "hidden",
           }}
@@ -168,9 +200,9 @@ export default async function StaffTodayPage() {
                   alignItems: "center",
                   gap: "0.875rem",
                   padding: "1rem",
-                  borderBottom: i < bookings.length - 1 ? "1px solid var(--ch-border)" : "none",
+                  borderBottom: i < bookings.length - 1 ? "1px solid var(--cs-border)" : "none",
                   backgroundColor:
-                    booking.status === "in_progress" ? "var(--ch-accent-light)" : "transparent",
+                    booking.status === "in_progress" ? "var(--cs-sand-lighter)" : "transparent",
                 }}
               >
                 <div
@@ -184,7 +216,7 @@ export default async function StaffTodayPage() {
                     style={{
                       fontSize: "1rem",
                       fontWeight: 700,
-                      color: "var(--ch-text)",
+                      color: "var(--cs-text)",
                       lineHeight: 1,
                     }}
                   >
@@ -193,7 +225,7 @@ export default async function StaffTodayPage() {
                   <div
                     style={{
                       fontSize: "0.6875rem",
-                      color: "var(--ch-text-muted)",
+                      color: "var(--cs-text-muted)",
                       marginTop: 2,
                     }}
                   >
@@ -212,16 +244,16 @@ export default async function StaffTodayPage() {
                 />
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "0.9375rem", fontWeight: 500, color: "var(--ch-text)" }}>
+                  <div style={{ fontSize: "0.9375rem", fontWeight: 500, color: "var(--cs-text)" }}>
                     {customer?.full_name ?? "—"}
                   </div>
-                  <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", marginTop: 2 }}>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginTop: 2 }}>
                     {service?.name ?? "Service"}
                     {typeof service?.duration_minutes === "number" && (
                       <span style={{ marginLeft: 6 }}>· {service.duration_minutes} min</span>
                     )}
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ch-text-subtle)", marginTop: 2 }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginTop: 2 }}>
                     Until {formatTime(booking.end_time)}
                   </div>
                 </div>

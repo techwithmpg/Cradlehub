@@ -1,54 +1,49 @@
 type EmptyStateProps = {
-  title: string;
+  title:       string;
   description: string;
-  action?: React.ReactNode;
+  action?:     React.ReactNode;
+  icon?:       string;
 };
 
-export function EmptyState({ title, description, action }: EmptyStateProps) {
+export function EmptyState({ title, description, action, icon = "🌿" }: EmptyStateProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "3rem 1rem",
-        textAlign: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 12,
-          backgroundColor: "var(--ch-border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: "1rem",
-          fontSize: 22,
-        }}
-      >
-        ○
+    <div style={{
+      display:        "flex",
+      flexDirection:  "column",
+      alignItems:     "center",
+      justifyContent: "center",
+      padding:        "3.5rem 1rem",
+      textAlign:      "center",
+    }}>
+      <div style={{
+        width:           56,
+        height:          56,
+        borderRadius:    "var(--cs-radius-lg)",
+        backgroundColor: "var(--cs-sand-lighter)",
+        display:         "flex",
+        alignItems:      "center",
+        justifyContent:  "center",
+        marginBottom:    "1.125rem",
+        fontSize:        24,
+      }}>
+        {icon}
       </div>
-      <div
-        style={{
-          fontSize: "0.9375rem",
-          fontWeight: 500,
-          color: "var(--ch-text)",
-          marginBottom: "0.375rem",
-        }}
-      >
+      <div style={{
+        fontSize:     "1rem",
+        fontWeight:   600,
+        color:        "var(--cs-text)",
+        marginBottom: "0.375rem",
+        fontFamily:   "var(--font-display)",
+      }}>
         {title}
       </div>
-      <div
-        style={{
-          fontSize: "0.875rem",
-          color: "var(--ch-text-muted)",
-          maxWidth: 360,
-          marginBottom: action ? "1.25rem" : 0,
-        }}
-      >
+      <div style={{
+        fontSize:     "0.875rem",
+        color:        "var(--cs-text-muted)",
+        maxWidth:     360,
+        lineHeight:   1.6,
+        marginBottom: action ? "1.25rem" : 0,
+      }}>
         {description}
       </div>
       {action}

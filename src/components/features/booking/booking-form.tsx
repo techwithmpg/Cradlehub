@@ -92,8 +92,8 @@ export function BookingForm({
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div
         style={{
-          backgroundColor: "var(--ch-accent-light)",
-          border: "1px solid var(--ch-border)",
+          backgroundColor: "var(--cs-sand-lighter)",
+          border: "1px solid var(--cs-border)",
           borderRadius: 10,
           padding: "1rem 1.25rem",
         }}
@@ -102,7 +102,7 @@ export function BookingForm({
           style={{
             fontSize: "0.75rem",
             fontWeight: 600,
-            color: "var(--ch-accent)",
+            color: "var(--cs-sand)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.5rem",
@@ -110,10 +110,10 @@ export function BookingForm({
         >
           Your Appointment
         </div>
-        <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--ch-text)", marginBottom: 4 }}>
+        <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--cs-text)", marginBottom: 4 }}>
           {serviceName}
         </div>
-        <div style={{ fontSize: "0.875rem", color: "var(--ch-text-muted)" }}>
+        <div style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)" }}>
           {formatDateDisplay(date)} at {formatDisplayTime(time)}
         </div>
         <div
@@ -122,11 +122,11 @@ export function BookingForm({
             display: "flex",
             gap: "1rem",
             fontSize: "0.8125rem",
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
           }}
         >
           <span>{durationMins} minutes</span>
-          <span style={{ fontWeight: 600, color: "var(--ch-accent)" }}>
+          <span style={{ fontWeight: 600, color: "var(--cs-sand)" }}>
             {formatCurrencyLocal(servicePrice)}
           </span>
         </div>
@@ -136,11 +136,11 @@ export function BookingForm({
         <div
           style={{
             padding: "0.875rem",
-            backgroundColor: "var(--ch-surface)",
-            border: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
             borderRadius: 8,
             fontSize: "0.875rem",
-            color: "var(--ch-crm-text)",
+            color: "var(--cs-manager-accent)",
           }}
         >
           {error}
@@ -152,7 +152,7 @@ export function BookingForm({
                 style={{
                   background: "none",
                   border: "none",
-                  color: "var(--ch-crm-text)",
+                  color: "var(--cs-manager-accent)",
                   fontSize: "0.875rem",
                   cursor: "pointer",
                   textDecoration: "underline",
@@ -175,27 +175,27 @@ export function BookingForm({
             cursor: "pointer",
             padding: "0.75rem 1rem",
             borderRadius: 8,
-            border: `1.5px solid ${isHome ? "var(--ch-accent)" : "var(--ch-border)"}`,
-            backgroundColor: isHome ? "var(--ch-accent-light)" : "var(--ch-surface)",
+            border: `1.5px solid ${isHome ? "var(--cs-sand)" : "var(--cs-border)"}`,
+            backgroundColor: isHome ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
           }}
         >
           <input
             type="checkbox"
             checked={isHome}
             onChange={(event) => setIsHome(event.target.checked)}
-            style={{ width: 16, height: 16, accentColor: "var(--ch-accent)" }}
+            style={{ width: 16, height: 16, accentColor: "var(--cs-sand)" }}
           />
           <div>
             <div
               style={{
                 fontSize: "0.875rem",
                 fontWeight: 500,
-                color: isHome ? "var(--ch-accent)" : "var(--ch-text)",
+                color: isHome ? "var(--cs-sand)" : "var(--cs-text)",
               }}
             >
               This is a home service visit
             </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
               Therapist will travel to your location
             </div>
           </div>
@@ -207,7 +207,7 @@ export function BookingForm({
           style={{
             fontSize: "0.8125rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.875rem",
@@ -239,7 +239,7 @@ export function BookingForm({
               placeholder="+63 XXX XXX XXXX"
               required
             />
-            <p style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", margin: 0 }}>
+            <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: 0 }}>
               We&apos;ll use this to confirm your appointment
             </p>
           </div>
@@ -272,11 +272,11 @@ export function BookingForm({
               rows={3}
               style={{
                 borderRadius: 6,
-                border: "1px solid var(--ch-border)",
+                border: "1px solid var(--cs-border)",
                 padding: "0.5rem 0.75rem",
                 fontSize: "0.875rem",
-                color: "var(--ch-text)",
-                backgroundColor: "var(--ch-surface)",
+                color: "var(--cs-text)",
+                backgroundColor: "var(--cs-surface)",
                 resize: "vertical",
                 fontFamily: "inherit",
                 width: "100%",
@@ -290,7 +290,7 @@ export function BookingForm({
         type="submit"
         disabled={isPending || !fullName || !phone || (isHome && !notes)}
         style={{
-          backgroundColor: "var(--ch-accent)",
+          backgroundColor: "var(--cs-sand)",
           color: "#fff",
           border: "none",
           height: 46,
@@ -305,7 +305,7 @@ export function BookingForm({
       <p
         style={{
           fontSize: "0.75rem",
-          color: "var(--ch-text-subtle)",
+          color: "var(--cs-text-muted)",
           textAlign: "center",
           margin: 0,
         }}

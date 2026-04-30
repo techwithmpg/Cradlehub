@@ -112,9 +112,9 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
       >
         <div
           style={{
-            backgroundColor: "var(--ch-surface)",
-            borderBottom: "1px solid var(--ch-border)",
-            borderRight: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            borderBottom: "1px solid var(--cs-border)",
+            borderRight: "1px solid var(--cs-border)",
             padding: "8px 0",
             position: "sticky",
             top: 0,
@@ -127,22 +127,22 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
             key={member.id}
             style={{
               padding: "8px 12px",
-              backgroundColor: "var(--ch-surface)",
-              borderBottom: "1px solid var(--ch-border)",
-              borderRight: "1px solid var(--ch-border)",
+              backgroundColor: "var(--cs-surface)",
+              borderBottom: "1px solid var(--cs-border)",
+              borderRight: "1px solid var(--cs-border)",
               position: "sticky",
               top: 0,
               zIndex: 5,
             }}
           >
-            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--ch-text)" }}>
+            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>
               {member.full_name}
             </div>
-            <div style={{ fontSize: "0.6875rem", color: "var(--ch-text-subtle)" }}>{member.tier}</div>
+            <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>{member.tier}</div>
           </div>
         ))}
 
-        <div style={{ position: "relative", height: totalHeight, borderRight: "1px solid var(--ch-border)" }}>
+        <div style={{ position: "relative", height: totalHeight, borderRight: "1px solid var(--cs-border)" }}>
           {timeRows.map((row, index) => {
             const isHour = Number.isInteger(row);
             return (
@@ -153,7 +153,7 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
                     top: index * SLOT_HEIGHT,
                     right: 8,
                     fontSize: "0.6875rem",
-                    color: isHour ? "var(--ch-text-muted)" : "transparent",
+                    color: isHour ? "var(--cs-text-muted)" : "transparent",
                     whiteSpace: "nowrap",
                     lineHeight: 1,
                     marginTop: -6,
@@ -169,7 +169,7 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
                       left: 0,
                       right: -999,
                       height: 1,
-                      backgroundColor: "var(--ch-border)",
+                      backgroundColor: "var(--cs-border)",
                       zIndex: 0,
                     }}
                   />
@@ -191,7 +191,7 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
               style={{
                 position: "relative",
                 height: totalHeight,
-                borderRight: "1px solid var(--ch-border)",
+                borderRight: "1px solid var(--cs-border)",
               }}
             >
               {Array.from({ length: totalSlots }).map((_, index) => (
@@ -203,7 +203,7 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
                     left: 0,
                     right: 0,
                     height: SLOT_HEIGHT,
-                    borderBottom: "1px solid var(--ch-border)",
+                    borderBottom: "1px solid var(--cs-border)",
                     opacity: 0.4,
                   }}
                 />
@@ -239,7 +239,7 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
                       style={{
                         fontSize: "0.75rem",
                         fontWeight: 600,
-                        color: "var(--ch-text)",
+                        color: "var(--cs-text)",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -251,7 +251,7 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
                       <div
                         style={{
                           fontSize: "0.6875rem",
-                          color: "var(--ch-text-muted)",
+                          color: "var(--cs-text-muted)",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",

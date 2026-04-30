@@ -22,14 +22,14 @@ export default async function BookingSuccessPage({
           width: 72,
           height: 72,
           borderRadius: "50%",
-          backgroundColor: "var(--ch-staff-bg)",
-          border: "2px solid var(--ch-staff-text)",
+          backgroundColor: "var(--cs-sage-light)",
+          border: "2px solid var(--cs-sage)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           margin: "0 auto 1.5rem",
           fontSize: 32,
-          color: "var(--ch-staff-text)",
+          color: "var(--cs-sage)",
         }}
       >
         ✓
@@ -39,7 +39,7 @@ export default async function BookingSuccessPage({
         style={{
           fontSize: "1.5rem",
           fontWeight: 700,
-          color: "var(--ch-text)",
+          color: "var(--cs-text)",
           marginBottom: "0.5rem",
         }}
       >
@@ -49,7 +49,7 @@ export default async function BookingSuccessPage({
       <p
         style={{
           fontSize: "1rem",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           marginBottom: "1.5rem",
           lineHeight: 1.6,
         }}
@@ -63,20 +63,20 @@ export default async function BookingSuccessPage({
         style={{
           display: "inline-block",
           padding: "0.625rem 1.25rem",
-          backgroundColor: "var(--ch-surface)",
-          border: "1px solid var(--ch-border)",
+          backgroundColor: "var(--cs-surface)",
+          border: "1px solid var(--cs-border)",
           borderRadius: 8,
           marginBottom: "2rem",
         }}
       >
-        <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 2 }}>
+        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 2 }}>
           Booking reference
         </div>
         <div
           style={{
             fontSize: "1.25rem",
             fontWeight: 700,
-            color: "var(--ch-text)",
+            color: "var(--cs-text)",
             letterSpacing: "0.08em",
             fontVariantNumeric: "tabular-nums",
           }}
@@ -88,12 +88,12 @@ export default async function BookingSuccessPage({
       <div
         style={{
           padding: "1rem 1.25rem",
-          backgroundColor: "var(--ch-accent-light)",
-          border: "1px solid var(--ch-border)",
+          backgroundColor: "var(--cs-sand-lighter)",
+          border: "1px solid var(--cs-border)",
           borderRadius: 10,
           marginBottom: "2rem",
           fontSize: "0.875rem",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           lineHeight: 1.6,
         }}
       >
@@ -108,7 +108,7 @@ export default async function BookingSuccessPage({
             display: "block",
             padding: "11px 0",
             borderRadius: 8,
-            backgroundColor: "var(--ch-accent)",
+            backgroundColor: "var(--cs-sand)",
             color: "#fff",
             fontSize: "0.9375rem",
             fontWeight: 600,
@@ -124,9 +124,9 @@ export default async function BookingSuccessPage({
             display: "block",
             padding: "11px 0",
             borderRadius: 8,
-            border: "1px solid var(--ch-border)",
-            backgroundColor: "var(--ch-surface)",
-            color: "var(--ch-text-muted)",
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text-muted)",
             fontSize: "0.9375rem",
             textDecoration: "none",
             textAlign: "center",

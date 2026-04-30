@@ -79,7 +79,7 @@ export default async function StaffWeekPage() {
         style={{
           padding: "2rem",
           textAlign: "center",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           fontSize: "0.875rem",
         }}
       >
@@ -139,8 +139,8 @@ export default async function StaffWeekPage() {
             <div
               key={date}
               style={{
-                backgroundColor: "var(--ch-surface)",
-                border: `1.5px solid ${isToday ? "var(--ch-accent)" : "var(--ch-border)"}`,
+                backgroundColor: "var(--cs-surface)",
+                border: `1.5px solid ${isToday ? "var(--cs-sand)" : "var(--cs-border)"}`,
                 borderRadius: 10,
                 overflow: "hidden",
               }}
@@ -150,8 +150,8 @@ export default async function StaffWeekPage() {
                   display: "flex",
                   alignItems: "center",
                   padding: "0.625rem 1rem",
-                  backgroundColor: isToday ? "var(--ch-accent-light)" : "var(--ch-page-bg)",
-                  borderBottom: "1px solid var(--ch-border)",
+                  backgroundColor: isToday ? "var(--cs-sand-lighter)" : "var(--cs-warm-white)",
+                  borderBottom: "1px solid var(--cs-border)",
                   gap: "0.875rem",
                 }}
               >
@@ -160,8 +160,8 @@ export default async function StaffWeekPage() {
                     width: 36,
                     height: 36,
                     borderRadius: "50%",
-                    backgroundColor: isToday ? "var(--ch-accent)" : "transparent",
-                    border: isToday ? "none" : "1.5px solid var(--ch-border)",
+                    backgroundColor: isToday ? "var(--cs-sand)" : "transparent",
+                    border: isToday ? "none" : "1.5px solid var(--cs-border)",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
@@ -173,7 +173,7 @@ export default async function StaffWeekPage() {
                     style={{
                       fontSize: "0.625rem",
                       fontWeight: 600,
-                      color: isToday ? "#fff" : "var(--ch-text-muted)",
+                      color: isToday ? "#fff" : "var(--cs-text-muted)",
                       lineHeight: 1,
                     }}
                   >
@@ -183,7 +183,7 @@ export default async function StaffWeekPage() {
                     style={{
                       fontSize: "0.875rem",
                       fontWeight: 700,
-                      color: isToday ? "#fff" : "var(--ch-text)",
+                      color: isToday ? "#fff" : "var(--cs-text)",
                       lineHeight: 1,
                       marginTop: 1,
                     }}
@@ -197,7 +197,7 @@ export default async function StaffWeekPage() {
                     style={{
                       fontSize: "0.875rem",
                       fontWeight: isToday ? 600 : 400,
-                      color: isToday ? "var(--ch-accent)" : "var(--ch-text)",
+                      color: isToday ? "var(--cs-sand)" : "var(--cs-text)",
                     }}
                   >
                     {FULL_DAY_NAMES[dayOfWeek]}
@@ -209,7 +209,7 @@ export default async function StaffWeekPage() {
                           fontWeight: 700,
                           padding: "1px 6px",
                           borderRadius: 4,
-                          backgroundColor: "var(--ch-accent)",
+                          backgroundColor: "var(--cs-sand)",
                           color: "#fff",
                         }}
                       >
@@ -217,13 +217,13 @@ export default async function StaffWeekPage() {
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                     {workHours ?? "Not scheduled"}
                     {override?.is_day_off && (
                       <span
                         style={{
                           marginLeft: 6,
-                          color: "var(--ch-crm-text)",
+                          color: "var(--cs-manager-accent)",
                           fontSize: "0.6875rem",
                           fontWeight: 600,
                         }}
@@ -239,8 +239,8 @@ export default async function StaffWeekPage() {
                     style={{
                       padding: "2px 10px",
                       borderRadius: 20,
-                      backgroundColor: isToday ? "var(--ch-accent)" : "var(--ch-border)",
-                      color: isToday ? "#fff" : "var(--ch-text-muted)",
+                      backgroundColor: isToday ? "var(--cs-sand)" : "var(--cs-border)",
+                      color: isToday ? "#fff" : "var(--cs-text-muted)",
                       fontSize: "0.75rem",
                       fontWeight: 600,
                       flexShrink: 0,
@@ -252,7 +252,7 @@ export default async function StaffWeekPage() {
               </div>
 
               {dayBookings.length === 0 ? (
-                <div style={{ padding: "0.625rem 1rem", fontSize: "0.8125rem", color: "var(--ch-text-subtle)" }}>
+                <div style={{ padding: "0.625rem 1rem", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
                   {workHours === "Day off" ? "Day off" : "No appointments"}
                 </div>
               ) : (
@@ -267,7 +267,7 @@ export default async function StaffWeekPage() {
                         alignItems: "center",
                         gap: "0.75rem",
                         padding: "0.625rem 1rem",
-                        borderBottom: i < dayBookings.length - 1 ? "1px solid var(--ch-border)" : "none",
+                        borderBottom: i < dayBookings.length - 1 ? "1px solid var(--cs-border)" : "none",
                       }}
                     >
                       <div
@@ -275,7 +275,7 @@ export default async function StaffWeekPage() {
                           minWidth: 48,
                           fontSize: "0.8125rem",
                           fontWeight: 500,
-                          color: "var(--ch-text)",
+                          color: "var(--cs-text)",
                           flexShrink: 0,
                         }}
                       >
@@ -286,7 +286,7 @@ export default async function StaffWeekPage() {
                           style={{
                             fontSize: "0.875rem",
                             fontWeight: 500,
-                            color: "var(--ch-text)",
+                            color: "var(--cs-text)",
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -294,7 +294,7 @@ export default async function StaffWeekPage() {
                         >
                           {customer?.full_name ?? "—"}
                         </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                           {service?.name ?? "Service"}
                           {typeof service?.duration_minutes === "number" && (
                             <span> · {service.duration_minutes} min</span>

@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-dm-sans);
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -50,39 +50,70 @@
 
 :root {
   --font-sans: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-display: var(--font-playfair), "Playfair Display", Georgia, serif;
+  --font-body: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
 
-  /* CradleHub design tokens */
-  --ch-sidebar-bg:         #1c1917;
-  --ch-sidebar-border:     #292524;
-  --ch-sidebar-text:       #a8a29e;
-  --ch-sidebar-text-hover: #e7e5e4;
-  --ch-sidebar-active-bg:  #292524;
-  --ch-sidebar-active:     #fafaf9;
-  --ch-accent:             #d97706;
-  --ch-accent-light:       #fef3c7;
-  --ch-page-bg:            #fafaf9;
-  --ch-surface:            #ffffff;
-  --ch-border:             #e7e5e4;
-  --ch-text:               #1c1917;
-  --ch-text-muted:         #78716c;
-  --ch-text-subtle:        #a8a29e;
+  /* Core palette — warm earth tones */
+  --cs-warm-white:    #F9F6F0;
+  --cs-surface:       #FFFFFF;
+  --cs-surface-warm:  #FDF9F5;
+  --cs-border:        #EAE0D5;
+  --cs-border-light:  #F2EBE0;
 
-  /* Role badge colors */
-  --ch-owner-bg:           #ede9fe;
-  --ch-owner-text:         #5b21b6;
-  --ch-manager-bg:         #fef3c7;
-  --ch-manager-text:       #92400e;
-  --ch-crm-bg:             #e0f2fe;
-  --ch-crm-text:           #075985;
-  --ch-staff-bg:           #dcfce7;
-  --ch-staff-text:         #166534;
+  /* Brand gradient accent */
+  --cs-sand:          #A67B5B;
+  --cs-clay:          #C7A27C;
+  --cs-sand-light:    #E6C9A8;
+  --cs-sand-lighter:  #F5EDE3;
+  --cs-sage:          #8A9A8B;
+  --cs-sage-light:    #EAF0EA;
 
-  --spa-black: #080808;
-  --spa-charcoal: #131313;
-  --spa-gold: #d6a84f;
-  --spa-gold-soft: #f6e3a1;
-  --spa-cream: #f8f2df;
-  --spa-muted: #c9bc9a;
+  /* Text */
+  --cs-text:          #2C2A29;
+  --cs-text-secondary:#6B5D52;
+  --cs-text-muted:    #9C8878;
+  --cs-text-inverse:  #F9F6F0;
+
+  /* Sidebar — warm dark */
+  --cs-sidebar-bg:    #2C2A29;
+  --cs-sidebar-hover: #3D3835;
+  --cs-sidebar-active:#4A4540;
+  --cs-sidebar-text:  #B5A898;
+  --cs-sidebar-label: #8A7D73;
+
+  /* Status colors */
+  --cs-success:       #8A9A8B;
+  --cs-success-light: #EAF0EA;
+  --cs-warning:       #C7A27C;
+  --cs-warning-light: #FAF0E4;
+  --cs-error:         #C17B6B;
+  --cs-error-light:   #FAF0EE;
+  --cs-info:          #7B94A8;
+  --cs-info-light:    #EDF3F8;
+
+  /* Workspace accent colors (role-specific) */
+  --cs-owner-accent:  #A67B5B;
+  --cs-manager-accent:#7B94A8;
+  --cs-crm-accent:    #8A9A8B;
+  --cs-csr-accent:    #C7A27C;
+  --cs-staff-accent:  #9A8A7B;
+
+  /* Shadows — floating, soft */
+  --cs-shadow-sm:     0 2px 8px rgba(44, 42, 41, 0.06), 0 1px 2px rgba(44, 42, 41, 0.04);
+  --cs-shadow-md:     0 8px 24px rgba(44, 42, 41, 0.08), 0 2px 6px rgba(44, 42, 41, 0.04);
+  --cs-shadow-lg:     0 16px 40px rgba(44, 42, 41, 0.10), 0 4px 12px rgba(44, 42, 41, 0.06);
+  --cs-shadow-glow:   0 0 0 3px rgba(166, 123, 91, 0.15);
+
+  /* Radii */
+  --cs-radius-sm:     8px;
+  --cs-radius-md:     12px;
+  --cs-radius-lg:     16px;
+  --cs-radius-xl:     20px;
+  --cs-radius-pill:   100px;
+
+  /* Transitions */
+  --cs-transition:    all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1);
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -156,32 +187,56 @@
     @apply border-border outline-ring/50;
   }
   body {
-    background-color: var(--ch-page-bg);
-    color: var(--ch-text);
+    background-color: var(--cs-warm-white);
+    color: var(--cs-text);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   html {
     @apply font-sans;
   }
 }
 
+/* Brand gradient text utility */
+.brand-gradient {
+  background: linear-gradient(135deg, var(--cs-sand), var(--cs-clay));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card utility */
+.cs-card {
+  background: var(--cs-surface);
+  border-radius: var(--cs-radius-lg);
+  box-shadow: var(--cs-shadow-sm);
+  border: 1px solid var(--cs-border-light);
+  transition: var(--cs-transition);
+}
+.cs-card:hover { box-shadow: var(--cs-shadow-md); }
+
+/* KPI card */
+.cs-kpi {
+  background: var(--cs-surface);
+  border-radius: var(--cs-radius-md);
+  box-shadow: var(--cs-shadow-sm);
+  padding: 1.125rem 1.25rem;
+  transition: var(--cs-transition);
+}
+.cs-kpi:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--cs-shadow-md);
+}
+
 @keyframes spa-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes spa-glow {
-  from {
-    box-shadow: 0 0 0 rgba(245, 197, 66, 0.1);
-  }
-  to {
-    box-shadow: 0 10px 34px rgba(245, 197, 66, 0.18);
-  }
+  from { box-shadow: 0 0 0 rgba(245, 197, 66, 0.1); }
+  to { box-shadow: 0 10px 34px rgba(245, 197, 66, 0.18); }
 }
 
 .spa-fade-up {

@@ -1,327 +1,292 @@
 import Link from "next/link";
-import { PublicFooter } from "@/components/features/public/public-footer";
-import { PublicNav } from "@/components/features/public/public-nav";
-import { BranchCard } from "@/components/features/public/branch-card";
+import { HeroSection } from "@/components/features/public/hero-section";
 import { ServiceCard } from "@/components/features/public/service-card";
+import { BranchCard } from "@/components/features/public/branch-card";
+import { TestimonialSection } from "@/components/features/public/testimonial-section";
+import { CtaBanner } from "@/components/features/public/cta-banner";
+import { PublicNav } from "@/components/features/public/public-nav";
+import { PublicFooter } from "@/components/features/public/public-footer";
 import { getAllBranches } from "@/lib/queries/branches";
-import { getAllCategories, getAllServices } from "@/lib/queries/services";
-import type { Tables } from "@/types/supabase";
+import { getAllServices } from "@/lib/queries/services";
+import { getAllCategories } from "@/lib/queries/services";
+import type { Database } from "@/types/supabase";
 
-type Branch = Tables<"branches">;
-type Category = Tables<"service_categories">;
-type ServiceListItem = Tables<"services"> & {
-  service_categories?: Pick<Tables<"service_categories">, "id" | "name" | "display_order"> | null;
-};
+type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
 export default async function HomePage() {
-  const [branchesResult, servicesResult, categoriesResult] = await Promise.all([
+  const [branches, services] = await Promise.all([
     getAllBranches(),
     getAllServices(),
     getAllCategories(),
   ]);
 
-  const branches = branchesResult as Branch[];
-  const services = servicesResult as ServiceListItem[];
-  const categories = categoriesResult as Category[];
-  const featuredServices = services.slice(0, 6);
+  const featured = services.slice(0, 3);
+  const typedBranches = branches as BranchRow[];
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "var(--ch-page-bg)" }}>
+    <div
+      style={{
+        fontFamily: "var(--pw-font-body)",
+        backgroundColor: "var(--pw-cream)",
+        color: "var(--pw-ink)",
+      }}
+    >
       <PublicNav />
+      <main>
+        {/* HERO */}
+        <HeroSection />
 
-      <section
-        style={{
-          background: "linear-gradient(135deg, var(--ch-sidebar-bg) 0%, var(--ch-sidebar-border) 100%)",
-          padding: "5rem 1.5rem",
-          textAlign: "center",
-        }}
-      >
-        <div style={{ maxWidth: 680, margin: "0 auto" }}>
-          <div
-            style={{
-              display: "inline-block",
-              padding: "4px 14px",
-              borderRadius: 20,
-              backgroundColor: "var(--ch-sidebar-active-bg)",
-              border: "1px solid var(--ch-border)",
-              fontSize: "0.8125rem",
-              color: "var(--ch-sidebar-text)",
-              fontWeight: 500,
-              marginBottom: "1.25rem",
-              letterSpacing: "0.04em",
-            }}
-          >
-            Bacolod City, Negros Occidental
-          </div>
-
-          <h1
-            style={{
-              fontSize: "clamp(2rem, 5vw, 3rem)",
-              fontWeight: 700,
-              color: "var(--ch-sidebar-active)",
-              lineHeight: 1.15,
-              marginBottom: "1rem",
-            }}
-          >
-            Your sanctuary for rest and renewal
-          </h1>
-
-          <p
-            style={{
-              fontSize: "1.0625rem",
-              color: "var(--ch-sidebar-text)",
-              lineHeight: 1.65,
-              maxWidth: 520,
-              margin: "0 auto 2rem",
-            }}
-          >
-            Premium massage and wellness treatments. Book your appointment online in minutes with
-            instant confirmation.
-          </p>
-
-          <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
-            <Link
-              href="/book"
-              style={{
-                padding: "14px 32px",
-                borderRadius: 10,
-                backgroundColor: "var(--ch-accent)",
-                color: "var(--ch-surface)",
-                fontSize: "1rem",
-                fontWeight: 700,
-                textDecoration: "none",
-              }}
-            >
-              Book Now
-            </Link>
-            <Link
-              href="/services"
-              style={{
-                padding: "14px 32px",
-                borderRadius: 10,
-                border: "1px solid var(--ch-sidebar-text)",
-                color: "var(--ch-sidebar-active)",
-                fontSize: "1rem",
-                fontWeight: 500,
-                textDecoration: "none",
-              }}
-            >
-              View Services
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 1.5rem" }}>
-        <section style={{ padding: "4rem 0 3rem" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "1.5rem",
-            }}
-          >
-            {[
-              {
-                title: "Expert Therapists",
-                desc: "Senior, mid, and junior therapists trained to professional standards.",
-              },
-              {
-                title: "Instant Booking",
-                desc: "Book online in four steps. Your appointment is confirmed right away.",
-              },
-              {
-                title: "Home Service",
-                desc: "Prefer to stay in? We can bring your treatment to your location.",
-              },
-              {
-                title: "Personalized Care",
-                desc: "We track your preferences so each visit can feel even better.",
-              },
-            ].map((feature) => (
+        {/* FEATURED SERVICES */}
+        <section
+          style={{ padding: "var(--pw-section) 28px", background: "var(--pw-cream)" }}
+        >
+          <div style={{ maxWidth: 1080, margin: "0 auto" }}>
+            <div style={{ textAlign: "center", marginBottom: 40 }}>
               <div
-                key={feature.title}
                 style={{
-                  padding: "1.25rem",
-                  backgroundColor: "var(--ch-surface)",
-                  border: "1px solid var(--ch-border)",
-                  borderRadius: 12,
-                  textAlign: "center",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  color: "var(--pw-gold)",
+                  marginBottom: 12,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "0.9375rem",
-                    fontWeight: 600,
-                    color: "var(--ch-text)",
-                    marginBottom: "0.375rem",
-                  }}
-                >
-                  {feature.title}
-                </div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", lineHeight: 1.6 }}>
-                  {feature.desc}
-                </div>
+                Signature Treatments
               </div>
-            ))}
-          </div>
-        </section>
+              <h2
+                style={{
+                  fontFamily: "var(--pw-font-display)",
+                  fontSize: "clamp(28px, 5vw, 40px)",
+                  fontWeight: 300,
+                  color: "var(--pw-ink)",
+                }}
+              >
+                Curated for renewal
+              </h2>
+            </div>
 
-        {featuredServices.length > 0 && (
-          <section style={{ padding: "2rem 0 3rem" }}>
             <div
               style={{
-                display: "flex",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                gap: "0.5rem",
-                marginBottom: "1.25rem",
-                flexWrap: "wrap",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 16,
+                marginBottom: 32,
               }}
             >
-              <div>
-                <h2 style={{ fontSize: "1.375rem", fontWeight: 700, color: "var(--ch-text)", margin: 0 }}>
-                  Our Treatments
-                </h2>
-                <p
-                  style={{
-                    margin: "0.25rem 0 0",
-                    fontSize: "0.8125rem",
-                    color: "var(--ch-text-muted)",
-                  }}
-                >
-                  {services.length} services across {categories.length} categories
-                </p>
-              </div>
+              {featured.map((svc, i) => (
+                <ServiceCard
+                  key={svc.id}
+                  category={
+                    (svc as { service_categories?: { name: string } | null }).service_categories?.name ?? "Treatment"
+                  }
+                  name={svc.name}
+                  description={svc.description}
+                  durationMinutes={svc.duration_minutes}
+                  price={Number(svc.price)}
+                  featured={i === 1}
+                />
+              ))}
+            </div>
+
+            <div style={{ textAlign: "center" }}>
               <Link
                 href="/services"
                 style={{
-                  fontSize: "0.875rem",
-                  color: "var(--ch-accent)",
-                  textDecoration: "none",
+                  padding: "11px 28px",
+                  border: "1px solid var(--pw-border)",
+                  color: "var(--pw-warm)",
+                  fontSize: 11,
                   fontWeight: 500,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  textDecoration: "none",
+                  borderRadius: "var(--pw-radius)",
                 }}
               >
-                View all services
+                View All Treatments
               </Link>
             </div>
+          </div>
+        </section>
 
+        {/* PHILOSOPHY STRIP */}
+        <section
+          style={{
+            background: "var(--pw-mist)",
+            padding: "var(--pw-section) 28px",
+          }}
+        >
+          <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+            <div
+              style={{
+                fontFamily: "var(--pw-font-display)",
+                fontSize: 72,
+                fontWeight: 300,
+                color: "var(--pw-gold)",
+                opacity: 0.2,
+                lineHeight: 0.7,
+                marginBottom: 8,
+              }}
+            >
+              &ldquo;
+            </div>
+            <blockquote
+              style={{
+                fontFamily: "var(--pw-font-display)",
+                fontStyle: "italic",
+                fontSize: "clamp(20px, 4vw, 26px)",
+                fontWeight: 300,
+                lineHeight: 1.65,
+                color: "var(--pw-forest)",
+              }}
+            >
+              True wellness is not a luxury — it is a necessity. At Cradle, every session is a return to your most rested self.
+            </blockquote>
+            <div
+              style={{
+                marginTop: 20,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--pw-warm)",
+              }}
+            >
+              Anna Liza F. Lacson, Founder
+            </div>
+            <div
+              style={{
+                width: 36,
+                height: 1,
+                background: "var(--pw-gold)",
+                margin: "20px auto 0",
+              }}
+            />
+          </div>
+        </section>
+
+        {/* TESTIMONIALS */}
+        <TestimonialSection />
+
+        {/* LOCATIONS */}
+        <section
+          style={{ padding: "var(--pw-section) 28px", background: "var(--pw-cream)" }}
+        >
+          <div style={{ maxWidth: 1080, margin: "0 auto" }}>
+            <div style={{ textAlign: "center", marginBottom: 40 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  color: "var(--pw-gold)",
+                  marginBottom: 12,
+                }}
+              >
+                Our Locations
+              </div>
+              <h2
+                style={{
+                  fontFamily: "var(--pw-font-display)",
+                  fontSize: "clamp(28px, 5vw, 40px)",
+                  fontWeight: 300,
+                  color: "var(--pw-ink)",
+                }}
+              >
+                Visit us in Bacolod
+              </h2>
+            </div>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                gap: "0.875rem",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: 20,
               }}
             >
-              {featuredServices.map((service) => (
-                <ServiceCard
-                  key={service.id}
-                  id={service.id}
-                  name={service.name}
-                  description={service.description}
-                  durationMinutes={service.duration_minutes}
-                  price={Number(service.price)}
+              {typedBranches.map((b) => (
+                <BranchCard
+                  key={b.id}
+                  id={b.id}
+                  name={b.name}
+                  address={b.address ?? "Bacolod City"}
+                  phone={b.phone}
+                  email={b.email}
+                  messengerLink={b.messenger_link}
+                  mapsEmbedUrl={b.maps_embed_url}
+                  badge={b.name.includes("SM") ? "SM City Bacolod" : "Flagship"}
+                  hours="Daily · 9:00 AM – 9:00 PM"
                 />
               ))}
             </div>
-          </section>
-        )}
 
-        {branches.length > 0 && (
-          <section style={{ padding: "2rem 0 3rem" }}>
+            {/* Home service strip */}
             <div
               style={{
+                marginTop: 24,
+                padding: "20px 28px",
+                background: "var(--pw-gold-light)",
+                borderRadius: "var(--pw-radius-lg)",
+                border: "1px solid rgba(201,169,110,0.3)",
                 display: "flex",
-                alignItems: "baseline",
-                justifyContent: "space-between",
-                gap: "0.5rem",
-                marginBottom: "1.25rem",
+                alignItems: "center",
+                gap: 20,
                 flexWrap: "wrap",
               }}
             >
-              <h2 style={{ fontSize: "1.375rem", fontWeight: 700, color: "var(--ch-text)", margin: 0 }}>
-                Our Locations
-              </h2>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div
+                  style={{
+                    fontFamily: "var(--pw-font-display)",
+                    fontSize: 18,
+                    fontWeight: 400,
+                    color: "var(--pw-forest-deep)",
+                    marginBottom: 4,
+                  }}
+                >
+                  Home Service Available
+                </div>
+                <p
+                  style={{ fontSize: 13, color: "var(--pw-warm)", lineHeight: 1.6 }}
+                >
+                  Our therapists come to you — home, office, or hotel. Select home
+                  service when booking online.
+                </p>
+              </div>
               <Link
-                href="/branches"
+                href="/book"
                 style={{
-                  fontSize: "0.875rem",
-                  color: "var(--ch-accent)",
+                  padding: "11px 24px",
+                  background: "var(--pw-forest-deep)",
+                  color: "var(--pw-gold)",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
                   textDecoration: "none",
-                  fontWeight: 500,
+                  borderRadius: "var(--pw-radius)",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
-                View all locations
+                Book Home Service
               </Link>
             </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-                gap: "1rem",
-              }}
-            >
-              {branches.map((branch) => (
-                <BranchCard
-                  key={branch.id}
-                  id={branch.id}
-                  name={branch.name}
-                  address={branch.address}
-                  phone={branch.phone}
-                  messengerLink={branch.messenger_link}
-                  mapsEmbedUrl={branch.maps_embed_url}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section
-          style={{
-            padding: "3rem 2rem",
-            marginBottom: "2rem",
-            backgroundColor: "var(--ch-sidebar-bg)",
-            borderRadius: 16,
-            textAlign: "center",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: "1.5rem",
-              fontWeight: 700,
-              color: "var(--ch-sidebar-active)",
-              marginBottom: "0.625rem",
-            }}
-          >
-            Ready to relax?
-          </h2>
-          <p
-            style={{
-              fontSize: "0.9375rem",
-              color: "var(--ch-sidebar-text)",
-              marginBottom: "1.5rem",
-            }}
-          >
-            Book your appointment in under two minutes with instant confirmation.
-          </p>
-          <Link
-            href="/book"
-            style={{
-              padding: "13px 36px",
-              borderRadius: 10,
-              backgroundColor: "var(--ch-accent)",
-              color: "var(--ch-surface)",
-              fontSize: "1rem",
-              fontWeight: 700,
-              textDecoration: "none",
-            }}
-          >
-            Book an Appointment
-          </Link>
+          </div>
         </section>
-      </div>
 
+        {/* CTA BANNER */}
+        <CtaBanner
+          eyebrow="Begin Your Journey"
+          heading="Your restoration awaits"
+          sub="Book instantly. Available for on-site, home service, and walk-in appointments. Confirmed in seconds."
+          cta="Reserve a Session"
+          ctaHref="/book"
+          cta2="View Treatments"
+          cta2Href="/services"
+        />
+      </main>
       <PublicFooter />
     </div>
   );

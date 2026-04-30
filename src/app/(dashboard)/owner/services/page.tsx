@@ -29,7 +29,7 @@ export default async function ServicesPage() {
             asChild
             size="sm"
             style={{
-              backgroundColor: "var(--ch-accent)",
+              backgroundColor: "var(--cs-sand)",
               color: "#fff",
               border: "none",
             }}
@@ -47,7 +47,7 @@ export default async function ServicesPage() {
             <Button
               asChild
               style={{
-                backgroundColor: "var(--ch-accent)",
+                backgroundColor: "var(--cs-sand)",
                 color: "#fff",
                 border: "none",
               }}
@@ -65,7 +65,7 @@ export default async function ServicesPage() {
                   style={{
                     fontSize: "0.8125rem",
                     fontWeight: 600,
-                    color: "var(--ch-text-muted)",
+                    color: "var(--cs-text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     marginBottom: "0.625rem",
@@ -75,8 +75,8 @@ export default async function ServicesPage() {
                 </div>
                 <div
                   style={{
-                    backgroundColor: "var(--ch-surface)",
-                    border: "1px solid var(--ch-border)",
+                    backgroundColor: "var(--cs-surface)",
+                    border: "1px solid var(--cs-border)",
                     borderRadius: 10,
                     overflow: "hidden",
                   }}
@@ -89,7 +89,7 @@ export default async function ServicesPage() {
                         alignItems: "center",
                         gap: "1rem",
                         padding: "0.875rem 1rem",
-                        borderBottom: i < categoryServices.length - 1 ? "1px solid var(--ch-border)" : "none",
+                        borderBottom: i < categoryServices.length - 1 ? "1px solid var(--cs-border)" : "none",
                         opacity: service.is_active ? 1 : 0.5,
                       }}
                     >
@@ -98,7 +98,7 @@ export default async function ServicesPage() {
                           style={{
                             fontSize: "0.875rem",
                             fontWeight: 500,
-                            color: "var(--ch-text)",
+                            color: "var(--cs-text)",
                           }}
                         >
                           {service.name}
@@ -107,7 +107,7 @@ export default async function ServicesPage() {
                           <div
                             style={{
                               fontSize: "0.8125rem",
-                              color: "var(--ch-text-muted)",
+                              color: "var(--cs-text-muted)",
                               marginTop: 2,
                               whiteSpace: "nowrap",
                               overflow: "hidden",
@@ -121,7 +121,7 @@ export default async function ServicesPage() {
                       <div
                         style={{
                           fontSize: "0.8125rem",
-                          color: "var(--ch-text-muted)",
+                          color: "var(--cs-text-muted)",
                           flexShrink: 0,
                         }}
                       >
@@ -131,7 +131,7 @@ export default async function ServicesPage() {
                         style={{
                           fontSize: "0.9375rem",
                           fontWeight: 600,
-                          color: "var(--ch-text)",
+                          color: "var(--cs-text)",
                           flexShrink: 0,
                         }}
                       >

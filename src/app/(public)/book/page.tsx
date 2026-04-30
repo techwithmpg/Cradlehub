@@ -17,7 +17,7 @@ export default async function BookPage() {
         style={{
           fontSize: "1.25rem",
           fontWeight: 600,
-          color: "var(--ch-text)",
+          color: "var(--cs-text)",
           marginBottom: "0.375rem",
         }}
       >
@@ -26,7 +26,7 @@ export default async function BookPage() {
       <p
         style={{
           fontSize: "0.875rem",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           marginBottom: "1.5rem",
         }}
       >
@@ -44,8 +44,8 @@ export default async function BookPage() {
             <Link key={branch.id} href={`/book/${branch.id}`} style={{ textDecoration: "none" }}>
               <div
                 style={{
-                  backgroundColor: "var(--ch-surface)",
-                  border: "1.5px solid var(--ch-border)",
+                  backgroundColor: "var(--cs-surface)",
+                  border: "1.5px solid var(--cs-border)",
                   borderRadius: 12,
                   padding: "1.25rem",
                   cursor: "pointer",
@@ -60,7 +60,7 @@ export default async function BookPage() {
                     width: 44,
                     height: 44,
                     borderRadius: 10,
-                    backgroundColor: "var(--ch-accent-light)",
+                    backgroundColor: "var(--cs-sand-lighter)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -71,14 +71,14 @@ export default async function BookPage() {
                   🏠
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--ch-text)" }}>
+                  <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--cs-text)" }}>
                     {branch.name}
                   </div>
-                  <div style={{ fontSize: "0.875rem", color: "var(--ch-text-muted)", marginTop: 2 }}>
+                  <div style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", marginTop: 2 }}>
                     {branch.address}
                   </div>
                 </div>
-                <div style={{ color: "var(--ch-accent)", fontSize: 20, flexShrink: 0 }}>→</div>
+                <div style={{ color: "var(--cs-sand)", fontSize: 20, flexShrink: 0 }}>→</div>
               </div>
             </Link>
           ))}

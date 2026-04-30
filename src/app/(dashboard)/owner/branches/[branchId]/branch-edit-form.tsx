@@ -68,7 +68,7 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
         style={{
           fontSize: "0.8125rem",
           fontWeight: 600,
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           textTransform: "uppercase",
           letterSpacing: "0.05em",
           marginBottom: "0.625rem",
@@ -79,8 +79,8 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
 
       <div
         style={{
-          backgroundColor: "var(--ch-surface)",
-          border: "1px solid var(--ch-border)",
+          backgroundColor: "var(--cs-surface)",
+          border: "1px solid var(--cs-border)",
           borderRadius: 10,
           padding: "1.25rem",
         }}
@@ -132,11 +132,11 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
               style={{
                 height: 36,
                 borderRadius: 6,
-                border: "1px solid var(--ch-border)",
+                border: "1px solid var(--cs-border)",
                 padding: "0 0.5rem",
                 fontSize: "0.875rem",
-                backgroundColor: "var(--ch-surface)",
-                color: "var(--ch-text)",
+                backgroundColor: "var(--cs-surface)",
+                color: "var(--cs-text)",
               }}
             >
               <option value="15">Every 15 minutes</option>
@@ -150,7 +150,7 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
             disabled={pending}
             style={{
               marginTop: "0.25rem",
-              backgroundColor: "var(--ch-accent)",
+              backgroundColor: "var(--cs-sand)",
               color: "#fff",
               border: "none",
               opacity: pending ? 0.7 : 1,

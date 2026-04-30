@@ -71,7 +71,7 @@ export default async function ManagerBookingsPage({
 
   return (
     <div>
-      <PageHeader title="Bookings" description="Manage booking status" />
+      <PageHeader title="Bookings" description="Manage booking status" icon="📋" />
 
       <form style={{ marginBottom: "1.25rem" }}>
         <input
@@ -81,11 +81,11 @@ export default async function ManagerBookingsPage({
           style={{
             height: 36,
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
+            border: "1px solid var(--cs-border)",
             padding: "0 0.75rem",
             fontSize: "0.875rem",
-            backgroundColor: "var(--ch-surface)",
-            color: "var(--ch-text)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
           }}
         />
         <button
@@ -95,9 +95,9 @@ export default async function ManagerBookingsPage({
             height: 36,
             padding: "0 1rem",
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
-            backgroundColor: "var(--ch-surface)",
-            color: "var(--ch-text)",
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
             fontSize: "0.875rem",
             cursor: "pointer",
           }}
@@ -111,8 +111,8 @@ export default async function ManagerBookingsPage({
       ) : (
         <div
           style={{
-            backgroundColor: "var(--ch-surface)",
-            border: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
             borderRadius: 10,
             overflow: "hidden",
           }}
@@ -130,7 +130,7 @@ export default async function ManagerBookingsPage({
                   alignItems: "center",
                   gap: "0.875rem",
                   padding: "0.875rem 1rem",
-                  borderBottom: i < bookings.length - 1 ? "1px solid var(--ch-border)" : "none",
+                  borderBottom: i < bookings.length - 1 ? "1px solid var(--cs-border)" : "none",
                 }}
               >
                 <div
@@ -138,7 +138,7 @@ export default async function ManagerBookingsPage({
                     minWidth: 52,
                     fontSize: "0.875rem",
                     fontWeight: 500,
-                    color: "var(--ch-text)",
+                    color: "var(--cs-text)",
                     flexShrink: 0,
                   }}
                 >
@@ -150,7 +150,7 @@ export default async function ManagerBookingsPage({
                     style={{
                       fontSize: "0.875rem",
                       fontWeight: 500,
-                      color: "var(--ch-text)",
+                      color: "var(--cs-text)",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -162,7 +162,7 @@ export default async function ManagerBookingsPage({
                         style={{
                           fontSize: "0.75rem",
                           fontWeight: 400,
-                          color: "var(--ch-text-muted)",
+                          color: "var(--cs-text-muted)",
                           marginLeft: 8,
                         }}
                       >
@@ -170,10 +170,10 @@ export default async function ManagerBookingsPage({
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
                     {service?.name ?? "Service"} · {staff?.full_name ?? "Unassigned"}
                     {booking.type === "home_service" && booking.travel_buffer_mins ? (
-                      <span style={{ color: "var(--ch-accent)", marginLeft: 6 }}>
+                      <span style={{ color: "var(--cs-sand)", marginLeft: 6 }}>
                         +{booking.travel_buffer_mins}min travel
                       </span>
                     ) : null}

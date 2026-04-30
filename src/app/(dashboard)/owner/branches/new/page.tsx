@@ -54,8 +54,8 @@ export default function NewBranchPage() {
 
       <div
         style={{
-          backgroundColor: "var(--ch-surface)",
-          border: "1px solid var(--ch-border)",
+          backgroundColor: "var(--cs-surface)",
+          border: "1px solid var(--cs-border)",
           borderRadius: 12,
           padding: "1.5rem",
         }}
@@ -91,11 +91,11 @@ export default function NewBranchPage() {
               style={{
                 height: 36,
                 borderRadius: 6,
-                border: "1px solid var(--ch-border)",
+                border: "1px solid var(--cs-border)",
                 padding: "0 0.5rem",
                 fontSize: "0.875rem",
-                backgroundColor: "var(--ch-surface)",
-                color: "var(--ch-text)",
+                backgroundColor: "var(--cs-surface)",
+                color: "var(--cs-text)",
               }}
             >
               <option value="15">Every 15 minutes</option>
@@ -113,7 +113,7 @@ export default function NewBranchPage() {
               disabled={pending}
               style={{
                 flex: 1,
-                backgroundColor: "var(--ch-accent)",
+                backgroundColor: "var(--cs-sand)",
                 color: "#fff",
                 border: "none",
                 opacity: pending ? 0.7 : 1,

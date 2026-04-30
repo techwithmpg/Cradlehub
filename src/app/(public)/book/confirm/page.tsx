@@ -74,7 +74,7 @@ export default async function ConfirmPage({
           href={`/book/${branchId}/${serviceId}`}
           style={{
             fontSize: "0.8125rem",
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textDecoration: "none",
           }}
         >
@@ -86,7 +86,7 @@ export default async function ConfirmPage({
         style={{
           fontSize: "1.25rem",
           fontWeight: 600,
-          color: "var(--ch-text)",
+          color: "var(--cs-text)",
           marginBottom: "0.375rem",
         }}
       >
@@ -95,7 +95,7 @@ export default async function ConfirmPage({
       <p
         style={{
           fontSize: "0.875rem",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           marginBottom: "1.5rem",
         }}
       >

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 
-/** Maps system_role → dashboard workspace prefix */
+/** Maps system_role → default dashboard workspace prefix */
 const ROLE_WORKSPACE: Record<string, string> = {
   owner: "/owner",
   manager: "/manager",
@@ -10,10 +10,29 @@ const ROLE_WORKSPACE: Record<string, string> = {
   staff: "/staff-portal",
 };
 
-const PROTECTED_PREFIXES = ["/owner", "/manager", "/crm", "/staff-portal"];
+/** Job-function overrides for system_role = staff */
+const STAFF_TYPE_WORKSPACE: Record<string, string> = {
+  driver: "/driver",
+  utility: "/utility",
+};
+
+const PROTECTED_PREFIXES = ["/owner", "/manager", "/crm", "/staff-portal", "/driver", "/utility", "/dev"];
+
+function resolveWorkspace(systemRole: string, staffType: string | null): string {
+  if (systemRole === "owner") return "/owner";
+  if (systemRole === "manager") return "/manager";
+  if (systemRole === "crm") return "/crm";
+  if (systemRole === "staff" && staffType) {
+    return STAFF_TYPE_WORKSPACE[staffType] ?? "/staff-portal";
+  }
+  return ROLE_WORKSPACE[systemRole] ?? "/";
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const devAllowAllModules =
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEV_ALLOW_ALL_MODULES === "true";
 
   // Always refresh the session token
   const response = await updateSession(request);
@@ -42,10 +61,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Get the user's role from the staff table
+  // Dev-only bypass: let authenticated developers open all protected modules
+  // even without a staff record (useful for local development/testing).
+  if (devAllowAllModules) {
+    return response;
+  }
+
+  // Get the user's role and job function from the staff table
   const { data: staffRecord } = await supabase
     .from("staff")
-    .select("system_role")
+    .select("system_role, staff_type")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .single();
@@ -54,7 +79,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const correctWorkspace = ROLE_WORKSPACE[staffRecord.system_role];
+  // Owner can access all workspaces for oversight/testing.
+  if (staffRecord.system_role === "owner") {
+    return response;
+  }
+
+  const correctWorkspace = resolveWorkspace(staffRecord.system_role, staffRecord.staff_type);
 
   // Redirect to the right workspace if they're at the wrong one
   if (correctWorkspace && !pathname.startsWith(correctWorkspace)) {

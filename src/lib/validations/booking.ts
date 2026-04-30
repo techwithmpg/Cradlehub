@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-const uuid = z.string().uuid("Invalid ID");
+// Accept canonical Postgres UUID/GUID format used by seeded and live records.
+// z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
+const uuid = z.guid("Invalid ID");
 const phone = z
   .string()
   .min(7, "Phone number too short")

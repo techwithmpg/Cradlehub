@@ -58,7 +58,7 @@ export function CustomerNotesForm({
           style={{
             fontSize: "0.75rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.375rem",
@@ -73,11 +73,11 @@ export function CustomerNotesForm({
             width: "100%",
             height: 36,
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
+            border: "1px solid var(--cs-border)",
             padding: "0 0.5rem",
             fontSize: "0.875rem",
-            backgroundColor: "var(--ch-surface)",
-            color: "var(--ch-text)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
           }}
         >
           <option value="">No preference</option>
@@ -94,7 +94,7 @@ export function CustomerNotesForm({
           style={{
             fontSize: "0.75rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.375rem",
@@ -110,11 +110,11 @@ export function CustomerNotesForm({
           style={{
             width: "100%",
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
+            border: "1px solid var(--cs-border)",
             padding: "0.5rem 0.75rem",
             fontSize: "0.875rem",
-            color: "var(--ch-text)",
-            backgroundColor: "var(--ch-surface)",
+            color: "var(--cs-text)",
+            backgroundColor: "var(--cs-surface)",
             resize: "vertical",
             fontFamily: "inherit",
           }}
@@ -128,7 +128,7 @@ export function CustomerNotesForm({
           disabled={isPending}
           size="sm"
           style={{
-            backgroundColor: "var(--ch-accent)",
+            backgroundColor: "var(--cs-sand)",
             color: "#fff",
             border: "none",
             opacity: isPending ? 0.7 : 1,

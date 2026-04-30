@@ -15,7 +15,7 @@ export default async function BranchesPage() {
   return (
     <div style={{ padding: "2.5rem 0 4rem" }}>
       <div style={{ marginBottom: "2rem" }}>
-        <Link href="/" style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", textDecoration: "none" }}>
+        <Link href="/" style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", textDecoration: "none" }}>
           Back to home
         </Link>
       </div>
@@ -24,7 +24,7 @@ export default async function BranchesPage() {
         style={{
           fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
           fontWeight: 700,
-          color: "var(--ch-text)",
+          color: "var(--cs-text)",
           marginBottom: "0.5rem",
         }}
       >
@@ -33,7 +33,7 @@ export default async function BranchesPage() {
       <p
         style={{
           fontSize: "1rem",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           marginBottom: "2.5rem",
           lineHeight: 1.6,
         }}
@@ -65,8 +65,8 @@ export default async function BranchesPage() {
       <div
         style={{
           padding: "1.5rem",
-          backgroundColor: "var(--ch-accent-light)",
-          border: "1px solid var(--ch-border)",
+          backgroundColor: "var(--cs-sand-lighter)",
+          border: "1px solid var(--cs-border)",
           borderRadius: 12,
           display: "flex",
           gap: "1rem",
@@ -79,13 +79,13 @@ export default async function BranchesPage() {
             style={{
               fontSize: "0.9375rem",
               fontWeight: 600,
-              color: "var(--ch-text)",
+              color: "var(--cs-text)",
               marginBottom: "0.25rem",
             }}
           >
             Home Service Available
           </div>
-          <div style={{ fontSize: "0.875rem", color: "var(--ch-text-muted)", lineHeight: 1.6 }}>
+          <div style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", lineHeight: 1.6 }}>
             Our therapists can visit your home, office, or hotel. Select home service while booking
             online, or message us to arrange details.
           </div>
@@ -95,8 +95,8 @@ export default async function BranchesPage() {
               style={{
                 padding: "8px 18px",
                 borderRadius: 7,
-                backgroundColor: "var(--ch-accent)",
-                color: "var(--ch-surface)",
+                backgroundColor: "var(--cs-sand)",
+                color: "var(--cs-surface)",
                 fontSize: "0.875rem",
                 fontWeight: 600,
                 textDecoration: "none",

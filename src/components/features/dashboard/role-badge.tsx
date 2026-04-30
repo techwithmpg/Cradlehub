@@ -1,27 +1,28 @@
 const ROLE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  owner: { bg: "var(--ch-owner-bg)", color: "var(--ch-owner-text)", label: "Owner" },
-  manager: { bg: "var(--ch-manager-bg)", color: "var(--ch-manager-text)", label: "Manager" },
-  crm: { bg: "var(--ch-crm-bg)", color: "var(--ch-crm-text)", label: "CRM" },
-  staff: { bg: "var(--ch-staff-bg)", color: "var(--ch-staff-text)", label: "Staff" },
+  owner:             { bg: "#F5EDE3", color: "#7A5233", label: "Owner"          },
+  manager:           { bg: "#EDF3F8", color: "#4A6B82", label: "Manager"        },
+  assistant_manager: { bg: "#EDF3F8", color: "#4A6B82", label: "Asst. Manager"  },
+  store_manager:     { bg: "#EDF3F8", color: "#4A6B82", label: "Store Manager"  },
+  crm:               { bg: "#EAF0EA", color: "#4A6B52", label: "CRM"            },
+  csr:               { bg: "#FAF0E4", color: "#7A5A34", label: "Front Desk"     },
+  staff:             { bg: "#F5F0EA", color: "#6B5A4A", label: "Therapist"      },
 };
 
 export function RoleBadge({ role }: { role: string }) {
-  const style = ROLE_STYLES[role] ?? ROLE_STYLES["staff"]!;
+  const s = ROLE_STYLES[role] ?? ROLE_STYLES["staff"]!;
   return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 20,
-        fontSize: "0.6875rem",
-        fontWeight: 600,
-        letterSpacing: "0.04em",
-        textTransform: "uppercase",
-        backgroundColor: style.bg,
-        color: style.color,
-      }}
-    >
-      {style.label}
+    <span style={{
+      display:         "inline-block",
+      padding:         "2px 8px",
+      borderRadius:    "var(--cs-radius-pill)",
+      fontSize:        "0.6875rem",
+      fontWeight:      600,
+      letterSpacing:   "0.04em",
+      textTransform:   "uppercase" as const,
+      backgroundColor: s.bg,
+      color:           s.color,
+    }}>
+      {s.label}
     </span>
   );
 }

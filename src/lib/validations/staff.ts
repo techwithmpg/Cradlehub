@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STAFF_TYPES } from "@/constants/staff";
 
 const uuid = z.string().uuid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
@@ -9,7 +10,10 @@ export const createStaffSchema = z.object({
   phone:      z.string().min(7).max(20).optional(),
   tier:       z.enum(["senior", "mid", "junior"]),
   systemRole: z.enum(["manager", "crm", "staff"]),
+  staffType:  z.enum(STAFF_TYPES).default("therapist"),
+  isHead:     z.boolean().default(false),
   email:      z.string().email("Valid email required for system access"),
+  serviceIds: z.array(uuid).optional(),
 });
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 
@@ -19,8 +23,11 @@ export const updateStaffSchema = z.object({
   phone:      z.string().min(7).max(20).optional(),
   tier:       z.enum(["senior", "mid", "junior"]).optional(),
   systemRole: z.enum(["manager", "crm", "staff"]).optional(),
+  staffType:  z.enum(STAFF_TYPES).optional(),
+  isHead:     z.boolean().optional(),
   branchId:   uuid.optional(),
   isActive:   z.boolean().optional(),
+  serviceIds: z.array(uuid).optional(),
 });
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 

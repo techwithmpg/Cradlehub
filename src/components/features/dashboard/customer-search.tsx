@@ -74,11 +74,11 @@ export function CustomerSearch() {
             width: "100%",
             height: 38,
             borderRadius: 8,
-            border: "1px solid var(--ch-border)",
+            border: "1px solid var(--cs-border)",
             padding: "0 2.5rem 0 0.875rem",
             fontSize: "0.875rem",
-            color: "var(--ch-text)",
-            backgroundColor: "var(--ch-surface)",
+            color: "var(--cs-text)",
+            backgroundColor: "var(--cs-surface)",
             outline: "none",
           }}
         />
@@ -90,7 +90,7 @@ export function CustomerSearch() {
               top: "50%",
               transform: "translateY(-50%)",
               fontSize: "0.75rem",
-              color: "var(--ch-text-muted)",
+              color: "var(--cs-text-muted)",
             }}
           >
             ...
@@ -107,8 +107,8 @@ export function CustomerSearch() {
               top: "calc(100% + 4px)",
               left: 0,
               right: 0,
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
+              backgroundColor: "var(--cs-surface)",
+              border: "1px solid var(--cs-border)",
               borderRadius: 8,
               boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
               zIndex: 20,
@@ -127,13 +127,13 @@ export function CustomerSearch() {
                   gap: "0.75rem",
                   padding: "10px 14px",
                   border: "none",
-                  borderBottom: i < results.length - 1 ? "1px solid var(--ch-border)" : "none",
+                  borderBottom: i < results.length - 1 ? "1px solid var(--cs-border)" : "none",
                   backgroundColor: "transparent",
                   textAlign: "left",
                   cursor: "pointer",
                 }}
                 onMouseEnter={(event) => {
-                  event.currentTarget.style.backgroundColor = "var(--ch-page-bg)";
+                  event.currentTarget.style.backgroundColor = "var(--cs-warm-white)";
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.backgroundColor = "transparent";
@@ -144,13 +144,13 @@ export function CustomerSearch() {
                     width: 32,
                     height: 32,
                     borderRadius: "50%",
-                    backgroundColor: "var(--ch-border)",
+                    backgroundColor: "var(--cs-border)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: "0.8125rem",
                     fontWeight: 600,
-                    color: "var(--ch-text-muted)",
+                    color: "var(--cs-text-muted)",
                     flexShrink: 0,
                   }}
                 >
@@ -161,7 +161,7 @@ export function CustomerSearch() {
                     style={{
                       fontSize: "0.875rem",
                       fontWeight: 500,
-                      color: "var(--ch-text)",
+                      color: "var(--cs-text)",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -169,7 +169,7 @@ export function CustomerSearch() {
                   >
                     {customer.full_name}
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                     {customer.phone}
                     {customer.total_bookings > 0 && (
                       <span style={{ marginLeft: 8 }}>
@@ -178,7 +178,7 @@ export function CustomerSearch() {
                     )}
                   </div>
                 </div>
-                <div style={{ fontSize: 16, color: "var(--ch-text-subtle)" }}>›</div>
+                <div style={{ fontSize: 16, color: "var(--cs-text-muted)" }}>›</div>
               </button>
             ))}
           </div>
@@ -192,13 +192,13 @@ export function CustomerSearch() {
             top: "calc(100% + 4px)",
             left: 0,
             right: 0,
-            backgroundColor: "var(--ch-surface)",
-            border: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
             borderRadius: 8,
             padding: "1rem",
             textAlign: "center",
             fontSize: "0.875rem",
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             zIndex: 20,
           }}
         >

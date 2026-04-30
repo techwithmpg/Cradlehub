@@ -61,14 +61,14 @@ export default async function BranchDetailPage({
             <SectionTitle>Staff ({activeStaffCount} active)</SectionTitle>
             <div
               style={{
-                backgroundColor: "var(--ch-surface)",
-                border: "1px solid var(--ch-border)",
+                backgroundColor: "var(--cs-surface)",
+                border: "1px solid var(--cs-border)",
                 borderRadius: 10,
                 overflow: "hidden",
               }}
             >
               {staff.length === 0 ? (
-                <div style={{ padding: "1rem", color: "var(--ch-text-muted)", fontSize: "0.875rem" }}>
+                <div style={{ padding: "1rem", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
                   No staff at this branch yet
                 </div>
               ) : (
@@ -80,7 +80,7 @@ export default async function BranchDetailPage({
                       alignItems: "center",
                       gap: "0.75rem",
                       padding: "0.625rem 1rem",
-                      borderBottom: i < staff.length - 1 ? "1px solid var(--ch-border)" : "none",
+                      borderBottom: i < staff.length - 1 ? "1px solid var(--cs-border)" : "none",
                       opacity: s.is_active ? 1 : 0.5,
                     }}
                   >
@@ -89,23 +89,23 @@ export default async function BranchDetailPage({
                         width: 32,
                         height: 32,
                         borderRadius: "50%",
-                        backgroundColor: "var(--ch-border)",
+                        backgroundColor: "var(--cs-border)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         fontSize: "0.75rem",
                         fontWeight: 600,
-                        color: "var(--ch-text-muted)",
+                        color: "var(--cs-text-muted)",
                         flexShrink: 0,
                       }}
                     >
                       {s.full_name.charAt(0)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--ch-text)" }}>
+                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
                         {s.full_name}
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                         {s.tier} · {s.system_role}
                       </div>
                     </div>
@@ -120,14 +120,14 @@ export default async function BranchDetailPage({
             <SectionTitle>Services ({activeServiceCount} active)</SectionTitle>
             <div
               style={{
-                backgroundColor: "var(--ch-surface)",
-                border: "1px solid var(--ch-border)",
+                backgroundColor: "var(--cs-surface)",
+                border: "1px solid var(--cs-border)",
                 borderRadius: 10,
                 overflow: "hidden",
               }}
             >
               {services.length === 0 ? (
-                <div style={{ padding: "1rem", color: "var(--ch-text-muted)", fontSize: "0.875rem" }}>
+                <div style={{ padding: "1rem", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
                   No services configured for this branch
                 </div>
               ) : (
@@ -140,19 +140,19 @@ export default async function BranchDetailPage({
                       justifyContent: "space-between",
                       gap: "0.75rem",
                       padding: "0.625rem 1rem",
-                      borderBottom: i < services.length - 1 ? "1px solid var(--ch-border)" : "none",
+                      borderBottom: i < services.length - 1 ? "1px solid var(--cs-border)" : "none",
                       opacity: svc.is_active ? 1 : 0.5,
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--ch-text)" }}>
+                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
                         {svc.services?.name ?? "Unknown service"}
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                         {svc.services?.duration_minutes ?? 0} min
                       </div>
                     </div>
-                    <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>
+                    <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
                       {svc.custom_price !== null ? `Custom ₱${svc.custom_price}` : "Default price"}
                     </div>
                   </div>
@@ -172,7 +172,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       style={{
         fontSize: "0.8125rem",
         fontWeight: 600,
-        color: "var(--ch-text-muted)",
+        color: "var(--cs-text-muted)",
         textTransform: "uppercase",
         letterSpacing: "0.05em",
         marginBottom: "0.625rem",

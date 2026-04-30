@@ -87,9 +87,9 @@ export function BookingActionMenu({ bookingId, currentStatus, onUpdate }: Bookin
         style={{
           padding: "4px 10px",
           borderRadius: 6,
-          border: "1px solid var(--ch-border)",
-          backgroundColor: "var(--ch-surface)",
-          color: "var(--ch-text)",
+          border: "1px solid var(--cs-border)",
+          backgroundColor: "var(--cs-surface)",
+          color: "var(--cs-text)",
           fontSize: "0.8125rem",
           cursor: "pointer",
           opacity: isPending ? 0.5 : 1,
@@ -113,8 +113,8 @@ export function BookingActionMenu({ bookingId, currentStatus, onUpdate }: Bookin
               position: "absolute",
               right: 0,
               top: "calc(100% + 4px)",
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
+              backgroundColor: "var(--cs-surface)",
+              border: "1px solid var(--cs-border)",
               borderRadius: 8,
               boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               zIndex: 20,
@@ -135,7 +135,7 @@ export function BookingActionMenu({ bookingId, currentStatus, onUpdate }: Bookin
                   border: "none",
                   backgroundColor: "transparent",
                   fontSize: "0.875rem",
-                  color: action.danger ? "#DC2626" : "var(--ch-text)",
+                  color: action.danger ? "#DC2626" : "var(--cs-text)",
                   cursor: "pointer",
                 }}
               >

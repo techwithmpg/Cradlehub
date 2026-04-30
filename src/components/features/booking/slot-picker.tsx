@@ -13,6 +13,7 @@ type Slot = {
 
 type SlotResponse = {
   slots?: Slot[];
+  error?: string;
 };
 
 type SlotPickerProps = {
@@ -61,16 +62,16 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
 
     fetch(`/api/booking/available-slots?${params}`)
       .then(async (response) => {
+        const data = (await response.json()) as SlotResponse;
         if (!response.ok) {
-          throw new Error("Failed to load slots");
+          throw new Error(data.error ?? "Could not load available times. Please try again.");
         }
-        return (await response.json()) as SlotResponse;
-      })
-      .then((data) => {
         setSlots(data.slots ?? []);
       })
-      .catch(() => {
-        setError("Could not load available times. Please try again.");
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Could not load available times. Please try again.";
+        setError(message);
         setSlots([]);
       })
       .finally(() => setLoading(false));
@@ -134,7 +135,7 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
           style={{
             fontSize: "0.8125rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.5rem",
@@ -151,11 +152,11 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
           style={{
             height: 40,
             borderRadius: 8,
-            border: "1px solid var(--ch-border)",
+            border: "1px solid var(--cs-border)",
             padding: "0 0.875rem",
             fontSize: "0.9375rem",
-            color: "var(--ch-text)",
-            backgroundColor: "var(--ch-surface)",
+            color: "var(--cs-text)",
+            backgroundColor: "var(--cs-surface)",
             width: "100%",
             maxWidth: 200,
           }}
@@ -167,7 +168,7 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
           style={{
             fontSize: "0.8125rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.5rem",
@@ -183,10 +184,10 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
               padding: "7px 14px",
               borderRadius: 20,
               border: `1.5px solid ${
-                staffMode === "any" ? "var(--ch-accent)" : "var(--ch-border)"
+                staffMode === "any" ? "var(--cs-sand)" : "var(--cs-border)"
               }`,
-              backgroundColor: staffMode === "any" ? "var(--ch-accent-light)" : "var(--ch-surface)",
-              color: staffMode === "any" ? "var(--ch-accent)" : "var(--ch-text-muted)",
+              backgroundColor: staffMode === "any" ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+              color: staffMode === "any" ? "var(--cs-sand)" : "var(--cs-text-muted)",
               fontSize: "0.875rem",
               fontWeight: staffMode === "any" ? 600 : 400,
               cursor: "pointer",
@@ -204,11 +205,11 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
                 padding: "7px 14px",
                 borderRadius: 20,
                 border: `1.5px solid ${
-                  staffMode === staffMember.id ? "var(--ch-accent)" : "var(--ch-border)"
+                  staffMode === staffMember.id ? "var(--cs-sand)" : "var(--cs-border)"
                 }`,
                 backgroundColor:
-                  staffMode === staffMember.id ? "var(--ch-accent-light)" : "var(--ch-surface)",
-                color: staffMode === staffMember.id ? "var(--ch-accent)" : "var(--ch-text-muted)",
+                  staffMode === staffMember.id ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                color: staffMode === staffMember.id ? "var(--cs-sand)" : "var(--cs-text-muted)",
                 fontSize: "0.875rem",
                 fontWeight: staffMode === staffMember.id ? 600 : 400,
                 cursor: "pointer",
@@ -225,7 +226,7 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
           style={{
             fontSize: "0.8125rem",
             fontWeight: 600,
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: "0.5rem",
@@ -239,7 +240,7 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
             style={{
               padding: "1.5rem",
               textAlign: "center",
-              color: "var(--ch-text-muted)",
+              color: "var(--cs-text-muted)",
               fontSize: "0.875rem",
             }}
           >
@@ -249,11 +250,11 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
           <div
             style={{
               padding: "0.875rem",
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
+              backgroundColor: "var(--cs-surface)",
+              border: "1px solid var(--cs-border)",
               borderRadius: 8,
               fontSize: "0.875rem",
-              color: "var(--ch-crm-text)",
+              color: "var(--cs-manager-accent)",
             }}
           >
             {error}
@@ -263,8 +264,8 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
             style={{
               padding: "1.5rem",
               textAlign: "center",
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
+              backgroundColor: "var(--cs-surface)",
+              border: "1px solid var(--cs-border)",
               borderRadius: 10,
             }}
           >
@@ -272,13 +273,13 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
               style={{
                 fontSize: "0.9375rem",
                 fontWeight: 500,
-                color: "var(--ch-text)",
+                color: "var(--cs-text)",
                 marginBottom: 6,
               }}
             >
               No available times on this date
             </div>
-            <div style={{ fontSize: "0.875rem", color: "var(--ch-text-muted)" }}>
+            <div style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)" }}>
               Try selecting a different date or therapist.
             </div>
           </div>
@@ -289,7 +290,7 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
                 const uniqueTimes = Array.from(new Map(displayed.map((slot) => [slot.slot_time, slot])).values());
                 return (
                   <div>
-                    <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.5rem" }}>
                       Best available therapist assigned automatically
                     </div>
                     <div
@@ -307,23 +308,23 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
                           style={{
                             padding: "10px 8px",
                             borderRadius: 8,
-                            border: "1.5px solid var(--ch-border)",
-                            backgroundColor: "var(--ch-surface)",
-                            color: "var(--ch-text)",
+                            border: "1.5px solid var(--cs-border)",
+                            backgroundColor: "var(--cs-surface)",
+                            color: "var(--cs-text)",
                             fontSize: "0.9375rem",
                             fontWeight: 500,
                             cursor: "pointer",
                             textAlign: "center",
                           }}
                           onMouseEnter={(event) => {
-                            event.currentTarget.style.borderColor = "var(--ch-accent)";
-                            event.currentTarget.style.backgroundColor = "var(--ch-accent-light)";
-                            event.currentTarget.style.color = "var(--ch-accent)";
+                            event.currentTarget.style.borderColor = "var(--cs-sand)";
+                            event.currentTarget.style.backgroundColor = "var(--cs-sand-lighter)";
+                            event.currentTarget.style.color = "var(--cs-sand)";
                           }}
                           onMouseLeave={(event) => {
-                            event.currentTarget.style.borderColor = "var(--ch-border)";
-                            event.currentTarget.style.backgroundColor = "var(--ch-surface)";
-                            event.currentTarget.style.color = "var(--ch-text)";
+                            event.currentTarget.style.borderColor = "var(--cs-border)";
+                            event.currentTarget.style.backgroundColor = "var(--cs-surface)";
+                            event.currentTarget.style.color = "var(--cs-text)";
                           }}
                         >
                           {formatDisplayTime(slot.slot_time)}
@@ -338,7 +339,7 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
                 const first = staffSlots[0]!;
                 return (
                   <div key={first.staff_id}>
-                    <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.5rem" }}>
                       {first.staff_name} · {first.staff_tier}
                     </div>
                     <div
@@ -356,23 +357,23 @@ export function SlotPicker({ branchId, serviceId, confirmUrl }: SlotPickerProps)
                           style={{
                             padding: "10px 8px",
                             borderRadius: 8,
-                            border: "1.5px solid var(--ch-border)",
-                            backgroundColor: "var(--ch-surface)",
-                            color: "var(--ch-text)",
+                            border: "1.5px solid var(--cs-border)",
+                            backgroundColor: "var(--cs-surface)",
+                            color: "var(--cs-text)",
                             fontSize: "0.9375rem",
                             fontWeight: 500,
                             cursor: "pointer",
                             textAlign: "center",
                           }}
                           onMouseEnter={(event) => {
-                            event.currentTarget.style.borderColor = "var(--ch-accent)";
-                            event.currentTarget.style.backgroundColor = "var(--ch-accent-light)";
-                            event.currentTarget.style.color = "var(--ch-accent)";
+                            event.currentTarget.style.borderColor = "var(--cs-sand)";
+                            event.currentTarget.style.backgroundColor = "var(--cs-sand-lighter)";
+                            event.currentTarget.style.color = "var(--cs-sand)";
                           }}
                           onMouseLeave={(event) => {
-                            event.currentTarget.style.borderColor = "var(--ch-border)";
-                            event.currentTarget.style.backgroundColor = "var(--ch-surface)";
-                            event.currentTarget.style.color = "var(--ch-text)";
+                            event.currentTarget.style.borderColor = "var(--cs-border)";
+                            event.currentTarget.style.backgroundColor = "var(--cs-surface)";
+                            event.currentTarget.style.color = "var(--cs-text)";
                           }}
                         >
                           {formatDisplayTime(slot.slot_time)}

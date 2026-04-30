@@ -37,14 +37,14 @@ export function BookingProgress({ currentStep }: BookingProgressProps) {
                   width: 28,
                   height: 28,
                   borderRadius: "50%",
-                  backgroundColor: isDone || isActive ? "var(--ch-accent)" : "var(--ch-border)",
-                  border: isDone || isActive ? "none" : "1.5px solid var(--ch-border)",
+                  backgroundColor: isDone || isActive ? "var(--cs-sand)" : "var(--cs-border)",
+                  border: isDone || isActive ? "none" : "1.5px solid var(--cs-border)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: "0.75rem",
                   fontWeight: 700,
-                  color: isDone || isActive ? "#fff" : "var(--ch-text-subtle)",
+                  color: isDone || isActive ? "#fff" : "var(--cs-text-muted)",
                   transition: "background-color 0.2s",
                 }}
               >
@@ -55,10 +55,10 @@ export function BookingProgress({ currentStep }: BookingProgressProps) {
                   fontSize: "0.6875rem",
                   fontWeight: isActive ? 600 : 400,
                   color: isActive
-                    ? "var(--ch-accent)"
+                    ? "var(--cs-sand)"
                     : isDone
-                      ? "var(--ch-text-muted)"
-                      : "var(--ch-text-subtle)",
+                      ? "var(--cs-text-muted)"
+                      : "var(--cs-text-muted)",
                   marginTop: 4,
                   whiteSpace: "nowrap",
                 }}
@@ -72,7 +72,7 @@ export function BookingProgress({ currentStep }: BookingProgressProps) {
                 style={{
                   flex: 1,
                   height: 2,
-                  backgroundColor: isDone ? "var(--ch-accent)" : "var(--ch-border)",
+                  backgroundColor: isDone ? "var(--cs-sand)" : "var(--cs-border)",
                   margin: "0 4px",
                   marginBottom: 20,
                   transition: "background-color 0.2s",

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm type-check *)",
+      "Bash(xargs grep *)"
+    ]
+  }
+}

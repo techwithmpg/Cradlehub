@@ -54,7 +54,7 @@ export default async function StaffStatsPage({
         style={{
           padding: "2rem",
           textAlign: "center",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           fontSize: "0.875rem",
         }}
       >
@@ -84,9 +84,9 @@ export default async function StaffStatsPage({
           style={{
             padding: "5px 12px",
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
-            backgroundColor: "var(--ch-surface)",
-            color: "var(--ch-text-muted)",
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text-muted)",
             fontSize: "0.8125rem",
             textDecoration: "none",
           }}
@@ -97,7 +97,7 @@ export default async function StaffStatsPage({
           style={{
             fontSize: "0.875rem",
             fontWeight: 500,
-            color: "var(--ch-text)",
+            color: "var(--cs-text)",
             minWidth: 140,
             textAlign: "center",
           }}
@@ -110,9 +110,9 @@ export default async function StaffStatsPage({
             style={{
               padding: "5px 12px",
               borderRadius: 6,
-              border: "1px solid var(--ch-border)",
-              backgroundColor: "var(--ch-surface)",
-              color: "var(--ch-text-muted)",
+              border: "1px solid var(--cs-border)",
+              backgroundColor: "var(--cs-surface)",
+              color: "var(--cs-text-muted)",
               fontSize: "0.8125rem",
               textDecoration: "none",
             }}
@@ -156,8 +156,8 @@ export default async function StaffStatsPage({
 
           <div
             style={{
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
+              backgroundColor: "var(--cs-surface)",
+              border: "1px solid var(--cs-border)",
               borderRadius: 10,
               padding: "1.25rem",
               marginBottom: "1rem",
@@ -171,7 +171,7 @@ export default async function StaffStatsPage({
                 marginBottom: "0.75rem",
               }}
             >
-              <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--ch-text-muted)" }}>
+              <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--cs-text-muted)" }}>
                 Completion Rate
               </div>
               <div
@@ -180,10 +180,10 @@ export default async function StaffStatsPage({
                   fontWeight: 700,
                   color:
                     completionRate >= 80
-                      ? "var(--ch-staff-text)"
+                      ? "var(--cs-sage)"
                       : completionRate >= 60
-                        ? "var(--ch-accent)"
-                        : "var(--ch-crm-text)",
+                        ? "var(--cs-sand)"
+                        : "var(--cs-manager-accent)",
                 }}
               >
                 {completionRate}%
@@ -193,7 +193,7 @@ export default async function StaffStatsPage({
             <div
               style={{
                 height: 8,
-                backgroundColor: "var(--ch-border)",
+                backgroundColor: "var(--cs-border)",
                 borderRadius: 4,
                 overflow: "hidden",
               }}
@@ -205,10 +205,10 @@ export default async function StaffStatsPage({
                   borderRadius: 4,
                   backgroundColor:
                     completionRate >= 80
-                      ? "var(--ch-staff-text)"
+                      ? "var(--cs-sage)"
                       : completionRate >= 60
-                        ? "var(--ch-accent)"
-                        : "var(--ch-crm-text)",
+                        ? "var(--cs-sand)"
+                        : "var(--cs-manager-accent)",
                   transition: "width 0.5s ease",
                 }}
               />
@@ -219,7 +219,7 @@ export default async function StaffStatsPage({
                 justifyContent: "space-between",
                 marginTop: "0.5rem",
                 fontSize: "0.75rem",
-                color: "var(--ch-text-subtle)",
+                color: "var(--cs-text-muted)",
               }}
             >
               <span>{stats.completed} completed</span>
@@ -229,8 +229,8 @@ export default async function StaffStatsPage({
 
           <div
             style={{
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
+              backgroundColor: "var(--cs-surface)",
+              border: "1px solid var(--cs-border)",
               borderRadius: 10,
               overflow: "hidden",
             }}
@@ -239,13 +239,13 @@ export default async function StaffStatsPage({
               {
                 label: "Completed sessions",
                 value: stats.completed,
-                color: "var(--ch-staff-text)",
+                color: "var(--cs-sage)",
                 pct: completionRate,
               },
               {
                 label: "Cancellations",
                 value: stats.cancelled,
-                color: "var(--ch-text-subtle)",
+                color: "var(--cs-text-muted)",
                 pct:
                   stats.total_assigned > 0
                     ? Math.round((stats.cancelled / stats.total_assigned) * 100)
@@ -254,7 +254,7 @@ export default async function StaffStatsPage({
               {
                 label: "No shows",
                 value: stats.no_show,
-                color: "var(--ch-accent)",
+                color: "var(--cs-sand)",
                 pct:
                   stats.total_assigned > 0
                     ? Math.round((stats.no_show / stats.total_assigned) * 100)
@@ -268,7 +268,7 @@ export default async function StaffStatsPage({
                   alignItems: "center",
                   gap: "0.75rem",
                   padding: "0.75rem 1rem",
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--ch-border)" : "none",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--cs-border)" : "none",
                 }}
               >
                 <div
@@ -280,11 +280,11 @@ export default async function StaffStatsPage({
                     flexShrink: 0,
                   }}
                 />
-                <div style={{ flex: 1, fontSize: "0.875rem", color: "var(--ch-text)" }}>{row.label}</div>
+                <div style={{ flex: 1, fontSize: "0.875rem", color: "var(--cs-text)" }}>{row.label}</div>
                 <div
                   style={{
                     fontSize: "0.8125rem",
-                    color: "var(--ch-text-muted)",
+                    color: "var(--cs-text-muted)",
                     minWidth: 32,
                     textAlign: "right",
                   }}
@@ -295,7 +295,7 @@ export default async function StaffStatsPage({
                   style={{
                     fontSize: "0.9375rem",
                     fontWeight: 600,
-                    color: "var(--ch-text)",
+                    color: "var(--cs-text)",
                     minWidth: 24,
                     textAlign: "right",
                   }}
@@ -310,7 +310,7 @@ export default async function StaffStatsPage({
             style={{
               marginTop: "0.75rem",
               fontSize: "0.75rem",
-              color: "var(--ch-text-subtle)",
+              color: "var(--cs-text-muted)",
               textAlign: "center",
             }}
           >

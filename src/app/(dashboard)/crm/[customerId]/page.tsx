@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { CustomerNotesForm } from "@/components/features/dashboard/customer-notes-form";
+import { CustomerSegmentBadge } from "@/components/features/crm/customer-segment-badge";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { getCustomerProfileAction } from "@/app/(dashboard)/crm/actions";
@@ -80,6 +81,39 @@ function isCustomerProfilePayload(value: unknown): value is CustomerProfilePaylo
   return !!maybePayload.customer && Array.isArray(maybePayload.bookings);
 }
 
+function computeSegment(customer: CustomerProfile): "new" | "repeat" | "lapsed" | null {
+  if (customer.total_bookings === 1) return "new";
+  if (customer.total_bookings >= 2) {
+    if (customer.last_booking_date) {
+      const daysSince = Math.floor(
+        (Date.now() - new Date(customer.last_booking_date).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysSince >= 30) return "lapsed";
+    }
+    return "repeat";
+  }
+  return null;
+}
+
+function mostBookedService(bookings: BookingHistoryItem[]): string | null {
+  const counts = new Map<string, number>();
+  for (const b of bookings) {
+    const svc = firstRelation(b.services);
+    if (svc?.name) {
+      counts.set(svc.name, (counts.get(svc.name) ?? 0) + 1);
+    }
+  }
+  let max = 0;
+  let name: string | null = null;
+  for (const [svcName, count] of counts) {
+    if (count > max) {
+      max = count;
+      name = svcName;
+    }
+  }
+  return name;
+}
+
 export default async function CustomerProfilePage({
   params,
 }: {
@@ -115,6 +149,9 @@ export default async function CustomerProfilePage({
       tier: staffMember.tier,
     }));
 
+  const segment = computeSegment(customer);
+  const topService = mostBookedService(bookings);
+
   return (
     <div>
       <div style={{ marginBottom: "0.75rem" }}>
@@ -122,16 +159,70 @@ export default async function CustomerProfilePage({
           href="/crm"
           style={{
             fontSize: "0.8125rem",
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textDecoration: "none",
           }}
         >
-          ← All Customers
+          &larr; All Customers
         </Link>
       </div>
 
-      <PageHeader title={customer.full_name} description={customer.phone} />
+      <PageHeader
+        title={customer.full_name}
+        description={
+          [customer.phone, customer.email].filter(Boolean).join(" · ") || undefined
+        }
+        icon="👤"
+        action={
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {segment && <CustomerSegmentBadge segment={segment} />}
+            <span
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--cs-border)",
+                backgroundColor: "var(--cs-surface-warm)",
+                color: "var(--cs-text-muted)",
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                opacity: 0.6,
+                cursor: "not-allowed",
+              }}
+              title="Coming soon"
+            >
+              Book again
+            </span>
+          </div>
+        }
+      />
 
+      {/* Stats */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+          gap: "0.625rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <StatCard label="Total Visits" value={customer.total_bookings} accent />
+        <StatCard label="Completed" value={completedBookings.length} />
+        <StatCard
+          label="Last Visit"
+          value={customer.last_booking_date ? formatDate(customer.last_booking_date) : "Never"}
+        />
+        <StatCard
+          label="Preferred Staff"
+          value={preferredStaff?.full_name ?? "No preference"}
+        />
+        <StatCard
+          label="Top Service"
+          value={topService ?? "—"}
+        />
+        <StatCard label="Revenue" value={formatCurrency(totalRevenue)} accent />
+      </div>
+
+      {/* Two-column: History + Sidebar */}
       <div
         style={{
           display: "grid",
@@ -143,40 +234,48 @@ export default async function CustomerProfilePage({
         <div>
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "0.625rem",
-              marginBottom: "1.5rem",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: "0.875rem",
             }}
           >
-            <StatCard label="Total Visits" value={customer.total_bookings} accent />
-            <StatCard label="Revenue Generated" value={formatCurrency(totalRevenue)} />
-            <StatCard
-              label="Last Visit"
-              value={customer.last_booking_date ? formatDate(customer.last_booking_date) : "Never"}
-            />
-          </div>
-
-          <div
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--ch-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "0.625rem",
-            }}
-          >
-            Booking History ({bookings.length})
+            <span style={{ fontSize: 16 }}>📋</span>
+            <div
+              style={{
+                fontSize: "0.9375rem",
+                fontWeight: 600,
+                color: "var(--cs-text)",
+                fontFamily: "var(--font-display)",
+              }}
+            >
+              Booking History
+            </div>
+            <span
+              style={{
+                marginLeft: "auto",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                padding: "2px 8px",
+                borderRadius: "var(--cs-radius-pill)",
+                backgroundColor: "var(--cs-sand-lighter)",
+                color: "var(--cs-sand)",
+              }}
+            >
+              {bookings.length} total
+            </span>
           </div>
 
           {bookings.length === 0 ? (
-            <EmptyState title="No bookings yet" description="This customer has no booking history." />
+            <EmptyState
+              title="No bookings yet"
+              description="This customer has no booking history."
+            />
           ) : (
             <div
               style={{
-                backgroundColor: "var(--ch-surface)",
-                border: "1px solid var(--ch-border)",
+                backgroundColor: "var(--cs-surface)",
+                border: "1px solid var(--cs-border)",
                 borderRadius: 10,
                 overflow: "hidden",
               }}
@@ -195,14 +294,14 @@ export default async function CustomerProfilePage({
                       alignItems: "center",
                       gap: "0.875rem",
                       padding: "0.75rem 1rem",
-                      borderBottom: i < bookings.length - 1 ? "1px solid var(--ch-border)" : "none",
+                      borderBottom: i < bookings.length - 1 ? "1px solid var(--cs-border)" : "none",
                     }}
                   >
                     <div style={{ minWidth: 90, flexShrink: 0 }}>
-                      <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--ch-text)" }}>
+                      <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--cs-text)" }}>
                         {formatDate(booking.booking_date)}
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                         {formatTime(booking.start_time)}
                       </div>
                     </div>
@@ -212,7 +311,7 @@ export default async function CustomerProfilePage({
                         style={{
                           fontSize: "0.875rem",
                           fontWeight: 500,
-                          color: "var(--ch-text)",
+                          color: "var(--cs-text)",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -220,9 +319,9 @@ export default async function CustomerProfilePage({
                       >
                         {service?.name ?? "—"}
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                         {staffMember?.full_name ?? "Unassigned"}
-                        {branch?.name && <span style={{ marginLeft: 6 }}>· {branch.name}</span>}
+                        {branch?.name && <span style={{ marginLeft: 6 }}>&middot; {branch.name}</span>}
                       </div>
                     </div>
 
@@ -231,7 +330,7 @@ export default async function CustomerProfilePage({
                         style={{
                           fontSize: "0.875rem",
                           fontWeight: 500,
-                          color: "var(--ch-text)",
+                          color: "var(--cs-text)",
                           flexShrink: 0,
                         }}
                       >
@@ -250,20 +349,15 @@ export default async function CustomerProfilePage({
           )}
         </div>
 
+        {/* Sidebar */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <div
-            style={{
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
-              borderRadius: 10,
-              padding: "1rem",
-            }}
-          >
+          {/* Contact */}
+          <div className="cs-card" style={{ padding: "1.25rem" }}>
             <div
               style={{
                 fontSize: "0.75rem",
                 fontWeight: 600,
-                color: "var(--ch-text-muted)",
+                color: "var(--cs-text-muted)",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 marginBottom: "0.75rem",
@@ -286,37 +380,94 @@ export default async function CustomerProfilePage({
                   display: "flex",
                   gap: "0.5rem",
                   padding: "4px 0",
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--ch-border)" : "none",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--cs-border)" : "none",
                 }}
               >
                 <div
                   style={{
                     minWidth: 50,
                     fontSize: "0.75rem",
-                    color: "var(--ch-text-subtle)",
+                    color: "var(--cs-text-muted)",
                     flexShrink: 0,
                   }}
                 >
                   {row.label}
                 </div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--ch-text)" }}>{row.value}</div>
+                <div style={{ fontSize: "0.8125rem", color: "var(--cs-text)" }}>{row.value}</div>
               </div>
             ))}
           </div>
 
-          <div
-            style={{
-              backgroundColor: "var(--ch-surface)",
-              border: "1px solid var(--ch-border)",
-              borderRadius: 10,
-              padding: "1rem",
-            }}
-          >
+          {/* Quick Actions */}
+          <div className="cs-card" style={{ padding: "1.25rem" }}>
             <div
               style={{
                 fontSize: "0.75rem",
                 fontWeight: 600,
-                color: "var(--ch-text-muted)",
+                color: "var(--cs-text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Quick Actions
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+              {[
+                { icon: "➕", label: "Book again", soon: true },
+                { icon: "📝", label: "Add note", soon: false, scrollTo: "notes" },
+                { icon: "✏️", label: "Edit customer", soon: true },
+              ].map((action) =>
+                action.soon ? (
+                  <div
+                    key={action.label}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "0.625rem 0.5rem",
+                      borderRadius: "var(--cs-radius-sm)",
+                      color: "var(--cs-text-muted)",
+                      fontSize: "0.8125rem",
+                      opacity: 0.6,
+                      cursor: "not-allowed",
+                    }}
+                    title="Coming soon"
+                  >
+                    <span>{action.icon}</span>
+                    {action.label}
+                  </div>
+                ) : (
+                  <a
+                    key={action.label}
+                    href="#notes"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "0.625rem 0.5rem",
+                      borderRadius: "var(--cs-radius-sm)",
+                      color: "var(--cs-text-secondary)",
+                      fontSize: "0.8125rem",
+                      textDecoration: "none",
+                      transition: "var(--cs-transition)",
+                    }}
+                  >
+                    <span>{action.icon}</span>
+                    {action.label}
+                  </a>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div id="notes" className="cs-card" style={{ padding: "1.25rem" }}>
+            <div
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--cs-text-muted)",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 marginBottom: "0.75rem",

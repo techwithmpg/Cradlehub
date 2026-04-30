@@ -167,3 +167,85 @@
 
 **STATUS: CRADLEHUB IS COMPLETE ✅**
 All 8 sprints committed. System is production-ready pending data setup.
+
+### 2026-04-30 — Kimi DevCoder (ORG-001 — Staff Organizational Structure)
+
+**Task:** Integrate real spa org structure without breaking existing roles/RLS/booking.
+**Files Changed:**
+- `supabase/migrations/20260430000001_staff_org_structure.sql` — added `staff_type`, `is_head` to staff; created `staff_services` table with RLS
+- `src/constants/staff.ts` — new constant/type file for staff types and labels
+- `src/lib/validations/staff.ts` — added `staffType`, `isHead`, `serviceIds` to schemas
+- `src/lib/queries/staff.ts` — added `staff_type`, `is_head` selects; added `getStaffServices`, `getStaffIdsByService`
+- `src/lib/engine/availability.ts` — safe capability filter with legacy fallback
+- `src/app/(dashboard)/owner/staff/actions.ts` — create/update now handle `staff_type`, `is_head`, `serviceIds`
+- `src/app/(dashboard)/owner/staff/page.tsx` — list shows job function + head badge
+- `src/app/(dashboard)/owner/staff/new/page.tsx` — passes services to form
+- `src/app/(dashboard)/owner/staff/new/staff-invite-form.tsx` — added job function, head toggle, service capability checkboxes
+- `src/app/(dashboard)/owner/staff/[staffId]/page.tsx` — fetches services + current staff_services
+- `src/app/(dashboard)/owner/staff/[staffId]/staff-edit-form.tsx` — added job function, head toggle, service capability checkboxes
+- `src/app/(dashboard)/manager/staff/page.tsx` — shows job function + head badge
+- `src/app/api/public/booking-context/route.ts` — includes `staffType` and `isHead` in response
+- `src/types/supabase.ts` — manually added `staff_type`, `is_head`, `staff_services` table
+- `.context/DECISIONS.cmd.md` — added DEC-008
+
+**Build Status:** ✅ Passing
+
+### 2026-04-30 — Kimi DevCoder (ORG-002 — Demo Org/Workflow Seed Data)
+
+**Task:** Create safe, idempotent demo seed data for org structure and booking workflow testing.
+
+**Files Created:**
+- `supabase/migrations/20260430000002_demo_org_workflow_seed.sql`
+- `docs/SEED_DEMO_DATA.md`
+
+**Files Updated:**
+- `.context/CURRENT_TASK.cmd.md`
+- `.context/DECISIONS.cmd.md` (DEC-009)
+- `.context/ERRORS.cmd.md`
+- `.context/HANDOFF.cmd.md`
+
+**Seed coverage:**
+- Branches, categories, services, branch-level pricing
+- Staff org structure (`system_role`, `staff_type`, `is_head`)
+- `staff_services` capability mapping
+- Weekly schedules, overrides, blocked times
+- Demo customers and bookings (confirmed, completed, cancelled, no_show, in_progress, home_service)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `db push`: ⚠️ Blocked in this environment due Supabase CLI/DNS network limitation
+
+
+### 2026-04-30 — Kimi DevCoder (Sprint 9 — UI/UX Design System Overhaul)
+
+**Task:** Replace generic SaaS aesthetic with warm, premium spa identity inspired by Cradle Wellness Living Inc. brand reference.
+**Files Changed:**
+- `src/app/globals.css` — new `--cs-*` token system (warm-white, sand, clay, sage, deep-charcoal)
+- `src/app/layout.tsx` — added Playfair Display font alongside DM Sans
+- `src/components/features/dashboard/sidebar.tsx` — role-aware identity badge, accent color per role, left-border nav
+- `src/components/features/dashboard/header.tsx` — frosted glass effect, workspace title in Playfair Display
+- `src/components/features/dashboard/role-badge.tsx` — warm earth-tone badge colors
+- `src/components/features/dashboard/stat-card.tsx` — Playfair Display numbers, trend indicators, floating shadow
+- `src/components/features/dashboard/page-header.tsx` — icon slot, Playfair title, warm border divider
+- `src/components/features/dashboard/empty-state.tsx` — warm sand icon container
+- `src/components/features/dashboard/booking-status-badge.tsx` — warm earth-tone colors
+- `src/components/features/dashboard/booking-type-badge.tsx` — matching warm palette
+- `src/app/(dashboard)/layout.tsx` — warm page background, sticky sidebar
+- `src/app/(dashboard)/owner/page.tsx` — strategic owner overview with KPI grid, branch performance, quick actions
+- `src/app/(auth)/login/page.tsx` — spa-luxury card with sand gradient CTA
+- `src/components/features/public/public-nav.tsx` — Playfair Display brand wordmark
+- All `src/app/` and `src/components/` files — migrated `var(--ch-*)` → `var(--cs-*)`
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors introduced
+
+
+### 2026-04-30 — Kimi DevCoder (Sidebar Workspace Navigation Fix)
+
+**Task:** Fix sidebar to dynamically switch navigation based on current workspace path.
+**Problem:** Sidebar always showed nav items for the user's `system_role`, even when navigating to a different workspace (e.g., owner visiting `/manager` still saw owner nav).
+**Fix:**
+- `src/components/features/dashboard/sidebar.tsx` — uses `resolveWorkspaceKeyFromPath(pathname)` to determine current workspace
+- Nav items, identity badge, and accent color now follow the URL path
+- Footer RoleBadge still shows the user's actual role for clarity
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing

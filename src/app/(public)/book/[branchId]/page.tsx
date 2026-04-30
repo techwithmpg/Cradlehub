@@ -102,21 +102,21 @@ export default async function SelectServicePage({
           href="/book"
           style={{
             fontSize: "0.8125rem",
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textDecoration: "none",
           }}
         >
           ← Back
         </Link>
-        <span style={{ color: "var(--ch-text-subtle)" }}>·</span>
-        <span style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>{branch.name}</span>
+        <span style={{ color: "var(--cs-text-muted)" }}>·</span>
+        <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>{branch.name}</span>
       </div>
 
       <h2
         style={{
           fontSize: "1.25rem",
           fontWeight: 600,
-          color: "var(--ch-text)",
+          color: "var(--cs-text)",
           marginBottom: "0.375rem",
         }}
       >
@@ -125,7 +125,7 @@ export default async function SelectServicePage({
       <p
         style={{
           fontSize: "0.875rem",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           marginBottom: "1.5rem",
         }}
       >
@@ -137,7 +137,7 @@ export default async function SelectServicePage({
           style={{
             padding: "2rem",
             textAlign: "center",
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             fontSize: "0.875rem",
           }}
         >
@@ -151,7 +151,7 @@ export default async function SelectServicePage({
                 style={{
                   fontSize: "0.8125rem",
                   fontWeight: 600,
-                  color: "var(--ch-text-muted)",
+                  color: "var(--cs-text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   marginBottom: "0.625rem",
@@ -171,8 +171,8 @@ export default async function SelectServicePage({
                     >
                       <div
                         style={{
-                          backgroundColor: "var(--ch-surface)",
-                          border: "1.5px solid var(--ch-border)",
+                          backgroundColor: "var(--cs-surface)",
+                          border: "1.5px solid var(--cs-border)",
                           borderRadius: 10,
                           padding: "1rem 1.25rem",
                           display: "flex",
@@ -182,14 +182,14 @@ export default async function SelectServicePage({
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: "0.9375rem", fontWeight: 500, color: "var(--ch-text)" }}>
+                          <div style={{ fontSize: "0.9375rem", fontWeight: 500, color: "var(--cs-text)" }}>
                             {entry.service.name}
                           </div>
                           {entry.service.description && (
                             <div
                               style={{
                                 fontSize: "0.8125rem",
-                                color: "var(--ch-text-muted)",
+                                color: "var(--cs-text-muted)",
                                 marginTop: 2,
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
@@ -201,14 +201,14 @@ export default async function SelectServicePage({
                           )}
                         </div>
                         <div style={{ flexShrink: 0, textAlign: "right" }}>
-                          <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--ch-text)" }}>
+                          <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--cs-text)" }}>
                             {formatCurrencyLocal(Number(price))}
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>
+                          <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
                             {entry.service.duration_minutes} min
                           </div>
                         </div>
-                        <div style={{ color: "var(--ch-accent)", fontSize: 20, flexShrink: 0 }}>→</div>
+                        <div style={{ color: "var(--cs-sand)", fontSize: 20, flexShrink: 0 }}>→</div>
                       </div>
                     </Link>
                   );

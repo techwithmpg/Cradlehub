@@ -1,43 +1,23 @@
-# 🏆 CRADLEHUB — COMPLETE
+# 🏆 CRADLEHUB — IN PROGRESS
 
-All sprints done. Build passing. System is ready for production.
+## Recent Work
+- ORG-001: Real spa org structure integrated (staff_type, is_head, staff_services)
+- ORG-002: Demo seed data created for testing
+- Sprint 9: Warm spa design system overhaul complete
+
+## Design System
+- `--cs-*` tokens: warm-white (#F9F6F0), sand (#A67B5B), clay (#C7A27C), sage (#8A9A8B), charcoal sidebar (#2C2A29)
+- Fonts: Playfair Display (headings/brand), DM Sans (body)
+- Cards: floating shadows, no harsh borders
+- Role accents: Owner=sand, Manager=slate, CRM=sage, Staff=stone
+
+## Next Steps
+1. Apply any pending Supabase migrations in production
+2. Test all workspaces visually after design refresh
+3. Continue with feature sprints as needed
 
 ## Go-Live Checklist
-
-### 1. Owner account setup (do this once in Supabase SQL editor)
-```sql
-INSERT INTO staff (branch_id, auth_user_id, full_name, phone, tier, system_role)
-VALUES (
-  'c1000000-0000-0000-0000-000000000001',
-  'PASTE-AUTH-UUID',
-  'Owner Name',
-  '+63 XXX XXX XXXX',
-  'senior',
-  'owner'
-);
-```
-
-### 2. Owner logs in at /login and:
-- Updates branch names, addresses, phone numbers, Messenger links
-- Uploads Google Maps embed URLs for each branch
-- Creates service categories and services with prices
-- Invites managers and staff (they get email invites automatically)
-
-### 3. Managers log in and:
-- Set weekly schedules for each therapist
-- Test walk-in booking flow
-- Test status transitions (confirm → in progress → complete)
-
-### 4. Test online booking at /book as a customer
-
-### 5. Verify:
-- /book → /book/[branchId] → /book/[branchId]/[serviceId] → /book/confirm → /book/success
-- Booking appears in manager dashboard immediately
-- Customer appears in CRM
-
-## Future Enhancements (post-launch, not blocking)
-- SMS/Messenger confirmation messages to customers after booking
-- Payment integration
-- Analytics dashboard with charts (getBookingTrend data is already there)
-- Promotional pricing / discount codes (metadata JSONB already supports this)
-- Staff rating system (metadata JSONB already supports this)
+- Owner account setup
+- Branch/service configuration
+- Staff invites with new job functions
+- Online booking flow test

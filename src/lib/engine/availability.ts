@@ -1,15 +1,20 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { AvailabilitySlot } from "@/types";
 import { SlotUnavailableError } from "@/types/errors";
 
-/** Calls the get_available_slots RPC and returns all slots. */
+/**
+ * Calls the get_available_slots RPC and returns all slots.
+ * If staff_services rows exist for the selected service, slots are filtered
+ * to only qualified staff members. If no rows exist, legacy behavior applies
+ * (all staff are considered eligible).
+ */
 export async function getAvailableSlots(params: {
   branchId:  string;
   serviceId: string;
   staffId?:  string;
   date:      string;
 }): Promise<AvailabilitySlot[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const rpcArgs = {
     p_branch_id:  params.branchId,
@@ -21,7 +26,22 @@ export async function getAvailableSlots(params: {
   const { data, error } = await supabase.rpc("get_available_slots", rpcArgs);
 
   if (error) throw new Error(`Availability query failed: ${error.message}`);
-  return (data ?? []) as AvailabilitySlot[];
+  let slots = (data ?? []) as AvailabilitySlot[];
+
+  // ── Safe service-capability filter ────────────────────────────────────────
+  // Only filter if staff_services has explicit rows for this service.
+  // Empty staff_services table = fallback to legacy behavior.
+  const { data: capabilityRows, error: capErr } = await supabase
+    .from("staff_services")
+    .select("staff_id")
+    .eq("service_id", params.serviceId);
+
+  if (!capErr && capabilityRows && capabilityRows.length > 0) {
+    const qualifiedIds = new Set(capabilityRows.map((r) => r.staff_id));
+    slots = slots.filter((s) => qualifiedIds.has(s.staff_id));
+  }
+
+  return slots;
 }
 
 /**

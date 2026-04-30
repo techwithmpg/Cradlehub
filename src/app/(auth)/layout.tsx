@@ -16,7 +16,7 @@ export default function AuthLayout({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "var(--ch-page-bg)",
+        backgroundColor: "var(--cs-warm-white)",
         padding: "2rem 1rem",
       }}
     >

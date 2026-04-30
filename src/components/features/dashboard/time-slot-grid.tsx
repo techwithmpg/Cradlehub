@@ -69,7 +69,7 @@ export function TimeSlotGrid({
 
   if (loading) {
     return (
-      <div style={{ padding: "1rem", color: "var(--ch-text-muted)", fontSize: "0.875rem" }}>
+      <div style={{ padding: "1rem", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
         Loading available slots…
       </div>
     );
@@ -129,7 +129,7 @@ export function TimeSlotGrid({
               style={{
                 fontSize: "0.75rem",
                 fontWeight: 600,
-                color: "var(--ch-text-muted)",
+                color: "var(--cs-text-muted)",
                 marginBottom: "0.5rem",
               }}
             >
@@ -159,9 +159,9 @@ export function TimeSlotGrid({
                     style={{
                       padding: "6px 4px",
                       borderRadius: 6,
-                      border: `1.5px solid ${isSelected ? "var(--ch-accent)" : "var(--ch-border)"}`,
-                      backgroundColor: isSelected ? "var(--ch-accent-light)" : "var(--ch-surface)",
-                      color: isSelected ? "var(--ch-accent)" : "var(--ch-text)",
+                      border: `1.5px solid ${isSelected ? "var(--cs-sand)" : "var(--cs-border)"}`,
+                      backgroundColor: isSelected ? "var(--cs-sand-lighter)" : "var(--cs-surface)",
+                      color: isSelected ? "var(--cs-sand)" : "var(--cs-text)",
                       fontSize: "0.8125rem",
                       fontWeight: isSelected ? 600 : 400,
                       cursor: "pointer",

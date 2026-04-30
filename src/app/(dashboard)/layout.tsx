@@ -3,16 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/features/dashboard/sidebar";
 import { Header } from "@/components/features/dashboard/header";
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: staffRecord } = await supabase
@@ -29,18 +22,16 @@ export default async function DashboardLayout({
   const branchName = (staffRecord.branches as { name: string } | null)?.name;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--cs-warm-white)" }}>
       <Sidebar role={role} fullName={fullName} branchName={branchName} />
 
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <Header title="CradleHub" role={role} fullName={fullName} />
-        <main
-          style={{
-            flex: 1,
-            padding: "1.5rem",
-            backgroundColor: "var(--ch-page-bg)",
-          }}
-        >
+        <Header role={role} fullName={fullName} />
+        <main style={{
+          flex: 1,
+          padding: "1.5rem",
+          backgroundColor: "var(--cs-warm-white)",
+        }}>
           {children}
         </main>
       </div>

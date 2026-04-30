@@ -4,13 +4,14 @@ import { getStaffByBranch, getStaffSchedule, getStaffOverrides, getBlockedTimes 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ScheduleManager } from "@/components/features/dashboard/schedule-manager";
+import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import type { Database } from "@/types/supabase";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type BranchStaff = Pick<
   Database["public"]["Tables"]["staff"]["Row"],
-  "id" | "full_name" | "tier" | "is_active"
+  "id" | "full_name" | "tier" | "is_active" | "staff_type" | "is_head"
 >;
 
 type ScheduleRow = Database["public"]["Tables"]["staff_schedules"]["Row"];
@@ -75,8 +76,8 @@ export default async function ManagerStaffPage() {
               <div
                 key={member.id}
                 style={{
-                  backgroundColor: "var(--ch-surface)",
-                  border: "1px solid var(--ch-border)",
+                  backgroundColor: "var(--cs-surface)",
+                  border: "1px solid var(--cs-border)",
                   borderRadius: 10,
                   overflow: "hidden",
                 }}
@@ -84,11 +85,11 @@ export default async function ManagerStaffPage() {
                 <div
                   style={{
                     padding: "0.875rem 1rem",
-                    borderBottom: "1px solid var(--ch-border)",
+                    borderBottom: "1px solid var(--cs-border)",
                     display: "flex",
                     alignItems: "center",
                     gap: "0.75rem",
-                    backgroundColor: "var(--ch-page-bg)",
+                    backgroundColor: "var(--cs-warm-white)",
                   }}
                 >
                   <div
@@ -96,23 +97,27 @@ export default async function ManagerStaffPage() {
                       width: 36,
                       height: 36,
                       borderRadius: "50%",
-                      backgroundColor: "var(--ch-border)",
+                      backgroundColor: "var(--cs-border)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: "0.875rem",
                       fontWeight: 600,
-                      color: "var(--ch-text-muted)",
+                      color: "var(--cs-text-muted)",
                       flexShrink: 0,
                     }}
                   >
                     {member.full_name.charAt(0)}
                   </div>
                   <div>
-                    <div style={{ fontSize: "0.9375rem", fontWeight: 500, color: "var(--ch-text)" }}>
+                    <div style={{ fontSize: "0.9375rem", fontWeight: 500, color: "var(--cs-text)" }}>
                       {member.full_name}
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)" }}>{member.tier}</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                      {STAFF_TYPE_LABELS[member.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? member.staff_type}
+                      {member.is_head && " · Head"}
+                      {" · "}{member.tier}
+                    </div>
                   </div>
 
                   <div style={{ marginLeft: "auto", display: "flex", gap: "0.375rem" }}>
@@ -125,13 +130,13 @@ export default async function ManagerStaffPage() {
                             width: 22,
                             height: 22,
                             borderRadius: 4,
-                            backgroundColor: hasSchedule ? "var(--ch-accent-light)" : "var(--ch-border)",
+                            backgroundColor: hasSchedule ? "var(--cs-sand-lighter)" : "var(--cs-border)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             fontSize: "0.625rem",
                             fontWeight: 600,
-                            color: hasSchedule ? "var(--ch-accent)" : "var(--ch-text-subtle)",
+                            color: hasSchedule ? "var(--cs-sand)" : "var(--cs-text-muted)",
                           }}
                         >
                           {day.charAt(0)}

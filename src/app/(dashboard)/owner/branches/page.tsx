@@ -25,7 +25,7 @@ export default async function BranchesPage() {
             asChild
             size="sm"
             style={{
-              backgroundColor: "var(--ch-accent)",
+              backgroundColor: "var(--cs-sand)",
               color: "#fff",
               border: "none",
             }}
@@ -43,7 +43,7 @@ export default async function BranchesPage() {
             <Button
               asChild
               style={{
-                backgroundColor: "var(--ch-accent)",
+                backgroundColor: "var(--cs-sand)",
                 color: "#fff",
                 border: "none",
               }}
@@ -58,8 +58,8 @@ export default async function BranchesPage() {
             <Link key={branch.id} href={`/owner/branches/${branch.id}`} style={{ textDecoration: "none" }}>
               <div
                 style={{
-                  backgroundColor: "var(--ch-surface)",
-                  border: `1px solid ${branch.is_active ? "var(--ch-border)" : "#FCA5A5"}`,
+                  backgroundColor: "var(--cs-surface)",
+                  border: `1px solid ${branch.is_active ? "var(--cs-border)" : "#FCA5A5"}`,
                   borderRadius: 10,
                   padding: "1rem 1.25rem",
                   display: "flex",
@@ -84,7 +84,7 @@ export default async function BranchesPage() {
                     style={{
                       fontSize: "0.9375rem",
                       fontWeight: 500,
-                      color: "var(--ch-text)",
+                      color: "var(--cs-text)",
                     }}
                   >
                     {branch.name}
@@ -92,7 +92,7 @@ export default async function BranchesPage() {
                   <div
                     style={{
                       fontSize: "0.8125rem",
-                      color: "var(--ch-text-muted)",
+                      color: "var(--cs-text-muted)",
                       marginTop: 2,
                     }}
                   >
@@ -106,7 +106,7 @@ export default async function BranchesPage() {
                       style={{
                         fontSize: "1.125rem",
                         fontWeight: 600,
-                        color: "var(--ch-text)",
+                        color: "var(--cs-text)",
                       }}
                     >
                       {branch.active_staff_count}
@@ -114,7 +114,7 @@ export default async function BranchesPage() {
                     <div
                       style={{
                         fontSize: "0.6875rem",
-                        color: "var(--ch-text-subtle)",
+                        color: "var(--cs-text-muted)",
                       }}
                     >
                       Staff
@@ -125,7 +125,7 @@ export default async function BranchesPage() {
                       style={{
                         fontSize: "1.125rem",
                         fontWeight: 600,
-                        color: branch.todays_bookings > 0 ? "var(--ch-accent)" : "var(--ch-text)",
+                        color: branch.todays_bookings > 0 ? "var(--cs-sand)" : "var(--cs-text)",
                       }}
                     >
                       {branch.todays_bookings}
@@ -133,7 +133,7 @@ export default async function BranchesPage() {
                     <div
                       style={{
                         fontSize: "0.6875rem",
-                        color: "var(--ch-text-subtle)",
+                        color: "var(--cs-text-muted)",
                       }}
                     >
                       Today
@@ -141,7 +141,7 @@ export default async function BranchesPage() {
                   </div>
                 </div>
 
-                <div style={{ color: "var(--ch-text-subtle)", fontSize: 18 }}>›</div>
+                <div style={{ color: "var(--cs-text-muted)", fontSize: 18 }}>›</div>
               </div>
             </Link>
           ))}

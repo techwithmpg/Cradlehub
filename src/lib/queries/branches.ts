@@ -36,7 +36,7 @@ export async function getBranchServices(branchId: string) {
     `)
     .eq("branch_id", branchId)
     .eq("is_active", true)
-    .order("services(service_categories(display_order))");
+    .order("id");
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -73,7 +73,8 @@ export async function getBranchWithFullDetail(branchId: string) {
       .from("staff")
       .select("id, full_name, tier, system_role, phone, is_active")
       .eq("branch_id", branchId)
-      .order("tier, full_name"),
+      .order("tier")
+      .order("full_name"),
   ]);
 
   if (branchResult.error) throw new Error(branchResult.error.message);

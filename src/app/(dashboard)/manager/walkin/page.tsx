@@ -11,7 +11,7 @@ export default function WalkinPage() {
         description="Walk-in, home service, or phone booking"
         action={
           <Button asChild variant="outline" size="sm">
-            <Link href="/manager">← Back to Schedule</Link>
+            <Link href="/manager">← Back to Today</Link>
           </Button>
         }
       />

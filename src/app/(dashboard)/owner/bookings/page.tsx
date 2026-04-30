@@ -64,11 +64,11 @@ export default async function OwnerBookingsPage({
           style={{
             height: 36,
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
+            border: "1px solid var(--cs-border)",
             padding: "0 0.75rem",
             fontSize: "0.875rem",
-            backgroundColor: "var(--ch-surface)",
-            color: "var(--ch-text)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
           }}
         />
         <button
@@ -77,9 +77,9 @@ export default async function OwnerBookingsPage({
             height: 36,
             padding: "0 1rem",
             borderRadius: 6,
-            border: "1px solid var(--ch-border)",
-            backgroundColor: "var(--ch-surface)",
-            color: "var(--ch-text)",
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
             fontSize: "0.875rem",
             cursor: "pointer",
           }}
@@ -88,7 +88,7 @@ export default async function OwnerBookingsPage({
         </button>
       </form>
 
-      <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", marginBottom: "0.75rem" }}>
+      <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
         {bookings.length} booking{bookings.length !== 1 ? "s" : ""} on {formatDate(fromDate)}
       </div>
 
@@ -97,8 +97,8 @@ export default async function OwnerBookingsPage({
       ) : (
         <div
           style={{
-            backgroundColor: "var(--ch-surface)",
-            border: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
             borderRadius: 10,
             overflow: "hidden",
           }}
@@ -111,17 +111,17 @@ export default async function OwnerBookingsPage({
                 alignItems: "center",
                 gap: "0.875rem",
                 padding: "0.75rem 1rem",
-                borderBottom: i < bookings.length - 1 ? "1px solid var(--ch-border)" : "none",
+                borderBottom: i < bookings.length - 1 ? "1px solid var(--cs-border)" : "none",
               }}
             >
-              <div style={{ minWidth: 52, fontSize: "0.8125rem", fontWeight: 500, color: "var(--ch-text)" }}>
+              <div style={{ minWidth: 52, fontSize: "0.8125rem", fontWeight: 500, color: "var(--cs-text)" }}>
                 {formatTime(booking.start_time)}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--ch-text)" }}>
+                <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
                   {readFullName(booking.customers)}
                 </div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>
+                <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
                   {readName(booking.services)} · {readFullName(booking.staff)} · {readName(booking.branches)}
                 </div>
               </div>

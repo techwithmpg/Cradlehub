@@ -188,20 +188,20 @@ export function ScheduleManager({
   const inputStyle: React.CSSProperties = {
     height: 32,
     borderRadius: 5,
-    border: "1px solid var(--ch-border)",
+    border: "1px solid var(--cs-border)",
     padding: "0 0.5rem",
     fontSize: "0.8125rem",
-    backgroundColor: "var(--ch-surface)",
-    color: "var(--ch-text)",
+    backgroundColor: "var(--cs-surface)",
+    color: "var(--cs-text)",
   };
 
   function tabStyle(active: boolean): React.CSSProperties {
     return {
       padding: "5px 12px",
       borderRadius: 5,
-      border: `1px solid ${active ? "var(--ch-accent)" : "var(--ch-border)"}`,
-      backgroundColor: active ? "var(--ch-accent-light)" : "transparent",
-      color: active ? "var(--ch-accent)" : "var(--ch-text-muted)",
+      border: `1px solid ${active ? "var(--cs-sand)" : "var(--cs-border)"}`,
+      backgroundColor: active ? "var(--cs-sand-lighter)" : "transparent",
+      color: active ? "var(--cs-sand)" : "var(--cs-text-muted)",
       fontSize: "0.8125rem",
       fontWeight: active ? 600 : 400,
       cursor: "pointer",
@@ -255,14 +255,14 @@ export function ScheduleManager({
                   alignItems: "center",
                   gap: "0.75rem",
                   padding: "5px 0",
-                  borderBottom: idx < 6 ? "1px solid var(--ch-border)" : "none",
+                  borderBottom: idx < 6 ? "1px solid var(--cs-border)" : "none",
                 }}
               >
                 <div
                   style={{
                     minWidth: 80,
                     fontSize: "0.8125rem",
-                    color: existing ? "var(--ch-text)" : "var(--ch-text-subtle)",
+                    color: existing ? "var(--cs-text)" : "var(--cs-text-muted)",
                     fontWeight: existing ? 500 : 400,
                   }}
                 >
@@ -277,7 +277,7 @@ export function ScheduleManager({
                       onChange={(event) => setStartTime(event.target.value)}
                       style={inputStyle}
                     />
-                    <span style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>to</span>
+                    <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>to</span>
                     <input
                       type="time"
                       value={endTime}
@@ -292,7 +292,7 @@ export function ScheduleManager({
                         padding: "4px 10px",
                         borderRadius: 5,
                         border: "none",
-                        backgroundColor: "var(--ch-accent)",
+                        backgroundColor: "var(--cs-sand)",
                         color: "#fff",
                         fontSize: "0.8125rem",
                         cursor: "pointer",
@@ -306,9 +306,9 @@ export function ScheduleManager({
                       style={{
                         padding: "4px 8px",
                         borderRadius: 5,
-                        border: "1px solid var(--ch-border)",
+                        border: "1px solid var(--cs-border)",
                         backgroundColor: "transparent",
-                        color: "var(--ch-text-muted)",
+                        color: "var(--cs-text-muted)",
                         fontSize: "0.8125rem",
                         cursor: "pointer",
                       }}
@@ -318,7 +318,7 @@ export function ScheduleManager({
                   </>
                 ) : (
                   <>
-                    <div style={{ flex: 1, fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>
+                    <div style={{ flex: 1, fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
                       {existing ? `${shortTime(existing.start_time)} – ${shortTime(existing.end_time)}` : "Not scheduled"}
                     </div>
                     <button
@@ -331,9 +331,9 @@ export function ScheduleManager({
                       style={{
                         padding: "3px 8px",
                         borderRadius: 4,
-                        border: "1px solid var(--ch-border)",
+                        border: "1px solid var(--cs-border)",
                         backgroundColor: "transparent",
-                        color: "var(--ch-text-muted)",
+                        color: "var(--cs-text-muted)",
                         fontSize: "0.75rem",
                         cursor: "pointer",
                       }}
@@ -350,13 +350,13 @@ export function ScheduleManager({
 
       {tab === "override" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          <p style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", margin: 0 }}>
             Override {staffName}&apos;s regular schedule for a specific date.
           </p>
 
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
             <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 3 }}>Date</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 3 }}>Date</div>
               <input
                 type="date"
                 value={overrideDate}
@@ -383,7 +383,7 @@ export function ScheduleManager({
             {!overrideIsDayOff && (
               <>
                 <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 3 }}>From</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 3 }}>From</div>
                   <input
                     type="time"
                     value={overrideStart}
@@ -392,7 +392,7 @@ export function ScheduleManager({
                   />
                 </div>
                 <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 3 }}>To</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 3 }}>To</div>
                   <input
                     type="time"
                     value={overrideEnd}
@@ -407,7 +407,7 @@ export function ScheduleManager({
               onClick={saveOverride}
               disabled={!overrideDate || isPending}
               size="sm"
-              style={{ backgroundColor: "var(--ch-accent)", color: "#fff", border: "none" }}
+              style={{ backgroundColor: "var(--cs-sand)", color: "#fff", border: "none" }}
             >
               Save Override
             </Button>
@@ -415,7 +415,7 @@ export function ScheduleManager({
 
           <div style={{ marginTop: "0.5rem" }}>
             {overrides.length === 0 ? (
-              <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-subtle)" }}>No overrides set.</div>
+              <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>No overrides set.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
                 {overrides.map((override) => (
@@ -427,11 +427,11 @@ export function ScheduleManager({
                       justifyContent: "space-between",
                       gap: "0.75rem",
                       padding: "0.5rem 0.625rem",
-                      border: "1px solid var(--ch-border)",
+                      border: "1px solid var(--cs-border)",
                       borderRadius: 6,
                     }}
                   >
-                    <div style={{ fontSize: "0.8125rem", color: "var(--ch-text)" }}>
+                    <div style={{ fontSize: "0.8125rem", color: "var(--cs-text)" }}>
                       {override.override_date} ·{" "}
                       {override.is_day_off
                         ? "Day off"
@@ -463,13 +463,13 @@ export function ScheduleManager({
 
       {tab === "block" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          <p style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)", margin: 0 }}>
+          <p style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", margin: 0 }}>
             Block a time period within a working day (break, training, leave).
           </p>
 
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
             <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 3 }}>Date</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 3 }}>Date</div>
               <input
                 type="date"
                 value={blockDate}
@@ -478,7 +478,7 @@ export function ScheduleManager({
               />
             </div>
             <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 3 }}>From</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 3 }}>From</div>
               <input
                 type="time"
                 value={blockStart}
@@ -487,7 +487,7 @@ export function ScheduleManager({
               />
             </div>
             <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 3 }}>To</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 3 }}>To</div>
               <input
                 type="time"
                 value={blockEnd}
@@ -496,7 +496,7 @@ export function ScheduleManager({
               />
             </div>
             <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--ch-text-muted)", marginBottom: 3 }}>Reason</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: 3 }}>Reason</div>
               <select
                 value={blockReason}
                 onChange={(event) => setBlockReason(event.target.value as BlockReason)}
@@ -513,7 +513,7 @@ export function ScheduleManager({
               onClick={saveBlock}
               disabled={!blockDate || isPending}
               size="sm"
-              style={{ backgroundColor: "var(--ch-accent)", color: "#fff", border: "none" }}
+              style={{ backgroundColor: "var(--cs-sand)", color: "#fff", border: "none" }}
             >
               Add Block
             </Button>
@@ -521,7 +521,7 @@ export function ScheduleManager({
 
           <div style={{ marginTop: "0.5rem" }}>
             {blockedTimes.length === 0 ? (
-              <div style={{ fontSize: "0.8125rem", color: "var(--ch-text-subtle)" }}>No blocked time entries.</div>
+              <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>No blocked time entries.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
                 {blockedTimes.map((block) => (
@@ -533,11 +533,11 @@ export function ScheduleManager({
                       justifyContent: "space-between",
                       gap: "0.75rem",
                       padding: "0.5rem 0.625rem",
-                      border: "1px solid var(--ch-border)",
+                      border: "1px solid var(--cs-border)",
                       borderRadius: 6,
                     }}
                   >
-                    <div style={{ fontSize: "0.8125rem", color: "var(--ch-text)" }}>
+                    <div style={{ fontSize: "0.8125rem", color: "var(--cs-text)" }}>
                       {block.block_date} · {shortTime(block.start_time)} - {shortTime(block.end_time)} ·{" "}
                       {block.reason}
                     </div>

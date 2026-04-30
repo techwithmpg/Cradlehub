@@ -2,6 +2,12 @@
 
 _No errors logged yet._
 
+## 2026-04-30 — ORG-002 seed verification environment blocker
+
+- `pnpm db:push` failed because `supabase` binary is not installed globally in this shell.
+- `npx -y supabase@latest db push --linked` reached the CLI but failed DNS/IPv6 resolution for the remote Supabase host in this environment.
+- Result: migration/seed SQL is authored and ready, but remote apply must be run from a network-enabled environment.
+
 ## CradleHub-Specific Gotchas
 
 | Gotcha | Solution |

@@ -9,17 +9,26 @@ const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-const ROLE_REDIRECT: Record<string, string> = {
-  owner: "/owner",
-  manager: "/manager",
-  crm: "/crm",
-  staff: "/staff-portal",
-};
-
 export type LoginState = {
   error?: string;
   fieldErrors?: { email?: string; password?: string };
 };
+
+function resolveRedirect(systemRole: string, staffType: string | null): string {
+  if (systemRole === "owner") return "/owner";
+  if (systemRole === "manager") return "/manager";
+  if (systemRole === "crm") return "/crm";
+
+  // system_role = staff — route by job function
+  if (systemRole === "staff") {
+    if (staffType === "driver") return "/driver";
+    if (staffType === "utility") return "/utility";
+    // therapist, nail_tech, aesthetician, salon_head, managerial, fallback
+    return "/staff-portal";
+  }
+
+  return "/";
+}
 
 export async function loginAction(
   _prev: LoginState,
@@ -54,7 +63,7 @@ export async function loginAction(
     return { error: "Invalid email or password. Please try again." };
   }
 
-  // Get staff role to determine which workspace to redirect to
+  // Get staff role + job function to determine workspace
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -63,16 +72,24 @@ export async function loginAction(
 
   const { data: staffRecord } = await supabase
     .from("staff")
-    .select("system_role")
+    .select("system_role, staff_type")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .single();
 
+  // Dev bypass: if no staff record but dev mode is on, send to owner overview
+  const devAllowAllModules =
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEV_ALLOW_ALL_MODULES === "true";
+
   if (!staffRecord) {
+    if (devAllowAllModules) {
+      redirect("/owner");
+    }
     await supabase.auth.signOut();
     return { error: "Your account has not been set up yet. Contact your administrator." };
   }
 
-  const destination = ROLE_REDIRECT[staffRecord.system_role] ?? "/";
+  const destination = resolveRedirect(staffRecord.system_role, staffRecord.staff_type);
   redirect(destination);
 }

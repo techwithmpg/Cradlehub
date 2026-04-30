@@ -53,13 +53,13 @@ export default async function NewServicePage() {
       <div style={{ display: "grid", gap: "1rem" }}>
         <section
           style={{
-            backgroundColor: "var(--ch-surface)",
-            border: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
             borderRadius: 12,
             padding: "1.25rem",
           }}
         >
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--ch-text)" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--cs-text)" }}>
             Create Category
           </h3>
           <form action={createCategoryFormAction} style={{ display: "grid", gap: "0.875rem" }}>
@@ -73,7 +73,7 @@ export default async function NewServicePage() {
               type="submit"
               style={{
                 width: "fit-content",
-                backgroundColor: "var(--ch-accent)",
+                backgroundColor: "var(--cs-sand)",
                 color: "#fff",
                 border: "none",
               }}
@@ -85,13 +85,13 @@ export default async function NewServicePage() {
 
         <section
           style={{
-            backgroundColor: "var(--ch-surface)",
-            border: "1px solid var(--ch-border)",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
             borderRadius: 12,
             padding: "1.25rem",
           }}
         >
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--ch-text)" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--cs-text)" }}>
             Create Service
           </h3>
           <form action={createServiceFormAction} style={{ display: "grid", gap: "0.875rem" }}>
@@ -103,11 +103,11 @@ export default async function NewServicePage() {
                 style={{
                   height: 36,
                   borderRadius: 6,
-                  border: "1px solid var(--ch-border)",
+                  border: "1px solid var(--cs-border)",
                   padding: "0 0.5rem",
                   fontSize: "0.875rem",
-                  backgroundColor: "var(--ch-surface)",
-                  color: "var(--ch-text)",
+                  backgroundColor: "var(--cs-surface)",
+                  color: "var(--cs-text)",
                 }}
               >
                 <option value="">Select category…</option>
@@ -146,7 +146,7 @@ export default async function NewServicePage() {
             </div>
 
             <div style={{ display: "flex", gap: "0.625rem" }}>
-              <Button type="submit" style={{ backgroundColor: "var(--ch-accent)", color: "#fff", border: "none" }}>
+              <Button type="submit" style={{ backgroundColor: "var(--cs-sand)", color: "#fff", border: "none" }}>
                 Create Service
               </Button>
               <Button asChild variant="outline">

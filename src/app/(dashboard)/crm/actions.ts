@@ -89,11 +89,11 @@ export async function updateCustomerAction(rawInput: unknown) {
   return { success: true };
 }
 
-// ── Repeat customers (3+ bookings) ────────────────────────────────────────
+// ── Repeat customers (2+ bookings) ────────────────────────────────────────
 export async function getRepeatCustomersAction(page = 1) {
   const supabase = await requireCrmAccess();
   if (!supabase) return { error: "Unauthorized" };
-  return getRepeatCustomers(3, page, 20);
+  return getRepeatCustomers(2, page, 20);
 }
 
 // ── Lapsed customers (no visit in 30+ days) ───────────────────────────────

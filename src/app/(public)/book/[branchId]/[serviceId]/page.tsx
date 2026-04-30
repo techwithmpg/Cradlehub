@@ -61,21 +61,21 @@ export default async function SelectTimePage({
           href={`/book/${branchId}`}
           style={{
             fontSize: "0.8125rem",
-            color: "var(--ch-text-muted)",
+            color: "var(--cs-text-muted)",
             textDecoration: "none",
           }}
         >
           ← Back
         </Link>
-        <span style={{ color: "var(--ch-text-subtle)" }}>·</span>
-        <span style={{ fontSize: "0.8125rem", color: "var(--ch-text-muted)" }}>{branch.name}</span>
+        <span style={{ color: "var(--cs-text-muted)" }}>·</span>
+        <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>{branch.name}</span>
       </div>
 
       <h2
         style={{
           fontSize: "1.25rem",
           fontWeight: 600,
-          color: "var(--ch-text)",
+          color: "var(--cs-text)",
           marginBottom: "0.25rem",
         }}
       >
@@ -84,7 +84,7 @@ export default async function SelectTimePage({
       <p
         style={{
           fontSize: "0.875rem",
-          color: "var(--ch-text-muted)",
+          color: "var(--cs-text-muted)",
           marginBottom: "1.5rem",
         }}
       >

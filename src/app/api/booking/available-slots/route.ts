@@ -27,8 +27,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ slots });
   } catch (error) {
     console.error("[available-slots] Error:", error);
+    const message = error instanceof Error ? error.message : "Failed to fetch available slots";
     return NextResponse.json(
-      { error: "Failed to fetch available slots" },
+      { error: message },
       { status: 500 }
     );
   }

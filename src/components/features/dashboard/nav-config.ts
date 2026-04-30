@@ -20,16 +20,20 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
       { label: "Branches", href: "/owner/branches", icon: "Building2" },
       { label: "Staff", href: "/owner/staff", icon: "Users" },
       { label: "Services", href: "/owner/services", icon: "Sparkles" },
+      { label: "Dev Panel", href: "/dev", icon: "Wrench" },
     ],
   },
   manager: {
     role: "manager",
     label: "Manager",
     items: [
-      { label: "Schedule", href: "/manager", icon: "CalendarDays" },
-      { label: "Walk-in", href: "/manager/walkin", icon: "UserPlus" },
+      { label: "Today", href: "/manager", icon: "LayoutDashboard" },
+      { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
       { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+      { label: "Walk-in", href: "/manager/walkin", icon: "UserPlus" },
       { label: "Staff", href: "/manager/staff", icon: "Users" },
+      { label: "Operations", href: "/manager/operations", icon: "Monitor" },
+      { label: "Reports", href: "/manager/reports", icon: "BarChart2" },
     ],
   },
   crm: {
@@ -50,4 +54,43 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
       { label: "My Stats", href: "/staff-portal/stats", icon: "BarChart2" },
     ],
   },
+  driver: {
+    role: "driver",
+    label: "Driver",
+    items: [
+      { label: "Driver Panel", href: "/driver", icon: "Truck" },
+    ],
+  },
+  utility: {
+    role: "utility",
+    label: "Utility",
+    items: [
+      { label: "Utility Panel", href: "/utility", icon: "Wrench" },
+    ],
+  },
 };
+
+const WORKSPACE_PREFIX_TO_KEY = [
+  { prefix: "/owner", key: "owner" },
+  { prefix: "/manager", key: "manager" },
+  { prefix: "/crm", key: "crm" },
+  { prefix: "/staff-portal", key: "staff" },
+  { prefix: "/driver", key: "driver" },
+  { prefix: "/utility", key: "utility" },
+  { prefix: "/dev", key: "dev" },
+] as const;
+
+export function resolveWorkspaceKeyFromPath(pathname: string): string | null {
+  const matched = WORKSPACE_PREFIX_TO_KEY.find((entry) => pathname.startsWith(entry.prefix));
+  return matched?.key ?? null;
+}
+
+export function resolveWorkspaceKeyFromRole(role: string): string {
+  if (role === "assistant_manager" || role === "store_manager" || role === "csr") {
+    return "manager";
+  }
+  if (role === "owner" || role === "manager" || role === "crm" || role === "staff") {
+    return role;
+  }
+  return "staff";
+}
