@@ -5,7 +5,7 @@ import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 
 async function getManagerContext() {
   const supabase = await createClient();
@@ -62,12 +62,11 @@ export default async function ManagerSchedulePage({
         description={`${branchName} · ${formattedDate}`}
         action={
           <Link
-            href="/manager/walkin"
+            href="/manager/bookings"
             className="cs-btn cs-btn-primary cs-btn-sm"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            style={{ display: "inline-flex", alignItems: "center" }}
           >
-            <Plus className="h-4 w-4" />
-            New Booking
+            View Bookings
           </Link>
         }
       />

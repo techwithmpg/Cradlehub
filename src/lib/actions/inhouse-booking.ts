@@ -91,7 +91,7 @@ export async function createInhouseBookingMultiAction(
     .single();
 
   const staff = (me ?? null) as StaffAuthContext | null;
-  if (!staff || !["crm", "manager", "owner"].includes(staff.system_role)) {
+  if (!staff || !["crm", "owner"].includes(staff.system_role)) {
     return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to create bookings." };
   }
 

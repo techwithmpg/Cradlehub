@@ -85,6 +85,13 @@ function formatTime(timeStr: string) {
   return `${displayHour}:${m} ${ampm}`;
 }
 
+function toLocalYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 // Collapse multiple per-staff rows to one entry per slot_time.
 // Prefers an available row over an unavailable one.
 function normalizePublicSlots(rawSlots: Slot[]): Slot[] {
@@ -218,7 +225,7 @@ export function BookingWizard({
   useEffect(() => {
     if (!selectedBranch || selectedServices.length === 0 || !selectedDate) return;
     const id = setTimeout(() => setLoadingSlots(true), 0);
-    const dateStr = selectedDate.toISOString().split("T")[0]!;
+    const dateStr = toLocalYmd(selectedDate);
     const serviceIds = selectedServices.map((s) => s.id).join(",");
     fetch(
       `/api/booking/available-slots?branchId=${selectedBranch.id}&serviceIds=${serviceIds}&date=${dateStr}`
@@ -269,7 +276,7 @@ export function BookingWizard({
       branchId: selectedBranch.id,
       serviceIds: selectedServices.map((s) => s.id),
       staffId: selectedStaff !== "auto" ? selectedStaff : undefined,
-      date: selectedDate.toISOString().split("T")[0]!,
+      date: toLocalYmd(selectedDate),
       startTime: selectedSlot.slot_time,
       fullName: form.fullName,
       phone: form.phone,
@@ -904,10 +911,13 @@ function StepDateTime({
   onSelectSlot: (s: Slot) => void;
 }) {
   const today = new Date();
-  const maxDate = new Date();
+  today.setHours(0, 0, 0, 0);
+  const maxDate = new Date(today);
   maxDate.setDate(maxDate.getDate() + 30);
 
   const availableSlots = slots.filter((s) => s.available);
+  const isTodaySelected =
+    !!selectedDate && toLocalYmd(selectedDate) === toLocalYmd(new Date());
 
   return (
     <div>
@@ -931,7 +941,11 @@ function StepDateTime({
               mode="single"
               selected={selectedDate}
               onSelect={onSelectDate}
-              disabled={(date) => date < today || date > maxDate}
+              disabled={(date) => {
+                const d = new Date(date);
+                d.setHours(0, 0, 0, 0);
+                return d < today || d > maxDate;
+              }}
               className="rounded-md"
             />
           </div>
@@ -962,7 +976,9 @@ function StepDateTime({
               style={{ borderColor: "#EDE4D3", background: "#FCFAF5" }}
             >
               <p className="text-[13px]" style={{ color: "#6B7A6F" }}>
-                No available slots for this date
+                {isTodaySelected
+                  ? "No more available slots today. Please choose another date."
+                  : "No available slots for this date"}
               </p>
             </div>
           ) : (

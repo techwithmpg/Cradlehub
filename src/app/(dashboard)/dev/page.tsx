@@ -42,7 +42,6 @@ const CATEGORIES = [
       { icon: "📋", label: "Today", href: "/manager" },
       { icon: "🗓️", label: "Schedule", href: "/manager/schedule" },
       { icon: "📊", label: "Bookings", href: "/manager/bookings" },
-      { icon: "➕", label: "Walk-in", href: "/manager/walkin" },
       { icon: "👥", label: "Staff", href: "/manager/staff" },
       { icon: "🔧", label: "Operations", href: "/manager/operations" },
       { icon: "📈", label: "Reports", href: "/manager/reports" },

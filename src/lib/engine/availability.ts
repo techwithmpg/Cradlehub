@@ -1,6 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AvailabilitySlot } from "@/types";
 import { SlotUnavailableError } from "@/types/errors";
+import {
+  filterPastSlotsForDate,
+  rangesOverlap,
+  timeToMinutes,
+  toLocalYmd,
+} from "./slot-time";
 
 /**
  * Calls the get_available_slots RPC and returns all slots.
@@ -14,6 +20,9 @@ export async function getAvailableSlots(params: {
   staffId?:  string;
   date:      string;
 }): Promise<AvailabilitySlot[]> {
+  const today = toLocalYmd(new Date());
+  if (params.date < today) return [];
+
   const supabase = createAdminClient();
 
   const rpcArgs = {
@@ -41,7 +50,10 @@ export async function getAvailableSlots(params: {
     slots = slots.filter((s) => qualifiedIds.has(s.staff_id));
   }
 
-  return slots;
+  return filterPastSlotsForDate({
+    selectedDate: params.date,
+    slots,
+  });
 }
 
 /**
@@ -84,12 +96,6 @@ export async function assignTherapistBySeniority(params: {
   });
 
   return candidates[0]!.staff_id;
-}
-
-// HH:MM or HH:MM:SS → total minutes
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
 }
 
 /**
@@ -149,6 +155,7 @@ export async function getAvailableSlotsMulti(params: {
 
   // 3. Get base slots using first service (provides correct slot intervals)
   const baseSlots = await getAvailableSlots({ branchId, serviceId: serviceIds[0]!, date });
+  if (baseSlots.length === 0) return [];
 
   // 4. Fetch existing bookings for the day to validate full combined window
   const { data: dayBookings } = await supabase
@@ -176,7 +183,9 @@ export async function getAvailableSlotsMulti(params: {
       const slotEnd   = slotStart + totalMinutes;
 
       const staffBookings = bookingsByStaff.get(slot.staff_id) ?? [];
-      const hasConflict = staffBookings.some((b) => b.start < slotEnd && b.end > slotStart);
+      const hasConflict = staffBookings.some((b) =>
+        rangesOverlap(slotStart, slotEnd, b.start, b.end)
+      );
 
       return { ...slot, available: !hasConflict };
     });

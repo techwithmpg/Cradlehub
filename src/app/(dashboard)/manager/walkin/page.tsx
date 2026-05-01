@@ -1,21 +1,5 @@
-import Link from "next/link";
-import { PageHeader } from "@/components/features/dashboard/page-header";
-import { Button } from "@/components/ui/button";
-import { WalkinForm } from "@/components/features/dashboard/walkin-form";
+import { redirect } from "next/navigation";
 
 export default function WalkinPage() {
-  return (
-    <div>
-      <PageHeader
-        title="New Booking"
-        description="Walk-in, home service, or phone booking"
-        action={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/manager">← Back to Today</Link>
-          </Button>
-        }
-      />
-      <WalkinForm />
-    </div>
-  );
+  redirect("/manager");
 }

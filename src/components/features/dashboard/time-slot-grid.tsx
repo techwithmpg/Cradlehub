@@ -31,6 +31,14 @@ function formatDisplayTime(time: string): string {
   return `${display}:${String(m ?? 0).padStart(2, "0")} ${period}`;
 }
 
+function todayYmd(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function TimeSlotGrid({
   branchId,
   serviceId,
@@ -94,6 +102,7 @@ export function TimeSlotGrid({
 
   const availableSlots = slots.filter((slot) => slot.available);
   if (availableSlots.length === 0) {
+    const isToday = date === todayYmd();
     return (
       <div
         style={{
@@ -105,7 +114,9 @@ export function TimeSlotGrid({
           color: "#713F12",
         }}
       >
-        No available slots for this date. Try another day or therapist.
+        {isToday
+          ? "No more available slots today. Please choose another date."
+          : "No available slots for this date. Try another day or therapist."}
       </div>
     );
   }

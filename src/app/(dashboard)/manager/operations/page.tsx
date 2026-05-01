@@ -3,7 +3,6 @@ import Link from "next/link";
 
 const AVAILABLE_TOOLS = [
   { icon: "📋", label: "Today\u2019s Control Center", desc: "Live bookings, issues, and quick actions", href: "/manager" },
-  { icon: "➕", label: "Walk-in Booking", desc: "Create front-desk or phone bookings instantly", href: "/manager/walkin" },
   { icon: "📅", label: "Booking Management", desc: "View, edit, and transition booking statuses", href: "/manager/bookings" },
   { icon: "👥", label: "Staff Schedule Management", desc: "Weekly hours, overrides, and blocked times", href: "/manager/staff" },
 ];

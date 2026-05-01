@@ -456,7 +456,6 @@ export default async function ManagerTodayPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
               {[
-                { icon: "➕", label: "Add walk-in booking", href: "/manager/walkin" },
                 { icon: "📋", label: "View all bookings", href: "/manager/bookings" },
                 { icon: "👥", label: "Manage staff schedule", href: "/manager/staff" },
                 { icon: "🗓️", label: "View schedule timeline", href: "/manager/schedule" },

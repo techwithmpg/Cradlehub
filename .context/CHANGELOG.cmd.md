@@ -292,3 +292,38 @@ All 8 sprints committed. System is production-ready pending data setup.
 - Off-duty areas shaded with semi-transparent overlay.
 
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors
+
+
+---
+
+### 2026-05-01 — Kimi DevCoder (SCHED-003 — Compact Staff Schedule List + Detail Panel)
+
+**Task:** Redesign staff schedule management page to scale for large teams (50–100 staff).
+
+**Files Created:**
+- `src/lib/utils/staff-schedule-summary.ts` — intelligent weekly hours summary helper
+- `src/components/features/staff-schedule/staff-schedule-toolbar.tsx` — search, filter, sort toolbar
+- `src/components/features/staff-schedule/staff-schedule-list.tsx` — compact table header + rows
+- `src/components/features/staff-schedule/staff-schedule-row.tsx` — individual staff row with summary
+- `src/components/features/staff-schedule/staff-schedule-detail-panel.tsx` — right-side Sheet with tabs
+- `src/components/features/staff-schedule/staff-weekly-hours-editor.tsx` — extracted per-day editor
+- `src/components/features/staff-schedule/staff-day-overrides-editor.tsx` — extracted override editor
+- `src/components/features/staff-schedule/staff-block-time-editor.tsx` — extracted block time editor
+- `src/components/features/staff-schedule/staff-schedule-page-client.tsx` — main client orchestrator
+
+**Files Changed:**
+- `src/app/(dashboard)/manager/staff/page.tsx` — server page now fetches data and passes to client component
+- `src/components/features/dashboard/schedule-manager.tsx` — preserved but no longer used by manager staff page
+
+**Design decisions:**
+- Replaced expanded `ScheduleManager` cards (one per staff) with compact list + detail Sheet.
+- List columns: Staff, Role/Tier, Weekly Hours Summary, Overrides, Blocks, Status, Action.
+- Weekly hours summary logic: all-same → "daily", weekdays-only → "Weekdays", weekends-only → "Weekends", else → "Custom hours (N days)".
+- Filters implemented: all, scheduled, not_scheduled, has_overrides, has_blocks, active, inactive.
+- Sort: name (A–Z), tier (Senior→Mid→Junior).
+- Detail panel uses shadcn Sheet from right side, tabs for Weekly Hours / Day Overrides / Block Time.
+- All editors use optimistic local state updates (no Sheet close on save).
+- On Sheet close, `router.refresh()` updates list summaries.
+- Existing server actions preserved unchanged.
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors

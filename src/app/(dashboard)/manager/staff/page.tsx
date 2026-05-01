@@ -1,13 +1,10 @@
-﻿import { PageHeader } from "@/components/features/dashboard/page-header";
+import { PageHeader } from "@/components/features/dashboard/page-header";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
+import { StaffSchedulePageClient } from "@/components/features/staff-schedule/staff-schedule-page-client";
 import { getStaffByBranch, getStaffSchedule, getStaffOverrides, getBlockedTimes } from "@/lib/queries/staff";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { ScheduleManager } from "@/components/features/dashboard/schedule-manager";
-import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import type { Database } from "@/types/supabase";
-
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type BranchStaff = Pick<
   Database["public"]["Tables"]["staff"]["Row"],
@@ -46,14 +43,19 @@ export default async function ManagerStaffPage() {
 
   const schedulesArr = await Promise.all(
     staff.map(async (member) => ({
-      staffId: member.id,
+      staff: {
+        id: member.id,
+        full_name: member.full_name,
+        tier: member.tier,
+        staff_type: member.staff_type,
+        is_head: member.is_head,
+        is_active: member.is_active,
+      },
       schedules: (await getStaffSchedule(member.id)) as ScheduleRow[],
       overrides: (await getStaffOverrides(member.id, fromDate)) as OverrideRow[],
       blockedTimes: (await getBlockedTimes(member.id, fromDate, toDate)) as BlockedTimeRow[],
     }))
   );
-
-  const byStaffId = new Map(schedulesArr.map((item) => [item.staffId, item]));
 
   return (
     <div>
@@ -63,102 +65,13 @@ export default async function ManagerStaffPage() {
       />
 
       {staff.length === 0 ? (
-        <EmptyState title="No staff yet" description="Ask the owner to add staff to this branch first." />
+        <EmptyState
+          title="No staff yet"
+          description="Ask the owner to add staff to this branch first."
+        />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          {staff.map((member) => {
-            const details = byStaffId.get(member.id);
-            const schedules = details?.schedules ?? [];
-            const overrides = details?.overrides ?? [];
-            const blockedTimes = details?.blockedTimes ?? [];
-
-            return (
-              <div
-                key={member.id}
-                style={{
-                  backgroundColor: "var(--cs-surface)",
-                  border: "1px solid var(--cs-border)",
-                  borderRadius: 10,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "0.875rem 1rem",
-                    borderBottom: "1px solid var(--cs-border)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    backgroundColor: "var(--cs-bg)",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      backgroundColor: "var(--cs-border)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                      color: "var(--cs-text-muted)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {member.full_name.charAt(0)}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "0.9375rem", fontWeight: 500, color: "var(--cs-text)" }}>
-                      {member.full_name}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                      {STAFF_TYPE_LABELS[member.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? member.staff_type}
-                      {member.is_head && " · Head"}
-                      {" · "}{member.tier}
-                    </div>
-                  </div>
-
-                  <div style={{ marginLeft: "auto", display: "flex", gap: "0.375rem" }}>
-                    {DAY_NAMES.map((day, idx) => {
-                      const hasSchedule = schedules.some((schedule) => schedule.day_of_week === idx && schedule.is_active);
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 4,
-                            backgroundColor: hasSchedule ? "var(--cs-sand-mist)" : "var(--cs-border)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "0.625rem",
-                            fontWeight: 600,
-                            color: hasSchedule ? "var(--cs-sand)" : "var(--cs-text-muted)",
-                          }}
-                        >
-                          {day.charAt(0)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <ScheduleManager
-                  staffId={member.id}
-                  staffName={member.full_name}
-                  existingSchedules={schedules}
-                  existingOverrides={overrides}
-                  existingBlockedTimes={blockedTimes}
-                />
-              </div>
-            );
-          })}
-        </div>
+        <StaffSchedulePageClient items={schedulesArr} />
       )}
     </div>
   );
 }
-
