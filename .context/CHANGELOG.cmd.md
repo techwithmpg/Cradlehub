@@ -740,3 +740,4 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 **Notes:**
 - SVG outputs are true vector path-based assets (no embedded `<image>`/base64 raster payloads).
 - Legacy UI usage of `/images/images/cradle-logo.png` and `/images/brand/cradle-logo-gold.png` has been replaced with reusable SVG component usage.
+$content

@@ -47,7 +47,8 @@ export function SiteHeader() {
           <Link href="/" aria-label="Cradle Wellness Living" className="group flex items-center">
             <BrandLogo
               size="md"
-              className="w-32 sm:w-36 md:w-44 lg:w-52 transition-opacity duration-500 group-hover:opacity-85"
+              variant={isHeroMode ? "dark" : "light"}
+              className="w-32 sm:w-36 md:w-44 lg:w-52 group-hover:opacity-85"
             />
           </Link>
 
@@ -114,7 +115,7 @@ export function SiteHeader() {
       >
         <div className="absolute inset-0 bg-[#10261D]/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
         <div
-          className={`absolute right-0 top-0 h-full w-70 bg-[#FCFAF5] shadow-2xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+          className={`absolute right-0 top-0 h-full w-70 bg-[#FCFAF5] shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
             mobileOpen ? "translate-x-0" : "translate-x-full"
           }`}
         >

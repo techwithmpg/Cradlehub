@@ -449,6 +449,11 @@ a:focus-visible,
   }
 }
 
+/* ── Skeleton shimmer keyframe ────────────────────────────── */
+@keyframes shimmer {
+  100% { transform: translateX(200%); }
+}
+
 /* ── Table system ─────────────────────────────────────────── */
 .cs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cs-table th {

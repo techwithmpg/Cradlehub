@@ -47,7 +47,7 @@ export function SiteFooter() {
           {/* Brand */}
           <div className="lg:col-span-1">
             <Link href="/" className="inline-flex mb-6 hover:opacity-85 transition-opacity duration-300">
-              <BrandLogo size="md" className="w-44 md:w-56" />
+              <BrandLogo size="md" variant="dark" className="w-44 md:w-56" />
             </Link>
             <p className="text-[13px] leading-relaxed max-w-xs">
               A sanctuary of calm where skilled hands and natural therapies guide you back to balance.

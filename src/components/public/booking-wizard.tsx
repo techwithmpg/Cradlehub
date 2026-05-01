@@ -23,6 +23,7 @@ import {
   Minus,
   Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 
@@ -310,9 +311,15 @@ export function BookingWizard({
 
     setSubmitting(false);
     if (result.ok) {
+      toast.success(mode === "inhouse" ? "Booking saved" : "Booking confirmed!", {
+        description: mode === "inhouse"
+          ? "Appointment saved to the CRM workspace."
+          : "We look forward to welcoming you at Cradle.",
+      });
       setSuccess({ bookingId: result.bookingId });
       setStep(6);
     } else {
+      toast.error("Booking failed", { description: result.message });
       setFormError(result.message);
     }
   }, [selectedBranch, selectedServices, selectedDate, selectedSlot, selectedStaff, form, bookingType, mode]);

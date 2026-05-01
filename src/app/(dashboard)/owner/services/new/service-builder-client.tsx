@@ -10,7 +10,7 @@ import {
   createServiceAction,
   createServiceCategoryAction,
 } from "@/app/(dashboard)/owner/services/actions";
-import { ArrowLeft, ImageIcon, Check } from "lucide-react";
+import { ArrowLeft, ImageIcon, Check, Loader2 } from "lucide-react";
 
 type Category = {
   id: string;
@@ -329,7 +329,9 @@ export function ServiceBuilderClient({ categories: initialCategories }: Props) {
                         height: 40,
                       }}
                     >
-                      {isPending ? "Creating…" : "Create Category"}
+                      {isPending ? (
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" />Creating…</>
+                      ) : "Create Category"}
                     </Button>
                   </div>
                 </div>
@@ -539,7 +541,9 @@ export function ServiceBuilderClient({ categories: initialCategories }: Props) {
                 border: "none",
               }}
             >
-              {isPending ? "Creating…" : "Create Service"}
+              {isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Creating…</>
+              ) : "Create Service"}
             </Button>
             <Button asChild variant="outline" className="cs-btn cs-btn-ghost">
               <Link href="/owner/services">Cancel</Link>

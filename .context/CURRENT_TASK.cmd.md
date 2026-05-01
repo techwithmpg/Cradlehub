@@ -1,31 +1,41 @@
 # Current Task
 
-## 2026-05-02 — BRAND-003: Convert Cradle Logo PNG to Real SVG System
+## 2026-05-02 — OWNER-001: Owner Reports / Analytics Page
 
 ### Objective
-Convert the approved Cradle logo PNG into real vector SVG assets and implement a reusable SVG-based logo system across website and portal UI.
+Create a premium owner analytics page at `/owner/reports` that exposes existing analytics data through the UI.
 
-### Source Asset
-- `E:\cradlehub\public\images\images\cradle-logo.png`
-
-### Target Assets
-- `src/assets/brand/cradle-logo-horizontal.svg`
-- `src/assets/brand/cradle-logo-mark.svg`
-- `public/images/brand/cradle-logo-horizontal.svg`
-- `public/images/brand/cradle-logo-mark.svg`
-- fallback PNGs in `public/images/brand/` (horizontal + mark)
+### Existing Backend Actions
+- `getRevenueByBranchAction(fromDate, toDate)` — in `src/app/(dashboard)/owner/bookings/actions.ts`
+- `getStaffProductivityAction(fromDate, toDate)` — in `src/app/(dashboard)/owner/bookings/actions.ts`
+- `getBookingTrendAction(days)` — in `src/app/(dashboard)/owner/bookings/actions.ts`
 
 ### Scope
-- Configure Next.js 16 Turbopack SVG loader support with `@svgr/webpack`.
-- Update `src/components/shared/brand-logo.tsx` to SVG-driven `mode` + `size` API.
-- Replace old logo usage in header/footer/auth/sidebar with SVG-based component usage.
-- Keep fallback PNG assets and add a repeatable asset generation script.
+- ✅ Add Reports nav link to owner sidebar
+- ✅ Create `/owner/reports` page with date range controls
+- ✅ KPI summary cards (Total Revenue, Total Bookings, Top Branch, Top Staff)
+- ✅ Revenue by Branch section with CSS bar chart
+- ✅ Staff Productivity section with ranked list
+- ✅ Booking Trend section with CSS bar chart
+- ✅ Empty states, loading state, error handling
+- ✅ Responsive design (mobile-first)
+- ✅ Helper utilities with tests
+- ✅ No fake data — use real actions only
+- ✅ No new dependencies (Recharts not installed; use CSS charts)
 
-### Validation
-- `pnpm type-check` ✅
-- `pnpm lint` ✅
-- `pnpm build` ✅
-- `pnpm test` ✅
+### Files Created/Updated
+- `src/app/(dashboard)/owner/reports/page.tsx`
+- `src/app/(dashboard)/owner/reports/loading.tsx`
+- `src/components/features/owner/reports/owner-reports-page.tsx`
+- `src/components/features/owner/reports/report-date-filter.tsx`
+- `src/components/features/owner/reports/report-kpi-cards.tsx`
+- `src/components/features/owner/reports/revenue-by-branch-card.tsx`
+- `src/components/features/owner/reports/staff-productivity-card.tsx`
+- `src/components/features/owner/reports/booking-trend-card.tsx`
+- `src/components/features/owner/reports/reports-empty-state.tsx`
+- `src/lib/owner/reports.ts`
+- `src/components/features/dashboard/nav-config.ts`
+- `tests/lib/owner/reports.test.ts`
 
 ### Status
-Completed.
+✅ Completed.

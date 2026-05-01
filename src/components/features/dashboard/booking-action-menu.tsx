@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { canCancelBooking, canChangeBookingStatus } from "@/lib/permissions";
 
@@ -108,7 +109,9 @@ export function BookingActionMenu({
           opacity: isPending ? 0.5 : 1,
         }}
       >
-        {isPending ? "…" : "Actions ▾"}
+        {isPending
+          ? <Loader2 className="animate-spin" style={{ width: 13, height: 13, display: "inline" }} />
+          : "Actions ▾"}
       </button>
 
       {open && (

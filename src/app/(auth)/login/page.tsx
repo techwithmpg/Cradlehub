@@ -22,7 +22,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="relative z-10">
-          <BrandLogo size="lg" className="w-48 md:w-60 lg:w-72" />
+          <BrandLogo size="lg" variant="dark" className="w-48 md:w-60 lg:w-72" />
         </div>
 
         {/* Headline + feature list */}
@@ -67,13 +67,13 @@ export default function LoginPage() {
 
         {/* Mobile-only logo */}
         <div className="flex flex-col items-center mb-8 lg:hidden">
-          <BrandLogo size="md" className="mb-3 w-40 sm:w-44" />
+          <BrandLogo size="md" variant="light" className="mb-3 w-40 sm:w-44" />
           <span className="text-[12px] font-medium tracking-[0.12em] uppercase text-[#6B5D52] mt-1">
             Staff Portal
           </span>
         </div>
 
-        <div className="w-full max-w-[400px]">
+        <div className="w-full max-w-100">
 
           {/* Desktop heading */}
           <div className="mb-7 hidden lg:block">
