@@ -156,7 +156,7 @@ export default async function CustomerProfilePage({
     <div>
       <div style={{ marginBottom: "0.75rem" }}>
         <Link
-          href="/crm"
+          href="/crm/customers"
           style={{
             fontSize: "0.8125rem",
             color: "var(--cs-text-muted)",
@@ -176,22 +176,21 @@ export default async function CustomerProfilePage({
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {segment && <CustomerSegmentBadge segment={segment} />}
-            <span
+            <Link
+              href={`/crm/bookings/new?customerId=${customer.id}`}
               style={{
                 padding: "6px 12px",
                 borderRadius: 6,
                 border: "1px solid var(--cs-border)",
-                backgroundColor: "var(--cs-surface-warm)",
-                color: "var(--cs-text-muted)",
+                backgroundColor: "var(--cs-sand-mist)",
+                color: "var(--cs-sand)",
                 fontSize: "0.75rem",
                 fontWeight: 500,
-                opacity: 0.6,
-                cursor: "not-allowed",
+                textDecoration: "none",
               }}
-              title="Coming soon"
             >
               Book again
-            </span>
+            </Link>
           </div>
         }
       />
@@ -414,7 +413,12 @@ export default async function CustomerProfilePage({
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
               {[
-                { icon: "➕", label: "Book again", soon: true },
+                {
+                  icon: "➕",
+                  label: "Book again",
+                  soon: false,
+                  href: `/crm/bookings/new?customerId=${customer.id}`,
+                },
                 { icon: "📝", label: "Add note", soon: false, scrollTo: "notes" },
                 { icon: "✏️", label: "Edit customer", soon: true },
               ].map((action) =>
@@ -438,9 +442,9 @@ export default async function CustomerProfilePage({
                     {action.label}
                   </div>
                 ) : (
-                  <a
+                  <Link
                     key={action.label}
-                    href="#notes"
+                    href={action.href ?? "#notes"}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -455,7 +459,7 @@ export default async function CustomerProfilePage({
                   >
                     <span>{action.icon}</span>
                     {action.label}
-                  </a>
+                  </Link>
                 )
               )}
             </div>
@@ -477,6 +481,9 @@ export default async function CustomerProfilePage({
             </div>
             <CustomerNotesForm
               customerId={customer.id}
+              initialFullName={customer.full_name}
+              initialPhone={customer.phone}
+              initialEmail={customer.email}
               initialNotes={customer.notes}
               initialPreferredStaffId={customer.preferred_staff_id}
               staff={staffOptions}

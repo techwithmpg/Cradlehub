@@ -10,6 +10,12 @@ type StaffContext = {
   system_role: string;
 };
 
+type CustomerPrefill = {
+  fullName: string;
+  phone: string;
+  email: string | null;
+};
+
 async function getDefaultBranchId(): Promise<string | null> {
   const supabase = await createClient();
   const {
@@ -36,8 +42,31 @@ async function getDefaultBranchId(): Promise<string | null> {
   return me.branch_id;
 }
 
-export default async function CrmBookingWizardPage() {
+async function getCustomerPrefill(customerId: string | undefined): Promise<CustomerPrefill | null> {
+  if (!customerId) return null;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("customers")
+    .select("full_name, phone, email")
+    .eq("id", customerId)
+    .maybeSingle();
+
+  if (!data) return null;
+  return {
+    fullName: data.full_name,
+    phone: data.phone,
+    email: data.email,
+  };
+}
+
+export default async function CrmBookingWizardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ customerId?: string }>;
+}) {
+  const params = await searchParams;
   const defaultBranchId = await getDefaultBranchId();
+  const customerPrefill = await getCustomerPrefill(params.customerId);
 
   return (
     <div>
@@ -46,12 +75,17 @@ export default async function CrmBookingWizardPage() {
         description="Create a booking for walk-in, phone, or staff-assisted customers."
         action={
           <Button asChild variant="outline" size="sm">
-            <Link href="/crm">Back to CRM Hub</Link>
+            <Link href="/crm/today">Back to Today</Link>
           </Button>
         }
       />
 
-      <BookingWizard mode="inhouse" initialBranchId={defaultBranchId} />
+      <BookingWizard
+        key={`${defaultBranchId ?? "none"}-${params.customerId ?? "new"}`}
+        mode="inhouse"
+        initialBranchId={defaultBranchId}
+        initialCustomer={customerPrefill}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { updateCustomerSchema } from "@/lib/validations/customer";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createCustomerSchema, updateCustomerSchema } from "@/lib/validations/customer";
 import {
   getAllCustomers,
   getCustomerById,
@@ -77,6 +78,7 @@ export async function updateCustomerAction(rawInput: unknown) {
     .from("customers")
     .update({
       ...(updates.fullName         !== undefined && { full_name:          updates.fullName }),
+      ...(updates.phone            !== undefined && { phone:              updates.phone }),
       ...(updates.email            !== undefined && { email:              updates.email || null }),
       ...(updates.notes            !== undefined && { notes:              updates.notes }),
       ...(updates.preferredStaffId !== undefined && {
@@ -86,8 +88,54 @@ export async function updateCustomerAction(rawInput: unknown) {
     .eq("id", customerId);
 
   if (error) return { success: false, error: error.message };
+  revalidatePath("/crm/customers");
   revalidatePath(`/crm/${customerId}`);
   return { success: true };
+}
+
+// ── Create customer (front desk quick-add) ────────────────────────────────
+export async function createCustomerAction(rawInput: unknown) {
+  const parsed = createCustomerSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+
+  const supabase = await requireCrmAccess();
+  if (!supabase) return { success: false, error: "Unauthorized" };
+
+  const admin = createAdminClient();
+  const { fullName, phone, email, notes } = parsed.data;
+  const cleanPhone = phone.replace(/\s/g, "");
+
+  const { data: customerId, error: rpcError } = await admin.rpc("upsert_customer", {
+    p_phone: cleanPhone,
+    p_full_name: fullName,
+    p_email: email || undefined,
+  });
+
+  if (rpcError || !customerId) {
+    return {
+      success: false,
+      error: rpcError?.message ?? "Could not create customer",
+    };
+  }
+
+  if (notes) {
+    const { error: notesError } = await admin
+      .from("customers")
+      .update({ notes })
+      .eq("id", String(customerId));
+    if (notesError) {
+      return { success: false, error: notesError.message };
+    }
+  }
+
+  revalidatePath("/crm/customers");
+  revalidatePath("/crm/today");
+  return { success: true, customerId: String(customerId) };
 }
 
 // ── Repeat customers (2+ bookings) ────────────────────────────────────────

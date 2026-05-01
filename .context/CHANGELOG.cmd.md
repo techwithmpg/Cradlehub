@@ -433,3 +433,46 @@ All 8 sprints committed. System is production-ready pending data setup.
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing
 - `pnpm test`: ✅ Passing (after sandbox worker permission escalation)
+
+---
+
+### 2026-05-01 — Codex (CSR-002 — CSR Daily Operations Pages in CRM Workspace)
+
+**Task:** Build CSR-focused operational CRM routes without creating a separate CSR workspace.
+
+**Files Added:**
+- `src/app/(dashboard)/crm/today/page.tsx`
+- `src/app/(dashboard)/crm/bookings/page.tsx`
+- `src/app/(dashboard)/crm/schedule/page.tsx`
+- `src/components/features/dashboard/customer-create-form.tsx`
+
+**Files Updated (high impact):**
+- `src/app/(dashboard)/crm/page.tsx` (`/crm` now routes to `/crm/today`)
+- `src/app/(dashboard)/crm/customers/page.tsx` (full customers operations page)
+- `src/app/(dashboard)/crm/bookings/new/page.tsx` (customer prefill support + updated back nav)
+- `src/components/public/booking-wizard.tsx` (supports `initialCustomer` prefill)
+- `src/app/(dashboard)/crm/actions.ts` (create customer action + expanded contact update)
+- `src/lib/validations/customer.ts` (create schema + phone update field)
+- `src/components/features/dashboard/customer-notes-form.tsx` (edit full name/phone/email/notes)
+- `src/app/(dashboard)/crm/[customerId]/page.tsx` (book-again links + customer edit wiring)
+- `src/lib/queries/bookings.ts` (`getAllBookings` adds `staffId` filter)
+- `src/components/features/dashboard/nav-config.ts` (CSR/CRM nav now points to CRM-native operational routes)
+- `src/app/(dashboard)/crm/repeats/page.tsx` and `src/app/(dashboard)/crm/lapsed/page.tsx` (customers tab path updates)
+
+**Outcome:**
+- Added `/crm/today` with:
+  - quick actions
+  - daily stats
+  - next appointment
+  - booking queue
+  - home-service queue
+  - recent customer updates/notes
+- Added `/crm/bookings` with date/status/type/therapist filters and role-safe booking actions.
+- Added `/crm/schedule` as CSR-facing availability view reusing existing schedule board.
+- Added usable `/crm/customers` flow:
+  - fast search
+  - create customer
+  - edit basic contact details
+  - start new booking from customer context
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** ✅ Passing | **Tests:** ✅ Passing

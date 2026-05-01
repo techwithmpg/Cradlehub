@@ -2,18 +2,20 @@
 
 | Field | Value |
 |-------|-------|
-| **Task ID** | `CSR-001` |
-| **Description** | `Finalize CSR Head/CSR Staff role-based access in the existing CRM workspace (no separate CSR workspace)` |
+| **Task ID** | `CSR-002` |
+| **Description** | `Build CSR-focused CRM operational pages (/crm/today, /crm/bookings, /crm/bookings/new, /crm/customers, /crm/schedule) using existing workspace and role-safe variants` |
 | **Agent** | `Codex (GPT-5)` |
 | **Status** | `COMPLETED` |
 | **Updated** | `2026-05-01` |
 
 ## Outcome
-- Added `csr_head` and `csr_staff` role support to CRM/operations access without creating a new workspace.
-- Applied role-specific sidebar/navigation for CRM, CSR Head, and CSR Staff.
-- Enforced booking/customer permissions server-side for CSR flows.
-- Removed dedicated manager walk-in page route (`/manager/walkin`) to keep booking creation in CRM in-house wizard.
-- Updated role assignment surfaces (owner staff invite/edit) for CSR role mapping.
+- Built `/crm/today` as CSR daily operations queue with quick actions, stats, next appointment, booking queue, home-service section, and recent customer updates/notes.
+- Added `/crm/bookings` with front-desk filters (date, status, type, therapist) and role-safe booking actions.
+- Replaced `/crm/customers` alias with a fully usable customer operations page.
+- Added `/crm/schedule` route that reuses existing schedule board for CSR-facing availability visibility.
+- Updated CRM/CSR navigation to CRM-native operational routes.
+- Added customer create flow and customer prefill to in-house booking wizard.
+- Preserved server-side permission enforcement (CSR staff cannot cancel/reassign via server checks).
 
 ## Verification
 - `pnpm type-check` ✅

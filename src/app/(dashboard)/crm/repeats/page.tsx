@@ -12,7 +12,7 @@ type RepeatCustomerItem = Pick<
 >;
 
 const TAB_ITEMS = [
-  { href: "/crm", label: "All Customers" },
+  { href: "/crm/customers", label: "All Customers" },
   { href: "/crm/repeats", label: "Repeat Clients" },
   { href: "/crm/lapsed", label: "Lapsed Clients" },
 ];

@@ -12,6 +12,9 @@ type StaffOption = {
 
 type Props = {
   customerId: string;
+  initialFullName: string;
+  initialPhone: string;
+  initialEmail: string | null;
   initialNotes: string | null;
   initialPreferredStaffId: string | null;
   staff: StaffOption[];
@@ -24,10 +27,16 @@ type UpdateCustomerResult = {
 
 export function CustomerNotesForm({
   customerId,
+  initialFullName,
+  initialPhone,
+  initialEmail,
   initialNotes,
   initialPreferredStaffId,
   staff,
 }: Props) {
+  const [fullName, setFullName] = useState(initialFullName);
+  const [phone, setPhone] = useState(initialPhone);
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [notes, setNotes] = useState(initialNotes ?? "");
   const [preferredId, setPreferredId] = useState(initialPreferredStaffId ?? "");
   const [isPending, startTransition] = useTransition();
@@ -37,6 +46,9 @@ export function CustomerNotesForm({
     startTransition(async () => {
       const result = (await updateCustomerAction({
         customerId,
+        fullName: fullName.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim(),
         notes: notes || undefined,
         preferredStaffId: preferredId || null,
       })) as UpdateCustomerResult;
@@ -53,6 +65,93 @@ export function CustomerNotesForm({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+      <div>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "var(--cs-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            marginBottom: "0.375rem",
+          }}
+        >
+          Full Name
+        </div>
+        <input
+          value={fullName}
+          onChange={(event) => setFullName(event.target.value)}
+          style={{
+            width: "100%",
+            height: 36,
+            borderRadius: 6,
+            border: "1px solid var(--cs-border)",
+            padding: "0 0.5rem",
+            fontSize: "0.875rem",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
+          }}
+        />
+      </div>
+
+      <div>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "var(--cs-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            marginBottom: "0.375rem",
+          }}
+        >
+          Phone
+        </div>
+        <input
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+          style={{
+            width: "100%",
+            height: 36,
+            borderRadius: 6,
+            border: "1px solid var(--cs-border)",
+            padding: "0 0.5rem",
+            fontSize: "0.875rem",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
+          }}
+        />
+      </div>
+
+      <div>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "var(--cs-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            marginBottom: "0.375rem",
+          }}
+        >
+          Email
+        </div>
+        <input
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          style={{
+            width: "100%",
+            height: 36,
+            borderRadius: 6,
+            border: "1px solid var(--cs-border)",
+            padding: "0 0.5rem",
+            fontSize: "0.875rem",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
+          }}
+        />
+      </div>
+
       <div>
         <div
           style={{

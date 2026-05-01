@@ -30,6 +30,7 @@ export async function getAllBookings(filters?: {
   date?: string;
   status?: string;
   type?: string;
+  staffId?: string;
 }) {
   const supabase = await createClient();
   let q = supabase.from("bookings").select(BOOKING_SELECT);
@@ -37,6 +38,7 @@ export async function getAllBookings(filters?: {
   if (filters?.date)     q = q.eq("booking_date", filters.date);
   if (filters?.status)   q = q.eq("status", filters.status);
   if (filters?.type)     q = q.eq("type", filters.type);
+  if (filters?.staffId)  q = q.eq("staff_id", filters.staffId);
   const { data, error } = await q.order("booking_date", { ascending: false }).order("start_time");
   if (error) throw new Error(error.message);
   return data ?? [];

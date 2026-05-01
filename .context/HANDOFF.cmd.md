@@ -1,31 +1,52 @@
-# 🧾 HANDOFF — 2026-05-01 (CSR-001 Complete)
+# 🧾 HANDOFF — 2026-05-01 (CSR-002 Complete)
 
-## What Was Shipped
-- Added role support for `csr_head` and `csr_staff` in existing CRM/operations workspace.
-- Implemented role-aware CRM sidebar/menu:
-  - `csr_staff`: Today, Bookings, Customers, Schedule
-  - `csr_head`: Today, Bookings, Customers, Schedule, Reports Lite
-  - owner/manager nav preserved.
-- Enforced CSR access in route guards (`proxy`) and centralized helpers (`src/lib/permissions.ts`).
-- Enabled CRM in-house booking wizard access for owner/CRM/CSR roles.
-- Enforced booking server-action permissions:
-  - CSR Staff cannot cancel bookings
-  - CSR Staff cannot reassign therapists
-  - CSR Head can cancel/reassign.
-- Added owner staff role assignment support for CSR roles in invite/edit forms.
-- Removed dedicated manager walk-in page route by deleting:
-  - `src/app/(dashboard)/manager/walkin/page.tsx`
+## What Was Delivered
+- CSR operational CRM routes were implemented without creating a new workspace:
+  - `/crm/today`
+  - `/crm/bookings`
+  - `/crm/customers`
+  - `/crm/schedule`
+  - `/crm` now redirects to `/crm/today`
+- Existing in-house booking flow remains at `/crm/bookings/new`, now with optional customer prefill (`?customerId=...`).
 
-## Key Files
-- `src/lib/permissions.ts`
-- `src/proxy.ts`
-- `src/components/features/dashboard/nav-config.ts`
-- `src/components/features/dashboard/sidebar.tsx`
+## Key UX Changes
+- **Today page** now acts as front-desk queue:
+  - quick actions (new booking, search customer, view schedule)
+  - daily stats
+  - next appointment
+  - booking queue
+  - home-service queue
+  - recent notes/updated customers
+- **Bookings page** includes filters for date, status, type, therapist.
+- **Customers page** supports:
+  - fast search
+  - quick customer create
+  - edit contact details in customer profile
+  - “Book again” deep-link into in-house wizard
+- **Schedule page** is exposed in CRM path as availability view.
+
+## Security / RBAC Notes
+- No separate CSR workspace was created.
+- Server-side permission enforcement remains authoritative for booking status changes:
+  - CSR Staff cannot cancel/reassign
+  - CSR Head can cancel (and reassign where action exists)
+- Owner/manager flows remain intact.
+
+## Main Files Touched
+- `src/app/(dashboard)/crm/today/page.tsx`
+- `src/app/(dashboard)/crm/bookings/page.tsx`
+- `src/app/(dashboard)/crm/customers/page.tsx`
+- `src/app/(dashboard)/crm/schedule/page.tsx`
+- `src/app/(dashboard)/crm/page.tsx`
+- `src/app/(dashboard)/crm/actions.ts`
+- `src/app/(dashboard)/crm/[customerId]/page.tsx`
 - `src/app/(dashboard)/crm/bookings/new/page.tsx`
-- `src/lib/actions/inhouse-booking.ts`
-- `src/app/(dashboard)/manager/bookings/actions.ts`
-- `src/app/(dashboard)/manager/bookings/page.tsx`
-- `supabase/migrations/20260501000002_csr_roles.sql`
+- `src/components/public/booking-wizard.tsx`
+- `src/components/features/dashboard/customer-create-form.tsx`
+- `src/components/features/dashboard/customer-notes-form.tsx`
+- `src/components/features/dashboard/nav-config.ts`
+- `src/lib/queries/bookings.ts`
+- `src/lib/validations/customer.ts`
 
 ## Validation
 - `pnpm type-check` ✅
@@ -33,10 +54,9 @@
 - `pnpm build` ✅
 - `pnpm test` ✅
 
-## Notes For Next Agent
-- `pnpm test` may fail in restricted sandbox due Vitest worker spawn EPERM; rerun with elevated permissions if needed.
-- Legacy `csr` role is intentionally kept and treated as `csr_staff` for backward compatibility.
-- Manual QA still recommended:
-  - verify CSR Staff cannot open `/crm/repeats` or `/crm/lapsed`
-  - verify CSR Head can cancel/reassign from `/manager/bookings`
-  - verify manager cannot access `/crm/bookings/new`
+## Suggested Manual QA
+1. Log in as `csr_staff` and verify sidebar routes: Today, Bookings, Customers, Schedule only.
+2. In `/crm/bookings`, confirm CSR Staff cannot cancel booking status.
+3. In `/crm/bookings`, confirm CSR Head can cancel bookings.
+4. In `/crm/customers`, create customer, open profile, edit contact details, then Book again.
+5. In `/crm/bookings/new?customerId=...`, verify customer fields prefill.

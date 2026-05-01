@@ -18,7 +18,7 @@ function daysSince(dateStr: string | null): number {
 }
 
 const TAB_ITEMS = [
-  { href: "/crm", label: "All Customers" },
+  { href: "/crm/customers", label: "All Customers" },
   { href: "/crm/repeats", label: "Repeat Clients" },
   { href: "/crm/lapsed", label: "Lapsed Clients" },
 ];

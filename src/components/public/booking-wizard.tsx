@@ -55,6 +55,12 @@ type StaffOption = {
   staff_tier: string;
 };
 
+type InitialCustomer = {
+  fullName: string;
+  phone: string;
+  email: string | null;
+};
+
 type BookingWizardMode = "public" | "inhouse";
 type BookingType = "online" | "walkin" | "home_service";
 
@@ -132,9 +138,11 @@ function staffAtSlot(rawSlots: Slot[], slotTime: string): StaffOption[] {
 export function BookingWizard({
   mode = "public",
   initialBranchId = null,
+  initialCustomer = null,
 }: {
   mode?: BookingWizardMode;
   initialBranchId?: string | null;
+  initialCustomer?: InitialCustomer | null;
 } = {}) {
   const [step, setStep] = useState(1);
 
@@ -162,7 +170,12 @@ export function BookingWizard({
   );
 
   // Form
-  const [form, setForm] = useState({ fullName: "", phone: "", email: "", notes: "" });
+  const [form, setForm] = useState({
+    fullName: initialCustomer?.fullName ?? "",
+    phone: initialCustomer?.phone ?? "",
+    email: initialCustomer?.email ?? "",
+    notes: "",
+  });
   const [formError, setFormError] = useState("");
 
   // Computed

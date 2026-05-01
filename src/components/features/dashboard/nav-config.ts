@@ -30,26 +30,27 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
 ];
 
 const CRM_NAV_ITEMS: NavItem[] = [
-  { label: "Today", href: "/crm", icon: "LayoutDashboard" },
+  { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
-  { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+  { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
+  { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Repeats", href: "/crm/repeats", icon: "Heart" },
   { label: "Lapsed", href: "/crm/lapsed", icon: "ClockAlert" },
 ];
 
 const CSR_HEAD_NAV_ITEMS: NavItem[] = [
-  { label: "Today", href: "/crm", icon: "LayoutDashboard" },
-  { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+  { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
+  { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
-  { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
+  { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Reports Lite", href: "/crm/repeats", icon: "BarChart2" },
 ];
 
 const CSR_STAFF_NAV_ITEMS: NavItem[] = [
-  { label: "Today", href: "/crm", icon: "LayoutDashboard" },
-  { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+  { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
+  { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
-  { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
+  { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
 ];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
