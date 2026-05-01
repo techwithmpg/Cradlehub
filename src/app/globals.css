@@ -292,6 +292,27 @@ a:focus-visible,
   box-shadow: var(--cs-focus-ring);
 }
 
+/* ── Auth inputs ─────────────────────────────────────────── */
+.auth-input {
+  width: 100%;
+  border-radius: var(--cs-r-lg);
+  border: 1px solid var(--cs-border);
+  background: var(--cs-surface-warm);
+  color: var(--cs-text);
+  padding: 0.625rem 1rem 0.625rem 2.375rem;
+  font-size: 13.5px;
+  font-family: var(--cs-font-body);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.auth-input::placeholder { color: var(--cs-text-subtle); }
+.auth-input:focus {
+  border-color: var(--cs-sand);
+  box-shadow: var(--cs-focus-ring);
+}
+.auth-input.is-error { border-color: var(--cs-error); }
+.font-display { font-family: var(--cs-font-display); }
+
 /* ── Thin warm scrollbar ──────────────────────────────────── */
 ::-webkit-scrollbar        { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track  { background: transparent; }
