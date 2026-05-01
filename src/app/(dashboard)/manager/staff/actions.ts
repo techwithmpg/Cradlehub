@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
   setScheduleSchema,
   createOverrideSchema,
@@ -12,6 +13,11 @@ async function getManagerContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return { supabase, me: { id: "dev", branch_id: "dev", system_role: "manager" } };
+  }
+
   const { data: me } = await supabase
     .from("staff")
     .select("id, branch_id, system_role")

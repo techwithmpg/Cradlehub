@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getMyUpcomingBookings, getMyMonthlyStats } from "@/lib/queries/bookings";
 import { getStaffSchedule, getStaffOverrides, getBlockedTimes } from "@/lib/queries/staff";
+import { isDevAuthBypassEnabled, getDevBypassStaffRecord } from "@/lib/dev-bypass";
 
 // ── Resolve authenticated staff record ────────────────────────────────────
 async function getMyStaffRecord() {
@@ -17,6 +18,13 @@ async function getMyStaffRecord() {
     .select("id, full_name, tier, system_role, staff_type, branch_id")
     .eq("auth_user_id", user.id)
     .single();
+
+  // Dev bypass: return a mock staff record so the portal renders
+  // with empty data instead of crashing with "Unauthorized".
+  if (!me && isDevAuthBypassEnabled()) {
+    return getDevBypassStaffRecord();
+  }
+
   return me ?? null;
 }
 

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { createWalkinBookingSchema } from "@/lib/validations/booking";
 import { assertSlotAvailable } from "@/lib/engine/availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
@@ -29,12 +30,17 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     .single();
 
   const allowedRoles = [
-    "owner",
-    "crm",
-    "csr",
-    "csr_head",
-    "csr_staff",
+    "owner", "manager", "assistant_manager", "store_manager",
+    "crm", "csr", "csr_head", "csr_staff",
   ];
+
+  if (!me && isDevAuthBypassEnabled()) {
+    // Dev bypass: allow walk-in creation with a dummy branch
+    // This requires a real branch_id to validate slots — fall through to error
+    // since we can't safely invent a branch_id for booking validation.
+    return { success: false, error: "Dev bypass active but no branch_id available. Create a staff record with branch_id to test walk-in bookings." };
+  }
+
   if (!me || !allowedRoles.includes(me.system_role)) {
     return { success: false, error: "Unauthorized" };
   }

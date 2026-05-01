@@ -83,12 +83,9 @@ export async function loginAction(
     .single();
 
   // Dev bypass: if no staff record but dev mode is on, send to owner overview
-  const devAllowAllModules =
-    process.env.NODE_ENV !== "production" &&
-    process.env.DEV_ALLOW_ALL_MODULES === "true";
-
+  const { isDevAuthBypassEnabled } = await import("@/lib/dev-bypass");
   if (!staffRecord) {
-    if (devAllowAllModules) {
+    if (isDevAuthBypassEnabled()) {
       redirect("/owner");
     }
     await supabase.auth.signOut();

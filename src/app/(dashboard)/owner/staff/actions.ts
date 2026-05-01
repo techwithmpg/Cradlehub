@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { createStaffSchema, updateStaffSchema } from "@/lib/validations/staff";
 import type { Database } from "@/types/supabase";
 import { revalidatePath } from "next/cache";
@@ -11,6 +12,11 @@ async function requireOwner() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not logged in" } as const;
+
+  if (isDevAuthBypassEnabled()) {
+    return { supabase, admin: createAdminClient() };
+  }
+
   const { data: me } = await supabase
     .from("staff").select("system_role").eq("auth_user_id", user.id).single();
   if (!me) return { error: "No staff record linked to this account. Ask an owner to set your auth_user_id." } as const;
@@ -22,6 +28,11 @@ async function requireOwnerOrManager() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not logged in" } as const;
+
+  if (isDevAuthBypassEnabled()) {
+    return { supabase, admin: createAdminClient(), me: { id: "dev", branch_id: "dev", system_role: "owner" } };
+  }
+
   const { data: me } = await supabase
     .from("staff").select("id, branch_id, system_role").eq("auth_user_id", user.id).single();
   if (!me) return { error: "No staff record linked to this account" } as const;

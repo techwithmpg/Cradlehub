@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
   createInhouseBookingMultiSchema,
   type CreateInhouseBookingMultiInput,
@@ -91,12 +92,26 @@ export async function createInhouseBookingMultiAction(
     .single();
 
   const staff = (me ?? null) as StaffAuthContext | null;
-  const bookingRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
-  if (!staff || !bookingRoles.includes(staff.system_role)) {
+  const bookingRoles = [
+    "owner", "manager", "assistant_manager", "store_manager",
+    "crm", "csr", "csr_head", "csr_staff",
+  ];
+
+  if (isDevAuthBypassEnabled()) {
+    // Dev bypass: allow booking creation with explicit branchId
+    if (!d.branchId) {
+      return {
+        ok: false,
+        code: "BRANCH_MISSING",
+        message: "Dev bypass active — please provide an explicit branchId in the booking form.",
+      };
+    }
+    // Continue with dev bypass using the provided branchId
+  } else if (!staff || !bookingRoles.includes(staff.system_role)) {
     return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to create bookings." };
   }
 
-  const resolvedBranchId = d.branchId ?? staff.branch_id;
+  const resolvedBranchId = d.branchId ?? staff?.branch_id;
   if (!resolvedBranchId) {
     return {
       ok: false,
@@ -111,7 +126,7 @@ export async function createInhouseBookingMultiAction(
     serviceIds: d.serviceIds,
     bookingDate: d.date,
     startTime: d.startTime,
-    operatorId: staff.id,
+    operatorId: staff?.id ?? "dev-bypass",
   };
 
   try {

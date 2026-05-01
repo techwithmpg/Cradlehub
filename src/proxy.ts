@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 
 /** Maps system_role → default dashboard workspace prefix */
 const ROLE_WORKSPACE: Record<string, string> = {
@@ -49,9 +50,7 @@ function resolveWorkspace(systemRole: string, staffType: string | null): string 
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const devAllowAllModules =
-    process.env.NODE_ENV !== "production" &&
-    process.env.DEV_ALLOW_ALL_MODULES === "true";
+  const devBypass = isDevAuthBypassEnabled();
 
   // Always refresh the session token
   const response = await updateSession(request);
@@ -81,7 +80,8 @@ export async function proxy(request: NextRequest) {
   }
 
   // Dev-only bypass: let authenticated developers open all protected modules
-  if (devAllowAllModules) {
+  // even without a staff record (useful for local development/testing).
+  if (devBypass) {
     return response;
   }
 

@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { createClient } from "@/lib/supabase/server";
 import { getAllCustomers } from "@/lib/queries/customers";
 import { formatDate } from "@/lib/utils";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 
 async function getCsrContext() {
   const supabase = await createClient();
@@ -23,6 +24,10 @@ async function getCsrContext() {
     "owner", "manager", "assistant_manager", "store_manager",
     "crm", "csr", "csr_head", "csr_staff",
   ];
+
+  if (!me && isDevAuthBypassEnabled()) {
+    return { role: "owner" };
+  }
 
   if (!me || !allowedRoles.includes(me.system_role)) {
     redirect("/login");

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { updateBookingStatusSchema } from "@/lib/validations/booking";
 import {
   getAllBookingsOwner,
@@ -21,6 +22,10 @@ async function requireOwner() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return { supabase, me: { id: "dev", system_role: "owner" } };
+  }
 
   const { data: me } = await supabase
     .from("staff")

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { createBranchSchema, updateBranchSchema } from "@/lib/validations/branch";
 import { revalidatePath } from "next/cache";
 
@@ -8,6 +9,11 @@ async function requireOwner() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return supabase;
+  }
+
   const { data: me } = await supabase
     .from("staff")
     .select("system_role")

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { createClient } from "@/lib/supabase/server";
 import { getTodaysSchedule, getManagerDashboardStats } from "@/lib/queries/bookings";
 import { formatTime } from "@/lib/utils";
+import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 
 type Relation<T> = T | T[] | null;
 
@@ -53,6 +54,17 @@ async function getCsrContext() {
     "owner", "manager", "assistant_manager", "store_manager",
     "crm", "csr", "csr_head", "csr_staff",
   ];
+
+  const devBypass = isDevAuthBypassEnabled();
+
+  if (!me && devBypass) {
+    const mock = getDevBypassLayoutStaff();
+    return {
+      branchId: mock.branch_id,
+      branchName: mock.branches.name,
+      role: mock.system_role,
+    };
+  }
 
   if (!me || !allowedRoles.includes(me.system_role) || !me.branch_id) {
     redirect("/login");

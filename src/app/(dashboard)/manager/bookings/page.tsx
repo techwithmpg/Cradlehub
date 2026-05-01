@@ -7,6 +7,7 @@ import { getTodaysSchedule } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { formatTime } from "@/lib/utils";
+import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 
 type Relation<T> = T | T[] | null;
 
@@ -67,6 +68,15 @@ async function getOperationsContext(): Promise<OperationsContext> {
     "csr_head",
     "csr_staff",
   ];
+
+  if (!me && isDevAuthBypassEnabled()) {
+    const mock = getDevBypassLayoutStaff();
+    return {
+      branchId: mock.branch_id,
+      systemRole: mock.system_role,
+    };
+  }
+
   if (!me?.branch_id || !allowedRoles.includes(me.system_role)) redirect("/login");
 
   return {

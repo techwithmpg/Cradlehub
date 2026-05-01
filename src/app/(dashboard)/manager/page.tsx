@@ -11,6 +11,7 @@ import { getBranchById } from "@/lib/queries/branches";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { formatTime } from "@/lib/utils";
+import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 
 async function getManagerContext() {
   const supabase = await createClient();
@@ -22,6 +23,11 @@ async function getManagerContext() {
     .select("branch_id")
     .eq("auth_user_id", user.id)
     .single();
+
+  if (!me && isDevAuthBypassEnabled()) {
+    const mock = getDevBypassLayoutStaff();
+    return mock.branch_id;
+  }
 
   if (!me?.branch_id) redirect("/login");
   return me.branch_id as string;

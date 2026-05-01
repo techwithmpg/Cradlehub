@@ -5,6 +5,7 @@ import { DailyScheduleBoard } from "@/components/features/schedule/daily-schedul
 import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 
 async function getCsrContext() {
@@ -18,6 +19,14 @@ async function getCsrContext() {
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .single();
+
+  if (!me && isDevAuthBypassEnabled()) {
+    const mock = getDevBypassLayoutStaff();
+    return {
+      branchId: mock.branch_id,
+      branchName: mock.branches.name,
+    };
+  }
 
   if (!me?.branch_id) redirect("/login");
   return {

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { createCustomerSchema, updateCustomerSchema } from "@/lib/validations/customer";
 import {
   getAllCustomers,
@@ -20,6 +21,10 @@ async function requireCrmAccess() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return supabase;
+  }
 
   const { data: me } = await supabase
     .from("staff")

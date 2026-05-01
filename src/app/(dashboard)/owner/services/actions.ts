@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
   createServiceCategorySchema,
   createServiceSchema,
@@ -15,6 +16,11 @@ async function requireOwner() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return supabase;
+  }
+
   const { data: me } = await supabase
     .from("staff").select("system_role").eq("auth_user_id", user.id).single();
   if (me?.system_role !== "owner") return null;

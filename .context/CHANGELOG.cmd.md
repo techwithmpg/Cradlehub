@@ -511,3 +511,34 @@ All 8 sprints committed. System is production-ready pending data setup.
 - CSS tokens follow existing warm spa palette with slightly darker accent for CSR Head to distinguish supervisor level
 
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** ✅ Passing (0 errors, 0 warnings)
+
+---
+
+### 2026-05-01 — Kimi DevCoder (DEV-001 — Fix Dev Auth Bypass for Staff Portal)
+
+**Task:** Create centralized dev auth bypass helper and apply it consistently across middleware, layout, page guards, and server actions so developers can test all dashboard pages without a linked staff record.
+
+**Files Created:**
+- `src/lib/dev-bypass.ts` — Centralized helper: `isDevAuthBypassEnabled()`, `getDevBypassLayoutStaff()`, `getDevBypassStaffRecord()`, `devBypassAuthMessage()`
+- `tests/lib/dev-bypass.test.ts` — 10 tests for bypass logic, mock shapes, and auth messages
+
+**Files Changed:**
+- `src/proxy.ts` — Uses `isDevAuthBypassEnabled()` instead of inline env checks
+- `src/app/(auth)/login/actions.ts` — Uses centralized helper for login redirect fallback
+- `src/app/(dashboard)/layout.tsx` — Falls back to mock staff profile when bypass is active
+- `src/app/(dashboard)/staff-portal/actions.ts` — Returns mock staff + empty data instead of "Unauthorized"
+- `src/app/(dashboard)/crm/**/page.tsx` (today, bookings, customers, schedule) — Dev bypass in page guards
+- `src/app/(dashboard)/manager/**/page.tsx` (today, schedule, bookings) — Dev bypass in page guards
+- `src/app/(dashboard)/owner/*/actions.ts` (services, branches, staff, bookings) — Dev bypass in `requireOwner()` / `requireOwnerOrManager()`
+- `src/app/(dashboard)/crm/actions.ts` — Dev bypass in `requireCrmAccess()`
+- `src/app/(dashboard)/manager/*/actions.ts` (walkin, staff, bookings) — Dev bypass in auth helpers
+- `src/lib/actions/inhouse-booking.ts` — Dev bypass with explicit branchId requirement for safety
+
+**Design Decisions:**
+- `DEV_AUTH_BYPASS` is the canonical env var; `DEV_ALLOW_ALL_MODULES` is still supported for backward compatibility
+- Mock staff uses `system_role: "owner"` for layout (nav items come from pathname, not role)
+- Mock staff uses `system_role: "staff"` for staff portal actions (realistic for testing)
+- Server actions that require a real branch_id (walk-in booking) show a helpful error instead of silently failing
+- Production is never bypassed — helper returns false regardless of env flags when `NODE_ENV === "production"`
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** ✅ Passing | **Tests:** ✅ 18 passed

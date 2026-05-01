@@ -2,6 +2,7 @@ import { redirect }     from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar }      from "@/components/features/dashboard/sidebar";
 import { Header }       from "@/components/features/dashboard/header";
+import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -15,7 +16,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq("is_active", true)
     .single();
 
-  if (!me) redirect("/login");
+  // Dev bypass: if no staff record but dev mode is on, use a mock staff profile
+  // so developers can test dashboard pages without creating a full staff record.
+  const resolvedMe = me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
+
+  if (!resolvedMe) redirect("/login");
 
   return (
     <div style={{
@@ -24,9 +29,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       background: "var(--cs-bg)",
     }}>
       <Sidebar
-        role={me.system_role}
-        fullName={me.full_name}
-        branchName={(me.branches as { name: string } | null)?.name}
+        role={resolvedMe.system_role}
+        fullName={resolvedMe.full_name}
+        branchName={(resolvedMe.branches as { name: string } | null)?.name}
       />
 
       <div style={{
@@ -35,7 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         display:       "flex",
         flexDirection: "column",
       }}>
-        <Header role={me.system_role} fullName={me.full_name} />
+        <Header role={resolvedMe.system_role} fullName={resolvedMe.full_name} />
         <main style={{
           flex:    1,
           padding: "20px",
