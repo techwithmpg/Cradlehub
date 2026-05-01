@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
-import { Leaf, Mail, Lock, Loader2, AlertCircle } from "lucide-react";
+import { Mail, Lock, Loader2, AlertCircle } from "lucide-react";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const initialState: LoginState = {};
 
@@ -20,18 +21,8 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute -bottom-20 -right-20 h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,#C8A96B_0%,transparent_70%)] opacity-[0.06]" />
 
         {/* Logo */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#C8A96B]/15 ring-1 ring-[#C8A96B]/25">
-            <Leaf className="h-5 w-5 text-[#C8A96B]" />
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="font-display text-[15px] font-semibold tracking-wide text-white">
-              Cradle
-            </span>
-            <span className="text-[10px] tracking-[0.12em] uppercase text-[#C8A96B]/65">
-              Massage &amp; Wellness
-            </span>
-          </div>
+        <div className="relative z-10">
+          <BrandLogo size="lg" className="w-48 md:w-60 lg:w-72" />
         </div>
 
         {/* Headline + feature list */}
@@ -56,7 +47,9 @@ export default function LoginPage() {
             ].map((item) => (
               <li key={item} className="flex items-center gap-3 text-[13px] text-white/65">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#C8A96B]/18">
-                  <Leaf className="h-2.5 w-2.5 text-[#C8A96B]" />
+                  <svg viewBox="0 0 12 12" fill="none" className="h-2.5 w-2.5" aria-hidden="true">
+                    <path d="M2 6l3 3 5-5" stroke="#C8A96B" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </span>
                 {item}
               </li>
@@ -74,11 +67,9 @@ export default function LoginPage() {
 
         {/* Mobile-only logo */}
         <div className="flex flex-col items-center mb-8 lg:hidden">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#A67B5B] to-[#C4966E] shadow-[0_6px_20px_rgba(166,123,91,0.30)] mb-3">
-            <Leaf className="h-6 w-6 text-white" />
-          </div>
-          <span className="font-display text-lg font-semibold text-[#1E1916]">
-            Cradle Staff Portal
+          <BrandLogo size="md" className="mb-3 w-40 sm:w-44" />
+          <span className="text-[12px] font-medium tracking-[0.12em] uppercase text-[#6B5D52] mt-1">
+            Staff Portal
           </span>
         </div>
 

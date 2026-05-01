@@ -652,3 +652,91 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 - `pnpm lint` ✅
 - `pnpm build` ✅
 - `pnpm test` ✅
+
+### 2026-05-01 — Codex (BRAND-001 — Real Cradle Logo Implementation Across Public/Auth/Dashboard)
+
+**Task:** Replace placeholder/incorrect logo renderings with the real Cradle logo and unify usage through a reusable shared component.
+
+**Files Created:**
+- `src/components/shared/brand-logo.tsx` — reusable `BrandLogo` component using `/images/images/cradle-logo.png`, intrinsic 2172x724 ratio, responsive sizing, and `object-contain`
+
+**Files Changed:**
+- `src/components/public/site-header.tsx` — replaced direct image usage with `BrandLogo`; improved hero-mode contrast with intentional compact cream container (no fake placeholder box)
+- `src/components/public/site-footer.tsx` — replaced direct image usage with `BrandLogo`; added content-hugging cream container for contrast on dark footer
+- `src/app/(auth)/login/page.tsx` — replaced desktop/mobile logo usage with `BrandLogo`; added intentional compact cream container on dark left panel
+- `src/components/features/dashboard/sidebar.tsx` — replaced sidebar placeholder `C` mark with real `BrandLogo` in brand area
+
+**Verification:**
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅
+
+### 2026-05-01 — Codex (BRAND-002 — Gold Premium Logo Rollout)
+
+**Task:** Replace old/legacy logo implementation with the newly approved gold premium logo and activate it across website + portal UI.
+
+**Files Created / Added:**
+- `public/images/brand/cradle-logo-gold.png` (copied from approved source image)
+
+**Files Changed:**
+- `src/components/shared/brand-logo.tsx`
+  - Updated source to `/images/brand/cradle-logo-gold.png`
+  - New API: `size?: "sm" | "md" | "lg"`, `withCard?: boolean`, `priority?: boolean`
+  - Preserved aspect ratio with `object-contain` and responsive sizing
+- `src/components/public/site-header.tsx`
+  - Replaced logo usage with `BrandLogo` (`size="md"`, `withCard`)
+- `src/components/public/site-footer.tsx`
+  - Replaced footer brand slot with `BrandLogo` (`size="md"`, `withCard`)
+- `src/app/(auth)/login/page.tsx`
+  - Replaced desktop/mobile auth branding logo with `BrandLogo` (`size="lg"` desktop, `size="md"` mobile, both with card)
+- `src/components/features/dashboard/sidebar.tsx`
+  - Replaced sidebar brand slot with `BrandLogo` (`size="sm"`, `withCard`)
+
+**Verification:**
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅
+
+**Checks:**
+- No remaining `/images/images/cradle-logo.png` references in `src/**`
+
+### 2026-05-02 — Codex (BRAND-003 — PNG to Real SVG Logo System)
+
+**Task:** Convert approved Cradle PNG logo into real vector SVG assets and roll out an SVG-based reusable brand logo system across web + portal surfaces.
+
+**Files Created / Added:**
+- `src/assets/brand/cradle-logo-horizontal.svg` (real vector paths, transparent background)
+- `src/assets/brand/cradle-logo-mark.svg` (real vector paths, icon-only variant)
+- `public/images/brand/cradle-logo-horizontal.svg` (public copy)
+- `public/images/brand/cradle-logo-mark.svg` (public copy)
+- `public/images/brand/cradle-logo-horizontal.png` (trimmed fallback)
+- `public/images/brand/cradle-logo-mark.png` (trimmed fallback)
+- `scripts/generate-brand-logo-assets.mjs` (repeatable PNG→SVG/PNG asset generator)
+- `src/types/svg.d.ts` (TypeScript SVG module typing)
+
+**Files Changed:**
+- `next.config.ts`
+  - Added Next.js 16 Turbopack SVG loader rule via `turbopack.rules["*.svg"] -> @svgr/webpack`
+  - Removed custom webpack hook to keep `next build` Turbopack-compatible
+- `src/components/shared/brand-logo.tsx`
+  - Migrated from `next/image` PNG usage to SVG React component usage
+  - New API: `mode?: "horizontal" | "mark"`, `size?: "sm" | "md" | "lg"`, `className?: string`
+  - Default uses horizontal SVG and preserves aspect ratio with responsive width classes
+- `src/components/public/site-header.tsx`
+  - Updated to SVG-based `BrandLogo` (removed PNG-era wrapper props)
+- `src/components/public/site-footer.tsx`
+  - Updated to SVG-based `BrandLogo`
+- `src/app/(auth)/login/page.tsx`
+  - Updated desktop/mobile auth branding to SVG-based `BrandLogo`
+- `src/components/features/dashboard/sidebar.tsx`
+  - Updated sidebar brand area to SVG-based `BrandLogo`
+
+**Verification:**
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅
+- `pnpm test` ✅ (64 passed)
+
+**Notes:**
+- SVG outputs are true vector path-based assets (no embedded `<image>`/base64 raster payloads).
+- Legacy UI usage of `/images/images/cradle-logo.png` and `/images/brand/cradle-logo-gold.png` has been replaced with reusable SVG component usage.

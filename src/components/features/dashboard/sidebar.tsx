@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole } from "./nav-config";
 import { isCsr } from "@/lib/permissions";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
   LayoutDashboard, CalendarDays, Building2, Users, Sparkles,
@@ -148,27 +149,15 @@ function SidebarContent({ role, fullName, branchName, pathname, onNav }: Sidebar
         padding:      "18px 16px 14px",
         borderBottom: "1px solid var(--cs-sidebar-border)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width:          32,
-            height:         32,
-            borderRadius:   "var(--cs-r-sm)",
-            background:     "linear-gradient(135deg, var(--cs-sand), var(--cs-sand-light))",
-            display:        "flex",
-            alignItems:     "center",
-            justifyContent: "center",
-            flexShrink:     0,
-          }}>
-            <span style={{
-              color:         "#fff",
-              fontSize:      13,
-              fontWeight:    600,
-              fontFamily:    "var(--cs-font-display)",
-              letterSpacing: "0.05em",
-            }}>
-              C
-            </span>
-          </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <Link
+            href="/"
+            onClick={onNav}
+            aria-label="Cradle Wellness Living"
+            style={{ display: "inline-flex", textDecoration: "none", alignSelf: "flex-start" }}
+          >
+            <BrandLogo size="sm" className="w-28 md:w-32" />
+          </Link>
           <div>
             <div style={{
               fontSize:      12,

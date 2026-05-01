@@ -98,3 +98,63 @@
 - Test home service tracking flow end-to-end
 - Test walk-in check-in → session → complete flow
 - Test online session → complete flow
+
+## 2026-05-01 — BRAND-001 (Real Cradle Logo Rollout)
+- Added shared logo component: `src/components/shared/brand-logo.tsx`
+- Replaced direct/placeholder logo implementations in:
+  - `src/components/public/site-header.tsx`
+  - `src/components/public/site-footer.tsx`
+  - `src/app/(auth)/login/page.tsx`
+  - `src/components/features/dashboard/sidebar.tsx`
+- Final logo source path: `/images/images/cradle-logo.png`
+- Styling guardrails applied:
+  - No `object-cover` for logo
+  - Aspect ratio preserved (2172x724 intrinsic)
+  - No stretched/cropped logo
+  - Dark-surface contrast handled via intentional content-hugging cream container where needed
+- Verification complete: `pnpm type-check`, `pnpm lint`, `pnpm build` all passing
+
+## 2026-05-01 — BRAND-002 (Gold Logo Activation)
+- New active logo file in UI: `/images/brand/cradle-logo-gold.png`
+- Added file: `public/images/brand/cradle-logo-gold.png` (copied from approved source `public/images/images/cradle-logo.png`)
+- Shared component updated: `src/components/shared/brand-logo.tsx`
+  - supports `size: sm | md | lg`
+  - supports `withCard` for premium contrast treatment
+  - uses `object-contain` and intrinsic ratio-safe sizing
+- Updated branded surfaces:
+  - `src/components/public/site-header.tsx`
+  - `src/components/public/site-footer.tsx`
+  - `src/app/(auth)/login/page.tsx`
+  - `src/components/features/dashboard/sidebar.tsx`
+- Validation passed:
+  - `pnpm type-check`
+  - `pnpm lint`
+  - `pnpm build`
+- Search check: no `/images/images/cradle-logo.png` references left in `src/**`.
+
+## 2026-05-02 — BRAND-003 (PNG → SVG Logo System)
+- Implemented true vector SVG logo assets from approved source PNG:
+  - `src/assets/brand/cradle-logo-horizontal.svg`
+  - `src/assets/brand/cradle-logo-mark.svg`
+  - public copies + PNG fallbacks in `public/images/brand/`
+- Added repeatable generation script:
+  - `scripts/generate-brand-logo-assets.mjs`
+- Added SVG module typings:
+  - `src/types/svg.d.ts`
+- Updated Next 16 config for SVG component imports under Turbopack:
+  - `next.config.ts` uses `turbopack.rules["*.svg"]` with `@svgr/webpack`
+- Refactored shared brand component and rollout:
+  - `src/components/shared/brand-logo.tsx` now renders SVG React components
+  - Updated usages in:
+    - `src/components/public/site-header.tsx`
+    - `src/components/public/site-footer.tsx`
+    - `src/app/(auth)/login/page.tsx`
+    - `src/components/features/dashboard/sidebar.tsx`
+- Validation passed:
+  - `pnpm type-check`
+  - `pnpm lint`
+  - `pnpm build`
+  - `pnpm test` (64/64)
+- Notes for next agent:
+  - If logo source asset changes, rerun: `node scripts/generate-brand-logo-assets.mjs`
+  - Existing older PNG files remain in repo for compatibility/fallback, but active UI usage is SVG via `BrandLogo`.

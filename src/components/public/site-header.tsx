@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Leaf } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -43,33 +44,11 @@ export function SiteHeader() {
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-12 py-5">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div
-              className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-500 ${
-                isHeroMode
-                  ? "bg-white/10 text-[#C8A96B] ring-1 ring-white/20"
-                  : "bg-[#163A2B] text-[#C8A96B]"
-              }`}
-            >
-              <Leaf className="h-5 w-5" />
-            </div>
-            <div className="flex flex-col leading-none">
-              <span
-                className="text-[15px] font-semibold tracking-wide transition-colors duration-500"
-                style={{
-                  fontFamily: "var(--sp-font-display)",
-                  color: isHeroMode ? "#FCFAF5" : "#163A2B",
-                }}
-              >
-                Cradle
-              </span>
-              <span
-                className="text-[10px] tracking-[0.12em] uppercase transition-colors duration-500"
-                style={{ color: isHeroMode ? "rgba(247,243,235,0.55)" : "#6B7A6F" }}
-              >
-                Massage & Wellness
-              </span>
-            </div>
+          <Link href="/" aria-label="Cradle Wellness Living" className="group flex items-center">
+            <BrandLogo
+              size="md"
+              className="w-32 sm:w-36 md:w-44 lg:w-52 transition-opacity duration-500 group-hover:opacity-85"
+            />
           </Link>
 
           {/* Desktop Nav */}
@@ -112,6 +91,7 @@ export function SiteHeader() {
               Book Appointment
             </Link>
             <button
+              type="button"
               onClick={() => setMobileOpen(!mobileOpen)}
               className={`md:hidden flex h-10 w-10 items-center justify-center rounded-full border transition-colors duration-300 ${
                 isHeroMode
@@ -134,10 +114,9 @@ export function SiteHeader() {
       >
         <div className="absolute inset-0 bg-[#10261D]/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
         <div
-          className={`absolute right-0 top-0 h-full w-70 bg-[#FCFAF5] shadow-2xl transition-transform duration-500 ${
+          className={`absolute right-0 top-0 h-full w-70 bg-[#FCFAF5] shadow-2xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
             mobileOpen ? "translate-x-0" : "translate-x-full"
           }`}
-          style={{ transitionTimingFunction: "cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}
         >
           <div className="flex h-full flex-col p-8 pt-24">
             <nav className="flex flex-col gap-6">

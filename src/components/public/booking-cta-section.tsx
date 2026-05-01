@@ -66,13 +66,23 @@ export function BookingCtaSection() {
             >
               or call us at
             </p>
-            <a
-              href="tel:+63341234567"
-              className="text-3xl lg:text-4xl font-semibold transition-colors duration-300 hover:text-[#C8A96B]"
-              style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
-            >
-              +63 (34) 123-4567
-            </a>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
+              <a
+                href="tel:+639177077070"
+                className="text-2xl lg:text-3xl font-semibold transition-colors duration-300 hover:text-[#C8A96B]"
+                style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
+              >
+                0917 707 7070
+              </a>
+              <span className="hidden sm:block text-[#C8A96B]/40 text-xl">|</span>
+              <a
+                href="tel:+639090087815"
+                className="text-2xl lg:text-3xl font-semibold transition-colors duration-300 hover:text-[#C8A96B]"
+                style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
+              >
+                0909 008 7815
+              </a>
+            </div>
           </div>
         </ScrollReveal>
       </div>
