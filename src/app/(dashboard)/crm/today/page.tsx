@@ -4,307 +4,635 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
-import { BookingActionMenu } from "@/components/features/dashboard/booking-action-menu";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
-import { getManagerDashboardStats, getTodaysSchedule } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatTime } from "@/lib/utils";
+import { getTodaysSchedule, getManagerDashboardStats } from "@/lib/queries/bookings";
+import { formatTime } from "@/lib/utils";
 
 type Relation<T> = T | T[] | null;
 
-type CustomerRelation = {
-  full_name: string;
-  phone: string | null;
-};
-
-type ServiceRelation = {
-  name: string;
-};
-
-type StaffRelation = {
-  full_name: string;
-};
+type CustomerRelation = { full_name: string; phone: string | null };
+type ServiceRelation = { name: string; duration_minutes: number };
+type StaffRelation = { full_name: string };
 
 type BookingRow = {
   id: string;
-  booking_date: string;
   start_time: string;
+  end_time: string;
   status: string;
   type: string;
+  travel_buffer_mins: number | null;
   customers: Relation<CustomerRelation>;
   services: Relation<ServiceRelation>;
   staff: Relation<StaffRelation>;
 };
 
-type RecentCustomer = {
-  id: string;
-  full_name: string;
-  updated_at: string;
-  notes: string | null;
-  last_booking_date: string | null;
-};
-
-type CrmContext = {
-  branchId: string;
-  branchName: string;
-  systemRole: string;
-};
-
-function firstRelation<T>(relation: Relation<T>): T | null {
+function readRelation<T>(relation: Relation<T>): T | null {
   if (!relation) return null;
   return Array.isArray(relation) ? (relation[0] ?? null) : relation;
 }
 
-function currentTimeKey(): string {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}:00`;
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function formatUpdatedTime(value: string): string {
-  return new Date(value).toLocaleTimeString("en-PH", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-async function getCrmContext(): Promise<CrmContext> {
+async function getCsrContext() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: me } = await supabase
     .from("staff")
-    .select("branch_id, system_role, branches(name)")
+    .select("branch_id, branches(name), system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .single();
 
-  const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
-  if (!me?.branch_id || !allowedRoles.includes(me.system_role)) redirect("/crm/bookings");
+  const allowedRoles = [
+    "owner", "manager", "assistant_manager", "store_manager",
+    "crm", "csr", "csr_head", "csr_staff",
+  ];
+
+  if (!me || !allowedRoles.includes(me.system_role) || !me.branch_id) {
+    redirect("/login");
+  }
 
   return {
     branchId: me.branch_id as string,
-    branchName: (me.branches as { name?: string } | null)?.name ?? "Your Branch",
-    systemRole: me.system_role,
+    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
+    role: me.system_role,
   };
 }
 
 export default async function CrmTodayPage() {
-  const { branchId, branchName, systemRole } = await getCrmContext();
+  const { branchId, branchName, role } = await getCsrContext();
   const today = new Date().toISOString().split("T")[0]!;
-  const [rawBookings, stats, supabase] = await Promise.all([
+  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+
+  const [rawBookings, stats] = await Promise.all([
     getTodaysSchedule(branchId, today),
     getManagerDashboardStats(branchId, today),
-    createClient(),
   ]);
 
-  const { data: recentCustomersRaw } = await supabase
-    .from("customers")
-    .select("id, full_name, updated_at, notes, last_booking_date")
-    .order("updated_at", { ascending: false })
-    .limit(6);
-
   const bookings = rawBookings as BookingRow[];
-  const recentCustomers = (recentCustomersRaw ?? []) as RecentCustomer[];
 
-  const nowTime = currentTimeKey();
+  // Categorize bookings
   const upcoming = bookings.filter(
-    (booking) =>
-      booking.start_time > nowTime &&
-      booking.status !== "cancelled" &&
-      booking.status !== "no_show"
+    (b) => b.status === "confirmed" && timeToMinutes(b.start_time) > nowMins
   );
-  const nextAppointment = upcoming[0] ?? null;
-  const walkins = bookings.filter((booking) => booking.type === "walkin").length;
-  const cancelledOrNoShow = stats.cancelled + stats.no_show;
-  const homeServiceBookings = bookings.filter((booking) => booking.type === "home_service");
-  const recentNotes = recentCustomers.filter((customer) => customer.notes && customer.notes.trim().length > 0);
+  const walkins = bookings.filter((b) => b.type === "walk_in");
+  const homeServices = bookings.filter(
+    (b) => b.type === "home_service" && b.status !== "cancelled" && b.status !== "no_show"
+  );
+  const cancelledNoShow = bookings.filter(
+    (b) => b.status === "cancelled" || b.status === "no_show"
+  );
+  const inProgress = bookings.filter((b) => b.status === "in_progress");
+  const completed = bookings.filter((b) => b.status === "completed");
+
+  // Next appointment
+  const nextAppt = upcoming.sort(
+    (a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
+  )[0];
+
+  // Active queue = confirmed + in_progress, sorted by time
+  const activeQueue = bookings
+    .filter((b) => b.status === "confirmed" || b.status === "in_progress")
+    .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
   return (
     <div>
       <PageHeader
         title="Today"
-        description={`Daily front-desk operations · ${branchName}`}
-        icon="🗓️"
+        description={`${branchName} · ${new Date().toLocaleDateString("en-PH", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        })} · Daily front-desk operations`}
+        icon="🌅"
       />
 
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-        <Link href="/crm/bookings/new" className="cs-btn cs-btn-primary cs-btn-sm">
-          New In-house Booking
+      {/* Quick Actions */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginBottom: "1.5rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <Link
+          href="/crm/bookings/new"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            backgroundColor: "var(--cs-sand)",
+            color: "#fff",
+            fontSize: "0.8125rem",
+            fontWeight: 500,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>➕</span> New In-House Booking
         </Link>
-        <Link href="/crm/customers#customer-search" className="cs-btn cs-btn-ghost cs-btn-sm">
-          Search Customer
+        <Link
+          href="/crm/customers"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
+            fontSize: "0.8125rem",
+            fontWeight: 500,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>🔍</span> Search Customer
         </Link>
-        <Link href="/crm/schedule" className="cs-btn cs-btn-ghost cs-btn-sm">
-          View Schedule
+        <Link
+          href="/crm/schedule"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
+            fontSize: "0.8125rem",
+            fontWeight: 500,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>📅</span> View Schedule
         </Link>
       </div>
 
+      {/* Stats */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
           gap: "0.625rem",
-          marginBottom: "1.25rem",
+          marginBottom: "1.5rem",
         }}
       >
-        <StatCard label="Today's Bookings" value={stats.total} accent />
+        <StatCard label="Bookings" value={stats.total} accent />
         <StatCard label="Upcoming" value={upcoming.length} />
-        <StatCard label="Walk-ins" value={walkins} />
-        <StatCard label="Cancelled / No-show" value={cancelledOrNoShow} />
+        <StatCard label="In Progress" value={inProgress.length} />
+        <StatCard label="Walk-ins" value={walkins.length} />
+        <StatCard label="Home Service" value={homeServices.length} />
+        <StatCard label="Cancelled" value={cancelledNoShow.length} />
       </div>
 
-      <div style={{ display: "grid", gap: "1rem", marginBottom: "1rem" }}>
-        <section className="cs-card" style={{ padding: "1rem" }}>
-          <div style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.625rem" }}>
-            Next Appointment
-          </div>
-          {!nextAppointment ? (
-            <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-              No upcoming appointments for the rest of {formatDate(today)}.
-            </div>
-          ) : (
-            <BookingQueueRow booking={nextAppointment} userRole={systemRole} highlight />
-          )}
-        </section>
-
-        <section className="cs-card" style={{ padding: "1rem" }}>
-          <div style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.625rem" }}>
-            Today&apos;s Booking Queue
-          </div>
-          {bookings.length === 0 ? (
-            <EmptyState title="No bookings yet" description="No bookings are scheduled for today." />
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {bookings.map((booking) => (
-                <BookingQueueRow key={booking.id} booking={booking} userRole={systemRole} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="cs-card" style={{ padding: "1rem" }}>
-          <div style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.625rem" }}>
-            Home Service Bookings
-          </div>
-          {homeServiceBookings.length === 0 ? (
-            <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-              No home service bookings scheduled today.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {homeServiceBookings.map((booking) => (
-                <BookingQueueRow key={booking.id} booking={booking} userRole={systemRole} />
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      <section className="cs-card" style={{ padding: "1rem" }}>
-        <div style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.625rem" }}>
-          {recentNotes.length > 0 ? "Recent Customer Notes" : "Recently Updated Customers"}
-        </div>
-        <div style={{ display: "grid", gap: "0.5rem" }}>
-          {(recentNotes.length > 0 ? recentNotes : recentCustomers).slice(0, 5).map((customer) => (
-            <Link
-              key={customer.id}
-              href={`/crm/${customer.id}`}
+      {/* Two-column layout */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 340px",
+          gap: "1.25rem",
+          alignItems: "start",
+        }}
+      >
+        {/* Left column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          {/* Next Appointment */}
+          {nextAppt && (
+            <div
+              className="cs-card"
               style={{
-                padding: "0.625rem 0.75rem",
-                border: "1px solid var(--cs-border)",
-                borderRadius: 8,
-                textDecoration: "none",
-                color: "var(--cs-text)",
-                backgroundColor: "var(--cs-surface)",
+                padding: "1rem 1.25rem",
+                borderLeft: "3px solid var(--cs-sand)",
               }}
             >
-              <div style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{customer.full_name}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                Updated {formatUpdatedTime(customer.updated_at)}
-                {customer.last_booking_date ? ` · Last visit ${formatDate(customer.last_booking_date)}` : ""}
+              <div
+                style={{
+                  fontSize: "0.6875rem",
+                  fontWeight: 600,
+                  color: "var(--cs-sand)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 8,
+                }}
+              >
+                Next Appointment
               </div>
-              {customer.notes && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.875rem",
+                }}
+              >
+                <div style={{ minWidth: 56, textAlign: "center" }}>
+                  <div
+                    style={{
+                      fontSize: "1.125rem",
+                      fontWeight: 700,
+                      color: "var(--cs-text)",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {formatTime(nextAppt.start_time).replace(" ", "")}
+                  </div>
+                  <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
+                    {readRelation(nextAppt.services)?.duration_minutes ?? "—"} min
+                  </div>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: "0.9375rem",
+                      fontWeight: 600,
+                      color: "var(--cs-text)",
+                    }}
+                  >
+                    {readRelation(nextAppt.customers)?.full_name ?? "—"}
+                  </div>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+                    {readRelation(nextAppt.services)?.name ?? "Service"}
+                    {" · "}
+                    {readRelation(nextAppt.staff)?.full_name ?? "Unassigned"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <BookingTypeBadge type={nextAppt.type} />
+                  <BookingStatusBadge status={nextAppt.status} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Today's Booking Queue */}
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: "0.875rem",
+              }}
+            >
+              <span style={{ fontSize: 16 }}>🕐</span>
+              <div
+                style={{
+                  fontSize: "0.9375rem",
+                  fontWeight: 600,
+                  color: "var(--cs-text)",
+                  fontFamily: "var(--font-display)",
+                }}
+              >
+                Today&apos;s Booking Queue
+              </div>
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  padding: "2px 8px",
+                  borderRadius: "var(--cs-r-pill)",
+                  backgroundColor: "var(--cs-sand-mist)",
+                  color: "var(--cs-sand)",
+                }}
+              >
+                {activeQueue.length} active
+              </span>
+            </div>
+
+            {activeQueue.length === 0 ? (
+              <EmptyState
+                title="No active bookings"
+                description="There are no confirmed or in-progress appointments for today."
+                icon="🌿"
+              />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {activeQueue.map((booking) => {
+                  const customer = readRelation(booking.customers);
+                  const service = readRelation(booking.services);
+                  const staffMember = readRelation(booking.staff);
+                  const isNext = nextAppt?.id === booking.id;
+
+                  return (
+                    <Link
+                      key={booking.id}
+                      href={`/crm/bookings?highlight=${booking.id}`}
+                      className="cs-card"
+                      style={{
+                        padding: "0.75rem 1rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.875rem",
+                        textDecoration: "none",
+                        color: "inherit",
+                        borderLeft: isNext ? "3px solid var(--cs-sand)" : "3px solid transparent",
+                      }}
+                    >
+                      <div style={{ minWidth: 56, textAlign: "center", flexShrink: 0 }}>
+                        <div
+                          style={{
+                            fontSize: "0.9375rem",
+                            fontWeight: 700,
+                            color: "var(--cs-text)",
+                            lineHeight: 1,
+                          }}
+                        >
+                          {formatTime(booking.start_time).replace(" ", "")}
+                        </div>
+                        <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
+                          {service?.duration_minutes ?? "—"} min
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          width: 3,
+                          alignSelf: "stretch",
+                          borderRadius: 2,
+                          backgroundColor:
+                            booking.status === "in_progress"
+                              ? "var(--cs-sand)"
+                              : "var(--cs-border)",
+                        }}
+                      />
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: "0.875rem",
+                            fontWeight: 500,
+                            color: "var(--cs-text)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {customer?.full_name ?? "—"}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.8125rem",
+                            color: "var(--cs-text-muted)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {service?.name ?? "Service"}
+                          {staffMember && (
+                            <span style={{ marginLeft: 6 }}>· {staffMember.full_name}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        <BookingTypeBadge type={booking.type} />
+                        <BookingStatusBadge status={booking.status} />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Home Service Bookings */}
+          {homeServices.length > 0 && (
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: "0.875rem",
+                }}
+              >
+                <span style={{ fontSize: 16 }}>🏠</span>
                 <div
                   style={{
-                    marginTop: 4,
-                    fontSize: "0.75rem",
-                    color: "var(--cs-text-muted)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    fontSize: "0.9375rem",
+                    fontWeight: 600,
+                    color: "var(--cs-text)",
+                    fontFamily: "var(--font-display)",
                   }}
                 >
-                  {customer.notes}
+                  Home Service Bookings
                 </div>
-              )}
-            </Link>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {homeServices.map((booking) => {
+                  const customer = readRelation(booking.customers);
+                  const service = readRelation(booking.services);
+                  const staffMember = readRelation(booking.staff);
 
-function BookingQueueRow({
-  booking,
-  userRole,
-  highlight = false,
-}: {
-  booking: BookingRow;
-  userRole: string;
-  highlight?: boolean;
-}) {
-  const customer = firstRelation(booking.customers);
-  const service = firstRelation(booking.services);
-  const staff = firstRelation(booking.staff);
+                  return (
+                    <div
+                      key={booking.id}
+                      className="cs-card"
+                      style={{
+                        padding: "0.75rem 1rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.875rem",
+                      }}
+                    >
+                      <div style={{ minWidth: 56, textAlign: "center", flexShrink: 0 }}>
+                        <div
+                          style={{
+                            fontSize: "0.9375rem",
+                            fontWeight: 700,
+                            color: "var(--cs-text)",
+                            lineHeight: 1,
+                          }}
+                        >
+                          {formatTime(booking.start_time).replace(" ", "")}
+                        </div>
+                        <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
+                          +{booking.travel_buffer_mins ?? 30}min travel
+                        </div>
+                      </div>
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: "0.625rem",
-        alignItems: "center",
-        border: "1px solid var(--cs-border)",
-        backgroundColor: highlight ? "var(--cs-sand-mist)" : "var(--cs-surface)",
-        borderRadius: 8,
-        padding: "0.625rem 0.75rem",
-      }}
-    >
-      <div style={{ minWidth: 52, fontSize: "0.8125rem", fontWeight: 600 }}>
-        {formatTime(booking.start_time)}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: "0.8125rem",
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {customer?.full_name ?? "Guest"}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: "0.875rem",
+                            fontWeight: 500,
+                            color: "var(--cs-text)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {customer?.full_name ?? "—"}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.8125rem",
+                            color: "var(--cs-text-muted)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {service?.name ?? "Service"}
+                          {staffMember && (
+                            <span style={{ marginLeft: 6 }}>· {staffMember.full_name}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        <BookingTypeBadge type={booking.type} />
+                        <BookingStatusBadge status={booking.status} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
-        <div
-          style={{
-            fontSize: "0.75rem",
-            color: "var(--cs-text-muted)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {service?.name ?? "Service"} · {staff?.full_name ?? "Unassigned"}
+
+        {/* Right column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Completed summary */}
+          <div className="cs-card" style={{ padding: "1.25rem" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: "0.875rem",
+              }}
+            >
+              <span style={{ fontSize: 16 }}>✅</span>
+              <div
+                style={{
+                  fontSize: "0.9375rem",
+                  fontWeight: 600,
+                  color: "var(--cs-text)",
+                  fontFamily: "var(--font-display)",
+                }}
+              >
+                Day Progress
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {[
+                { label: "Completed", value: completed.length, color: "var(--cs-success)" },
+                { label: "In Progress", value: inProgress.length, color: "var(--cs-sand)" },
+                { label: "Upcoming", value: upcoming.length, color: "var(--cs-info)" },
+                { label: "Cancelled / No-show", value: cancelledNoShow.length, color: "var(--cs-error)" },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "var(--cs-r-sm)",
+                    backgroundColor: "var(--cs-surface-warm)",
+                  }}
+                >
+                  <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)" }}>
+                    {row.label}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.875rem",
+                      fontWeight: 700,
+                      color: row.color,
+                      minWidth: 20,
+                      textAlign: "center",
+                    }}
+                  >
+                    {row.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick links */}
+          <div className="cs-card" style={{ padding: "1.25rem" }}>
+            <div
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--cs-text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Quick Links
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+              {[
+                { icon: "📋", label: "All bookings", href: "/crm/bookings" },
+                { icon: "👤", label: "All customers", href: "/crm/customers" },
+                { icon: "📅", label: "Schedule", href: "/crm/schedule" },
+                { icon: "➕", label: "New booking", href: "/crm/bookings/new" },
+              ].map((link) => (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "0.625rem 0.5rem",
+                    borderRadius: "var(--cs-r-sm)",
+                    textDecoration: "none",
+                    color: "var(--cs-text-secondary)",
+                    fontSize: "0.8125rem",
+                    transition: "var(--cs-trans)",
+                  }}
+                >
+                  <span>{link.icon}</span>
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Role info */}
+          <div
+            style={{
+              padding: "0.875rem 1rem",
+              borderRadius: "var(--cs-r-md)",
+              backgroundColor: "var(--cs-csr-staff-bg)",
+              border: "1px solid var(--cs-border-soft)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--cs-csr-staff-text)",
+                marginBottom: 4,
+              }}
+            >
+              Role: {role === "csr_head" ? "CSR Head" : "CSR Staff"}
+            </div>
+            <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", lineHeight: 1.5 }}>
+              {role === "csr_head"
+                ? "You can create, update, cancel, and reassign bookings."
+                : "You can create and update bookings. Cancel and reassign require CSR Head approval."}
+            </div>
+          </div>
         </div>
       </div>
-      <BookingTypeBadge type={booking.type} />
-      <BookingStatusBadge status={booking.status} />
-      <BookingActionMenu bookingId={booking.id} currentStatus={booking.status} userRole={userRole} />
     </div>
   );
 }

@@ -476,3 +476,38 @@ All 8 sprints committed. System is production-ready pending data setup.
   - start new booking from customer context
 
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** ✅ Passing | **Tests:** ✅ Passing
+
+---
+
+### 2026-05-01 — Kimi DevCoder (CSR-001 — CRM Role-Based Access + CSR Daily Operations Pages)
+
+**Task:** Add `csr_head` and `csr_staff` system_role values with centralized RBAC, role-based navigation, middleware route guards, and CSR-focused CRM operational pages.
+
+**Files Created:**
+- `src/lib/permissions.ts` — Centralized RBAC: role constants, permission helpers (canCreateBooking, canCancelBooking, canReassignBooking, etc.), nav filtering, route access rules
+- `supabase/migrations/20260501000002_csr_roles.sql` — DB migration expanding system_role CHECK constraint to include `csr_head` and `csr_staff`; updates role_definitions and job_title_definitions
+- `src/app/(dashboard)/crm/today/page.tsx` — CSR daily operations queue: stats, next appointment highlight, today's booking queue, home service bookings, day progress panel, quick actions
+- `src/app/(dashboard)/crm/bookings/page.tsx` — Filterable booking list for CSR with date, status, and type filters
+- `src/app/(dashboard)/crm/customers/page.tsx` — Customer list with search, pagination, segment badges, quick book action
+- `src/app/(dashboard)/crm/schedule/page.tsx` — Schedule view reusing DailyScheduleBoard with date navigation and inline stats
+
+**Files Changed:**
+- `src/components/features/dashboard/nav-config.ts` — Added CSR-specific nav configs (csr_head: Today/Bookings/Customers/Schedule/Reports Lite; csr_staff: Today/Bookings/Customers/Schedule)
+- `src/components/features/dashboard/sidebar.tsx` — Added workspace meta for csr_head and csr_staff with distinct accent colors and icons
+- `src/components/features/dashboard/role-badge.tsx` — Added badge styles for csr_head and csr_staff
+- `src/app/globals.css` — Added `--cs-csr-head-*` and `--cs-csr-staff-*` CSS tokens
+- `src/proxy.ts` — Middleware: CSR roles default to `/crm`; allowed into `/crm/*`, `/manager/schedule`, `/manager/bookings`, `/manager/walkin`; blocked from `/owner`, `/dev`, `/manager/staff`, `/manager/operations`, `/manager/reports`
+- `src/lib/actions/inhouse-booking.ts` — Expanded allowed roles for booking creation to include all CSR variants
+- `src/app/(dashboard)/manager/bookings/actions.ts` — Granular permissions: updateBookingStatusAction blocks cancel for CSR Staff; editBookingAction blocks reassign for CSR Staff
+- `src/app/(dashboard)/manager/walkin/actions.ts` — Expanded allowed roles for walk-in creation
+- `src/app/(dashboard)/crm/bookings/new/page.tsx` — Expanded allowed roles for in-house booking wizard
+- `src/app/(dashboard)/crm/page.tsx` — Redirects all users to `/crm/today`
+
+**Design Decisions:**
+- No separate CSR workspace created — all pages live under `/crm/*` and reuse existing components
+- `/crm/today` serves as the primary CSR dashboard with operational focus (queue-centric, not analytics-centric)
+- Permission checks enforced server-side in actions, not just UI hiding
+- Existing `csr` role treated as backward-compatible alias for `csr_staff`
+- CSS tokens follow existing warm spa palette with slightly darker accent for CSR Head to distinguish supervisor level
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** ✅ Passing (0 errors, 0 warnings)

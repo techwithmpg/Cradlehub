@@ -1,26 +1,25 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { DailyScheduleBoard } from "@/components/features/schedule/daily-schedule-board";
 import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 
-async function getCrmContext() {
+async function getCsrContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: me } = await supabase
     .from("staff")
-    .select("branch_id, system_role, branches(name)")
-    .eq("is_active", true)
+    .select("branch_id, branches(name)")
     .eq("auth_user_id", user.id)
+    .eq("is_active", true)
     .single();
 
-  const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
-  if (!me?.branch_id || !allowedRoles.includes(me.system_role)) redirect("/crm/today");
+  if (!me?.branch_id) redirect("/login");
   return {
     branchId: me.branch_id as string,
     branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
@@ -38,7 +37,7 @@ export default async function CrmSchedulePage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
-  const { branchId, branchName } = await getCrmContext();
+  const { branchId, branchName } = await getCsrContext();
   const params = await searchParams;
 
   const today = new Date().toISOString().split("T")[0]!;
@@ -61,7 +60,8 @@ export default async function CrmSchedulePage({
     <div>
       <PageHeader
         title="Schedule"
-        description={`${branchName} · View staff availability and booking load`}
+        description={`${branchName} · ${formattedDate}`}
+        icon="📅"
         action={
           <Link
             href="/crm/bookings"
