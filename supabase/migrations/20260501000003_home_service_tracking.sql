@@ -9,15 +9,33 @@
 
 -- ─── 1. New columns on bookings ─────────────────────────────────────────────
 ALTER TABLE bookings
+  ADD COLUMN IF NOT EXISTS home_service_tracking_status TEXT NOT NULL DEFAULT 'not_started',
   ADD COLUMN IF NOT EXISTS travel_started_at  TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS arrived_at         TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS session_started_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS completed_at       TIMESTAMPTZ;
 
+COMMENT ON COLUMN bookings.home_service_tracking_status IS 'Home service progress: not_started | travel_started | arrived | session_started | completed';
 COMMENT ON COLUMN bookings.travel_started_at  IS 'Timestamp when staff started traveling to customer (home_service only)';
 COMMENT ON COLUMN bookings.arrived_at         IS 'Timestamp when staff arrived at customer address (home_service only)';
 COMMENT ON COLUMN bookings.session_started_at IS 'Timestamp when massage/session began (home_service only)';
 COMMENT ON COLUMN bookings.completed_at       IS 'Timestamp when home service appointment finished';
+
+-- ─── 1b. CHECK constraint on tracking status ────────────────────────────────
+ALTER TABLE bookings
+  DROP CONSTRAINT IF EXISTS bookings_home_service_tracking_status_check;
+
+ALTER TABLE bookings
+  ADD CONSTRAINT bookings_home_service_tracking_status_check
+  CHECK (
+    home_service_tracking_status IN (
+      'not_started',
+      'travel_started',
+      'arrived',
+      'session_started',
+      'completed'
+    )
+  );
 
 -- ─── 2. RPC: Update home-service tracking stage ─────────────────────────────
 -- Staff call this from the portal. It validates ownership, checks stage
@@ -76,7 +94,8 @@ BEGIN
       RAISE EXCEPTION 'Travel already started';
     END IF;
     UPDATE bookings
-       SET travel_started_at = NOW()
+       SET home_service_tracking_status = 'travel_started',
+           travel_started_at = NOW()
      WHERE id = p_booking_id;
 
   ELSIF p_stage = 'arrived' THEN
@@ -87,7 +106,8 @@ BEGIN
       RAISE EXCEPTION 'Already arrived';
     END IF;
     UPDATE bookings
-       SET arrived_at = NOW()
+       SET home_service_tracking_status = 'arrived',
+           arrived_at = NOW()
      WHERE id = p_booking_id;
 
   ELSIF p_stage = 'session_started' THEN
@@ -98,7 +118,8 @@ BEGIN
       RAISE EXCEPTION 'Session already started';
     END IF;
     UPDATE bookings
-       SET session_started_at = NOW(),
+       SET home_service_tracking_status = 'session_started',
+           session_started_at = NOW(),
            status             = 'in_progress',
            updated_at         = NOW()
      WHERE id = p_booking_id;
@@ -111,7 +132,8 @@ BEGIN
       RAISE EXCEPTION 'Already completed';
     END IF;
     UPDATE bookings
-       SET completed_at = NOW(),
+       SET home_service_tracking_status = 'completed',
+           completed_at = NOW(),
            status       = 'completed',
            updated_at   = NOW()
      WHERE id = p_booking_id;

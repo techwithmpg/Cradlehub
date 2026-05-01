@@ -13,6 +13,7 @@
 - DEV-001: Dev auth bypass fixed — centralized helper works across middleware, layout, pages, and actions
 - STAFF-001: Staff portal redesigned into live Today dashboard with greeting, stats, next appointment, schedule list, and Supabase Realtime updates
 - STAFF-002: Home service tracking flow added — staff can tap Start Travel → Arrived → Start Session → Complete with server-side timestamps and live elapsed timer
+- STAFF-003: Home service tracking refined with explicit `home_service_tracking_status` column, CHECK constraint, typed server actions with specific error codes, state machine helpers + 18 tests, compact progress stepper UI, status-specific timer labels
 
 ## Design System
 - `--cs-*` tokens: warm-white (#F9F6F0), sand (#A67B5B), clay (#C7A27C), sage (#8A9A8B), charcoal sidebar (#2C2A29)
@@ -53,10 +54,14 @@
 - Empty state with icon and helpful message
 
 ## Home Service Tracking
-- Tracking stages: Start Travel → Arrived → Start Session → Complete
-- Stored timestamps: `travel_started_at`, `arrived_at`, `session_started_at`, `completed_at`
+- Tracking stages: Not Started → Travel Started → Arrived → Session Started → Completed
+- Stored: `home_service_tracking_status` (CHECK constraint) + timestamps (`travel_started_at`, `arrived_at`, `session_started_at`, `completed_at`)
 - RPC function `update_home_service_tracking()` validates ownership and sequential progression
+- Server action `updateHomeServiceTrackingAction()` returns typed `HomeServiceTrackingResult` with specific error codes
+- State machine helpers in `src/lib/home-service-tracking.ts` with 18 tests
 - Live elapsed timer updates every second from server timestamp
+- Compact progress stepper UI: ● Travel — ● Arrived — ○ Session — ○ Complete
+- Status-specific labels: "Travel active · 00:18:42", "Arrived at 3:22 PM", "Session active · 00:12:10", "Completed at 4:35 PM"
 - Only shown on `home_service` bookings; in-spa bookings show details only
 - Session start updates booking `status` to `in_progress`; completion updates to `completed`
 

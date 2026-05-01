@@ -115,6 +115,7 @@ export type Database = {
           created_at: string
           customer_id: string
           end_time: string
+          home_service_tracking_status: string
           id: string
           metadata: Json
           arrived_at: string | null
@@ -135,6 +136,7 @@ export type Database = {
           created_at?: string
           customer_id: string
           end_time: string
+          home_service_tracking_status?: string
           id?: string
           metadata?: Json
           arrived_at?: string | null
@@ -155,6 +157,7 @@ export type Database = {
           created_at?: string
           customer_id?: string
           end_time?: string
+          home_service_tracking_status?: string
           id?: string
           metadata?: Json
           arrived_at?: string | null

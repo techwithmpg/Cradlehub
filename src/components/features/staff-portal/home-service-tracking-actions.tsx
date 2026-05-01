@@ -4,36 +4,41 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Car, MapPin, Play, CheckCircle2 } from "lucide-react";
 import { updateHomeServiceTrackingAction } from "@/app/(dashboard)/staff-portal/actions";
-import type { StaffPortalBooking, TrackingStage } from "./types";
-import { getTrackingStage, getNextTrackingStage } from "./types";
+import {
+  getNextHomeServiceTrackingStatus,
+  type HomeServiceTrackingStatus,
+} from "@/lib/home-service-tracking";
+import type { StaffPortalBooking } from "./types";
+import { TrackingTimer, TimestampLabel } from "./tracking-timer";
 
 const STAGE_CONFIG: Record<
-  TrackingStage,
-  { label: string; icon: React.ReactNode; color: string; bg: string }
+  HomeServiceTrackingStatus,
+  { label: string; icon: React.ReactNode; activeLabel: string }
 > = {
-  travel_started: {
+  not_started: {
     label: "Start Travel",
     icon: <Car size={14} />,
-    color: "var(--cs-info-text)",
-    bg: "var(--cs-info-bg)",
+    activeLabel: "Travel",
+  },
+  travel_started: {
+    label: "Mark Arrived",
+    icon: <MapPin size={14} />,
+    activeLabel: "Travel",
   },
   arrived: {
-    label: "Arrived",
-    icon: <MapPin size={14} />,
-    color: "var(--cs-sand-dark)",
-    bg: "var(--cs-sand-mist)",
-  },
-  session_started: {
     label: "Start Session",
     icon: <Play size={14} />,
-    color: "var(--cs-owner-text)",
-    bg: "var(--cs-owner-bg)",
+    activeLabel: "Arrived",
+  },
+  session_started: {
+    label: "Complete Appointment",
+    icon: <CheckCircle2 size={14} />,
+    activeLabel: "Session",
   },
   completed: {
-    label: "Complete",
+    label: "Completed",
     icon: <CheckCircle2 size={14} />,
-    color: "var(--cs-success-text)",
-    bg: "var(--cs-success-bg)",
+    activeLabel: "Completed",
   },
 };
 
@@ -44,61 +49,143 @@ type HomeServiceTrackingActionsProps = {
 export function HomeServiceTrackingActions({ booking }: HomeServiceTrackingActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const currentStage = getTrackingStage(booking);
-  const nextStage = getNextTrackingStage(booking);
+  const currentStatus = booking.home_service_tracking_status;
+  const nextStatus = getNextHomeServiceTrackingStatus(currentStatus);
 
-  function handleStage(stage: TrackingStage) {
+  function handleAdvance() {
+    if (!nextStatus || isPending) return;
     startTransition(async () => {
-      const result = await updateHomeServiceTrackingAction(booking.id, stage);
-      if ("error" in result) {
-        alert(result.error);
+      const result = await updateHomeServiceTrackingAction(booking.id, nextStatus);
+      if (!result.ok) {
+        alert(result.message);
       } else {
         router.refresh();
       }
     });
   }
 
-  const stages: TrackingStage[] = ["travel_started", "arrived", "session_started", "completed"];
+  const stages: HomeServiceTrackingStatus[] = [
+    "not_started",
+    "travel_started",
+    "arrived",
+    "session_started",
+    "completed",
+  ];
+
+  const currentIndex = stages.indexOf(currentStatus);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.625rem" }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-        {stages.map((stage) => {
-          const config = STAGE_CONFIG[stage];
-          const isCompleted = currentStage === stage || (stage === "travel_started" && currentStage !== null) || (stage === "arrived" && (currentStage === "arrived" || currentStage === "session_started" || currentStage === "completed")) || (stage === "session_started" && (currentStage === "session_started" || currentStage === "completed"));
-          const isNext = nextStage === stage;
-          const isDisabled = !isNext || isPending;
-
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+      {/* Compact stepper */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 11,
+          color: "var(--cs-text-muted)",
+          flexWrap: "wrap",
+        }}
+      >
+        {stages.slice(1).map((stage, i) => {
+          const stageIndex = i + 1;
+          const isDone = currentIndex >= stageIndex;
+          const isCurrent = currentIndex === stageIndex;
           return (
-            <button
-              key={stage}
-              onClick={() => isNext && !isPending && handleStage(stage)}
-              disabled={isDisabled}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "0.375rem 0.625rem",
-                fontSize: 12,
-                fontWeight: 600,
-                borderRadius: "var(--cs-r-sm)",
-                border: "none",
-                cursor: isDisabled ? "not-allowed" : "pointer",
-                opacity: isDisabled && !isCompleted ? 0.5 : 1,
-                backgroundColor: isCompleted ? "var(--cs-success-bg)" : isNext ? config.bg : "var(--cs-neutral-bg)",
-                color: isCompleted ? "var(--cs-success-text)" : isNext ? config.color : "var(--cs-neutral-text)",
-                transition: "all var(--cs-duration) var(--cs-ease)",
-                minHeight: 36,
-                flex: "1 1 auto",
-                justifyContent: "center",
-              }}
-            >
-              {isCompleted ? <CheckCircle2 size={14} /> : config.icon}
-              {isCompleted ? "Done" : config.label}
-            </button>
+            <div key={stage} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  backgroundColor: isDone
+                    ? "var(--cs-success)"
+                    : isCurrent
+                    ? "var(--cs-staff-accent)"
+                    : "var(--cs-border-strong)",
+                  display: "inline-block",
+                }}
+              />
+              <span
+                style={{
+                  fontWeight: isCurrent ? 600 : 400,
+                  color: isDone || isCurrent ? "var(--cs-text)" : "var(--cs-text-muted)",
+                }}
+              >
+                {STAGE_CONFIG[stage].activeLabel}
+              </span>
+              {i < stages.slice(1).length - 1 && (
+                <span style={{ color: "var(--cs-border-strong)", marginLeft: 2, marginRight: 2 }}>
+                  &mdash;
+                </span>
+              )}
+            </div>
           );
         })}
       </div>
+
+      {/* Status-specific info */}
+      {currentStatus === "travel_started" && booking.travel_started_at && (
+        <TrackingTimer startTimestamp={booking.travel_started_at} label="Travel active" />
+      )}
+      {currentStatus === "arrived" && booking.arrived_at && (
+        <TimestampLabel timestamp={booking.arrived_at} label="Arrived" />
+      )}
+      {currentStatus === "session_started" && booking.session_started_at && (
+        <TrackingTimer startTimestamp={booking.session_started_at} label="Session active" />
+      )}
+      {currentStatus === "completed" && booking.completed_at && (
+        <TimestampLabel timestamp={booking.completed_at} label="Completed" />
+      )}
+
+      {/* Primary action button */}
+      {nextStatus && (
+        <button
+          onClick={handleAdvance}
+          disabled={isPending}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            padding: "0.5rem 0.875rem",
+            fontSize: 13,
+            fontWeight: 600,
+            borderRadius: "var(--cs-r-md)",
+            border: "none",
+            cursor: isPending ? "not-allowed" : "pointer",
+            opacity: isPending ? 0.6 : 1,
+            backgroundColor: "var(--cs-staff-accent)",
+            color: "#fff",
+            transition: "all var(--cs-duration) var(--cs-ease)",
+            minHeight: 40,
+            width: "100%",
+          }}
+        >
+          {STAGE_CONFIG[nextStatus].icon}
+          {isPending ? "Updating…" : STAGE_CONFIG[nextStatus].label}
+        </button>
+      )}
+
+      {currentStatus === "completed" && (
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--cs-success-text)",
+            backgroundColor: "var(--cs-success-bg)",
+            padding: "6px 12px",
+            borderRadius: "var(--cs-r-sm)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            alignSelf: "flex-start",
+          }}
+        >
+          <CheckCircle2 size={14} />
+          Appointment completed
+        </div>
+      )}
     </div>
   );
 }

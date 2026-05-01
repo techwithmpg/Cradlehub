@@ -3,9 +3,7 @@ import { formatTime } from "@/lib/utils";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { HomeServiceTrackingActions } from "./home-service-tracking-actions";
-import { TrackingTimer } from "./tracking-timer";
 import type { StaffPortalBooking } from "./types";
-import { getTrackingStage, isTrackingComplete } from "./types";
 
 function firstRelation<T>(relation: T | T[] | null): T | null {
   if (!relation) return null;
@@ -31,8 +29,6 @@ export function StaffAppointmentCard({ booking, isNext }: StaffAppointmentCardPr
   const isHomeService = booking.type === "home_service";
   const address = (booking.metadata?.address as string) || (booking.metadata?.home_address as string);
   const notes = (booking.metadata?.customer_notes as string) || (booking.metadata?.notes as string);
-  const trackingStage = getTrackingStage(booking);
-  const trackingActive = trackingStage !== null && !isTrackingComplete(booking);
 
   return (
     <div
@@ -93,18 +89,13 @@ export function StaffAppointmentCard({ booking, isNext }: StaffAppointmentCardPr
         </div>
       )}
 
-      {/* Tracking timer */}
-      {trackingActive && booking.travel_started_at && (
-        <TrackingTimer startTimestamp={booking.travel_started_at} />
-      )}
-
-      {/* Home service tracking actions */}
-      {isHomeService && !isTrackingComplete(booking) && (
+      {/* Home service tracking */}
+      {isHomeService && (
         <HomeServiceTrackingActions booking={booking} />
       )}
 
-      {/* Completed summary */}
-      {isHomeService && isTrackingComplete(booking) && (
+      {/* Completed summary for non-home-service */}
+      {!isHomeService && booking.status === "completed" && (
         <div
           style={{
             fontSize: 12,
@@ -119,7 +110,7 @@ export function StaffAppointmentCard({ booking, isNext }: StaffAppointmentCardPr
             alignSelf: "flex-start",
           }}
         >
-          Home service completed
+          Appointment completed
         </div>
       )}
     </div>

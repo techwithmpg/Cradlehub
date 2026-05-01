@@ -12,11 +12,17 @@ function formatElapsed(seconds: number): string {
   return parts.join(":");
 }
 
+function formatTimeLabel(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
 type TrackingTimerProps = {
   startTimestamp: string;
+  label: string;
 };
 
-export function TrackingTimer({ startTimestamp }: TrackingTimerProps) {
+export function TrackingTimer({ startTimestamp, label }: TrackingTimerProps) {
   const [elapsed, setElapsed] = useState(() => {
     const start = new Date(startTimestamp).getTime();
     const now = Date.now();
@@ -47,7 +53,29 @@ export function TrackingTimer({ startTimestamp }: TrackingTimerProps) {
       }}
     >
       <Timer size={12} />
-      Tracking active &middot; {formatElapsed(elapsed)}
+      {label} &middot; {formatElapsed(elapsed)}
+    </div>
+  );
+}
+
+type TimestampLabelProps = {
+  timestamp: string;
+  label: string;
+};
+
+export function TimestampLabel({ timestamp, label }: TimestampLabelProps) {
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        fontSize: 12,
+        fontWeight: 500,
+        color: "var(--cs-text-muted)",
+      }}
+    >
+      {label} at {formatTimeLabel(timestamp)}
     </div>
   );
 }
