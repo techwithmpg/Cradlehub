@@ -22,8 +22,19 @@ export type CreateServiceInput = z.infer<typeof createServiceSchema>;
 
 export const updateServiceSchema = createServiceSchema
   .partial()
-  .extend({ serviceId: uuid });
+  .extend({ serviceId: uuid, isActive: z.boolean().optional() });
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
+
+export const toggleServiceSchema = z.object({
+  serviceId: uuid,
+  isActive: z.boolean(),
+});
+export type ToggleServiceInput = z.infer<typeof toggleServiceSchema>;
+
+export const deleteServiceSchema = z.object({
+  serviceId: uuid,
+});
+export type DeleteServiceInput = z.infer<typeof deleteServiceSchema>;
 
 export const setBranchServiceSchema = z.object({
   branchId:    uuid,

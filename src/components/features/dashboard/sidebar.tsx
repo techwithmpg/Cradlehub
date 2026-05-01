@@ -25,53 +25,67 @@ const WORKSPACE_META: Record<string, {
   icon:     string;
 }> = {
   owner: {
-    label:    "Owner's Suite",
-    sublabel: "Full access · all branches",
+    label:    "OWNER WORKSPACE",
+    sublabel: "Owner access",
     accent:   "var(--cs-owner-accent)",
     accentBg: "rgba(122, 90, 138, 0.15)",
     icon:     "◆",
   },
   manager: {
-    label:    "Operations",
-    sublabel: "Branch management",
+    label:    "MANAGER WORKSPACE",
+    sublabel: "Manager access",
     accent:   "var(--cs-manager-accent)",
     accentBg: "rgba(90, 122, 138, 0.15)",
     icon:     "▸",
   },
   assistant_manager: {
-    label:    "Operations",
-    sublabel: "Asst. Manager",
+    label:    "MANAGER WORKSPACE",
+    sublabel: "Assistant manager access",
     accent:   "var(--cs-manager-accent)",
     accentBg: "rgba(90, 122, 138, 0.15)",
     icon:     "▸",
   },
   store_manager: {
-    label:    "Branch Ops",
-    sublabel: "Store Manager",
+    label:    "MANAGER WORKSPACE",
+    sublabel: "Store manager access",
     accent:   "var(--cs-manager-accent)",
     accentBg: "rgba(90, 122, 138, 0.15)",
     icon:     "▸",
   },
   csr: {
-    label:    "Front Desk",
-    sublabel: "Guest services",
+    label:    "CSR WORKSPACE",
+    sublabel: "Customer service access",
     accent:   "var(--cs-csr-accent)",
     accentBg: "rgba(138, 122, 90, 0.15)",
     icon:     "◇",
   },
   crm: {
-    label:    "CRM Hub",
-    sublabel: "Guest analytics",
+    label:    "CRM WORKSPACE",
+    sublabel: "CRM access",
     accent:   "var(--cs-crm-accent)",
     accentBg: "rgba(90, 138, 106, 0.15)",
     icon:     "✦",
   },
   staff: {
-    label:    "My Workspace",
-    sublabel: "Therapist portal",
+    label:    "STAFF WORKSPACE",
+    sublabel: "Staff portal access",
     accent:   "var(--cs-staff-accent)",
     accentBg: "rgba(138, 106, 90, 0.15)",
     icon:     "○",
+  },
+  driver: {
+    label:    "DRIVER WORKSPACE",
+    sublabel: "Driver portal access",
+    accent:   "var(--cs-sand)",
+    accentBg: "rgba(200, 169, 107, 0.15)",
+    icon:     "◈",
+  },
+  utility: {
+    label:    "UTILITY WORKSPACE",
+    sublabel: "Utility portal access",
+    accent:   "var(--cs-sand)",
+    accentBg: "rgba(200, 169, 107, 0.15)",
+    icon:     "◍",
   },
 };
 
@@ -89,7 +103,7 @@ type SidebarContentProps = SidebarProps & {
 function SidebarContent({ role, fullName, branchName, pathname, onNav }: SidebarContentProps) {
   const workspaceKey = resolveWorkspaceKeyFromPath(pathname) ?? resolveWorkspaceKeyFromRole(role);
   const nav          = NAV_CONFIG[workspaceKey];
-  const meta         = WORKSPACE_META[role] ?? WORKSPACE_META["staff"]!;
+  const meta         = WORKSPACE_META[role] ?? WORKSPACE_META[workspaceKey] ?? WORKSPACE_META["staff"]!;
   if (!nav) return null;
 
   const initials = fullName.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();

@@ -9,13 +9,15 @@ async function logoutAction() {
 }
 
 const WORKSPACE_LABEL: Record<string, string> = {
-  owner:             "Owner's Suite",
-  manager:           "Operations",
-  assistant_manager: "Operations",
-  store_manager:     "Branch Operations",
-  csr:               "Front Desk",
-  crm:               "CRM Hub",
-  staff:             "Therapist Workspace",
+  owner:             "Owner",
+  manager:           "Manager",
+  assistant_manager: "Manager",
+  store_manager:     "Manager",
+  csr:               "CSR",
+  crm:               "CRM",
+  staff:             "Staff",
+  driver:            "Driver",
+  utility:           "Utility",
 };
 
 const ROLE_ACCENT: Record<string, string> = {
@@ -70,7 +72,7 @@ export function Header({ role, fullName }: HeaderProps) {
           color:      "var(--cs-text)",
           fontFamily: "var(--cs-font-body)",
         }}>
-          {label}
+          Workspace: {label}
         </span>
       </div>
 

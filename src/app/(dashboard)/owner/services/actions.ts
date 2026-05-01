@@ -5,6 +5,8 @@ import {
   createServiceCategorySchema,
   createServiceSchema,
   updateServiceSchema,
+  toggleServiceSchema,
+  deleteServiceSchema,
   setBranchServiceSchema,
 } from "@/lib/validations/service";
 import { revalidatePath } from "next/cache";
@@ -71,11 +73,40 @@ export async function updateServiceAction(rawInput: unknown) {
     ...(updates.price           !== undefined && { price:            updates.price }),
     ...(updates.bufferBefore    !== undefined && { buffer_before:    updates.bufferBefore }),
     ...(updates.bufferAfter     !== undefined && { buffer_after:     updates.bufferAfter }),
+    ...(updates.isActive        !== undefined && { is_active:        updates.isActive }),
   };
   const { error } = await supabase.from("services").update(mapped).eq("id", serviceId);
   if (error) return { success: false, error: error.message };
   revalidatePath("/owner/services");
   return { success: true };
+}
+
+export async function toggleServiceActiveAction(rawInput: unknown) {
+  const parsed = toggleServiceSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const supabase = await requireOwner();
+  if (!supabase) return { ok: false, message: "Unauthorized" };
+  const { error } = await supabase
+    .from("services")
+    .update({ is_active: parsed.data.isActive })
+    .eq("id", parsed.data.serviceId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/owner/services");
+  return { ok: true };
+}
+
+export async function deleteServiceAction(rawInput: unknown) {
+  const parsed = deleteServiceSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const supabase = await requireOwner();
+  if (!supabase) return { ok: false, message: "Unauthorized" };
+  const { error } = await supabase
+    .from("services")
+    .delete()
+    .eq("id", parsed.data.serviceId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/owner/services");
+  return { ok: true };
 }
 
 export async function setBranchServiceAction(rawInput: unknown) {

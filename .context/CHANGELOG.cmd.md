@@ -327,3 +327,38 @@ All 8 sprints committed. System is production-ready pending data setup.
 - Existing server actions preserved unchanged.
 
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors
+
+
+---
+
+### 2026-05-01 — Kimi DevCoder (UI-001 — Premium Service Card Grid)
+
+**Task:** Replace flat service list with premium responsive card grid for spa service catalog manager.
+
+**Files Created:**
+- `src/components/features/services/service-image-thumbnail.tsx` — image or placeholder by name-matching SPA_IMAGES
+- `src/components/features/services/service-status-toggle.tsx` — custom sliding toggle (no Switch in UI lib)
+- `src/components/features/services/service-card.tsx` — full card with image, badge, stats, toggle, actions
+- `src/components/features/services/service-card-skeleton.tsx` — skeleton loading state
+- `src/components/features/services/services-toolbar.tsx` — search, category filter, status filter, sort
+- `src/components/features/services/service-category-section.tsx` — category header + card grid
+- `src/components/features/services/services-empty-state.tsx` — empty state with CTA or clear filters
+- `src/components/features/services/services-page-client.tsx` — client orchestrator with filtering/sorting
+- `src/app/(dashboard)/owner/services/[serviceId]/page.tsx` — edit service form
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/services/page.tsx` — card grid with owner query (shows inactive)
+- `src/app/(dashboard)/owner/services/actions.ts` — added `toggleServiceActiveAction`, `deleteServiceAction`
+- `src/lib/validations/service.ts` — `isActive` in update schema, toggle/delete schemas
+- `src/lib/queries/services.ts` — `getAllServicesForOwner()` returns all services including inactive
+
+**Design decisions:**
+- Cards use CSS grid with `repeat(auto-fill, minmax(280px, 1fr))` for responsive layout.
+- Images resolved by name keyword matching against `SPA_IMAGES` constants (no DB image field).
+- Placeholder: warm cream background with image icon + "No image" text.
+- Inactive cards at 72% opacity with muted borders but fully readable.
+- Hover: subtle lift (-2px translateY) + stronger shadow + warmer border.
+- Toggle uses optimistic UI with revert on failure.
+- Delete uses browser `confirm()` dialog.
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors

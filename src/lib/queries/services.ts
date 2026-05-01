@@ -22,6 +22,16 @@ export async function getAllServices() {
   return data ?? [];
 }
 
+export async function getAllServicesForOwner() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("services")
+    .select(`*, service_categories ( id, name, display_order )`)
+    .order("service_categories(display_order), name");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function getServiceById(serviceId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

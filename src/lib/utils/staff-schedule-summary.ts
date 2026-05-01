@@ -5,8 +5,6 @@ type Schedule = {
   is_active: boolean;
 };
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 function shortTime(value: string): string {
   const [h, m] = value.split(":").map(Number);
   const period = (h ?? 0) >= 12 ? "PM" : "AM";
