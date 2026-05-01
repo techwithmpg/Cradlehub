@@ -391,3 +391,45 @@ All 8 sprints committed. System is production-ready pending data setup.
 - Submitting creates the service and redirects to `/owner/services`.
 
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors
+
+---
+
+### 2026-05-01 — Codex (CSR-001 — CRM Role-Based Access for CSR Head/Staff)
+
+**Task:** Add `csr_head` and `csr_staff` access to the existing CRM workspace (no separate CSR workspace), enforce booking/customer permissions server-side, and remove manager walk-in page.
+
+**Files Changed (high impact):**
+- `src/lib/permissions.ts` (new centralized CSR/CRM permission helpers)
+- `src/components/features/dashboard/nav-config.ts` (role-specific CRM/CSR sidebars)
+- `src/components/features/dashboard/sidebar.tsx` (role-forced workspace nav for CRM/CSR pages)
+- `src/components/features/dashboard/header.tsx`
+- `src/components/features/dashboard/role-badge.tsx`
+- `src/proxy.ts` (route guards for `crm`, `csr_head`, `csr_staff`)
+- `src/app/(auth)/login/actions.ts` (CSR redirects to `/crm`)
+- `src/app/(dashboard)/crm/actions.ts` (CSR access to CRM customer actions)
+- `src/app/api/customers/search/route.ts` (CSR access for customer search)
+- `src/app/(dashboard)/crm/bookings/new/page.tsx` (in-house wizard allowed for CRM/CSR/owner; manager blocked)
+- `src/lib/actions/inhouse-booking.ts` (server-side role enforcement for in-house booking create)
+- `src/app/(dashboard)/manager/bookings/page.tsx` (operations context + role-aware action menu)
+- `src/app/(dashboard)/manager/bookings/actions.ts` (server-side checks for cancel/reassign by role)
+- `src/app/(dashboard)/manager/walkin/actions.ts` (aligned operation-role allowlist)
+- `src/app/(dashboard)/crm/customers/page.tsx` (CRM customers alias route)
+- `src/app/(dashboard)/manager/walkin/page.tsx` (deleted; dedicated manager walk-in route removed)
+- `src/app/(dashboard)/owner/staff/new/staff-invite-form.tsx` (CSR role options)
+- `src/app/(dashboard)/owner/staff/[staffId]/staff-edit-form.tsx` (CSR role options)
+- `src/lib/validations/staff.ts` (CSR role enum support)
+- `src/types/index.ts` (expanded role constants)
+- `supabase/migrations/20260501000002_csr_roles.sql` (CSR role schema updates)
+
+**Quality/verification updates:**
+- Fixed lint blockers in:
+  - `src/components/features/dashboard/customer-search.tsx`
+  - `src/components/features/dashboard/time-slot-grid.tsx`
+  - `src/components/features/dashboard/walkin-form.tsx`
+  - `src/app/(dashboard)/owner/services/new/service-builder-client.tsx`
+  - `src/app/(dashboard)/owner/branches/[branchId]/branch-edit-form.tsx`
+  - `src/app/(dashboard)/owner/staff/actions.ts`
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing
+- `pnpm test`: ✅ Passing (after sandbox worker permission escalation)

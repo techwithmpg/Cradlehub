@@ -84,6 +84,12 @@
   --cs-csr-accent:         #8A7A5A;
   --cs-csr-bg:             #F8F5EE;
   --cs-csr-text:           #5A4A2A;
+  --cs-csr-head-accent:    #7A6A4A;
+  --cs-csr-head-bg:        #F5F0E3;
+  --cs-csr-head-text:      #4A3A1A;
+  --cs-csr-staff-accent:   #9A8A6A;
+  --cs-csr-staff-bg:       #FAF7F0;
+  --cs-csr-staff-text:     #5A4A2A;
   --cs-crm-accent:         #5A8A6A;
   --cs-crm-bg:             #EEF8F2;
   --cs-crm-text:           #2A5A3A;

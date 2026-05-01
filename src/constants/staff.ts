@@ -23,7 +23,8 @@ export const STAFF_TYPE_LABELS: Record<StaffType, string> = {
 };
 
 /**
- * system_role controls app access and dashboard routing (owner | manager | crm | staff).
+ * system_role controls app access and dashboard routing
+ * (owner | manager | assistant_manager | store_manager | crm | csr | csr_head | csr_staff | staff).
  * staff_type describes the person's real job function in the spa.
  * is_head marks department heads and supervisors.
  */

@@ -14,6 +14,8 @@ const WORKSPACE_LABEL: Record<string, string> = {
   assistant_manager: "Manager",
   store_manager:     "Manager",
   csr:               "CSR",
+  csr_head:          "CSR Head",
+  csr_staff:         "CSR Staff",
   crm:               "CRM",
   staff:             "Staff",
   driver:            "Driver",
@@ -26,8 +28,12 @@ const ROLE_ACCENT: Record<string, string> = {
   assistant_manager: "var(--cs-manager-accent)",
   store_manager:     "var(--cs-manager-accent)",
   csr:               "var(--cs-csr-accent)",
+  csr_head:          "var(--cs-csr-head-accent)",
+  csr_staff:         "var(--cs-csr-staff-accent)",
   crm:               "var(--cs-crm-accent)",
   staff:             "var(--cs-staff-accent)",
+  driver:            "var(--cs-sand)",
+  utility:           "var(--cs-sand)",
 };
 
 type HeaderProps = {

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createStaffSchema, updateStaffSchema } from "@/lib/validations/staff";
+import type { Database } from "@/types/supabase";
 import { revalidatePath } from "next/cache";
 
 // ── Auth helper: owner or manager ──────────────────────────────────────────
@@ -102,7 +103,13 @@ export async function createStaffAction(rawInput: unknown) {
 
   // Backward compatibility: if staff_type/is_head columns don't exist yet
   if (result.error && isMissingStaffOrgColumnsError(result.error.message)) {
-    const { staff_type: _st, is_head: _ih, ...legacyPayload } = payload;
+    const legacyPayload = {
+      branch_id: payload.branch_id,
+      full_name: payload.full_name,
+      phone: payload.phone,
+      tier: payload.tier,
+      system_role: payload.system_role,
+    };
     result = await ctx.supabase
       .from("staff")
       .insert(legacyPayload)
@@ -130,7 +137,7 @@ export async function generateInviteAction(rawInput: unknown) {
   const ctx = await requireOwnerOrManager();
   if ("error" in ctx) return { success: false, error: ctx.error };
 
-  const { branchId, email } = rawInput as { branchId?: string; email?: string };
+  const { branchId } = rawInput as { branchId?: string; email?: string };
 
   // Manager can only invite to their own branch
   if (ctx.me.system_role === "manager" && branchId && branchId !== ctx.me.branch_id) {
@@ -159,7 +166,14 @@ export async function generateInviteAction(rawInput: unknown) {
 
   // Backward compatibility: if staff_type/is_head columns don't exist yet
   if (result.error && isMissingStaffOrgColumnsError(result.error.message)) {
-    const { staff_type: _st, is_head: _ih, ...legacyPayload } = payload;
+    const legacyPayload = {
+      branch_id: payload.branch_id,
+      full_name: payload.full_name,
+      phone: payload.phone,
+      tier: payload.tier,
+      system_role: payload.system_role,
+      is_active: payload.is_active,
+    };
     result = await ctx.supabase
       .from("staff")
       .insert(legacyPayload)
@@ -271,7 +285,11 @@ export async function updateStaffAction(rawInput: unknown) {
 
   // Backward compatibility: if staff_type/is_head columns don't exist yet
   if (updateResult.error && isMissingStaffOrgColumnsError(updateResult.error.message)) {
-    const { staff_type: _st, is_head: _ih, ...legacyPayload } = updatePayload;
+    const legacyPayload: Database["public"]["Tables"]["staff"]["Update"] = {
+      ...updatePayload,
+    };
+    delete legacyPayload.staff_type;
+    delete legacyPayload.is_head;
     updateResult = await ctx.supabase
       .from("staff")
       .update(legacyPayload)

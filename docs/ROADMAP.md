@@ -147,3 +147,4 @@
 | Date | Change | Reason | Agent |
 |------|--------|--------|-------|
 | _[DATE]_ | Initial roadmap created | Project kickoff | Human |
+| 2026-05-01 | Added CSR Head/CSR Staff RBAC completion note (CRM workspace only, no separate CSR workspace) | Align workspace access with front-desk org structure and server-side permission enforcement | Codex |

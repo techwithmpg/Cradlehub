@@ -110,8 +110,10 @@ export function WalkinForm() {
   useEffect(() => {
     const cleaned = phone.replace(/\s/g, "");
     if (cleaned.length < 7) {
-      setLookupResult(null);
-      return;
+      const resetTimer = window.setTimeout(() => {
+        setLookupResult(null);
+      }, 0);
+      return () => window.clearTimeout(resetTimer);
     }
 
     const timer = window.setTimeout(() => {

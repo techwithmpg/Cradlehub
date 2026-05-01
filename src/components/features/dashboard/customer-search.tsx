@@ -26,14 +26,16 @@ export function CustomerSearch() {
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
-      setResults([]);
-      setOpen(false);
-      return;
+      const clearTimer = window.setTimeout(() => {
+        setResults([]);
+        setOpen(false);
+        setLoading(false);
+      }, 0);
+      return () => window.clearTimeout(clearTimer);
     }
 
-    setLoading(true);
-
     const timer = setTimeout(() => {
+      setLoading(true);
       fetch(`/api/customers/search?q=${encodeURIComponent(trimmed)}`)
         .then(async (response) => {
           if (!response.ok) {
@@ -202,7 +204,7 @@ export function CustomerSearch() {
             zIndex: 20,
           }}
         >
-          No customers found for "{query}"
+          No customers found for &quot;{query}&quot;
         </div>
       )}
     </div>

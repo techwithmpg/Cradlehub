@@ -52,7 +52,7 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
   );
 
   const [toggleState, toggleAction, togglePending] = useActionState(
-    async (_prev: BranchActionState): Promise<BranchActionState> => {
+    async (): Promise<BranchActionState> => {
       const result = await toggleBranchActiveAction(branch.id, !branch.is_active);
       return {
         success: result.success,

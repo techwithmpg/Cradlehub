@@ -13,8 +13,8 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
-type Tier = "senior" | "mid" | "junior";
-type StaffRole = "manager" | "crm" | "staff";
+type Tier = "senior" | "mid" | "junior" | "head" | "n/a";
+type StaffRole = "manager" | "crm" | "csr" | "csr_head" | "csr_staff" | "staff";
 type StaffType = (typeof STAFF_TYPES)[number];
 
 type StaffActionState = {
@@ -25,11 +25,24 @@ type StaffActionState = {
 const initialState: StaffActionState = {};
 
 function isTier(value: string): value is Tier {
-  return value === "senior" || value === "mid" || value === "junior";
+  return (
+    value === "senior" ||
+    value === "mid" ||
+    value === "junior" ||
+    value === "head" ||
+    value === "n/a"
+  );
 }
 
 function isStaffRole(value: string): value is StaffRole {
-  return value === "manager" || value === "crm" || value === "staff";
+  return (
+    value === "manager" ||
+    value === "crm" ||
+    value === "csr" ||
+    value === "csr_head" ||
+    value === "csr_staff" ||
+    value === "staff"
+  );
 }
 
 function isStaffType(value: string): value is StaffType {
@@ -144,7 +157,10 @@ export function InviteStaffForm({
         <SelectField id="systemRole" name="systemRole" label="System access role *">
           <option value="">Select role…</option>
           <option value="manager">Manager — daily schedule, walk-ins, bookings</option>
-          <option value="crm">CRM — customer records and history</option>
+          <option value="crm">CRM — customer records, reports, and booking support</option>
+          <option value="csr_head">CSR Head — front-desk supervisor (cancel/reassign support)</option>
+          <option value="csr_staff">CSR Staff — front-desk booking and customer support</option>
+          <option value="csr">CSR (legacy) — same operational access as CSR Staff</option>
           <option value="staff">Staff — own schedule and assigned bookings</option>
         </SelectField>
 
@@ -170,6 +186,8 @@ export function InviteStaffForm({
           <option value="senior">Senior Therapist</option>
           <option value="mid">Mid Therapist</option>
           <option value="junior">Junior Therapist</option>
+          <option value="head">Head / Supervisor</option>
+          <option value="n/a">N/A (non-service role)</option>
         </SelectField>
 
         <fieldset style={{ border: "none", padding: 0, margin: 0 }}>

@@ -1,31 +1,42 @@
-# 🏆 CRADLEHUB — IN PROGRESS
+# 🧾 HANDOFF — 2026-05-01 (CSR-001 Complete)
 
-## Recent Work
-- ORG-001: Real spa org structure integrated (staff_type, is_head, staff_services)
-- ORG-002: Demo seed data created for testing
-- Sprint 9: Warm spa design system overhaul complete
-- SCHED-001: Daily staff schedule grid (column-based) built
-- SCHED-002: Row-based resource timeline board + CRM booking error improvements
-- SCHED-003: Compact staff schedule list with detail panel for scalable team management
-- UI-001: Premium service card grid with image thumbnails, active toggle, and edit flow
-- UI-002: Premium new service builder with live card preview
+## What Was Shipped
+- Added role support for `csr_head` and `csr_staff` in existing CRM/operations workspace.
+- Implemented role-aware CRM sidebar/menu:
+  - `csr_staff`: Today, Bookings, Customers, Schedule
+  - `csr_head`: Today, Bookings, Customers, Schedule, Reports Lite
+  - owner/manager nav preserved.
+- Enforced CSR access in route guards (`proxy`) and centralized helpers (`src/lib/permissions.ts`).
+- Enabled CRM in-house booking wizard access for owner/CRM/CSR roles.
+- Enforced booking server-action permissions:
+  - CSR Staff cannot cancel bookings
+  - CSR Staff cannot reassign therapists
+  - CSR Head can cancel/reassign.
+- Added owner staff role assignment support for CSR roles in invite/edit forms.
+- Removed dedicated manager walk-in page route by deleting:
+  - `src/app/(dashboard)/manager/walkin/page.tsx`
 
-## Design System
-- `--cs-*` tokens: warm-white (#F9F6F0), sand (#A67B5B), clay (#C7A27C), sage (#8A9A8B), charcoal sidebar (#2C2A29)
-- Fonts: Playfair Display (headings/brand), DM Sans (body)
-- Cards: floating shadows, no harsh borders
-- Role accents: Owner=sand, Manager=slate, CRM=sage, Staff=stone
+## Key Files
+- `src/lib/permissions.ts`
+- `src/proxy.ts`
+- `src/components/features/dashboard/nav-config.ts`
+- `src/components/features/dashboard/sidebar.tsx`
+- `src/app/(dashboard)/crm/bookings/new/page.tsx`
+- `src/lib/actions/inhouse-booking.ts`
+- `src/app/(dashboard)/manager/bookings/actions.ts`
+- `src/app/(dashboard)/manager/bookings/page.tsx`
+- `supabase/migrations/20260501000002_csr_roles.sql`
 
-## Next Steps
-1. Apply pending Supabase migrations in production (including `20260501000001_get_daily_schedule.sql`)
-2. Test schedule board visually at `/manager/schedule` and `/owner/schedule`
-3. Test staff schedule management at `/manager/staff`
-4. Test services page at `/owner/services`
-5. Test service builder at `/owner/services/new`
-6. Continue with feature sprints as needed
+## Validation
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅
+- `pnpm test` ✅
 
-## Go-Live Checklist
-- Owner account setup
-- Branch/service configuration
-- Staff invites with new job functions
-- Online booking flow test
+## Notes For Next Agent
+- `pnpm test` may fail in restricted sandbox due Vitest worker spawn EPERM; rerun with elevated permissions if needed.
+- Legacy `csr` role is intentionally kept and treated as `csr_staff` for backward compatibility.
+- Manual QA still recommended:
+  - verify CSR Staff cannot open `/crm/repeats` or `/crm/lapsed`
+  - verify CSR Head can cancel/reassign from `/manager/bookings`
+  - verify manager cannot access `/crm/bookings/new`

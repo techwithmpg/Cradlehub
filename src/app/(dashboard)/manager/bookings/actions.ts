@@ -7,9 +7,10 @@ import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { revalidatePath } from "next/cache";
 import type { Database } from "@/types/supabase";
+import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
 
 // ── Auth helper ────────────────────────────────────────────────────────────
-async function getManagerContext() {
+async function getOperationsContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -18,7 +19,18 @@ async function getManagerContext() {
     .select("id, branch_id, system_role")
     .eq("auth_user_id", user.id)
     .single();
-  if (!me || !me.branch_id || !["manager", "owner"].includes(me.system_role)) return null;
+
+  const allowedRoles = [
+    "owner",
+    "manager",
+    "assistant_manager",
+    "store_manager",
+    "crm",
+    "csr",
+    "csr_head",
+    "csr_staff",
+  ];
+  if (!me || !me.branch_id || !allowedRoles.includes(me.system_role)) return null;
   return { supabase, me };
 }
 
@@ -29,9 +41,14 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const ctx = await getManagerContext();
+  const ctx = await getOperationsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   const { supabase, me } = ctx;
+
+  // CSR Staff cannot cancel bookings — only CSR Head+ can
+  if (parsed.data.status === "cancelled" && !canCancelBooking(me.system_role)) {
+    return { success: false, error: "You do not have permission to cancel bookings" };
+  }
 
   // Set attribution for trigger
   await (
@@ -56,6 +73,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
 
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");
+  revalidatePath("/crm");
   return { success: true };
 }
 
@@ -66,11 +84,16 @@ export async function editBookingAction(rawInput: unknown) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const ctx = await getManagerContext();
+  const ctx = await getOperationsContext();
   if (!ctx) return { success: false, error: "Unauthorized" };
   const { supabase, me } = ctx;
 
   const { bookingId, notes, ...changes } = parsed.data;
+
+  // CSR Staff cannot reassign therapists — only CSR Head+ can
+  if (changes.staffId && !canReassignBooking(me.system_role)) {
+    return { success: false, error: "You do not have permission to reassign therapists" };
+  }
 
   // Fetch current booking to fill in unchanged fields for validation
   const { data: current } = await supabase
@@ -164,5 +187,6 @@ export async function editBookingAction(rawInput: unknown) {
 
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");
+  revalidatePath("/crm");
   return { success: true };
 }

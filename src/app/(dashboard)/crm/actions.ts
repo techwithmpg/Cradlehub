@@ -12,7 +12,7 @@ import {
 import { getBookingsByCustomer } from "@/lib/queries/bookings";
 import { revalidatePath } from "next/cache";
 
-// ── Auth: CRM + owner only (Rule 12) ──────────────────────────────────────
+// ── Auth: CRM/Front-desk + owner only ─────────────────────────────────────
 async function requireCrmAccess() {
   const supabase = await createClient();
   const {
@@ -26,7 +26,8 @@ async function requireCrmAccess() {
     .eq("auth_user_id", user.id)
     .single();
 
-  if (!me || !["crm", "owner"].includes(me.system_role)) return null;
+  const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
+  if (!me || !allowedRoles.includes(me.system_role)) return null;
   return supabase;
 }
 

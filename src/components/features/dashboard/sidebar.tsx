@@ -10,6 +10,7 @@ import {
   ChevronRight, Truck, Wrench, Monitor,
 } from "lucide-react";
 import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole } from "./nav-config";
+import { isCsr } from "@/lib/permissions";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
   LayoutDashboard, CalendarDays, Building2, Users, Sparkles,
@@ -59,6 +60,20 @@ const WORKSPACE_META: Record<string, {
     accentBg: "rgba(138, 122, 90, 0.15)",
     icon:     "◇",
   },
+  csr_head: {
+    label:    "CSR HEAD WORKSPACE",
+    sublabel: "Front-desk supervisor access",
+    accent:   "var(--cs-csr-head-accent)",
+    accentBg: "rgba(122, 106, 74, 0.15)",
+    icon:     "◈",
+  },
+  csr_staff: {
+    label:    "CSR WORKSPACE",
+    sublabel: "Front-desk access",
+    accent:   "var(--cs-csr-staff-accent)",
+    accentBg: "rgba(154, 138, 106, 0.15)",
+    icon:     "◇",
+  },
   crm: {
     label:    "CRM WORKSPACE",
     sublabel: "CRM access",
@@ -101,7 +116,16 @@ type SidebarContentProps = SidebarProps & {
 };
 
 function SidebarContent({ role, fullName, branchName, pathname, onNav }: SidebarContentProps) {
-  const workspaceKey = resolveWorkspaceKeyFromPath(pathname) ?? resolveWorkspaceKeyFromRole(role);
+  const roleWorkspaceKey = resolveWorkspaceKeyFromRole(role);
+  const pathWorkspaceKey = resolveWorkspaceKeyFromPath(pathname);
+  const forceRoleWorkspace =
+    roleWorkspaceKey === "crm" ||
+    roleWorkspaceKey === "csr_head" ||
+    roleWorkspaceKey === "csr_staff";
+  const workspaceKey =
+    isCsr(role) || forceRoleWorkspace
+      ? roleWorkspaceKey
+      : pathWorkspaceKey ?? roleWorkspaceKey;
   const nav          = NAV_CONFIG[workspaceKey];
   const meta         = WORKSPACE_META[role] ?? WORKSPACE_META[workspaceKey] ?? WORKSPACE_META["staff"]!;
   if (!nav) return null;

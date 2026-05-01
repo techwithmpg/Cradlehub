@@ -53,8 +53,13 @@ export function TimeSlotGrid({
 
   useEffect(() => {
     if (!branchId || !serviceId || !date) return;
-    setLoading(true);
-    setError(null);
+    let cancelled = false;
+
+    const kickoffTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
+    }, 0);
 
     const params = new URLSearchParams({ branchId, serviceId, date });
     if (staffId) params.set("staffId", staffId);
@@ -65,14 +70,24 @@ export function TimeSlotGrid({
         if (!response.ok) {
           throw new Error(data.error ?? "Could not load slots");
         }
+        if (cancelled) return;
         setSlots(data.slots ?? []);
       })
       .catch((err: unknown) => {
+        if (cancelled) return;
         const message = err instanceof Error ? err.message : "Could not load slots. Please try again.";
         setError(message);
         setSlots([]);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(kickoffTimer);
+    };
   }, [branchId, serviceId, staffId, date]);
 
   if (loading) {

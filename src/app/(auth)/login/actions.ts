@@ -17,7 +17,12 @@ export type LoginState = {
 function resolveRedirect(systemRole: string, staffType: string | null): string {
   if (systemRole === "owner") return "/owner";
   if (systemRole === "manager") return "/manager";
+  if (systemRole === "assistant_manager") return "/manager";
+  if (systemRole === "store_manager") return "/manager";
   if (systemRole === "crm") return "/crm";
+  if (systemRole === "csr" || systemRole === "csr_head" || systemRole === "csr_staff") {
+    return "/crm";
+  }
 
   // system_role = staff — route by job function
   if (systemRole === "staff") {

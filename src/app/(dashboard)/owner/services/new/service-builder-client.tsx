@@ -24,7 +24,7 @@ type Props = {
 export function ServiceBuilderClient({ categories: initialCategories }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const categories = initialCategories;
 
   const [categoryMode, setCategoryMode] = useState<"existing" | "new">(
     initialCategories.length > 0 ? "existing" : "new"
@@ -290,7 +290,7 @@ export function ServiceBuilderClient({ categories: initialCategories }: Props) {
                   ))}
                 </select>
                 {categories.length === 0 && (
-                  <p style={helperStyle}>No categories yet. Switch to "Create new category" to add one.</p>
+                  <p style={helperStyle}>No categories yet. Switch to &quot;Create new category&quot; to add one.</p>
                 )}
               </div>
             ) : (

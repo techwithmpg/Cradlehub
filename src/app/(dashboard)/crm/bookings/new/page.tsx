@@ -28,10 +28,8 @@ async function getDefaultBranchId(): Promise<string | null> {
     .single();
 
   const me = (data ?? null) as StaffContext | null;
-  if (me?.system_role === "manager") {
-    redirect("/manager/bookings");
-  }
-  if (!me || !["crm", "owner"].includes(me.system_role)) {
+  const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
+  if (!me || !allowedRoles.includes(me.system_role)) {
     redirect("/crm");
   }
 

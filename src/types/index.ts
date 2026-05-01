@@ -19,7 +19,17 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export const BOOKING_TYPES = ["online", "walkin", "home_service"] as const;
 export type BookingType = (typeof BOOKING_TYPES)[number];
 
-export const SYSTEM_ROLES = ["owner", "manager", "crm", "staff"] as const;
+export const SYSTEM_ROLES = [
+  "owner",
+  "manager",
+  "assistant_manager",
+  "store_manager",
+  "crm",
+  "csr",
+  "csr_head",
+  "csr_staff",
+  "staff",
+] as const;
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
 export const STAFF_TIERS = ["senior", "mid", "junior"] as const;

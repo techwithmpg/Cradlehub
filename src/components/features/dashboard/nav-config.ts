@@ -10,64 +10,102 @@ export type WorkspaceNav = {
   items: NavItem[];
 };
 
+const OWNER_NAV_ITEMS: NavItem[] = [
+  { label: "Overview", href: "/owner", icon: "LayoutDashboard" },
+  { label: "Schedule", href: "/owner/schedule", icon: "CalendarDays" },
+  { label: "Bookings", href: "/owner/bookings", icon: "CalendarDays" },
+  { label: "Branches", href: "/owner/branches", icon: "Building2" },
+  { label: "Staff", href: "/owner/staff", icon: "Users" },
+  { label: "Services", href: "/owner/services", icon: "Sparkles" },
+  { label: "Dev Panel", href: "/dev", icon: "Wrench" },
+];
+
+const MANAGER_NAV_ITEMS: NavItem[] = [
+  { label: "Today", href: "/manager", icon: "LayoutDashboard" },
+  { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
+  { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+  { label: "Staff", href: "/manager/staff", icon: "Users" },
+  { label: "Operations", href: "/manager/operations", icon: "Monitor" },
+  { label: "Reports", href: "/manager/reports", icon: "BarChart2" },
+];
+
+const CRM_NAV_ITEMS: NavItem[] = [
+  { label: "Today", href: "/crm", icon: "LayoutDashboard" },
+  { label: "Customers", href: "/crm/customers", icon: "Users" },
+  { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+  { label: "Repeats", href: "/crm/repeats", icon: "Heart" },
+  { label: "Lapsed", href: "/crm/lapsed", icon: "ClockAlert" },
+];
+
+const CSR_HEAD_NAV_ITEMS: NavItem[] = [
+  { label: "Today", href: "/crm", icon: "LayoutDashboard" },
+  { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+  { label: "Customers", href: "/crm/customers", icon: "Users" },
+  { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
+  { label: "Reports Lite", href: "/crm/repeats", icon: "BarChart2" },
+];
+
+const CSR_STAFF_NAV_ITEMS: NavItem[] = [
+  { label: "Today", href: "/crm", icon: "LayoutDashboard" },
+  { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
+  { label: "Customers", href: "/crm/customers", icon: "Users" },
+  { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
+];
+
+const STAFF_NAV_ITEMS: NavItem[] = [
+  { label: "Today", href: "/staff-portal", icon: "Sun" },
+  { label: "My Week", href: "/staff-portal/week", icon: "CalendarDays" },
+  { label: "My Stats", href: "/staff-portal/stats", icon: "BarChart2" },
+];
+
+const DRIVER_NAV_ITEMS: NavItem[] = [
+  { label: "Driver Panel", href: "/driver", icon: "Truck" },
+];
+
+const UTILITY_NAV_ITEMS: NavItem[] = [
+  { label: "Utility Panel", href: "/utility", icon: "Wrench" },
+];
+
 export const NAV_CONFIG: Record<string, WorkspaceNav> = {
   owner: {
     role: "owner",
     label: "Owner",
-    items: [
-      { label: "Overview", href: "/owner", icon: "LayoutDashboard" },
-      { label: "Schedule", href: "/owner/schedule", icon: "CalendarDays" },
-      { label: "Bookings", href: "/owner/bookings", icon: "CalendarDays" },
-      { label: "Branches", href: "/owner/branches", icon: "Building2" },
-      { label: "Staff", href: "/owner/staff", icon: "Users" },
-      { label: "Services", href: "/owner/services", icon: "Sparkles" },
-      { label: "Dev Panel", href: "/dev", icon: "Wrench" },
-    ],
+    items: OWNER_NAV_ITEMS,
   },
   manager: {
     role: "manager",
     label: "Manager",
-    items: [
-      { label: "Today", href: "/manager", icon: "LayoutDashboard" },
-      { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
-      { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
-      { label: "Staff", href: "/manager/staff", icon: "Users" },
-      { label: "Operations", href: "/manager/operations", icon: "Monitor" },
-      { label: "Reports", href: "/manager/reports", icon: "BarChart2" },
-    ],
+    items: MANAGER_NAV_ITEMS,
   },
   crm: {
     role: "crm",
     label: "CRM",
-    items: [
-      { label: "Customers", href: "/crm", icon: "Users" },
-      { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
-      { label: "Repeats", href: "/crm/repeats", icon: "Heart" },
-      { label: "Lapsed", href: "/crm/lapsed", icon: "ClockAlert" },
-    ],
+    items: CRM_NAV_ITEMS,
+  },
+  csr_head: {
+    role: "csr_head",
+    label: "CSR Head",
+    items: CSR_HEAD_NAV_ITEMS,
+  },
+  csr_staff: {
+    role: "csr_staff",
+    label: "CSR Staff",
+    items: CSR_STAFF_NAV_ITEMS,
   },
   staff: {
     role: "staff",
     label: "Staff",
-    items: [
-      { label: "Today", href: "/staff-portal", icon: "Sun" },
-      { label: "My Week", href: "/staff-portal/week", icon: "CalendarDays" },
-      { label: "My Stats", href: "/staff-portal/stats", icon: "BarChart2" },
-    ],
+    items: STAFF_NAV_ITEMS,
   },
   driver: {
     role: "driver",
     label: "Driver",
-    items: [
-      { label: "Driver Panel", href: "/driver", icon: "Truck" },
-    ],
+    items: DRIVER_NAV_ITEMS,
   },
   utility: {
     role: "utility",
     label: "Utility",
-    items: [
-      { label: "Utility Panel", href: "/utility", icon: "Wrench" },
-    ],
+    items: UTILITY_NAV_ITEMS,
   },
 };
 
@@ -87,10 +125,23 @@ export function resolveWorkspaceKeyFromPath(pathname: string): string | null {
 }
 
 export function resolveWorkspaceKeyFromRole(role: string): string {
-  if (role === "assistant_manager" || role === "store_manager" || role === "csr") {
+  if (role === "assistant_manager" || role === "store_manager") {
     return "manager";
   }
-  if (role === "owner" || role === "manager" || role === "crm" || role === "staff") {
+  if (role === "csr_head") {
+    return "csr_head";
+  }
+  if (role === "csr_staff" || role === "csr") {
+    return "csr_staff";
+  }
+  if (
+    role === "owner" ||
+    role === "manager" ||
+    role === "crm" ||
+    role === "staff" ||
+    role === "driver" ||
+    role === "utility"
+  ) {
     return role;
   }
   return "staff";

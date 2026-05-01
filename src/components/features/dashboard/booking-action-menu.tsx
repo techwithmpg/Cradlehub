@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { canCancelBooking, canChangeBookingStatus } from "@/lib/permissions";
 
 type BookingTransitionStatus = "in_progress" | "completed" | "cancelled" | "no_show";
 
@@ -28,16 +29,28 @@ const TRANSITIONS: Record<string, TransitionAction[]> = {
 type BookingActionMenuProps = {
   bookingId: string;
   currentStatus: string;
+  userRole?: string;
   onUpdate?: () => void;
 };
 
-export function BookingActionMenu({ bookingId, currentStatus, onUpdate }: BookingActionMenuProps) {
+export function BookingActionMenu({
+  bookingId,
+  currentStatus,
+  userRole,
+  onUpdate,
+}: BookingActionMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const actions = TRANSITIONS[currentStatus];
+  const actions = (TRANSITIONS[currentStatus] ?? []).filter((action) => {
+    if (!userRole) return true;
+    if (action.status === "cancelled") {
+      return canCancelBooking(userRole);
+    }
+    return canChangeBookingStatus(userRole);
+  });
   if (!actions?.length) return null;
 
   function closeFeedbackAfterDelay() {

@@ -28,7 +28,14 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     .eq("auth_user_id", user.id)
     .single();
 
-  if (!me || !["manager", "owner"].includes(me.system_role)) {
+  const allowedRoles = [
+    "owner",
+    "crm",
+    "csr",
+    "csr_head",
+    "csr_staff",
+  ];
+  if (!me || !allowedRoles.includes(me.system_role)) {
     return { success: false, error: "Unauthorized" };
   }
   if (!me.branch_id) {

@@ -39,7 +39,12 @@ function readRelation<T>(relation: Relation<T>): T | null {
   return Array.isArray(relation) ? (relation[0] ?? null) : relation;
 }
 
-async function getManagerBranchId() {
+type OperationsContext = {
+  branchId: string;
+  systemRole: string;
+};
+
+async function getOperationsContext(): Promise<OperationsContext> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -48,12 +53,26 @@ async function getManagerBranchId() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("branch_id")
+    .select("branch_id, system_role")
     .eq("auth_user_id", user.id)
     .single();
 
-  if (!me?.branch_id) redirect("/login");
-  return me.branch_id as string;
+  const allowedRoles = [
+    "owner",
+    "manager",
+    "assistant_manager",
+    "store_manager",
+    "crm",
+    "csr",
+    "csr_head",
+    "csr_staff",
+  ];
+  if (!me?.branch_id || !allowedRoles.includes(me.system_role)) redirect("/login");
+
+  return {
+    branchId: me.branch_id as string,
+    systemRole: me.system_role,
+  };
 }
 
 export default async function ManagerBookingsPage({
@@ -62,7 +81,7 @@ export default async function ManagerBookingsPage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const branchId = await getManagerBranchId();
+  const { branchId, systemRole } = await getOperationsContext();
   const today = new Date().toISOString().split("T")[0]!;
   const date = resolvedSearchParams.date ?? today;
 
@@ -183,7 +202,11 @@ export default async function ManagerBookingsPage({
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                   <BookingTypeBadge type={booking.type} />
                   <BookingStatusBadge status={booking.status} />
-                  <BookingActionMenu bookingId={booking.id} currentStatus={booking.status} />
+                  <BookingActionMenu
+                    bookingId={booking.id}
+                    currentStatus={booking.status}
+                    userRole={systemRole}
+                  />
                 </div>
               </div>
             );

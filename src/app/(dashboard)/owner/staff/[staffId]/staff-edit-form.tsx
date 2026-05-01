@@ -13,8 +13,8 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
-type Tier = "senior" | "mid" | "junior";
-type StaffRole = "manager" | "crm" | "staff";
+type Tier = "senior" | "mid" | "junior" | "head" | "n/a";
+type StaffRole = "manager" | "crm" | "csr" | "csr_head" | "csr_staff" | "staff";
 type StaffType = (typeof STAFF_TYPES)[number];
 
 type StaffActionState = {
@@ -30,11 +30,24 @@ function optionalString(formValue: FormDataEntryValue | null): string | undefine
 }
 
 function isTier(value: string): value is Tier {
-  return value === "senior" || value === "mid" || value === "junior";
+  return (
+    value === "senior" ||
+    value === "mid" ||
+    value === "junior" ||
+    value === "head" ||
+    value === "n/a"
+  );
 }
 
 function isStaffRole(value: string): value is StaffRole {
-  return value === "manager" || value === "crm" || value === "staff";
+  return (
+    value === "manager" ||
+    value === "crm" ||
+    value === "csr" ||
+    value === "csr_head" ||
+    value === "csr_staff" ||
+    value === "staff"
+  );
 }
 
 function isStaffType(value: string): value is StaffType {
@@ -146,6 +159,9 @@ export function StaffEditForm({
         <SelectField id="systemRole" name="systemRole" label="System access role" defaultValue={staffMember.system_role}>
           <option value="manager">Manager</option>
           <option value="crm">CRM</option>
+          <option value="csr_head">CSR Head</option>
+          <option value="csr_staff">CSR Staff</option>
+          <option value="csr">CSR (legacy)</option>
           <option value="staff">Staff</option>
         </SelectField>
 
@@ -169,6 +185,8 @@ export function StaffEditForm({
           <option value="senior">Senior</option>
           <option value="mid">Mid</option>
           <option value="junior">Junior</option>
+          <option value="head">Head</option>
+          <option value="n/a">N/A</option>
         </SelectField>
 
         <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
