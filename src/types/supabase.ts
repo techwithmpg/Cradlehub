@@ -617,6 +617,18 @@ export type Database = {
           staff_tier: string
         }[]
       }
+      get_daily_schedule: {
+        Args: { p_branch_id: string; p_date: string }
+        Returns: {
+          staff_id: string
+          staff_name: string
+          staff_tier: string
+          work_start: string
+          work_end: string
+          bookings: Json
+          blocks: Json
+        }[]
+      }
       get_effective_price: {
         Args: { p_branch_id: string; p_service_id: string }
         Returns: number

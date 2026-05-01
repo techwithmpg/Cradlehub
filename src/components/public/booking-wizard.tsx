@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,8 +19,12 @@ import {
   Building,
   CalendarDays,
   Loader2,
+  Plus,
+  Minus,
+  Sparkles,
 } from "lucide-react";
-import { createOnlineBookingAction } from "@/lib/actions/online-booking";
+import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
+import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 
 type Branch = {
   id: string;
@@ -45,12 +49,25 @@ type Slot = {
   available: boolean;
 };
 
-const steps = [
+type StaffOption = {
+  staff_id: string;
+  staff_name: string;
+  staff_tier: string;
+};
+
+type BookingWizardMode = "public" | "inhouse";
+type BookingType = "online" | "walkin" | "home_service";
+
+const STEPS = [
   { id: 1, label: "Branch" },
-  { id: 2, label: "Service" },
+  { id: 2, label: "Services" },
   { id: 3, label: "Date & Time" },
-  { id: 4, label: "Details" },
+  { id: 4, label: "Therapist" },
+  { id: 5, label: "Details" },
 ];
+
+const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
+const TIER_LABEL: Record<string, string> = { senior: "Senior", mid: "Mid-Level", junior: "Junior" };
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -68,77 +85,128 @@ function formatTime(timeStr: string) {
   return `${displayHour}:${m} ${ampm}`;
 }
 
-// Public booking does not expose therapist selection.
-// Normalize duplicate backend rows into one entry per start time.
-function normalizePublicSlots(rawSlots: Slot[]) {
+// Collapse multiple per-staff rows to one entry per slot_time.
+// Prefers an available row over an unavailable one.
+function normalizePublicSlots(rawSlots: Slot[]): Slot[] {
   const byTime = new Map<string, Slot>();
-
   for (const slot of rawSlots) {
     const existing = byTime.get(slot.slot_time);
     if (!existing) {
       byTime.set(slot.slot_time, slot);
       continue;
     }
-
-    // Prefer an available row if mixed availability appears for the same time.
     if (!existing.available && slot.available) {
       byTime.set(slot.slot_time, slot);
     }
   }
-
-  return Array.from(byTime.values()).sort((a, b) => a.slot_time.localeCompare(b.slot_time));
+  return Array.from(byTime.values()).sort((a, b) =>
+    a.slot_time.localeCompare(b.slot_time)
+  );
 }
 
-export function BookingWizard() {
+// Unique available therapists at a specific slot_time, sorted by tier then name.
+function staffAtSlot(rawSlots: Slot[], slotTime: string): StaffOption[] {
+  const seen = new Set<string>();
+  const out: StaffOption[] = [];
+  for (const s of rawSlots) {
+    if (!s.available) continue;
+    if (!s.slot_time.startsWith(slotTime.substring(0, 5))) continue;
+    if (seen.has(s.staff_id)) continue;
+    seen.add(s.staff_id);
+    out.push({ staff_id: s.staff_id, staff_name: s.staff_name, staff_tier: s.staff_tier });
+  }
+  out.sort((a, b) => {
+    const td = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+    return td !== 0 ? td : a.staff_name.localeCompare(b.staff_name);
+  });
+  return out;
+}
+
+export function BookingWizard({
+  mode = "public",
+  initialBranchId = null,
+}: {
+  mode?: BookingWizardMode;
+  initialBranchId?: string | null;
+} = {}) {
   const [step, setStep] = useState(1);
+
+  // Data
   const [branches, setBranches] = useState<Branch[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [rawSlots, setRawSlots] = useState<Slot[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
+
+  // Loading
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [loadingServices, setLoadingServices] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ bookingId: string } | null>(null);
 
+  // Selections
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [bookingType, setBookingType] = useState<"online" | "home_service">("online");
+  const [selectedStaff, setSelectedStaff] = useState<"auto" | string>("auto");
+  const [bookingType, setBookingType] = useState<BookingType>(
+    mode === "inhouse" ? "walkin" : "online"
+  );
 
-  const [form, setForm] = useState({
-    fullName: "",
-    phone: "",
-    email: "",
-    notes: "",
-  });
+  // Form
+  const [form, setForm] = useState({ fullName: "", phone: "", email: "", notes: "" });
   const [formError, setFormError] = useState("");
+
+  // Computed
+  const totalDuration = useMemo(
+    () => selectedServices.reduce((s, svc) => s + svc.durationMinutes, 0),
+    [selectedServices]
+  );
+  const totalPrice = useMemo(
+    () => selectedServices.reduce((s, svc) => s + svc.price, 0),
+    [selectedServices]
+  );
+  const availableStaffAtSlot = useMemo(
+    () => (selectedSlot ? staffAtSlot(rawSlots, selectedSlot.slot_time) : []),
+    [rawSlots, selectedSlot]
+  );
 
   // Fetch branches on mount
   useEffect(() => {
     fetch("/api/branches")
       .then((r) => r.json())
       .then((data) => {
-        setBranches(data.branches ?? []);
+        const nextBranches = (data.branches ?? []) as Branch[];
+        setBranches(nextBranches);
+        if (mode === "inhouse") {
+          const preferredBranch =
+            (initialBranchId
+              ? nextBranches.find((branch) => branch.id === initialBranchId)
+              : null) ?? nextBranches[0] ?? null;
+          setSelectedBranch(preferredBranch);
+        }
         setLoadingBranches(false);
       })
       .catch(() => setLoadingBranches(false));
-  }, []);
+  }, [initialBranchId, mode]);
 
-  // Fetch services when branch selected
+  // Fetch services when branch changes
   useEffect(() => {
     if (!selectedBranch) return;
     const id = setTimeout(() => setLoadingServices(true), 0);
     fetch(`/api/public/booking-context?branchId=${selectedBranch.id}`)
       .then((r) => r.json())
       .then((data) => {
-        const svcs = (data.services ?? []).map((s: { serviceId?: string; id?: string; name: string; description?: string | null; durationMinutes: number; price: number }) => ({
-          id: s.serviceId ?? s.id ?? "",
-          name: s.name,
-          description: s.description,
-          durationMinutes: s.durationMinutes,
-          price: s.price,
-        }));
+        const svcs = (data.services ?? []).map(
+          (s: { serviceId?: string; id?: string; name: string; description?: string | null; durationMinutes: number; price: number }) => ({
+            id: s.serviceId ?? s.id ?? "",
+            name: s.name,
+            description: s.description,
+            durationMinutes: s.durationMinutes,
+            price: s.price,
+          })
+        );
         setServices(svcs);
         setLoadingServices(false);
       })
@@ -146,25 +214,50 @@ export function BookingWizard() {
     return () => clearTimeout(id);
   }, [selectedBranch]);
 
-  // Fetch slots when branch+service+date selected
+  // Fetch slots when branch + services + date are all selected
   useEffect(() => {
-    if (!selectedBranch || !selectedService || !selectedDate) return;
+    if (!selectedBranch || selectedServices.length === 0 || !selectedDate) return;
     const id = setTimeout(() => setLoadingSlots(true), 0);
     const dateStr = selectedDate.toISOString().split("T")[0]!;
+    const serviceIds = selectedServices.map((s) => s.id).join(",");
     fetch(
-      `/api/booking/available-slots?branchId=${selectedBranch.id}&serviceId=${selectedService.id}&date=${dateStr}`
+      `/api/booking/available-slots?branchId=${selectedBranch.id}&serviceIds=${serviceIds}&date=${dateStr}`
     )
       .then((r) => r.json())
       .then((data) => {
-        setSlots(normalizePublicSlots((data.slots ?? []) as Slot[]));
+        const all = (data.slots ?? []) as Slot[];
+        setRawSlots(all);
+        setSlots(normalizePublicSlots(all));
         setLoadingSlots(false);
       })
       .catch(() => setLoadingSlots(false));
     return () => clearTimeout(id);
-  }, [selectedBranch, selectedService, selectedDate]);
+  }, [selectedBranch, selectedServices, selectedDate]);
+
+  const toggleService = useCallback((svc: Service) => {
+    setSelectedServices((prev) => {
+      const idx = prev.findIndex((s) => s.id === svc.id);
+      return idx >= 0
+        ? [...prev.slice(0, idx), ...prev.slice(idx + 1)]
+        : [...prev, svc];
+    });
+    // Downstream state depends on service selection
+    setSelectedSlot(null);
+    setSelectedStaff("auto");
+  }, []);
+
+  const handleBack = useCallback(() => {
+    if (step === 3) {
+      setSelectedSlot(null);
+      setSelectedStaff("auto");
+    } else if (step === 4) {
+      setSelectedStaff("auto");
+    }
+    setStep((s) => Math.max(1, s - 1));
+  }, [step]);
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedBranch || !selectedService || !selectedDate || !selectedSlot) return;
+    if (!selectedBranch || selectedServices.length === 0 || !selectedDate || !selectedSlot) return;
     if (!form.fullName.trim() || !form.phone.trim()) {
       setFormError("Please enter your full name and phone number.");
       return;
@@ -172,84 +265,93 @@ export function BookingWizard() {
     setFormError("");
     setSubmitting(true);
 
-    const result = await createOnlineBookingAction({
+    const payload = {
       branchId: selectedBranch.id,
-      serviceId: selectedService.id,
+      serviceIds: selectedServices.map((s) => s.id),
+      staffId: selectedStaff !== "auto" ? selectedStaff : undefined,
       date: selectedDate.toISOString().split("T")[0]!,
       startTime: selectedSlot.slot_time,
-      type: bookingType,
       fullName: form.fullName,
       phone: form.phone,
       email: form.email || undefined,
       notes: form.notes || undefined,
-    });
+    };
+
+    const result =
+      mode === "inhouse"
+        ? await createInhouseBookingMultiAction({
+            ...payload,
+            type: bookingType === "home_service" ? "home_service" : "walkin",
+          })
+        : await createOnlineBookingMultiAction({
+            ...payload,
+            type: bookingType === "home_service" ? "home_service" : "online",
+          });
 
     setSubmitting(false);
-    if (result.success) {
+    if (result.ok) {
       setSuccess({ bookingId: result.bookingId });
-      setStep(5);
+      setStep(6);
     } else {
-      setFormError(result.error);
+      setFormError(result.message);
     }
-  }, [selectedBranch, selectedService, selectedDate, selectedSlot, form, bookingType]);
+  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, selectedStaff, form, bookingType, mode]);
 
   const canProceed =
-    step === 1
-      ? !!selectedBranch
-      : step === 2
-      ? !!selectedService
-      : step === 3
-      ? !!selectedSlot
-      : step === 4
-      ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7
-      : false;
+    step === 1 ? !!selectedBranch
+    : step === 2 ? selectedServices.length > 0
+    : step === 3 ? !!selectedSlot
+    : step === 4 ? true // "auto" is always valid; server validates on submit
+    : step === 5 ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7
+    : false;
 
   return (
-    <div className="min-h-screen" style={{ background: "#F7F3EB" }}>
-      {/* Sub-hero header */}
-      <div className="relative pt-28 pb-12 lg:pt-32 lg:pb-16 overflow-hidden">
-        <div className="absolute inset-0">
-          <Image
-            src={SPA_IMAGES.booking}
-            alt="Spa atmosphere"
-            fill
-            className="object-cover"
-            sizes="100vw"
-          />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(16,38,29,0.88) 0%, rgba(22,58,43,0.78) 100%)",
-            }}
-          />
+    <div className={mode === "public" ? "min-h-screen" : ""} style={{ background: mode === "public" ? "#F7F3EB" : "transparent" }}>
+      {mode === "public" && (
+        <div className="relative pt-28 pb-12 lg:pt-32 lg:pb-16 overflow-hidden">
+          <div className="absolute inset-0">
+            <Image
+              src={SPA_IMAGES.booking}
+              alt="Spa atmosphere"
+              fill
+              className="object-cover"
+              sizes="100vw"
+            />
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(16,38,29,0.88) 0%, rgba(22,58,43,0.78) 100%)",
+              }}
+            />
+          </div>
+          <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
+            <p
+              className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-3"
+              style={{ color: "#C8A96B" }}
+            >
+              Online Booking
+            </p>
+            <h1
+              className="text-3xl sm:text-4xl font-medium"
+              style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
+            >
+              Book Your Appointment
+            </h1>
+          </div>
         </div>
-        <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
-          <p
-            className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-3"
-            style={{ color: "#C8A96B" }}
-          >
-            Online Booking
-          </p>
-          <h1
-            className="text-3xl sm:text-4xl font-medium"
-            style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
-          >
-            Book Your Appointment
-          </h1>
-        </div>
-      </div>
+      )}
 
-      <div className="mx-auto max-w-5xl px-6 py-10 lg:py-14">
+      <div className={mode === "public" ? "mx-auto max-w-5xl px-6 py-10 lg:py-14" : "mx-auto max-w-6xl py-2"}>
         {/* Stepper */}
-        {step < 5 && (
+        {step < 6 && (
           <div className="flex items-center justify-center mb-12">
-            <div className="flex items-center gap-1 sm:gap-3">
-              {steps.map((s, i) => (
-                <div key={s.id} className="flex items-center gap-1 sm:gap-3">
+            <div className="flex items-center gap-0.5 sm:gap-2">
+              {STEPS.map((s, i) => (
+                <div key={s.id} className="flex items-center gap-0.5 sm:gap-2">
                   <div className="flex flex-col items-center">
                     <div
-                      className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-[12px] sm:text-[13px] font-semibold transition-all duration-300 ${
+                      className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full text-[11px] sm:text-[12px] font-semibold transition-all duration-300 ${
                         step > s.id
                           ? "bg-[#163A2B] text-[#C8A96B]"
                           : step === s.id
@@ -257,19 +359,19 @@ export function BookingWizard() {
                           : "bg-white text-[#9AA89A] border border-[#EDE4D3]"
                       }`}
                     >
-                      {step > s.id ? <Check className="h-4 w-4" /> : s.id}
+                      {step > s.id ? <Check className="h-3.5 w-3.5" /> : s.id}
                     </div>
                     <span
-                      className={`hidden sm:block text-[11px] mt-2 font-medium ${
+                      className={`hidden sm:block text-[10px] mt-1.5 font-medium ${
                         step >= s.id ? "text-[#163A2B]" : "text-[#9AA89A]"
                       }`}
                     >
                       {s.label}
                     </span>
                   </div>
-                  {i < steps.length - 1 && (
+                  {i < STEPS.length - 1 && (
                     <div
-                      className={`w-5 sm:w-12 lg:w-16 h-0.5 rounded-full transition-colors duration-300 ${
+                      className={`w-4 sm:w-8 lg:w-12 h-0.5 rounded-full mb-4 sm:mb-3 transition-colors duration-300 ${
                         step > s.id ? "bg-[#C8A96B]" : "bg-[#EDE4D3]"
                       }`}
                     />
@@ -291,8 +393,9 @@ export function BookingWizard() {
                 selected={selectedBranch}
                 onSelect={(b) => {
                   setSelectedBranch(b);
-                  setSelectedService(null);
+                  setSelectedServices([]);
                   setSelectedSlot(null);
+                  setSelectedStaff("auto");
                 }}
               />
             )}
@@ -300,41 +403,55 @@ export function BookingWizard() {
               <StepServices
                 services={services}
                 loading={loadingServices}
-                selected={selectedService}
-                onSelect={(s) => {
-                  setSelectedService(s);
-                  setSelectedSlot(null);
-                }}
+                selected={selectedServices}
+                onToggle={toggleService}
+                totalDuration={totalDuration}
+                totalPrice={totalPrice}
               />
             )}
             {step === 3 && (
               <StepDateTime
                 selectedDate={selectedDate}
-                onSelectDate={setSelectedDate}
+                onSelectDate={(d) => {
+                  setSelectedDate(d);
+                  setSelectedSlot(null);
+                  setSelectedStaff("auto");
+                }}
                 slots={slots}
                 loading={loadingSlots}
                 selectedSlot={selectedSlot}
-                onSelectSlot={setSelectedSlot}
+                onSelectSlot={(s) => {
+                  setSelectedSlot(s);
+                  setSelectedStaff("auto");
+                }}
               />
             )}
             {step === 4 && (
+              <StepTherapist
+                availableStaff={availableStaffAtSlot}
+                selected={selectedStaff}
+                onSelect={setSelectedStaff}
+              />
+            )}
+            {step === 5 && (
               <StepDetails
                 form={form}
                 onChange={setForm}
                 error={formError}
                 bookingType={bookingType}
                 onChangeType={setBookingType}
+                mode={mode}
               />
             )}
-            {step === 5 && success && (
-              <StepSuccess bookingId={success.bookingId} />
+            {step === 6 && success && (
+              <StepSuccess bookingId={success.bookingId} services={selectedServices} mode={mode} />
             )}
 
             {/* Navigation */}
-            {step < 5 && (
+            {step < 6 && (
               <div className="flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]">
                 <button
-                  onClick={() => setStep(Math.max(1, step - 1))}
+                  onClick={handleBack}
                   disabled={step === 1}
                   className="flex items-center gap-2 text-[13px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:text-[#163A2B]"
                   style={{ color: "#6B7A6F" }}
@@ -342,7 +459,7 @@ export function BookingWizard() {
                   <ChevronLeft className="h-4 w-4" />
                   Back
                 </button>
-                {step < 4 ? (
+                {step < 5 ? (
                   <button
                     onClick={() => setStep(step + 1)}
                     disabled={!canProceed}
@@ -387,52 +504,19 @@ export function BookingWizard() {
           </div>
 
           {/* Summary sidebar */}
-          {step < 5 && (
+          {step < 6 && (
             <div className="hidden lg:block">
-              <div
-                className="sticky top-28 rounded-2xl p-6 border"
-                style={{
-                  background: "#FCFAF5",
-                  borderColor: "#EDE4D3",
-                }}
-              >
-                <h3
-                  className="text-[14px] font-semibold mb-5"
-                  style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-                >
-                  Booking Summary
-                </h3>
-                <div className="flex flex-col gap-5">
-                  <SummaryRow
-                    icon={Building}
-                    label="Branch"
-                    value={selectedBranch?.name}
-                    placeholder="Not selected"
-                  />
-                  <SummaryRow
-                    icon={Clock}
-                    label="Service"
-                    value={selectedService?.name}
-                    placeholder="Not selected"
-                    sub={selectedService ? `${selectedService.durationMinutes} min · ${formatCurrency(selectedService.price)}` : undefined}
-                  />
-                  <SummaryRow
-                    icon={CalendarDays}
-                    label="Date & Time"
-                    value={
-                      selectedDate && selectedSlot
-                        ? `${selectedDate.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })} at ${formatTime(selectedSlot.slot_time)}`
-                        : undefined
-                    }
-                    placeholder="Not selected"
-                  />
-                  <SummaryRow
-                    icon={bookingType === "home_service" ? Home : Building}
-                    label="Type"
-                    value={bookingType === "home_service" ? "Home Service" : "In-Spa"}
-                  />
-                </div>
-              </div>
+              <BookingSummary
+                branch={selectedBranch}
+                services={selectedServices}
+                totalDuration={totalDuration}
+                totalPrice={totalPrice}
+                selectedDate={selectedDate}
+                selectedSlot={selectedSlot}
+                selectedStaff={selectedStaff}
+                availableStaff={availableStaffAtSlot}
+                bookingType={bookingType}
+              />
             </div>
           )}
         </div>
@@ -440,6 +524,8 @@ export function BookingWizard() {
     </div>
   );
 }
+
+// ── Shared helper ──────────────────────────────────────────────────────────────
 
 function SummaryRow({
   icon: Icon,
@@ -471,6 +557,113 @@ function SummaryRow({
     </div>
   );
 }
+
+// ── Booking summary sidebar ────────────────────────────────────────────────────
+
+function BookingSummary({
+  branch,
+  services,
+  totalDuration,
+  totalPrice,
+  selectedDate,
+  selectedSlot,
+  selectedStaff,
+  availableStaff,
+  bookingType,
+}: {
+  branch: Branch | null;
+  services: Service[];
+  totalDuration: number;
+  totalPrice: number;
+  selectedDate: Date | undefined;
+  selectedSlot: Slot | null;
+  selectedStaff: "auto" | string;
+  availableStaff: StaffOption[];
+  bookingType: BookingType;
+}) {
+  const staffLabel =
+    selectedStaff === "auto"
+      ? "Auto-assign"
+      : availableStaff.find((s) => s.staff_id === selectedStaff)?.staff_name;
+
+  return (
+    <div
+      className="sticky top-28 rounded-2xl p-6 border"
+      style={{ background: "#FCFAF5", borderColor: "#EDE4D3" }}
+    >
+      <h3
+        className="text-[14px] font-semibold mb-5"
+        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+      >
+        Booking Summary
+      </h3>
+      <div className="flex flex-col gap-5">
+        <SummaryRow
+          icon={Building}
+          label="Branch"
+          value={branch?.name}
+          placeholder="Not selected"
+        />
+
+        {/* Services list */}
+        <div className="flex items-start gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#163A2B]/5 shrink-0">
+            <Clock className="h-4 w-4 text-[#163A2B]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "#9AA89A" }}>
+              Services
+            </p>
+            {services.length === 0 ? (
+              <p className="text-[13px] font-medium mt-0.5" style={{ color: "#9AA89A" }}>
+                Not selected
+              </p>
+            ) : (
+              <>
+                {services.map((s) => (
+                  <p key={s.id} className="text-[13px] font-medium mt-0.5" style={{ color: "#163A2B" }}>
+                    {s.name}
+                  </p>
+                ))}
+                <p className="text-[11px] mt-1.5 font-medium" style={{ color: "#C8A96B" }}>
+                  {totalDuration} min · {formatCurrency(totalPrice)}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <SummaryRow
+          icon={CalendarDays}
+          label="Date & Time"
+          value={
+            selectedDate && selectedSlot
+              ? `${selectedDate.toLocaleDateString("en-PH", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })} at ${formatTime(selectedSlot.slot_time)}`
+              : undefined
+          }
+          placeholder="Not selected"
+        />
+        <SummaryRow
+          icon={User}
+          label="Therapist"
+          value={staffLabel}
+          placeholder="Not selected"
+        />
+        <SummaryRow
+          icon={bookingType === "home_service" ? Home : Building}
+          label="Type"
+          value={bookingType === "home_service" ? "Home Service" : "In-Spa"}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Step 1: Branch ─────────────────────────────────────────────────────────────
 
 function StepBranches({
   branches,
@@ -530,7 +723,9 @@ function StepBranches({
           >
             <div
               className={`flex h-10 w-10 items-center justify-center rounded-lg shrink-0 ${
-                selected?.id === branch.id ? "bg-[#163A2B] text-[#C8A96B]" : "bg-[#163A2B]/5 text-[#163A2B]"
+                selected?.id === branch.id
+                  ? "bg-[#163A2B] text-[#C8A96B]"
+                  : "bg-[#163A2B]/5 text-[#163A2B]"
               }`}
             >
               <MapPin className="h-5 w-5" />
@@ -552,16 +747,22 @@ function StepBranches({
   );
 }
 
+// ── Step 2: Services (multi-select) ────────────────────────────────────────────
+
 function StepServices({
   services,
   loading,
   selected,
-  onSelect,
+  onToggle,
+  totalDuration,
+  totalPrice,
 }: {
   services: Service[];
   loading: boolean;
-  selected: Service | null;
-  onSelect: (s: Service) => void;
+  selected: Service[];
+  onToggle: (s: Service) => void;
+  totalDuration: number;
+  totalPrice: number;
 }) {
   if (loading) {
     return (
@@ -586,59 +787,106 @@ function StepServices({
     );
   }
 
+  const selectedIds = new Set(selected.map((s) => s.id));
+
   return (
     <div>
       <h2
         className="text-2xl font-medium mb-2"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
-        Choose a Service
+        Choose Your Services
       </h2>
-      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
-        Select the treatment you would like to book.
+      <p className="text-[14px] mb-6" style={{ color: "#6B7A6F" }}>
+        Select one or more treatments. They will be performed consecutively by the same therapist.
       </p>
-      <div className="flex flex-col gap-4">
-        {services.map((service) => (
-          <button
-            key={service.id}
-            onClick={() => onSelect(service)}
-            className={`flex items-center gap-5 p-5 rounded-xl border text-left transition-all duration-300 ${
-              selected?.id === service.id
-                ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-                : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
-            }`}
-          >
-            <div
-              className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
-                selected?.id === service.id ? "bg-[#163A2B] text-[#C8A96B]" : "bg-[#163A2B]/5 text-[#163A2B]"
+
+      <div className="flex flex-col gap-3">
+        {services.map((service) => {
+          const isSelected = selectedIds.has(service.id);
+          return (
+            <button
+              key={service.id}
+              onClick={() => onToggle(service)}
+              className={`flex items-center gap-5 p-5 rounded-xl border text-left transition-all duration-300 ${
+                isSelected
+                  ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+                  : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
               }`}
             >
-              <Clock className="h-6 w-6" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-[14px] font-semibold truncate" style={{ color: "#163A2B" }}>
-                  {service.name}
-                </p>
-                <span className="text-[13px] font-semibold shrink-0" style={{ color: "#C8A96B" }}>
-                  {formatCurrency(service.price)}
-                </span>
+              {/* Checkbox indicator */}
+              <div
+                className={`flex h-6 w-6 items-center justify-center rounded-full border-2 shrink-0 transition-all ${
+                  isSelected
+                    ? "bg-[#163A2B] border-[#163A2B]"
+                    : "border-[#D5C9BB] bg-white"
+                }`}
+              >
+                {isSelected && <Check className="h-3.5 w-3.5 text-[#C8A96B]" />}
               </div>
-              {service.description && (
-                <p className="text-[12px] mt-1 line-clamp-2" style={{ color: "#6B7A6F" }}>
-                  {service.description}
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-[14px] font-semibold truncate" style={{ color: "#163A2B" }}>
+                    {service.name}
+                  </p>
+                  <span className="text-[13px] font-semibold shrink-0" style={{ color: "#C8A96B" }}>
+                    {formatCurrency(service.price)}
+                  </span>
+                </div>
+                {service.description && (
+                  <p className="text-[12px] mt-1 line-clamp-2" style={{ color: "#6B7A6F" }}>
+                    {service.description}
+                  </p>
+                )}
+                <p className="text-[11px] mt-2 font-medium" style={{ color: "#9AA89A" }}>
+                  {service.durationMinutes} minutes
                 </p>
-              )}
-              <p className="text-[11px] mt-2 font-medium" style={{ color: "#9AA89A" }}>
-                {service.durationMinutes} minutes
-              </p>
-            </div>
-          </button>
-        ))}
+              </div>
+
+              {/* Toggle icon */}
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 transition-all ${
+                  isSelected
+                    ? "bg-[#163A2B]/10 text-[#163A2B]"
+                    : "bg-[#163A2B]/5 text-[#9AA89A]"
+                }`}
+              >
+                {isSelected ? (
+                  <Minus className="h-4 w-4" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Running total */}
+      {selected.length > 0 && (
+        <div
+          className="mt-6 flex items-center justify-between rounded-xl px-5 py-4"
+          style={{ background: "#163A2B" }}
+        >
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "rgba(247,243,235,0.5)" }}>
+              {selected.length} {selected.length === 1 ? "service" : "services"} selected
+            </p>
+            <p className="text-[13px] font-medium mt-0.5" style={{ color: "#FCFAF5" }}>
+              {totalDuration} min total
+            </p>
+          </div>
+          <p className="text-[20px] font-semibold" style={{ color: "#C8A96B" }}>
+            {formatCurrency(totalPrice)}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
+
+// ── Step 3: Date & Time ────────────────────────────────────────────────────────
 
 function StepDateTime({
   selectedDate,
@@ -670,7 +918,7 @@ function StepDateTime({
         Select Date & Time
       </h2>
       <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
-        Choose your preferred date and available time slot.
+        Choose your preferred date and an available start time.
       </p>
 
       <div className="grid md:grid-cols-2 gap-8">
@@ -740,19 +988,149 @@ function StepDateTime({
   );
 }
 
+// ── Step 4: Therapist ─────────────────────────────────────────────────────────
+
+function StepTherapist({
+  availableStaff,
+  selected,
+  onSelect,
+}: {
+  availableStaff: StaffOption[];
+  selected: "auto" | string;
+  onSelect: (choice: "auto" | string) => void;
+}) {
+  return (
+    <div>
+      <h2
+        className="text-2xl font-medium mb-2"
+        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+      >
+        Choose Your Therapist
+      </h2>
+      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
+        Pick a preferred therapist or let us match you with the best available.
+      </p>
+
+      <div className="flex flex-col gap-3">
+        {/* Auto-assign option */}
+        <button
+          onClick={() => onSelect("auto")}
+          className={`flex items-center gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
+            selected === "auto"
+              ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+              : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+          }`}
+        >
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
+              selected === "auto" ? "bg-[#163A2B] text-[#C8A96B]" : "bg-[#163A2B]/5 text-[#163A2B]"
+            }`}
+          >
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
+                Auto-assign
+              </p>
+              <span
+                className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                style={{ background: "#163A2B", color: "#C8A96B" }}
+              >
+                Recommended
+              </span>
+            </div>
+            <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
+              We will assign the best available therapist by seniority.
+            </p>
+          </div>
+          {selected === "auto" && (
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#163A2B] shrink-0">
+              <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
+            </div>
+          )}
+        </button>
+
+        {/* Individual therapist options */}
+        {availableStaff.length > 0 && (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-wide pt-2" style={{ color: "#9AA89A" }}>
+              Or choose a specific therapist
+            </p>
+            {availableStaff.map((staff) => (
+              <button
+                key={staff.staff_id}
+                onClick={() => onSelect(staff.staff_id)}
+                className={`flex items-center gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
+                  selected === staff.staff_id
+                    ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+                    : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+                }`}
+              >
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
+                    selected === staff.staff_id
+                      ? "bg-[#163A2B] text-[#C8A96B]"
+                      : "bg-[#163A2B]/5 text-[#163A2B]"
+                  }`}
+                >
+                  <User className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
+                      {staff.staff_name}
+                    </p>
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                      style={
+                        staff.staff_tier === "senior"
+                          ? { background: "#C8A96B20", color: "#8A6B35" }
+                          : staff.staff_tier === "mid"
+                          ? { background: "#163A2B15", color: "#163A2B" }
+                          : { background: "#F0ECE5", color: "#6B7A6F" }
+                      }
+                    >
+                      {TIER_LABEL[staff.staff_tier] ?? staff.staff_tier}
+                    </span>
+                  </div>
+                  <p className="text-[12px] mt-1" style={{ color: "#9AA89A" }}>
+                    Available at your selected time
+                  </p>
+                </div>
+                {selected === staff.staff_id && (
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#163A2B] shrink-0">
+                    <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
+                  </div>
+                )}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Step 5: Details ────────────────────────────────────────────────────────────
+
 function StepDetails({
   form,
   onChange,
   error,
   bookingType,
   onChangeType,
+  mode,
 }: {
   form: { fullName: string; phone: string; email: string; notes: string };
   onChange: (f: typeof form) => void;
   error: string;
-  bookingType: "online" | "home_service";
-  onChangeType: (t: "online" | "home_service") => void;
+  bookingType: BookingType;
+  onChangeType: (t: BookingType) => void;
+  mode: BookingWizardMode;
 }) {
+  const inSpaValue: BookingType = mode === "inhouse" ? "walkin" : "online";
+
   return (
     <div>
       <h2
@@ -768,15 +1146,15 @@ function StepDetails({
       {/* Booking type */}
       <div className="flex gap-3 mb-8">
         <button
-          onClick={() => onChangeType("online")}
+          onClick={() => onChangeType(inSpaValue)}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-[13px] font-medium transition-all ${
-            bookingType === "online"
+            bookingType === inSpaValue
               ? "border-[#C8A96B] bg-[#C8A96B]/5 text-[#163A2B]"
               : "border-[#EDE4D3] bg-white text-[#6B7A6F] hover:border-[#C8A96B]/30"
           }`}
         >
           <Building className="h-4 w-4" />
-          In-Spa
+          {mode === "inhouse" ? "Walk-in / In-Spa" : "In-Spa"}
         </button>
         <button
           onClick={() => onChangeType("home_service")}
@@ -793,7 +1171,10 @@ function StepDetails({
 
       <div className="flex flex-col gap-5">
         <div>
-          <label className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#9AA89A" }}>
+          <label
+            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
+            style={{ color: "#9AA89A" }}
+          >
             <User className="h-3.5 w-3.5" />
             Full Name *
           </label>
@@ -807,7 +1188,10 @@ function StepDetails({
         </div>
 
         <div>
-          <label className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#9AA89A" }}>
+          <label
+            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
+            style={{ color: "#9AA89A" }}
+          >
             <Phone className="h-3.5 w-3.5" />
             Phone Number *
           </label>
@@ -821,9 +1205,13 @@ function StepDetails({
         </div>
 
         <div>
-          <label className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#9AA89A" }}>
+          <label
+            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
+            style={{ color: "#9AA89A" }}
+          >
             <Mail className="h-3.5 w-3.5" />
-            Email <span className="normal-case font-normal">(optional)</span>
+            Email{" "}
+            <span className="normal-case font-normal">(optional)</span>
           </label>
           <input
             type="email"
@@ -835,9 +1223,13 @@ function StepDetails({
         </div>
 
         <div>
-          <label className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2" style={{ color: "#9AA89A" }}>
+          <label
+            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
+            style={{ color: "#9AA89A" }}
+          >
             <FileText className="h-3.5 w-3.5" />
-            Notes <span className="normal-case font-normal">(optional)</span>
+            Notes{" "}
+            <span className="normal-case font-normal">(optional)</span>
           </label>
           <textarea
             value={form.notes}
@@ -858,7 +1250,17 @@ function StepDetails({
   );
 }
 
-function StepSuccess({ bookingId }: { bookingId: string }) {
+// ── Step 6: Success ────────────────────────────────────────────────────────────
+
+function StepSuccess({
+  bookingId,
+  services,
+  mode,
+}: {
+  bookingId: string;
+  services: Service[];
+  mode: BookingWizardMode;
+}) {
   return (
     <div className="text-center py-12">
       <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#163A2B] text-[#C8A96B] mx-auto mb-6">
@@ -868,12 +1270,31 @@ function StepSuccess({ bookingId }: { bookingId: string }) {
         className="text-2xl sm:text-3xl font-medium mb-3"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
-        Booking Confirmed
+        {mode === "inhouse" ? "Booking Saved" : "Booking Confirmed"}
       </h2>
-      <p className="text-[15px] max-w-md mx-auto mb-8" style={{ color: "#6B7A6F" }}>
-        Thank you for choosing Cradle Massage & Wellness Spa. Your appointment has been confirmed and
-        our team looks forward to welcoming you.
+      <p className="text-[15px] max-w-md mx-auto mb-6" style={{ color: "#6B7A6F" }}>
+        {mode === "inhouse"
+          ? "The appointment has been saved and confirmed in the CRM workspace."
+          : "Thank you for choosing Cradle Massage & Wellness Spa. Your appointment has been confirmed and our team looks forward to welcoming you."}
       </p>
+
+      {/* Service list recap */}
+      {services.length > 0 && (
+        <div
+          className="inline-flex flex-col items-start gap-1.5 rounded-xl px-6 py-4 mb-6 text-left"
+          style={{ background: "#FCFAF5", border: "1px solid #EDE4D3" }}
+        >
+          {services.map((s) => (
+            <div key={s.id} className="flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 shrink-0" style={{ color: "#C8A96B" }} />
+              <span className="text-[13px] font-medium" style={{ color: "#163A2B" }}>
+                {s.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div
         className="inline-flex items-center gap-3 rounded-xl px-6 py-4 mb-8"
         style={{ background: "#FCFAF5", border: "1px solid #EDE4D3" }}
@@ -885,8 +1306,11 @@ function StepSuccess({ bookingId }: { bookingId: string }) {
           {bookingId.slice(0, 8).toUpperCase()}
         </span>
       </div>
+
       <p className="text-[12px]" style={{ color: "#9AA89A" }}>
-        A confirmation has been sent to our front desk. If you need to make any changes, please call us directly.
+        {mode === "inhouse"
+          ? "You can view or adjust this booking anytime from the bookings workspace."
+          : "A confirmation has been sent to our front desk. If you need to make any changes, please call us directly."}
       </p>
     </div>
   );

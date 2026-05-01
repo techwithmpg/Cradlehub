@@ -16,6 +16,7 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
     label: "Owner",
     items: [
       { label: "Overview", href: "/owner", icon: "LayoutDashboard" },
+      { label: "Schedule", href: "/owner/schedule", icon: "CalendarDays" },
       { label: "Bookings", href: "/owner/bookings", icon: "CalendarDays" },
       { label: "Branches", href: "/owner/branches", icon: "Building2" },
       { label: "Staff", href: "/owner/staff", icon: "Users" },
@@ -41,6 +42,7 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
     label: "CRM",
     items: [
       { label: "Customers", href: "/crm", icon: "Users" },
+      { label: "Bookings", href: "/crm/bookings/new", icon: "UserPlus" },
       { label: "Repeats", href: "/crm/repeats", icon: "Heart" },
       { label: "Lapsed", href: "/crm/lapsed", icon: "ClockAlert" },
     ],

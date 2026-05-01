@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllBranches, getBranchServices } from "@/lib/queries/branches";
-import { getStaffByBranch } from "@/lib/queries/staff";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
 type BranchRow = Pick<
@@ -27,9 +27,61 @@ type StaffRow = Pick<
   "id" | "full_name" | "tier" | "is_active" | "staff_type" | "is_head"
 >;
 
+type LegacyStaffRow = Pick<
+  Database["public"]["Tables"]["staff"]["Row"],
+  "id" | "full_name" | "tier" | "is_active"
+>;
+
 function firstService(value: ServiceRelation): ServiceRow | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function isMissingStaffOrgColumnsError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('column staff.staff_type does not exist') ||
+    m.includes('column "staff_type" does not exist') ||
+    m.includes('column staff.is_head does not exist') ||
+    m.includes('column "is_head" does not exist') ||
+    m.includes("could not find the 'is_head' column") ||
+    m.includes("could not find the 'staff_type' column")
+  );
+}
+
+async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
+  const supabase = createAdminClient();
+  const primary = await supabase
+    .from("staff")
+    .select("id, full_name, tier, is_active, staff_type, is_head")
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("tier")
+    .order("full_name");
+
+  if (!primary.error) {
+    return (primary.data ?? []) as StaffRow[];
+  }
+
+  if (isMissingStaffOrgColumnsError(primary.error.message)) {
+    const fallback = await supabase
+      .from("staff")
+      .select("id, full_name, tier, is_active")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("tier")
+      .order("full_name");
+
+    if (fallback.error) throw new Error(fallback.error.message);
+
+    return ((fallback.data ?? []) as LegacyStaffRow[]).map((member) => ({
+      ...member,
+      staff_type: "therapist",
+      is_head: false,
+    })) as StaffRow[];
+  }
+
+  throw new Error(primary.error.message);
 }
 
 export async function GET(request: NextRequest) {
@@ -58,7 +110,7 @@ export async function GET(request: NextRequest) {
 
   const [rawBranchServices, rawStaff] = await Promise.all([
     getBranchServices(selectedBranchId),
-    getStaffByBranch(selectedBranchId),
+    getPublicStaffByBranch(selectedBranchId),
   ]);
 
   const branchServices = (rawBranchServices as BranchServiceRow[])

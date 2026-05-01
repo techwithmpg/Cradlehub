@@ -86,6 +86,137 @@ export async function assignTherapistBySeniority(params: {
   return candidates[0]!.staff_id;
 }
 
+// HH:MM or HH:MM:SS → total minutes
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+/**
+ * Multi-service variant of getAvailableSlots.
+ * Combines durations of all selected services and post-filters slots so only
+ * (staff, slot_time) pairs with the full combined window free are marked available.
+ */
+export async function getAvailableSlotsMulti(params: {
+  branchId:   string;
+  serviceIds: string[];
+  date:       string;
+}): Promise<AvailabilitySlot[]> {
+  const { branchId, serviceIds, date } = params;
+
+  if (serviceIds.length === 0) return [];
+  if (serviceIds.length === 1) {
+    return getAvailableSlots({ branchId, serviceId: serviceIds[0]!, date });
+  }
+
+  const supabase = createAdminClient();
+
+  // 1. Total effective duration across all services
+  const { data: svcs, error: svcsErr } = await supabase
+    .from("services")
+    .select("id, duration_minutes, buffer_before, buffer_after")
+    .in("id", serviceIds);
+
+  if (svcsErr) throw new Error(`Failed to fetch services: ${svcsErr.message}`);
+
+  const totalMinutes = (svcs ?? []).reduce(
+    (sum, s) => sum + s.duration_minutes + s.buffer_before + s.buffer_after,
+    0
+  );
+
+  // 2. Staff qualification intersection — only staff qualified for ALL services
+  const qualifiedIds = new Set<string>();
+  let hasCapabilityRows = false;
+
+  for (const serviceId of serviceIds) {
+    const { data: rows, error: capErr } = await supabase
+      .from("staff_services")
+      .select("staff_id")
+      .eq("service_id", serviceId);
+
+    if (!capErr && rows && rows.length > 0) {
+      const ids = new Set(rows.map((r) => r.staff_id));
+      if (!hasCapabilityRows) {
+        ids.forEach((id) => qualifiedIds.add(id));
+        hasCapabilityRows = true;
+      } else {
+        for (const id of qualifiedIds) {
+          if (!ids.has(id)) qualifiedIds.delete(id);
+        }
+      }
+    }
+  }
+
+  // 3. Get base slots using first service (provides correct slot intervals)
+  const baseSlots = await getAvailableSlots({ branchId, serviceId: serviceIds[0]!, date });
+
+  // 4. Fetch existing bookings for the day to validate full combined window
+  const { data: dayBookings } = await supabase
+    .from("bookings")
+    .select("staff_id, start_time, end_time")
+    .eq("branch_id", branchId)
+    .eq("booking_date", date)
+    .neq("status", "cancelled");
+
+  const bookingsByStaff = new Map<string, Array<{ start: number; end: number }>>();
+  for (const b of dayBookings ?? []) {
+    if (!bookingsByStaff.has(b.staff_id)) bookingsByStaff.set(b.staff_id, []);
+    bookingsByStaff.get(b.staff_id)!.push({
+      start: timeToMinutes(b.start_time),
+      end:   timeToMinutes(b.end_time),
+    });
+  }
+
+  return baseSlots
+    .filter((slot) => !hasCapabilityRows || qualifiedIds.has(slot.staff_id))
+    .map((slot) => {
+      if (!slot.available) return slot;
+
+      const slotStart = timeToMinutes(slot.slot_time);
+      const slotEnd   = slotStart + totalMinutes;
+
+      const staffBookings = bookingsByStaff.get(slot.staff_id) ?? [];
+      const hasConflict = staffBookings.some((b) => b.start < slotEnd && b.end > slotStart);
+
+      return { ...slot, available: !hasConflict };
+    });
+}
+
+/**
+ * Multi-service variant of assignTherapistBySeniority.
+ * Finds available therapists for the combined duration and assigns by tier priority.
+ */
+export async function assignTherapistBySeniorityMulti(params: {
+  branchId:   string;
+  serviceIds: string[];
+  date:       string;
+  startTime:  string;
+}): Promise<string> {
+  const slots = await getAvailableSlotsMulti({
+    branchId:   params.branchId,
+    serviceIds: params.serviceIds,
+    date:       params.date,
+  });
+
+  const candidates = slots.filter(
+    (s) =>
+      s.available &&
+      s.slot_time.startsWith(params.startTime.substring(0, 5))
+  );
+
+  if (candidates.length === 0) throw new SlotUnavailableError();
+
+  const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
+  candidates.sort((a, b) => {
+    const tierDiff =
+      (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+    if (tierDiff !== 0) return tierDiff;
+    return a.staff_name.localeCompare(b.staff_name);
+  });
+
+  return candidates[0]!.staff_id;
+}
+
 /**
  * Verifies a specific slot is still available.
  * Throws SlotUnavailableError if taken (race condition protection).

@@ -100,7 +100,7 @@ export default async function CrmPage({
         }}
       >
         <Link
-          href="/manager/walkin"
+          href="/crm/bookings/new"
           style={{
             padding: "6px 14px",
             borderRadius: 6,
@@ -111,7 +111,7 @@ export default async function CrmPage({
             textDecoration: "none",
           }}
         >
-          ➕ Walk-in Booking
+          ➕ In-House Booking
         </Link>
         <Link
           href="/manager/bookings"
@@ -561,7 +561,7 @@ function CrmEmptyState() {
         action={
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
             <Link
-              href="/manager/walkin"
+              href="/crm/bookings/new"
               style={{
                 padding: "8px 16px",
                 borderRadius: 6,
@@ -572,7 +572,7 @@ function CrmEmptyState() {
                 textDecoration: "none",
               }}
             >
-              Create Walk-in Booking
+              Create In-House Booking
             </Link>
             <Link
               href="/book"
@@ -605,9 +605,9 @@ function CrmEmptyState() {
         {[
           {
             icon: "➕",
-            title: "Create a walk-in booking",
+            title: "Create an in-house booking",
             desc: "Add a customer instantly at the front desk.",
-            href: "/manager/walkin",
+            href: "/crm/bookings/new",
           },
           {
             icon: "🌐",

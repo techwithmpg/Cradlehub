@@ -56,6 +56,22 @@ export const createWalkinBookingSchema = z.object({
 });
 export type CreateWalkinBookingInput = z.infer<typeof createWalkinBookingSchema>;
 
+// ── In-house wizard booking (CRM/Manager): multi-service + optional therapist ──
+export const createInhouseBookingMultiSchema = z.object({
+  branchId:         uuid.optional(), // defaults to operator's branch when omitted
+  serviceIds:       z.array(uuid).min(1, "Select at least one service").max(5, "Maximum 5 services per booking"),
+  staffId:          uuid.optional(), // undefined = auto-assign by seniority
+  date:             anyDate,
+  startTime:        timeStr,
+  type:             z.enum(["walkin", "home_service"]).default("walkin"),
+  travelBufferMins: z.number().int().min(0).max(300).optional(),
+  fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
+  phone,
+  email:            z.string().email("Invalid email").optional().or(z.literal("")),
+  notes:            z.string().max(500).optional(),
+});
+export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
+
 // ── Manager edit any booking field ────────────────────────────────────────
 export const editBookingSchema = z
   .object({
@@ -81,6 +97,22 @@ export const updateBookingStatusSchema = z.object({
   notes:     z.string().max(500).optional(),
 });
 export type UpdateBookingStatusInput = z.infer<typeof updateBookingStatusSchema>;
+
+// ── Multi-service public online booking ───────────────────────────────────────
+export const createOnlineBookingMultiSchema = z.object({
+  branchId:         uuid,
+  serviceIds:       z.array(uuid).min(1, "Select at least one service").max(5, "Maximum 5 services per booking"),
+  staffId:          uuid.optional(),
+  date:             onlineBookingDate,
+  startTime:        timeStr,
+  type:             z.enum(["online", "home_service"]).default("online"),
+  travelBufferMins: z.number().int().min(0).max(300).optional(),
+  fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
+  phone,
+  email:            z.string().email("Invalid email").optional().or(z.literal("")),
+  notes:            z.string().max(500).optional(),
+});
+export type CreateOnlineBookingMultiInput = z.infer<typeof createOnlineBookingMultiSchema>;
 
 // ── Availability query ────────────────────────────────────────────────────
 export const getAvailableSlotsSchema = z.object({

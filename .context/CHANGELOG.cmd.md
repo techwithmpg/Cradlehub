@@ -228,8 +228,6 @@ All 8 sprints committed. System is production-ready pending data setup.
 - `src/components/features/dashboard/stat-card.tsx` — Playfair Display numbers, trend indicators, floating shadow
 - `src/components/features/dashboard/page-header.tsx` — icon slot, Playfair title, warm border divider
 - `src/components/features/dashboard/empty-state.tsx` — warm sand icon container
-- `src/components/features/dashboard/booking-status-badge.tsx` — warm earth-tone colors
-- `src/components/features/dashboard/booking-type-badge.tsx` — matching warm palette
 - `src/app/(dashboard)/layout.tsx` — warm page background, sticky sidebar
 - `src/app/(dashboard)/owner/page.tsx` — strategic owner overview with KPI grid, branch performance, quick actions
 - `src/app/(auth)/login/page.tsx` — spa-luxury card with sand gradient CTA
@@ -239,13 +237,58 @@ All 8 sprints committed. System is production-ready pending data setup.
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors introduced
 
 
-### 2026-04-30 — Kimi DevCoder (Sidebar Workspace Navigation Fix)
+### 2026-05-01 — Kimi DevCoder (SCHED-001 — Daily Staff Schedule Grid)
 
-**Task:** Fix sidebar to dynamically switch navigation based on current workspace path.
-**Problem:** Sidebar always showed nav items for the user's `system_role`, even when navigating to a different workspace (e.g., owner visiting `/manager` still saw owner nav).
-**Fix:**
-- `src/components/features/dashboard/sidebar.tsx` — uses `resolveWorkspaceKeyFromPath(pathname)` to determine current workspace
-- Nav items, identity badge, and accent color now follow the URL path
-- Footer RoleBadge still shows the user's actual role for clarity
+**Task:** Build daily staff schedule view for managers and owners without touching booking logic.
+**Files Created:**
+- `supabase/migrations/20260501000001_get_daily_schedule.sql` — read-only RPC combining staff, schedules, bookings, blocked times
+- `src/lib/queries/schedule.ts` — typed server-side wrapper around `get_daily_schedule`
+- `src/lib/utils/schedule-grid.ts` — grid positioning helpers (timeToMinutes, event offsets, etc.)
+- `src/components/features/schedule/staff-schedule-grid.tsx` — client component with Realtime subscription, booking blocks, blocked strips, greyed outside-hours
+- `src/app/(dashboard)/owner/schedule/page.tsx` — owner schedule page with branch selector and date navigation
+
+**Files Changed:**
+- `src/app/(dashboard)/manager/schedule/page.tsx` — enhanced with date navigation, stats, and new grid
+- `src/components/features/dashboard/nav-config.ts` — added Schedule link to owner workspace
+- `src/types/supabase.ts` — added `get_daily_schedule` function type
+
+**Design decisions:**
+- Reused existing `ScheduleTimeline` patterns for grid layout but added work-hour greying and blocked-time visualization.
+- Realtime channel refreshes server data via `router.refresh()` rather than client-side state mutation.
+- Manager page auto-resolves branch from session; owner page supports branch selection.
 
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing
+
+---
+
+### 2026-05-01 — Kimi DevCoder (SCHED-002 — Row-Based Resource Timeline Board + CRM Booking Fix)
+
+**Task:** Redesign daily schedule as a professional row-based resource timeline board. Fix CRM in-house booking error handling.
+
+**Files Created:**
+- `src/lib/utils/schedule-timeline.ts` — percent/pixel-based timeline helpers
+- `src/components/features/schedule/daily-schedule-board.tsx` — main orchestrator with Realtime
+- `src/components/features/schedule/schedule-time-header.tsx` — sticky horizontal time header
+- `src/components/features/schedule/schedule-staff-cell.tsx` — sticky left staff info column
+- `src/components/features/schedule/schedule-staff-row.tsx` — staff row with timeline lane
+- `src/components/features/schedule/schedule-booking-block.tsx` — clickable booking bar with detail Dialog
+- `src/components/features/schedule/schedule-blocked-time-block.tsx` — striped blocked-time bar
+- `src/components/features/schedule/schedule-current-time-indicator.tsx` — gold "Now" line
+
+**Files Changed:**
+- `src/app/(dashboard)/manager/schedule/page.tsx` — simplified header, inline stats, "+ New Booking" CTA
+- `src/app/(dashboard)/owner/schedule/page.tsx` — simplified header, uses DailyScheduleBoard
+- `src/lib/actions/inhouse-booking.ts` — structured `{ ok, code, message }` errors, `[CRM_BOOKING_CREATE_FAILED]` logging
+- `src/lib/actions/online-booking.ts` — matching `{ ok, code, message }` error shape
+- `src/components/public/booking-wizard.tsx` — consumes new error shape
+- `src/app/(dashboard)/crm/bookings/new/page.tsx` — removed redundant copy
+
+**Design decisions:**
+- 30-minute slots = 96px wide. Timeline spans 8:00 AM – 9:00 PM = 2496px.
+- Staff cell width = 200px, sticky during horizontal scroll.
+- No animation library used — CSS transitions only for hover lift on booking blocks.
+- Booking colors aligned with spa theme: confirmed = forest green, in_progress = violet, completed = teal.
+- Blocked times use diagonal stripes on muted beige.
+- Off-duty areas shaded with semi-transparent overlay.
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors

@@ -2,27 +2,23 @@ import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { DailyScheduleBoard } from "@/components/features/schedule/daily-schedule-board";
 import { getDailySchedule } from "@/lib/queries/schedule";
-import { getManagerDashboardStats } from "@/lib/queries/bookings";
+import { getAllBranches } from "@/lib/queries/branches";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight, CalendarDays, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Building2 } from "lucide-react";
 
-async function getManagerContext() {
+async function getOwnerContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: me } = await supabase
     .from("staff")
-    .select("branch_id, branches(name)")
+    .select("system_role")
     .eq("auth_user_id", user.id)
     .single();
 
-  if (!me?.branch_id) redirect("/login");
-  return {
-    branchId: me.branch_id as string,
-    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
-  };
+  if (!me || me.system_role !== "owner") redirect("/login");
 }
 
 function shiftDate(dateStr: string, days: number): string {
@@ -31,23 +27,32 @@ function shiftDate(dateStr: string, days: number): string {
   return d.toISOString().split("T")[0]!;
 }
 
-export default async function ManagerSchedulePage({
+export default async function OwnerSchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ branchId?: string; date?: string }>;
 }) {
-  const { branchId, branchName } = await getManagerContext();
+  await getOwnerContext();
+
   const params = await searchParams;
-
   const today = new Date().toISOString().split("T")[0]!;
+
+  const [branches] = await Promise.all([getAllBranches()]);
+
+  const selectedBranchId =
+    params.branchId && branches.some((b) => b.id === params.branchId)
+      ? params.branchId
+      : branches[0]?.id ?? "";
+
   const selectedDate = params.date ?? today;
-
-  const [scheduleRows, stats] = await Promise.all([
-    getDailySchedule({ branchId, date: selectedDate }),
-    getManagerDashboardStats(branchId, selectedDate),
-  ]);
-
   const isToday = selectedDate === today;
+
+  const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+
+  const scheduleRows = selectedBranchId
+    ? await getDailySchedule({ branchId: selectedBranchId, date: selectedDate })
+    : [];
+
   const formattedDate = new Date(selectedDate + "T00:00:00").toLocaleDateString("en-PH", {
     weekday: "long",
     month: "long",
@@ -59,20 +64,38 @@ export default async function ManagerSchedulePage({
     <div>
       <PageHeader
         title="Daily Staff Schedule"
-        description={`${branchName} · ${formattedDate}`}
-        action={
-          <Link
-            href="/manager/walkin"
-            className="cs-btn cs-btn-primary cs-btn-sm"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <Plus className="h-4 w-4" />
-            New Booking
-          </Link>
-        }
+        description={`${selectedBranch?.name ?? "Select a branch"} · ${formattedDate}`}
       />
 
-      {/* Date navigator + stats */}
+      {/* Branch selector */}
+      {branches.length > 0 && (
+        <div
+          className="cs-card"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.625rem 0.875rem",
+            marginBottom: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <Building2 className="h-4 w-4" style={{ color: "var(--cs-sand)", flexShrink: 0 }} />
+          {branches.map((branch) => (
+            <Link
+              key={branch.id}
+              href={`/owner/schedule?branchId=${branch.id}&date=${selectedDate}`}
+              className={`cs-btn cs-btn-sm ${
+                branch.id === selectedBranchId ? "cs-btn-primary" : "cs-btn-ghost"
+              }`}
+            >
+              {branch.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Date navigator */}
       <div
         className="cs-card"
         style={{
@@ -81,11 +104,10 @@ export default async function ManagerSchedulePage({
           gap: "0.75rem",
           padding: "0.625rem 0.875rem",
           marginBottom: "1.25rem",
-          flexWrap: "wrap",
         }}
       >
         <Link
-          href={`/manager/schedule?date=${shiftDate(selectedDate, -1)}`}
+          href={`/owner/schedule?branchId=${selectedBranchId}&date=${shiftDate(selectedDate, -1)}`}
           className="cs-btn cs-btn-ghost cs-btn-sm"
           aria-label="Previous day"
         >
@@ -126,7 +148,7 @@ export default async function ManagerSchedulePage({
 
         {!isToday && (
           <Link
-            href="/manager/schedule"
+            href={`/owner/schedule?branchId=${selectedBranchId}`}
             className="cs-btn cs-btn-ghost cs-btn-sm"
           >
             Today
@@ -134,47 +156,38 @@ export default async function ManagerSchedulePage({
         )}
 
         <Link
-          href={`/manager/schedule?date=${shiftDate(selectedDate, 1)}`}
+          href={`/owner/schedule?branchId=${selectedBranchId}&date=${shiftDate(selectedDate, 1)}`}
           className="cs-btn cs-btn-ghost cs-btn-sm"
           aria-label="Next day"
         >
           <ChevronRight className="h-4 w-4" />
         </Link>
-
-        {/* Stats inline */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            marginLeft: "auto",
-            paddingLeft: "0.75rem",
-            borderLeft: "1px solid var(--cs-border)",
-          }}
-        >
-          {[
-            { label: "Total", value: stats.total },
-            { label: "Confirmed", value: stats.confirmed },
-            { label: "In Progress", value: stats.in_progress },
-            { label: "Completed", value: stats.completed },
-          ].map((s) => (
-            <div key={s.label} style={{ textAlign: "center", minWidth: 48 }}>
-              <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--cs-text)" }}>
-                {s.value}
-              </div>
-              <div style={{ fontSize: "0.625rem", color: "var(--cs-text-muted)" }}>
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
-      <DailyScheduleBoard
-        branchId={branchId}
-        date={selectedDate}
-        staffRows={scheduleRows}
-      />
+      {/* Schedule board */}
+      {branches.length === 0 ? (
+        <div
+          className="cs-card"
+          style={{
+            padding: "3rem 1.5rem",
+            textAlign: "center",
+            color: "var(--cs-text-muted)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <div style={{ fontSize: 28, marginBottom: 12 }}>🏢</div>
+          <div style={{ fontWeight: 600, color: "var(--cs-text)", marginBottom: 4 }}>
+            No branches configured
+          </div>
+          <div>Create a branch first to view schedules.</div>
+        </div>
+      ) : (
+        <DailyScheduleBoard
+          branchId={selectedBranchId}
+          date={selectedDate}
+          staffRows={scheduleRows}
+        />
+      )}
     </div>
   );
 }
