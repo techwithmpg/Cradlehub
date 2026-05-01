@@ -188,7 +188,7 @@ export async function getMyUpcomingBookings(
   const { data, error } = await supabase
     .from("bookings")
     .select(`
-      id, booking_date, start_time, end_time, type, status,
+      id, booking_date, start_time, end_time, type, status, metadata,
       services  ( id, name, duration_minutes ),
       customers ( id, full_name )
     `)
