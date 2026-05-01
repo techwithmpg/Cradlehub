@@ -68,6 +68,27 @@ function formatTime(timeStr: string) {
   return `${displayHour}:${m} ${ampm}`;
 }
 
+// Public booking does not expose therapist selection.
+// Normalize duplicate backend rows into one entry per start time.
+function normalizePublicSlots(rawSlots: Slot[]) {
+  const byTime = new Map<string, Slot>();
+
+  for (const slot of rawSlots) {
+    const existing = byTime.get(slot.slot_time);
+    if (!existing) {
+      byTime.set(slot.slot_time, slot);
+      continue;
+    }
+
+    // Prefer an available row if mixed availability appears for the same time.
+    if (!existing.available && slot.available) {
+      byTime.set(slot.slot_time, slot);
+    }
+  }
+
+  return Array.from(byTime.values()).sort((a, b) => a.slot_time.localeCompare(b.slot_time));
+}
+
 export function BookingWizard() {
   const [step, setStep] = useState(1);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -135,7 +156,7 @@ export function BookingWizard() {
     )
       .then((r) => r.json())
       .then((data) => {
-        setSlots(data.slots ?? []);
+        setSlots(normalizePublicSlots((data.slots ?? []) as Slot[]));
         setLoadingSlots(false);
       })
       .catch(() => setLoadingSlots(false));
