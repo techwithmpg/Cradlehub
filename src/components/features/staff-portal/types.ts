@@ -1,4 +1,4 @@
-import type { HomeServiceTrackingStatus } from "@/lib/home-service-tracking";
+import type { BookingProgressStatus } from "@/lib/bookings/progress";
 
 export type StaffPortalStaff = {
   id: string;
@@ -16,38 +16,17 @@ export type StaffPortalBooking = {
   end_time: string;
   type: "online" | "walkin" | "home_service";
   status: "pending" | "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
-  home_service_tracking_status: HomeServiceTrackingStatus;
+  booking_progress_status: BookingProgressStatus;
+  home_service_tracking_status: string;
   travel_buffer_mins: number | null;
   metadata: Record<string, unknown> | null;
   travel_started_at: string | null;
   arrived_at: string | null;
   session_started_at: string | null;
   completed_at: string | null;
+  session_completed_at: string | null;
+  checked_in_at: string | null;
+  no_show_at: string | null;
   services: { id: string; name: string; duration_minutes: number } | { id: string; name: string; duration_minutes: number }[] | null;
   customers: { id: string; full_name: string } | { id: string; full_name: string }[] | null;
 };
-
-export type TrackingStage = "travel_started" | "arrived" | "session_started" | "completed";
-
-export function getTrackingStage(
-  booking: Pick<StaffPortalBooking, "home_service_tracking_status">
-): TrackingStage | null {
-  const status = booking.home_service_tracking_status;
-  if (status === "not_started") return null;
-  return status;
-}
-
-export function getNextTrackingStage(
-  booking: Pick<StaffPortalBooking, "home_service_tracking_status">
-): TrackingStage | null {
-  const status = booking.home_service_tracking_status;
-  if (status === "not_started") return "travel_started";
-  if (status === "travel_started") return "arrived";
-  if (status === "arrived") return "session_started";
-  if (status === "session_started") return "completed";
-  return null;
-}
-
-export function isTrackingComplete(booking: Pick<StaffPortalBooking, "home_service_tracking_status">): boolean {
-  return booking.home_service_tracking_status === "completed";
-}

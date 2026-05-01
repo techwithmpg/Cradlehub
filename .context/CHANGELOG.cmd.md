@@ -572,3 +572,38 @@ All 8 sprints committed. System is production-ready pending data setup.
 
 **Build Status:** ? Passing | **Type-check:** ? Passing | **Lint:** ? Passing (0 errors, 0 warnings) | **Tests:** ? 36 passed
 
+
+
+---
+
+### 2026-05-01 — Kimi DevCoder (STAFF-004 — Unified Booking Progress Tracking)
+
+**Task:** Refactor home-service-only tracking into a unified appointment progress model supporting home_service, walkin (in-spa), and online bookings.
+
+**Files Created:**
+- supabase/migrations/20260501000004_unified_booking_progress.sql — adds ooking_progress_status (CHECK constraint), checked_in_at, session_completed_at, 
+o_show_at; backfills from home_service_tracking_status and completed_at; replaces RPC with update_booking_progress() that validates type-aware transitions
+- src/lib/bookings/progress.ts — pure state machine helpers: getBookingProgressFlow, canTransitionBookingProgress, getNextAllowedProgressActions, getNextBookingProgressStatus, getBookingProgressLabel, isBookingProgressTerminal, getTimestampFieldForProgressStatus
+- 	ests/lib/bookings/progress.test.ts — 28 tests covering all three booking type flows, blocked transitions, labels, timestamps
+- src/components/features/staff-portal/booking-progress-actions.tsx — unified progress UI with type-specific stepper, status labels, timer, and action buttons
+
+**Files Changed:**
+- src/types/supabase.ts — added ooking_progress_status, checked_in_at, session_completed_at, 
+o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
+- src/app/(dashboard)/staff-portal/actions.ts — replaced updateHomeServiceTrackingAction with updateBookingProgressAction({ bookingId, nextStatus }); added role-aware permission checks (therapist actions vs CSR actions); uses new update_booking_progress RPC
+- src/components/features/staff-portal/types.ts — updated StaffPortalBooking to use BookingProgressStatus and include all new timestamp fields
+- src/components/features/staff-portal/staff-appointment-card.tsx — replaced HomeServiceTrackingActions with BookingProgressActions for all booking types
+- src/components/features/staff-portal/tracking-timer.tsx — added TimestampLabel component for static timestamps
+
+**Files Removed:**
+- src/components/features/staff-portal/home-service-tracking-actions.tsx — superseded by ooking-progress-actions.tsx
+
+**Design Decisions:**
+- Old columns (home_service_tracking_status, completed_at) preserved but no longer written by new code; migration backfills new columns from old ones
+- RPC update_booking_progress enforces type-aware transitions at the database level (home_service vs walkin vs online)
+- Server action adds role-aware pre-validation: therapist actions (travel/arrived/session/complete) require assigned staff or manager; CSR actions (check-in/no-show) require CSR, manager, or assigned staff
+- Walk-in bookings show both primary next action and a secondary No Show button when applicable
+- Progress stepper adapts to booking type (home_service shows 4 stages, walkin shows 3, online shows 2)
+
+**Build Status:** ? Passing | **Type-check:** ? Passing | **Lint:** ? Passing (0 errors, 0 warnings) | **Tests:** ? 64 passed
+

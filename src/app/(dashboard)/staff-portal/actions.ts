@@ -5,9 +5,10 @@ import { getMyUpcomingBookings, getMyMonthlyStats } from "@/lib/queries/bookings
 import { getStaffSchedule, getStaffOverrides, getBlockedTimes } from "@/lib/queries/staff";
 import { isDevAuthBypassEnabled, getDevBypassStaffRecord } from "@/lib/dev-bypass";
 import {
-  canTransitionHomeServiceTracking,
-  type HomeServiceTrackingStatus,
-} from "@/lib/home-service-tracking";
+  canTransitionBookingProgress,
+  getTimestampFieldForProgressStatus,
+  type BookingProgressStatus,
+} from "@/lib/bookings/progress";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 
 // ── Resolve authenticated staff record ────────────────────────────────────
@@ -46,9 +47,10 @@ export async function getMyTodayAction(date: string) {
     .from("bookings")
     .select(`
       id, booking_date, start_time, end_time, type, status,
-      home_service_tracking_status,
+      booking_progress_status, home_service_tracking_status,
       travel_buffer_mins, metadata,
       travel_started_at, arrived_at, session_started_at, completed_at,
+      session_completed_at, checked_in_at, no_show_at,
       services  ( id, name, duration_minutes ),
       customers ( id, full_name )
     `)
@@ -61,12 +63,12 @@ export async function getMyTodayAction(date: string) {
   return { bookings: (data ?? []) as StaffPortalBooking[], staff: me };
 }
 
-// ── Home Service Tracking Result Type ─────────────────────────────────────
-export type HomeServiceTrackingResult =
+// ── Unified Booking Progress Result Type ──────────────────────────────────
+export type BookingProgressResult =
   | {
       ok: true;
       bookingId: string;
-      status: HomeServiceTrackingStatus;
+      status: BookingProgressStatus;
       timestamp: string;
     }
   | {
@@ -74,34 +76,37 @@ export type HomeServiceTrackingResult =
       code:
         | "UNAUTHORIZED"
         | "NOT_FOUND"
-        | "NOT_HOME_SERVICE"
-        | "ALREADY_COMPLETED"
         | "INVALID_TRANSITION"
+        | "ALREADY_COMPLETED"
+        | "PERMISSION_DENIED"
         | "DATABASE_ERROR";
       message: string;
     };
 
-// ── Update home-service tracking stage ────────────────────────────────────
-// Staff can progress their own home-service bookings through:
-// not_started → travel_started → arrived → session_started → completed
-export async function updateHomeServiceTrackingAction(
-  bookingId: string,
-  nextStatus: HomeServiceTrackingStatus
-): Promise<HomeServiceTrackingResult> {
+// ── Update booking progress ───────────────────────────────────────────────
+// Unified action for home_service, walkin, and online bookings.
+// Role-aware: assigned staff can do therapist actions; CSR can check-in / no-show.
+export async function updateBookingProgressAction({
+  bookingId,
+  nextStatus,
+}: {
+  bookingId: string;
+  nextStatus: BookingProgressStatus;
+}): Promise<BookingProgressResult> {
   const supabase = await createClient();
   const me = await getMyStaffRecord();
   if (!me) {
     return {
       ok: false,
       code: "UNAUTHORIZED",
-      message: "You must be signed in to update tracking.",
+      message: "You must be signed in to update progress.",
     };
   }
 
-  // Fetch the booking to validate pre-conditions
+  // Fetch the booking
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
-    .select("id, staff_id, type, status, home_service_tracking_status")
+    .select("id, staff_id, branch_id, type, status, booking_progress_status")
     .eq("id", bookingId)
     .single();
 
@@ -113,26 +118,40 @@ export async function updateHomeServiceTrackingAction(
     };
   }
 
-  // 1. Must be assigned to this staff
-  if (booking.staff_id !== me.id) {
+  const isAssignedStaff = booking.staff_id === me.id;
+  const isManager = ["owner", "manager", "assistant_manager", "store_manager"].includes(me.system_role);
+  const isCsr = ["csr", "csr_head", "csr_staff"].includes(me.system_role);
+
+  // Categorize the requested action
+  const therapistActions: BookingProgressStatus[] = [
+    "travel_started",
+    "arrived",
+    "session_started",
+    "completed",
+  ];
+  const csrActions: BookingProgressStatus[] = ["checked_in", "no_show"];
+  const isTherapistAction = therapistActions.includes(nextStatus);
+  const isCsrAction = csrActions.includes(nextStatus);
+
+  // ── Permission checks ──
+  if (isTherapistAction && !isAssignedStaff && !isManager) {
     return {
       ok: false,
-      code: "UNAUTHORIZED",
-      message: "You are not assigned to this appointment.",
+      code: "PERMISSION_DENIED",
+      message: "Only the assigned therapist can perform this action.",
     };
   }
 
-  // 2. Must be a home-service booking
-  if (booking.type !== "home_service") {
+  if (isCsrAction && !isCsr && !isManager && !isAssignedStaff) {
     return {
       ok: false,
-      code: "NOT_HOME_SERVICE",
-      message: "This action is only available for home-service appointments.",
+      code: "PERMISSION_DENIED",
+      message: "You do not have permission to perform this action.",
     };
   }
 
-  // 3. Must not be cancelled or completed
-  if (booking.status === "cancelled" || booking.status === "no_show") {
+  // ── Booking state checks ──
+  if (booking.status === "cancelled") {
     return {
       ok: false,
       code: "ALREADY_COMPLETED",
@@ -140,29 +159,30 @@ export async function updateHomeServiceTrackingAction(
     };
   }
 
-  if (booking.status === "completed") {
+  if (booking.status === "completed" || booking.status === "no_show") {
     return {
       ok: false,
       code: "ALREADY_COMPLETED",
-      message: "This appointment has already been completed.",
+      message: "This appointment has already been concluded.",
     };
   }
 
-  const currentStatus = booking.home_service_tracking_status as HomeServiceTrackingStatus;
+  // ── Transition validation ──
+  const currentStatus = booking.booking_progress_status as BookingProgressStatus;
+  const bookingType = booking.type as "home_service" | "walkin" | "online";
 
-  // 4. Transition must be valid
-  if (!canTransitionHomeServiceTracking(currentStatus, nextStatus)) {
+  if (!canTransitionBookingProgress({ bookingType, currentStatus, nextStatus })) {
     return {
       ok: false,
       code: "INVALID_TRANSITION",
-      message: getInvalidTransitionMessage(currentStatus, nextStatus),
+      message: getInvalidTransitionMessage(bookingType, currentStatus, nextStatus),
     };
   }
 
-  // 5. Execute via RPC (SECURITY DEFINER — staff do not have direct UPDATE on bookings)
-  const { error: rpcError } = await supabase.rpc("update_home_service_tracking", {
+  // ── Execute via RPC (SECURITY DEFINER) ──
+  const { error: rpcError } = await supabase.rpc("update_booking_progress", {
     p_booking_id: bookingId,
-    p_stage: nextStatus,
+    p_next_status: nextStatus,
   });
 
   if (rpcError) {
@@ -173,8 +193,8 @@ export async function updateHomeServiceTrackingAction(
     };
   }
 
-  // 6. Fetch updated timestamp
-  const timestampField = getTimestampColumn(nextStatus);
+  // ── Fetch updated timestamp ──
+  const timestampField = getTimestampFieldForProgressStatus(nextStatus) ?? "updated_at";
   const { data: updated, error: tsError } = await supabase
     .from("bookings")
     .select(timestampField)
@@ -184,7 +204,6 @@ export async function updateHomeServiceTrackingAction(
   const timestamp = (updated?.[timestampField as keyof typeof updated] as string | null) ?? new Date().toISOString();
 
   if (tsError) {
-    // Non-critical — tracking was updated, just return now()
     return {
       ok: true,
       bookingId,
@@ -202,40 +221,51 @@ export async function updateHomeServiceTrackingAction(
 }
 
 function getInvalidTransitionMessage(
-  current: HomeServiceTrackingStatus,
-  next: HomeServiceTrackingStatus
+  bookingType: string,
+  current: BookingProgressStatus,
+  next: BookingProgressStatus
 ): string {
-  if (current === "not_started" && next !== "travel_started") {
-    return "You must start travel first.";
+  if (bookingType === "home_service") {
+    if (current === "not_started" && next !== "travel_started") {
+      return "You must start travel first.";
+    }
+    if (current === "travel_started" && next !== "arrived") {
+      return "You can only mark arrived after starting travel.";
+    }
+    if (current === "arrived" && next !== "session_started") {
+      return "You can only start the session after arriving.";
+    }
+    if (current === "session_started" && next !== "completed") {
+      return "You can only complete after starting the session.";
+    }
   }
-  if (current === "travel_started" && next !== "arrived") {
-    return "You can only mark arrived after starting travel.";
-  }
-  if (current === "arrived" && next !== "session_started") {
-    return "You can only start the session after arriving.";
-  }
-  if (current === "session_started" && next !== "completed") {
-    return "You can only complete after starting the session.";
-  }
-  if (current === "completed") {
-    return "This appointment has already been completed.";
-  }
-  return "Invalid tracking transition.";
-}
 
-function getTimestampColumn(status: HomeServiceTrackingStatus): string {
-  switch (status) {
-    case "travel_started":
-      return "travel_started_at";
-    case "arrived":
-      return "arrived_at";
-    case "session_started":
-      return "session_started_at";
-    case "completed":
-      return "completed_at";
-    default:
-      return "updated_at";
+  if (bookingType === "walkin") {
+    if (current === "not_started" && next !== "checked_in" && next !== "no_show") {
+      return "Please check in the client or mark no-show.";
+    }
+    if (current === "checked_in" && next !== "session_started" && next !== "no_show") {
+      return "You can start the session or mark no-show.";
+    }
+    if (current === "session_started" && next !== "completed") {
+      return "You can only complete the appointment.";
+    }
   }
+
+  if (bookingType === "online") {
+    if (current === "not_started" && next !== "session_started") {
+      return "You can only start the session.";
+    }
+    if (current === "session_started" && next !== "completed") {
+      return "You can only complete the appointment.";
+    }
+  }
+
+  if (current === "completed" || current === "no_show") {
+    return "This appointment has already been concluded.";
+  }
+
+  return "Invalid progress transition.";
 }
 
 // ── Weekly view — own bookings + schedule for the next 7 days ─────────────

@@ -2,7 +2,7 @@ import { MapPin, Clock, FileText } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
-import { HomeServiceTrackingActions } from "./home-service-tracking-actions";
+import { BookingProgressActions } from "./booking-progress-actions";
 import type { StaffPortalBooking } from "./types";
 
 function firstRelation<T>(relation: T | T[] | null): T | null {
@@ -89,30 +89,8 @@ export function StaffAppointmentCard({ booking, isNext }: StaffAppointmentCardPr
         </div>
       )}
 
-      {/* Home service tracking */}
-      {isHomeService && (
-        <HomeServiceTrackingActions booking={booking} />
-      )}
-
-      {/* Completed summary for non-home-service */}
-      {!isHomeService && booking.status === "completed" && (
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "var(--cs-success-text)",
-            backgroundColor: "var(--cs-success-bg)",
-            padding: "4px 10px",
-            borderRadius: "var(--cs-r-sm)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            alignSelf: "flex-start",
-          }}
-        >
-          Appointment completed
-        </div>
-      )}
+      {/* Booking progress actions */}
+      <BookingProgressActions booking={booking} />
     </div>
   );
 }

@@ -110,7 +110,9 @@ export type Database = {
       bookings: {
         Row: {
           booking_date: string
+          booking_progress_status: string
           branch_id: string
+          checked_in_at: string | null
           completed_at: string | null
           created_at: string
           customer_id: string
@@ -118,8 +120,10 @@ export type Database = {
           home_service_tracking_status: string
           id: string
           metadata: Json
+          no_show_at: string | null
           arrived_at: string | null
           service_id: string
+          session_completed_at: string | null
           session_started_at: string | null
           staff_id: string
           start_time: string
@@ -131,7 +135,9 @@ export type Database = {
         }
         Insert: {
           booking_date: string
+          booking_progress_status?: string
           branch_id: string
+          checked_in_at?: string | null
           completed_at?: string | null
           created_at?: string
           customer_id: string
@@ -139,8 +145,10 @@ export type Database = {
           home_service_tracking_status?: string
           id?: string
           metadata?: Json
+          no_show_at?: string | null
           arrived_at?: string | null
           service_id: string
+          session_completed_at?: string | null
           session_started_at?: string | null
           staff_id: string
           start_time: string
@@ -152,7 +160,9 @@ export type Database = {
         }
         Update: {
           booking_date?: string
+          booking_progress_status?: string
           branch_id?: string
+          checked_in_at?: string | null
           completed_at?: string | null
           created_at?: string
           customer_id?: string
@@ -160,8 +170,10 @@ export type Database = {
           home_service_tracking_status?: string
           id?: string
           metadata?: Json
+          no_show_at?: string | null
           arrived_at?: string | null
           service_id?: string
+          session_completed_at?: string | null
           session_started_at?: string | null
           staff_id?: string
           start_time?: string
@@ -647,6 +659,10 @@ export type Database = {
       get_effective_price: {
         Args: { p_branch_id: string; p_service_id: string }
         Returns: number
+      }
+      update_booking_progress: {
+        Args: { p_booking_id: string; p_next_status: string }
+        Returns: undefined
       }
       update_home_service_tracking: {
         Args: { p_booking_id: string; p_stage: string }
