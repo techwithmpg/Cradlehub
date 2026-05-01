@@ -111,48 +111,60 @@ export type Database = {
         Row: {
           booking_date: string
           branch_id: string
+          completed_at: string | null
           created_at: string
           customer_id: string
           end_time: string
           id: string
           metadata: Json
+          arrived_at: string | null
           service_id: string
+          session_started_at: string | null
           staff_id: string
           start_time: string
           status: string
           travel_buffer_mins: number | null
+          travel_started_at: string | null
           type: string
           updated_at: string
         }
         Insert: {
           booking_date: string
           branch_id: string
+          completed_at?: string | null
           created_at?: string
           customer_id: string
           end_time: string
           id?: string
           metadata?: Json
+          arrived_at?: string | null
           service_id: string
+          session_started_at?: string | null
           staff_id: string
           start_time: string
           status?: string
           travel_buffer_mins?: number | null
+          travel_started_at?: string | null
           type: string
           updated_at?: string
         }
         Update: {
           booking_date?: string
           branch_id?: string
+          completed_at?: string | null
           created_at?: string
           customer_id?: string
           end_time?: string
           id?: string
           metadata?: Json
+          arrived_at?: string | null
           service_id?: string
+          session_started_at?: string | null
           staff_id?: string
           start_time?: string
           status?: string
           travel_buffer_mins?: number | null
+          travel_started_at?: string | null
           type?: string
           updated_at?: string
         }
@@ -632,6 +644,10 @@ export type Database = {
       get_effective_price: {
         Args: { p_branch_id: string; p_service_id: string }
         Returns: number
+      }
+      update_home_service_tracking: {
+        Args: { p_booking_id: string; p_stage: string }
+        Returns: undefined
       }
       upsert_customer: {
         Args: { p_email?: string; p_full_name: string; p_phone: string }

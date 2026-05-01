@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyUpcomingBookings, getMyMonthlyStats } from "@/lib/queries/bookings";
 import { getStaffSchedule, getStaffOverrides, getBlockedTimes } from "@/lib/queries/staff";
 import { isDevAuthBypassEnabled, getDevBypassStaffRecord } from "@/lib/dev-bypass";
+import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 
 // ── Resolve authenticated staff record ────────────────────────────────────
-async function getMyStaffRecord() {
+async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -25,7 +26,8 @@ async function getMyStaffRecord() {
     return getDevBypassStaffRecord();
   }
 
-  return me ?? null;
+  if (!me) return null;
+  return me;
 }
 
 // ── Today's bookings for the portal home ──────────────────────────────────
@@ -40,6 +42,8 @@ export async function getMyTodayAction(date: string) {
     .from("bookings")
     .select(`
       id, booking_date, start_time, end_time, type, status,
+      travel_buffer_mins, metadata,
+      travel_started_at, arrived_at, session_started_at, completed_at,
       services  ( id, name, duration_minutes ),
       customers ( id, full_name )
     `)
@@ -49,7 +53,26 @@ export async function getMyTodayAction(date: string) {
     .order("start_time");
 
   if (error) return { error: error.message };
-  return { bookings: data ?? [], staff: me };
+  return { bookings: (data ?? []) as StaffPortalBooking[], staff: me };
+}
+
+// ── Update home-service tracking stage ────────────────────────────────────
+// Staff can progress their own home-service bookings through:
+// travel_started → arrived → session_started → completed
+export async function updateHomeServiceTrackingAction(bookingId: string, stage: string) {
+  const supabase = await createClient();
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const { error } = await supabase.rpc("update_home_service_tracking", {
+    p_booking_id: bookingId,
+    p_stage: stage,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+  return { ok: true };
 }
 
 // ── Weekly view — own bookings + schedule for the next 7 days ─────────────
