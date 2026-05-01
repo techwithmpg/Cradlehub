@@ -24,3 +24,10 @@ _No errors logged yet._
   - Resolution: rerun `pnpm test` with elevated permissions; tests passed.
 - `rg` command could not run in this environment (`Access is denied` from packaged `rg.exe` path).
   - Resolution: used PowerShell-native file search (`Get-ChildItem` + `Select-String`) for repo inspection.
+
+## 2026-05-01 — STAFF-005 context/doc workflow notes
+
+- Initial reads for `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` at repo root failed with `Cannot find path` because these files are located under `docs/` in this repository.
+  - Resolution: located and read `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, and `docs/AGENT_RULES.md` before coding.
+- `apply_patch` failed on `.context/CHANGELOG.cmd.md` due invalid UTF-8 bytes in the existing file.
+  - Resolution: appended the new changelog entry using `Add-Content` via PowerShell instead of `apply_patch`.

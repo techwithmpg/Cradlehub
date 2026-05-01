@@ -146,3 +146,13 @@ pnpm ui:add [component]     # Add shadcn/ui component
 6. **Server Components by default** — only `'use client'` when you need interactivity
 7. **Type everything** — no `any`, no implicit types
 8. **Test what matters** — business logic, data transforms, edge cases
+
+---
+
+## 🆕 Latest Agent Update (2026-05-01)
+
+- Completed `STAFF-005`: mobile-focused My Week planner refinement for staff portal.
+- Added accessible mobile accordion interactions (`aria-expanded`, `aria-controls`) and compact tappable day rows.
+- Improved mobile layout rhythm: sticky compact header, compact week navigation, and compact 4-stat strip.
+- Added appointment status + booking type badges in week appointment rows while keeping mobile readability.
+- Preserved desktop 7-day board layout behavior and staff-scoped booking data.

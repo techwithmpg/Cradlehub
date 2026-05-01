@@ -1,4 +1,8 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import type { StaffWeekDay } from "@/lib/staff-portal/week";
+import { pickDefaultExpandedDay } from "@/lib/staff-portal/week-summary";
 import styles from "./my-week-page.module.css";
 import { MobileWeekDayRow } from "./mobile-week-day-row";
 
@@ -7,15 +11,20 @@ type MobileWeekAccordionProps = {
 };
 
 export function MobileWeekAccordion({ days }: MobileWeekAccordionProps) {
-  const preferredOpenDate =
-    days.find((day) => day.isToday)?.date ??
-    days.find((day) => day.appointmentCount > 0)?.date ??
-    days[0]?.date;
+  const defaultOpenDay = useMemo(() => pickDefaultExpandedDay(days), [days]);
+  const [openDay, setOpenDay] = useState<string | null>(defaultOpenDay);
 
   return (
     <section className={styles.mobileAccordion}>
       {days.map((day) => (
-        <MobileWeekDayRow key={day.date} day={day} defaultOpen={day.date === preferredOpenDate} />
+        <MobileWeekDayRow
+          key={day.date}
+          day={day}
+          isOpen={openDay === day.date}
+          onToggle={(date) => {
+            setOpenDay((current) => (current === date ? null : date));
+          }}
+        />
       ))}
     </section>
   );

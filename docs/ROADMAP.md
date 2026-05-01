@@ -148,3 +148,4 @@
 |------|--------|--------|-------|
 | _[DATE]_ | Initial roadmap created | Project kickoff | Human |
 | 2026-05-01 | Added CSR Head/CSR Staff RBAC completion note (CRM workspace only, no separate CSR workspace) | Align workspace access with front-desk org structure and server-side permission enforcement | Codex |
+| 2026-05-01 | Logged STAFF-005 mobile accordion/day-card refinement for `/staff-portal/week` | Track focused mobile planner UX/accessibility improvements and verification run | Codex |

@@ -1,23 +1,46 @@
-import { ChevronDown } from "lucide-react";
-import { formatHours, type StaffWeekDay } from "@/lib/staff-portal/week";
+"use client";
+
+import { ChevronDown, Leaf } from "lucide-react";
+import type { StaffWeekDay } from "@/lib/staff-portal/week";
+import {
+  calculateTotalMinutesPerDay,
+  formatAppointmentCountText,
+  formatBookedHoursFromMinutes,
+} from "@/lib/staff-portal/week-summary";
 import styles from "./my-week-page.module.css";
 import { WeekAppointmentItem } from "./week-appointment-item";
 import { WeekDayEmptyState } from "./week-day-empty-state";
 
 type MobileWeekDayRowProps = {
   day: StaffWeekDay;
-  defaultOpen: boolean;
+  isOpen: boolean;
+  onToggle: (date: string) => void;
 };
 
-function metaLabel(day: StaffWeekDay): string {
-  const noun = day.appointmentCount === 1 ? "appt" : "appts";
-  return `${day.appointmentCount} ${noun} • ${formatHours(day.bookedHours)}`;
+function rowMeta(day: StaffWeekDay): string {
+  const countText = formatAppointmentCountText(day.appointmentCount);
+  if (day.appointmentCount === 0) return countText;
+  return `${countText} • ${formatBookedHoursFromMinutes(calculateTotalMinutesPerDay(day))}`;
 }
 
-export function MobileWeekDayRow({ day, defaultOpen }: MobileWeekDayRowProps) {
+function actionLabel(day: StaffWeekDay, isOpen: boolean): string {
+  const verb = isOpen ? "Collapse" : "Expand";
+  return `${verb} ${day.dayNameFull}, ${day.date}, ${formatAppointmentCountText(day.appointmentCount)}`;
+}
+
+export function MobileWeekDayRow({ day, isOpen, onToggle }: MobileWeekDayRowProps) {
+  const panelId = `staff-week-day-panel-${day.date}`;
+
   return (
-    <details className={styles.mobileDay} open={defaultOpen}>
-      <summary className={styles.mobileSummary}>
+    <section className={`${styles.mobileDay} ${day.isToday ? styles.mobileDayToday : ""}`}>
+      <button
+        type="button"
+        className={styles.mobileSummaryButton}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        aria-label={actionLabel(day, isOpen)}
+        onClick={() => onToggle(day.date)}
+      >
         <div className={styles.mobileLeft}>
           <p className={styles.mobileDayLabel}>
             {day.dayNameShort} {day.dayOfMonth}
@@ -26,20 +49,28 @@ export function MobileWeekDayRow({ day, defaultOpen }: MobileWeekDayRowProps) {
         </div>
 
         <div className={styles.mobileRight}>
-          <p className={styles.mobileMeta}>{metaLabel(day)}</p>
-          <ChevronDown size={16} className={styles.mobileChevron} />
+          <p className={styles.mobileMeta}>{rowMeta(day)}</p>
+          {day.appointmentCount === 0 && <Leaf size={14} className={styles.mobileLeaf} aria-hidden="true" />}
+          <ChevronDown size={16} className={`${styles.mobileChevron} ${isOpen ? styles.mobileChevronOpen : ""}`} />
         </div>
-      </summary>
+      </button>
 
-      <div className={styles.mobileContent}>
-        {day.appointmentCount === 0 ? (
-          <WeekDayEmptyState isDayOff={day.isDayOff} />
-        ) : (
-          day.appointments.map((appointment) => (
-            <WeekAppointmentItem key={appointment.id} appointment={appointment} compact />
-          ))
-        )}
+      <div
+        id={panelId}
+        role="region"
+        aria-label={`${day.dayNameFull} appointments`}
+        className={`${styles.mobilePanel} ${isOpen ? styles.mobilePanelOpen : ""}`}
+      >
+        <div className={styles.mobileContent}>
+          {day.appointmentCount === 0 ? (
+            <WeekDayEmptyState isDayOff={day.isDayOff} />
+          ) : (
+            day.appointments.map((appointment) => (
+              <WeekAppointmentItem key={appointment.id} appointment={appointment} compact />
+            ))
+          )}
+        </div>
       </div>
-    </details>
+    </section>
   );
 }

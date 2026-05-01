@@ -15,6 +15,7 @@
 - STAFF-002: Home service tracking flow added — staff can tap Start Travel → Arrived → Start Session → Complete with server-side timestamps and live elapsed timer
 - STAFF-003: Home service tracking refined with explicit `home_service_tracking_status` column, CHECK constraint, typed server actions with specific error codes, state machine helpers + 18 tests, compact progress stepper UI, status-specific timer labels
 - STAFF-004: Unified booking progress tracking — merged home-service-only tracking into a single model supporting home_service, walkin (in-spa), and online bookings with type-aware transitions, role-aware permissions, and adaptive UI steppers
+- STAFF-005: My Week mobile planner refinement — accessible single-column accordion on mobile, sticky compact header/week nav, compact 4-stat strip, default today expansion logic, and appointment rows with booking type + status badges
 
 ## Design System
 - `--cs-*` tokens: warm-white (#F9F6F0), sand (#A67B5B), clay (#C7A27C), sage (#8A9A8B), charcoal sidebar (#2C2A29)
@@ -77,7 +78,12 @@
 3. Test staff portal with dev bypass: set `DEV_AUTH_BYPASS=true` in `.env.local`
 4. Test all role workspaces in dev mode without staff records
 5. Test unified progress flows: home service (travel→arrived→session→complete), walk-in (check-in→session→complete), online (session→complete)
-6. Continue with feature sprints as needed
+6. Manual QA for `/staff-portal/week` on phone width:
+   - today row highlight + default expansion
+   - compact empty-day rows and expanded empty state
+   - appointment row readability with status/type badges
+   - week navigation usability
+7. Continue with feature sprints as needed
 
 ## Go-Live Checklist
 - Owner account setup

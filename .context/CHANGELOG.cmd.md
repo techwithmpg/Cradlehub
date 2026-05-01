@@ -607,3 +607,48 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 
 **Build Status:** ? Passing | **Type-check:** ? Passing | **Lint:** ? Passing (0 errors, 0 warnings) | **Tests:** ? 64 passed
 
+
+---
+
+### 2026-05-01 — Codex (STAFF-005 — My Week Mobile Accordion + Day-Card Refinement)
+
+**Task:** Improve staff portal `My Week` mobile UX and day-card presentation for a premium weekly planner experience.
+
+**Files Created:**
+- `src/lib/staff-portal/week-summary.ts` — reusable helpers for day grouping, minutes/hours formatting, appointment count text, weekly stats derivation, and default expanded mobile day selection
+
+**Files Changed:**
+- `src/lib/staff-portal/week.ts`
+  - Expanded appointment shape with `bookingType`, `status`, and day-level `totalMinutes`
+  - Added `dayLabel` / `dayNumber` fields for UI mapping
+  - Kept all data scoped to current logged-in staff bookings from existing action
+- `src/components/features/staff-portal/mobile-week-accordion.tsx`
+  - Converted to client-managed accordion state
+  - Default expanded logic: today with appointments, else next available day with appointments, else all collapsed
+- `src/components/features/staff-portal/mobile-week-day-row.tsx`
+  - Rebuilt rows as accessible buttons with `aria-expanded`, `aria-controls`, and explicit action labels
+  - Added compact collapsed-row meta and empty-day leaf indicator
+  - Added animated expand/collapse panel with light transition
+- `src/components/features/staff-portal/week-appointment-item.tsx`
+  - Mobile-priority compact layout: time → customer → service → booking type badge → status badge → note hint
+  - Added status badges (`Pending`, `Confirmed`, `In Progress`, `Completed`, `Cancelled`, `No Show`)
+- `src/components/features/staff-portal/week-day-card.tsx`
+  - Updated metadata rendering to use helper-based count/hours formatting and day-number mapping
+- `src/components/features/staff-portal/my-week-header.tsx`
+  - Compact mobile header structure with optional calendar button
+  - Dedicated week navigation row: prev / center current-week pill / next
+- `src/components/features/staff-portal/my-week-stats.tsx`
+  - Compact 4-stat strip labels for mobile (`Total`, `Home`, `In-Spa`, `Hours`)
+- `src/components/features/staff-portal/my-week-page.module.css`
+  - Sticky compact mobile header
+  - Compact stats strip sizing
+  - Touch-friendly accordion row sizing
+  - Today row highlight treatment
+  - Appointment and badge styling improvements
+  - Lightweight panel transition
+
+**Verification:**
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅
+- `pnpm test` ✅

@@ -51,7 +51,7 @@ export type StaffWeekNavigation = {
   isCurrentWeek: boolean;
 };
 
-export type StaffWeekAppointmentType = "in_spa" | "home" | "walk_in" | "online";
+export type StaffWeekAppointmentType = "in_spa" | "home_service" | "walk_in" | "online" | string;
 
 export type StaffWeekAppointment = {
   id: string;
@@ -61,12 +61,16 @@ export type StaffWeekAppointment = {
   customerName: string;
   serviceName: string;
   durationMinutes: number;
-  type: StaffWeekAppointmentType;
+  bookingType: StaffWeekAppointmentType;
+  status: string;
+  roomName?: string | null;
   hasNote: boolean;
 };
 
 export type StaffWeekDay = {
   date: string;
+  dayLabel: string;
+  dayNumber: string;
   dayNameShort: (typeof SHORT_DAY_NAMES)[number];
   dayNameFull: (typeof FULL_DAY_NAMES)[number];
   dayOfWeek: number;
@@ -74,6 +78,7 @@ export type StaffWeekDay = {
   isToday: boolean;
   appointments: StaffWeekAppointment[];
   appointmentCount: number;
+  totalMinutes: number;
   bookedHours: number;
   workHoursLabel: string | null;
   isDayOff: boolean;
@@ -201,7 +206,7 @@ function getBookingDurationMinutes(booking: WeekBooking): number {
 
 function getBookingType(type: string): StaffWeekAppointmentType {
   const normalized = type.toLowerCase();
-  if (normalized === "home_service") return "home";
+  if (normalized === "home_service") return "home_service";
   if (normalized === "walkin" || normalized === "walk_in") return "walk_in";
   if (normalized === "online") return "online";
   return "in_spa";
@@ -294,12 +299,12 @@ export function buildStaffWeekPlanner({
       const service = firstRelation(booking.services);
       const customer = firstRelation(booking.customers);
       const durationMinutes = getBookingDurationMinutes(booking);
-      const type = getBookingType(booking.type);
+      const bookingType = getBookingType(booking.type);
 
-      if (type === "home") homeService += 1;
-      if (type === "walk_in") walkIn += 1;
-      if (type === "online") online += 1;
-      if (type !== "home") inSpa += 1;
+      if (bookingType === "home_service") homeService += 1;
+      if (bookingType === "walk_in") walkIn += 1;
+      if (bookingType === "online") online += 1;
+      if (bookingType !== "home_service") inSpa += 1;
 
       return {
         id: booking.id,
@@ -309,14 +314,15 @@ export function buildStaffWeekPlanner({
         customerName: customer?.full_name ?? "Guest client",
         serviceName: service?.name ?? "Service",
         durationMinutes,
-        type,
+        bookingType,
+        status: booking.status,
+        roomName: null,
         hasNote: hasBookingNote(booking.metadata),
       };
     });
 
-    const bookedHours = roundHours(
-      appointments.reduce((sum, appointment) => sum + appointment.durationMinutes / 60, 0)
-    );
+    const totalMinutes = appointments.reduce((sum, appointment) => sum + appointment.durationMinutes, 0);
+    const bookedHours = roundHours(totalMinutes / 60);
     hoursBooked += bookedHours;
 
     let workHoursLabel: string | null = null;
@@ -333,6 +339,8 @@ export function buildStaffWeekPlanner({
 
     dayModels.push({
       date,
+      dayLabel: SHORT_DAY_NAMES[dayOfWeek] ?? SHORT_DAY_NAMES[0],
+      dayNumber: String(parsedDate.getDate()),
       dayNameShort: SHORT_DAY_NAMES[dayOfWeek] ?? SHORT_DAY_NAMES[0],
       dayNameFull: FULL_DAY_NAMES[dayOfWeek] ?? FULL_DAY_NAMES[0],
       dayOfWeek,
@@ -340,6 +348,7 @@ export function buildStaffWeekPlanner({
       isToday: date === todayIso,
       appointments,
       appointmentCount: appointments.length,
+      totalMinutes,
       bookedHours,
       workHoursLabel,
       isDayOff,

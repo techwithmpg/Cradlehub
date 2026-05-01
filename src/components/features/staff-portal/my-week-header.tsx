@@ -20,39 +20,41 @@ export function MyWeekHeader({
 }: MyWeekHeaderProps) {
   return (
     <header className={styles.header}>
-      <div className={styles.titleRow}>
-        <div>
+      <div className={styles.headerTop}>
+        <div className={styles.headerTitleBlock}>
           <div className={styles.titleGroup}>
             <span className={styles.titleIcon}>
               <Leaf size={16} />
             </span>
             <h2 className={cn(styles.title, "font-display")}>My Week</h2>
           </div>
-
-          <div className={styles.rangeRow}>
-            <span className={styles.rangeText}>{rangeLabel}</span>
-            <Link
-              href={currentHref}
-              className={cn(styles.weekPill, isCurrentWeek && styles.weekPillCurrent)}
-            >
-              This Week
-              <ChevronDown size={13} />
-            </Link>
-          </div>
+          <p className={styles.rangeText}>{rangeLabel}</p>
         </div>
 
         <div className={styles.headerActions}>
-          <Link href={previousHref} className={styles.navButton} aria-label="Previous week">
-            <ChevronLeft size={16} />
-          </Link>
-          <Link href={currentHref} className={`${styles.navButton} ${styles.calendarButton}`} aria-label="Go to this week">
+          <Link href={currentHref} className={`${styles.navButton} ${styles.calendarIconButton}`} aria-label="Open this week">
             <CalendarDays size={14} />
-            Calendar
-          </Link>
-          <Link href={nextHref} className={styles.navButton} aria-label="Next week">
-            <ChevronRight size={16} />
           </Link>
         </div>
+      </div>
+
+      <div className={styles.mobileWeekNav}>
+        <Link href={previousHref} className={styles.navButton} aria-label="Previous week">
+          <ChevronLeft size={16} />
+        </Link>
+
+        <Link
+          href={currentHref}
+          className={cn(styles.weekPill, styles.navCenterPill, isCurrentWeek && styles.weekPillCurrent)}
+          aria-label="Go to current week"
+        >
+          {isCurrentWeek ? "This Week" : rangeLabel}
+          <ChevronDown size={13} />
+        </Link>
+
+        <Link href={nextHref} className={styles.navButton} aria-label="Next week">
+          <ChevronRight size={16} />
+        </Link>
       </div>
     </header>
   );

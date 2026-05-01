@@ -1,5 +1,9 @@
 import type { StaffWeekDay } from "@/lib/staff-portal/week";
-import { formatHours } from "@/lib/staff-portal/week";
+import {
+  calculateTotalMinutesPerDay,
+  formatAppointmentCountText,
+  formatBookedHoursFromMinutes,
+} from "@/lib/staff-portal/week-summary";
 import styles from "./my-week-page.module.css";
 import { WeekAppointmentItem } from "./week-appointment-item";
 import { WeekDayEmptyState } from "./week-day-empty-state";
@@ -9,8 +13,7 @@ type WeekDayCardProps = {
 };
 
 function appointmentMeta(day: StaffWeekDay): string {
-  const noun = day.appointmentCount === 1 ? "appt" : "appts";
-  return `${day.appointmentCount} ${noun} • ${formatHours(day.bookedHours)}`;
+  return `${formatAppointmentCountText(day.appointmentCount)} • ${formatBookedHoursFromMinutes(calculateTotalMinutesPerDay(day))}`;
 }
 
 export function WeekDayCard({ day }: WeekDayCardProps) {
@@ -22,7 +25,7 @@ export function WeekDayCard({ day }: WeekDayCardProps) {
         <div className={styles.dayTitleRow}>
           <div>
             <p className={styles.dayName}>{day.dayNameShort}</p>
-            <p className={styles.dayDate}>{day.dayOfMonth}</p>
+            <p className={styles.dayDate}>{day.dayNumber}</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
             {day.isToday && <span className={styles.todayBadge}>TODAY</span>}
