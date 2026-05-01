@@ -2,51 +2,40 @@
 
 | Field | Value |
 |-------|-------|
-| **Task ID** | `UI-001` |
-| **Description** | `Redesign services page as premium responsive card grid` |
+| **Task ID** | `UI-002` |
+| **Description** | `Redesign new service builder page with live preview` |
 | **Agent** | `Kimi DevCoder` |
 | **Status** | `COMPLETE` |
 
 ## Changes Summary
 
-### Services Page Card Grid Redesign
-- Replaced flat list with premium responsive card grid
-- Cards grouped by category with section headers + service count badge
-- Responsive grid: 1 col mobile → auto-fill minmax(280px, 1fr) desktop
-- Each card includes:
-  - Image thumbnail (resolved via SPA_IMAGES name matching) or premium placeholder
-  - Service name + Active/Inactive badge
-  - Description (2-line clamp)
-  - Category badge (gold/cream pill)
-  - Duration + Price stat row
-  - Active toggle with status text (Visible/Hidden)
-  - Edit link + Delete dropdown action
-- Custom toggle component (sliding button, no Switch in UI library)
-- Toolbar: search by name/description/category, category filter, status filter (all/active/inactive), sort (name/price/duration)
-- Empty states: no services (CTA to create) and no filter matches (clear filters)
-- Skeleton loading cards
-- Working active toggle via `toggleServiceActiveAction`
-- Working delete via `deleteServiceAction` with browser confirm
-- New edit page at `/owner/services/[serviceId]` with form for name, category, description, duration, price
+### New Service Builder Redesign
+- Replaced two stacked plain forms with a premium service builder layout
+- Left side: guided form sections, right side: live card preview (sticky)
+- Form sections:
+  1. Category — tabbed: use existing category (dropdown) or create new category (name + display order + create button)
+  2. Service Details — name (required), description (textarea with improved placeholder)
+  3. Pricing & Duration — duration, price, buffer before/after with helper text
+  4. Visibility — active/inactive toggle with status description
+  5. Service Image — placeholder area (upload coming soon)
+- Live preview card updates in real-time as user types
+- Preview uses same visual style as Services page cards
+- Clear form errors (not generic)
+- Cancel returns to /owner/services
+- Create Service validates and submits via existing server actions
+- Category creation integrated inline with success feedback
+- isActive field added to createServiceSchema and createServiceAction
 
 ## Files Created
-- `src/components/features/services/service-image-thumbnail.tsx`
-- `src/components/features/services/service-status-toggle.tsx`
-- `src/components/features/services/service-card.tsx`
-- `src/components/features/services/service-card-skeleton.tsx`
-- `src/components/features/services/services-toolbar.tsx`
-- `src/components/features/services/service-category-section.tsx`
-- `src/components/features/services/services-empty-state.tsx`
-- `src/components/features/services/services-page-client.tsx`
-- `src/app/(dashboard)/owner/services/[serviceId]/page.tsx`
+- `src/components/features/services/service-card-preview.tsx` — live preview card
+- `src/app/(dashboard)/owner/services/new/service-builder-client.tsx` — client form builder
 
 ## Files Changed
-- `src/app/(dashboard)/owner/services/page.tsx` — uses new card grid + owner query
-- `src/app/(dashboard)/owner/services/actions.ts` — added `toggleServiceActiveAction`, `deleteServiceAction`, `isActive` to update schema mapping
-- `src/lib/validations/service.ts` — added `isActive` to `updateServiceSchema`, added `toggleServiceSchema`, `deleteServiceSchema`
-- `src/lib/queries/services.ts` — added `getAllServicesForOwner()` (includes inactive services)
+- `src/app/(dashboard)/owner/services/new/page.tsx` — pure server wrapper
+- `src/lib/validations/service.ts` — added `isActive` to `createServiceSchema`
+- `src/app/(dashboard)/owner/services/actions.ts` — `createServiceAction` now passes `is_active`
 
 ## Build Status
 - `pnpm type-check`: ✅ Passing
-- `pnpm build`: ✅ Passing (47 routes)
+- `pnpm build`: ✅ Passing (46 routes)
 - `pnpm lint`: ⚠️ 5 pre-existing errors only

@@ -17,6 +17,7 @@ export const createServiceSchema = z.object({
   price:           z.number().min(0, "Price cannot be negative"),
   bufferBefore:    z.number().int().min(0).max(60).default(0),
   bufferAfter:     z.number().int().min(0).max(60).default(0),
+  isActive:        z.boolean().default(true),
 });
 export type CreateServiceInput = z.infer<typeof createServiceSchema>;
 

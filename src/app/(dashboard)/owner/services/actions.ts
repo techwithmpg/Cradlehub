@@ -51,6 +51,7 @@ export async function createServiceAction(rawInput: unknown) {
       price:            d.price,
       buffer_before:    d.bufferBefore,
       buffer_after:     d.bufferAfter,
+      is_active:        d.isActive,
     })
     .select("id")
     .single();

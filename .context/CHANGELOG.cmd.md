@@ -362,3 +362,32 @@ All 8 sprints committed. System is production-ready pending data setup.
 - Delete uses browser `confirm()` dialog.
 
 **Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors
+
+
+---
+
+### 2026-05-01 — Kimi DevCoder (UI-002 — Premium New Service Builder)
+
+**Task:** Redesign `/owner/services/new` from plain stacked forms into a premium service builder with live card preview.
+
+**Files Created:**
+- `src/components/features/services/service-card-preview.tsx` — live preview card that mirrors the service grid cards
+- `src/app/(dashboard)/owner/services/new/service-builder-client.tsx` — full client form builder with 5 sections
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/services/new/page.tsx` — pure server wrapper passing categories to client
+- `src/lib/validations/service.ts` — `isActive` added to `createServiceSchema` with default `true`
+- `src/app/(dashboard)/owner/services/actions.ts` — `createServiceAction` now inserts `is_active`
+
+**Design decisions:**
+- Two-column layout: form left (scrollable), preview right (sticky at top: 20px).
+- Category section uses tabbed control: "Use existing category" vs "Create new category".
+- Creating a new category is done inline with a button; success shown as a green banner.
+- Description changed from single-line input to textarea.
+- All inputs have improved placeholders and helper text.
+- Visibility section shows a large toggle with active/inactive description.
+- Image section shows a dashed placeholder (upload not wired yet).
+- Form validation shows clear error messages per field.
+- Submitting creates the service and redirects to `/owner/services`.
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** No new errors
