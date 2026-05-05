@@ -12,6 +12,7 @@ import {
   assignTherapistBySeniorityMulti,
   getAvailableSlotsMulti,
 } from "@/lib/engine/availability";
+import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { SlotUnavailableError } from "@/types/errors";
 
 type CreateInhouseBookingResult =
@@ -158,6 +159,55 @@ export async function createInhouseBookingMultiAction(
 
     const admin = createAdminClient();
 
+    let resolvedResourceId = d.resourceId ?? null;
+
+    // ── Calculate total combined duration for resource check ────────────────
+    const { data: svcsCombined } = await admin
+      .from("services")
+      .select("duration_minutes, buffer_before, buffer_after")
+      .in("id", d.serviceIds);
+
+    const totalMinutesCombined = (svcsCombined ?? []).reduce(
+      (sum, s) => sum + s.duration_minutes + s.buffer_before + s.buffer_after,
+      0
+    );
+    const combinedEndTime = computeEndTimeLocal(d.startTime, totalMinutesCombined);
+
+    // ── Auto-assign room if not provided ──────────────────────────────────
+    if (d.type !== "home_service" && !resolvedResourceId && combinedEndTime) {
+      resolvedResourceId = await autoAssignBookingResource({
+        branchId: resolvedBranchId,
+        date: d.date,
+        startTime: d.startTime,
+        endTime: combinedEndTime,
+      });
+
+      if (!resolvedResourceId) {
+        return {
+          ok: false,
+          code: "RESOURCE_UNAVAILABLE",
+          message: "No room/bed is available for this time. Please assign a space manually or choose another time.",
+        };
+      }
+    }
+
+    // Verify resource availability if provided manually
+    if (d.resourceId && combinedEndTime) {
+      const isAvailable = await isResourceAvailable({
+        resourceId: d.resourceId,
+        date: d.date,
+        startTime: d.startTime,
+        endTime: combinedEndTime,
+      });
+      if (!isAvailable) {
+        return {
+          ok: false,
+          code: "RESOURCE_UNAVAILABLE",
+          message: "The selected room/bed is already booked for this time.",
+        };
+      }
+    }
+
     const { data: customerId, error: customerError } = await admin.rpc("upsert_customer", {
       p_phone: d.phone,
       p_full_name: d.fullName,
@@ -264,6 +314,7 @@ export async function createInhouseBookingMultiAction(
           branch_id: resolvedBranchId,
           service_id: serviceId,
           staff_id: resolvedStaffId,
+          resource_id: resolvedResourceId,
           customer_id: resolvedCustomerId,
           booking_date: d.date,
           start_time: currentStart,

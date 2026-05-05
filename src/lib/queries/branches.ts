@@ -48,7 +48,7 @@ export async function getBranchServices(branchId: string) {
 export async function getBranchWithFullDetail(branchId: string) {
   const supabase = await createClient();
 
-  const [branchResult, servicesResult, staffResult] = await Promise.all([
+  const [branchResult, servicesResult, staffResult, resourcesResult] = await Promise.all([
     supabase
       .from("branches")
       .select("*")
@@ -75,14 +75,22 @@ export async function getBranchWithFullDetail(branchId: string) {
       .eq("branch_id", branchId)
       .order("tier")
       .order("full_name"),
+
+    supabase
+      .from("branch_resources")
+      .select("*")
+      .eq("branch_id", branchId)
+      .order("sort_order")
+      .order("name"),
   ]);
 
   if (branchResult.error) throw new Error(branchResult.error.message);
 
   return {
-    branch:   branchResult.data,
-    services: servicesResult.data ?? [],
-    staff:    staffResult.data ?? [],
+    branch:    branchResult.data,
+    services:  servicesResult.data  ?? [],
+    staff:     staffResult.data     ?? [],
+    resources: resourcesResult.data ?? [],
   };
 }
 

@@ -546,27 +546,27 @@ All 8 sprints committed. System is production-ready pending data setup.
 
 ---
 
-### 2026-05-01 � Kimi DevCoder (STAFF-003 � Home Service Tracking Workflow Refinement)
+### 2026-05-01 � Kimi DevCoder (STAFF-003 � Home Service Tracking Workflow Refinement)
 
 **Task:** Refine home-service tracking with explicit status column, typed server actions, state machine helpers, progress stepper UI, and tests.
 
 **Files Created:**
-- src/lib/home-service-tracking.ts � pure state machine helpers (getNext, canTransition, getLabel, isComplete, getTimestampField)
-- 	ests/lib/home-service-tracking.test.ts � 18 tests covering all valid/blocked transitions
+- src/lib/home-service-tracking.ts � pure state machine helpers (getNext, canTransition, getLabel, isComplete, getTimestampField)
+- 	ests/lib/home-service-tracking.test.ts � 18 tests covering all valid/blocked transitions
 
 **Files Changed:**
-- supabase/migrations/20260501000003_home_service_tracking.sql � added home_service_tracking_status TEXT NOT NULL DEFAULT 'not_started' with CHECK constraint; updated RPC to set status alongside timestamps
-- src/types/supabase.ts � added home_service_tracking_status to bookings Row/Insert/Update
-- src/app/(dashboard)/staff-portal/actions.ts � rewrote updateHomeServiceTrackingAction with typed HomeServiceTrackingResult (ok: true | false with specific error codes: UNAUTHORIZED, NOT_FOUND, NOT_HOME_SERVICE, ALREADY_COMPLETED, INVALID_TRANSITION, DATABASE_ERROR); added server-side pre-validation before RPC call
-- src/components/features/staff-portal/types.ts � updated to use HomeServiceTrackingStatus from @/lib/home-service-tracking; simplified getTrackingStage/getNextTrackingStage/isTrackingComplete to read from status column
-- src/components/features/staff-portal/tracking-timer.tsx � added TimestampLabel component for static timestamps; TrackingTimer now takes explicit label prop
-- src/components/features/staff-portal/home-service-tracking-actions.tsx � replaced 4-button grid with compact stepper (? Travel � ? Arrived � ? Session � ? Complete) + single primary action button for next step + status-specific labels (Travel active, Arrived at 3:22 PM, Session active, Completed at 4:35 PM)
-- src/components/features/staff-portal/staff-appointment-card.tsx � removed old timer/tracking inline logic; now delegates all tracking UI to HomeServiceTrackingActions
+- supabase/migrations/20260501000003_home_service_tracking.sql � added home_service_tracking_status TEXT NOT NULL DEFAULT 'not_started' with CHECK constraint; updated RPC to set status alongside timestamps
+- src/types/supabase.ts � added home_service_tracking_status to bookings Row/Insert/Update
+- src/app/(dashboard)/staff-portal/actions.ts � rewrote updateHomeServiceTrackingAction with typed HomeServiceTrackingResult (ok: true | false with specific error codes: UNAUTHORIZED, NOT_FOUND, NOT_HOME_SERVICE, ALREADY_COMPLETED, INVALID_TRANSITION, DATABASE_ERROR); added server-side pre-validation before RPC call
+- src/components/features/staff-portal/types.ts � updated to use HomeServiceTrackingStatus from @/lib/home-service-tracking; simplified getTrackingStage/getNextTrackingStage/isTrackingComplete to read from status column
+- src/components/features/staff-portal/tracking-timer.tsx � added TimestampLabel component for static timestamps; TrackingTimer now takes explicit label prop
+- src/components/features/staff-portal/home-service-tracking-actions.tsx � replaced 4-button grid with compact stepper (? Travel � ? Arrived � ? Session � ? Complete) + single primary action button for next step + status-specific labels (Travel active, Arrived at 3:22 PM, Session active, Completed at 4:35 PM)
+- src/components/features/staff-portal/staff-appointment-card.tsx � removed old timer/tracking inline logic; now delegates all tracking UI to HomeServiceTrackingActions
 
 **Design Decisions:**
 - Kept RPC with SECURITY DEFINER for actual UPDATE (staff still lack direct booking UPDATE RLS)
 - Added server-side pre-validation in action for friendly typed errors before hitting RPC
-- Single primary action button pattern (not 4 buttons) � cleaner on mobile
+- Single primary action button pattern (not 4 buttons) � cleaner on mobile
 - Stepper uses filled dots for completed stages, accent dot for current, hollow dots for pending
 - Timer shows either travel timer or session timer depending on current stage
 
@@ -576,27 +576,27 @@ All 8 sprints committed. System is production-ready pending data setup.
 
 ---
 
-### 2026-05-01 � Kimi DevCoder (STAFF-004 � Unified Booking Progress Tracking)
+### 2026-05-01 � Kimi DevCoder (STAFF-004 � Unified Booking Progress Tracking)
 
 **Task:** Refactor home-service-only tracking into a unified appointment progress model supporting home_service, walkin (in-spa), and online bookings.
 
 **Files Created:**
-- supabase/migrations/20260501000004_unified_booking_progress.sql � adds ooking_progress_status (CHECK constraint), checked_in_at, session_completed_at, 
+- supabase/migrations/20260501000004_unified_booking_progress.sql � adds ooking_progress_status (CHECK constraint), checked_in_at, session_completed_at, 
 o_show_at; backfills from home_service_tracking_status and completed_at; replaces RPC with update_booking_progress() that validates type-aware transitions
-- src/lib/bookings/progress.ts � pure state machine helpers: getBookingProgressFlow, canTransitionBookingProgress, getNextAllowedProgressActions, getNextBookingProgressStatus, getBookingProgressLabel, isBookingProgressTerminal, getTimestampFieldForProgressStatus
-- 	ests/lib/bookings/progress.test.ts � 28 tests covering all three booking type flows, blocked transitions, labels, timestamps
-- src/components/features/staff-portal/booking-progress-actions.tsx � unified progress UI with type-specific stepper, status labels, timer, and action buttons
+- src/lib/bookings/progress.ts � pure state machine helpers: getBookingProgressFlow, canTransitionBookingProgress, getNextAllowedProgressActions, getNextBookingProgressStatus, getBookingProgressLabel, isBookingProgressTerminal, getTimestampFieldForProgressStatus
+- 	ests/lib/bookings/progress.test.ts � 28 tests covering all three booking type flows, blocked transitions, labels, timestamps
+- src/components/features/staff-portal/booking-progress-actions.tsx � unified progress UI with type-specific stepper, status labels, timer, and action buttons
 
 **Files Changed:**
-- src/types/supabase.ts � added ooking_progress_status, checked_in_at, session_completed_at, 
+- src/types/supabase.ts � added ooking_progress_status, checked_in_at, session_completed_at, 
 o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
-- src/app/(dashboard)/staff-portal/actions.ts � replaced updateHomeServiceTrackingAction with updateBookingProgressAction({ bookingId, nextStatus }); added role-aware permission checks (therapist actions vs CSR actions); uses new update_booking_progress RPC
-- src/components/features/staff-portal/types.ts � updated StaffPortalBooking to use BookingProgressStatus and include all new timestamp fields
-- src/components/features/staff-portal/staff-appointment-card.tsx � replaced HomeServiceTrackingActions with BookingProgressActions for all booking types
-- src/components/features/staff-portal/tracking-timer.tsx � added TimestampLabel component for static timestamps
+- src/app/(dashboard)/staff-portal/actions.ts � replaced updateHomeServiceTrackingAction with updateBookingProgressAction({ bookingId, nextStatus }); added role-aware permission checks (therapist actions vs CSR actions); uses new update_booking_progress RPC
+- src/components/features/staff-portal/types.ts � updated StaffPortalBooking to use BookingProgressStatus and include all new timestamp fields
+- src/components/features/staff-portal/staff-appointment-card.tsx � replaced HomeServiceTrackingActions with BookingProgressActions for all booking types
+- src/components/features/staff-portal/tracking-timer.tsx � added TimestampLabel component for static timestamps
 
 **Files Removed:**
-- src/components/features/staff-portal/home-service-tracking-actions.tsx � superseded by ooking-progress-actions.tsx
+- src/components/features/staff-portal/home-service-tracking-actions.tsx � superseded by ooking-progress-actions.tsx
 
 **Design Decisions:**
 - Old columns (home_service_tracking_status, completed_at) preserved but no longer written by new code; migration backfills new columns from old ones
@@ -740,4 +740,119 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 **Notes:**
 - SVG outputs are true vector path-based assets (no embedded `<image>`/base64 raster payloads).
 - Legacy UI usage of `/images/images/cradle-logo.png` and `/images/brand/cradle-logo-gold.png` has been replaced with reusable SVG component usage.
-$content
+
+---
+
+### 2026-05-02 — Codex (PAY-001 — Payment Recording + Daily Cash Summary)
+
+**Task:** Add real-time payment recording to all booking management surfaces and a daily cash summary KPI for managers and owners.
+
+**Migration:**
+- `supabase/migrations/20260502000002_payment_fields.sql` — adds 4 columns to bookings (`payment_method TEXT NOT NULL DEFAULT 'pay_on_site'`, `payment_status TEXT NOT NULL DEFAULT 'unpaid'`, `payment_reference TEXT`, `amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0`); 2 composite indexes for cash summary queries
+
+**Types:**
+- `src/types/supabase.ts` — added `amount_paid`, `payment_method`, `payment_reference`, `payment_status` to bookings `Row`, `Insert`, `Update`
+
+**Validations:**
+- `src/lib/validations/booking.ts` — added `PAYMENT_METHODS`, `PAYMENT_STATUSES` const arrays, `PAYMENT_METHOD_LABELS` record, `updateBookingPaymentSchema`, `UpdateBookingPaymentInput`
+
+**Queries:**
+- `src/lib/queries/bookings.ts` — updated `BOOKING_SELECT` + `getTodaysSchedule` to include payment fields; added `getDailyPaymentSummary(branchId, date)` returning totals + method breakdown
+- `src/lib/queries/analytics.ts` — added `getCrossbranchCashSummary(fromDate, toDate, branchId?)` for owner-level cross-branch reporting
+
+**Server Actions:**
+- `src/app/(dashboard)/manager/bookings/actions.ts` — added `updateBookingPaymentAction(rawInput)` (CSR/manager roles; never touches booking status)
+- `src/app/(dashboard)/owner/bookings/actions.ts` — added `getCashSummaryAction(fromDate, toDate, branchId?)`, `ownerUpdateBookingPaymentAction(rawInput)`
+
+**Components Created:**
+- `src/components/features/dashboard/payment-status-badge.tsx` — Paid/Unpaid/Pending/Refunded badge
+- `src/components/features/dashboard/payment-method-badge.tsx` — Cash/GCash/Maya/Card/Pay on Site/Other label badge
+- `src/components/features/dashboard/payment-action-menu.tsx` — client component with quick-pay dropdown (Cash/GCash/Maya/Card one-tap) + full edit form
+- `src/components/features/dashboard/daily-cash-summary.tsx` — KPI row: Expected / Collected (green) / Outstanding (red); method breakdown pills
+
+**Pages Updated:**
+- `src/app/(dashboard)/manager/bookings/page.tsx` — payment badges + `PaymentActionMenu` per row + `DailyCashSummary` above list
+- `src/app/(dashboard)/crm/bookings/page.tsx` — same payment integration for CSR staff
+- `src/app/(dashboard)/owner/bookings/page.tsx` — payment badges (read-only)
+- `src/app/(dashboard)/owner/reports/page.tsx` — `DailyCashSummary` pinned above analytics charts
+- `src/app/(dashboard)/layout.tsx` — explicit `LayoutStaff` type + cast to fix pre-existing avatar_url type error from avatar task
+- `src/lib/dev-bypass.ts` — added `avatar_url: string | null` to `getDevBypassLayoutStaff()` return type and value
+
+**Business Rule Enforced:**
+- Paying a booking NEVER changes its `status` column — `updateBookingPaymentAction` writes only payment columns
+
+**Verification:**
+- `pnpm type-check` ✅ (0 errors)
+- `pnpm lint` ✅ (0 errors, 0 warnings)
+- `pnpm build` ✅ (51/51 pages)
+
+---
+
+### 2026-05-05 — Gemini (CRADLE-SPACES-001 — Branch Spaces & Room Assignment)
+
+**Task:** Implement branch-level bookable spaces (rooms, beds, chairs) and physical resource assignment for bookings to prevent collisions.
+
+**Migrations:**
+- `supabase/migrations/20260505000001_branch_resources.sql` — created `branch_resources` table with types (room, bed, chair, etc.), capacity, and RLS; added `resource_id` to `bookings` table.
+- `supabase/migrations/20260505000002_update_get_daily_schedule.sql` — updated `get_daily_schedule` RPC to include `resource_id` and `resource_name` in booking objects.
+
+**Types:**
+- `src/types/supabase.ts` — added `branch_resources` table types and `resource_id` to `bookings`.
+- `src/components/features/staff-portal/types.ts` — added `branch_resources` to `StaffPortalBooking`.
+- `src/lib/queries/schedule.ts` — updated `DailyScheduleBooking` type.
+
+**Logic & Engine:**
+- `src/lib/engine/resource-availability.ts` — added `isResourceAvailable` helper to check capacity overlaps (ignoring cancelled/no_show).
+- `src/app/api/manager/resource-check/route.ts` — new API for real-time room availability checking from the UI.
+- `src/app/api/manager/context/route.ts` — updated to include active branch resources.
+
+**Server Actions:**
+- `src/app/(dashboard)/owner/branches/resources-actions.ts` — new file for branch resource CRUD (Owner/Manager roles).
+- `src/app/(dashboard)/manager/walkin/actions.ts` — updated `createWalkinBookingAction` to include `resourceId` and enforce resource availability.
+- `src/lib/actions/inhouse-booking.ts` — updated `createInhouseBookingMultiAction` to support resource assignment and conflict checking across multiple services.
+- `src/app/(dashboard)/manager/bookings/actions.ts` — updated `editBookingAction` to support assigning/changing rooms after creation with conflict checks.
+
+**UI Components:**
+- `src/app/(dashboard)/owner/branches/[branchId]/branch-resources-manager.tsx` — new management UI for branch spaces with add/edit/toggle-active features.
+- `src/components/features/dashboard/walkin-form.tsx` — added "Assign Space" dropdown with real-time conflict warning.
+- `src/components/features/schedule/schedule-booking-block.tsx` — booking blocks now show assigned room name; details dialog includes "Room / Bed Assignment" controls for post-booking management.
+- `src/components/features/staff-portal/staff-appointment-card.tsx` — therapists now see their assigned room directly on their schedule card.
+
+**Pages Updated:**
+- `src/app/(dashboard)/owner/branches/[branchId]/page.tsx` — integrated `BranchResourcesManager`.
+- `src/app/(dashboard)/manager/schedule/page.tsx`, `src/app/(dashboard)/owner/schedule/page.tsx`, `src/app/(dashboard)/crm/schedule/page.tsx` — all schedule views now fetch and pass branch resources for assignment capability.
+
+**Business Rule enforced:**
+- Physical space collisions are blocked during creation/edit if capacity is exceeded.
+- Home Service bookings bypass room requirement.
+
+**Verification:**
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅ (52/52 pages)
+
+---
+
+### 2026-05-05 — Gemini (CRADLE-SPACES-AUTO-001 — Auto Room Assignment)
+
+**Task:** Automate room assignment on booking confirmation and update public booking flow to start as 'pending'.
+
+**Logic & Engine:**
+- `src/lib/engine/resource-availability.ts` — added `autoAssignBookingResource` to find the first available space for a given branch/time range.
+- `src/app/(dashboard)/manager/bookings/actions.ts` — updated `updateBookingStatusAction` to trigger `autoAssignBookingResource` when status moves to `confirmed`.
+- `src/lib/actions/online-booking.ts` — changed initial status of online bookings to `pending` (multi-service supported).
+- `src/app/(dashboard)/manager/walkin/actions.ts` — added auto-assignment fallback if no resource is manually selected.
+- `src/lib/actions/inhouse-booking.ts` — added auto-assignment for multi-service CRM bookings, ensuring the same room is kept for the entire combined duration.
+
+**UI Components:**
+- `src/components/features/dashboard/booking-action-menu.tsx` — added "Confirm" action for `pending` bookings.
+- `src/app/(dashboard)/crm/bookings/page.tsx` — added `BookingActionMenu` to the CRM list view so CSR can confirm bookings.
+- `src/components/public/booking-wizard.tsx` — updated success step messaging for public bookings ("Booking Received" instead of "Confirmed").
+
+**Validation:**
+- `src/lib/validations/booking.ts` — added `confirmed` to allowed status transitions in `updateBookingStatusSchema`.
+
+**Verification:**
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅ (52/52 pages)

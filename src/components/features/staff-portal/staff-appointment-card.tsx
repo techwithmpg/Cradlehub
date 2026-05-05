@@ -67,17 +67,43 @@ export function StaffAppointmentCard({ booking, isNext }: StaffAppointmentCardPr
         </div>
       </div>
 
-      {/* Location / Address */}
-      <div style={{ fontSize: 12, color: "var(--cs-text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+      {/* Location / Address / Room */}
+      <div
+        style={{
+          fontSize: 12,
+          color: "var(--cs-text-muted)",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
         <MapPin size={12} />
         {isHomeService ? (
           address ? (
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{address}</span>
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {address}
+            </span>
           ) : (
             "Home Service — address not recorded"
           )
         ) : (
-          "In-Spa"
+          <span>
+            In-Spa
+            {booking.branch_resources ? (
+              <span style={{ color: "var(--cs-text)", fontWeight: 500 }}>
+                {" "}
+                · Room: {booking.branch_resources.name}
+              </span>
+            ) : (
+              " · Space not assigned"
+            )}
+          </span>
         )}
       </div>
 

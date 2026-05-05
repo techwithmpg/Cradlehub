@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -25,10 +25,18 @@ type BranchStaff = {
   tier: string;
 };
 
+type BranchResource = {
+  id: string;
+  name: string;
+  type: string;
+  capacity: number;
+};
+
 type ContextData = {
   branchId: string;
   services: BranchService[];
   staff: BranchStaff[];
+  resources: BranchResource[];
 };
 
 type ManagerContextResponse = ContextData | { error: string };
@@ -77,6 +85,7 @@ export function WalkinForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [serviceId, setServiceId] = useState("");
+  const [resourceId, setResourceId] = useState("");
   const [date, setDate] = useState(todayStr());
   const [bookingType, setBookingType] = useState<"walkin" | "home_service">("walkin");
   const [travelMins, setTravelMins] = useState(30);
@@ -149,6 +158,7 @@ export function WalkinForm() {
       const result = await createWalkinBookingAction({
         serviceId,
         staffId: selected.staffId,
+        resourceId: resourceId || undefined,
         date,
         startTime: selected.time,
         type: bookingType,
@@ -515,6 +525,41 @@ export function WalkinForm() {
         />
       </div>
 
+      {bookingType === "walkin" && ctx.resources.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+          <Label htmlFor="resourceId">Assign Space (Room / Bed)</Label>
+          <select
+            id="resourceId"
+            value={resourceId}
+            onChange={(e) => setResourceId(e.target.value)}
+            style={{
+              height: 36,
+              borderRadius: 6,
+              border: "1px solid var(--cs-border)",
+              padding: "0 0.5rem",
+              fontSize: "0.875rem",
+              backgroundColor: "var(--cs-surface)",
+              color: "var(--cs-text)",
+            }}
+          >
+            <option value="">Not assigned yet</option>
+            {ctx.resources.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} ({r.type.replace(/_/g, " ")})
+              </option>
+            ))}
+          </select>
+          {resourceId && selected && (
+            <ResourceCheckWarning
+              resourceId={resourceId}
+              date={date}
+              startTime={selected.time}
+              serviceId={serviceId}
+            />
+          )}
+        </div>
+      )}
+
       <Button
         type="submit"
         disabled={isPending || !selected || !serviceId || !fullName || !phone}
@@ -531,3 +576,52 @@ export function WalkinForm() {
   );
 }
 
+function ResourceCheckWarning({
+  resourceId,
+  date,
+  startTime,
+  serviceId,
+}: {
+  resourceId: string;
+  date: string;
+  startTime: string;
+  serviceId: string;
+}) {
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(true);
+      fetch(
+        `/api/manager/resource-check?resourceId=${resourceId}&date=${date}&startTime=${startTime}&serviceId=${serviceId}`
+      )
+        .then((res) => res.json())
+        .then((data) => setAvailable(data.available))
+        .catch(() => setAvailable(null))
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [resourceId, date, startTime, serviceId]);
+
+  if (loading)
+    return (
+      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+        Checking room availability...
+      </div>
+    );
+  if (available === false)
+    return (
+      <div
+        style={{
+          fontSize: "0.8125rem",
+          color: "#B91C1C",
+          marginTop: 4,
+          fontWeight: 500,
+        }}
+      >
+        ⚠️ This space is already occupied for this time.
+      </div>
+    );
+  return null;
+}

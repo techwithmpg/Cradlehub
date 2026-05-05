@@ -13,12 +13,16 @@ import { ScheduleStaffCell } from "./schedule-staff-cell";
 import { ScheduleBookingBlock } from "./schedule-booking-block";
 import { ScheduleBlockedTimeBlock } from "./schedule-blocked-time-block";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import type { Database } from "@/types/supabase";
+
+type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
 type StaffRowProps = {
   staff: DailyScheduleStaffRow;
+  branchResources?: ResourceRow[];
 };
 
-export function ScheduleStaffRow({ staff }: StaffRowProps) {
+export function ScheduleStaffRow({ staff, branchResources }: StaffRowProps) {
   const totalWidth = getTimelineTotalWidthPx();
   const isFullyOff = !staff.work_start || !staff.work_end;
 
@@ -124,7 +128,11 @@ export function ScheduleStaffRow({ staff }: StaffRowProps) {
 
         {/* Bookings */}
         {staff.bookings.map((booking) => (
-          <ScheduleBookingBlock key={booking.id} booking={booking} />
+          <ScheduleBookingBlock
+            key={booking.id}
+            booking={booking}
+            branchResources={branchResources}
+          />
         ))}
       </div>
     </div>

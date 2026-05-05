@@ -47,9 +47,15 @@ export async function GET() {
     return NextResponse.json({ error: "Branch context not found" }, { status: 404 });
   }
 
-  const [services, staff] = await Promise.all([
+  const [services, staff, resourcesResult] = await Promise.all([
     getBranchServices(me.branch_id),
     getStaffByBranch(me.branch_id),
+    supabase
+      .from("branch_resources")
+      .select("*")
+      .eq("branch_id", me.branch_id)
+      .eq("is_active", true)
+      .order("sort_order"),
   ]);
 
   return NextResponse.json({
@@ -58,5 +64,6 @@ export async function GET() {
     branch,
     services,
     staff,
+    resources: resourcesResult.data ?? [],
   });
 }

@@ -4,11 +4,21 @@ import { createClient } from "@/lib/supabase/server";
 const BOOKING_SELECT = `
   id, booking_date, start_time, end_time, type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
+  payment_method, payment_status, payment_reference, amount_paid,
+  resource_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
   staff      ( id, full_name, tier ),
-  customers  ( id, full_name, phone, email )
+  customers  ( id, full_name, phone, email ),
+  branch_resources!resource_id ( id, name, type )
 `;
+
+function readPricePaid(metadata: unknown): number {
+  if (!metadata || typeof metadata !== "object") return 0;
+  const val = (metadata as Record<string, unknown>)["price_paid"];
+  const n = Number(val ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export async function getBookingsByBranch(
   branchId: string,
@@ -87,15 +97,59 @@ export async function getTodaysSchedule(branchId: string, date: string) {
     .select(`
       id, booking_date, start_time, end_time, type, status,
       travel_buffer_mins, metadata,
+      payment_method, payment_status, payment_reference, amount_paid,
       services  ( id, name, duration_minutes ),
       staff     ( id, full_name, tier ),
-      customers ( id, full_name, phone )
+      customers ( id, full_name, phone ),
+      branch_resources!resource_id ( id, name, type )
     `)
     .eq("branch_id", branchId)
     .eq("booking_date", date)
     .order("start_time");
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+// ── Daily payment summary for a branch ───────────────────────────────────
+export async function getDailyPaymentSummary(branchId: string, date: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("status, metadata, payment_method, payment_status, amount_paid")
+    .eq("branch_id", branchId)
+    .eq("booking_date", date);
+  if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+  const activeRows = rows.filter((r) => !["cancelled", "no_show"].includes(r.status));
+  const paidRows = activeRows.filter((r) => r.payment_status === "paid");
+  const unpaidRows = activeRows.filter((r) => ["unpaid", "pending"].includes(r.payment_status));
+
+  const totalExpected = activeRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
+  const totalCollected = paidRows.reduce((s, r) => s + Number(r.amount_paid ?? 0), 0);
+  const totalUnpaid = unpaidRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
+
+  const byMethod: Record<string, number> = {
+    cash: 0, gcash: 0, maya: 0, card: 0, pay_on_site: 0, other: 0,
+  };
+  for (const r of paidRows) {
+    const m = r.payment_method ?? "other";
+    byMethod[m] = (byMethod[m] ?? 0) + Number(r.amount_paid ?? 0);
+  }
+
+  return {
+    date,
+    total_expected:  totalExpected,
+    total_collected: totalCollected,
+    total_unpaid:    totalUnpaid,
+    paid_count:      paidRows.length,
+    unpaid_count:    unpaidRows.length,
+    total_count:     activeRows.length,
+    by_method:       byMethod as {
+      cash: number; gcash: number; maya: number;
+      card: number; pay_on_site: number; other: number;
+    },
+  };
 }
 
 // ── 7-day schedule for manager planning view ──────────────────────────────
@@ -190,7 +244,8 @@ export async function getMyUpcomingBookings(
     .select(`
       id, booking_date, start_time, end_time, type, status, metadata,
       services  ( id, name, duration_minutes ),
-      customers ( id, full_name )
+      customers ( id, full_name ),
+      branch_resources!resource_id ( id, name, type )
     `)
     .eq("staff_id", staffId)
     .gte("booking_date", fromDate)

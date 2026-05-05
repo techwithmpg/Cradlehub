@@ -9,12 +9,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: me } = await supabase
+  type LayoutStaff = {
+    full_name:   string;
+    system_role: string;
+    branch_id:   string;
+    branches:    { name: string } | { name: string }[] | null;
+    avatar_url:  string | null;
+  };
+
+  const { data: meRaw } = await supabase
     .from("staff")
-    .select("full_name, system_role, branch_id, branches(name)")
+    .select("full_name, system_role, branch_id, branches(name), avatar_url")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .single();
+
+  const me = meRaw as LayoutStaff | null;
 
   // Dev bypass: if no staff record but dev mode is on, use a mock staff profile
   // so developers can test dashboard pages without creating a full staff record.
@@ -31,6 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <Sidebar
         role={resolvedMe.system_role}
         fullName={resolvedMe.full_name}
+        avatarUrl={resolvedMe.avatar_url}
         branchName={(resolvedMe.branches as { name: string } | null)?.name}
       />
 
@@ -40,7 +51,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         display:       "flex",
         flexDirection: "column",
       }}>
-        <Header role={resolvedMe.system_role} fullName={resolvedMe.full_name} />
+        <Header 
+          role={resolvedMe.system_role} 
+          fullName={resolvedMe.full_name} 
+          avatarUrl={resolvedMe.avatar_url}
+        />
         <main style={{
           flex:    1,
           padding: "20px",

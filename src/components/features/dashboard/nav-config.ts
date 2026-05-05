@@ -55,9 +55,10 @@ const CSR_STAFF_NAV_ITEMS: NavItem[] = [
 ];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
-  { label: "Today", href: "/staff-portal", icon: "Sun" },
+  { label: "Today", href: "/staff-portal", icon: "LayoutDashboard" },
   { label: "My Week", href: "/staff-portal/week", icon: "CalendarDays" },
-  { label: "My Stats", href: "/staff-portal/stats", icon: "BarChart2" },
+  { label: "My Stats", href: "/staff-portal/stats", icon: "TrendingUp" },
+  { label: "Profile", href: "/staff-portal/profile", icon: "User" },
 ];
 
 const DRIVER_NAV_ITEMS: NavItem[] = [

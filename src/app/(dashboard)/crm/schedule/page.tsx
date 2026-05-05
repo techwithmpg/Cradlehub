@@ -15,7 +15,7 @@ async function getCsrContext() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("branch_id, branches(name)")
+    .select("id, branch_id, branches(name)")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .single();
@@ -47,14 +47,21 @@ export default async function CrmSchedulePage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const { branchId, branchName } = await getCsrContext();
+  const supabase = await createClient();
   const params = await searchParams;
 
   const today = new Date().toISOString().split("T")[0]!;
   const selectedDate = params.date ?? today;
 
-  const [scheduleRows, stats] = await Promise.all([
+  const [scheduleRows, stats, resourcesResult] = await Promise.all([
     getDailySchedule({ branchId, date: selectedDate }),
     getManagerDashboardStats(branchId, selectedDate),
+    supabase
+      .from("branch_resources")
+      .select("*")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("sort_order"),
   ]);
 
   const isToday = selectedDate === today;
@@ -184,6 +191,7 @@ export default async function CrmSchedulePage({
         branchId={branchId}
         date={selectedDate}
         staffRows={scheduleRows}
+        branchResources={resourcesResult.data ?? []}
       />
     </div>
   );

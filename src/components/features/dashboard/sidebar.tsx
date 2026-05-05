@@ -105,9 +105,12 @@ const WORKSPACE_META: Record<string, {
   },
 };
 
+import { UserAvatar } from "@/components/shared/user-avatar";
+
 type SidebarProps = {
   role:        string;
   fullName:    string;
+  avatarUrl?:  string | null;
   branchName?: string;
 };
 
@@ -116,7 +119,7 @@ type SidebarContentProps = SidebarProps & {
   onNav?:   () => void;
 };
 
-function SidebarContent({ role, fullName, branchName, pathname, onNav }: SidebarContentProps) {
+function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav }: SidebarContentProps) {
   const roleWorkspaceKey = resolveWorkspaceKeyFromRole(role);
   const pathWorkspaceKey = resolveWorkspaceKeyFromPath(pathname);
   const forceRoleWorkspace =
@@ -130,8 +133,6 @@ function SidebarContent({ role, fullName, branchName, pathname, onNav }: Sidebar
   const nav          = NAV_CONFIG[workspaceKey];
   const meta         = WORKSPACE_META[role] ?? WORKSPACE_META[workspaceKey] ?? WORKSPACE_META["staff"]!;
   if (!nav) return null;
-
-  const initials = fullName.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
     <aside style={{
@@ -309,22 +310,12 @@ function SidebarContent({ role, fullName, branchName, pathname, onNav }: Sidebar
         padding:   "12px 16px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width:          32,
-            height:         32,
-            borderRadius:   "50%",
-            background:     meta.accentBg,
-            border:         `1.5px solid ${meta.accent}44`,
-            display:        "flex",
-            alignItems:     "center",
-            justifyContent: "center",
-            fontSize:       11,
-            fontWeight:     600,
-            color:          meta.accent,
-            flexShrink:     0,
-          }}>
-            {initials}
-          </div>
+          <UserAvatar
+            name={fullName}
+            imageUrl={avatarUrl}
+            size="md"
+            className="size-8 border border-border-soft"
+          />
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
@@ -351,7 +342,7 @@ function SidebarContent({ role, fullName, branchName, pathname, onNav }: Sidebar
   );
 }
 
-export function Sidebar({ role, fullName, branchName }: SidebarProps) {
+export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps) {
   const pathname        = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -359,7 +350,7 @@ export function Sidebar({ role, fullName, branchName }: SidebarProps) {
     <>
       {/* Desktop */}
       <div className="hidden md:flex" style={{ position: "sticky", top: 0, height: "100vh", flexShrink: 0 }}>
-        <SidebarContent role={role} fullName={fullName} branchName={branchName} pathname={pathname} />
+        <SidebarContent role={role} fullName={fullName} avatarUrl={avatarUrl} branchName={branchName} pathname={pathname} />
       </div>
 
       {/* Mobile hamburger */}
@@ -405,7 +396,7 @@ export function Sidebar({ role, fullName, branchName }: SidebarProps) {
                 backgroundColor: "transparent",
                 border:          "none",
                 cursor:          "pointer",
-                color:           "#fff",
+                color: "#fff",
               }}
             >
               <X size={20} />
@@ -413,6 +404,7 @@ export function Sidebar({ role, fullName, branchName }: SidebarProps) {
             <SidebarContent
               role={role}
               fullName={fullName}
+              avatarUrl={avatarUrl}
               branchName={branchName}
               pathname={pathname}
               onNav={() => setOpen(false)}

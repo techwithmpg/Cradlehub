@@ -2,8 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
-import { updateBookingStatusSchema, editBookingSchema } from "@/lib/validations/booking";
+import { updateBookingStatusSchema, editBookingSchema, updateBookingPaymentSchema } from "@/lib/validations/booking";
 import { assertSlotAvailable } from "@/lib/engine/availability";
+import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { revalidatePath } from "next/cache";
@@ -69,9 +70,41 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     })
     .catch(() => {});
 
+  const updates: Database["public"]["Tables"]["bookings"]["Update"] = {
+    status: parsed.data.status,
+  };
+
+  // ── Auto-assign room on confirmation ────────────────────────────────────
+  if (parsed.data.status === "confirmed") {
+    // 1. Fetch current booking details
+    const { data: booking } = await supabase
+      .from("bookings")
+      .select("branch_id, booking_date, start_time, end_time, type, resource_id")
+      .eq("id", parsed.data.bookingId)
+      .single();
+
+    if (booking && booking.type !== "home_service" && !booking.resource_id) {
+      const assignedResourceId = await autoAssignBookingResource({
+        branchId: booking.branch_id,
+        date: booking.booking_date,
+        startTime: booking.start_time,
+        endTime: booking.end_time,
+      });
+
+      if (!assignedResourceId) {
+        return {
+          success: false,
+          error:
+            "No room/bed is available for this time. Please assign a space manually or choose another time.",
+        };
+      }
+      updates.resource_id = assignedResourceId;
+    }
+  }
+
   const { error } = await supabase
     .from("bookings")
-    .update({ status: parsed.data.status })
+    .update(updates)
     .eq("id", parsed.data.bookingId)
     .eq("branch_id", me.branch_id); // RLS-equivalent guard
 
@@ -80,6 +113,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");
   revalidatePath("/crm");
+  revalidatePath("/crm/bookings");
   return { success: true };
 }
 
@@ -112,31 +146,71 @@ export async function editBookingAction(rawInput: unknown) {
   if (!current) return { success: false, error: "Booking not found" };
 
   const resolvedServiceId = changes.serviceId ?? current.service_id;
-  const resolvedStaffId   = changes.staffId   ?? current.staff_id;
-  const resolvedDate      = changes.date       ?? current.booking_date;
-  const resolvedStartTime = changes.startTime  ?? current.start_time;
+  const resolvedStaffId = changes.staffId ?? current.staff_id;
+  const resolvedDate = changes.date ?? current.booking_date;
+  const resolvedStartTime = changes.startTime ?? current.start_time;
+  const resolvedResourceId =
+    changes.resourceId !== undefined ? changes.resourceId : current.resource_id;
 
   const updates: Database["public"]["Tables"]["bookings"]["Update"] = {};
 
-  // If time, staff, or service changed — verify availability
-  if (changes.staffId || changes.date || changes.startTime || changes.serviceId) {
-    try {
-      await assertSlotAvailable({
-        branchId:  me.branch_id,
-        serviceId: resolvedServiceId,
-        staffId:   resolvedStaffId,
-        date:      resolvedDate,
-        startTime: resolvedStartTime,
-      });
-    } catch {
-      return { success: false, error: "That time slot is no longer available" };
+  // If time, staff, service OR resource changed — verify availability
+  if (
+    changes.staffId ||
+    changes.date ||
+    changes.startTime ||
+    changes.serviceId ||
+    changes.resourceId !== undefined
+  ) {
+    // 1. Staff availability check
+    if (changes.staffId || changes.date || changes.startTime || changes.serviceId) {
+      try {
+        await assertSlotAvailable({
+          branchId: me.branch_id,
+          serviceId: resolvedServiceId,
+          staffId: resolvedStaffId,
+          date: resolvedDate,
+          startTime: resolvedStartTime,
+        });
+      } catch {
+        return { success: false, error: "That time slot is no longer available" };
+      }
+
+      updates.end_time = await computeEndTime(resolvedStartTime, resolvedServiceId);
+      if (changes.staffId) updates.staff_id = changes.staffId;
+      if (changes.serviceId) updates.service_id = changes.serviceId;
+      if (changes.date) updates.booking_date = changes.date;
+      if (changes.startTime) updates.start_time = changes.startTime;
     }
 
-    updates.end_time = await computeEndTime(resolvedStartTime, resolvedServiceId);
-    if (changes.staffId)   updates.staff_id   = changes.staffId;
-    if (changes.serviceId) updates.service_id = changes.serviceId;
-    if (changes.date)      updates.booking_date = changes.date;
-    if (changes.startTime) updates.start_time   = changes.startTime;
+    // 2. Resource availability check
+    if (
+      resolvedResourceId &&
+      (changes.resourceId !== undefined ||
+        changes.date ||
+        changes.startTime ||
+        changes.serviceId)
+    ) {
+      const isAvailable = await isResourceAvailable({
+        resourceId: resolvedResourceId,
+        date: resolvedDate,
+        startTime: resolvedStartTime,
+        endTime:
+          updates.end_time ??
+          (await computeEndTime(resolvedStartTime, resolvedServiceId)),
+        excludeBookingId: bookingId,
+      });
+      if (!isAvailable) {
+        return {
+          success: false,
+          error: "The selected room/bed is already booked for this time.",
+        };
+      }
+    }
+
+    if (changes.resourceId !== undefined) {
+      updates.resource_id = changes.resourceId;
+    }
 
     // Re-snapshot if service changed
     if (changes.serviceId) {
@@ -146,7 +220,8 @@ export async function editBookingAction(rawInput: unknown) {
         ...(await buildBookingSnapshot(me.branch_id, resolvedServiceId)),
         customer_notes: existing["customer_notes"] ?? null,
       };
-      updates.metadata = nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
+      updates.metadata =
+        nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
     }
   }
 
@@ -194,5 +269,40 @@ export async function editBookingAction(rawInput: unknown) {
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");
   revalidatePath("/crm");
+  revalidatePath("/crm/bookings");
+  return { success: true };
+}
+
+// ── Update booking payment (method, status, amount, reference) ────────────
+// Intentionally separate from booking status — paying does not complete the service.
+export async function updateBookingPaymentAction(rawInput: unknown) {
+  const parsed = updateBookingPaymentSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const ctx = await getOperationsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+  const { supabase, me } = ctx;
+
+  const { bookingId, paymentMethod, paymentStatus, amountPaid, paymentReference } = parsed.data;
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      payment_method:    paymentMethod,
+      payment_status:    paymentStatus,
+      amount_paid:       amountPaid,
+      payment_reference: paymentReference ?? null,
+    })
+    .eq("id", bookingId)
+    .eq("branch_id", me.branch_id);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/manager");
+  revalidatePath("/manager/bookings");
+  revalidatePath("/crm");
+  revalidatePath("/crm/bookings");
   return { success: true };
 }

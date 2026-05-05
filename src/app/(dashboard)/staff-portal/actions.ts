@@ -11,6 +11,8 @@ import {
 } from "@/lib/bookings/progress";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 
+import { revalidatePath } from "next/cache";
+
 // ── Resolve authenticated staff record ────────────────────────────────────
 async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   const supabase = await createClient();
@@ -21,7 +23,7 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("id, full_name, tier, system_role, staff_type, branch_id")
+    .select("id, full_name, tier, system_role, staff_type, branch_id, avatar_url, avatar_path")
     .eq("auth_user_id", user.id)
     .single();
 
@@ -32,7 +34,63 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   }
 
   if (!me) return null;
-  return me;
+  return me as StaffPortalStaff;
+}
+
+// ── Update staff profile photo ──────────────────────────────────────────
+export async function updateStaffProfilePhotoAction(formData: FormData) {
+  const supabase = await createClient();
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const file = formData.get("file") as File;
+  if (!file) return { error: "No file provided" };
+
+  // Validate file type
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    return { error: "Invalid file type. Only JPG, PNG, and WebP are allowed." };
+  }
+
+  // Validate file size (2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    return { error: "File too large. Maximum size is 2MB." };
+  }
+
+  const fileExt = file.name.split(".").pop();
+  const filePath = `staff-avatars/${me.id}/profile.${fileExt}`;
+
+  // Upload to Supabase Storage
+  const { error: uploadError } = await supabase.storage
+    .from("staff-pictures")
+    .upload(filePath, file, {
+      upsert: true,
+      contentType: file.type,
+    });
+
+  if (uploadError) return { error: uploadError.message };
+
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from("staff-pictures")
+    .getPublicUrl(filePath);
+
+  // Update staff record
+  const { error: updateError } = await supabase
+    .from("staff")
+    .update({
+      avatar_url: publicUrl,
+      avatar_path: filePath,
+    })
+    .eq("id", me.id);
+
+  if (updateError) return { error: updateError.message };
+
+  revalidatePath("/staff-portal");
+  revalidatePath("/staff-portal/profile");
+  revalidatePath("/owner/staff");
+
+  return { success: true, avatarUrl: publicUrl };
 }
 
 // ── Today's bookings for the portal home ──────────────────────────────────
@@ -52,7 +110,8 @@ export async function getMyTodayAction(date: string) {
       travel_started_at, arrived_at, session_started_at, completed_at,
       session_completed_at, checked_in_at, no_show_at,
       services  ( id, name, duration_minutes ),
-      customers ( id, full_name )
+      customers ( id, full_name ),
+      branch_resources!resource_id ( name, type )
     `)
     .eq("staff_id", me.id)
     .eq("booking_date", date)
@@ -288,4 +347,11 @@ export async function getMyStatsAction(year: number, month: number) {
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
   return getMyMonthlyStats(me.id, year, month);
+}
+
+// ── Personal profile details ─────────────────────────────────────────────
+export async function getMyProfileAction() {
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+  return { staff: me };
 }

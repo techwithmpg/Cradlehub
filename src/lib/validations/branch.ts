@@ -34,3 +34,31 @@ export const updateBranchSlotIntervalSchema = z.object({
   slotIntervalMinutes: z.union([z.literal(15), z.literal(30), z.literal(60)]),
 });
 export type UpdateBranchSlotIntervalInput = z.infer<typeof updateBranchSlotIntervalSchema>;
+
+// ── Branch resources (Spaces & Equipment) ─────────────────────────────────
+export const RESOURCE_TYPES = [
+  "room",
+  "bed",
+  "chair",
+  "equipment",
+  "home_service_unit",
+  "shared_area",
+  "other",
+] as const;
+export type ResourceType = (typeof RESOURCE_TYPES)[number];
+
+export const createBranchResourceSchema = z.object({
+  branchId:   uuid,
+  name:       z.string().min(1, "Name is required").max(100),
+  type:       z.enum(RESOURCE_TYPES).default("room"),
+  capacity:   z.number().int().min(1, "Capacity must be at least 1").default(1),
+  isActive:   z.boolean().default(true),
+  sortOrder:  z.number().int().default(0),
+  notes:      z.string().max(500).optional(),
+});
+export type CreateBranchResourceInput = z.infer<typeof createBranchResourceSchema>;
+
+export const updateBranchResourceSchema = createBranchResourceSchema
+  .partial()
+  .extend({ resourceId: uuid });
+export type UpdateBranchResourceInput = z.infer<typeof updateBranchResourceSchema>;

@@ -8,14 +8,18 @@ import {
   isToday,
 } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import type { Database } from "@/types/supabase";
 import { ScheduleTimeHeader } from "./schedule-time-header";
 import { ScheduleStaffRow } from "./schedule-staff-row";
 import { ScheduleCurrentTimeIndicator } from "./schedule-current-time-indicator";
+
+type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
 type DailyScheduleBoardProps = {
   branchId: string;
   date: string;
   staffRows: DailyScheduleStaffRow[];
+  branchResources?: ResourceRow[];
 };
 
 function useScheduleRealtime(branchId: string, date: string) {
@@ -49,7 +53,12 @@ function useScheduleRealtime(branchId: string, date: string) {
   }, [branchId, date, router]);
 }
 
-export function DailyScheduleBoard({ branchId, date, staffRows }: DailyScheduleBoardProps) {
+export function DailyScheduleBoard({ 
+  branchId, 
+  date, 
+  staffRows,
+  branchResources 
+}: DailyScheduleBoardProps) {
   useScheduleRealtime(branchId, date);
 
   if (staffRows.length === 0) {
@@ -96,7 +105,11 @@ export function DailyScheduleBoard({ branchId, date, staffRows }: DailyScheduleB
             {showCurrentTime && <ScheduleCurrentTimeIndicator />}
 
             {staffRows.map((staff) => (
-              <ScheduleStaffRow key={staff.staff_id} staff={staff} />
+              <ScheduleStaffRow 
+                key={staff.staff_id} 
+                staff={staff} 
+                branchResources={branchResources}
+              />
             ))}
           </div>
         </div>

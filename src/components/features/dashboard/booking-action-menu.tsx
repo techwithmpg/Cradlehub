@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { canCancelBooking, canChangeBookingStatus } from "@/lib/permissions";
 
-type BookingTransitionStatus = "in_progress" | "completed" | "cancelled" | "no_show";
+type BookingTransitionStatus = "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
 
 type TransitionAction = {
   label: string;
@@ -15,6 +15,10 @@ type TransitionAction = {
 };
 
 const TRANSITIONS: Record<string, TransitionAction[]> = {
+  pending: [
+    { label: "Confirm", status: "confirmed" },
+    { label: "Cancel", status: "cancelled", danger: true },
+  ],
   confirmed: [
     { label: "Start", status: "in_progress" },
     { label: "Complete", status: "completed" },

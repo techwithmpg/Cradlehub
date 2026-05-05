@@ -3,6 +3,7 @@
 import { Activity } from "lucide-react";
 import type { StaffPortalStaff } from "./types";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
+import { UserAvatar } from "@/components/shared/user-avatar";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -45,23 +46,12 @@ export function StaffSummaryCard({ staff, totalAppointments, nextAppointmentTime
         gap: "0.875rem",
       }}
     >
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, var(--cs-staff-accent), var(--cs-sand))",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 18,
-          fontWeight: 700,
-          color: "#fff",
-          flexShrink: 0,
-        }}
-      >
-        {staff.full_name.charAt(0).toUpperCase()}
-      </div>
+      <UserAvatar
+        name={staff.full_name}
+        imageUrl={staff.avatar_url}
+        size="md"
+        className="size-12 border-2 border-background shadow-sm"
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: "var(--cs-text)", lineHeight: 1.3 }}>
           Good {getGreeting()}, {firstName}

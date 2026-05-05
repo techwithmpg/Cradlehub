@@ -48,10 +48,21 @@ export default async function OwnerSchedulePage({
   const isToday = selectedDate === today;
 
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+  const supabase = await createClient();
 
-  const scheduleRows = selectedBranchId
-    ? await getDailySchedule({ branchId: selectedBranchId, date: selectedDate })
-    : [];
+  const [scheduleRows, resourcesResult] = await Promise.all([
+    selectedBranchId
+      ? getDailySchedule({ branchId: selectedBranchId, date: selectedDate })
+      : Promise.resolve([]),
+    selectedBranchId
+      ? supabase
+          .from("branch_resources")
+          .select("*")
+          .eq("branch_id", selectedBranchId)
+          .eq("is_active", true)
+          .order("sort_order")
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const formattedDate = new Date(selectedDate + "T00:00:00").toLocaleDateString("en-PH", {
     weekday: "long",
@@ -186,6 +197,7 @@ export default async function OwnerSchedulePage({
           branchId={selectedBranchId}
           date={selectedDate}
           staffRows={scheduleRows}
+          branchResources={resourcesResult.data ?? []}
         />
       )}
     </div>

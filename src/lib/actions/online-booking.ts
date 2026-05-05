@@ -103,7 +103,7 @@ export async function createOnlineBookingAction(
         start_time: d.startTime,
         end_time: endTime,
         type: d.type,
-        status: "confirmed",
+        status: "pending",
         travel_buffer_mins: d.type === "home_service" ? (d.travelBufferMins ?? 30) : null,
         metadata,
       })
@@ -213,7 +213,7 @@ export async function createOnlineBookingMultiAction(
           start_time: currentStart,
           end_time: endTime,
           type: d.type,
-          status: "confirmed",
+          status: "pending",
           travel_buffer_mins: d.type === "home_service" ? (d.travelBufferMins ?? 30) : null,
           metadata,
         })

@@ -109,6 +109,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          amount_paid: number
           booking_date: string
           booking_progress_status: string
           branch_id: string
@@ -122,6 +123,10 @@ export type Database = {
           metadata: Json
           no_show_at: string | null
           arrived_at: string | null
+          payment_method: string
+          payment_reference: string | null
+          payment_status: string
+          resource_id: string | null
           service_id: string
           session_completed_at: string | null
           session_started_at: string | null
@@ -134,6 +139,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          amount_paid?: number
           booking_date: string
           booking_progress_status?: string
           branch_id: string
@@ -147,6 +153,10 @@ export type Database = {
           metadata?: Json
           no_show_at?: string | null
           arrived_at?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          payment_status?: string
+          resource_id?: string | null
           service_id: string
           session_completed_at?: string | null
           session_started_at?: string | null
@@ -159,6 +169,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          amount_paid?: number
           booking_date?: string
           booking_progress_status?: string
           branch_id?: string
@@ -172,6 +183,10 @@ export type Database = {
           metadata?: Json
           no_show_at?: string | null
           arrived_at?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          payment_status?: string
+          resource_id?: string | null
           service_id?: string
           session_completed_at?: string | null
           session_started_at?: string | null
@@ -199,6 +214,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bookings_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "branch_resources"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bookings_service_id_fkey"
             columns: ["service_id"]
             isOneToOne: false
@@ -210,6 +232,53 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_resources: {
+        Row: {
+          branch_id: string
+          capacity: number
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          sort_order: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          capacity?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          sort_order?: number
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          capacity?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          sort_order?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_resources_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
         ]
@@ -490,6 +559,8 @@ export type Database = {
           system_role: string
           tier: string
           updated_at: string
+          avatar_url: string | null
+          avatar_path: string | null
         }
         Insert: {
           auth_user_id?: string | null
@@ -504,6 +575,8 @@ export type Database = {
           system_role?: string
           tier?: string
           updated_at?: string
+          avatar_url?: string | null
+          avatar_path?: string | null
         }
         Update: {
           auth_user_id?: string | null
@@ -518,6 +591,8 @@ export type Database = {
           system_role?: string
           tier?: string
           updated_at?: string
+          avatar_url?: string | null
+          avatar_path?: string | null
         }
         Relationships: [
           {

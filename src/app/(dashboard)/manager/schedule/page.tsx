@@ -15,7 +15,7 @@ async function getManagerContext() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("branch_id, branches(name)")
+    .select("id, branch_id, branches(name)")
     .eq("auth_user_id", user.id)
     .single();
 
@@ -46,14 +46,21 @@ export default async function ManagerSchedulePage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const { branchId, branchName } = await getManagerContext();
+  const supabase = await createClient();
   const params = await searchParams;
 
   const today = new Date().toISOString().split("T")[0]!;
   const selectedDate = params.date ?? today;
 
-  const [scheduleRows, stats] = await Promise.all([
+  const [scheduleRows, stats, resourcesResult] = await Promise.all([
     getDailySchedule({ branchId, date: selectedDate }),
     getManagerDashboardStats(branchId, selectedDate),
+    supabase
+      .from("branch_resources")
+      .select("*")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("sort_order"),
   ]);
 
   const isToday = selectedDate === today;
@@ -182,6 +189,7 @@ export default async function ManagerSchedulePage({
         branchId={branchId}
         date={selectedDate}
         staffRows={scheduleRows}
+        branchResources={resourcesResult.data ?? []}
       />
     </div>
   );

@@ -26,6 +26,7 @@ type BookingRow = {
   customers: Relation<CustomerRelation>;
   services: Relation<ServiceRelation>;
   staff: Relation<StaffRelation>;
+  branch_resources: Relation<{ name: string }>;
 };
 
 function readRelation<T>(relation: Relation<T>): T | null {
@@ -403,6 +404,11 @@ export default async function CrmTodayPage() {
                           {staffMember && (
                             <span style={{ marginLeft: 6 }}>· {staffMember.full_name}</span>
                           )}
+                          {readRelation(booking.branch_resources) && (
+                            <span style={{ marginLeft: 6, color: "var(--cs-sand)", fontWeight: 500 }}>
+                              · {readRelation(booking.branch_resources)!.name}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -498,6 +504,11 @@ export default async function CrmTodayPage() {
                           {service?.name ?? "Service"}
                           {staffMember && (
                             <span style={{ marginLeft: 6 }}>· {staffMember.full_name}</span>
+                          )}
+                          {readRelation(booking.branch_resources) && (
+                            <span style={{ marginLeft: 6, color: "var(--cs-sand)", fontWeight: 500 }}>
+                              · {readRelation(booking.branch_resources)!.name}
+                            </span>
                           )}
                         </div>
                       </div>

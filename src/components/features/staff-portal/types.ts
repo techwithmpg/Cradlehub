@@ -7,6 +7,8 @@ export type StaffPortalStaff = {
   system_role: string;
   staff_type: string | null;
   branch_id: string | null;
+  avatar_url?: string | null;
+  avatar_path?: string | null;
 };
 
 export type StaffPortalBooking = {
@@ -29,4 +31,5 @@ export type StaffPortalBooking = {
   no_show_at: string | null;
   services: { id: string; name: string; duration_minutes: number } | { id: string; name: string; duration_minutes: number }[] | null;
   customers: { id: string; full_name: string } | { id: string; full_name: string }[] | null;
+  branch_resources: { name: string; type: string } | null;
 };

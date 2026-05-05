@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { createWalkinBookingSchema } from "@/lib/validations/booking";
 import { assertSlotAvailable } from "@/lib/engine/availability";
+import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { SlotUnavailableError } from "@/types/errors";
@@ -51,24 +52,60 @@ export async function createWalkinBookingAction(rawInput: unknown) {
   const branchId = me.branch_id;
 
   try {
+    const endTime = await computeEndTime(d.startTime, d.serviceId);
+
+    let resolvedResourceId = d.resourceId ?? null;
+
+    // ── Auto-assign room if not provided ──────────────────────────────────
+    if (d.type !== "home_service" && !resolvedResourceId) {
+      resolvedResourceId = await autoAssignBookingResource({
+        branchId,
+        date: d.date,
+        startTime: d.startTime,
+        endTime,
+      });
+
+      if (!resolvedResourceId) {
+        return {
+          success: false,
+          error: "No room/bed is available for this time. Please assign a space manually or choose another time.",
+        };
+      }
+    }
+
+    // Verify resource availability if provided manually
+    if (d.resourceId) {
+      const isAvailable = await isResourceAvailable({
+        resourceId: d.resourceId,
+        date: d.date,
+        startTime: d.startTime,
+        endTime,
+      });
+      if (!isAvailable) {
+        return {
+          success: false,
+          error: "The selected room/bed is already booked for this time.",
+        };
+      }
+    }
+
     // Verify slot
     await assertSlotAvailable({
       branchId,
       serviceId: d.serviceId,
-      staffId:   d.staffId,
-      date:      d.date,
+      staffId: d.staffId,
+      date: d.date,
       startTime: d.startTime,
     });
 
-    const endTime  = await computeEndTime(d.startTime, d.serviceId);
     const metadata = await buildBookingSnapshot(branchId, d.serviceId, d.notes);
-    const admin    = createAdminClient();
+    const admin = createAdminClient();
 
     // Upsert customer
     const { data: customerId, error: custErr } = await admin.rpc("upsert_customer", {
-      p_phone:     d.phone,
+      p_phone: d.phone,
       p_full_name: d.fullName,
-      p_email:     d.email || undefined,
+      p_email: d.email || undefined,
     });
     if (custErr || !customerId) throw new Error("Failed to resolve customer");
     const resolvedCustomerId = String(customerId);
@@ -95,18 +132,18 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     const { data: booking, error: bookErr } = await admin
       .from("bookings")
       .insert({
-        branch_id:          branchId,
-        service_id:         d.serviceId,
-        staff_id:           d.staffId,
-        customer_id:        resolvedCustomerId,
-        booking_date:       d.date,
-        start_time:         d.startTime,
-        end_time:           endTime,
-        type:               d.type,
-        status:             "confirmed",
-        travel_buffer_mins: d.type === "home_service"
-                              ? (d.travelBufferMins ?? 30)
-                              : null,
+        branch_id: branchId,
+        service_id: d.serviceId,
+        staff_id: d.staffId,
+        resource_id: resolvedResourceId,
+        customer_id: resolvedCustomerId,
+        booking_date: d.date,
+        start_time: d.startTime,
+        end_time: endTime,
+        type: d.type,
+        status: "confirmed",
+        travel_buffer_mins:
+          d.type === "home_service" ? (d.travelBufferMins ?? 30) : null,
         metadata,
       })
       .select("id")

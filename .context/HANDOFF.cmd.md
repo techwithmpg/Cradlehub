@@ -1,34 +1,42 @@
-# 🤝 HANDOFF — Owner Reports / Analytics Implementation
+# 🤝 HANDOFF — Auto Room Assignment on Confirmation
 
-## 📅 Date: 2026-05-02
-## 👤 Agent: Codex
+## 📅 Date: 2026-05-05
+## 👤 Agent: Gemini
 
 ---
 
 ## 🚀 What's New?
-The Owner Reports / Analytics page is now live at `/owner/reports`. This feature provides a high-level overview of the business performance across all branches.
 
-### Key Features
-- **Summary KPIs**: Quick view of Revenue, Bookings, Top Branch, and Top Staff.
-- **Revenue by Branch**: Horizontal bar charts showing revenue share per location.
-- **Staff Productivity**: Ranked list of therapists based on completed bookings and revenue.
-- **Booking Trend**: Daily volume bar chart for the last N days.
-- **Interactive Filters**: Preset date ranges (Today, 7D, 30D, This Month) and custom range support via URL params.
-- **Premium UI**: Adheres to the "Cradle Wellness" design system with warm tones and responsive layouts.
+**Auto Room Assignment** is now operational. The system now automatically handles the physical space allocation (rooms/beds/chairs) at the moment of booking confirmation, reducing manual overhead for CRM and front desk staff.
+
+### Key Features:
+1.  **Pending Online Bookings**: Online bookings now start as `pending`. This allows CRM to verify details before physical resources are committed.
+2.  **Confirmation Auto-Assignment**: When CRM clicks "Confirm" on a pending booking, the system automatically finds the first available space that fits the appointment's time window and capacity.
+3.  **Collision-Free Scheduling**: The assignment engine ensures that no two active bookings share the same room at the same time (unless capacity allows).
+4.  **Multi-Service Awareness**: For CRM-created multi-service bookings, the system auto-assigns a single room for the entire combined duration, ensuring guest comfort.
+5.  **Manual Fallback**: Front desk can still manually select a room in the `WalkinForm`, but the system will now auto-assign one if they leave it blank.
+
+---
 
 ## 🛠️ Technical Details
-- **Data Source**: Reuses existing analytics server actions in `src/app/(dashboard)/owner/bookings/actions.ts`.
-- **Calculations**: Centralized in `src/lib/owner/reports.ts` with unit tests.
-- **Visuals**: Pure CSS-based bar charts to avoid heavy chart dependencies (Recharts).
-- **Navigation**: Link added to `OWNER_NAV_ITEMS`.
 
-## 🧪 Verification Results
-- **Type-check**: ✅ Passing
-- **Lint**: ✅ Passing
-- **Tests**: ✅ 6 new tests in `tests/lib/owner/reports.test.ts` (76 total passing)
-- **Build**: ✅ Passing
+### Logic Components:
+- `autoAssignBookingResource` (`src/lib/engine/resource-availability.ts`): The core engine that calculates resource occupancy and finds the first free slot.
+- `updateBookingStatusAction` (`src/app/(dashboard)/manager/bookings/actions.ts`): Now enriched with auto-assignment logic triggered on `"confirmed"` status.
 
-## 💡 Next Steps / Suggestions
-- **Export to CSV**: Owners might want to download the raw data for accounting.
-- **Service Breakdown**: A section showing which service categories (Massage vs Facial) are most popular.
-- **Manager Access**: Consider allowing managers to see branch-specific versions of these reports (already partially planned in roadmap).
+### UI Integration:
+- `BookingActionMenu`: Now includes a "Confirm" button for `pending` bookings.
+- `CRMBookingsPage`: Now features the status action menu, allowing CSRs to confirm bookings directly from the list view.
+
+---
+
+## 📋 Handoff / Next Steps
+
+- **Room Usage Analytics**: Since bookings now have `resource_id`, we can later build reports on room utilization rates.
+- **Service-to-Resource Mapping**: Currently, any room is valid for any service. A future enhancement could restrict certain services to specific resource types (e.g. "Facial" must be in a "Facial Bed").
+- **Auto-Confirmation Rules**: If the business decides, we could auto-confirm bookings from "Gold" customers or specific services while keeping others pending.
+
+**Verification Status:**
+- `pnpm type-check` ✅
+- `pnpm lint` ✅
+- `pnpm build` ✅ (52/52 pages)

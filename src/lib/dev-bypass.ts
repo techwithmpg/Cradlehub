@@ -27,12 +27,14 @@ export function getDevBypassLayoutStaff(): {
   system_role: string;
   branch_id: string;
   branches: { name: string };
+  avatar_url: string | null;
 } {
   return {
     full_name: process.env.DEV_BYPASS_USER_NAME ?? "Dev User",
     system_role: "owner",
     branch_id: "00000000-0000-0000-0000-000000000000",
     branches: { name: process.env.DEV_BYPASS_BRANCH_NAME ?? "Dev Branch" },
+    avatar_url: null,
   };
 }
 

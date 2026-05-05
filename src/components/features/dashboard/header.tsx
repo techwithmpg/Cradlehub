@@ -36,12 +36,15 @@ const ROLE_ACCENT: Record<string, string> = {
   utility:           "var(--cs-sand)",
 };
 
+import { UserAvatar } from "@/components/shared/user-avatar";
+
 type HeaderProps = {
-  role:     string;
-  fullName: string;
+  role:      string;
+  fullName:  string;
+  avatarUrl?: string | null;
 };
 
-export function Header({ role, fullName }: HeaderProps) {
+export function Header({ role, fullName, avatarUrl }: HeaderProps) {
   const label  = WORKSPACE_LABEL[role] ?? "Dashboard";
   const accent = ROLE_ACCENT[role] ?? "var(--cs-sand)";
 
@@ -98,21 +101,12 @@ export function Header({ role, fullName }: HeaderProps) {
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{
-            width:          26,
-            height:         26,
-            borderRadius:   "50%",
-            background:     `${accent}22`,
-            border:         `1.5px solid ${accent}40`,
-            display:        "flex",
-            alignItems:     "center",
-            justifyContent: "center",
-            fontSize:       10,
-            fontWeight:     600,
-            color:          accent,
-          }}>
-            {fullName.charAt(0).toUpperCase()}
-          </div>
+          <UserAvatar
+            name={fullName}
+            imageUrl={avatarUrl}
+            size="sm"
+            className="border border-border-soft"
+          />
           <span
             className="hidden sm:block"
             style={{ fontSize: 12.5, color: "var(--cs-text-secondary)" }}

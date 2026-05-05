@@ -8,6 +8,8 @@ export type DailyScheduleBooking = {
   customer: string;
   status: string;
   type: string | null;
+  resource_id: string | null;
+  resource_name: string | null;
 };
 
 export type DailyScheduleBlock = {

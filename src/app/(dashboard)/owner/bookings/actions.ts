@@ -14,6 +14,8 @@ import {
   getBookingTrend,
 } from "@/lib/queries/analytics";
 import { revalidatePath } from "next/cache";
+import { updateBookingPaymentSchema } from "@/lib/validations/booking";
+import { getCrossbranchCashSummary } from "@/lib/queries/analytics";
 
 // ── Auth: owner only ──────────────────────────────────────────────────────
 async function requireOwner() {
@@ -127,4 +129,42 @@ export async function getBookingTrendAction(days = 30) {
   const ctx = await requireOwner();
   if (!ctx) return { error: "Unauthorized" };
   return getBookingTrend(days);
+}
+
+// ── Analytics: cross-branch cash summary ─────────────────────────────────
+export async function getCashSummaryAction(fromDate: string, toDate: string, branchId?: string) {
+  const ctx = await requireOwner();
+  if (!ctx) return { error: "Unauthorized" };
+  return getCrossbranchCashSummary(fromDate, toDate, branchId);
+}
+
+// ── Update payment on any booking (cross-branch, owner only) ─────────────
+// No branch filter — owner can record payment for any branch.
+export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
+  const parsed = updateBookingPaymentSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const ctx = await requireOwner();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  const { bookingId, paymentMethod, paymentStatus, amountPaid, paymentReference } = parsed.data;
+
+  const { error } = await ctx.supabase
+    .from("bookings")
+    .update({
+      payment_method:    paymentMethod,
+      payment_status:    paymentStatus,
+      amount_paid:       amountPaid,
+      payment_reference: paymentReference ?? null,
+    })
+    .eq("id", bookingId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/owner");
+  revalidatePath("/owner/bookings");
+  revalidatePath("/owner/reports");
+  return { success: true };
 }

@@ -1,41 +1,30 @@
-# Current Task
+# 🎯 CURRENT TASK: CRADLE-SPACES-AUTO-001 — Branch Spaces & Auto Room Assignment on Confirmation
 
-## 2026-05-02 — OWNER-001: Owner Reports / Analytics Page
+## 📌 Overview
+Implement branch-level spaces (rooms, beds, chairs) and automate the assignment of an available space when a booking is confirmed by CRM.
 
-### Objective
-Create a premium owner analytics page at `/owner/reports` that exposes existing analytics data through the UI.
+## 🏗️ Implementation Plan
+1. **Part 1 — Audit**: ✅ Completed.
+2. **Part 2 & 3 — Database Model**: ✅ Completed.
+3. **Part 4 — Auto Room Assignment Service**: ✅ Completed.
+4. **Part 5 — Resource Conflict Prevention**: ✅ Completed.
+5. **Part 6 — CRM Confirmation Flow**: ✅ Completed.
+6. **Part 7 — Walk-in / In-house Booking**: ✅ Completed.
+7. **Part 8 & 9 — UI Components**: ✅ Completed.
+8. **Verification**: ✅ Completed.
 
-### Existing Backend Actions
-- `getRevenueByBranchAction(fromDate, toDate)` — in `src/app/(dashboard)/owner/bookings/actions.ts`
-- `getStaffProductivityAction(fromDate, toDate)` — in `src/app/(dashboard)/owner/bookings/actions.ts`
-- `getBookingTrendAction(days)` — in `src/app/(dashboard)/owner/bookings/actions.ts`
+## ✅ Progress Tracking
+- [x] Audit current booking flow
+- [x] Implement auto-assignment logic
+- [x] Update online booking to start as 'pending'
+- [x] Implement confirmation auto-assignment in server actions
+- [x] Update UI to show 'Confirm' button for pending bookings
+- [x] Display assigned spaces on schedule and staff portal
+- [x] Final verification
 
-### Scope
-- ✅ Add Reports nav link to owner sidebar
-- ✅ Create `/owner/reports` page with date range controls
-- ✅ KPI summary cards (Total Revenue, Total Bookings, Top Branch, Top Staff)
-- ✅ Revenue by Branch section with CSS bar chart
-- ✅ Staff Productivity section with ranked list
-- ✅ Booking Trend section with CSS bar chart
-- ✅ Empty states, loading state, error handling
-- ✅ Responsive design (mobile-first)
-- ✅ Helper utilities with tests
-- ✅ No fake data — use real actions only
-- ✅ No new dependencies (Recharts not installed; use CSS charts)
-
-### Files Created/Updated
-- `src/app/(dashboard)/owner/reports/page.tsx`
-- `src/app/(dashboard)/owner/reports/loading.tsx`
-- `src/components/features/owner/reports/owner-reports-page.tsx`
-- `src/components/features/owner/reports/report-date-filter.tsx`
-- `src/components/features/owner/reports/report-kpi-cards.tsx`
-- `src/components/features/owner/reports/revenue-by-branch-card.tsx`
-- `src/components/features/owner/reports/staff-productivity-card.tsx`
-- `src/components/features/owner/reports/booking-trend-card.tsx`
-- `src/components/features/owner/reports/reports-empty-state.tsx`
-- `src/lib/owner/reports.ts`
-- `src/components/features/dashboard/nav-config.ts`
-- `tests/lib/owner/reports.test.ts`
-
-### Status
-✅ Completed.
+## 📎 References
+- `src/lib/actions/online-booking.ts`
+- `src/app/(dashboard)/manager/bookings/actions.ts`
+- `src/components/features/dashboard/booking-action-menu.tsx`
+- `supabase/migrations/20260505000001_branch_resources.sql`
+- `src/lib/engine/resource-availability.ts`

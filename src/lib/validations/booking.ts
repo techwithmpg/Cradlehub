@@ -45,6 +45,7 @@ export type CreateOnlineBookingInput = z.infer<typeof createOnlineBookingSchema>
 export const createWalkinBookingSchema = z.object({
   serviceId:        uuid,
   staffId:          uuid,                     // required — manager picks therapist
+  resourceId:       uuid.optional().nullable(),
   date:             anyDate,                  // no 30-day limit for front desk
   startTime:        timeStr,
   type:             z.enum(["walkin", "home_service"]).default("walkin"),
@@ -61,6 +62,7 @@ export const createInhouseBookingMultiSchema = z.object({
   branchId:         uuid.optional(), // defaults to operator's branch when omitted
   serviceIds:       z.array(uuid).min(1, "Select at least one service").max(5, "Maximum 5 services per booking"),
   staffId:          uuid.optional(), // undefined = auto-assign by seniority
+  resourceId:       uuid.optional().nullable(),
   date:             anyDate,
   startTime:        timeStr,
   type:             z.enum(["walkin", "home_service"]).default("walkin"),
@@ -78,6 +80,7 @@ export const editBookingSchema = z
     bookingId:        uuid,
     serviceId:        uuid.optional(),
     staffId:          uuid.optional(),
+    resourceId:       uuid.optional().nullable(),
     date:             anyDate.optional(),
     startTime:        timeStr.optional(),
     type:             z.enum(["online", "walkin", "home_service"]).optional(),
@@ -93,7 +96,7 @@ export type EditBookingInput = z.infer<typeof editBookingSchema>;
 // ── Status transition ─────────────────────────────────────────────────────
 export const updateBookingStatusSchema = z.object({
   bookingId: uuid,
-  status:    z.enum(["in_progress", "completed", "cancelled", "no_show"]),
+  status:    z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show"]),
   notes:     z.string().max(500).optional(),
 });
 export type UpdateBookingStatusInput = z.infer<typeof updateBookingStatusSchema>;
@@ -122,3 +125,29 @@ export const getAvailableSlotsSchema = z.object({
   date:      anyDate,
 });
 export type GetAvailableSlotsInput = z.infer<typeof getAvailableSlotsSchema>;
+
+// ── Payment constants ─────────────────────────────────────────────────────
+export const PAYMENT_METHODS = ["cash", "gcash", "maya", "card", "pay_on_site", "other"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const PAYMENT_STATUSES = ["unpaid", "pending", "paid", "refunded"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash:        "Cash",
+  gcash:       "GCash",
+  maya:        "Maya",
+  card:        "Card",
+  pay_on_site: "Pay on Site",
+  other:       "Other",
+};
+
+// ── Update booking payment ────────────────────────────────────────────────
+export const updateBookingPaymentSchema = z.object({
+  bookingId:        uuid,
+  paymentMethod:    z.enum(PAYMENT_METHODS),
+  paymentStatus:    z.enum(PAYMENT_STATUSES),
+  amountPaid:       z.number().min(0, "Amount cannot be negative"),
+  paymentReference: z.string().max(100).optional(),
+});
+export type UpdateBookingPaymentInput = z.infer<typeof updateBookingPaymentSchema>;

@@ -1306,12 +1306,12 @@ function StepSuccess({
         className="text-2xl sm:text-3xl font-medium mb-3"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
-        {mode === "inhouse" ? "Booking Saved" : "Booking Confirmed"}
+        {mode === "inhouse" ? "Booking Saved" : "Booking Received"}
       </h2>
       <p className="text-[15px] max-w-md mx-auto mb-6" style={{ color: "#6B7A6F" }}>
         {mode === "inhouse"
           ? "The appointment has been saved and confirmed in the CRM workspace."
-          : "Thank you for choosing Cradle Massage & Wellness Spa. Your appointment has been confirmed and our team looks forward to welcoming you."}
+          : "Thank you for choosing Cradle Massage & Wellness Spa. Your appointment request has been received and our team will contact you shortly to confirm."}
       </p>
 
       {/* Service list recap */}

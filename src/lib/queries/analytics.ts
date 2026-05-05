@@ -116,6 +116,52 @@ export async function getBookingsPerTherapist(fromDate: string, toDate: string, 
   return Object.values(byStaff).sort((a, b) => b.completed - a.completed);
 }
 
+// -- Cross-branch daily cash summary (owner analytics) ----------------------
+export async function getCrossbranchCashSummary(fromDate: string, toDate: string, branchId?: string) {
+  const supabase = await createClient();
+  let q = supabase
+    .from("bookings")
+    .select("status, metadata, payment_method, payment_status, amount_paid, branch_id, branches ( id, name )")
+    .gte("booking_date", fromDate)
+    .lte("booking_date", toDate);
+  if (branchId) q = q.eq("branch_id", branchId);
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+  const activeRows = rows.filter((r) => !["cancelled", "no_show"].includes(r.status));
+  const paidRows = activeRows.filter((r) => r.payment_status === "paid");
+  const unpaidRows = activeRows.filter((r) => ["unpaid", "pending"].includes(r.payment_status));
+
+  const totalExpected = activeRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
+  const totalCollected = paidRows.reduce((s, r) => s + Number(r.amount_paid ?? 0), 0);
+  const totalUnpaid = unpaidRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
+
+  const byMethod: Record<string, number> = {
+    cash: 0, gcash: 0, maya: 0, card: 0, pay_on_site: 0, other: 0,
+  };
+  for (const r of paidRows) {
+    const m = r.payment_method ?? "other";
+    byMethod[m] = (byMethod[m] ?? 0) + Number(r.amount_paid ?? 0);
+  }
+
+  return {
+    fromDate,
+    toDate,
+    total_expected:  totalExpected,
+    total_collected: totalCollected,
+    total_unpaid:    totalUnpaid,
+    paid_count:      paidRows.length,
+    unpaid_count:    unpaidRows.length,
+    total_count:     activeRows.length,
+    by_method:       byMethod as {
+      cash: number; gcash: number; maya: number;
+      card: number; pay_on_site: number; other: number;
+    },
+  };
+}
+
 // -- Booking trend: daily count for last N days (owner chart) ---------------
 export async function getBookingTrend(days = 30) {
   const supabase = await createClient();
