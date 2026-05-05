@@ -85,13 +85,26 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Get the user's role and job function from the staff table
-  const { data: staffRecord } = await supabase
+  // Get the user's role from the staff table
+  const { data: staffRecord, error: staffError } = await supabase
     .from("staff")
-    .select("system_role, staff_type")
+    .select("system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
+
+  if (staffError) {
+    console.error("Proxy staff lookup failed", {
+      pathname,
+      userId: user.id,
+      email: user.email,
+      message: staffError.message,
+      code: staffError.code,
+      details: staffError.details,
+    });
+
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
 
   if (!staffRecord) {
     return NextResponse.redirect(new URL("/login", request.url));
@@ -119,7 +132,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const correctWorkspace = resolveWorkspace(staffRecord.system_role, staffRecord.staff_type);
+  const correctWorkspace = resolveWorkspace(staffRecord.system_role, null);
 
   // Redirect to the right workspace if they're at the wrong one
   if (correctWorkspace && !pathname.startsWith(correctWorkspace)) {
@@ -134,3 +147,4 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
+
