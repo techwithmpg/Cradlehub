@@ -14,7 +14,7 @@ export type LoginState = {
   fieldErrors?: { email?: string; password?: string };
 };
 
-function resolveRedirect(systemRole: string, staffType: string | null): string {
+function resolveRedirect(systemRole: string): string {
   if (systemRole === "owner") return "/owner";
   if (systemRole === "manager") return "/manager";
   if (systemRole === "assistant_manager") return "/manager";
@@ -24,11 +24,8 @@ function resolveRedirect(systemRole: string, staffType: string | null): string {
     return "/crm";
   }
 
-  // system_role = staff — route by job function
+  // system_role = staff — route to portal
   if (systemRole === "staff") {
-    if (staffType === "driver") return "/driver";
-    if (staffType === "utility") return "/utility";
-    // therapist, nail_tech, aesthetician, salon_head, managerial, fallback
     return "/staff-portal";
   }
 
@@ -75,12 +72,28 @@ export async function loginAction(
 
   if (!user) return { error: "Authentication failed. Please try again." };
 
-  const { data: staffRecord } = await supabase
+  const { data: staffRecord, error: staffError } = await supabase
     .from("staff")
-    .select("system_role, staff_type")
+    .select("id, auth_user_id, system_role, branch_id, is_active")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
+
+  if (staffError) {
+    console.error("Staff lookup failed during login", {
+      userId: user.id,
+      email: user.email,
+      message: staffError.message,
+      code: staffError.code,
+      details: staffError.details,
+    });
+
+    await supabase.auth.signOut();
+
+    return {
+      error: "Staff access query failed. Please contact your administrator.",
+    };
+  }
 
   // Dev bypass: if no staff record but dev mode is on, send to owner overview
   const { isDevAuthBypassEnabled } = await import("@/lib/dev-bypass");
@@ -92,6 +105,7 @@ export async function loginAction(
     return { error: "Your account has not been set up yet. Contact your administrator." };
   }
 
-  const destination = resolveRedirect(staffRecord.system_role, staffRecord.staff_type);
+  const destination = resolveRedirect(staffRecord.system_role);
   redirect(destination);
 }
+
