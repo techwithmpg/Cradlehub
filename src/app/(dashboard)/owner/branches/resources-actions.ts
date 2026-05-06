@@ -27,7 +27,7 @@ async function requireOwnerOrManager(branchId?: string) {
   if (me.system_role === "owner") return supabase;
   
   // Manager can manage only their own branch
-  if (me.system_role === "manager" || me.system_role === "assistant_manager" || me.system_role === "store_manager") {
+  if (me.system_role === "manager") {
     if (branchId && me.branch_id !== branchId) return null;
     return supabase;
   }

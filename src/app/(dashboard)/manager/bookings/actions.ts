@@ -28,16 +28,7 @@ async function getOperationsContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = [
-    "owner",
-    "manager",
-    "assistant_manager",
-    "store_manager",
-    "crm",
-    "csr",
-    "csr_head",
-    "csr_staff",
-  ];
+  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
   if (!me || !me.branch_id || !allowedRoles.includes(me.system_role)) return null;
   return { supabase, me };
 }

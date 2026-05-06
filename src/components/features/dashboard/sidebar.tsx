@@ -40,20 +40,6 @@ const WORKSPACE_META: Record<string, {
     accentBg: "rgba(90, 122, 138, 0.15)",
     icon:     "▸",
   },
-  assistant_manager: {
-    label:    "MANAGER WORKSPACE",
-    sublabel: "Assistant manager access",
-    accent:   "var(--cs-manager-accent)",
-    accentBg: "rgba(90, 122, 138, 0.15)",
-    icon:     "▸",
-  },
-  store_manager: {
-    label:    "MANAGER WORKSPACE",
-    sublabel: "Store manager access",
-    accent:   "var(--cs-manager-accent)",
-    accentBg: "rgba(90, 122, 138, 0.15)",
-    icon:     "▸",
-  },
   csr: {
     label:    "CSR WORKSPACE",
     sublabel: "Customer service access",

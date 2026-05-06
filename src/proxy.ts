@@ -8,11 +8,7 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 function resolveWorkspace(systemRole: string): string {
   if (systemRole === "owner") return "/owner";
 
-  if (
-    systemRole === "manager" ||
-    systemRole === "assistant_manager" ||
-    systemRole === "store_manager"
-  ) {
+  if (systemRole === "manager") {
     return "/manager";
   }
 

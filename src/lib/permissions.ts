@@ -10,8 +10,6 @@
 export const SYSTEM_ROLES = [
   "owner",
   "manager",
-  "assistant_manager",
-  "store_manager",
   "crm",
   "csr",
   "csr_head",
@@ -24,8 +22,6 @@ export type SystemRole = (typeof SYSTEM_ROLES)[number];
 export const ROLE_LABELS: Record<SystemRole | string, string> = {
   owner: "Owner",
   manager: "Manager",
-  assistant_manager: "Asst. Manager",
-  store_manager: "Store Manager",
   crm: "CRM",
   csr: "CSR",
   csr_head: "CSR Head",
@@ -36,12 +32,7 @@ export const ROLE_LABELS: Record<SystemRole | string, string> = {
 // ── Role groups ─────────────────────────────────────────────────────────────
 
 const OWNERS: readonly string[] = ["owner"];
-const MANAGERS: readonly string[] = [
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-];
+const MANAGERS: readonly string[] = ["owner", "manager"];
 const CSR_ROLES: readonly string[] = ["csr_head", "csr_staff", "csr"];
 const CRM_ROLES: readonly string[] = ["crm"];
 const BOOKING_OPERATIONS: readonly string[] = [

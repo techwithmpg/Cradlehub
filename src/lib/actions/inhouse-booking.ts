@@ -94,10 +94,7 @@ export async function createInhouseBookingMultiAction(
     .maybeSingle();
 
   const staff = (me ?? null) as StaffAuthContext | null;
-  const bookingRoles = [
-    "owner", "manager", "assistant_manager", "store_manager",
-    "crm", "csr", "csr_head", "csr_staff",
-  ];
+  const bookingRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
 
   if (isDevAuthBypassEnabled()) {
     // Dev bypass: allow booking creation with explicit branchId

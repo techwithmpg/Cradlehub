@@ -196,7 +196,7 @@ export async function updateBookingProgressAction({
   }
 
   const isAssignedStaff = booking.staff_id === me.id;
-  const isManager = ["owner", "manager", "assistant_manager", "store_manager"].includes(me.system_role);
+  const isManager = ["owner", "manager"].includes(me.system_role);
   const isCsr = ["csr", "csr_head", "csr_staff"].includes(me.system_role);
 
   // Categorize the requested action

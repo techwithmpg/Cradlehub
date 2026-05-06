@@ -128,9 +128,6 @@ export function resolveWorkspaceKeyFromPath(pathname: string): string | null {
 }
 
 export function resolveWorkspaceKeyFromRole(role: string): string {
-  if (role === "assistant_manager" || role === "store_manager") {
-    return "manager";
-  }
   if (role === "csr_head") {
     return "csr_head";
   }

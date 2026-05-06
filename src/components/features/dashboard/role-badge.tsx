@@ -1,9 +1,7 @@
 const ROLE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  owner:             { bg: "var(--cs-owner-bg)",   color: "var(--cs-owner-text)",   label: "Owner"         },
-  manager:           { bg: "var(--cs-manager-bg)", color: "var(--cs-manager-text)", label: "Manager"       },
-  assistant_manager: { bg: "var(--cs-manager-bg)", color: "var(--cs-manager-text)", label: "Asst. Manager" },
-  store_manager:     { bg: "var(--cs-manager-bg)", color: "var(--cs-manager-text)", label: "Store Manager" },
-  csr:               { bg: "var(--cs-csr-bg)",     color: "var(--cs-csr-text)",     label: "Front Desk"    },
+  owner:    { bg: "var(--cs-owner-bg)",   color: "var(--cs-owner-text)",   label: "Owner"    },
+  manager:  { bg: "var(--cs-manager-bg)", color: "var(--cs-manager-text)", label: "Manager"  },
+  csr:      { bg: "var(--cs-csr-bg)",     color: "var(--cs-csr-text)",     label: "Front Desk" },
   csr_head:          { bg: "var(--cs-csr-head-bg)",     color: "var(--cs-csr-head-text)",     label: "CSR Head"    },
   csr_staff:         { bg: "var(--cs-csr-staff-bg)",    color: "var(--cs-csr-staff-text)",    label: "CSR Staff"   },
   crm:               { bg: "var(--cs-crm-bg)",     color: "var(--cs-crm-text)",     label: "CRM"           },

@@ -58,10 +58,7 @@ async function getOperationsContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = [
-    "owner", "manager", "assistant_manager", "store_manager",
-    "crm", "csr", "csr_head", "csr_staff",
-  ];
+  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
 
   if (!me && isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();

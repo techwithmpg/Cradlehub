@@ -22,8 +22,6 @@ export type BookingType = (typeof BOOKING_TYPES)[number];
 export const SYSTEM_ROLES = [
   "owner",
   "manager",
-  "assistant_manager",
-  "store_manager",
   "crm",
   "csr",
   "csr_head",
