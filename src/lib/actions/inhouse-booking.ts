@@ -90,7 +90,8 @@ export async function createInhouseBookingMultiAction(
     .from("staff")
     .select("id, branch_id, system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   const staff = (me ?? null) as StaffAuthContext | null;
   const bookingRoles = [

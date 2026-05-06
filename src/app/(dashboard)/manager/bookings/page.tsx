@@ -55,7 +55,8 @@ async function getOperationsContext() {
     .from("staff")
     .select("branch_id, system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   const allowedRoles = [
     "owner", "manager", "assistant_manager", "store_manager",

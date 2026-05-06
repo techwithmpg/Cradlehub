@@ -16,7 +16,8 @@ async function getOwnerContext() {
     .from("staff")
     .select("system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   if (!me || me.system_role !== "owner") redirect("/login");
 }

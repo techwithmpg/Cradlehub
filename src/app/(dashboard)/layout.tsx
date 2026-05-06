@@ -14,15 +14,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
     system_role: string;
     branch_id:   string;
     branches:    { name: string } | { name: string }[] | null;
-    avatar_url:  string | null;
   };
 
-  const { data: meRaw } = await supabase
+  // Select only columns guaranteed to exist in every production deployment.
+  // avatar_url is NOT selected here — it requires the staff_avatars migration to be applied first.
+  const { data: meRaw, error: meError } = await supabase
     .from("staff")
-    .select("full_name, system_role, branch_id, branches(name), avatar_url")
+    .select("full_name, system_role, branch_id, branches(name)")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
+
+  if (meError) {
+    console.error("[layout] staff lookup error", {
+      userId: user.id,
+      message: meError.message,
+      code: meError.code,
+    });
+  }
 
   const me = meRaw as LayoutStaff | null;
 
@@ -41,7 +50,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <Sidebar
         role={resolvedMe.system_role}
         fullName={resolvedMe.full_name}
-        avatarUrl={resolvedMe.avatar_url}
+        avatarUrl={null}
         branchName={(resolvedMe.branches as { name: string } | null)?.name}
       />
 
@@ -51,10 +60,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         display:       "flex",
         flexDirection: "column",
       }}>
-        <Header 
-          role={resolvedMe.system_role} 
-          fullName={resolvedMe.full_name} 
-          avatarUrl={resolvedMe.avatar_url}
+        <Header
+          role={resolvedMe.system_role}
+          fullName={resolvedMe.full_name}
+          avatarUrl={null}
         />
         <main style={{
           flex:    1,

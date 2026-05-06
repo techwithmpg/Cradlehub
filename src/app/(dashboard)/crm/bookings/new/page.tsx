@@ -31,7 +31,7 @@ async function getDefaultBranchId(): Promise<string | null> {
     .select("branch_id, system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
   const me = (data ?? null) as StaffContext | null;
   const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];

@@ -30,7 +30,8 @@ async function requireCrmAccess() {
     .from("staff")
     .select("system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
   if (!me || !allowedRoles.includes(me.system_role)) return null;

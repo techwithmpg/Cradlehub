@@ -43,13 +43,15 @@ async function requireDriverAccess() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("system_role, staff_type")
+    .select("system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
-  // Owner can access everything; driver staff_type required otherwise
+  // Owner can access everything.
+  // Others redirect to staff portal until staff_type routing is available.
   if (me?.system_role === "owner") return;
-  if (me?.staff_type !== "driver") redirect("/staff-portal");
+  redirect("/staff-portal");
 }
 
 export default async function DriverPanelPage() {

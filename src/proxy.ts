@@ -5,23 +5,30 @@ import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 
 /** Maps system_role → default dashboard workspace prefix */
-const ROLE_WORKSPACE: Record<string, string> = {
-  owner: "/owner",
-  manager: "/manager",
-  assistant_manager: "/manager",
-  store_manager: "/manager",
-  crm: "/crm",
-  csr: "/crm",
-  csr_head: "/crm",
-  csr_staff: "/crm",
-  staff: "/staff-portal",
-};
+function resolveWorkspace(systemRole: string): string {
+  if (systemRole === "owner") return "/owner";
 
-/** Job-function overrides for system_role = staff */
-const STAFF_TYPE_WORKSPACE: Record<string, string> = {
-  driver: "/driver",
-  utility: "/utility",
-};
+  if (
+    systemRole === "manager" ||
+    systemRole === "assistant_manager" ||
+    systemRole === "store_manager"
+  ) {
+    return "/manager";
+  }
+
+  if (
+    systemRole === "crm" ||
+    systemRole === "csr" ||
+    systemRole === "csr_head" ||
+    systemRole === "csr_staff"
+  ) {
+    return "/crm";
+  }
+
+  if (systemRole === "staff") return "/staff-portal";
+
+  return "/";
+}
 
 const PROTECTED_PREFIXES = [
   "/owner",
@@ -32,21 +39,6 @@ const PROTECTED_PREFIXES = [
   "/utility",
   "/dev",
 ];
-
-function resolveWorkspace(systemRole: string, staffType: string | null): string {
-  if (systemRole === "owner") return "/owner";
-  if (systemRole === "manager") return "/manager";
-  if (systemRole === "assistant_manager") return "/manager";
-  if (systemRole === "store_manager") return "/manager";
-  if (systemRole === "crm") return "/crm";
-  if (systemRole === "csr" || systemRole === "csr_head" || systemRole === "csr_staff") {
-    return "/crm";
-  }
-  if (systemRole === "staff" && staffType) {
-    return STAFF_TYPE_WORKSPACE[staffType] ?? "/staff-portal";
-  }
-  return ROLE_WORKSPACE[systemRole] ?? "/";
-}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -76,6 +68,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    console.log("[proxy] no user session", { pathname });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -94,29 +87,30 @@ export async function proxy(request: NextRequest) {
     .maybeSingle();
 
   if (staffError) {
-    console.error("Proxy staff lookup failed", {
+    console.error("[proxy] staff lookup error", {
       pathname,
       userId: user.id,
-      email: user.email,
       message: staffError.message,
       code: staffError.code,
-      details: staffError.details,
     });
-
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   if (!staffRecord) {
+    console.log("[proxy] no active staff record", { pathname, userId: user.id });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  const systemRole = staffRecord.system_role;
+  console.log("[proxy]", { pathname, userId: user.id, systemRole });
+
   // Owner can access all workspaces for oversight/testing.
-  if (staffRecord.system_role === "owner") {
+  if (systemRole === "owner") {
     return response;
   }
 
   // CRM role can access CRM routes and booking-list operations pages only.
-  if (staffRecord.system_role === "crm") {
+  if (systemRole === "crm") {
     if (!canCrmAccessPath(pathname)) {
       return NextResponse.redirect(new URL("/crm", request.url));
     }
@@ -124,18 +118,18 @@ export async function proxy(request: NextRequest) {
   }
 
   // CSR roles have restricted cross-workspace access
-  if (isCsr(staffRecord.system_role)) {
-    if (!canCsrAccessPath(staffRecord.system_role, pathname)) {
-      // Redirect to their default workspace
+  if (isCsr(systemRole)) {
+    if (!canCsrAccessPath(systemRole, pathname)) {
       return NextResponse.redirect(new URL("/crm", request.url));
     }
     return response;
   }
 
-  const correctWorkspace = resolveWorkspace(staffRecord.system_role, null);
+  const correctWorkspace = resolveWorkspace(systemRole);
 
   // Redirect to the right workspace if they're at the wrong one
   if (correctWorkspace && !pathname.startsWith(correctWorkspace)) {
+    console.log("[proxy] wrong workspace redirect", { pathname, systemRole, correctWorkspace });
     return NextResponse.redirect(new URL(correctWorkspace, request.url));
   }
 
@@ -147,4 +141,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
-

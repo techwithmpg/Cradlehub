@@ -18,7 +18,7 @@ async function getCsrContext() {
     .select("id, branch_id, branches(name)")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
   if (!me && isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();

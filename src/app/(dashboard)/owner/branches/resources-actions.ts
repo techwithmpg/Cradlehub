@@ -18,7 +18,8 @@ async function requireOwnerOrManager(branchId?: string) {
     .from("staff")
     .select("id, branch_id, system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
   
   if (!me) return null;
   

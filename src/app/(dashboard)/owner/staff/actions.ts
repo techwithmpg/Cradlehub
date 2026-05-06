@@ -18,8 +18,8 @@ async function requireOwner() {
   }
 
   const { data: me } = await supabase
-    .from("staff").select("system_role").eq("auth_user_id", user.id).single();
-  if (!me) return { error: "No staff record linked to this account. Ask an owner to set your auth_user_id." } as const;
+    .from("staff").select("system_role").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
+  if (!me) return { error: "No active staff record linked to this account." } as const;
   if (me.system_role !== "owner") return { error: "Owner access required" } as const;
   return { supabase, admin: createAdminClient() };
 }
@@ -34,8 +34,8 @@ async function requireOwnerOrManager() {
   }
 
   const { data: me } = await supabase
-    .from("staff").select("id, branch_id, system_role").eq("auth_user_id", user.id).single();
-  if (!me) return { error: "No staff record linked to this account" } as const;
+    .from("staff").select("id, branch_id, system_role").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
+  if (!me) return { error: "No active staff record linked to this account" } as const;
   if (!["owner", "manager"].includes(me.system_role)) {
     return { error: "Owner or manager access required" } as const;
   }

@@ -22,7 +22,8 @@ async function getManagerContext() {
     .from("staff")
     .select("id, branch_id, system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
   if (!me || !["manager", "owner"].includes(me.system_role)) return null;
   return { supabase, me };
 }

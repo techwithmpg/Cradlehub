@@ -22,7 +22,8 @@ async function getManagerContext() {
     .from("staff")
     .select("branch_id")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   if (!me && isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();

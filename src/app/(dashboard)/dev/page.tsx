@@ -11,9 +11,10 @@ async function requireDevAccess() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("system_role, staff_type, full_name, tier, branch_id, is_active")
+    .select("system_role, full_name, tier, branch_id, is_active")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   const devMode = process.env.NODE_ENV !== "production" && process.env.DEV_ALLOW_ALL_MODULES === "true";
   if (me?.system_role !== "owner" && !devMode) {
@@ -127,7 +128,7 @@ export default async function DevPanelPage() {
             { label: "Email", value: user.email ?? "—" },
             { label: "Name", value: me?.full_name ?? "—" },
             { label: "System Role", value: me?.system_role ?? "—" },
-            { label: "Staff Type", value: me?.staff_type ?? "—" },
+            { label: "Staff Type", value: "—" },
             { label: "Tier", value: me?.tier ?? "—" },
             { label: "Branch ID", value: me?.branch_id ?? "—" },
             { label: "Active", value: me?.is_active ? "Yes" : "No" },

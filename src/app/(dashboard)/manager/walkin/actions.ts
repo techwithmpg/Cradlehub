@@ -28,7 +28,8 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     .from("staff")
     .select("branch_id, system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   const allowedRoles = [
     "owner", "manager", "assistant_manager", "store_manager",
@@ -115,7 +116,8 @@ export async function createWalkinBookingAction(rawInput: unknown) {
       .from("staff")
       .select("id")
       .eq("auth_user_id", user.id)
-      .single();
+      .eq("is_active", true)
+      .maybeSingle();
 
     await (
       supabase as unknown as {

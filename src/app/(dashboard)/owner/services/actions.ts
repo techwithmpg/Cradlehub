@@ -22,7 +22,7 @@ async function requireOwner() {
   }
 
   const { data: me } = await supabase
-    .from("staff").select("system_role").eq("auth_user_id", user.id).single();
+    .from("staff").select("system_role").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
   if (me?.system_role !== "owner") return null;
   return supabase;
 }

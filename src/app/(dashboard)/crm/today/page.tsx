@@ -49,7 +49,7 @@ async function getCsrContext() {
     .select("branch_id, branches(name), system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
   const allowedRoles = [
     "owner", "manager", "assistant_manager", "store_manager",

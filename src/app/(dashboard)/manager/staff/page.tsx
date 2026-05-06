@@ -26,7 +26,8 @@ async function getManagerBranchId() {
     .from("staff")
     .select("branch_id")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
 
   if (!me?.branch_id) redirect("/login");
   return me.branch_id as string;

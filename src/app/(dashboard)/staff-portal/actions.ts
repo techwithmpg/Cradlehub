@@ -21,11 +21,22 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: me } = await supabase
+  // Select only columns guaranteed to exist in every production deployment.
+  // staff_type, avatar_url, avatar_path require later migrations — they default to null.
+  const { data: me, error: meError } = await supabase
     .from("staff")
-    .select("id, full_name, tier, system_role, staff_type, branch_id, avatar_url, avatar_path")
+    .select("id, full_name, tier, system_role, branch_id")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (meError) {
+    console.error("[staff-portal] staff lookup error", {
+      userId: user.id,
+      message: meError.message,
+      code: meError.code,
+    });
+  }
 
   // Dev bypass: return a mock staff record so the portal renders
   // with empty data instead of crashing with "Unauthorized".
@@ -34,7 +45,14 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   }
 
   if (!me) return null;
-  return me as StaffPortalStaff;
+
+  // Merge in nullable fields that may not exist in this deployment yet.
+  return {
+    ...me,
+    staff_type: null,
+    avatar_url: null,
+    avatar_path: null,
+  } as StaffPortalStaff;
 }
 
 // ── Update staff profile photo ──────────────────────────────────────────

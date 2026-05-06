@@ -18,7 +18,8 @@ async function requireOwner() {
     .from("staff")
     .select("system_role")
     .eq("auth_user_id", user.id)
-    .single();
+    .eq("is_active", true)
+    .maybeSingle();
   if (me?.system_role !== "owner") return null;
   return supabase;
 }
