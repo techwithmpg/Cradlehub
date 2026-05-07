@@ -8,10 +8,10 @@ import { BrandLogo } from "@/components/shared/brand-logo";
 
 const navLinks = [
   { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
-  { href: "/services", label: "Services" },
-  { href: "/#testimonials", label: "Testimonials" },
-  { href: "/contact", label: "Contact" },
+  { href: "/#experience", label: "Experience" },
+  { href: "/#services", label: "Services" },
+  { href: "/#plan-your-visit", label: "Plan Visit" },
+  { href: "/#contact", label: "Contact" },
 ];
 
 export function SiteHeader() {
@@ -54,26 +54,29 @@ export function SiteHeader() {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`relative text-[11px] font-semibold tracking-widest uppercase transition-colors duration-300 ${
-                  pathname === link.href.split("#")[0]
-                    ? isHeroMode
-                      ? "text-white"
-                      : "text-[#163A2B]"
-                    : isHeroMode
-                    ? "text-white/65 hover:text-white"
-                    : "text-[#6B7A6F] hover:text-[#163A2B]"
-                }`}
-              >
-                {link.label}
-                {pathname === link.href.split("#")[0] && (
-                  <span className="absolute -bottom-1.5 left-0 right-0 h-[1.5px] bg-[#C8A96B] rounded-full" />
-                )}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = link.href === "/" && pathname === "/";
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`relative text-[11px] font-semibold tracking-widest uppercase transition-colors duration-300 ${
+                    isActive
+                      ? isHeroMode
+                        ? "text-white"
+                        : "text-[#163A2B]"
+                      : isHeroMode
+                      ? "text-white/65 hover:text-white"
+                      : "text-[#6B7A6F] hover:text-[#163A2B]"
+                  }`}
+                >
+                  {link.label}
+                  {isActive && (
+                    <span className="absolute -bottom-1.5 left-0 right-0 h-[1.5px] bg-[#C8A96B] rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
           </nav>
 
           {/* CTA + Mobile Toggle */}
@@ -121,18 +124,21 @@ export function SiteHeader() {
         >
           <div className="flex h-full flex-col p-8 pt-24">
             <nav className="flex flex-col gap-6">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`text-lg font-medium transition-colors ${
-                    pathname === link.href.split("#")[0] ? "text-[#163A2B]" : "text-[#6B7A6F] hover:text-[#163A2B]"
-                  }`}
-                  style={{ fontFamily: "var(--sp-font-display)" }}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const isActive = link.href === "/" && pathname === "/";
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`text-lg font-medium transition-colors ${
+                      isActive ? "text-[#163A2B]" : "text-[#6B7A6F] hover:text-[#163A2B]"
+                    }`}
+                    style={{ fontFamily: "var(--sp-font-display)" }}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
             </nav>
             <div className="mt-auto">
               <Link

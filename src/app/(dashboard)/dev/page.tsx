@@ -4,6 +4,19 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
 
+type DevLink = {
+  icon: string;
+  label: string;
+  href: string;
+  description?: string;
+};
+
+type DevCategory = {
+  title: string;
+  color: string;
+  links: DevLink[];
+};
+
 async function requireDevAccess() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -24,7 +37,7 @@ async function requireDevAccess() {
   return { user, me };
 }
 
-const CATEGORIES = [
+const CATEGORIES: DevCategory[] = [
   {
     title: "👑 Owner Suite",
     color: "var(--cs-owner-accent)",
@@ -34,6 +47,13 @@ const CATEGORIES = [
       { icon: "🏢", label: "Branches", href: "/owner/branches" },
       { icon: "👥", label: "Staff", href: "/owner/staff" },
       { icon: "✨", label: "Services", href: "/owner/services" },
+      {
+        icon: "🎨",
+        label: "Marketing Studio",
+        href: "/owner/marketing",
+        description:
+          "Manage public homepage content, gallery, promotions, and before-you-book copy.",
+      },
     ],
   },
   {
@@ -246,7 +266,20 @@ export default async function DevPanelPage() {
                   }}
                 >
                   <span style={{ fontSize: 16, flexShrink: 0 }}>{link.icon}</span>
-                  <span>{link.label}</span>
+                  <span style={{ display: "grid", gap: 2 }}>
+                    <span>{link.label}</span>
+                    {link.description ? (
+                      <span
+                        style={{
+                          color: "var(--cs-text-muted)",
+                          fontSize: "0.75rem",
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        {link.description}
+                      </span>
+                    ) : null}
+                  </span>
                   <span style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}>›</span>
                 </Link>
               ))}
@@ -381,4 +414,3 @@ export default async function DevPanelPage() {
     </div>
   );
 }
-

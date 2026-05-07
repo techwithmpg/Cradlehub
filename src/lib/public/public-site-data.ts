@@ -1,269 +1,277 @@
-export type PublicService = {
+import { SPA_IMAGES } from "@/constants/spa-images";
+
+export type PublicBranch = {
   id: string;
   name: string;
-  benefit: string;
-  durationMinutes: number;
-  priceFrom: number;
-  imageAlt: string;
-  serviceMode: "both" | "in_spa" | "home_service";
-  homeServiceEligible: boolean;
+  area: string;
+  mapHref?: string;
 };
 
-export type PublicTherapist = {
-  id: string;
-  name: string;
-  tier: "senior" | "mid" | "junior";
-  focus: string;
+export type PublicPhone = {
+  label: string;
+  href: string;
 };
 
-export type TrustPoint = {
+export type PublicProofPoint = {
   id: string;
   label: string;
   detail: string;
 };
 
-export type Testimonial = {
-  id: string;
-  customer: string;
-  highlight: string;
-  quote: string;
-};
-
-export type BookingStep = {
+export type PublicJourneyStep = {
   id: string;
   title: string;
   detail: string;
 };
 
-export type ExperienceCard = {
+export type PublicSettingCard = {
+  id: "in_spa" | "home_service";
+  title: string;
+  eyebrow: string;
+  detail: string;
+  points: string[];
+  image: string;
+  imageAlt: string;
+};
+
+export type PublicGalleryItem = {
+  id: string;
+  title: string;
+  detail: string;
+  image: string;
+  imageAlt: string;
+};
+
+export type PublicTeamRole = {
   id: string;
   title: string;
   detail: string;
 };
 
-export type FaqEntry = {
-  question: string;
-  answer: string;
+export const businessInfo = {
+  brandName: "Cradle Massage & Wellness Spa",
+  siteName: "CradleHub",
+  location: "Bacolod",
+  hours: "Daily availability through online booking",
+  bookingHref: "/book",
+  planHref: "#plan-your-visit",
 };
 
-export const publicServices: PublicService[] = [
+export const publicPhones: PublicPhone[] = [
+  { label: "0917 707 7070", href: "tel:+639177077070" },
+  { label: "0909 008 7815", href: "tel:+639090087815" },
+];
+
+export const publicBranches: PublicBranch[] = [
   {
-    id: "signature-massage",
-    name: "Signature Massage",
-    benefit: "Balanced relaxation and deep release for full-body renewal.",
-    durationMinutes: 90,
-    priceFrom: 1800,
-    imageAlt: "Relaxing signature massage room ambiance",
-    serviceMode: "both",
-    homeServiceEligible: true,
+    id: "sm-city-bacolod",
+    name: "SM City Bacolod",
+    area: "Bacolod",
+    mapHref: "https://maps.google.com/?q=SM+City+Bacolod",
   },
   {
-    id: "hot-stone-therapy",
-    name: "Hot Stone Therapy",
-    benefit: "Heated stones melt tension and improve circulation.",
-    durationMinutes: 75,
-    priceFrom: 2200,
-    imageAlt: "Hot stones prepared for therapy treatment",
-    serviceMode: "in_spa",
-    homeServiceEligible: false,
-  },
-  {
-    id: "swedish-massage",
-    name: "Swedish Massage",
-    benefit: "Gentle pressure to calm stress and improve sleep quality.",
-    durationMinutes: 60,
-    priceFrom: 1300,
-    imageAlt: "Soft lighting and wellness oils for Swedish massage",
-    serviceMode: "both",
-    homeServiceEligible: true,
-  },
-  {
-    id: "deep-tissue-massage",
-    name: "Deep Tissue Massage",
-    benefit: "Targeted relief for persistent tightness and muscle fatigue.",
-    durationMinutes: 90,
-    priceFrom: 2100,
-    imageAlt: "Therapist applying deep tissue pressure technique",
-    serviceMode: "both",
-    homeServiceEligible: true,
-  },
-  {
-    id: "couple-massage",
-    name: "Couple Massage",
-    benefit: "Shared premium treatment in a private couples suite.",
-    durationMinutes: 90,
-    priceFrom: 3600,
-    imageAlt: "Luxury room setup for couple massage session",
-    serviceMode: "in_spa",
-    homeServiceEligible: false,
-  },
-  {
-    id: "home-service-massage",
-    name: "Home Service Massage",
-    benefit: "Spa-quality treatment delivered to your location.",
-    durationMinutes: 90,
-    priceFrom: 2500,
-    imageAlt: "Professional massage setup for home service",
-    serviceMode: "home_service",
-    homeServiceEligible: true,
+    id: "la-luz",
+    name: "La Luz Branch",
+    area: "Bacolod",
+    mapHref: "https://maps.google.com/?q=La+Luz+Branch+Bacolod",
   },
 ];
 
-export const publicTherapists: PublicTherapist[] = [
+export const heroProofPoints: PublicProofPoint[] = [
   {
-    id: "any-available",
-    name: "Any Available Therapist",
-    tier: "senior",
-    focus: "Fastest match based on real-time availability",
+    id: "in-spa-home",
+    label: "In-spa and home service",
+    detail: "Choose the setting that fits your day.",
   },
   {
-    id: "therapist-amara",
-    name: "Amara Velasco",
-    tier: "senior",
-    focus: "Deep tissue and posture recovery",
+    id: "bacolod-branches",
+    label: "Two Bacolod branches",
+    detail: "SM City Bacolod and La Luz Branch.",
   },
   {
-    id: "therapist-lian",
-    name: "Lian Cortez",
-    tier: "mid",
-    focus: "Relaxation and stress reset",
-  },
-  {
-    id: "therapist-jules",
-    name: "Jules Dizon",
-    tier: "junior",
-    focus: "Light restorative pressure and circulation work",
+    id: "front-desk",
+    label: "Front-desk support",
+    detail: "The team can follow up when confirmation is needed.",
   },
 ];
 
-export const trustPoints: TrustPoint[] = [
+export const quickTrustPoints: PublicProofPoint[] = [
   {
-    id: "instant-confirmation",
-    label: "Instant confirmation",
-    detail: "Online bookings are auto-confirmed as soon as details are complete.",
+    id: "trained-team",
+    label: "Trained wellness team",
+    detail: "Thoughtful therapists for relaxation, tension relief, and everyday recovery.",
   },
   {
-    id: "home-service",
-    label: "Home service available",
-    detail: "Book in-spa or request therapist dispatch to your location.",
+    id: "choice-setting",
+    label: "In-spa or at home",
+    detail: "Book a spa visit or request a home-service appointment in Bacolod.",
   },
   {
-    id: "therapist-choice",
-    label: "Choose therapist or any available",
-    detail: "Pick a preferred specialist or let us assign the best available fit.",
+    id: "branch-access",
+    label: "Bacolod branch access",
+    detail: "Plan around SM City Bacolod or La Luz Branch availability.",
   },
   {
-    id: "staff-managed-edits",
-    label: "Staff-managed rescheduling",
-    detail: "Our team can assist updates, edits, and scheduling support.",
-  },
-];
-
-export const bookingSteps: BookingStep[] = [
-  {
-    id: "step-service",
-    title: "Choose service",
-    detail: "Select from premium massage and wellness treatments.",
-  },
-  {
-    id: "step-therapist",
-    title: "Choose therapist or any available",
-    detail: "Pick your preferred specialist or let us assign one instantly.",
-  },
-  {
-    id: "step-time",
-    title: "Pick date and time",
-    detail: "Select your preferred schedule from available time slots.",
-  },
-  {
-    id: "step-confirm",
-    title: "Confirm booking",
-    detail: "Review your details and receive immediate confirmation.",
+    id: "crm-support",
+    label: "Assisted confirmation",
+    detail: "CRM and front-desk staff can help with booking and payment follow-up.",
   },
 ];
 
-export const experienceCards: ExperienceCard[] = [
+export const bookingJourneySteps: PublicJourneyStep[] = [
   {
-    id: "professional-therapists",
-    title: "Professional therapists",
-    detail: "Experienced specialists trained for therapeutic and relaxation outcomes.",
+    id: "setting",
+    title: "Choose your setting",
+    detail: "Start with an in-spa visit or a home-service appointment.",
   },
   {
-    id: "clean-environment",
-    title: "Clean, calming environment",
-    detail: "Quiet treatment rooms and premium hygiene standards every session.",
+    id: "treatment",
+    title: "Select your treatment",
+    detail: "Pick the massage or wellness service that matches your need.",
   },
   {
-    id: "home-support",
-    title: "Home service support",
-    detail: "Wellness convenience for clients who prefer treatment at home.",
+    id: "schedule",
+    title: "Pick date, time, and therapist",
+    detail: "Choose from available slots and select a therapist when available.",
   },
   {
-    id: "staff-assistance",
-    title: "Staff-assisted booking edits",
-    detail: "Walk-ins, rescheduling, and updates are handled by our operations team.",
-  },
-];
-
-export const testimonials: Testimonial[] = [
-  {
-    id: "review-1",
-    customer: "Elaine S.",
-    highlight: "Executive wellness reset",
-    quote:
-      "The booking process was fast, and the treatment quality felt like a five-star retreat.",
-  },
-  {
-    id: "review-2",
-    customer: "Marcus R.",
-    highlight: "Deep tissue recovery",
-    quote:
-      "I picked my therapist, arrived on time, and got one of the best deep tissue sessions I have had.",
-  },
-  {
-    id: "review-3",
-    customer: "Celine P.",
-    highlight: "Home service convenience",
-    quote:
-      "Home service was smooth and professional. It felt premium from booking to treatment.",
+    id: "confirm",
+    title: "Relax while we confirm",
+    detail: "The front desk may follow up for payment or home-service details.",
   },
 ];
 
-export const faqEntries: FaqEntry[] = [
+export const settingCards: PublicSettingCard[] = [
   {
-    question: "Are online bookings instantly confirmed?",
-    answer:
-      "Yes. Once details are complete, your booking is auto-confirmed and visible to staff immediately.",
+    id: "in_spa",
+    eyebrow: "Branch-based calm",
+    title: "In-spa Experience",
+    detail:
+      "Settle into a quiet Cradle branch for a full self-care session with the spa environment around you.",
+    points: ["Calm treatment rooms", "Best for longer reset sessions", "Available by branch schedule"],
+    image: SPA_IMAGES.about,
+    imageAlt: "Calm in-spa treatment room at Cradle",
   },
   {
-    question: "Can I choose a specific therapist?",
-    answer:
-      "Yes. You can select a preferred therapist or choose Any Available Therapist for the fastest slot.",
-  },
-  {
-    question: "Can I cancel online after booking?",
-    answer:
-      "Public cancellation is not available. Please contact the spa and our staff can assist with changes.",
+    id: "home_service",
+    eyebrow: "Wellness at home",
+    title: "Home Service Experience",
+    detail:
+      "Request a therapist to come to your location when staying in feels better than traveling.",
+    points: [
+      "Address and landmark required",
+      "Availability can differ from in-spa hours",
+      "Front desk may follow up to confirm details",
+    ],
+    image: SPA_IMAGES.booking,
+    imageAlt: "Prepared massage setup for home-service planning",
   },
 ];
 
-export const contactInfo = {
-  spaName: "Cradle Massage & Wellness Spa",
-  phoneLabel: "+63 917 000 1234",
-  phoneHref: "tel:+639170001234",
-  whatsappLabel: "Chat on WhatsApp",
-  whatsappHref: "https://wa.me/639170001234",
-  address: "Bacolod City, Negros Occidental, Philippines",
-  hours: "Daily 10:00 AM - 10:00 PM",
-};
+export const galleryItems: PublicGalleryItem[] = [
+  {
+    id: "spa-room",
+    title: "Spa room",
+    detail: "Soft lighting and quiet treatment spaces.",
+    image: SPA_IMAGES.about,
+    imageAlt: "Spa treatment room with warm lighting",
+  },
+  {
+    id: "massage-bed",
+    title: "Massage bed",
+    detail: "Prepared beds, clean linens, and calm details.",
+    image: SPA_IMAGES.heroPortrait,
+    imageAlt: "Prepared massage bed in a relaxing room",
+  },
+  {
+    id: "oils-towels",
+    title: "Oils and towels",
+    detail: "Simple details that support a polished session.",
+    image: SPA_IMAGES.aromatherapy,
+    imageAlt: "Spa oils and towels prepared for treatment",
+  },
+  {
+    id: "staff-prep",
+    title: "Treatment preparation",
+    detail: "A team-led experience from setup to confirmation.",
+    image: SPA_IMAGES.contact,
+    imageAlt: "Wellness preparation details at Cradle",
+  },
+  {
+    id: "reception",
+    title: "Front desk support",
+    detail: "Booking assistance for in-spa and home service guests.",
+    image: SPA_IMAGES.ctaBanner,
+    imageAlt: "Calm spa reception mood",
+  },
+  {
+    id: "home-setup",
+    title: "Home-service setup",
+    detail: "Comfort-led appointments planned around your location.",
+    image: SPA_IMAGES.booking,
+    imageAlt: "Home-service massage setup inspiration",
+  },
+];
 
-export const bookingTimeSlots = [
-  "10:00",
-  "11:00",
-  "13:00",
-  "14:00",
-  "16:00",
-  "18:00",
-  "19:00",
-  "20:00",
+export const whyGuestsChooseCradle: PublicProofPoint[] = [
+  {
+    id: "clean-calm",
+    label: "Calm, clean environment",
+    detail: "A warm spa setting designed for quiet recovery and rest.",
+  },
+  {
+    id: "online-booking",
+    label: "Online booking",
+    detail: "A guided booking flow for branch, setting, services, schedule, and therapist.",
+  },
+  {
+    id: "home-option",
+    label: "Home-service option",
+    detail: "Plan a session at home with address and landmark details collected upfront.",
+  },
+  {
+    id: "local-branches",
+    label: "Real Bacolod branches",
+    detail: "Choose from SM City Bacolod or La Luz Branch when planning your visit.",
+  },
+];
+
+export const teamRoles: PublicTeamRole[] = [
+  {
+    id: "senior-therapists",
+    title: "Senior Therapists",
+    detail: "Guide deeper relaxation and recovery-focused massage sessions.",
+  },
+  {
+    id: "massage-specialists",
+    title: "Massage Specialists",
+    detail: "Support stress relief, muscle tension, and first-time guest comfort.",
+  },
+  {
+    id: "home-service-team",
+    title: "Home Service Team",
+    detail: "Prepare practical details for appointments outside the branch.",
+  },
+  {
+    id: "front-desk-crm",
+    title: "Front Desk / CRM Support",
+    detail: "Helps confirm bookings, payment follow-up, and appointment details.",
+  },
+];
+
+export const guestReasons = [
+  "Stress after work",
+  "Muscle tension",
+  "Recovery after travel",
+  "Quiet self-care time",
+  "Home-service comfort",
+  "Couples or family relaxation",
+] as const;
+
+export const planningNotes = [
+  "Choose In-spa or Home Service before selecting your treatment.",
+  "Home Service requires a complete address and helpful landmark details.",
+  "The CRM or front desk team may follow up for payment confirmation.",
+  "Payment is manually confirmed for now until the official payment integration is ready.",
+  "Keep your phone reachable after booking in case the team needs to confirm details.",
 ] as const;

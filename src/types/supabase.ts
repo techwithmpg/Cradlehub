@@ -565,6 +565,99 @@ export type Database = {
           },
         ]
       }
+      public_site_sections: {
+        Row: {
+          id: string
+          section_key: string
+          title: string | null
+          subtitle: string | null
+          body: string | null
+          cta_label: string | null
+          cta_href: string | null
+          image_url: string | null
+          secondary_image_url: string | null
+          sort_order: number
+          is_enabled: boolean
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          section_key: string
+          title?: string | null
+          subtitle?: string | null
+          body?: string | null
+          cta_label?: string | null
+          cta_href?: string | null
+          image_url?: string | null
+          secondary_image_url?: string | null
+          sort_order?: number
+          is_enabled?: boolean
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          section_key?: string
+          title?: string | null
+          subtitle?: string | null
+          body?: string | null
+          cta_label?: string | null
+          cta_href?: string | null
+          image_url?: string | null
+          secondary_image_url?: string | null
+          sort_order?: number
+          is_enabled?: boolean
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      public_site_assets: {
+        Row: {
+          id: string
+          section_key: string | null
+          title: string | null
+          alt_text: string | null
+          image_url: string
+          link_href: string | null
+          sort_order: number
+          is_enabled: boolean
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          section_key?: string | null
+          title?: string | null
+          alt_text?: string | null
+          image_url: string
+          link_href?: string | null
+          sort_order?: number
+          is_enabled?: boolean
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          section_key?: string | null
+          title?: string | null
+          alt_text?: string | null
+          image_url?: string
+          link_href?: string | null
+          sort_order?: number
+          is_enabled?: boolean
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waitlist_requests: {
         Row: {
           id: string

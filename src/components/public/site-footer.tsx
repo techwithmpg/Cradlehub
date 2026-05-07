@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Phone, MapPin, Clock } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { businessInfo, publicBranches, publicPhones } from "@/lib/public/public-site-data";
 
 function IconFacebook({ className }: { className?: string }) {
   return (
@@ -78,10 +79,11 @@ export function SiteFooter() {
             <ul className="flex flex-col gap-3">
               {[
                 { href: "/", label: "Home" },
-                { href: "/about", label: "About Us" },
-                { href: "/services", label: "Services" },
+                { href: "/#experience", label: "Experience" },
+                { href: "/#services", label: "Services" },
+                { href: "/#plan-your-visit", label: "Plan Your Visit" },
                 { href: "/book", label: "Book Now" },
-                { href: "/contact", label: "Contact" },
+                { href: "/#contact", label: "Contact" },
               ].map((link) => (
                 <li key={link.href}>
                   <Link
@@ -104,42 +106,40 @@ export function SiteFooter() {
               <li className="flex items-start gap-3 text-[13px]">
                 <Phone className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
                 <div className="flex flex-col gap-1">
-                  <a
-                    href="tel:+639177077070"
-                    className="hover:text-[#C8A96B] transition-colors"
-                  >
-                    0917 707 7070
-                  </a>
-                  <a
-                    href="tel:+639090087815"
-                    className="hover:text-[#C8A96B] transition-colors"
-                  >
-                    0909 008 7815
-                  </a>
+                  {publicPhones.map((phone) => (
+                    <a
+                      key={phone.href}
+                      href={phone.href}
+                      className="hover:text-[#C8A96B] transition-colors"
+                    >
+                      {phone.label}
+                    </a>
+                  ))}
                 </div>
               </li>
-              <li className="flex items-start gap-3 text-[13px]">
-                <MapPin className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
-                <a
-                  href="https://maps.google.com/?q=3rd+Floor+North+Wing+SM+City+Bacolod"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#C8A96B] transition-colors leading-relaxed"
-                >
-                  3rd Floor, North Wing,<br />SM City Bacolod
-                </a>
-              </li>
-              <li className="flex items-start gap-3 text-[13px]">
-                <MapPin className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
-                <a
-                  href="https://maps.google.com/?q=PX26+XQ+Bacolod+Negros+Occidental"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#C8A96B] transition-colors leading-relaxed"
-                >
-                  3rd Floor, La Luz Bldg Lacson,<br />National Highway, Bacolod
-                </a>
-              </li>
+              {publicBranches.map((branch) => (
+                <li key={branch.id} className="flex items-start gap-3 text-[13px]">
+                  <MapPin className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
+                  {branch.mapHref ? (
+                    <a
+                      href={branch.mapHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-[#C8A96B] transition-colors leading-relaxed"
+                    >
+                      {branch.name}
+                      <br />
+                      {branch.area}
+                    </a>
+                  ) : (
+                    <span className="leading-relaxed">
+                      {branch.name}
+                      <br />
+                      {branch.area}
+                    </span>
+                  )}
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -153,7 +153,7 @@ export function SiteFooter() {
                 <Clock className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
                 <div>
                   <p className="text-[#FCFAF5]">Open Daily</p>
-                  <p>10:00 AM – 10:00 PM</p>
+                  <p>{businessInfo.hours}</p>
                 </div>
               </li>
             </ul>

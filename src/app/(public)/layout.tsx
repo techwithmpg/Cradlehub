@@ -8,7 +8,15 @@ export const metadata: Metadata = {
     template: "%s | Cradle Spa",
   },
   description:
-    "Luxury massage and wellness treatments in Bacolod City. Swedish, Deep Tissue, Hot Stone, Aromatherapy, and more. Book your session online.",
+    "Cradle Massage & Wellness Spa in Bacolod offers massage and wellness services with in-spa and home-service booking support through CradleHub.",
+  keywords: [
+    "Cradle Massage & Wellness Spa",
+    "CradleHub",
+    "Bacolod massage",
+    "wellness spa Bacolod",
+    "in-spa booking",
+    "home service massage",
+  ],
 };
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
