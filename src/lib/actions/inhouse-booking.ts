@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import type { Json } from "@/types/supabase";
 import {
   createInhouseBookingMultiSchema,
   type CreateInhouseBookingMultiInput,
@@ -12,7 +13,9 @@ import {
   assignTherapistBySeniorityMulti,
   getAvailableSlotsMulti,
 } from "@/lib/engine/availability";
-import { validateBookingAgainstBranchRules } from "@/lib/queries/branch-booking-rules";
+import { validateBookingAgainstBranchRules, getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-conflict";
+import { geocodeAddress, buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { SlotUnavailableError } from "@/types/errors";
 
@@ -309,6 +312,64 @@ export async function createInhouseBookingMultiAction(
       }
     }
 
+    // Build home service address data with zone + optional geocode
+    let hsAddressData: { [key: string]: Json | undefined } | null = null;
+    let dispatchData: { [key: string]: Json | undefined } = {
+      needs_location_review: false,
+      travel_minutes_estimate: null,
+      driver_capacity_checked: false,
+      dispatch_warning: null,
+    };
+
+    if (d.type === "home_service" && d.homeServiceAddress) {
+      const geocoded = await geocodeAddress(
+        [d.homeServiceAddress, d.homeServiceBarangay, d.homeServiceCity]
+          .filter(Boolean)
+          .join(", ")
+      );
+
+      hsAddressData = {
+        full_address:      d.homeServiceAddress,
+        barangay:          d.homeServiceBarangay ?? null,
+        city:              d.homeServiceCity ?? null,
+        landmark:          d.homeServiceLandmark ?? null,
+        parking_notes:     d.homeServiceParkingNotes ?? null,
+        zone:              d.homeServiceZone ?? "unknown",
+        formatted_address: geocoded?.formattedAddress ?? null,
+        place_id:          geocoded?.placeId ?? null,
+        lat:               geocoded?.lat ?? null,
+        lng:               geocoded?.lng ?? null,
+        map_url:           geocoded
+          ? buildGoogleMapsSearchUrl(geocoded.lat, geocoded.lng)
+          : null,
+      } satisfies { [key: string]: Json | undefined };
+
+      const branchRules = await getBranchBookingRulesOrDefault(resolvedBranchId);
+      const dispatchResult = await checkHomeServiceDispatchConflict({
+        branchId: resolvedBranchId,
+        bookingDate: d.date,
+        startTime: d.startTime,
+        endTime: combinedEndTime ?? d.startTime,
+        selectedZone: d.homeServiceZone ?? "unknown",
+        selectedLat: geocoded?.lat ?? null,
+        selectedLng: geocoded?.lng ?? null,
+        driverCapacity: branchRules.homeServiceDriverCapacity,
+      });
+
+      if (dispatchResult.conflict === "hard") {
+        return { ok: false, code: "DISPATCH_CONFLICT", message: dispatchResult.message };
+      }
+
+      dispatchData = {
+        needs_location_review: dispatchResult.conflict === "warning"
+          ? (dispatchResult as { needs_location_review: boolean }).needs_location_review
+          : false,
+        travel_minutes_estimate: null,
+        driver_capacity_checked: true,
+        dispatch_warning: dispatchResult.conflict === "warning" ? dispatchResult.message : null,
+      } satisfies { [key: string]: Json | undefined };
+    }
+
     const insertedIds: string[] = [];
     let currentStart = d.startTime;
 
@@ -338,16 +399,6 @@ export async function createInhouseBookingMultiAction(
       }
 
       const overridePrice = overrideByServiceId.get(service.id)?.custom_price ?? undefined;
-      const hsAddress =
-        d.type === "home_service" && d.homeServiceAddress
-          ? {
-              full_address:  d.homeServiceAddress,
-              barangay:      d.homeServiceBarangay ?? null,
-              city:          d.homeServiceCity ?? null,
-              landmark:      d.homeServiceLandmark ?? null,
-              parking_notes: d.homeServiceParkingNotes ?? null,
-            }
-          : null;
       const metadata = {
         price_paid:
           overridePrice !== null && overridePrice !== undefined
@@ -356,7 +407,8 @@ export async function createInhouseBookingMultiAction(
         service_name:          service.name,
         duration_minutes:      Number(service.duration_minutes),
         customer_notes:        d.notes ?? null,
-        ...(hsAddress && { home_service_address: hsAddress }),
+        ...(hsAddressData && { home_service_address: hsAddressData }),
+        ...(hsAddressData && { dispatch: dispatchData }),
       };
 
       const { data: booking, error: bookingError } = await admin

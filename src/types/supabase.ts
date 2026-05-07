@@ -311,6 +311,7 @@ export type Database = {
         Row: {
           branch_id: string
           created_at: string
+          home_service_driver_capacity: number
           home_service_enabled: boolean
           home_service_end_time: string
           home_service_start_time: string
@@ -324,6 +325,7 @@ export type Database = {
         Insert: {
           branch_id: string
           created_at?: string
+          home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
           home_service_start_time?: string
@@ -337,6 +339,7 @@ export type Database = {
         Update: {
           branch_id?: string
           created_at?: string
+          home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
           home_service_start_time?: string

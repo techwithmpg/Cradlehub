@@ -81,6 +81,7 @@ function mapRowToRules(row: BranchBookingRulesRow): BranchBookingRules {
     homeServiceEndTime: normalizeTime(row.home_service_end_time),
     travelBufferMins: row.travel_buffer_mins,
     maxAdvanceBookingDays: row.max_advance_booking_days,
+    homeServiceDriverCapacity: row.home_service_driver_capacity ?? 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -169,6 +170,7 @@ export async function updateBranchBookingRules(
         home_service_end_time: input.homeServiceEndTime,
         travel_buffer_mins: input.travelBufferMins,
         max_advance_booking_days: input.maxAdvanceBookingDays,
+        home_service_driver_capacity: input.homeServiceDriverCapacity,
       },
       { onConflict: "branch_id" }
     )

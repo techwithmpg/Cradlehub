@@ -90,22 +90,34 @@ export default async function CrmTodayPage() {
   const bookings = rawBookings as BookingRow[];
 
   // Map to normalized card data for the client component
-  const queueData = bookings.map((b) => ({
-    id:               b.id,
-    start_time:       b.start_time,
-    end_time:         b.end_time,
-    status:           b.status,
-    type:             b.type,
-    travel_buffer_mins: b.travel_buffer_mins,
-    payment_status:   b.payment_status,
-    payment_method:   b.payment_method,
-    amount_paid:      b.amount_paid,
-    customer_name:    first(b.customers)?.full_name ?? null,
-    service_name:     first(b.services)?.name ?? null,
-    service_duration: first(b.services)?.duration_minutes ?? null,
-    staff_name:       first(b.staff)?.full_name ?? null,
-    resource_name:    first(b.branch_resources)?.name ?? null,
-  }));
+  const queueData = bookings.map((b) => {
+    const meta = (b as { metadata?: unknown }).metadata as Record<string, unknown> | null;
+    const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
+    const dispatch = meta?.dispatch as Record<string, unknown> | null;
+    return {
+      id:               b.id,
+      start_time:       b.start_time,
+      end_time:         b.end_time,
+      status:           b.status,
+      type:             b.type,
+      travel_buffer_mins: b.travel_buffer_mins,
+      payment_status:   b.payment_status,
+      payment_method:   b.payment_method,
+      amount_paid:      b.amount_paid,
+      customer_name:    first(b.customers)?.full_name ?? null,
+      service_name:     first(b.services)?.name ?? null,
+      service_duration: first(b.services)?.duration_minutes ?? null,
+      staff_name:       first(b.staff)?.full_name ?? null,
+      resource_name:    first(b.branch_resources)?.name ?? null,
+      // Home service location
+      hs_zone:               typeof hsAddr?.zone === "string" ? hsAddr.zone : null,
+      hs_address:            typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
+      hs_city:               typeof hsAddr?.city === "string" ? hsAddr.city : null,
+      hs_map_url:            typeof hsAddr?.map_url === "string" ? hsAddr.map_url : null,
+      dispatch_warning:      typeof dispatch?.dispatch_warning === "string" ? dispatch.dispatch_warning : null,
+      needs_location_review: dispatch?.needs_location_review === true,
+    };
+  });
 
   const upcoming = bookings.filter(
     (b) => b.status === "confirmed" && toMins(b.start_time) > nowMins

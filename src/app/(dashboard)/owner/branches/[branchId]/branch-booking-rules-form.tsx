@@ -47,6 +47,11 @@ export function BranchBookingRulesForm({
           "maxAdvanceBookingDays",
           rules.maxAdvanceBookingDays
         ),
+        homeServiceDriverCapacity: numberFromForm(
+          formData,
+          "homeServiceDriverCapacity",
+          rules.homeServiceDriverCapacity
+        ),
       });
 
       if (!result.success) {
@@ -164,7 +169,7 @@ export function BranchBookingRulesForm({
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.875rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.875rem" }}>
             <EditField
               label="Travel buffer minutes"
               name="travelBufferMins"
@@ -180,6 +185,15 @@ export function BranchBookingRulesForm({
               min={1}
               max={365}
               defaultValue={String(rules.maxAdvanceBookingDays)}
+            />
+            <EditField
+              label="Home service driver capacity"
+              name="homeServiceDriverCapacity"
+              type="number"
+              min={0}
+              max={20}
+              defaultValue={String(rules.homeServiceDriverCapacity)}
+              helperText="Max concurrent home service trips"
             />
           </div>
 
@@ -209,6 +223,7 @@ function EditField({
   type = "text",
   min,
   max,
+  helperText,
 }: {
   label: string;
   name: string;
@@ -216,6 +231,7 @@ function EditField({
   type?: "text" | "time" | "number";
   min?: number;
   max?: number;
+  helperText?: string;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
@@ -231,6 +247,11 @@ function EditField({
         defaultValue={defaultValue}
         style={{ fontSize: "0.875rem" }}
       />
+      {helperText && (
+        <span style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
+          {helperText}
+        </span>
+      )}
     </div>
   );
 }

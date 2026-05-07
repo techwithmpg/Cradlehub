@@ -78,6 +78,7 @@ export const createInhouseBookingMultiSchema = z.object({
   homeServiceCity:         z.string().max(100).optional(),
   homeServiceLandmark:     z.string().max(200).optional(),
   homeServiceParkingNotes: z.string().max(300).optional(),
+  homeServiceZone:         z.string().max(50).optional(),
 });
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 
@@ -109,12 +110,23 @@ export const updateBookingStatusSchema = z.object({
 export type UpdateBookingStatusInput = z.infer<typeof updateBookingStatusSchema>;
 
 // ── Home-service address fields (shared by public + inhouse) ─────────────────
+export const HOME_SERVICE_ZONES = [
+  "central_bacolod",
+  "north_bacolod_talisay",
+  "south_bacolod_alijis",
+  "east_bacolod",
+  "outside_bacolod",
+  "unknown",
+] as const;
+export type HomeServiceZone = (typeof HOME_SERVICE_ZONES)[number];
+
 export const homeServiceAddressSchema = z.object({
   homeServiceAddress:      z.string().min(5, "Full address is required").max(500),
   homeServiceBarangay:     z.string().min(2, "Barangay is required").max(100),
   homeServiceCity:         z.string().min(2, "City is required").max(100),
   homeServiceLandmark:     z.string().max(200).optional(),
   homeServiceParkingNotes: z.string().max(300).optional(),
+  homeServiceZone:         z.string().max(50).optional(),
 });
 export type HomeServiceAddressInput = z.infer<typeof homeServiceAddressSchema>;
 
@@ -137,6 +149,7 @@ export const createOnlineBookingMultiSchema = z.object({
   homeServiceCity:         z.string().max(100).optional(),
   homeServiceLandmark:     z.string().max(200).optional(),
   homeServiceParkingNotes: z.string().max(300).optional(),
+  homeServiceZone:         z.string().max(50).optional(),
 });
 export type CreateOnlineBookingMultiInput = z.infer<typeof createOnlineBookingMultiSchema>;
 

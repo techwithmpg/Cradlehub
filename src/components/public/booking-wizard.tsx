@@ -199,6 +199,7 @@ export function BookingWizard({
     hsCity: "",
     hsLandmark: "",
     hsParkingNotes: "",
+    hsZone: "unknown",
   });
   const [formError, setFormError] = useState("");
 
@@ -384,6 +385,7 @@ export function BookingWizard({
             homeServiceCity:         form.hsCity || undefined,
             homeServiceLandmark:     form.hsLandmark || undefined,
             homeServiceParkingNotes: form.hsParkingNotes || undefined,
+            homeServiceZone:         form.hsZone || "unknown",
           }
         : {};
 
@@ -1384,7 +1386,17 @@ type DetailsForm = {
   hsCity: string;
   hsLandmark: string;
   hsParkingNotes: string;
+  hsZone: string;
 };
+
+const HS_ZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: "unknown",               label: "Not sure / Let CSR confirm" },
+  { value: "central_bacolod",       label: "Central Bacolod" },
+  { value: "north_bacolod_talisay", label: "North Bacolod / Talisay" },
+  { value: "south_bacolod_alijis",  label: "South Bacolod / Alijis" },
+  { value: "east_bacolod",          label: "East Bacolod" },
+  { value: "outside_bacolod",       label: "Outside Bacolod" },
+];
 
 function StepDetails({
   form,
@@ -1492,6 +1504,28 @@ function StepDetails({
             <p className="text-[12px] -mt-2" style={{ color: "#6B7A6F" }}>
               Our team will use this to dispatch your therapist. Please be specific.
             </p>
+
+            <div>
+              <label htmlFor="hs-zone" className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                <MapPin className="h-3.5 w-3.5" />
+                Location Zone
+              </label>
+              <select
+                id="hs-zone"
+                value={form.hsZone}
+                onChange={(e) => onChange({ ...form, hsZone: e.target.value })}
+                className={INPUT_CLS}
+              >
+                {HS_ZONE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
+                Helps us assign the nearest available driver.
+              </p>
+            </div>
 
             <div>
               <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>

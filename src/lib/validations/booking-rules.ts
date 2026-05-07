@@ -33,6 +33,11 @@ export const branchBookingRulesSchema = z
       .int()
       .min(1, "Max advance booking must be at least 1 day")
       .max(365, "Max advance booking cannot exceed 365 days"),
+    homeServiceDriverCapacity: z.coerce
+      .number()
+      .int()
+      .min(0, "Driver capacity cannot be negative")
+      .max(20, "Driver capacity cannot exceed 20"),
   })
   .superRefine((value, ctx) => {
     if (timeToMinutes(value.inSpaStartTime) >= timeToMinutes(value.inSpaEndTime)) {

@@ -6,6 +6,7 @@ export const DEFAULT_BRANCH_BOOKING_RULES = {
   homeServiceEndTime: "22:00",
   travelBufferMins: 30,
   maxAdvanceBookingDays: 30,
+  homeServiceDriverCapacity: 1,
 } as const;
 
 export type BranchBookingRules = {
@@ -18,6 +19,7 @@ export type BranchBookingRules = {
   homeServiceEndTime: string;
   travelBufferMins: number;
   maxAdvanceBookingDays: number;
+  homeServiceDriverCapacity: number;
   createdAt?: string;
   updatedAt?: string;
 };

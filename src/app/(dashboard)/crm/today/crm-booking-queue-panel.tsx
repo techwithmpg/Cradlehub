@@ -18,6 +18,13 @@ type BookingCardData = {
   service_duration: number | null;
   staff_name: string | null;
   resource_name: string | null;
+  // Home service location fields (from metadata)
+  hs_zone?: string | null;
+  hs_address?: string | null;
+  hs_city?: string | null;
+  hs_map_url?: string | null;
+  dispatch_warning?: string | null;
+  needs_location_review?: boolean;
 };
 
 type FilterTab = "active" | "confirmed" | "in_progress" | "completed" | "cancelled";
@@ -28,6 +35,15 @@ const TAB_LABELS: Record<FilterTab, string> = {
   in_progress: "In Progress",
   completed: "Completed",
   cancelled: "Cancelled/No-show",
+};
+
+const ZONE_LABELS: Record<string, string> = {
+  central_bacolod:       "Central Bacolod",
+  north_bacolod_talisay: "North / Talisay",
+  south_bacolod_alijis:  "South / Alijis",
+  east_bacolod:          "East Bacolod",
+  outside_bacolod:       "Outside Bacolod",
+  unknown:               "Zone unconfirmed",
 };
 
 const PAYMENT_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -70,19 +86,22 @@ function PaymentBadge({ status, amount }: { status?: string; method?: string; am
 
 function BookingCard({ booking, isNext }: { booking: BookingCardData; isNext: boolean }) {
   const payStatus = booking.payment_status ?? "pay_on_site";
+  const isHomeService = booking.type === "home_service";
+  const hasHsFooter = isHomeService && (booking.hs_zone || booking.hs_address);
 
   return (
     <Link
       href={`/crm/bookings?highlight=${booking.id}`}
       className="cs-card"
       style={{
-        padding: "0.75rem 1rem",
+        padding: hasHsFooter ? "0.75rem 1rem 1.75rem" : "0.75rem 1rem",
         display: "flex",
         alignItems: "center",
         gap: "0.875rem",
         textDecoration: "none",
         color: "inherit",
         borderLeft: isNext ? "3px solid var(--cs-sand)" : "3px solid transparent",
+        position: "relative",
       }}
     >
       <div style={{ minWidth: 56, textAlign: "center", flexShrink: 0 }}>
@@ -194,7 +213,62 @@ function BookingCard({ booking, isNext }: { booking: BookingCardData; isNext: bo
           method={booking.payment_method}
           amount={booking.amount_paid}
         />
+        {booking.needs_location_review && (
+          <span
+            style={{
+              fontSize: "0.5625rem",
+              fontWeight: 700,
+              padding: "2px 5px",
+              borderRadius: 3,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              backgroundColor: "#FEF2F2",
+              color: "#991B1B",
+            }}
+          >
+            Review Location
+          </span>
+        )}
       </div>
+
+      {/* Home service location row */}
+      {hasHsFooter && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            borderTop: "1px solid var(--cs-border)",
+            padding: "4px 1rem 6px",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: "0.6875rem",
+            color: "var(--cs-text-muted)",
+          }}
+        >
+          <span style={{ color: "#92400E", fontWeight: 600 }}>
+            {ZONE_LABELS[booking.hs_zone ?? "unknown"] ?? booking.hs_zone ?? "Zone unknown"}
+          </span>
+          {booking.hs_address && (
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              · {booking.hs_address}{booking.hs_city ? `, ${booking.hs_city}` : ""}
+            </span>
+          )}
+          {booking.hs_map_url && (
+            <a
+              href={booking.hs_map_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ marginLeft: "auto", color: "var(--cs-sand)", fontWeight: 600, flexShrink: 0 }}
+            >
+              Map ↗
+            </a>
+          )}
+        </div>
+      )}
     </Link>
   );
 }

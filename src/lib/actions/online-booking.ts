@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/types/supabase";
 import {
   createOnlineBookingSchema,
   type CreateOnlineBookingInput,
@@ -14,7 +15,9 @@ import {
 } from "@/lib/engine/availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
-import { validateBookingAgainstBranchRules } from "@/lib/queries/branch-booking-rules";
+import { validateBookingAgainstBranchRules, getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-conflict";
+import { geocodeAddress, buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { SlotUnavailableError } from "@/types/errors";
 
 export type CreateOnlineBookingResult =
@@ -279,16 +282,82 @@ export async function createOnlineBookingMultiAction(
       }
     }
 
-    const hsAddressData =
-      d.type === "home_service" && d.homeServiceAddress
-        ? {
-            full_address:  d.homeServiceAddress,
-            barangay:      d.homeServiceBarangay ?? null,
-            city:          d.homeServiceCity ?? null,
-            landmark:      d.homeServiceLandmark ?? null,
-            parking_notes: d.homeServiceParkingNotes ?? null,
-          }
-        : null;
+    // Build home service address data with zone + optional geocode
+    let hsAddressData: { [key: string]: Json | undefined } | null = null;
+    let dispatchData: { [key: string]: Json | undefined } = {
+      needs_location_review: false,
+      travel_minutes_estimate: null,
+      driver_capacity_checked: false,
+      dispatch_warning: null,
+    };
+
+    if (d.type === "home_service" && d.homeServiceAddress) {
+      const geocoded = await geocodeAddress(
+        [d.homeServiceAddress, d.homeServiceBarangay, d.homeServiceCity]
+          .filter(Boolean)
+          .join(", ")
+      );
+
+      hsAddressData = {
+        full_address:      d.homeServiceAddress,
+        barangay:          d.homeServiceBarangay ?? null,
+        city:              d.homeServiceCity ?? null,
+        landmark:          d.homeServiceLandmark ?? null,
+        parking_notes:     d.homeServiceParkingNotes ?? null,
+        zone:              d.homeServiceZone ?? "unknown",
+        formatted_address: geocoded?.formattedAddress ?? null,
+        place_id:          geocoded?.placeId ?? null,
+        lat:               geocoded?.lat ?? null,
+        lng:               geocoded?.lng ?? null,
+        map_url:           geocoded
+          ? buildGoogleMapsSearchUrl(geocoded.lat, geocoded.lng)
+          : null,
+      } satisfies { [key: string]: Json | undefined };
+
+      // Compute total end time for dispatch check
+      const { data: svcsForDispatch } = await supabase
+        .from("services")
+        .select("duration_minutes, buffer_before, buffer_after")
+        .in("id", d.serviceIds);
+      const totalMins = (svcsForDispatch ?? []).reduce(
+        (s, sv) => s + sv.duration_minutes + sv.buffer_before + sv.buffer_after,
+        0
+      );
+      const dispatchEndH = Math.floor((
+        (parseInt(d.startTime.split(":")[0] ?? "0") * 60 +
+          parseInt(d.startTime.split(":")[1] ?? "0")) + totalMins
+      ) / 60);
+      const dispatchEndM = (
+        parseInt(d.startTime.split(":")[0] ?? "0") * 60 +
+          parseInt(d.startTime.split(":")[1] ?? "0") + totalMins
+      ) % 60;
+      const estimatedEndTime = `${String(dispatchEndH).padStart(2, "0")}:${String(dispatchEndM).padStart(2, "0")}:00`;
+
+      const branchRules = await getBranchBookingRulesOrDefault(d.branchId);
+      const dispatchResult = await checkHomeServiceDispatchConflict({
+        branchId: d.branchId,
+        bookingDate: d.date,
+        startTime: d.startTime,
+        endTime: estimatedEndTime,
+        selectedZone: d.homeServiceZone ?? "unknown",
+        selectedLat: geocoded?.lat ?? null,
+        selectedLng: geocoded?.lng ?? null,
+        driverCapacity: branchRules.homeServiceDriverCapacity,
+      });
+
+      if (dispatchResult.conflict === "hard") {
+        return { ok: false, code: "DISPATCH_CONFLICT", message: dispatchResult.message };
+      }
+
+      dispatchData = {
+        needs_location_review: dispatchResult.conflict === "warning"
+          ? (dispatchResult as { needs_location_review: boolean }).needs_location_review
+          : false,
+        travel_minutes_estimate: null,
+        driver_capacity_checked: true,
+        dispatch_warning: dispatchResult.conflict === "warning" ? dispatchResult.message : null,
+      } satisfies { [key: string]: Json | undefined };
+    }
 
     let currentStart = d.startTime;
     const insertedIds: string[] = [];
@@ -297,7 +366,7 @@ export async function createOnlineBookingMultiAction(
       const endTime = await computeEndTime(currentStart, serviceId);
       const baseSnapshot = await buildBookingSnapshot(d.branchId, serviceId, d.notes);
       const metadata = hsAddressData
-        ? { ...baseSnapshot, home_service_address: hsAddressData }
+        ? { ...baseSnapshot, home_service_address: hsAddressData, dispatch: dispatchData }
         : baseSnapshot;
 
       const { data: booking, error: bookErr } = await supabase
