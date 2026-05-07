@@ -1052,10 +1052,6 @@ export type Database = {
         Args: { p_booking_id: string; p_next_status: string }
         Returns: undefined
       }
-      update_home_service_tracking: {
-        Args: { p_booking_id: string; p_stage: string }
-        Returns: undefined
-      }
       upsert_customer: {
         Args: { p_email?: string; p_full_name: string; p_phone: string }
         Returns: string
