@@ -292,11 +292,20 @@ export async function createOnlineBookingMultiAction(
     };
 
     if (d.type === "home_service" && d.homeServiceAddress) {
-      const geocoded = await geocodeAddress(
-        [d.homeServiceAddress, d.homeServiceBarangay, d.homeServiceCity]
-          .filter(Boolean)
-          .join(", ")
-      );
+      const geocoded =
+        typeof d.homeServiceLat === "number" && typeof d.homeServiceLng === "number"
+          ? {
+              lat: d.homeServiceLat,
+              lng: d.homeServiceLng,
+              formattedAddress: d.homeServiceFormattedAddress ?? "",
+              placeId: d.homeServicePlaceId ?? "",
+              mapUrl: buildGoogleMapsSearchUrl(d.homeServiceLat, d.homeServiceLng),
+            }
+          : await geocodeAddress(
+              [d.homeServiceAddress, d.homeServiceBarangay, d.homeServiceCity]
+                .filter(Boolean)
+                .join(", ")
+            );
 
       hsAddressData = {
         full_address:      d.homeServiceAddress,
@@ -351,7 +360,7 @@ export async function createOnlineBookingMultiAction(
 
       dispatchData = {
         needs_location_review: dispatchResult.conflict === "warning"
-          ? (dispatchResult as { needs_location_review: boolean }).needs_location_review
+          ? dispatchResult.needs_location_review
           : false,
         travel_minutes_estimate: null,
         driver_capacity_checked: true,

@@ -3,8 +3,8 @@
 // =============================================================================
 //
 // Required Google Cloud APIs:
-//   - Geocoding API       (address → lat/lng)
-//   - Distance Matrix API (travel time between two coordinates)
+//   - Geocoding API  (address → lat/lng)
+//   - Routes API     (travel time between two coordinates)
 //
 // Environment variables:
 //   GOOGLE_MAPS_SERVER_API_KEY  — server-side key (never exposed to browser)
@@ -14,12 +14,10 @@
 // Cost-control rules:
 //   - Geocode only ONCE per booking, after user confirms address
 //   - Store lat/lng in bookings.metadata so we never re-geocode
+//   - If client-side Places Autocomplete already captured lat/lng, skip geocoding
 //   - Travel-time estimates are done server-side per dispatch check, not per render
 //   - All API calls are wrapped in try/catch; failures fall back to zone-only logic
 //   - The app runs fully without keys — zone-only mode is always the fallback
-//
-// Future: when driver assignment board is built, the browser key can power a
-// Places Autocomplete widget. For now, address entry is manual.
 // =============================================================================
 
 export function isGoogleMapsEnabled(): boolean {
@@ -86,23 +84,40 @@ export async function estimateTravelTime(
   if (!apiKey) return null;
 
   try {
-    const url =
-      `https://maps.googleapis.com/maps/api/distancematrix/json` +
-      `?origins=${originLat},${originLng}` +
-      `&destinations=${destLat},${destLng}` +
-      `&mode=driving&key=${apiKey}`;
-
-    const res = await fetch(url);
+    const res = await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "routes.duration",
+        },
+        body: JSON.stringify({
+          origin: {
+            location: { latLng: { latitude: originLat, longitude: originLng } },
+          },
+          destination: {
+            location: { latLng: { latitude: destLat, longitude: destLng } },
+          },
+          travelMode: "DRIVE",
+        }),
+      }
+    );
     if (!res.ok) return null;
 
     const data = (await res.json()) as {
-      rows?: { elements?: { status: string; duration?: { value: number } }[] }[];
+      routes?: { duration?: string }[];
     };
 
-    const element = data.rows?.[0]?.elements?.[0];
-    if (!element || element.status !== "OK" || !element.duration) return null;
+    const duration = data.routes?.[0]?.duration;
+    if (!duration) return null;
 
-    return Math.ceil(element.duration.value / 60);
+    // Routes API returns duration as e.g. "1234s"
+    const seconds = parseInt(duration.replace("s", ""), 10);
+    if (Number.isNaN(seconds)) return null;
+
+    return Math.ceil(seconds / 60);
   } catch {
     return null;
   }

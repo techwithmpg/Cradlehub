@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
+import { PlacesAutocomplete, type PlaceSelectResult } from "@/components/public/places-autocomplete";
 import {
   VISIT_TYPE_OPTIONS,
   VISIT_TYPE_ORDER,
@@ -200,6 +201,11 @@ export function BookingWizard({
     hsLandmark: "",
     hsParkingNotes: "",
     hsZone: "unknown",
+    // Geocoded from Places Autocomplete (null = not yet geocoded)
+    hsLat: null as number | null,
+    hsLng: null as number | null,
+    hsPlaceId: "",
+    hsFormattedAddress: "",
   });
   const [formError, setFormError] = useState("");
 
@@ -380,12 +386,16 @@ export function BookingWizard({
     const hsPayload =
       visitType === "home_service"
         ? {
-            homeServiceAddress:      form.hsAddress || undefined,
-            homeServiceBarangay:     form.hsBarangay || undefined,
-            homeServiceCity:         form.hsCity || undefined,
-            homeServiceLandmark:     form.hsLandmark || undefined,
-            homeServiceParkingNotes: form.hsParkingNotes || undefined,
-            homeServiceZone:         form.hsZone || "unknown",
+            homeServiceAddress:          form.hsAddress || undefined,
+            homeServiceBarangay:         form.hsBarangay || undefined,
+            homeServiceCity:             form.hsCity || undefined,
+            homeServiceLandmark:         form.hsLandmark || undefined,
+            homeServiceParkingNotes:     form.hsParkingNotes || undefined,
+            homeServiceZone:             form.hsZone || "unknown",
+            homeServiceLat:              form.hsLat ?? undefined,
+            homeServiceLng:              form.hsLng ?? undefined,
+            homeServicePlaceId:          form.hsPlaceId || undefined,
+            homeServiceFormattedAddress: form.hsFormattedAddress || undefined,
           }
         : {};
 
@@ -1387,6 +1397,10 @@ type DetailsForm = {
   hsLandmark: string;
   hsParkingNotes: string;
   hsZone: string;
+  hsLat: number | null;
+  hsLng: number | null;
+  hsPlaceId: string;
+  hsFormattedAddress: string;
 };
 
 const HS_ZONE_OPTIONS: { value: string; label: string }[] = [
@@ -1532,10 +1546,24 @@ function StepDetails({
                 <MapPin className="h-3.5 w-3.5" />
                 Full Address *
               </label>
-              <input
-                type="text"
+              <PlacesAutocomplete
+                id="hs-address"
                 value={form.hsAddress}
-                onChange={(e) => onChange({ ...form, hsAddress: e.target.value })}
+                onChange={(val) =>
+                  onChange({ ...form, hsAddress: val, hsLat: null, hsLng: null, hsPlaceId: "", hsFormattedAddress: "" })
+                }
+                onPlaceSelect={(result: PlaceSelectResult | null) => {
+                  if (result) {
+                    onChange({
+                      ...form,
+                      hsAddress: result.formattedAddress,
+                      hsLat: result.lat,
+                      hsLng: result.lng,
+                      hsPlaceId: result.placeId,
+                      hsFormattedAddress: result.formattedAddress,
+                    });
+                  }
+                }}
                 placeholder="House/Unit no., Street, Subdivision"
                 className={INPUT_CLS}
               />

@@ -73,12 +73,17 @@ export const createInhouseBookingMultiSchema = z.object({
   email:            z.string().email("Invalid email").optional().or(z.literal("")),
   notes:            z.string().max(500).optional(),
   // Home service address (required when type=home_service, validated in action)
-  homeServiceAddress:      z.string().max(500).optional(),
-  homeServiceBarangay:     z.string().max(100).optional(),
-  homeServiceCity:         z.string().max(100).optional(),
-  homeServiceLandmark:     z.string().max(200).optional(),
-  homeServiceParkingNotes: z.string().max(300).optional(),
-  homeServiceZone:         z.string().max(50).optional(),
+  homeServiceAddress:          z.string().max(500).optional(),
+  homeServiceBarangay:         z.string().max(100).optional(),
+  homeServiceCity:             z.string().max(100).optional(),
+  homeServiceLandmark:         z.string().max(200).optional(),
+  homeServiceParkingNotes:     z.string().max(300).optional(),
+  homeServiceZone:             z.string().max(50).optional(),
+  // Captured client-side by Places Autocomplete — skip server geocoding when present
+  homeServiceLat:              z.number().optional().nullable(),
+  homeServiceLng:              z.number().optional().nullable(),
+  homeServicePlaceId:          z.string().max(300).optional(),
+  homeServiceFormattedAddress: z.string().max(500).optional(),
 });
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 
@@ -144,12 +149,17 @@ export const createOnlineBookingMultiSchema = z.object({
   email:            z.string().email("Invalid email").optional().or(z.literal("")),
   notes:            z.string().max(500).optional(),
   // Home service address (required when type=home_service, validated in action)
-  homeServiceAddress:      z.string().max(500).optional(),
-  homeServiceBarangay:     z.string().max(100).optional(),
-  homeServiceCity:         z.string().max(100).optional(),
-  homeServiceLandmark:     z.string().max(200).optional(),
-  homeServiceParkingNotes: z.string().max(300).optional(),
-  homeServiceZone:         z.string().max(50).optional(),
+  homeServiceAddress:          z.string().max(500).optional(),
+  homeServiceBarangay:         z.string().max(100).optional(),
+  homeServiceCity:             z.string().max(100).optional(),
+  homeServiceLandmark:         z.string().max(200).optional(),
+  homeServiceParkingNotes:     z.string().max(300).optional(),
+  homeServiceZone:             z.string().max(50).optional(),
+  // Captured client-side by Places Autocomplete — skip server geocoding when present
+  homeServiceLat:              z.number().optional().nullable(),
+  homeServiceLng:              z.number().optional().nullable(),
+  homeServicePlaceId:          z.string().max(300).optional(),
+  homeServiceFormattedAddress: z.string().max(500).optional(),
 });
 export type CreateOnlineBookingMultiInput = z.infer<typeof createOnlineBookingMultiSchema>;
 
