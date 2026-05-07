@@ -98,6 +98,13 @@ export async function getBranchDetailAction(branchId: string) {
   return getBranchWithFullDetail(branchId);
 }
 
+export async function updateBranchBookingRulesAction(rawInput: unknown) {
+  const { updateBranchBookingRules } = await import(
+    "@/lib/queries/branch-booking-rules"
+  );
+  return updateBranchBookingRules(rawInput);
+}
+
 // ── Toggle branch active/inactive (soft delete) ───────────────────────────
 // Explicit named action — cleaner than passing isActive through updateBranchAction
 // from the UI when all you want is to deactivate/reactivate a branch.
@@ -164,6 +171,29 @@ export async function addBranchServiceAction(
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/owner/branches");
   revalidatePath("/owner/services");
+  return { success: true };
+}
+
+// ── Update per-branch service eligibility flags ───────────────────────────
+export async function updateBranchServiceEligibilityAction(
+  branchId: string,
+  serviceId: string,
+  availableInSpa: boolean,
+  availableHomeService: boolean
+) {
+  const supabase = await requireOwner();
+  if (!supabase) return { success: false, error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("branch_services")
+    .update({ available_in_spa: availableInSpa, available_home_service: availableHomeService })
+    .eq("branch_id", branchId)
+    .eq("service_id", serviceId);
+
+  if (error) return { success: false, error: error.message };
+
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath(`/owner/branches/${branchId}`);
   return { success: true };
 }
 

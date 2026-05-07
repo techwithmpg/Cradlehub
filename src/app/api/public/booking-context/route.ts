@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllBranches, getBranchServices } from "@/lib/queries/branches";
+import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
@@ -17,7 +18,7 @@ type ServiceRelation = ServiceRow | ServiceRow[] | null;
 
 type BranchServiceRow = Pick<
   Database["public"]["Tables"]["branch_services"]["Row"],
-  "id" | "custom_price" | "is_active"
+  "id" | "custom_price" | "is_active" | "available_in_spa" | "available_home_service"
 > & {
   services: ServiceRelation;
 };
@@ -100,6 +101,7 @@ export async function GET(request: NextRequest) {
       selectedBranchId: null,
       services: [],
       staff: [],
+      bookingRules: null,
     });
   }
 
@@ -108,9 +110,10 @@ export async function GET(request: NextRequest) {
       ? requestedBranchId
       : branches[0]!.id;
 
-  const [rawBranchServices, rawStaff] = await Promise.all([
+  const [rawBranchServices, rawStaff, bookingRules] = await Promise.all([
     getBranchServices(selectedBranchId),
     getPublicStaffByBranch(selectedBranchId),
+    getBranchBookingRulesOrDefault(selectedBranchId),
   ]);
 
   const branchServices = (rawBranchServices as BranchServiceRow[])
@@ -126,6 +129,8 @@ export async function GET(request: NextRequest) {
         description: service.description,
         durationMinutes: service.duration_minutes,
         price: Number(record.custom_price ?? service.price),
+        availableInSpa: record.available_in_spa ?? true,
+        availableHomeService: record.available_home_service ?? false,
       };
     })
     .filter((service): service is NonNullable<typeof service> => service !== null);
@@ -145,5 +150,6 @@ export async function GET(request: NextRequest) {
     selectedBranchId,
     services: branchServices,
     staff,
+    bookingRules,
   });
 }

@@ -58,7 +58,7 @@ export async function getBranchWithFullDetail(branchId: string) {
     supabase
       .from("branch_services")
       .select(`
-        id, is_active, custom_price,
+        id, is_active, custom_price, available_in_spa, available_home_service,
         services (
           id, name, description,
           duration_minutes, price,

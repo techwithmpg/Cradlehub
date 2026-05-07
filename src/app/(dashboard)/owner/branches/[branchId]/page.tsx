@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getBranchDetailAction } from "@/app/(dashboard)/owner/branches/actions";
+import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { BranchEditForm } from "./branch-edit-form";
+import { BranchBookingRulesForm } from "./branch-booking-rules-form";
 import { BranchResourcesManager } from "./branch-resources-manager";
+import { BranchServicesPanel } from "./branch-services-panel";
 import type { Database } from "@/types/supabase";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
@@ -15,6 +18,8 @@ type ServiceLite = {
   id: string;
   is_active: boolean;
   custom_price: number | null;
+  available_in_spa: boolean;
+  available_home_service: boolean;
   services: {
     id: string;
     name: string;
@@ -47,7 +52,10 @@ export default async function BranchDetailPage({
   params: Promise<{ branchId: string }>;
 }) {
   const { branchId } = await params;
-  const result = await getBranchDetailAction(branchId);
+  const [result, bookingRules] = await Promise.all([
+    getBranchDetailAction(branchId),
+    getBranchBookingRulesOrDefault(branchId),
+  ]);
 
   if ("error" in result || !isBranchDetailPayload(result)) {
     notFound();
@@ -55,7 +63,6 @@ export default async function BranchDetailPage({
 
   const { branch, services, staff, resources } = result;
   const activeStaffCount = staff.filter((s) => s.is_active).length;
-  const activeServiceCount = services.filter((s) => s.is_active).length;
 
   return (
     <div>
@@ -64,6 +71,7 @@ export default async function BranchDetailPage({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
           <BranchEditForm branch={branch} />
+          <BranchBookingRulesForm rules={bookingRules} />
           <BranchResourcesManager branchId={branch.id} resources={resources} />
         </div>
 
@@ -114,49 +122,7 @@ export default async function BranchDetailPage({
             </div>
           </div>
 
-          <div>
-            <SectionTitle>Services ({activeServiceCount} active)</SectionTitle>
-            <div
-              style={{
-                backgroundColor: "var(--cs-surface)",
-                border: "1px solid var(--cs-border)",
-                borderRadius: 10,
-                overflow: "hidden",
-              }}
-            >
-              {services.length === 0 ? (
-                <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
-                  No services offered at this branch.
-                </div>
-              ) : (
-                services.map((svc, i) => (
-                  <div
-                    key={svc.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0.625rem 1rem",
-                      borderBottom: i < services.length - 1 ? "1px solid var(--cs-border)" : "none",
-                      opacity: svc.is_active ? 1 : 0.5,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
-                        {svc.services?.name ?? "Unknown service"}
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                        {svc.services?.duration_minutes ?? 0} min
-                      </div>
-                    </div>
-                    <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-                      {svc.custom_price !== null ? `Custom ₱${svc.custom_price}` : "Default price"}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <BranchServicesPanel branchId={branch.id} services={services as ServiceLite[]} />
         </div>
       </div>
     </div>

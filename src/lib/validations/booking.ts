@@ -9,7 +9,8 @@ const phone = z
   .max(20, "Phone number too long")
   .regex(/^[0-9+\-\s()]+$/, "Invalid phone number");
 
-// Online booking: today ≤ date ≤ today + 30 days
+// Online booking: today ≤ date ≤ today + 365 days.
+// Branch-level max advance rules are enforced in the booking actions.
 const onlineBookingDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
@@ -18,9 +19,9 @@ const onlineBookingDate = z
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const max = new Date(today);
-    max.setDate(max.getDate() + 30);
+    max.setDate(max.getDate() + 365);
     return date >= today && date <= max;
-  }, "You can book up to 30 days in advance");
+  }, "You can book up to 365 days in advance");
 
 const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Time must be HH:MM");
@@ -33,7 +34,7 @@ export const createOnlineBookingSchema = z.object({
   date:             onlineBookingDate,
   startTime:        timeStr,
   type:             z.enum(["online", "home_service"]).default("online"),
-  travelBufferMins: z.number().int().min(0).max(300).optional(),
+  travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone,
   email:            z.string().email("Invalid email").optional().or(z.literal("")),
@@ -49,7 +50,7 @@ export const createWalkinBookingSchema = z.object({
   date:             anyDate,                  // no 30-day limit for front desk
   startTime:        timeStr,
   type:             z.enum(["walkin", "home_service"]).default("walkin"),
-  travelBufferMins: z.number().int().min(0).max(300).optional(),
+  travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2).max(100),
   phone,
   email:            z.string().email().optional().or(z.literal("")),
@@ -66,11 +67,17 @@ export const createInhouseBookingMultiSchema = z.object({
   date:             anyDate,
   startTime:        timeStr,
   type:             z.enum(["walkin", "home_service"]).default("walkin"),
-  travelBufferMins: z.number().int().min(0).max(300).optional(),
+  travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone,
   email:            z.string().email("Invalid email").optional().or(z.literal("")),
   notes:            z.string().max(500).optional(),
+  // Home service address (required when type=home_service, validated in action)
+  homeServiceAddress:      z.string().max(500).optional(),
+  homeServiceBarangay:     z.string().max(100).optional(),
+  homeServiceCity:         z.string().max(100).optional(),
+  homeServiceLandmark:     z.string().max(200).optional(),
+  homeServiceParkingNotes: z.string().max(300).optional(),
 });
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 
@@ -84,7 +91,7 @@ export const editBookingSchema = z
     date:             anyDate.optional(),
     startTime:        timeStr.optional(),
     type:             z.enum(["online", "walkin", "home_service"]).optional(),
-    travelBufferMins: z.number().int().min(0).max(300).optional(),
+    travelBufferMins: z.number().int().min(0).max(240).optional(),
     notes:            z.string().max(500).optional(),
   })
   .refine(
@@ -101,6 +108,16 @@ export const updateBookingStatusSchema = z.object({
 });
 export type UpdateBookingStatusInput = z.infer<typeof updateBookingStatusSchema>;
 
+// ── Home-service address fields (shared by public + inhouse) ─────────────────
+export const homeServiceAddressSchema = z.object({
+  homeServiceAddress:      z.string().min(5, "Full address is required").max(500),
+  homeServiceBarangay:     z.string().min(2, "Barangay is required").max(100),
+  homeServiceCity:         z.string().min(2, "City is required").max(100),
+  homeServiceLandmark:     z.string().max(200).optional(),
+  homeServiceParkingNotes: z.string().max(300).optional(),
+});
+export type HomeServiceAddressInput = z.infer<typeof homeServiceAddressSchema>;
+
 // ── Multi-service public online booking ───────────────────────────────────────
 export const createOnlineBookingMultiSchema = z.object({
   branchId:         uuid,
@@ -109,11 +126,17 @@ export const createOnlineBookingMultiSchema = z.object({
   date:             onlineBookingDate,
   startTime:        timeStr,
   type:             z.enum(["online", "home_service"]).default("online"),
-  travelBufferMins: z.number().int().min(0).max(300).optional(),
+  travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone,
   email:            z.string().email("Invalid email").optional().or(z.literal("")),
   notes:            z.string().max(500).optional(),
+  // Home service address (required when type=home_service, validated in action)
+  homeServiceAddress:      z.string().max(500).optional(),
+  homeServiceBarangay:     z.string().max(100).optional(),
+  homeServiceCity:         z.string().max(100).optional(),
+  homeServiceLandmark:     z.string().max(200).optional(),
+  homeServiceParkingNotes: z.string().max(300).optional(),
 });
 export type CreateOnlineBookingMultiInput = z.infer<typeof createOnlineBookingMultiSchema>;
 

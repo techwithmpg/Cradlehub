@@ -14,6 +14,7 @@ import {
 } from "@/lib/engine/availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
+import { validateBookingAgainstBranchRules } from "@/lib/queries/branch-booking-rules";
 import { SlotUnavailableError } from "@/types/errors";
 
 export type CreateOnlineBookingResult =
@@ -50,6 +51,42 @@ export async function createOnlineBookingAction(
   };
 
   try {
+    const rulesCheck = await validateBookingAgainstBranchRules({
+      branchId: d.branchId,
+      bookingType: d.type,
+      date: d.date,
+      startTime: d.startTime,
+    });
+    if (!rulesCheck.ok) {
+      return {
+        ok: false,
+        code: "BOOKING_RULES_ERROR",
+        message: rulesCheck.message,
+      };
+    }
+
+    const supabase = createAdminClient();
+
+    // Verify service eligibility for this booking type
+    const { data: eligRow } = await supabase
+      .from("branch_services")
+      .select("available_in_spa, available_home_service")
+      .eq("branch_id", d.branchId)
+      .eq("service_id", d.serviceId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (eligRow) {
+      const eligible = d.type !== "home_service" ? eligRow.available_in_spa : eligRow.available_home_service;
+      if (!eligible) {
+        return {
+          ok: false,
+          code: "SERVICE_INELIGIBLE",
+          message: "This service is not available for this booking type.",
+        };
+      }
+    }
+
     let resolvedStaffId: string;
     if (!d.staffId) {
       resolvedStaffId = await assignTherapistBySeniority({
@@ -71,8 +108,6 @@ export async function createOnlineBookingAction(
 
     const endTime = await computeEndTime(d.startTime, d.serviceId);
     const metadata = await buildBookingSnapshot(d.branchId, d.serviceId, d.notes);
-
-    const supabase = createAdminClient();
 
     const { data: customerId, error: custErr } = await supabase.rpc(
       "upsert_customer",
@@ -104,7 +139,10 @@ export async function createOnlineBookingAction(
         end_time: endTime,
         type: d.type,
         status: "pending",
-        travel_buffer_mins: d.type === "home_service" ? (d.travelBufferMins ?? 30) : null,
+        travel_buffer_mins:
+          d.type === "home_service"
+            ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
+            : null,
         metadata,
       })
       .select("id")
@@ -159,6 +197,44 @@ export async function createOnlineBookingMultiAction(
   };
 
   try {
+    const rulesCheck = await validateBookingAgainstBranchRules({
+      branchId: d.branchId,
+      bookingType: d.type,
+      date: d.date,
+      startTime: d.startTime,
+    });
+    if (!rulesCheck.ok) {
+      return {
+        ok: false,
+        code: "BOOKING_RULES_ERROR",
+        message: rulesCheck.message,
+      };
+    }
+
+    const supabase = createAdminClient();
+
+    // Verify each service is eligible for this booking type
+    const { data: eligibilityRows } = await supabase
+      .from("branch_services")
+      .select("service_id, available_in_spa, available_home_service")
+      .eq("branch_id", d.branchId)
+      .in("service_id", d.serviceIds)
+      .eq("is_active", true);
+
+    if (eligibilityRows) {
+      const needsInSpa = d.type !== "home_service";
+      for (const row of eligibilityRows) {
+        const eligible = needsInSpa ? row.available_in_spa : row.available_home_service;
+        if (!eligible) {
+          return {
+            ok: false,
+            code: "SERVICE_INELIGIBLE",
+            message: "One or more selected services are not available for this booking type.",
+          };
+        }
+      }
+    }
+
     let resolvedStaffId: string;
     if (!d.staffId) {
       resolvedStaffId = await assignTherapistBySeniorityMulti({
@@ -178,8 +254,6 @@ export async function createOnlineBookingMultiAction(
       resolvedStaffId = d.staffId;
     }
 
-    const supabase = createAdminClient();
-
     const { data: customerId, error: custErr } = await supabase.rpc("upsert_customer", {
       p_phone: d.phone,
       p_full_name: d.fullName,
@@ -195,12 +269,36 @@ export async function createOnlineBookingMultiAction(
     }
     const resolvedCustomerId = String(customerId);
 
+    // Home service requires address details
+    if (d.type === "home_service") {
+      if (!d.homeServiceAddress?.trim()) {
+        return { ok: false, code: "HS_ADDRESS_MISSING", message: "Full address is required for home service bookings." };
+      }
+      if (!d.homeServiceBarangay?.trim() && !d.homeServiceCity?.trim()) {
+        return { ok: false, code: "HS_LOCATION_MISSING", message: "Barangay or city is required for home service bookings." };
+      }
+    }
+
+    const hsAddressData =
+      d.type === "home_service" && d.homeServiceAddress
+        ? {
+            full_address:  d.homeServiceAddress,
+            barangay:      d.homeServiceBarangay ?? null,
+            city:          d.homeServiceCity ?? null,
+            landmark:      d.homeServiceLandmark ?? null,
+            parking_notes: d.homeServiceParkingNotes ?? null,
+          }
+        : null;
+
     let currentStart = d.startTime;
     const insertedIds: string[] = [];
 
     for (const serviceId of d.serviceIds) {
       const endTime = await computeEndTime(currentStart, serviceId);
-      const metadata = await buildBookingSnapshot(d.branchId, serviceId, d.notes);
+      const baseSnapshot = await buildBookingSnapshot(d.branchId, serviceId, d.notes);
+      const metadata = hsAddressData
+        ? { ...baseSnapshot, home_service_address: hsAddressData }
+        : baseSnapshot;
 
       const { data: booking, error: bookErr } = await supabase
         .from("bookings")
@@ -214,7 +312,10 @@ export async function createOnlineBookingMultiAction(
           end_time: endTime,
           type: d.type,
           status: "pending",
-          travel_buffer_mins: d.type === "home_service" ? (d.travelBufferMins ?? 30) : null,
+          travel_buffer_mins:
+            d.type === "home_service"
+              ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
+              : null,
           metadata,
         })
         .select("id")

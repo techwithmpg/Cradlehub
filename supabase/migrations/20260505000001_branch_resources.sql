@@ -29,17 +29,17 @@ COMMENT ON COLUMN branch_resources.capacity   IS 'How many simultaneous bookings
 -- Add resource_id to bookings to track which space is assigned.
 
 ALTER TABLE bookings
-ADD COLUMN resource_id UUID REFERENCES branch_resources(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS resource_id UUID REFERENCES branch_resources(id) ON DELETE SET NULL;
 
 COMMENT ON COLUMN bookings.resource_id IS 'Assigned physical space (room/bed/etc) for this booking.';
 
 
 -- ─── INDEXES ─────────────────────────────────────────────────────────────────
 
-CREATE INDEX idx_branch_resources_branch_id ON branch_resources(branch_id);
-CREATE INDEX idx_branch_resources_branch_active ON branch_resources(branch_id, is_active);
-CREATE INDEX idx_branch_resources_sort_order ON branch_resources(branch_id, sort_order);
-CREATE INDEX idx_bookings_resource_id ON bookings(resource_id);
+CREATE INDEX IF NOT EXISTS idx_branch_resources_branch_id ON branch_resources(branch_id);
+CREATE INDEX IF NOT EXISTS idx_branch_resources_branch_active ON branch_resources(branch_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_branch_resources_sort_order ON branch_resources(branch_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_bookings_resource_id ON bookings(resource_id);
 
 
 -- ─── RLS POLICIES ────────────────────────────────────────────────────────────
@@ -47,6 +47,7 @@ CREATE INDEX idx_bookings_resource_id ON bookings(resource_id);
 ALTER TABLE branch_resources ENABLE ROW LEVEL SECURITY;
 
 -- Owner: Full CRUD
+DROP POLICY IF EXISTS "branch_resources_owner_all" ON branch_resources;
 CREATE POLICY "branch_resources_owner_all"
   ON branch_resources FOR ALL
   TO authenticated
@@ -54,6 +55,7 @@ CREATE POLICY "branch_resources_owner_all"
   WITH CHECK (get_auth_role() = 'owner');
 
 -- Manager: Full CRUD for their own branch
+DROP POLICY IF EXISTS "branch_resources_manager_all" ON branch_resources;
 CREATE POLICY "branch_resources_manager_all"
   ON branch_resources FOR ALL
   TO authenticated
@@ -67,6 +69,7 @@ CREATE POLICY "branch_resources_manager_all"
   );
 
 -- CRM: Read all active resources (for cross-branch booking assignment)
+DROP POLICY IF EXISTS "branch_resources_crm_read" ON branch_resources;
 CREATE POLICY "branch_resources_crm_read"
   ON branch_resources FOR SELECT
   TO authenticated
@@ -76,6 +79,7 @@ CREATE POLICY "branch_resources_crm_read"
   );
 
 -- Staff: Read active resources in their branch
+DROP POLICY IF EXISTS "branch_resources_staff_read" ON branch_resources;
 CREATE POLICY "branch_resources_staff_read"
   ON branch_resources FOR SELECT
   TO authenticated
@@ -88,6 +92,18 @@ CREATE POLICY "branch_resources_staff_read"
 
 -- ─── UPDATE TRIGGER ──────────────────────────────────────────────────────────
 
+CREATE OR REPLACE FUNCTION fn_update_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS update_branch_resources_modtime ON branch_resources;
+
 CREATE TRIGGER update_branch_resources_modtime
   BEFORE UPDATE ON branch_resources
-  FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+  FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();

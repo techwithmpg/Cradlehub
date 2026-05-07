@@ -236,6 +236,127 @@ export type Database = {
           },
         ]
       }
+      daily_cash_reconciliations: {
+        Row: {
+          id: string
+          branch_id: string
+          reconciliation_date: string
+          recorded_by: string | null
+          expected_cash: number
+          expected_gcash: number
+          expected_maya: number
+          expected_card: number
+          expected_other: number
+          actual_cash: number
+          actual_gcash: number
+          actual_maya: number
+          actual_card: number
+          actual_other: number
+          notes: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id: string
+          reconciliation_date: string
+          recorded_by?: string | null
+          expected_cash?: number
+          expected_gcash?: number
+          expected_maya?: number
+          expected_card?: number
+          expected_other?: number
+          actual_cash?: number
+          actual_gcash?: number
+          actual_maya?: number
+          actual_card?: number
+          actual_other?: number
+          notes?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string
+          reconciliation_date?: string
+          recorded_by?: string | null
+          expected_cash?: number
+          expected_gcash?: number
+          expected_maya?: number
+          expected_card?: number
+          expected_other?: number
+          actual_cash?: number
+          actual_gcash?: number
+          actual_maya?: number
+          actual_card?: number
+          actual_other?: number
+          notes?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_cash_reconciliations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_booking_rules: {
+        Row: {
+          branch_id: string
+          created_at: string
+          home_service_enabled: boolean
+          home_service_end_time: string
+          home_service_start_time: string
+          id: string
+          in_spa_end_time: string
+          in_spa_start_time: string
+          max_advance_booking_days: number
+          travel_buffer_mins: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          home_service_enabled?: boolean
+          home_service_end_time?: string
+          home_service_start_time?: string
+          id?: string
+          in_spa_end_time?: string
+          in_spa_start_time?: string
+          max_advance_booking_days?: number
+          travel_buffer_mins?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          home_service_enabled?: boolean
+          home_service_end_time?: string
+          home_service_start_time?: string
+          id?: string
+          in_spa_end_time?: string
+          in_spa_start_time?: string
+          max_advance_booking_days?: number
+          travel_buffer_mins?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_booking_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: true
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_resources: {
         Row: {
           branch_id: string
@@ -285,6 +406,8 @@ export type Database = {
       }
       branch_services: {
         Row: {
+          available_home_service: boolean
+          available_in_spa: boolean
           branch_id: string
           created_at: string
           custom_price: number | null
@@ -293,6 +416,8 @@ export type Database = {
           service_id: string
         }
         Insert: {
+          available_home_service?: boolean
+          available_in_spa?: boolean
           branch_id: string
           created_at?: string
           custom_price?: number | null
@@ -301,6 +426,8 @@ export type Database = {
           service_id: string
         }
         Update: {
+          available_home_service?: boolean
+          available_in_spa?: boolean
           branch_id?: string
           created_at?: string
           custom_price?: number | null
@@ -381,6 +508,12 @@ export type Database = {
           notes: string | null
           phone: string
           preferred_staff_id: string | null
+          preferred_service_id: string | null
+          preferred_visit_type: string | null
+          pressure_preference: string | null
+          health_notes: string | null
+          birthday: string | null
+          loyalty_tier: string
           total_bookings: number
           updated_at: string
         }
@@ -394,6 +527,12 @@ export type Database = {
           notes?: string | null
           phone: string
           preferred_staff_id?: string | null
+          preferred_service_id?: string | null
+          preferred_visit_type?: string | null
+          pressure_preference?: string | null
+          health_notes?: string | null
+          birthday?: string | null
+          loyalty_tier?: string
           total_bookings?: number
           updated_at?: string
         }
@@ -407,6 +546,12 @@ export type Database = {
           notes?: string | null
           phone?: string
           preferred_staff_id?: string | null
+          preferred_service_id?: string | null
+          preferred_visit_type?: string | null
+          pressure_preference?: string | null
+          health_notes?: string | null
+          birthday?: string | null
+          loyalty_tier?: string
           total_bookings?: number
           updated_at?: string
         }
@@ -416,6 +561,78 @@ export type Database = {
             columns: ["preferred_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waitlist_requests: {
+        Row: {
+          id: string
+          branch_id: string
+          customer_name: string
+          customer_phone: string
+          customer_email: string | null
+          preferred_date: string | null
+          preferred_time: string | null
+          service_id: string | null
+          visit_type: string | null
+          notes: string | null
+          status: string
+          contacted_by: string | null
+          contacted_at: string | null
+          converted_to_booking_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id: string
+          customer_name: string
+          customer_phone: string
+          customer_email?: string | null
+          preferred_date?: string | null
+          preferred_time?: string | null
+          service_id?: string | null
+          visit_type?: string | null
+          notes?: string | null
+          status?: string
+          contacted_by?: string | null
+          contacted_at?: string | null
+          converted_to_booking_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string
+          customer_name?: string
+          customer_phone?: string
+          customer_email?: string | null
+          preferred_date?: string | null
+          preferred_time?: string | null
+          service_id?: string | null
+          visit_type?: string | null
+          notes?: string | null
+          status?: string
+          contacted_by?: string | null
+          contacted_at?: string | null
+          converted_to_booking_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_requests_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_requests_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
             referencedColumns: ["id"]
           },
         ]

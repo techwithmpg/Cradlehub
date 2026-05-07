@@ -1,7 +1,27 @@
 import { createClient } from "@/lib/supabase/server";
+import { attachBranchResources } from "@/lib/queries/booking-resources";
 
 // Full booking with all related data
 const BOOKING_SELECT = `
+  id, booking_date, start_time, end_time, type, status,
+  travel_buffer_mins, metadata, created_at, updated_at,
+  resource_id,
+  branches   ( id, name ),
+  services   ( id, name, duration_minutes ),
+  staff      ( id, full_name, tier ),
+  customers  ( id, full_name, phone, email )
+`;
+
+const BOOKING_SELECT_CORE = `
+  id, booking_date, start_time, end_time, type, status,
+  travel_buffer_mins, metadata, created_at, updated_at,
+  branches   ( id, name ),
+  services   ( id, name, duration_minutes ),
+  staff      ( id, full_name, tier ),
+  customers  ( id, full_name, phone, email )
+`;
+
+const BOOKING_SELECT_WITH_PAYMENTS = `
   id, booking_date, start_time, end_time, type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
@@ -9,9 +29,331 @@ const BOOKING_SELECT = `
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
   staff      ( id, full_name, tier ),
-  customers  ( id, full_name, phone, email ),
-  branch_resources!resource_id ( id, name, type )
+  customers  ( id, full_name, phone, email )
 `;
+
+const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
+  id, booking_date, start_time, end_time, type, status,
+  travel_buffer_mins, metadata, created_at, updated_at,
+  payment_method, payment_status, payment_reference, amount_paid,
+  branches   ( id, name ),
+  services   ( id, name, duration_minutes ),
+  staff      ( id, full_name, tier ),
+  customers  ( id, full_name, phone, email )
+`;
+
+const TODAY_SCHEDULE_SELECT = `
+  id, booking_date, start_time, end_time, type, status,
+  travel_buffer_mins, metadata,
+  resource_id,
+  services  ( id, name, duration_minutes ),
+  staff     ( id, full_name, tier ),
+  customers ( id, full_name, phone )
+`;
+
+const TODAY_SCHEDULE_SELECT_CORE = `
+  id, booking_date, start_time, end_time, type, status,
+  travel_buffer_mins, metadata,
+  services  ( id, name, duration_minutes ),
+  staff     ( id, full_name, tier ),
+  customers ( id, full_name, phone )
+`;
+
+const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
+  id, booking_date, start_time, end_time, type, status,
+  travel_buffer_mins, metadata,
+  payment_method, payment_status, payment_reference, amount_paid,
+  resource_id,
+  services  ( id, name, duration_minutes ),
+  staff     ( id, full_name, tier ),
+  customers ( id, full_name, phone )
+`;
+
+const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
+  id, booking_date, start_time, end_time, type, status,
+  travel_buffer_mins, metadata,
+  payment_method, payment_status, payment_reference, amount_paid,
+  services  ( id, name, duration_minutes ),
+  staff     ( id, full_name, tier ),
+  customers ( id, full_name, phone )
+`;
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+type QueryError = { message: string; code?: string | null };
+type QueryResult<T> = { data: T[] | null; error: QueryError | null };
+type SingleQueryResult<T> = { data: T | null; error: QueryError | null };
+type PaymentFields = {
+  payment_method: string;
+  payment_status: string;
+  payment_reference: string | null;
+  amount_paid: number;
+};
+type MaybePaymentFields = {
+  payment_method?: unknown;
+  payment_status?: unknown;
+  payment_reference?: unknown;
+  amount_paid?: unknown;
+};
+type OneOrMany<T> = T | T[] | null;
+type BranchRelation = OneOrMany<{ id: string; name: string }>;
+type ServiceRelation = OneOrMany<{
+  id: string;
+  name: string;
+  duration_minutes?: number;
+}>;
+type StaffRelation = OneOrMany<{ id: string; full_name: string; tier?: string }>;
+type CustomerRelation = OneOrMany<{
+  id?: string;
+  full_name: string;
+  phone?: string | null;
+  email?: string | null;
+}>;
+type BookingFullRow = {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  type: string;
+  status: string;
+  travel_buffer_mins: number | null;
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+  resource_id: string | null;
+  branches: BranchRelation;
+  services: ServiceRelation;
+  staff: StaffRelation;
+  customers: CustomerRelation;
+  booking_events?: unknown;
+} & MaybePaymentFields;
+type TodayScheduleRow = {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  type: string;
+  status: string;
+  travel_buffer_mins: number | null;
+  metadata: unknown;
+  resource_id: string | null;
+  services: ServiceRelation;
+  staff: StaffRelation;
+  customers: CustomerRelation;
+} & MaybePaymentFields;
+type StaffUpcomingRow = {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  type: string;
+  status: string;
+  metadata: unknown;
+  resource_id: string | null;
+  services: ServiceRelation;
+  customers: CustomerRelation;
+} & MaybePaymentFields;
+type DailyPaymentRow = {
+  status: string;
+  metadata: unknown;
+} & MaybePaymentFields;
+type SelectVariant = {
+  select: string;
+  hasResource: boolean;
+};
+
+const BOOKING_SELECT_VARIANTS: SelectVariant[] = [
+  { select: BOOKING_SELECT_WITH_PAYMENTS, hasResource: true },
+  { select: BOOKING_SELECT, hasResource: true },
+  { select: BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE, hasResource: false },
+  { select: BOOKING_SELECT_CORE, hasResource: false },
+];
+
+const TODAY_SCHEDULE_SELECT_VARIANTS: SelectVariant[] = [
+  { select: TODAY_SCHEDULE_SELECT_WITH_PAYMENTS, hasResource: true },
+  { select: TODAY_SCHEDULE_SELECT, hasResource: true },
+  { select: TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE, hasResource: false },
+  { select: TODAY_SCHEDULE_SELECT_CORE, hasResource: false },
+];
+
+const STAFF_UPCOMING_SELECT_VARIANTS: SelectVariant[] = [
+  {
+    select: `
+      id, booking_date, start_time, end_time, type, status, metadata,
+      payment_method, payment_status, payment_reference, amount_paid,
+      resource_id,
+      services  ( id, name, duration_minutes ),
+      customers ( id, full_name )
+    `,
+    hasResource: true,
+  },
+  {
+    select: `
+      id, booking_date, start_time, end_time, type, status, metadata,
+      resource_id,
+      services  ( id, name, duration_minutes ),
+      customers ( id, full_name )
+    `,
+    hasResource: true,
+  },
+  {
+    select: `
+      id, booking_date, start_time, end_time, type, status, metadata,
+      payment_method, payment_status, payment_reference, amount_paid,
+      services  ( id, name, duration_minutes ),
+      customers ( id, full_name )
+    `,
+    hasResource: false,
+  },
+  {
+    select: `
+      id, booking_date, start_time, end_time, type, status, metadata,
+      services  ( id, name, duration_minutes ),
+      customers ( id, full_name )
+    `,
+    hasResource: false,
+  },
+];
+
+function isMissingPaymentColumns(error: QueryError | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "42703" ||
+    /column bookings\.(payment_method|payment_status|payment_reference|amount_paid) does not exist/i.test(
+      error.message
+    )
+  );
+}
+
+function isMissingResourceColumn(error: QueryError | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "42703" ||
+    /column bookings\.resource_id does not exist/i.test(error.message)
+  );
+}
+
+function canRetryWithOlderBookingSchema(error: QueryError | null): boolean {
+  return isMissingPaymentColumns(error) || isMissingResourceColumn(error);
+}
+
+function withPaymentDefaults<T extends object>(
+  rows: T[]
+): Array<T & PaymentFields> {
+  return rows.map((row) => {
+    const payment = row as MaybePaymentFields;
+    const amountPaid = Number(payment.amount_paid ?? 0);
+
+    return {
+      ...row,
+      payment_method:
+        typeof payment.payment_method === "string"
+          ? payment.payment_method
+          : "pay_on_site",
+      payment_status:
+        typeof payment.payment_status === "string"
+          ? payment.payment_status
+          : "unpaid",
+      payment_reference:
+        typeof payment.payment_reference === "string"
+          ? payment.payment_reference
+          : null,
+      amount_paid: Number.isFinite(amountPaid) ? amountPaid : 0,
+    };
+  });
+}
+
+function withResourceDefaults<T extends object>(
+  rows: T[],
+  hasResource: boolean
+): Array<T & { resource_id: string | null }> {
+  return rows.map((row) => {
+    const maybeResource = row as { resource_id?: unknown };
+    return {
+      ...row,
+      resource_id:
+        hasResource && typeof maybeResource.resource_id === "string"
+          ? maybeResource.resource_id
+          : null,
+    };
+  });
+}
+
+async function loadBookingRows<T extends object>(
+  supabase: SupabaseClient,
+  variants: SelectVariant[],
+  query: (select: string) => Promise<QueryResult<T>>
+) {
+  let lastError: QueryError | null = null;
+
+  for (const variant of variants) {
+    const result = await query(variant.select);
+
+    if (!result.error) {
+      return attachBranchResources(
+        supabase,
+        withPaymentDefaults(
+          withResourceDefaults(result.data ?? [], variant.hasResource)
+        )
+      );
+    }
+
+    if (!canRetryWithOlderBookingSchema(result.error)) {
+      throw new Error(result.error.message);
+    }
+
+    lastError = result.error;
+  }
+
+  throw new Error(lastError?.message ?? "Unable to load bookings");
+}
+
+async function loadBookingRow<T extends object>(
+  supabase: SupabaseClient,
+  variants: SelectVariant[],
+  query: (select: string) => Promise<SingleQueryResult<T>>
+) {
+  let lastError: QueryError | null = null;
+
+  for (const variant of variants) {
+    const result = await query(variant.select);
+
+    if (!result.error) {
+      const [booking] = await attachBranchResources(
+        supabase,
+        withPaymentDefaults(
+          withResourceDefaults(
+            result.data ? [result.data] : [],
+            variant.hasResource
+          )
+        )
+      );
+      return booking;
+    }
+
+    if (!canRetryWithOlderBookingSchema(result.error)) {
+      throw new Error(result.error.message);
+    }
+
+    lastError = result.error;
+  }
+
+  throw new Error(lastError?.message ?? "Unable to load booking");
+}
+
+async function loadDailyPaymentFallbackRows(
+  supabase: SupabaseClient,
+  branchId: string,
+  date: string
+): Promise<DailyPaymentRow[]> {
+  const fallback = await supabase
+    .from("bookings")
+    .select("status, metadata")
+    .eq("branch_id", branchId)
+    .eq("booking_date", date);
+
+  if (fallback.error) throw new Error(fallback.error.message);
+  return (fallback.data ?? []) as DailyPaymentRow[];
+}
 
 function readPricePaid(metadata: unknown): number {
   if (!metadata || typeof metadata !== "object") return 0;
@@ -25,14 +367,19 @@ export async function getBookingsByBranch(
   date: string
 ) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(BOOKING_SELECT)
-    .eq("branch_id", branchId)
-    .eq("booking_date", date)
-    .order("start_time");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return loadBookingRows(
+    supabase,
+    BOOKING_SELECT_VARIANTS,
+    async (select) => {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("branch_id", branchId)
+        .eq("booking_date", date)
+        .order("start_time");
+      return result as QueryResult<BookingFullRow>;
+    }
+  );
 }
 
 export async function getAllBookings(filters?: {
@@ -43,84 +390,114 @@ export async function getAllBookings(filters?: {
   staffId?: string;
 }) {
   const supabase = await createClient();
-  let q = supabase.from("bookings").select(BOOKING_SELECT);
-  if (filters?.branchId) q = q.eq("branch_id", filters.branchId);
-  if (filters?.date)     q = q.eq("booking_date", filters.date);
-  if (filters?.status)   q = q.eq("status", filters.status);
-  if (filters?.type)     q = q.eq("type", filters.type);
-  if (filters?.staffId)  q = q.eq("staff_id", filters.staffId);
-  const { data, error } = await q.order("booking_date", { ascending: false }).order("start_time");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return loadBookingRows(
+    supabase,
+    BOOKING_SELECT_VARIANTS,
+    async (select) => {
+      let q = supabase.from("bookings").select(select);
+      if (filters?.branchId) q = q.eq("branch_id", filters.branchId);
+      if (filters?.date) q = q.eq("booking_date", filters.date);
+      if (filters?.status) q = q.eq("status", filters.status);
+      if (filters?.type) q = q.eq("type", filters.type);
+      if (filters?.staffId) q = q.eq("staff_id", filters.staffId);
+      const result = await q
+        .order("booking_date", { ascending: false })
+        .order("start_time");
+      return result as QueryResult<BookingFullRow>;
+    }
+  );
 }
 
 export async function getBookingById(bookingId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(`${BOOKING_SELECT}, booking_events ( * )`)
-    .eq("id", bookingId)
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+  return loadBookingRow(
+    supabase,
+    BOOKING_SELECT_VARIANTS.map((variant) => ({
+      ...variant,
+      select: `${variant.select}, booking_events ( * )`,
+    })),
+    async (select) => {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("id", bookingId)
+        .single();
+      return result as SingleQueryResult<BookingFullRow>;
+    }
+  );
 }
 
 export async function getBookingsByCustomer(customerId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(BOOKING_SELECT)
-    .eq("customer_id", customerId)
-    .order("booking_date", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return loadBookingRows(
+    supabase,
+    BOOKING_SELECT_VARIANTS,
+    async (select) => {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("customer_id", customerId)
+        .order("booking_date", { ascending: false });
+      return result as QueryResult<BookingFullRow>;
+    }
+  );
 }
 
 export async function getMyBookings(staffId: string, date: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(BOOKING_SELECT)
-    .eq("staff_id", staffId)
-    .eq("booking_date", date)
-    .not("status", "in", '("cancelled","no_show")')
-    .order("start_time");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return loadBookingRows(
+    supabase,
+    BOOKING_SELECT_VARIANTS,
+    async (select) => {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("staff_id", staffId)
+        .eq("booking_date", date)
+        .not("status", "in", '("cancelled","no_show")')
+        .order("start_time");
+      return result as QueryResult<BookingFullRow>;
+    }
+  );
 }
 
 // ── Today's full branch schedule (manager timeline view) ──────────────────
 export async function getTodaysSchedule(branchId: string, date: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(`
-      id, booking_date, start_time, end_time, type, status,
-      travel_buffer_mins, metadata,
-      payment_method, payment_status, payment_reference, amount_paid,
-      services  ( id, name, duration_minutes ),
-      staff     ( id, full_name, tier ),
-      customers ( id, full_name, phone ),
-      branch_resources!resource_id ( id, name, type )
-    `)
-    .eq("branch_id", branchId)
-    .eq("booking_date", date)
-    .order("start_time");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return loadBookingRows(
+    supabase,
+    TODAY_SCHEDULE_SELECT_VARIANTS,
+    async (select) => {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("branch_id", branchId)
+        .eq("booking_date", date)
+        .order("start_time");
+      return result as QueryResult<TodayScheduleRow>;
+    }
+  );
 }
 
 // ── Daily payment summary for a branch ───────────────────────────────────
 export async function getDailyPaymentSummary(branchId: string, date: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const result = await supabase
     .from("bookings")
     .select("status, metadata, payment_method, payment_status, amount_paid")
     .eq("branch_id", branchId)
     .eq("booking_date", date);
-  if (error) throw new Error(error.message);
 
-  const rows = data ?? [];
+  if (result.error && !isMissingPaymentColumns(result.error)) {
+    throw new Error(result.error.message);
+  }
+
+  const rows = result.error
+    ? withPaymentDefaults(
+        await loadDailyPaymentFallbackRows(supabase, branchId, date)
+      )
+    : withPaymentDefaults((result.data ?? []) as DailyPaymentRow[]);
+
   const activeRows = rows.filter((r) => !["cancelled", "no_show"].includes(r.status));
   const paidRows = activeRows.filter((r) => r.payment_status === "paid");
   const unpaidRows = activeRows.filter((r) => ["unpaid", "pending"].includes(r.payment_status));
@@ -239,22 +616,22 @@ export async function getMyUpcomingBookings(
   toDate:   string
 ) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(`
-      id, booking_date, start_time, end_time, type, status, metadata,
-      services  ( id, name, duration_minutes ),
-      customers ( id, full_name ),
-      branch_resources!resource_id ( id, name, type )
-    `)
-    .eq("staff_id", staffId)
-    .gte("booking_date", fromDate)
-    .lte("booking_date", toDate)
-    .not("status", "in", '("cancelled","no_show")')
-    .order("booking_date")
-    .order("start_time");
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return loadBookingRows(
+    supabase,
+    STAFF_UPCOMING_SELECT_VARIANTS,
+    async (select) => {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("staff_id", staffId)
+        .gte("booking_date", fromDate)
+        .lte("booking_date", toDate)
+        .not("status", "in", '("cancelled","no_show")')
+        .order("booking_date")
+        .order("start_time");
+      return result as QueryResult<StaffUpcomingRow>;
+    }
+  );
 }
 
 // ── Staff: personal monthly stats (Rule 14: uses metadata.price_paid) ─────

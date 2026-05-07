@@ -1,4 +1,8 @@
 import type { BookingType } from "@/types";
+import {
+  DEFAULT_BRANCH_BOOKING_RULES,
+  type BranchBookingRules,
+} from "@/lib/bookings/booking-rules-config";
 
 export type { BookingType } from "@/types";
 
@@ -22,13 +26,19 @@ export const VISIT_TYPE_OPTIONS = {
     id: "in_spa",
     label: "In-spa",
     description: "Visit the spa branch for your appointment.",
-    availability: { startTime: "10:00", endTime: "22:30" },
+    availability: {
+      startTime: DEFAULT_BRANCH_BOOKING_RULES.inSpaStartTime,
+      endTime: DEFAULT_BRANCH_BOOKING_RULES.inSpaEndTime,
+    },
   },
   home_service: {
     id: "home_service",
     label: "Home Service",
     description: "Book a therapist to come to your location.",
-    availability: { startTime: "14:30", endTime: "22:00" },
+    availability: {
+      startTime: DEFAULT_BRANCH_BOOKING_RULES.homeServiceStartTime,
+      endTime: DEFAULT_BRANCH_BOOKING_RULES.homeServiceEndTime,
+    },
   },
 } satisfies Record<VisitType, VisitTypeOption>;
 
@@ -72,17 +82,43 @@ export function getVisitTypeForBookingType(
     : "in_spa";
 }
 
+export function getVisitTypeAvailability(
+  visitType: VisitType,
+  rules?: BranchBookingRules | null
+): VisitTypeOption["availability"] {
+  if (!rules) return VISIT_TYPE_OPTIONS[visitType].availability;
+
+  if (visitType === "home_service") {
+    return {
+      startTime: rules.homeServiceStartTime,
+      endTime: rules.homeServiceEndTime,
+    };
+  }
+
+  return {
+    startTime: rules.inSpaStartTime,
+    endTime: rules.inSpaEndTime,
+  };
+}
+
+export function isVisitTypeEnabled(
+  visitType: VisitType,
+  rules?: BranchBookingRules | null
+): boolean {
+  return visitType === "in_spa" || rules?.homeServiceEnabled !== false;
+}
+
 export function isTimeAllowedForVisitType(
   slotTime: string,
-  visitType: VisitType
+  visitType: VisitType,
+  rules?: BranchBookingRules | null
 ): boolean {
+  if (!isVisitTypeEnabled(visitType, rules)) return false;
+
   const slotMinutes = timeToMinutes(slotTime);
-  const startMinutes = timeToMinutes(
-    VISIT_TYPE_OPTIONS[visitType].availability.startTime
-  );
-  const endMinutes = timeToMinutes(
-    VISIT_TYPE_OPTIONS[visitType].availability.endTime
-  );
+  const availability = getVisitTypeAvailability(visitType, rules);
+  const startMinutes = timeToMinutes(availability.startTime);
+  const endMinutes = timeToMinutes(availability.endTime);
 
   if (
     slotMinutes === null ||
@@ -97,9 +133,10 @@ export function isTimeAllowedForVisitType(
 
 export function filterSlotsByVisitType<T extends { slot_time: string }>(
   slots: T[],
-  visitType: VisitType
+  visitType: VisitType,
+  rules?: BranchBookingRules | null
 ): T[] {
   return slots.filter((slot) =>
-    isTimeAllowedForVisitType(slot.slot_time, visitType)
+    isTimeAllowedForVisitType(slot.slot_time, visitType, rules)
   );
 }

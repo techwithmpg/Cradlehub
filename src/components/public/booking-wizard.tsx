@@ -32,11 +32,14 @@ import {
   filterSlotsByVisitType,
   getBookingTypeForVisitType,
   getVisitTypeForBookingType,
+  getVisitTypeAvailability,
+  isVisitTypeEnabled,
   isTimeAllowedForVisitType,
   type BookingType,
   type BookingWizardMode,
   type VisitType,
 } from "@/lib/bookings/visit-type-availability";
+import type { BranchBookingRules } from "@/lib/bookings/booking-rules-config";
 
 type Branch = {
   id: string;
@@ -51,6 +54,8 @@ type Service = {
   durationMinutes: number;
   price: number;
   categoryName?: string;
+  availableInSpa?: boolean;
+  availableHomeService?: boolean;
 };
 
 type Slot = {
@@ -161,6 +166,9 @@ export function BookingWizard({
   const [services, setServices] = useState<Service[]>([]);
   const [rawSlots, setRawSlots] = useState<Slot[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(
+    null
+  );
 
   // Loading
   const [loadingBranches, setLoadingBranches] = useState(true);
@@ -185,6 +193,12 @@ export function BookingWizard({
     phone: initialCustomer?.phone ?? "",
     email: initialCustomer?.email ?? "",
     notes: "",
+    // Home service address fields
+    hsAddress: "",
+    hsBarangay: "",
+    hsCity: "",
+    hsLandmark: "",
+    hsParkingNotes: "",
   });
   const [formError, setFormError] = useState("");
 
@@ -197,9 +211,27 @@ export function BookingWizard({
     () => selectedServices.reduce((s, svc) => s + svc.price, 0),
     [selectedServices]
   );
-  const visitType = useMemo(
+  const selectedVisitType = useMemo(
     () => getVisitTypeForBookingType(bookingType, mode),
     [bookingType, mode]
+  );
+  const visitType = useMemo(
+    () =>
+      isVisitTypeEnabled(selectedVisitType, bookingRules)
+        ? selectedVisitType
+        : "in_spa",
+    [bookingRules, selectedVisitType]
+  );
+
+  // Services filtered by visit type eligibility
+  const eligibleServices = useMemo(
+    () =>
+      services.filter((svc) =>
+        visitType === "home_service"
+          ? (svc.availableHomeService ?? false)
+          : (svc.availableInSpa ?? true)
+      ),
+    [services, visitType]
   );
   const availableStaffAtSlot = useMemo(
     () => (selectedSlot ? staffAtSlot(rawSlots, selectedSlot.slot_time) : []),
@@ -233,18 +265,24 @@ export function BookingWizard({
       .then((r) => r.json())
       .then((data) => {
         const svcs = (data.services ?? []).map(
-          (s: { serviceId?: string; id?: string; name: string; description?: string | null; durationMinutes: number; price: number }) => ({
+          (s: { serviceId?: string; id?: string; name: string; description?: string | null; durationMinutes: number; price: number; availableInSpa?: boolean; availableHomeService?: boolean }) => ({
             id: s.serviceId ?? s.id ?? "",
             name: s.name,
             description: s.description,
             durationMinutes: s.durationMinutes,
             price: s.price,
+            availableInSpa: s.availableInSpa ?? true,
+            availableHomeService: s.availableHomeService ?? false,
           })
         );
         setServices(svcs);
+        setBookingRules((data.bookingRules ?? null) as BranchBookingRules | null);
         setLoadingServices(false);
       })
-      .catch(() => setLoadingServices(false));
+      .catch(() => {
+        setBookingRules(null);
+        setLoadingServices(false);
+      });
     return () => clearTimeout(id);
   }, [selectedBranch]);
 
@@ -260,14 +298,18 @@ export function BookingWizard({
       .then((r) => r.json())
       .then((data) => {
         const all = (data.slots ?? []) as Slot[];
-        const visitTypeSlots = filterSlotsByVisitType(all, visitType);
+        const visitTypeSlots = filterSlotsByVisitType(
+          all,
+          visitType,
+          bookingRules
+        );
         setRawSlots(visitTypeSlots);
         setSlots(normalizePublicSlots(visitTypeSlots));
         setLoadingSlots(false);
       })
       .catch(() => setLoadingSlots(false));
     return () => clearTimeout(id);
-  }, [selectedBranch, selectedServices, selectedDate, visitType]);
+  }, [selectedBranch, selectedServices, selectedDate, visitType, bookingRules]);
 
   const toggleService = useCallback((svc: Service) => {
     setSelectedServices((prev) => {
@@ -282,12 +324,21 @@ export function BookingWizard({
   }, []);
 
   const handleVisitTypeSelect = useCallback((nextVisitType: VisitType) => {
+    if (!isVisitTypeEnabled(nextVisitType, bookingRules)) return;
     setBookingType(getBookingTypeForVisitType(nextVisitType, mode));
+    // Clear services that aren't eligible for the new visit type
+    setSelectedServices((prev) =>
+      prev.filter((svc) =>
+        nextVisitType === "home_service"
+          ? (svc.availableHomeService ?? false)
+          : (svc.availableInSpa ?? true)
+      )
+    );
     setRawSlots([]);
     setSlots([]);
     setSelectedSlot(null);
     setSelectedStaff("auto");
-  }, [mode]);
+  }, [bookingRules, mode]);
 
   const handleBack = useCallback(() => {
     if (step === 4) {
@@ -301,9 +352,18 @@ export function BookingWizard({
 
   const handleSubmit = useCallback(async () => {
     if (!selectedBranch || selectedServices.length === 0 || !selectedDate || !selectedSlot) return;
-    if (!isTimeAllowedForVisitType(selectedSlot.slot_time, visitType)) {
+    if (!isVisitTypeEnabled(visitType, bookingRules)) {
       const option = VISIT_TYPE_OPTIONS[visitType];
-      const message = `${option.label} appointments are available from ${formatTime(option.availability.startTime)} to ${formatTime(option.availability.endTime)}. Please select another time.`;
+      const message = `${option.label} is not available for this branch. Please choose another visit type.`;
+      toast.error("Visit type unavailable", { description: message });
+      setFormError(message);
+      setStep(2);
+      return;
+    }
+    if (!isTimeAllowedForVisitType(selectedSlot.slot_time, visitType, bookingRules)) {
+      const option = VISIT_TYPE_OPTIONS[visitType];
+      const availability = getVisitTypeAvailability(visitType, bookingRules);
+      const message = `${option.label} appointments are available from ${formatTime(availability.startTime)} to ${formatTime(availability.endTime)}. Please select another time.`;
       toast.error("Time unavailable", { description: message });
       setFormError(message);
       setStep(4);
@@ -316,6 +376,17 @@ export function BookingWizard({
     setFormError("");
     setSubmitting(true);
 
+    const hsPayload =
+      visitType === "home_service"
+        ? {
+            homeServiceAddress:      form.hsAddress || undefined,
+            homeServiceBarangay:     form.hsBarangay || undefined,
+            homeServiceCity:         form.hsCity || undefined,
+            homeServiceLandmark:     form.hsLandmark || undefined,
+            homeServiceParkingNotes: form.hsParkingNotes || undefined,
+          }
+        : {};
+
     const payload = {
       branchId: selectedBranch.id,
       serviceIds: selectedServices.map((s) => s.id),
@@ -326,6 +397,7 @@ export function BookingWizard({
       phone: form.phone,
       email: form.email || undefined,
       notes: form.notes || undefined,
+      ...hsPayload,
     };
 
     const result =
@@ -352,15 +424,20 @@ export function BookingWizard({
       toast.error("Booking failed", { description: result.message });
       setFormError(result.message);
     }
-  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, selectedStaff, form, mode]);
+  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaff, form, mode]);
+
+  const hsAddressFilled =
+    visitType !== "home_service" ||
+    (form.hsAddress.trim().length >= 5 &&
+      (form.hsBarangay.trim().length >= 2 || form.hsCity.trim().length >= 2));
 
   const canProceed =
     step === 1 ? !!selectedBranch
-    : step === 2 ? !!bookingType
+    : step === 2 ? !!bookingType && isVisitTypeEnabled(visitType, bookingRules)
     : step === 3 ? selectedServices.length > 0
     : step === 4 ? !!selectedSlot
     : step === 5 ? true // "auto" is always valid; server validates on submit
-    : step === 6 ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7
+    : step === 6 ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7 && hsAddressFilled
     : false;
 
   return (
@@ -451,6 +528,7 @@ export function BookingWizard({
                 selected={selectedBranch}
                 onSelect={(b) => {
                   setSelectedBranch(b);
+                  setBookingRules(null);
                   setSelectedServices([]);
                   setSelectedSlot(null);
                   setSelectedStaff("auto");
@@ -460,22 +538,25 @@ export function BookingWizard({
             {step === 2 && (
               <StepVisitType
                 selected={visitType}
+                bookingRules={bookingRules}
                 onSelect={handleVisitTypeSelect}
               />
             )}
             {step === 3 && (
               <StepServices
-                services={services}
+                services={eligibleServices}
                 loading={loadingServices}
                 selected={selectedServices}
                 onToggle={toggleService}
                 totalDuration={totalDuration}
                 totalPrice={totalPrice}
+                visitType={visitType}
               />
             )}
             {step === 4 && (
               <StepDateTime
                 visitType={visitType}
+                bookingRules={bookingRules}
                 selectedDate={selectedDate}
                 onSelectDate={(d) => {
                   setSelectedDate(d);
@@ -579,6 +660,7 @@ export function BookingWizard({
                 selectedStaff={selectedStaff}
                 availableStaff={availableStaffAtSlot}
                 visitType={visitType}
+                bookingRules={bookingRules}
               />
             </div>
           )}
@@ -633,6 +715,7 @@ function BookingSummary({
   selectedStaff,
   availableStaff,
   visitType,
+  bookingRules,
 }: {
   branch: Branch | null;
   services: Service[];
@@ -643,12 +726,14 @@ function BookingSummary({
   selectedStaff: "auto" | string;
   availableStaff: StaffOption[];
   visitType: VisitType;
+  bookingRules: BranchBookingRules | null;
 }) {
   const staffLabel =
     selectedStaff === "auto"
       ? "Auto-assign"
       : availableStaff.find((s) => s.staff_id === selectedStaff)?.staff_name;
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
+  const availability = getVisitTypeAvailability(visitType, bookingRules);
 
   return (
     <div
@@ -672,7 +757,7 @@ function BookingSummary({
           icon={visitType === "home_service" ? Home : Building}
           label="Visit Type"
           value={visitOption.label}
-          sub={`${formatTime(visitOption.availability.startTime)} - ${formatTime(visitOption.availability.endTime)}`}
+          sub={`${formatTime(availability.startTime)} - ${formatTime(availability.endTime)}`}
         />
 
         {/* Services list */}
@@ -816,9 +901,11 @@ function StepBranches({
 
 function StepVisitType({
   selected,
+  bookingRules,
   onSelect,
 }: {
   selected: VisitType;
+  bookingRules: BranchBookingRules | null;
   onSelect: (visitType: VisitType) => void;
 }) {
   return (
@@ -836,6 +923,8 @@ function StepVisitType({
       <div className="grid sm:grid-cols-2 gap-4">
         {VISIT_TYPE_ORDER.map((visitType) => {
           const option = VISIT_TYPE_OPTIONS[visitType];
+          const availability = getVisitTypeAvailability(visitType, bookingRules);
+          const isEnabled = isVisitTypeEnabled(visitType, bookingRules);
           const isSelected = selected === visitType;
           const Icon = visitType === "home_service" ? Home : Building;
 
@@ -843,11 +932,16 @@ function StepVisitType({
             <button
               key={visitType}
               type="button"
-              onClick={() => onSelect(visitType)}
+              disabled={!isEnabled}
+              onClick={() => {
+                if (isEnabled) onSelect(visitType);
+              }}
               className={`flex items-start gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
                 isSelected
                   ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-                  : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+                  : isEnabled
+                    ? "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+                    : "border-[#EDE4D3] bg-white opacity-55 cursor-not-allowed"
               }`}
             >
               <div
@@ -871,10 +965,10 @@ function StepVisitType({
                   )}
                 </div>
                 <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
-                  {option.description}
+                  {isEnabled ? option.description : "Not available for this branch."}
                 </p>
                 <p className="text-[11px] mt-3 font-medium" style={{ color: "#C8A96B" }}>
-                  {formatTime(option.availability.startTime)} - {formatTime(option.availability.endTime)}
+                  {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
                 </p>
               </div>
             </button>
@@ -894,6 +988,7 @@ function StepServices({
   onToggle,
   totalDuration,
   totalPrice,
+  visitType,
 }: {
   services: Service[];
   loading: boolean;
@@ -901,6 +996,7 @@ function StepServices({
   onToggle: (s: Service) => void;
   totalDuration: number;
   totalPrice: number;
+  visitType: VisitType;
 }) {
   if (loading) {
     return (
@@ -919,7 +1015,9 @@ function StepServices({
           No services available
         </p>
         <p className="text-[13px] mt-2" style={{ color: "#6B7A6F" }}>
-          This location does not have any services listed yet.
+          {visitType === "home_service"
+            ? "No services are currently available for home service. Please choose in-spa or contact us."
+            : "This location does not have any services listed yet."}
         </p>
       </div>
     );
@@ -1028,6 +1126,7 @@ function StepServices({
 
 function StepDateTime({
   visitType,
+  bookingRules,
   selectedDate,
   onSelectDate,
   slots,
@@ -1036,6 +1135,7 @@ function StepDateTime({
   onSelectSlot,
 }: {
   visitType: VisitType;
+  bookingRules: BranchBookingRules | null;
   selectedDate: Date | undefined;
   onSelectDate: (d: Date | undefined) => void;
   slots: Slot[];
@@ -1046,12 +1146,15 @@ function StepDateTime({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today);
-  maxDate.setDate(maxDate.getDate() + 30);
+  maxDate.setDate(
+    maxDate.getDate() + (bookingRules?.maxAdvanceBookingDays ?? 30)
+  );
 
   const availableSlots = slots.filter((s) => s.available);
   const isTodaySelected =
     !!selectedDate && toLocalYmd(selectedDate) === toLocalYmd(new Date());
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
+  const availability = getVisitTypeAvailability(visitType, bookingRules);
 
   return (
     <div>
@@ -1090,7 +1193,7 @@ function StepDateTime({
             Available Times
           </p>
           <p className="text-[12px] mb-3" style={{ color: "#6B7A6F" }}>
-            {visitOption.label}: {formatTime(visitOption.availability.startTime)} - {formatTime(visitOption.availability.endTime)}
+            {visitOption.label}: {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
           </p>
           {!selectedDate ? (
             <div
@@ -1265,7 +1368,23 @@ function StepTherapist({
   );
 }
 
+// ── Shared input style ─────────────────────────────────────────────────────────
+const INPUT_CLS = "w-full rounded-xl border border-[#EDE4D3] bg-white px-4 py-3 text-[14px] text-[#163A2B] placeholder:text-[#9AA89A] outline-none transition-all focus:border-[#C8A96B] focus:ring-2 focus:ring-[#C8A96B]/20";
+const LABEL_CLS = "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2";
+
 // ── Step 6: Details ────────────────────────────────────────────────────────────
+
+type DetailsForm = {
+  fullName: string;
+  phone: string;
+  email: string;
+  notes: string;
+  hsAddress: string;
+  hsBarangay: string;
+  hsCity: string;
+  hsLandmark: string;
+  hsParkingNotes: string;
+};
 
 function StepDetails({
   form,
@@ -1273,11 +1392,13 @@ function StepDetails({
   error,
   visitType,
 }: {
-  form: { fullName: string; phone: string; email: string; notes: string };
-  onChange: (f: typeof form) => void;
+  form: DetailsForm;
+  onChange: (f: DetailsForm) => void;
   error: string;
   visitType: VisitType;
 }) {
+  const isHomeService = visitType === "home_service";
+
   return (
     <div>
       <h2
@@ -1291,11 +1412,9 @@ function StepDetails({
       </p>
 
       <div className="flex flex-col gap-5">
+        {/* Contact info */}
         <div>
-          <label
-            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
-            style={{ color: "#9AA89A" }}
-          >
+          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
             <User className="h-3.5 w-3.5" />
             Full Name *
           </label>
@@ -1304,15 +1423,12 @@ function StepDetails({
             value={form.fullName}
             onChange={(e) => onChange({ ...form, fullName: e.target.value })}
             placeholder="Enter your full name"
-            className="w-full rounded-xl border border-[#EDE4D3] bg-white px-4 py-3 text-[14px] text-[#163A2B] placeholder:text-[#9AA89A] outline-none transition-all focus:border-[#C8A96B] focus:ring-2 focus:ring-[#C8A96B]/20"
+            className={INPUT_CLS}
           />
         </div>
 
         <div>
-          <label
-            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
-            style={{ color: "#9AA89A" }}
-          >
+          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
             <Phone className="h-3.5 w-3.5" />
             Phone Number *
           </label>
@@ -1321,15 +1437,12 @@ function StepDetails({
             value={form.phone}
             onChange={(e) => onChange({ ...form, phone: e.target.value })}
             placeholder="e.g. 0917 123 4567"
-            className="w-full rounded-xl border border-[#EDE4D3] bg-white px-4 py-3 text-[14px] text-[#163A2B] placeholder:text-[#9AA89A] outline-none transition-all focus:border-[#C8A96B] focus:ring-2 focus:ring-[#C8A96B]/20"
+            className={INPUT_CLS}
           />
         </div>
 
         <div>
-          <label
-            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
-            style={{ color: "#9AA89A" }}
-          >
+          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
             <Mail className="h-3.5 w-3.5" />
             Email{" "}
             <span className="normal-case font-normal">(optional)</span>
@@ -1339,15 +1452,12 @@ function StepDetails({
             value={form.email}
             onChange={(e) => onChange({ ...form, email: e.target.value })}
             placeholder="your@email.com"
-            className="w-full rounded-xl border border-[#EDE4D3] bg-white px-4 py-3 text-[14px] text-[#163A2B] placeholder:text-[#9AA89A] outline-none transition-all focus:border-[#C8A96B] focus:ring-2 focus:ring-[#C8A96B]/20"
+            className={INPUT_CLS}
           />
         </div>
 
         <div>
-          <label
-            className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2"
-            style={{ color: "#9AA89A" }}
-          >
+          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
             <FileText className="h-3.5 w-3.5" />
             Notes{" "}
             <span className="normal-case font-normal">(optional)</span>
@@ -1355,15 +1465,104 @@ function StepDetails({
           <textarea
             value={form.notes}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
-            placeholder={
-              visitType === "home_service"
-                ? "Address and any special instructions..."
-                : "Any special requests or health considerations..."
-            }
+            placeholder="Any special requests or health considerations..."
             rows={3}
-            className="w-full rounded-xl border border-[#EDE4D3] bg-white px-4 py-3 text-[14px] text-[#163A2B] placeholder:text-[#9AA89A] outline-none transition-all focus:border-[#C8A96B] focus:ring-2 focus:ring-[#C8A96B]/20 resize-none"
+            className={`${INPUT_CLS} resize-none`}
           />
         </div>
+
+        {/* ── Home Service Address ── */}
+        {isHomeService && (
+          <div
+            className="flex flex-col gap-4 rounded-2xl p-5 border"
+            style={{ background: "#FCFAF5", borderColor: "#C8A96B40" }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Home className="h-4 w-4" style={{ color: "#C8A96B" }} />
+              <p className="text-[13px] font-semibold" style={{ color: "#163A2B" }}>
+                Home Service Address
+              </p>
+              <span
+                className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                style={{ background: "#C8A96B20", color: "#8A6B35" }}
+              >
+                Required
+              </span>
+            </div>
+            <p className="text-[12px] -mt-2" style={{ color: "#6B7A6F" }}>
+              Our team will use this to dispatch your therapist. Please be specific.
+            </p>
+
+            <div>
+              <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                <MapPin className="h-3.5 w-3.5" />
+                Full Address *
+              </label>
+              <input
+                type="text"
+                value={form.hsAddress}
+                onChange={(e) => onChange({ ...form, hsAddress: e.target.value })}
+                placeholder="House/Unit no., Street, Subdivision"
+                className={INPUT_CLS}
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                  Barangay *
+                </label>
+                <input
+                  type="text"
+                  value={form.hsBarangay}
+                  onChange={(e) => onChange({ ...form, hsBarangay: e.target.value })}
+                  placeholder="e.g. Brgy. San Antonio"
+                  className={INPUT_CLS}
+                />
+              </div>
+              <div>
+                <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                  City / Municipality *
+                </label>
+                <input
+                  type="text"
+                  value={form.hsCity}
+                  onChange={(e) => onChange({ ...form, hsCity: e.target.value })}
+                  placeholder="e.g. Antipolo City"
+                  className={INPUT_CLS}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                Landmark{" "}
+                <span className="normal-case font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={form.hsLandmark}
+                onChange={(e) => onChange({ ...form, hsLandmark: e.target.value })}
+                placeholder="e.g. Near SM Mall, beside the park"
+                className={INPUT_CLS}
+              />
+            </div>
+
+            <div>
+              <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                Access / Parking Notes{" "}
+                <span className="normal-case font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={form.hsParkingNotes}
+                onChange={(e) => onChange({ ...form, hsParkingNotes: e.target.value })}
+                placeholder="e.g. Ring the bell at Gate 2, limited parking on street"
+                rows={2}
+                className={`${INPUT_CLS} resize-none`}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (

@@ -83,13 +83,16 @@ export async function updateCustomerAction(rawInput: unknown) {
   const { error } = await supabase
     .from("customers")
     .update({
-      ...(updates.fullName         !== undefined && { full_name:          updates.fullName }),
-      ...(updates.phone            !== undefined && { phone:              updates.phone }),
-      ...(updates.email            !== undefined && { email:              updates.email || null }),
-      ...(updates.notes            !== undefined && { notes:              updates.notes }),
-      ...(updates.preferredStaffId !== undefined && {
-        preferred_staff_id: updates.preferredStaffId,
-      }),
+      ...(updates.fullName            !== undefined && { full_name:             updates.fullName }),
+      ...(updates.phone               !== undefined && { phone:                 updates.phone }),
+      ...(updates.email               !== undefined && { email:                 updates.email || null }),
+      ...(updates.notes               !== undefined && { notes:                 updates.notes }),
+      ...(updates.preferredStaffId    !== undefined && { preferred_staff_id:    updates.preferredStaffId }),
+      ...(updates.preferredVisitType  !== undefined && { preferred_visit_type:  updates.preferredVisitType }),
+      ...(updates.pressurePreference  !== undefined && { pressure_preference:   updates.pressurePreference }),
+      ...(updates.healthNotes         !== undefined && { health_notes:          updates.healthNotes }),
+      ...(updates.birthday            !== undefined && { birthday:              updates.birthday }),
+      ...(updates.loyaltyTier         !== undefined && { loyalty_tier:          updates.loyaltyTier }),
     })
     .eq("id", customerId);
 

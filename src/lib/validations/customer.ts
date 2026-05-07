@@ -4,12 +4,17 @@ import { z } from "zod";
 const uuid = z.guid("Invalid ID");
 
 export const updateCustomerSchema = z.object({
-  customerId:       uuid,
-  fullName:         z.string().min(2).max(100).optional(),
-  phone:            z.string().min(7).max(20).optional(),
-  email:            z.string().email().optional().or(z.literal("")),
-  notes:            z.string().max(1000).optional(),
-  preferredStaffId: uuid.optional().nullable(),
+  customerId:           uuid,
+  fullName:             z.string().min(2).max(100).optional(),
+  phone:                z.string().min(7).max(20).optional(),
+  email:                z.string().email().optional().or(z.literal("")),
+  notes:                z.string().max(1000).optional(),
+  preferredStaffId:     uuid.optional().nullable(),
+  preferredVisitType:   z.enum(["in_spa", "home_service"]).optional().nullable(),
+  pressurePreference:   z.enum(["light", "medium", "firm", "deep_tissue"]).optional().nullable(),
+  healthNotes:          z.string().max(1000).optional().nullable(),
+  birthday:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  loyaltyTier:          z.enum(["standard", "silver", "gold", "vip"]).optional(),
 });
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 

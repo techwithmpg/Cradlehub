@@ -35,6 +35,11 @@ type CustomerProfile = Pick<
   | "total_bookings"
   | "notes"
   | "preferred_staff_id"
+  | "preferred_visit_type"
+  | "pressure_preference"
+  | "health_notes"
+  | "birthday"
+  | "loyalty_tier"
 >;
 
 type BookingHistoryItem = Pick<
@@ -486,6 +491,11 @@ export default async function CustomerProfilePage({
               initialEmail={customer.email}
               initialNotes={customer.notes}
               initialPreferredStaffId={customer.preferred_staff_id}
+              initialPreferredVisitType={customer.preferred_visit_type}
+              initialPressurePreference={customer.pressure_preference}
+              initialHealthNotes={customer.health_notes}
+              initialBirthday={customer.birthday}
+              initialLoyaltyTier={customer.loyalty_tier}
               staff={staffOptions}
             />
           </div>

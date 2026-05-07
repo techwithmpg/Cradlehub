@@ -4,7 +4,8 @@ import Link from "next/link";
 const AVAILABLE_TOOLS = [
   { icon: "📋", label: "Today\u2019s Control Center", desc: "Live bookings, issues, and quick actions", href: "/manager" },
   { icon: "📅", label: "Booking Management", desc: "View, edit, and transition booking statuses", href: "/manager/bookings" },
-  { icon: "👥", label: "Staff Schedule Management", desc: "Weekly hours, overrides, and blocked times", href: "/manager/staff" },
+  { icon: "👥", label: "Staff Schedule & Time-Off", desc: "Weekly hours, day overrides, and blocked time windows", href: "/manager/staff" },
+  { icon: "🏠", label: "Space Utilization", desc: "Room and bed occupancy for any date", href: "/manager/resources" },
 ];
 
 const COMING_SOON = [

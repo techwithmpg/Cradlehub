@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getMyUpcomingBookings, getMyMonthlyStats } from "@/lib/queries/bookings";
+import { attachBranchResources } from "@/lib/queries/booking-resources";
 import { getStaffSchedule, getStaffOverrides, getBlockedTimes } from "@/lib/queries/staff";
 import { isDevAuthBypassEnabled, getDevBypassStaffRecord } from "@/lib/dev-bypass";
 import {
@@ -119,25 +120,63 @@ export async function getMyTodayAction(date: string) {
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 
-  const { data, error } = await supabase
-    .from("bookings")
-    .select(`
+  const selectWithResource = `
+      id, booking_date, start_time, end_time, type, status,
+      booking_progress_status, home_service_tracking_status,
+      travel_buffer_mins, metadata,
+      travel_started_at, arrived_at, session_started_at, completed_at,
+      session_completed_at, checked_in_at, no_show_at,
+      resource_id,
+      services  ( id, name, duration_minutes ),
+      customers ( id, full_name )
+    `;
+  const selectWithoutResource = `
       id, booking_date, start_time, end_time, type, status,
       booking_progress_status, home_service_tracking_status,
       travel_buffer_mins, metadata,
       travel_started_at, arrived_at, session_started_at, completed_at,
       session_completed_at, checked_in_at, no_show_at,
       services  ( id, name, duration_minutes ),
-      customers ( id, full_name ),
-      branch_resources!resource_id ( name, type )
-    `)
-    .eq("staff_id", me.id)
-    .eq("booking_date", date)
-    .not("status", "in", '("cancelled","no_show")')
-    .order("start_time");
+      customers ( id, full_name )
+    `;
+  const query = async (select: string) =>
+    supabase
+      .from("bookings")
+      .select(select)
+      .eq("staff_id", me.id)
+      .eq("booking_date", date)
+      .not("status", "in", '("cancelled","no_show")')
+      .order("start_time");
+
+  let { data, error } = await query(selectWithResource);
+
+  if (
+    error &&
+    /column bookings\.resource_id does not exist/i.test(error.message)
+  ) {
+    const fallback = await query(selectWithoutResource);
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) return { error: error.message };
-  return { bookings: (data ?? []) as StaffPortalBooking[], staff: me };
+
+  try {
+    const bookings = await attachBranchResources(
+      supabase,
+      (data ?? []) as unknown as Array<
+        StaffPortalBooking & { resource_id?: string | null }
+      >
+    );
+    return { bookings: bookings as unknown as StaffPortalBooking[], staff: me };
+  } catch (resourceError) {
+    return {
+      error:
+        resourceError instanceof Error
+          ? resourceError.message
+          : "Unable to load booking resources",
+    };
+  }
 }
 
 // ── Unified Booking Progress Result Type ──────────────────────────────────

@@ -12,6 +12,7 @@ import {
   assignTherapistBySeniorityMulti,
   getAvailableSlotsMulti,
 } from "@/lib/engine/availability";
+import { validateBookingAgainstBranchRules } from "@/lib/queries/branch-booking-rules";
 import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { SlotUnavailableError } from "@/types/errors";
 
@@ -119,6 +120,16 @@ export async function createInhouseBookingMultiAction(
     };
   }
 
+  // Home service requires address details
+  if (d.type === "home_service") {
+    if (!d.homeServiceAddress?.trim()) {
+      return { ok: false, code: "HS_ADDRESS_MISSING", message: "Full address is required for home service bookings." };
+    }
+    if (!d.homeServiceBarangay?.trim() && !d.homeServiceCity?.trim()) {
+      return { ok: false, code: "HS_LOCATION_MISSING", message: "Barangay or city is required for home service bookings." };
+    }
+  }
+
   const logContext = {
     branchId: resolvedBranchId,
     staffId: d.staffId ?? "auto",
@@ -129,6 +140,20 @@ export async function createInhouseBookingMultiAction(
   };
 
   try {
+    const rulesCheck = await validateBookingAgainstBranchRules({
+      branchId: resolvedBranchId,
+      bookingType: d.type,
+      date: d.date,
+      startTime: d.startTime,
+    });
+    if (!rulesCheck.ok) {
+      return {
+        ok: false,
+        code: "BOOKING_RULES_ERROR",
+        message: rulesCheck.message,
+      };
+    }
+
     let resolvedStaffId: string;
     if (!d.staffId) {
       resolvedStaffId = await assignTherapistBySeniorityMulti({
@@ -249,7 +274,7 @@ export async function createInhouseBookingMultiAction(
 
     const { data: branchOverrides, error: branchOverridesError } = await admin
       .from("branch_services")
-      .select("service_id, custom_price")
+      .select("service_id, custom_price, available_in_spa, available_home_service")
       .eq("branch_id", resolvedBranchId)
       .in("service_id", d.serviceIds)
       .eq("is_active", true);
@@ -264,8 +289,25 @@ export async function createInhouseBookingMultiAction(
     }
 
     const overrideByServiceId = new Map(
-      (branchOverrides ?? []).map((row) => [row.service_id, row.custom_price])
+      (branchOverrides ?? []).map((row) => [row.service_id, row])
     );
+
+    // Verify each service is eligible for the booking type
+    const needsInSpa = d.type !== "home_service";
+    for (const serviceId of d.serviceIds) {
+      const override = overrideByServiceId.get(serviceId);
+      if (override) {
+        const eligible = needsInSpa ? override.available_in_spa : override.available_home_service;
+        if (!eligible) {
+          const svc = servicesById.get(serviceId);
+          return {
+            ok: false,
+            code: "SERVICE_INELIGIBLE",
+            message: `${svc?.name ?? "A selected service"} is not available for ${d.type === "home_service" ? "home service" : "in-spa"} bookings at this branch.`,
+          };
+        }
+      }
+    }
 
     const insertedIds: string[] = [];
     let currentStart = d.startTime;
@@ -295,15 +337,26 @@ export async function createInhouseBookingMultiAction(
         };
       }
 
-      const overridePrice = overrideByServiceId.get(service.id);
+      const overridePrice = overrideByServiceId.get(service.id)?.custom_price ?? undefined;
+      const hsAddress =
+        d.type === "home_service" && d.homeServiceAddress
+          ? {
+              full_address:  d.homeServiceAddress,
+              barangay:      d.homeServiceBarangay ?? null,
+              city:          d.homeServiceCity ?? null,
+              landmark:      d.homeServiceLandmark ?? null,
+              parking_notes: d.homeServiceParkingNotes ?? null,
+            }
+          : null;
       const metadata = {
         price_paid:
           overridePrice !== null && overridePrice !== undefined
             ? Number(overridePrice)
             : Number(service.price),
-        service_name: service.name,
-        duration_minutes: Number(service.duration_minutes),
-        customer_notes: d.notes ?? null,
+        service_name:          service.name,
+        duration_minutes:      Number(service.duration_minutes),
+        customer_notes:        d.notes ?? null,
+        ...(hsAddress && { home_service_address: hsAddress }),
       };
 
       const { data: booking, error: bookingError } = await admin
@@ -319,7 +372,10 @@ export async function createInhouseBookingMultiAction(
           end_time: endTime,
           type: d.type,
           status: "confirmed",
-          travel_buffer_mins: d.type === "home_service" ? (d.travelBufferMins ?? 30) : null,
+          travel_buffer_mins:
+            d.type === "home_service"
+              ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
+              : null,
           metadata,
         })
         .select("id")
