@@ -17,8 +17,8 @@ const WORKSPACE_HREF: Record<string, string> = {
   csr_staff: "/crm/notifications",
   csr:       "/crm/notifications",
   staff:     "/staff-portal/notifications",
-  driver:    "/driver/notifications",
-  utility:   "/utility/notifications",
+  driver:    "/driver",
+  utility:   "/utility",
 };
 
 export function NotificationBell({ role }: { role: string }) {
@@ -43,10 +43,12 @@ export function NotificationBell({ role }: { role: string }) {
     if (nextOpen) {
       setFetching(true);
       try {
-        const notifications = await getNotificationPopoverAction(8);
+        const [notifications, unreadCount] = await Promise.all([
+          getNotificationPopoverAction(8),
+          getUnreadCountAction(),
+        ]);
         setItems(notifications);
-        // Sync badge to freshly-fetched unread count.
-        setCount(notifications.filter((item) => item.status === "unread").length);
+        setCount(unreadCount);
       } catch {
         setItems([]);
       } finally {

@@ -57,3 +57,18 @@ _No errors logged yet._
   - Resolution: migrated script to ESM (`scripts/generate-brand-logo-assets.mjs`) with `import` syntax.
 - `Remove-Item` on temporary trace files returned access denied in shell.
   - Resolution: removed files via `apply_patch` delete hunks instead.
+
+## 2026-05-09 — STABILITY-001 execution notes
+
+- `pnpm test` failed inside the sandbox because Vitest worker forks hit `spawn EPERM`.
+  - Resolution: reran `pnpm test` with approved elevated permissions; 70 tests passed.
+- A Next start process from an interrupted route-check command kept listening on port `3002`.
+  - Resolution: stopped the port `3002` process before continuing.
+- Stabilization audit found missing explicit Today aliases:
+  - `/manager/today` did not exist even though `/manager` served Manager Today.
+  - `/staff-portal/today` did not exist even though `/staff-portal` served Staff Today.
+  - Resolution: added redirect aliases to the existing Today routes.
+- Notification bell mapped driver/utility "View all" links to missing `/driver/notifications` and `/utility/notifications` routes.
+  - Resolution: changed those hrefs to the existing `/driver` and `/utility` panels.
+- Public booking success copy still said bookings were confirmed even though current online booking behavior starts public bookings as pending/front-desk-reviewed.
+  - Resolution: changed the success copy to "request received" language.

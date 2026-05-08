@@ -28,17 +28,17 @@ export default function BookingSuccessPage() {
                 className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
                 style={{ color: "#C8A96B" }}
               >
-                All Set
+                Request Received
               </p>
               <h1
                 className="text-3xl sm:text-4xl font-medium leading-tight mb-5"
                 style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
               >
-                Your Booking is Confirmed
+                Your Booking Request Was Received
               </h1>
               <p className="text-[15px] leading-relaxed max-w-md mx-auto" style={{ color: "#6B7A6F" }}>
-                Thank you for choosing Cradle Wellness Living. Your appointment is confirmed
-                and our team looks forward to welcoming you.
+                Thank you for choosing Cradle Wellness Living. Our front desk will review
+                your request and confirm your appointment details.
               </p>
             </div>
 

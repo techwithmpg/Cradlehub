@@ -1,42 +1,31 @@
-# 🤝 HANDOFF — Auto Room Assignment on Confirmation
+# HANDOFF — STABILITY-001 Workspace Stabilization Pass
 
-## 📅 Date: 2026-05-05
-## 👤 Agent: Gemini
+## Date
+2026-05-09
 
----
+## Agent
+Codex
 
-## 🚀 What's New?
+## Summary
+Completed a stabilization audit pass across the public layer and workspace route map. No new product features were added.
 
-**Auto Room Assignment** is now operational. The system now automatically handles the physical space allocation (rooms/beds/chairs) at the moment of booking confirmation, reducing manual overhead for CRM and front desk staff.
+## Fixes Applied
+- Added `/manager/today` as a redirect alias to `/manager`.
+- Added `/staff-portal/today` as a redirect alias to `/staff-portal`.
+- Corrected public booking success copy so public online bookings are described as received for front-desk review, matching the pending-online-booking behavior.
+- Fixed notification unread count refresh in the header bell so opening the popover does not undercount unread items when more than the limited popover result set exists.
+- Changed driver/utility notification "View all" links to existing `/driver` and `/utility` panels.
+- Updated `docs/ARCHITECTURE.md` to reference `src/proxy.ts` for Next.js 16.
 
-### Key Features:
-1.  **Pending Online Bookings**: Online bookings now start as `pending`. This allows CRM to verify details before physical resources are committed.
-2.  **Confirmation Auto-Assignment**: When CRM clicks "Confirm" on a pending booking, the system automatically finds the first available space that fits the appointment's time window and capacity.
-3.  **Collision-Free Scheduling**: The assignment engine ensures that no two active bookings share the same room at the same time (unless capacity allows).
-4.  **Multi-Service Awareness**: For CRM-created multi-service bookings, the system auto-assigns a single room for the entire combined duration, ensuring guest comfort.
-5.  **Manual Fallback**: Front desk can still manually select a room in the `WalkinForm`, but the system will now auto-assign one if they leave it blank.
+## Verification Status
+- `pnpm lint`: passing.
+- `pnpm type-check`: passing.
+- `pnpm test`: passing, 70 tests. The sandbox run hit the known Vitest `spawn EPERM`; elevated run passed.
+- `pnpm build`: passing, 68 app routes.
+- Public HTTP routes checked on a local production server: `/`, `/services`, `/branches`, `/about`, `/contact`, `/book`, `/book/confirm`, `/book/success`, `/products`, `/staff-onboarding`, `/login`.
+- Protected unauthenticated routes checked for redirects: owner, manager, CRM, staff portal, driver, utility, and dev routes.
 
----
-
-## 🛠️ Technical Details
-
-### Logic Components:
-- `autoAssignBookingResource` (`src/lib/engine/resource-availability.ts`): The core engine that calculates resource occupancy and finds the first free slot.
-- `updateBookingStatusAction` (`src/app/(dashboard)/manager/bookings/actions.ts`): Now enriched with auto-assignment logic triggered on `"confirmed"` status.
-
-### UI Integration:
-- `BookingActionMenu`: Now includes a "Confirm" button for `pending` bookings.
-- `CRMBookingsPage`: Now features the status action menu, allowing CSRs to confirm bookings directly from the list view.
-
----
-
-## 📋 Handoff / Next Steps
-
-- **Room Usage Analytics**: Since bookings now have `resource_id`, we can later build reports on room utilization rates.
-- **Service-to-Resource Mapping**: Currently, any room is valid for any service. A future enhancement could restrict certain services to specific resource types (e.g. "Facial" must be in a "Facial Bed").
-- **Auto-Confirmation Rules**: If the business decides, we could auto-confirm bookings from "Gold" customers or specific services while keeping others pending.
-
-**Verification Status:**
-- `pnpm type-check` ✅
-- `pnpm lint` ✅
-- `pnpm build` ✅ (52/52 pages)
+## Remaining Risks
+- Authenticated workspace workflows still need role-specific browser testing with real or seeded owner/manager/CRM/staff accounts.
+- `/driver` and `/utility` remain placeholder panels by design.
+- No database migrations or RLS changes were made during this stabilization pass.

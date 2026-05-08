@@ -12,5 +12,5 @@
 - `src/lib/supabase/client.ts` — browser Supabase client
 - `src/lib/supabase/server.ts` — server Supabase client
 - `src/lib/supabase/admin.ts` — service-role client (RLS bypass, server only)
-- `src/middleware.ts` — auth guard + role-based workspace routing
+- `src/proxy.ts` — auth guard + role-based workspace routing (Next.js 16 Proxy)
 - `supabase/migrations/` — database schema history

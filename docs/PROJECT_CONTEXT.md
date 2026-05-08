@@ -103,12 +103,12 @@ root/
 
 | Metric              | Value       |
 |----------------------|-------------|
-| **Phase**           | `Phase 1: Foundation` |
-| **Sprint**          | `Sprint 1`  |
-| **Completion**      | `0%`        |
+| **Phase**           | `Stabilization` |
+| **Sprint**          | `STABILITY-001`  |
+| **Completion**      | `Workspace audit pass complete; authenticated manual role QA remains`        |
 | **Last Agent**      | `Codex (GPT-5)` |
-| **Last Updated**    | `2026-05-01` |
-| **Blockers**        | `None`      |
+| **Last Updated**    | `2026-05-09` |
+| **Blockers**        | `No build/type/lint blockers; role-specific browser QA needs seeded credentials`      |
 
 ---
 
@@ -149,10 +149,10 @@ pnpm ui:add [component]     # Add shadcn/ui component
 
 ---
 
-## 🆕 Latest Agent Update (2026-05-01)
+## Latest Agent Update (2026-05-09)
 
-- Completed `STAFF-005`: mobile-focused My Week planner refinement for staff portal.
-- Added accessible mobile accordion interactions (`aria-expanded`, `aria-controls`) and compact tappable day rows.
-- Improved mobile layout rhythm: sticky compact header, compact week navigation, and compact 4-stat strip.
-- Added appointment status + booking type badges in week appointment rows while keeping mobile readability.
-- Preserved desktop 7-day board layout behavior and staff-scoped booking data.
+- Completed `STABILITY-001`: workspace route inventory, workflow inventory, stabilization checklist, and targeted blocker fixes.
+- Added explicit Today route aliases for manager and staff portal workspaces.
+- Fixed notification unread count refresh and missing driver/utility notification href targets.
+- Updated public booking success copy to match pending/front-desk-reviewed online booking behavior.
+- Verified lint, type-check, test, and build are passing.

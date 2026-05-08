@@ -1,49 +1,89 @@
-# CURRENT TASK: PUBLIC-MOBILE-RESET-001 — Approved Mobile Public UI Reset
+# CURRENT TASK: STABILITY-001 — Workspace Stabilization Audit & Fix Pass
 
 ## Overview
-Implement the approved mobile-only public website layout for Cradle Massage & Wellness Spa using:
+Run a workspace-by-workspace stabilization pass for CradleHub / Cradle Massage & Wellness Spa.
 
-`docs/design-references/cradle-mobile-public-ui-reference.png`
+This is a stabilization task, not a feature-building task.
 
 ## Scope
-- Public mobile pages only:
+- Public workflows:
   - `/`
   - `/services`
-  - `/book`
   - `/branches`
   - `/about`
   - `/contact`
-- Preserve existing desktop layouts at `md` and above.
-- Preserve booking, CRM, auth, routing, database, Supabase, and dashboard logic.
-
-## Implementation Plan
-1. Create mobile-only public components for the approved header, bottom nav, section/card patterns, home, services, branches, about, and contact.
-2. Render mobile components with `md:hidden`.
-3. Keep existing desktop components wrapped with `hidden md:block` where needed.
-4. Adjust the booking wizard presentation only on mobile while preserving all existing state, API calls, validation, and submit actions.
-5. Verify mobile route rendering and desktop stability.
-
-## Progress
-- [x] Read required `.context` and docs files.
-- [x] Inspected approved mobile reference image.
-- [x] Audited current public page structure and mobile split points.
-- [x] Reported pre-edit public page/mobile component audit.
-- [ ] Implement mobile-only public UI reset and polish existing reset scaffold.
-- [ ] Run lint, type-check, build.
-- [ ] Update changelog/handoff/errors/roadmap.
-
-## Route-by-Route Implementation Plan
-- `/` → keep existing desktop `HomePageSections`; refine `PublicMobileHome` to match screen 01 with dark image hero, two CTAs, experience cards, trust strip, and branded gallery teaser copy.
-- `/services` → keep desktop catalog; refine `PublicMobileServices` for screen 02 with image hero, category chips, compact real-data rows, correct public booking/inquiry rules, and show-more behavior.
-- `/book` → preserve `BookingWizard` state/API/server-action behavior; only adjust public mobile container, progress indicator, branch-card visuals, and bottom action spacing to match screen 03.
-- `/branches` → keep desktop branch page; refine `PublicMobileBranches` for screen 04 using real branch rows and safe neutral availability copy.
-- `/about` → keep desktop about page; refine `PublicMobileAbout` for screen 05 with image hero, story card, value icons, and dark CTA.
-- `/contact` → keep desktop contact page; wire `PublicMobileContact` to real branch rows and available contact methods for screen 06.
+  - `/book`
+  - `/staff-onboarding`
+- Admin workspaces:
+  - `/owner`
+  - `/manager`
+  - `/crm`
+  - `/staff-portal`
+- Specialized existing routes:
+  - `/driver`
+  - `/utility`
+  - `/dev`
 
 ## Guardrails
-- Do not touch booking logic.
-- Do not touch CRM logic.
-- Do not touch auth/routing.
-- Do not touch database/migrations.
-- Do not touch dashboard/workspace pages.
-- Do not redesign desktop.
+- Do not add new features.
+- Do not redesign UI unless a layout bug blocks workflow usage.
+- Do not change database schema unless absolutely required to fix a broken workflow.
+- Do not change auth/routing unless a workspace cannot be accessed correctly.
+- Do not create new modules or dependencies.
+- Do not rewrite working logic.
+- Preserve booking, CRM, staff portal, owner, manager, public flows, RLS, and Supabase booking rules.
+
+## Discovery Completed Before Implementation
+- Read required `.context` files and project docs.
+- Read local Next.js 16 guidance for App Router, Server/Client Components, Route Handlers, and Proxy.
+- Inventoried public, owner, manager, CRM, staff, specialized, auth, and API routes.
+- Created workflow inventory and stabilization test checklist in the active thread.
+
+## Initial Route Inventory Risks
+- `/manager/today` was not a concrete route; `/manager` serves Manager Today. Fixed with a redirect alias.
+- `/staff-portal/today` was not a concrete route; `/staff-portal` serves Staff Today. Fixed with a redirect alias.
+- `/driver` and `/utility` exist as owner-only placeholder panels.
+- Notification bell mapped driver/utility notification hrefs to missing routes. Fixed to point to the existing panels.
+- `docs/ARCHITECTURE.md` referenced `src/middleware.ts`, while this Next.js 16 repo uses `src/proxy.ts`. Fixed.
+
+## Implementation Plan
+1. Run baseline static checks:
+   - `pnpm lint`
+   - `pnpm type-check`
+   - `pnpm build`
+2. Stabilize blockers in priority order:
+   - build/type/lint blockers
+   - auth/routing blockers
+   - public booking blockers
+   - CRM booking blockers
+   - owner/manager permission blockers
+   - staff visibility blockers
+   - notification lifecycle bugs
+   - workflow-blocking UI bugs only
+3. Run focused static/browser/manual checks for the stabilized workflows.
+4. Update context files and commit with a conventional stabilization message.
+
+## Progress
+- [x] Read required context and docs.
+- [x] Complete no-edit route discovery.
+- [x] Produce route inventory, workflow inventory, and stabilization test plan.
+- [x] Run baseline lint/type-check/build.
+- [x] Fix stabilization blockers only.
+- [x] Run final regression checks.
+- [x] Update `.context` files and docs.
+- [ ] Commit stabilization pass.
+
+## Bugs Fixed
+- Public booking success copy now matches the current online-booking behavior: public bookings are received for front-desk review instead of presented as immediately confirmed.
+- Notification bell now refreshes the unread badge from the full unread-count query instead of only the limited popover results.
+- Driver and utility notification "View all" links now point to existing routes instead of missing `/driver/notifications` and `/utility/notifications` pages.
+- Added lightweight redirect aliases for `/manager/today` and `/staff-portal/today` to the existing Today pages.
+
+## Verification
+- `pnpm lint`: passing.
+- `pnpm type-check`: passing.
+- `pnpm test`: passing, 70 tests. Normal sandbox hit the known Vitest `spawn EPERM`; elevated run passed.
+- `pnpm build`: passing, 68 app routes.
+- Public HTTP route checks on local server: `/`, `/services`, `/branches`, `/about`, `/contact`, `/book`, `/book/confirm`, `/book/success`, `/products`, `/staff-onboarding`, `/login` returned 200.
+- Unauthenticated protected route checks returned redirects for owner, manager, CRM, staff, driver, utility, and dev routes.
+- `/api/public/booking-context` returned branch/service context and booking rules.

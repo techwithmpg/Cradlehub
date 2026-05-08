@@ -856,3 +856,50 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 - `pnpm type-check` ✅
 - `pnpm lint` ✅
 - `pnpm build` ✅ (52/52 pages)
+
+---
+
+### 2026-05-09 — Codex (STABILITY-001 — Workspace Stabilization Audit and Fix Pass)
+
+**Task:** Audit public and workspace routes, identify stabilization risks, fix workflow blockers only, and verify the app remains buildable.
+
+**Route / workflow audit completed:**
+- Public: `/`, `/services`, `/branches`, `/about`, `/contact`, `/book`, `/staff-onboarding`, plus existing `/products` and legacy booking guide routes.
+- Owner: dashboard, bookings, branches, branch details/rules/resources, services, staff, onboarding, marketing, notifications, reports, schedule.
+- Manager: dashboard/today, schedule, bookings, staff, onboarding, resources, operations, settings, reports, notifications.
+- CRM: root redirect, today, bookings, new booking, customers, customer detail, schedule, waitlist, reconciliation, repeats, lapsed, notifications.
+- Staff: portal/today, week, stats, profile, notifications.
+- Specialized: `/driver`, `/utility`, `/dev`.
+
+**Files Changed:**
+- `.context/CURRENT_TASK.cmd.md` — switched active task to STABILITY-001 and logged audit/fix status.
+- `.context/ERRORS.cmd.md` — logged stabilization issues, Vitest sandbox worker blocker, and interrupted server cleanup.
+- `.context/HANDOFF.cmd.md` — updated handoff for the stabilization pass.
+- `docs/ARCHITECTURE.md` — corrected auth guard reference from `src/middleware.ts` to `src/proxy.ts`.
+- `docs/PROJECT_CONTEXT.md` — updated current status and latest agent update.
+- `docs/ROADMAP.md` — added stabilization audit log entry.
+- `src/app/(dashboard)/manager/today/page.tsx` — added redirect alias to `/manager`.
+- `src/app/(dashboard)/staff-portal/today/page.tsx` — added redirect alias to `/staff-portal`.
+- `src/app/(public)/book/success/page.tsx` — changed booking success copy from confirmed to request-received language.
+- `src/components/features/notifications/notification-bell.tsx` — fixed unread count refresh to use the full unread count and redirected driver/utility notification links to existing panels.
+
+**Bugs Fixed:**
+- Public booking success page incorrectly implied online bookings were confirmed immediately, while current online booking behavior creates pending/front-desk-reviewed requests.
+- Notification bell could undercount unread notifications after opening the popover because it derived the badge from only the limited popover result set.
+- Driver and utility notification "View all" links pointed to missing `/driver/notifications` and `/utility/notifications` routes.
+- `/manager/today` and `/staff-portal/today` were missing even though the audit checklist called them out as workspace Today routes.
+- Architecture docs referenced the deprecated/missing `src/middleware.ts` instead of the active Next.js 16 `src/proxy.ts`.
+
+**Verification:**
+- `pnpm lint`: passing.
+- `pnpm type-check`: passing.
+- `pnpm test`: passing, 70 tests after elevated rerun for the known sandbox `spawn EPERM` worker issue.
+- `pnpm build`: passing, 68 app routes.
+- Public HTTP checks returned 200 for `/`, `/services`, `/branches`, `/about`, `/contact`, `/book`, `/book/confirm`, `/book/success`, `/products`, `/staff-onboarding`, and `/login`.
+- Unauthenticated protected route checks returned redirects for owner, manager, CRM, staff portal, driver, utility, and dev routes.
+
+**Scope Confirmation:**
+- No new features added.
+- No database schema or migration changes.
+- No booking logic, CRM logic, Supabase booking rules, or RLS policy changes.
+- No new dependencies.
