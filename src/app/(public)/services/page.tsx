@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, MessageCircle } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { ServiceCatalogClient } from "@/components/public/service-catalog-client";
+import { PublicMobileServices } from "@/components/public/mobile/public-mobile-services";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 
 export const metadata: Metadata = {
@@ -25,6 +26,8 @@ export default async function ServicesPage() {
 
   return (
     <div className="sp-public">
+      <PublicMobileServices services={services} />
+      <div className="hidden md:block">
       <section className="relative overflow-hidden bg-[#10261D] pt-32 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
         <div className="absolute inset-0">
           <Image
@@ -86,7 +89,7 @@ export default async function ServicesPage() {
       </section>
 
       <ServiceCatalogClient services={services} />
+      </div>
     </div>
   );
 }
-

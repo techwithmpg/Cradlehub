@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
+import { PublicMobileAbout } from "@/components/public/mobile/public-mobile-about";
 import { Heart, Award, Sparkles, Leaf } from "lucide-react";
 
 const values = [
@@ -29,6 +30,8 @@ const values = [
 export default function AboutPage() {
   return (
     <div className="sp-public">
+      <PublicMobileAbout />
+      <div className="hidden md:block">
       {/* Dark hero — matches mobile header */}
       <div
         className="pt-28 pb-14 lg:pt-36 lg:pb-20"
@@ -187,6 +190,7 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 }

@@ -2,26 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Sparkles, CalendarDays, MapPin, Phone } from "lucide-react";
+import { Home, Sparkles, CalendarDays, MapPin, Menu } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Home",     href: "/",         icon: Home },
   { label: "Services", href: "/services",  icon: Sparkles },
   { label: "Book",     href: "/book",      icon: CalendarDays },
   { label: "Branches", href: "/branches",  icon: MapPin },
-  { label: "Contact",  href: "/contact",   icon: Phone },
+  { label: "Menu",     href: "/contact",   icon: Menu },
 ] as const;
-
-// Routes where the bottom nav should be hidden (booking wizard has its own Continue button)
-const HIDDEN_PATHS = ["/book/", "/book?"];
 
 export function PublicBottomNav() {
   const pathname = usePathname();
 
-  // Hide on booking wizard sub-pages
-  const isBookingFlow =
-    pathname.startsWith("/book/") ||
-    (pathname !== "/book" && pathname.startsWith("/book"));
+  // Hide during booking; the wizard has its own fixed mobile action bar.
+  const isBookingFlow = pathname === "/book" || pathname.startsWith("/book/");
 
   if (isBookingFlow) return null;
 

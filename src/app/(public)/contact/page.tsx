@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
+import { PublicMobileContact } from "@/components/public/mobile/public-mobile-contact";
+import { getAllBranches } from "@/lib/queries/branches";
 import { Phone, MapPin, Clock, MessageSquare } from "lucide-react";
 
 function IconFacebook({ className }: { className?: string }) {
@@ -20,9 +22,13 @@ function IconInstagram({ className }: { className?: string }) {
   );
 }
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const branches = await getAllBranches();
+
   return (
     <div className="sp-public">
+      <PublicMobileContact branches={branches} />
+      <div className="hidden md:block">
       {/* Dark hero — matches mobile header */}
       <div
         className="pt-28 pb-14 lg:pt-36 lg:pb-20"
@@ -264,6 +270,7 @@ export default function ContactPage() {
           </ScrollReveal>
         </div>
       </section>
+      </div>
     </div>
   );
 }

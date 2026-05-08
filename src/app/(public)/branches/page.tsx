@@ -1,6 +1,7 @@
 import { getAllBranches } from "@/lib/queries/branches";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
-import { MapPin, Phone, Mail, Clock, ArrowRight, Navigation } from "lucide-react";
+import { PublicMobileBranches } from "@/components/public/mobile/public-mobile-branches";
+import { MapPin, Phone, Mail, Clock, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 export default async function BranchesPage() {
@@ -8,6 +9,8 @@ export default async function BranchesPage() {
 
   return (
     <div className="sp-public">
+      <PublicMobileBranches branches={branches} />
+      <div className="hidden md:block">
       {/* Dark hero — matches mobile header */}
       <div
         className="pt-28 pb-14 lg:pt-36 lg:pb-20"
@@ -121,6 +124,7 @@ export default async function BranchesPage() {
           )}
         </div>
       </section>
+      </div>
     </div>
   );
 }

@@ -103,12 +103,22 @@ const STEPS_HS = [
   { id: 7, name: "details",   label: "Details" },
 ];
 
+const MOBILE_PROGRESS_STEPS = ["Branch", "Service", "Date & Time", "Details", "Confirm"] as const;
+
 function getSteps(isHomeService: boolean) {
   return isHomeService ? STEPS_HS : STEPS_BASE;
 }
 
 function getStepName(stepNum: number, isHomeService: boolean): string {
   return (getSteps(isHomeService).find((s) => s.id === stepNum)?.name) ?? "branch";
+}
+
+function getMobileProgressIndex(stepName: string) {
+  if (stepName === "branch") return 0;
+  if (stepName === "date_time") return 2;
+  if (stepName === "details" || stepName === "therapist") return 3;
+  if (stepName === "success") return 4;
+  return 1;
 }
 
 const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
@@ -343,7 +353,7 @@ export function BookingWizard({
         setLoadingServices(false);
       });
     return () => clearTimeout(id);
-  }, [selectedBranch]);
+  }, [mode, selectedBranch]);
 
   // Fetch existing HS bookings for dispatch filtering (home_service + date known)
   useEffect(() => {
@@ -528,11 +538,12 @@ export function BookingWizard({
     : currentStepName === "therapist" ? true
     : currentStepName === "details"  ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7 && hsAddressFilled
     : false;
+  const mobileProgressIndex = getMobileProgressIndex(currentStepName);
 
   return (
-    <div className={mode === "public" ? "min-h-screen" : ""} style={{ background: mode === "public" ? "#F7F3EB" : "transparent" }}>
+    <div className={mode === "public" ? "min-h-screen pt-14 md:pt-0" : ""} style={{ background: mode === "public" ? "#F7F3EB" : "transparent" }}>
       {mode === "public" && (
-        <div className="relative pt-28 pb-12 lg:pt-32 lg:pb-16 overflow-hidden">
+        <div className="relative hidden overflow-hidden pt-28 pb-12 md:block lg:pt-32 lg:pb-16">
           <div className="absolute inset-0">
             <Image
               src={SPA_IMAGES.booking}
@@ -566,10 +577,52 @@ export function BookingWizard({
         </div>
       )}
 
-      <div className={mode === "public" ? "mx-auto max-w-5xl px-6 py-10 lg:py-14" : "mx-auto max-w-6xl py-2"}>
+      <div className={mode === "public" ? "mx-auto max-w-5xl px-4 pb-32 pt-7 md:px-6 md:py-10 lg:py-14" : "mx-auto max-w-6xl py-2"}>
+        {mode === "public" && currentStepName !== "success" && (
+          <div className="mb-5 text-center md:hidden">
+            <h1 className="text-[19px] font-semibold text-[#10261D]">
+              Book an Appointment
+            </h1>
+          </div>
+        )}
+
+        {mode === "public" && currentStepName !== "success" && (
+          <div className="mb-8 md:hidden">
+            <div className="flex items-start justify-between">
+              {MOBILE_PROGRESS_STEPS.map((label, index) => (
+                <div key={label} className="relative flex flex-1 flex-col items-center">
+                  {index < MOBILE_PROGRESS_STEPS.length - 1 && (
+                    <span
+                      className={`absolute left-1/2 top-3 h-px w-full ${
+                        mobileProgressIndex > index ? "bg-[#063D2D]" : "bg-[#D8C8AA]"
+                      }`}
+                    />
+                  )}
+                  <span
+                    className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                      mobileProgressIndex >= index
+                        ? "border-[#063D2D] bg-[#063D2D] text-[#FCFAF5]"
+                        : "border-[#D8C8AA] bg-[#FBF6EC] text-[#A79A86]"
+                    }`}
+                  >
+                    {mobileProgressIndex > index ? <Check className="h-3 w-3" /> : index + 1}
+                  </span>
+                  <span
+                    className={`mt-2 text-center text-[9.5px] font-medium leading-3 ${
+                      mobileProgressIndex >= index ? "text-[#10261D]" : "text-[#857967]"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Stepper */}
         {currentStepName !== "success" && (
-          <div className="flex items-center justify-center mb-12">
+          <div className="mb-12 hidden items-center justify-center md:flex">
             <div className="flex items-center gap-0.5 sm:gap-2">
               {steps.map((s, i) => (
                 <div key={s.id} className="flex items-center gap-0.5 sm:gap-2">
@@ -690,11 +743,18 @@ export function BookingWizard({
 
             {/* Navigation */}
             {currentStepName !== "success" && (
-              <div className="flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]">
+              <div
+                className={
+                  mode === "public"
+                    ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#EDE4D3] bg-[#FBF6EC]/95 px-4 py-3 shadow-[0_-8px_22px_rgba(16,38,29,0.12)] backdrop-blur md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
+                    : "flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]"
+                }
+                style={{ paddingBottom: mode === "public" ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined }}
+              >
                 <button
                   onClick={handleBack}
                   disabled={currentStepName === "branch"}
-                  className="flex items-center gap-2 text-[13px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:text-[#163A2B]"
+                  className="flex min-h-11 items-center gap-2 text-[13px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:text-[#163A2B]"
                   style={{ color: "#6B7A6F" }}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -704,13 +764,12 @@ export function BookingWizard({
                   <button
                     onClick={() => setStep(step + 1)}
                     disabled={!canProceed}
-                    className="inline-flex items-center gap-2 rounded-full px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg"
-                    style={{
-                      background: canProceed
-                        ? "linear-gradient(135deg, #C8A96B, #B68A3C)"
-                        : "#EDE4D3",
-                      color: canProceed ? "#10261D" : "#9AA89A",
-                    }}
+                    className={[
+                      "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
+                      canProceed
+                        ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
+                        : "bg-[#EDE4D3] text-[#9AA89A]",
+                    ].join(" ")}
                   >
                     Continue
                     <ChevronRight className="h-4 w-4" />
@@ -719,13 +778,12 @@ export function BookingWizard({
                   <button
                     onClick={handleSubmit}
                     disabled={!canProceed || submitting}
-                    className="inline-flex items-center gap-2 rounded-full px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg"
-                    style={{
-                      background: canProceed
-                        ? "linear-gradient(135deg, #C8A96B, #B68A3C)"
-                        : "#EDE4D3",
-                      color: canProceed ? "#10261D" : "#9AA89A",
-                    }}
+                    className={[
+                      "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
+                      canProceed
+                        ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
+                        : "bg-[#EDE4D3] text-[#9AA89A]",
+                    ].join(" ")}
                   >
                     {submitting ? (
                       <>
@@ -949,27 +1007,36 @@ function StepBranches({
   return (
     <div>
       <h2
-        className="text-2xl font-medium mb-2"
+        className="mb-2 text-[18px] font-semibold md:text-2xl md:font-medium"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
-        Choose a Location
+        Select Branch
       </h2>
-      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
-        Select the branch you would like to visit for your appointment.
+      <p className="mb-5 text-[13px] leading-6 md:mb-8 md:text-[14px]" style={{ color: "#6B7A6F" }}>
+        Please choose the branch where you would like to book.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
-        {branches.map((branch) => (
+        {branches.map((branch, index) => (
           <button
             key={branch.id}
             onClick={() => onSelect(branch)}
-            className={`flex items-start gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
+            className={`grid grid-cols-[84px_1fr_auto] gap-3 rounded-[10px] border p-3 text-left transition-all duration-300 md:flex md:items-start md:gap-4 md:rounded-xl md:p-5 ${
               selected?.id === branch.id
-                ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+                ? "border-[#063D2D] bg-white shadow-[0_8px_22px_rgba(16,38,29,0.08)] md:border-[#C8A96B] md:bg-[#C8A96B]/5 md:shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
                 : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
             }`}
           >
+            <div className="relative h-[92px] overflow-hidden rounded-[7px] bg-[#E9DDC8] md:hidden">
+              <Image
+                src={index % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking}
+                alt={`${branch.name} branch`}
+                fill
+                className="object-cover"
+                sizes="84px"
+              />
+            </div>
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-lg shrink-0 ${
+              className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg md:flex ${
                 selected?.id === branch.id
                   ? "bg-[#163A2B] text-[#C8A96B]"
                   : "bg-[#163A2B]/5 text-[#163A2B]"
@@ -977,15 +1044,32 @@ function StepBranches({
             >
               <MapPin className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
+              <span className="inline-flex rounded-full bg-[#F6E8C8] px-2 py-1 text-[10px] font-semibold text-[#9A6A1F] md:hidden">
+                Services vary by branch
+              </span>
               <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
                 {branch.name}
               </p>
               {branch.address && (
-                <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
+                <p className="mt-1 line-clamp-2 text-[11px] leading-4 md:text-[12px]" style={{ color: "#6B7A6F" }}>
                   {branch.address}
                 </p>
               )}
+              <p className="mt-2 text-[10.5px] text-[#3F4F44] md:hidden">
+                Open daily · 10:00 AM - 10:00 PM
+              </p>
+            </div>
+            <div className="flex items-center justify-center self-center md:hidden">
+              <span
+                className={`flex h-6 w-6 items-center justify-center rounded-full border ${
+                  selected?.id === branch.id
+                    ? "border-[#063D2D] bg-[#063D2D] text-[#FCFAF5]"
+                    : "border-[#A79A86] bg-white text-transparent"
+                }`}
+              >
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
             </div>
           </button>
         ))}

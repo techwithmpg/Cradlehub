@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { PublicBottomNav } from "@/components/public/public-bottom-nav";
 import { SiteFooter } from "@/components/public/site-footer";
 import { SiteHeader } from "@/components/public/site-header";
 import { HomePageSections } from "@/components/public/home-page-sections";
+import { PublicMobileHome } from "@/components/public/mobile/public-mobile-home";
 
 export const metadata: Metadata = {
   title:
@@ -28,10 +30,14 @@ export default function HomePage() {
   return (
     <div className="sp-public">
       <SiteHeader />
-      <main>
-        <HomePageSections />
+      <main className="pb-20 md:pb-0">
+        <PublicMobileHome />
+        <div className="hidden md:block">
+          <HomePageSections />
+        </div>
       </main>
       <SiteFooter />
+      <PublicBottomNav />
     </div>
   );
 }
