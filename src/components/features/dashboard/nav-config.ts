@@ -19,6 +19,7 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { label: "Branches", href: "/owner/branches", icon: "Building2" },
   { label: "Staff", href: "/owner/staff", icon: "Users" },
   { label: "Services", href: "/owner/services", icon: "Sparkles" },
+  { label: "Notifications", href: "/owner/notifications", icon: "Bell" },
   { label: "Dev Panel", href: "/dev", icon: "Wrench" },
 ];
 
@@ -31,6 +32,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Operations", href: "/manager/operations", icon: "Monitor" },
   { label: "Settings", href: "/manager/settings", icon: "Settings" },
   { label: "Reports", href: "/manager/reports", icon: "BarChart2" },
+  { label: "Notifications", href: "/manager/notifications", icon: "Bell" },
 ];
 
 const CRM_NAV_ITEMS: NavItem[] = [
@@ -42,6 +44,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Lapsed", href: "/crm/lapsed", icon: "ClockAlert" },
   { label: "Waitlist", href: "/crm/waitlist", icon: "UserPlus" },
   { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
+  { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
 ];
 
 const CSR_HEAD_NAV_ITEMS: NavItem[] = [
@@ -51,6 +54,7 @@ const CSR_HEAD_NAV_ITEMS: NavItem[] = [
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Waitlist", href: "/crm/waitlist", icon: "UserPlus" },
   { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
+  { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
 ];
 
 const CSR_STAFF_NAV_ITEMS: NavItem[] = [
@@ -59,6 +63,7 @@ const CSR_STAFF_NAV_ITEMS: NavItem[] = [
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
+  { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
 ];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
@@ -66,6 +71,7 @@ const STAFF_NAV_ITEMS: NavItem[] = [
   { label: "My Week", href: "/staff-portal/week", icon: "CalendarDays" },
   { label: "My Stats", href: "/staff-portal/stats", icon: "TrendingUp" },
   { label: "Profile", href: "/staff-portal/profile", icon: "User" },
+  { label: "Notifications", href: "/staff-portal/notifications", icon: "Bell" },
 ];
 
 const DRIVER_NAV_ITEMS: NavItem[] = [

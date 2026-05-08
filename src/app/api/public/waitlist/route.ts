@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  createNotification({
+  await createNotification({
     branchId: d.branchId,
     targetWorkspace: "crm",
     type: "waitlist_request_submitted",

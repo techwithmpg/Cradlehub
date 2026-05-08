@@ -6,7 +6,7 @@
 -- Reads/updates are enforced by RLS per workspace/branch/recipient.
 -- =============================================================================
 
-CREATE TABLE public.workspace_notifications (
+CREATE TABLE IF NOT EXISTS public.workspace_notifications (
   id                  uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
   branch_id           uuid         REFERENCES public.branches(id)  ON DELETE CASCADE,
   target_workspace    text         NOT NULL,
@@ -43,21 +43,21 @@ COMMENT ON TABLE public.workspace_notifications IS
 
 -- ── Indexes ───────────────────────────────────────────────────────────────
 
-CREATE INDEX workspace_notifications_workspace_branch_status_idx
+CREATE INDEX IF NOT EXISTS workspace_notifications_workspace_branch_status_idx
   ON public.workspace_notifications (target_workspace, branch_id, status);
 
-CREATE INDEX workspace_notifications_recipient_status_idx
+CREATE INDEX IF NOT EXISTS workspace_notifications_recipient_status_idx
   ON public.workspace_notifications (recipient_staff_id, status)
   WHERE recipient_staff_id IS NOT NULL;
 
-CREATE INDEX workspace_notifications_type_created_idx
+CREATE INDEX IF NOT EXISTS workspace_notifications_type_created_idx
   ON public.workspace_notifications (type, created_at DESC);
 
-CREATE INDEX workspace_notifications_action_status_idx
+CREATE INDEX IF NOT EXISTS workspace_notifications_action_status_idx
   ON public.workspace_notifications (requires_action, status)
   WHERE requires_action = true;
 
-CREATE INDEX workspace_notifications_entity_idx
+CREATE INDEX IF NOT EXISTS workspace_notifications_entity_idx
   ON public.workspace_notifications (entity_type, entity_id)
   WHERE entity_type IS NOT NULL;
 
@@ -65,12 +65,20 @@ CREATE INDEX workspace_notifications_entity_idx
 
 ALTER TABLE public.workspace_notifications ENABLE ROW LEVEL SECURITY;
 
--- Owner: full read/update on all notifications
+-- Owner: full read/update on all notifications. Inserts still go through
+-- service-role server helpers; deletes are intentionally not exposed.
 DROP POLICY IF EXISTS "notif_owner_all" ON public.workspace_notifications;
-CREATE POLICY "notif_owner_all"
-  ON public.workspace_notifications FOR ALL
+DROP POLICY IF EXISTS "notif_owner_read" ON public.workspace_notifications;
+CREATE POLICY "notif_owner_read"
+  ON public.workspace_notifications FOR SELECT
   TO authenticated
-  USING  (get_auth_role() = 'owner')
+  USING (get_auth_role() = 'owner');
+
+DROP POLICY IF EXISTS "notif_owner_update" ON public.workspace_notifications;
+CREATE POLICY "notif_owner_update"
+  ON public.workspace_notifications FOR UPDATE
+  TO authenticated
+  USING (get_auth_role() = 'owner')
   WITH CHECK (get_auth_role() = 'owner');
 
 -- Manager: own-branch manager notifications only
@@ -148,6 +156,33 @@ CREATE POLICY "notif_staff_own_update"
   WITH CHECK (
     get_auth_role() = 'staff'
     AND target_workspace = 'staff'
+    AND recipient_staff_id = get_auth_staff_id()
+  );
+
+-- Driver/utility workspaces, if those roles are enabled later, are still
+-- recipient-scoped and cannot see branch/manager/CRM notifications.
+DROP POLICY IF EXISTS "notif_driver_utility_own" ON public.workspace_notifications;
+CREATE POLICY "notif_driver_utility_own"
+  ON public.workspace_notifications FOR SELECT
+  TO authenticated
+  USING (
+    get_auth_role() IN ('driver','utility')
+    AND target_workspace = get_auth_role()
+    AND recipient_staff_id = get_auth_staff_id()
+  );
+
+DROP POLICY IF EXISTS "notif_driver_utility_own_update" ON public.workspace_notifications;
+CREATE POLICY "notif_driver_utility_own_update"
+  ON public.workspace_notifications FOR UPDATE
+  TO authenticated
+  USING (
+    get_auth_role() IN ('driver','utility')
+    AND target_workspace = get_auth_role()
+    AND recipient_staff_id = get_auth_staff_id()
+  )
+  WITH CHECK (
+    get_auth_role() IN ('driver','utility')
+    AND target_workspace = get_auth_role()
     AND recipient_staff_id = get_auth_staff_id()
   );
 

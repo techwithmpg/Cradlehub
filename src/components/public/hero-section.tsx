@@ -16,7 +16,7 @@ export function HeroSection() {
       <div className="absolute inset-0">
         <Image
           src={SPA_IMAGES.hero}
-          alt="Luxury spa treatment room"
+          alt="Calming Cradle spa treatment room"
           fill
           priority
           className="object-cover"
@@ -86,8 +86,8 @@ export function HeroSection() {
                 className="text-[15px] sm:text-[16px] leading-relaxed mb-10 max-w-lg mx-auto"
                 style={{ color: "rgba(247,243,235,0.78)" }}
               >
-                Experience luxury massage and wellness treatments in a calm, restorative space.
-                Let our skilled therapists guide you back to balance.
+                Experience massage and wellness treatments in a calm, restorative space.
+                Let our team help you slow down, settle in, and feel cared for.
               </p>
 
               {/* CTA row */}

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -74,6 +75,10 @@ export async function updateWaitlistStatusAction(rawInput: unknown) {
     .eq("id", d.requestId);
 
   if (error) return { ok: false as const, error: error.message };
+
+  if (d.status !== "waiting") {
+    await resolveNotificationsForEntity("waitlist_request", d.requestId, "crm");
+  }
 
   revalidatePath("/crm/waitlist");
   return { ok: true as const };

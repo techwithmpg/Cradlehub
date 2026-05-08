@@ -1,5 +1,4 @@
-// Server-only module — never import from client components.
-// All inserts bypass RLS via the admin client (service role).
+import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CreateNotificationInput, NotificationWorkspace } from "./types";
@@ -26,6 +25,30 @@ function validateHref(href: string | null | undefined): string | null {
 export async function createNotification(input: CreateNotificationInput): Promise<void> {
   try {
     const admin = createAdminClient();
+
+    if (input.entityType && input.entityId) {
+      let existingQuery = admin
+        .from("workspace_notifications")
+        .select("id")
+        .eq("target_workspace", input.targetWorkspace)
+        .eq("type", input.type)
+        .eq("entity_type", input.entityType)
+        .eq("entity_id", input.entityId)
+        .in("status", ["unread", "read"]);
+
+      existingQuery = input.branchId
+        ? existingQuery.eq("branch_id", input.branchId)
+        : existingQuery.is("branch_id", null);
+
+      existingQuery = input.recipientStaffId
+        ? existingQuery.eq("recipient_staff_id", input.recipientStaffId)
+        : existingQuery.is("recipient_staff_id", null);
+
+      const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+
+      if (!existingError && existing) return;
+    }
+
     const { error } = await admin.from("workspace_notifications").insert({
       branch_id:          input.branchId          ?? null,
       target_workspace:   input.targetWorkspace,
@@ -60,11 +83,29 @@ export async function createOwnerAndManagerNotification(
   ]);
 }
 
+export async function createBranchWorkspaceNotification(
+  input: Omit<CreateNotificationInput, "targetWorkspace"> & {
+    branchId: string;
+    targetWorkspace: Extract<NotificationWorkspace, "manager" | "crm">;
+  }
+): Promise<void> {
+  await createNotification(input);
+}
+
+export async function createStaffNotification(
+  input: Omit<CreateNotificationInput, "targetWorkspace"> & {
+    recipientStaffId: string;
+  }
+): Promise<void> {
+  await createNotification({ ...input, targetWorkspace: "staff" });
+}
+
 // Resolve (close) all unread/action-required notifications for a given entity.
 export async function resolveNotificationsForEntity(
   entityType: string,
   entityId: string,
-  targetWorkspace?: NotificationWorkspace
+  targetWorkspace?: NotificationWorkspace,
+  type?: CreateNotificationInput["type"]
 ): Promise<void> {
   try {
     const admin = createAdminClient();
@@ -77,6 +118,10 @@ export async function resolveNotificationsForEntity(
 
     if (targetWorkspace) {
       query = query.eq("target_workspace", targetWorkspace);
+    }
+
+    if (type) {
+      query = query.eq("type", type);
     }
 
     const { error } = await query;

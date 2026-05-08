@@ -6,23 +6,23 @@ import { Heart, Award, Sparkles, Leaf } from "lucide-react";
 const values = [
   {
     icon: Leaf,
-    title: "Natural Healing",
-    desc: "We use premium natural oils and time-honored techniques that work in harmony with your body.",
+    title: "Wellness-Led Care",
+    desc: "We focus on calm, comfort, and thoughtful techniques that support everyday rest and renewal.",
   },
   {
     icon: Award,
-    title: "Certified Expertise",
-    desc: "Our therapists undergo rigorous training and hold certifications in therapeutic and relaxation massage.",
+    title: "Thoughtful Technique",
+    desc: "Our team brings attentive service to each session, with pressure and pacing guided by your comfort.",
   },
   {
     icon: Heart,
     title: "Whole-Person Care",
-    desc: "We treat more than muscles — we create space for mental calm, emotional release, and physical renewal.",
+    desc: "We create space for the body to rest, the mind to settle, and your day to slow down.",
   },
   {
     icon: Sparkles,
-    title: "Impeccable Standards",
-    desc: "From sanitation to ambiance, every detail is curated to ensure a safe, luxurious, and restorative experience.",
+    title: "Carefully Kept Standards",
+    desc: "From clean spaces to warm details, every visit is prepared to feel comfortable and cared for.",
   },
 ];
 
@@ -77,16 +77,15 @@ export default function AboutPage() {
                   <p>
                     Cradle Massage & Wellness Spa was born from a simple belief: that everyone deserves
                     a place to pause, breathe, and be cared for. In the heart of Bacolod City, we have
-                    created a sanctuary where the outside world fades and your wellness takes center stage.
+                    created a calming space where the outside world can soften and your wellness takes center stage.
                   </p>
                   <p>
-                    Our founders, passionate about holistic healing and Filipino hospitality, envisioned
-                    a spa that blends traditional therapeutic techniques with modern luxury. Every
-                    treatment room, every scent, every touch is designed to guide you back to your
-                    most balanced self.
+                    Our approach blends familiar Filipino hospitality with a warm spa experience. Every
+                    treatment room, every scent, and every thoughtful detail is designed to help you
+                    feel present, rested, and cared for.
                   </p>
                   <p>
-                    Whether you seek relief from chronic tension, a moment of quiet escape, or a shared
+                    Whether you seek relief from everyday tension, a moment of quiet escape, or a shared
                     experience with someone you love, Cradle is here to hold space for your renewal.
                   </p>
                 </div>
@@ -153,17 +152,17 @@ export default function AboutPage() {
                 </h2>
                 <div className="flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "#6B7A6F" }}>
                   <p>
-                    From the moment you arrive, you are wrapped in calm. Soft lighting, gentle aromatherapy,
-                    and warm herbal tea set the tone before your treatment even begins.
+                    From the moment you arrive, you are welcomed into calm. Soft lighting, quiet details,
+                    and a slower pace set the tone before your treatment even begins.
                   </p>
                   <p>
-                    Our therapists take time to understand your needs — whether it is targeting a specific
+                    Our therapists take time to understand your needs, whether it is targeting a specific
                     area of tension or simply creating space for deep relaxation. No two sessions are alike
                     because no two bodies are alike.
                   </p>
                   <p>
-                    After your treatment, linger in our relaxation lounge. Let the benefits settle. Leave
-                    when you are ready, carrying the calm with you into the rest of your day.
+                    After your treatment, take a quiet moment before returning to your day. Let the calm
+                    settle in and carry it with you beyond the spa.
                   </p>
                 </div>
               </ScrollReveal>

@@ -19,6 +19,7 @@ import { validateBookingAgainstBranchRules, getBranchBookingRulesOrDefault } fro
 import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-conflict";
 import { geocodeAddress, buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { SlotUnavailableError } from "@/types/errors";
+import { createNotification } from "@/lib/notifications/create";
 
 export type CreateOnlineBookingResult =
   | { ok: true; bookingId: string }
@@ -165,6 +166,34 @@ export async function createOnlineBookingAction(
         message: "Could not create booking. The slot may have been taken. Please select a different time.",
       };
     }
+
+    await Promise.all([
+      createNotification({
+        branchId: d.branchId,
+        targetWorkspace: "staff",
+        recipientStaffId: resolvedStaffId,
+        type: "booking_assigned",
+        title: "New booking assigned",
+        body: `You have a new booking on ${d.date} at ${d.startTime}.`,
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: "/staff-portal",
+        priority: "normal",
+        requiresAction: false,
+      }),
+      createNotification({
+        branchId: d.branchId,
+        targetWorkspace: "crm",
+        type: "payment_pending",
+        title: "Payment needs follow-up",
+        body: "A public booking payment is unpaid or pending confirmation.",
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: "/crm/bookings",
+        priority: "normal",
+        requiresAction: true,
+      }),
+    ]);
 
     return { ok: true, bookingId: booking.id };
   } catch (err) {
@@ -426,6 +455,72 @@ export async function createOnlineBookingMultiAction(
       insertedIds.push(booking.id);
       currentStart = endTime;
     }
+
+    const isHSMulti = d.type === "home_service";
+    const notificationJobs: Promise<void>[] = [
+      createNotification({
+      branchId: d.branchId,
+      targetWorkspace: "staff",
+      recipientStaffId: resolvedStaffId,
+      type: isHSMulti ? "home_service_assigned" : "booking_assigned",
+      title: isHSMulti ? "Home Service booking assigned" : "New booking assigned",
+      body: `You have a ${isHSMulti ? "Home Service" : "new"} booking on ${d.date} at ${d.startTime}.`,
+      entityType: "booking",
+      entityId: insertedIds[0],
+      actionHref: "/staff-portal",
+      priority: isHSMulti ? "high" : "normal",
+      requiresAction: isHSMulti,
+      metadata: insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
+      }),
+      createNotification({
+        branchId: d.branchId,
+        targetWorkspace: "crm",
+        type: "payment_pending",
+        title: "Payment needs follow-up",
+        body: "A public booking payment is unpaid or pending confirmation.",
+        entityType: "booking",
+        entityId: insertedIds[0],
+        actionHref: "/crm/bookings",
+        priority: "normal",
+        requiresAction: true,
+      }),
+    ];
+
+    if (isHSMulti && dispatchData.needs_location_review === true) {
+      notificationJobs.push(
+        createNotification({
+          branchId: d.branchId,
+          targetWorkspace: "crm",
+          type: "home_service_location_review",
+          title: "Home Service location needs review",
+          body: "A Home Service booking needs location or driver review.",
+          entityType: "booking",
+          entityId: insertedIds[0],
+          actionHref: "/crm/today",
+          priority: "high",
+          requiresAction: true,
+        })
+      );
+    }
+
+    if (isHSMulti && typeof dispatchData.dispatch_warning === "string") {
+      notificationJobs.push(
+        createNotification({
+          branchId: d.branchId,
+          targetWorkspace: "crm",
+          type: "home_service_dispatch_conflict",
+          title: "Possible Home Service dispatch conflict",
+          body: "A Home Service booking may clash with another location or driver capacity.",
+          entityType: "booking",
+          entityId: insertedIds[0],
+          actionHref: "/crm/today",
+          priority: "high",
+          requiresAction: true,
+        })
+      );
+    }
+
+    await Promise.all(notificationJobs);
 
     return { ok: true, bookingId: insertedIds[0]! };
   } catch (err) {

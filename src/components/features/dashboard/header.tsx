@@ -33,6 +33,7 @@ const ROLE_ACCENT: Record<string, string> = {
 };
 
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { NotificationBell } from "@/components/features/notifications/notification-bell";
 
 type HeaderProps = {
   role:      string;
@@ -95,6 +96,10 @@ export function Header({ role, fullName, avatarUrl }: HeaderProps) {
         </div>
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
+
+        <NotificationBell role={role} />
+
+        <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 2px" }} />
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <UserAvatar

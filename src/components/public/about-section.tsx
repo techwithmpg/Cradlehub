@@ -7,12 +7,12 @@ const highlights = [
   {
     icon: Award,
     title: "Experienced Therapists",
-    desc: "Certified professionals with years of hands-on expertise in therapeutic and relaxation massage.",
+    desc: "A wellness team focused on attentive care, comfortable pressure, and relaxing sessions.",
   },
   {
     icon: Sparkles,
     title: "Relaxing Treatments",
-    desc: "Curated therapies using premium oils, natural ingredients, and time-honored techniques.",
+    desc: "Thoughtfully prepared services for rest, stress relief, and everyday self-care.",
   },
   {
     icon: Heart,
@@ -66,9 +66,9 @@ export function AboutSection() {
                 daily life and reconnect with your body.
               </p>
               <p className="text-[15px] leading-relaxed mb-10" style={{ color: "#6B7A6F" }}>
-                From the moment you step inside, you are greeted by calming scents, soft ambient light,
-                and a team of dedicated therapists who listen to your needs. Every session is crafted
-                to restore balance, ease tension, and leave you feeling renewed.
+                From the moment you step inside, you are greeted by calming details, soft ambient light,
+                and a team that listens to your needs. Every session is prepared to help you slow down,
+                ease everyday tension, and leave feeling renewed.
               </p>
             </ScrollReveal>
 

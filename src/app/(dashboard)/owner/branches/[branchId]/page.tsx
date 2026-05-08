@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getBranchDetailAction } from "@/app/(dashboard)/owner/branches/actions";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createClient } from "@/lib/supabase/server";
+import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
 import { BranchEditForm } from "./branch-edit-form";
 import { BranchBookingRulesForm } from "./branch-booking-rules-form";
 import { BranchResourcesManager } from "./branch-resources-manager";
@@ -77,6 +78,7 @@ export default async function BranchDetailPage({
   }
 
   const { branch, services, staff, resources } = result;
+  await ensureBranchSetupWarningNotifications(branch.id);
   const activeStaffCount = staff.filter((s) => s.is_active).length;
 
   return (

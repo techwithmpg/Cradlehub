@@ -10,12 +10,13 @@ type Branch = { id: string; name: string };
 const SYSTEM_ROLES = [
   { value: "staff", label: "Service Staff" },
   { value: "csr_staff", label: "CSR Staff" },
-  { value: "csr_head", label: "CSR Head" },
   { value: "csr", label: "CRM / Front Desk" },
-  { value: "manager", label: "Manager" },
 ];
 
-const OWNER_EXTRA_ROLES = [{ value: "owner", label: "Owner" }];
+const OWNER_EXTRA_ROLES = [
+  { value: "csr_head", label: "CSR Head" },
+  { value: "manager", label: "Manager" },
+];
 
 const TIERS = [
   { value: "junior", label: "Junior" },

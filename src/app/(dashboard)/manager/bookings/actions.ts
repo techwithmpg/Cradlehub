@@ -116,7 +116,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     const status = parsed.data.status;
     if (status === "cancelled") {
       const sameDay = bookingBefore.booking_date === new Date().toISOString().split("T")[0];
-      createNotification({
+      await createNotification({
         branchId: bookingBefore.branch_id,
         targetWorkspace: "staff",
         recipientStaffId: bookingBefore.staff_id,
@@ -129,10 +129,21 @@ export async function updateBookingStatusAction(rawInput: unknown) {
         priority: sameDay ? "high" : "normal",
         requiresAction: sameDay,
       });
-      resolveNotificationsForEntity("booking", parsed.data.bookingId, "staff");
+      await resolveNotificationsForEntity(
+        "booking",
+        parsed.data.bookingId,
+        "staff",
+        "booking_assigned"
+      );
+      await resolveNotificationsForEntity(
+        "booking",
+        parsed.data.bookingId,
+        "staff",
+        "home_service_assigned"
+      );
     }
     if (status === "confirmed") {
-      createNotification({
+      await createNotification({
         branchId: bookingBefore.branch_id,
         targetWorkspace: "staff",
         recipientStaffId: bookingBefore.staff_id,
@@ -309,7 +320,9 @@ export async function editBookingAction(rawInput: unknown) {
     const newDate = changes.date ?? current.booking_date;
     const newTime = changes.startTime ?? current.start_time;
     const isHS = (changes.type ?? current.type) === "home_service";
-    createNotification({
+    await resolveNotificationsForEntity("booking", bookingId, "staff", "booking_assigned");
+    await resolveNotificationsForEntity("booking", bookingId, "staff", "home_service_assigned");
+    await createNotification({
       branchId: me.branch_id,
       targetWorkspace: "staff",
       recipientStaffId: changes.staffId,
@@ -328,7 +341,7 @@ export async function editBookingAction(rawInput: unknown) {
   if ((changes.date || changes.startTime) && !changes.staffId && current.staff_id) {
     const newDate = changes.date ?? current.booking_date;
     const newTime = changes.startTime ?? current.start_time;
-    createNotification({
+    await createNotification({
       branchId: me.branch_id,
       targetWorkspace: "staff",
       recipientStaffId: current.staff_id,
@@ -376,6 +389,28 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     .eq("branch_id", me.branch_id);
 
   if (error) return { success: false, error: error.message };
+
+  const needsPaymentFollowUp =
+    paymentStatus === "unpaid" ||
+    paymentStatus === "pending" ||
+    paymentMethod === "pay_on_site";
+
+  if (paymentStatus === "paid" || paymentStatus === "refunded" || !needsPaymentFollowUp) {
+    await resolveNotificationsForEntity("booking", bookingId, "crm", "payment_pending");
+  } else {
+    await createNotification({
+      branchId: me.branch_id,
+      targetWorkspace: "crm",
+      type: "payment_pending",
+      title: "Payment needs follow-up",
+      body: "A booking payment is unpaid or pending confirmation.",
+      entityType: "booking",
+      entityId: bookingId,
+      actionHref: "/crm/bookings",
+      priority: "normal",
+      requiresAction: true,
+    });
+  }
 
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");

@@ -4,6 +4,7 @@ import { BranchBookingRulesForm } from "@/app/(dashboard)/owner/branches/[branch
 import { BranchServicesPanel } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import { getMyBranchBookingRulesAction } from "@/app/(dashboard)/owner/branches/actions";
 import { createClient } from "@/lib/supabase/server";
+import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
 import type { GlobalService, ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 
 async function getAllActiveServices(): Promise<GlobalService[]> {
@@ -25,6 +26,7 @@ export default async function ManagerSettingsPage() {
   if ("error" in result) redirect("/manager");
 
   const { branchId, rules, services } = result;
+  await ensureBranchSetupWarningNotifications(branchId);
 
   return (
     <div>

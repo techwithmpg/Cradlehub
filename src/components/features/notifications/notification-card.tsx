@@ -15,6 +15,20 @@ const PRIORITY_DOT: Record<string, string> = {
   low:      "var(--cs-text-subtle)",
 };
 
+const PRIORITY_LABEL: Record<string, string> = {
+  critical: "Critical",
+  high:     "High",
+  normal:   "Normal",
+  low:      "Low",
+};
+
+function typeLabel(type: string): string {
+  return type
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -72,6 +86,40 @@ export function NotificationCard({ notification: n, onMarkRead, onDismiss }: Pro
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+          <span style={{
+            fontSize: 9.5,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            color: "var(--cs-text-subtle)",
+          }}>
+            {typeLabel(n.type)}
+          </span>
+          <span style={{
+            fontSize: 9.5,
+            fontWeight: 700,
+            color: PRIORITY_DOT[n.priority] ?? PRIORITY_DOT.normal,
+            background: "var(--cs-surface-warm)",
+            borderRadius: "9999px",
+            padding: "1px 6px",
+          }}>
+            {PRIORITY_LABEL[n.priority] ?? n.priority}
+          </span>
+          {n.requires_action && (
+            <span style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              color: "#991b1b",
+              background: "#fee2e2",
+              borderRadius: "9999px",
+              padding: "1px 6px",
+            }}>
+              Action required
+            </span>
+          )}
+        </div>
+
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
           <span style={{
             fontSize:   12.5,
@@ -102,6 +150,7 @@ export function NotificationCard({ notification: n, onMarkRead, onDismiss }: Pro
           {n.action_href && (
             <Link
               href={n.action_href}
+              onClick={isUnread ? handleMarkRead : undefined}
               style={{
                 fontSize:       11,
                 color:          "var(--cs-brand)",

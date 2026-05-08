@@ -50,6 +50,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "👥", label: "Staff", href: "/owner/staff" },
       { icon: "📋", label: "Onboarding Requests", href: "/owner/staff/onboarding", description: "Review and approve staff applications from the shared onboarding link." },
       { icon: "✨", label: "Services", href: "/owner/services" },
+      { icon: "🔔", label: "Owner Notifications", href: "/owner/notifications", description: "Review owner-level setup warnings, onboarding requests, and operational notices." },
       {
         icon: "🎨",
         label: "Marketing Studio",
@@ -71,6 +72,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "⚙️", label: "Settings", href: "/manager/settings", description: "Branch booking rules, Home Service config, and service availability." },
       { icon: "📈", label: "Reports", href: "/manager/reports" },
       { icon: "📋", label: "Onboarding Requests", href: "/manager/staff/onboarding", description: "Review staff applications for your branch." },
+      { icon: "🔔", label: "Manager Notifications", href: "/manager/notifications", description: "Open branch-scoped notification and action items." },
     ],
   },
   {
@@ -86,6 +88,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "💰", label: "Reconciliation", href: "/crm/reconciliation" },
       { icon: "💛", label: "Repeat Clients", href: "/crm/repeats" },
       { icon: "🔔", label: "Lapsed Clients", href: "/crm/lapsed" },
+      { icon: "📣", label: "CRM Notifications", href: "/crm/notifications", description: "Open front-desk waitlist, payment, and Home Service action items." },
     ],
   },
   {
@@ -96,6 +99,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "🗓️", label: "My Week", href: "/staff-portal/week" },
       { icon: "📊", label: "My Stats", href: "/staff-portal/stats" },
       { icon: "👤", label: "Profile", href: "/staff-portal/profile" },
+      { icon: "🔔", label: "Staff Notifications", href: "/staff-portal/notifications", description: "Open assigned booking and Home Service action items." },
     ],
   },
   {

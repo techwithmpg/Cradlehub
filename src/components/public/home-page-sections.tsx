@@ -655,17 +655,17 @@ export async function HomePageSections() {
           <div className="mb-12 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-                Gallery
+                Inside the Cradle Experience
               </p>
               <h2
                 className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
                 style={{ fontFamily: "var(--sp-font-display)" }}
               >
-                Replaceable visuals for the Cradle experience.
+                Step into a calming space designed for rest, recovery, and everyday renewal.
               </h2>
             </div>
             <p className="max-w-md text-[14px] leading-7 text-[#6B7A6F]">
-              These use local spa assets only and can be swapped with real branch photography later.
+              From soothing treatments to thoughtful details, every part of Cradle is created to help you feel cared for.
             </p>
           </div>
 

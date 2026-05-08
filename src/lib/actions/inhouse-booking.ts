@@ -18,6 +18,7 @@ import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-confli
 import { geocodeAddress, buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { SlotUnavailableError } from "@/types/errors";
+import { createNotification } from "@/lib/notifications/create";
 
 type CreateInhouseBookingResult =
   | { ok: true; bookingId: string }
@@ -464,6 +465,72 @@ export async function createInhouseBookingMultiAction(
       insertedIds.push(booking.id);
       currentStart = endTime;
     }
+
+    const isHomeService = d.type === "home_service";
+    const notificationJobs: Promise<void>[] = [
+      createNotification({
+        branchId: resolvedBranchId,
+        targetWorkspace: "staff",
+        recipientStaffId: resolvedStaffId,
+        type: isHomeService ? "home_service_assigned" : "booking_assigned",
+        title: isHomeService ? "Home Service booking assigned" : "New booking assigned",
+        body: `You have a ${isHomeService ? "Home Service" : "new"} booking on ${d.date} at ${d.startTime}.`,
+        entityType: "booking",
+        entityId: insertedIds[0],
+        actionHref: "/staff-portal",
+        priority: isHomeService ? "high" : "normal",
+        requiresAction: isHomeService,
+        metadata: insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
+      }),
+      createNotification({
+        branchId: resolvedBranchId,
+        targetWorkspace: "crm",
+        type: "payment_pending",
+        title: "Payment needs follow-up",
+        body: "A manual booking payment is unpaid or pending confirmation.",
+        entityType: "booking",
+        entityId: insertedIds[0],
+        actionHref: "/crm/bookings",
+        priority: "normal",
+        requiresAction: true,
+      }),
+    ];
+
+    if (isHomeService && dispatchData.needs_location_review === true) {
+      notificationJobs.push(
+        createNotification({
+          branchId: resolvedBranchId,
+          targetWorkspace: "crm",
+          type: "home_service_location_review",
+          title: "Home Service location needs review",
+          body: "A Home Service booking needs location or driver review.",
+          entityType: "booking",
+          entityId: insertedIds[0],
+          actionHref: "/crm/today",
+          priority: "high",
+          requiresAction: true,
+        })
+      );
+    }
+
+    if (isHomeService && typeof dispatchData.dispatch_warning === "string") {
+      notificationJobs.push(
+        createNotification({
+          branchId: resolvedBranchId,
+          targetWorkspace: "crm",
+          type: "home_service_dispatch_conflict",
+          title: "Possible Home Service dispatch conflict",
+          body: "A Home Service booking may clash with another location or driver capacity.",
+          entityType: "booking",
+          entityId: insertedIds[0],
+          actionHref: "/crm/today",
+          priority: "high",
+          requiresAction: true,
+        })
+      );
+    }
+
+    await Promise.all(notificationJobs);
 
     revalidatePath("/crm");
     revalidatePath("/crm/bookings/new");

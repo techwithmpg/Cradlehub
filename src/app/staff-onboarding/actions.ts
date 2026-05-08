@@ -143,7 +143,7 @@ export async function submitStaffOnboardingAction(
     auth_user_id: authUserId,
     staff_id: staffId,
     status: "submitted",
-  });
+  }).select("id").single();
 
   if (requestInsert.error) {
     // Non-fatal: staff row and auth user exist; request row is supplementary
@@ -151,33 +151,35 @@ export async function submitStaffOnboardingAction(
   }
 
   // Notify owner and branch manager of new application
-  const requestId = (requestInsert.data as { id?: string } | null)?.id ?? staffId;
-  const notifBody = `${fullName} submitted an onboarding application.`;
-  await Promise.all([
-    createNotification({
-      targetWorkspace: "owner",
-      type: "staff_onboarding_submitted",
-      title: "New staff onboarding request",
-      body: notifBody,
-      entityType: "staff_onboarding_request",
-      entityId: requestId,
-      actionHref: "/owner/staff/onboarding",
-      priority: "high",
-      requiresAction: true,
-    }),
-    createNotification({
-      branchId: branchId,
-      targetWorkspace: "manager",
-      type: "staff_onboarding_submitted",
-      title: "New branch onboarding request",
-      body: `${fullName} submitted an application for your branch.`,
-      entityType: "staff_onboarding_request",
-      entityId: requestId,
-      actionHref: "/manager/staff/onboarding",
-      priority: "high",
-      requiresAction: true,
-    }),
-  ]);
+  const requestId = requestInsert.data?.id;
+  if (requestId) {
+    const notifBody = `${fullName} submitted an onboarding application.`;
+    await Promise.all([
+      createNotification({
+        targetWorkspace: "owner",
+        type: "staff_onboarding_submitted",
+        title: "New staff onboarding request",
+        body: notifBody,
+        entityType: "staff_onboarding_request",
+        entityId: requestId,
+        actionHref: "/owner/staff/onboarding",
+        priority: "high",
+        requiresAction: true,
+      }),
+      createNotification({
+        branchId: branchId,
+        targetWorkspace: "manager",
+        type: "staff_onboarding_submitted",
+        title: "New branch onboarding request",
+        body: `${fullName} submitted an application for your branch.`,
+        entityType: "staff_onboarding_request",
+        entityId: requestId,
+        actionHref: "/manager/staff/onboarding",
+        priority: "high",
+        requiresAction: true,
+      }),
+    ]);
+  }
 
   return { success: true };
 }
@@ -210,11 +212,30 @@ export async function approveOnboardingAction(input: {
   if (!["owner", "manager"].includes(me.system_role)) {
     return { success: false, error: "Owner or manager access required" };
   }
-  if (input.systemRole === "owner" && me.system_role !== "owner") {
-    return { success: false, error: "Only an owner can assign the owner role" };
+  const ownerRoles = ["manager", "crm", "csr", "csr_head", "csr_staff", "staff"];
+  const managerRoles = ["crm", "csr", "csr_staff", "staff"];
+  const allowedRoles = me.system_role === "owner" ? ownerRoles : managerRoles;
+  if (!allowedRoles.includes(input.systemRole)) {
+    return { success: false, error: "That role cannot be assigned through onboarding." };
   }
-  if (me.system_role === "manager" && input.branchId !== me.branch_id) {
-    return { success: false, error: "You can only approve requests for your own branch" };
+
+  const { data: request } = await supabase
+    .from("staff_onboarding_requests")
+    .select("id, requested_branch_id, staff_id, status")
+    .eq("id", input.requestId)
+    .maybeSingle();
+
+  if (!request) return { success: false, error: "Onboarding request not found" };
+  if (request.status !== "submitted") {
+    return { success: false, error: "This onboarding request has already been reviewed." };
+  }
+  if (request.staff_id && request.staff_id !== input.staffId) {
+    return { success: false, error: "Staff record does not match this request." };
+  }
+  if (me.system_role === "manager") {
+    if (input.branchId !== me.branch_id || request.requested_branch_id !== me.branch_id) {
+      return { success: false, error: "You can only approve requests for your own branch" };
+    }
   }
 
   const admin = createAdminClient();
@@ -266,6 +287,17 @@ export async function rejectOnboardingAction(input: {
   }
 
   const admin = createAdminClient();
+
+  const { data: request } = await supabase
+    .from("staff_onboarding_requests")
+    .select("id, requested_branch_id, status")
+    .eq("id", input.requestId)
+    .maybeSingle();
+
+  if (!request) return { success: false, error: "Onboarding request not found" };
+  if (me.system_role === "manager" && request.requested_branch_id !== me.branch_id) {
+    return { success: false, error: "You can only reject requests for your own branch" };
+  }
 
   await admin.from("staff_onboarding_requests").update({
     status: "rejected",

@@ -1,10 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { WorkspaceNotification } from "./types";
 
 // ── Read helpers (RLS enforced via user client) ────────────────────────────
+
+const PRIORITY_RANK: Record<string, number> = {
+  critical: 4,
+  high:     3,
+  normal:   2,
+  low:      1,
+};
 
 export async function getWorkspaceNotificationsAction(
   limit = 30
@@ -32,14 +38,20 @@ export async function getActionRequiredNotificationsAction(
     .select("*")
     .eq("requires_action", true)
     .in("status", ["unread", "read"])
-    .order("priority", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(Math.max(limit * 4, limit));
   if (error) {
     console.error("[notifications] getActionRequired", error.message);
     return [];
   }
-  return (data ?? []) as WorkspaceNotification[];
+  return ((data ?? []) as WorkspaceNotification[])
+    .sort((a, b) => {
+      const priorityDiff =
+        (PRIORITY_RANK[b.priority] ?? 0) - (PRIORITY_RANK[a.priority] ?? 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })
+    .slice(0, limit);
 }
 
 export async function getUnreadCountAction(): Promise<number> {
@@ -50,6 +62,12 @@ export async function getUnreadCountAction(): Promise<number> {
     .eq("status", "unread");
   if (error) return 0;
   return count ?? 0;
+}
+
+export async function getNotificationPopoverAction(
+  limit = 8
+): Promise<WorkspaceNotification[]> {
+  return getWorkspaceNotificationsAction(limit);
 }
 
 // ── Mutation helpers ───────────────────────────────────────────────────────
@@ -79,37 +97,16 @@ export async function resolveNotificationAction(id: string): Promise<void> {
     .eq("id", id);
 }
 
-// ── Admin-level read (for owner overview — sees all workspaces) ────────────
+// ── Owner reads: still use the signed-in client so RLS protects direct calls. ──
 
 export async function getOwnerAllNotificationsAction(
   limit = 50
 ): Promise<WorkspaceNotification[]> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("workspace_notifications")
-    .select("*")
-    .in("status", ["unread", "read"])
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) {
-    console.error("[notifications] getOwnerAll", error.message);
-    return [];
-  }
-  return (data ?? []) as WorkspaceNotification[];
+  return getWorkspaceNotificationsAction(limit);
 }
 
 export async function getOwnerActionRequiredAction(
   limit = 10
 ): Promise<WorkspaceNotification[]> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("workspace_notifications")
-    .select("*")
-    .eq("requires_action", true)
-    .in("status", ["unread", "read"])
-    .order("priority", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) return [];
-  return (data ?? []) as WorkspaceNotification[];
+  return getActionRequiredNotificationsAction(limit);
 }

@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getDailyPaymentSummary } from "@/lib/queries/bookings";
-import { createNotification } from "@/lib/notifications/create";
+import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -56,7 +56,7 @@ export async function upsertReconciliationAction(rawInput: unknown) {
   const summary = await getDailyPaymentSummary(d.branchId, d.date).catch(() => null);
   const expected = summary?.by_method ?? { cash: 0, gcash: 0, maya: 0, card: 0, pay_on_site: 0, other: 0 };
 
-  const { error } = await ctx.supabase
+  const { data: reconciliation, error } = await ctx.supabase
     .from("daily_cash_reconciliations")
     .upsert(
       {
@@ -78,30 +78,36 @@ export async function upsertReconciliationAction(rawInput: unknown) {
         updated_at:           new Date().toISOString(),
       },
       { onConflict: "branch_id,reconciliation_date" }
-    );
+    )
+    .select("id")
+    .single();
 
-  if (error) return { ok: false as const, error: error.message };
+  if (error || !reconciliation) {
+    return { ok: false as const, error: error?.message ?? "Could not save reconciliation" };
+  }
 
   if (d.status === "submitted") {
     const dateLabel = d.date;
-    createNotification({
+    await createNotification({
       branchId: d.branchId,
       targetWorkspace: "manager",
       type: "reconciliation_submitted",
       title: "Daily reconciliation submitted",
       body: `Cash reconciliation for ${dateLabel} has been submitted for review.`,
       entityType: "reconciliation",
-      actionHref: "/manager/reconciliation",
+      entityId: reconciliation.id,
+      actionHref: "/crm/reconciliation",
       priority: "normal",
       requiresAction: true,
     });
-    createNotification({
+    await createNotification({
       targetWorkspace: "owner",
       type: "reconciliation_submitted",
       title: "Daily reconciliation submitted",
       body: `Cash reconciliation for ${dateLabel} (branch ${d.branchId.slice(0, 8)}…) has been submitted.`,
       entityType: "reconciliation",
-      actionHref: "/owner/reconciliation",
+      entityId: reconciliation.id,
+      actionHref: "/owner/reports",
       priority: "low",
       requiresAction: false,
     });
@@ -122,6 +128,8 @@ export async function approveReconciliationAction(reconciliationId: string) {
     .eq("branch_id", ctx.branchId);
 
   if (error) return { ok: false as const, error: error.message };
+
+  await resolveNotificationsForEntity("reconciliation", reconciliationId);
 
   revalidatePath("/crm/reconciliation");
   return { ok: true as const };

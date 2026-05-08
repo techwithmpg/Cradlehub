@@ -1680,7 +1680,7 @@ function StepDetails({
           <textarea
             value={form.notes}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
-            placeholder="Any special requests or health considerations..."
+            placeholder="Share any comfort notes or special requests."
             rows={3}
             className={`${INPUT_CLS} resize-none`}
           />
@@ -1768,7 +1768,7 @@ function StepDetails({
                   type="text"
                   value={form.hsCity}
                   onChange={(e) => onChange({ ...form, hsCity: e.target.value })}
-                  placeholder="e.g. Antipolo City"
+                  placeholder="e.g. Bacolod City"
                   className={INPUT_CLS}
                 />
               </div>
@@ -1783,7 +1783,7 @@ function StepDetails({
                 type="text"
                 value={form.hsLandmark}
                 onChange={(e) => onChange({ ...form, hsLandmark: e.target.value })}
-                placeholder="e.g. Near SM Mall, beside the park"
+                placeholder="e.g. Near SM City Bacolod or a nearby landmark"
                 className={INPUT_CLS}
               />
             </div>
