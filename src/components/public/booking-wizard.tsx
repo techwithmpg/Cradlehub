@@ -416,6 +416,10 @@ export function BookingWizard({
     setHsDriverCapacity(1);
   }, [bookingRules, mode]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
   const handleBack = useCallback(() => {
     if (currentStepName === "date_time") {
       setSelectedSlot(null);

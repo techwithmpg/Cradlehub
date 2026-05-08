@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
-import { Phone, MapPin, Clock } from "lucide-react";
+import { Phone, MapPin, Clock, MessageSquare } from "lucide-react";
 
 function IconFacebook({ className }: { className?: string }) {
   return (
@@ -23,27 +23,66 @@ function IconInstagram({ className }: { className?: string }) {
 export default function ContactPage() {
   return (
     <div className="sp-public">
-      {/* Page Header */}
-      <div className="pt-32 pb-16 lg:pt-40 lg:pb-20" style={{ background: "#F7F3EB" }}>
+      {/* Dark hero — matches mobile header */}
+      <div
+        className="pt-28 pb-14 lg:pt-36 lg:pb-20"
+        style={{ background: "#10261D" }}
+      >
         <div className="mx-auto max-w-4xl px-6 text-center">
           <p
             className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
             style={{ color: "#C8A96B" }}
           >
-            Get in Touch
+            Contact Us
           </p>
           <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-medium leading-tight mb-5"
-            style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+            className="text-3xl sm:text-4xl lg:text-5xl font-medium leading-tight mb-4"
+            style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
           >
-            We Would Love to Hear From You
+            {"We're Here to Help"}
           </h1>
-          <p className="text-[15px] max-w-xl mx-auto" style={{ color: "#6B7A6F" }}>
-            Have questions about our services, availability, or special requests?
+          <p className="text-[15px] max-w-xl mx-auto" style={{ color: "rgba(252,250,245,0.65)" }}>
+            Questions about our services, availability, or special requests?
             Reach out and our team will respond with care.
           </p>
         </div>
       </div>
+
+      {/* Action-first cards */}
+      <section className="pt-12 pb-4 lg:pt-16" style={{ background: "#FCFAF5" }}>
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            <a
+              href="tel:+639177077070"
+              className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+              style={{ background: "#163A2B" }}
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
+                <Phone className="h-6 w-6" style={{ color: "#C8A96B" }} />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Call Us</p>
+                <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>0917 707 7070</p>
+              </div>
+            </a>
+            <a
+              href="https://www.facebook.com/518084738045813?ref=NONE_xav_ig_profile_page_web"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+              style={{ background: "#163A2B" }}
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
+                <MessageSquare className="h-6 w-6" style={{ color: "#C8A96B" }} />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Message Us</p>
+                <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Facebook Page</p>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* Contact Info Cards */}
       <section className="py-20 lg:py-28" style={{ background: "#FCFAF5" }}>
