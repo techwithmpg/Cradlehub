@@ -28,6 +28,11 @@ import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { PlacesAutocomplete, type PlaceSelectResult } from "@/components/public/places-autocomplete";
 import {
+  getSlotDispatchStatus,
+  type ExistingHsBooking,
+  type SlotDispatchStatus,
+} from "@/lib/bookings/dispatch-slot-filter";
+import {
   VISIT_TYPE_OPTIONS,
   VISIT_TYPE_ORDER,
   filterSlotsByVisitType,
@@ -79,14 +84,32 @@ type InitialCustomer = {
   email: string | null;
 };
 
-const STEPS = [
-  { id: 1, label: "Branch" },
-  { id: 2, label: "Visit Type" },
-  { id: 3, label: "Services" },
-  { id: 4, label: "Date & Time" },
-  { id: 5, label: "Therapist" },
-  { id: 6, label: "Details" },
+const STEPS_BASE = [
+  { id: 1, name: "branch",    label: "Branch" },
+  { id: 2, name: "visit",     label: "Visit Type" },
+  { id: 3, name: "services",  label: "Services" },
+  { id: 4, name: "date_time", label: "Date & Time" },
+  { id: 5, name: "therapist", label: "Therapist" },
+  { id: 6, name: "details",   label: "Details" },
 ];
+
+const STEPS_HS = [
+  { id: 1, name: "branch",    label: "Branch" },
+  { id: 2, name: "visit",     label: "Visit Type" },
+  { id: 3, name: "services",  label: "Services" },
+  { id: 4, name: "location",  label: "Location" },
+  { id: 5, name: "date_time", label: "Date & Time" },
+  { id: 6, name: "therapist", label: "Therapist" },
+  { id: 7, name: "details",   label: "Details" },
+];
+
+function getSteps(isHomeService: boolean) {
+  return isHomeService ? STEPS_HS : STEPS_BASE;
+}
+
+function getStepName(stepNum: number, isHomeService: boolean): string {
+  return (getSteps(isHomeService).find((s) => s.id === stepNum)?.name) ?? "branch";
+}
 
 const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
 const TIER_LABEL: Record<string, string> = { senior: "Senior", mid: "Mid-Level", junior: "Junior" };
@@ -170,6 +193,8 @@ export function BookingWizard({
   const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(
     null
   );
+  const [existingHsBookings, setExistingHsBookings] = useState<ExistingHsBooking[]>([]);
+  const [hsDriverCapacity, setHsDriverCapacity] = useState(1);
 
   // Loading
   const [loadingBranches, setLoadingBranches] = useState(true);
@@ -200,7 +225,7 @@ export function BookingWizard({
     hsCity: "",
     hsLandmark: "",
     hsParkingNotes: "",
-    hsZone: "unknown",
+    hsZone: "",
     // Geocoded from Places Autocomplete (null = not yet geocoded)
     hsLat: null as number | null,
     hsLng: null as number | null,
@@ -229,21 +254,48 @@ export function BookingWizard({
         : "in_spa",
     [bookingRules, selectedVisitType]
   );
+  const isHomeService = visitType === "home_service";
+  const steps = useMemo(() => getSteps(isHomeService), [isHomeService]);
+  const currentStepName = useMemo(() => getStepName(step, isHomeService), [step, isHomeService]);
+  const successStep = isHomeService ? 8 : 7;
 
   // Services filtered by visit type eligibility
   const eligibleServices = useMemo(
     () =>
       services.filter((svc) =>
-        visitType === "home_service"
+        isHomeService
           ? (svc.availableHomeService ?? false)
           : (svc.availableInSpa ?? true)
       ),
-    [services, visitType]
+    [services, isHomeService]
   );
   const availableStaffAtSlot = useMemo(
     () => (selectedSlot ? staffAtSlot(rawSlots, selectedSlot.slot_time) : []),
     [rawSlots, selectedSlot]
   );
+
+  // Dispatch status per slot_time (home_service only)
+  const dispatchStatuses = useMemo<Map<string, SlotDispatchStatus>>(() => {
+    if (!isHomeService) return new Map();
+    return new Map(
+      slots.map((s) => [
+        s.slot_time,
+        getSlotDispatchStatus(
+          s.slot_time,
+          totalDuration,
+          existingHsBookings,
+          form.hsZone,
+          hsDriverCapacity,
+        ),
+      ])
+    );
+  }, [isHomeService, slots, totalDuration, existingHsBookings, form.hsZone, hsDriverCapacity]);
+
+  // Public booking: hide hard-conflict HS slots entirely
+  const displaySlots = useMemo(() => {
+    if (!isHomeService || mode !== "public") return slots;
+    return slots.filter((s) => dispatchStatuses.get(s.slot_time) !== "hard");
+  }, [isHomeService, mode, slots, dispatchStatuses]);
 
   // Fetch branches on mount
   useEffect(() => {
@@ -268,7 +320,7 @@ export function BookingWizard({
   useEffect(() => {
     if (!selectedBranch) return;
     const id = setTimeout(() => setLoadingServices(true), 0);
-    fetch(`/api/public/booking-context?branchId=${selectedBranch.id}`)
+    fetch(`/api/public/booking-context?branchId=${selectedBranch.id}&mode=${mode}`)
       .then((r) => r.json())
       .then((data) => {
         const svcs = (data.services ?? []).map(
@@ -292,6 +344,21 @@ export function BookingWizard({
       });
     return () => clearTimeout(id);
   }, [selectedBranch]);
+
+  // Fetch existing HS bookings for dispatch filtering (home_service + date known)
+  useEffect(() => {
+    if (!isHomeService || !selectedBranch || !selectedDate) return;
+    const dateStr = toLocalYmd(selectedDate);
+    fetch(`/api/public/dispatch-slots?branchId=${selectedBranch.id}&date=${dateStr}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setExistingHsBookings((data.slots ?? []) as ExistingHsBooking[]);
+        if (typeof data.driverCapacity === "number") {
+          setHsDriverCapacity(data.driverCapacity);
+        }
+      })
+      .catch(() => { /* non-fatal — dispatch filter degrades to "ok" */ });
+  }, [isHomeService, selectedBranch, selectedDate]);
 
   // Fetch slots when branch + services + date are all selected
   useEffect(() => {
@@ -345,17 +412,19 @@ export function BookingWizard({
     setSlots([]);
     setSelectedSlot(null);
     setSelectedStaff("auto");
+    setExistingHsBookings([]);
+    setHsDriverCapacity(1);
   }, [bookingRules, mode]);
 
   const handleBack = useCallback(() => {
-    if (step === 4) {
+    if (currentStepName === "date_time") {
       setSelectedSlot(null);
       setSelectedStaff("auto");
-    } else if (step === 5) {
+    } else if (currentStepName === "therapist") {
       setSelectedStaff("auto");
     }
     setStep((s) => Math.max(1, s - 1));
-  }, [step]);
+  }, [currentStepName]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedBranch || selectedServices.length === 0 || !selectedDate || !selectedSlot) return;
@@ -373,7 +442,7 @@ export function BookingWizard({
       const message = `${option.label} appointments are available from ${formatTime(availability.startTime)} to ${formatTime(availability.endTime)}. Please select another time.`;
       toast.error("Time unavailable", { description: message });
       setFormError(message);
-      setStep(4);
+      setStep(isHomeService ? 5 : 4);
       return;
     }
     if (!form.fullName.trim() || !form.phone.trim()) {
@@ -431,25 +500,29 @@ export function BookingWizard({
           : "We look forward to welcoming you at Cradle.",
       });
       setSuccess({ bookingId: result.bookingId });
-      setStep(7);
+      setStep(successStep);
     } else {
       toast.error("Booking failed", { description: result.message });
       setFormError(result.message);
     }
-  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaff, form, mode]);
+  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaff, form, mode, isHomeService, successStep]);
 
   const hsAddressFilled =
-    visitType !== "home_service" ||
+    !isHomeService ||
     (form.hsAddress.trim().length >= 5 &&
       (form.hsBarangay.trim().length >= 2 || form.hsCity.trim().length >= 2));
 
+  // Location step is valid when a non-unknown zone is chosen
+  const locationValid = !isHomeService || (form.hsZone !== "unknown" && form.hsZone !== "");
+
   const canProceed =
-    step === 1 ? !!selectedBranch
-    : step === 2 ? !!bookingType && isVisitTypeEnabled(visitType, bookingRules)
-    : step === 3 ? selectedServices.length > 0
-    : step === 4 ? !!selectedSlot
-    : step === 5 ? true // "auto" is always valid; server validates on submit
-    : step === 6 ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7 && hsAddressFilled
+    currentStepName === "branch"    ? !!selectedBranch
+    : currentStepName === "visit"   ? !!bookingType && isVisitTypeEnabled(visitType, bookingRules)
+    : currentStepName === "services" ? selectedServices.length > 0
+    : currentStepName === "location" ? locationValid
+    : currentStepName === "date_time" ? !!selectedSlot
+    : currentStepName === "therapist" ? true
+    : currentStepName === "details"  ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7 && hsAddressFilled
     : false;
 
   return (
@@ -491,10 +564,10 @@ export function BookingWizard({
 
       <div className={mode === "public" ? "mx-auto max-w-5xl px-6 py-10 lg:py-14" : "mx-auto max-w-6xl py-2"}>
         {/* Stepper */}
-        {step < 7 && (
+        {currentStepName !== "success" && (
           <div className="flex items-center justify-center mb-12">
             <div className="flex items-center gap-0.5 sm:gap-2">
-              {STEPS.map((s, i) => (
+              {steps.map((s, i) => (
                 <div key={s.id} className="flex items-center gap-0.5 sm:gap-2">
                   <div className="flex flex-col items-center">
                     <div
@@ -516,7 +589,7 @@ export function BookingWizard({
                       {s.label}
                     </span>
                   </div>
-                  {i < STEPS.length - 1 && (
+                  {i < steps.length - 1 && (
                     <div
                       className={`w-4 sm:w-8 lg:w-12 h-0.5 rounded-full mb-4 sm:mb-3 transition-colors duration-300 ${
                         step > s.id ? "bg-[#C8A96B]" : "bg-[#EDE4D3]"
@@ -533,7 +606,7 @@ export function BookingWizard({
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main */}
           <div className="lg:col-span-2">
-            {step === 1 && (
+            {currentStepName === "branch" && (
               <StepBranches
                 branches={branches}
                 loading={loadingBranches}
@@ -547,14 +620,14 @@ export function BookingWizard({
                 }}
               />
             )}
-            {step === 2 && (
+            {currentStepName === "visit" && (
               <StepVisitType
                 selected={visitType}
                 bookingRules={bookingRules}
                 onSelect={handleVisitTypeSelect}
               />
             )}
-            {step === 3 && (
+            {currentStepName === "services" && (
               <StepServices
                 services={eligibleServices}
                 loading={loadingServices}
@@ -565,7 +638,13 @@ export function BookingWizard({
                 visitType={visitType}
               />
             )}
-            {step === 4 && (
+            {currentStepName === "location" && (
+              <StepLocation
+                form={form}
+                onChange={setForm}
+              />
+            )}
+            {currentStepName === "date_time" && (
               <StepDateTime
                 visitType={visitType}
                 bookingRules={bookingRules}
@@ -575,23 +654,25 @@ export function BookingWizard({
                   setSelectedSlot(null);
                   setSelectedStaff("auto");
                 }}
-                slots={slots}
+                slots={displaySlots}
                 loading={loadingSlots}
                 selectedSlot={selectedSlot}
                 onSelectSlot={(s) => {
                   setSelectedSlot(s);
                   setSelectedStaff("auto");
                 }}
+                dispatchStatuses={dispatchStatuses}
+                mode={mode}
               />
             )}
-            {step === 5 && (
+            {currentStepName === "therapist" && (
               <StepTherapist
                 availableStaff={availableStaffAtSlot}
                 selected={selectedStaff}
                 onSelect={setSelectedStaff}
               />
             )}
-            {step === 6 && (
+            {currentStepName === "details" && (
               <StepDetails
                 form={form}
                 onChange={setForm}
@@ -599,23 +680,23 @@ export function BookingWizard({
                 visitType={visitType}
               />
             )}
-            {step === 7 && success && (
+            {currentStepName === "success" && success && (
               <StepSuccess bookingId={success.bookingId} services={selectedServices} mode={mode} />
             )}
 
             {/* Navigation */}
-            {step < 7 && (
+            {currentStepName !== "success" && (
               <div className="flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]">
                 <button
                   onClick={handleBack}
-                  disabled={step === 1}
+                  disabled={currentStepName === "branch"}
                   className="flex items-center gap-2 text-[13px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:text-[#163A2B]"
                   style={{ color: "#6B7A6F" }}
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Back
                 </button>
-                {step < 6 ? (
+                {currentStepName !== "details" ? (
                   <button
                     onClick={() => setStep(step + 1)}
                     disabled={!canProceed}
@@ -660,7 +741,7 @@ export function BookingWizard({
           </div>
 
           {/* Summary sidebar */}
-          {step < 7 && (
+          {currentStepName !== "success" && (
             <div className="hidden lg:block">
               <BookingSummary
                 branch={selectedBranch}
@@ -1145,6 +1226,8 @@ function StepDateTime({
   loading,
   selectedSlot,
   onSelectSlot,
+  dispatchStatuses,
+  mode,
 }: {
   visitType: VisitType;
   bookingRules: BranchBookingRules | null;
@@ -1154,6 +1237,8 @@ function StepDateTime({
   loading: boolean;
   selectedSlot: Slot | null;
   onSelectSlot: (s: Slot) => void;
+  dispatchStatuses: Map<string, SlotDispatchStatus>;
+  mode: BookingWizardMode;
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1235,19 +1320,42 @@ function StepDateTime({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {availableSlots.map((slot) => (
-                <button
-                  key={slot.slot_time}
-                  onClick={() => onSelectSlot(slot)}
-                  className={`flex items-center justify-center rounded-lg py-2.5 px-2 text-[12px] font-medium transition-all duration-300 ${
-                    selectedSlot?.slot_time === slot.slot_time
-                      ? "bg-[#163A2B] text-[#C8A96B] shadow-md"
-                      : "bg-white text-[#163A2B] border border-[#EDE4D3] hover:border-[#C8A96B]/50"
-                  }`}
-                >
-                  {formatTime(slot.slot_time)}
-                </button>
-              ))}
+              {availableSlots.map((slot) => {
+                const dispatch = dispatchStatuses.get(slot.slot_time);
+                const isWarning = dispatch === "warning";
+                const isHard = dispatch === "hard";
+                const isSelected = selectedSlot?.slot_time === slot.slot_time;
+                // inhouse: show hard slots with warning; public: hard slots filtered before here
+                return (
+                  <button
+                    type="button"
+                    key={slot.slot_time}
+                    onClick={() => !isHard && onSelectSlot(slot)}
+                    disabled={isHard && mode === "inhouse"}
+                    className={`relative flex flex-col items-center justify-center rounded-lg py-2.5 px-2 text-[12px] font-medium transition-all duration-300 ${
+                      isSelected
+                        ? "bg-[#163A2B] text-[#C8A96B] shadow-md"
+                        : isHard
+                        ? "bg-white text-[#9AA89A] border border-[#EDE4D3] opacity-50 cursor-not-allowed"
+                        : isWarning
+                        ? "bg-amber-50 text-[#163A2B] border border-amber-200 hover:border-amber-400"
+                        : "bg-white text-[#163A2B] border border-[#EDE4D3] hover:border-[#C8A96B]/50"
+                    }`}
+                  >
+                    {formatTime(slot.slot_time)}
+                    {isWarning && !isSelected && (
+                      <span className="text-[9px] font-semibold text-amber-600 leading-none mt-0.5">
+                        Review
+                      </span>
+                    )}
+                    {isHard && mode === "inhouse" && (
+                      <span className="text-[9px] font-semibold text-red-500 leading-none mt-0.5">
+                        Conflict
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1384,7 +1492,88 @@ function StepTherapist({
 const INPUT_CLS = "w-full rounded-xl border border-[#EDE4D3] bg-white px-4 py-3 text-[14px] text-[#163A2B] placeholder:text-[#9AA89A] outline-none transition-all focus:border-[#C8A96B] focus:ring-2 focus:ring-[#C8A96B]/20";
 const LABEL_CLS = "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2";
 
-// ── Step 6: Details ────────────────────────────────────────────────────────────
+// ── Step 4 (HS only): Location ────────────────────────────────────────────────
+
+function StepLocation({
+  form,
+  onChange,
+}: {
+  form: DetailsForm;
+  onChange: (f: DetailsForm) => void;
+}) {
+  return (
+    <div>
+      <h2
+        className="text-2xl font-medium mb-2"
+        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+      >
+        Your Location
+      </h2>
+      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
+        Tell us your area so we can check driver availability before showing time slots.
+      </p>
+
+      <div className="flex flex-col gap-5">
+        <div>
+          <label htmlFor="hs-zone" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+            <MapPin className="h-3.5 w-3.5" />
+            Location Zone *
+          </label>
+          <select
+            id="hs-zone"
+            value={form.hsZone}
+            onChange={(e) => onChange({ ...form, hsZone: e.target.value })}
+            className={INPUT_CLS}
+          >
+            <option value="" disabled>Select your zone…</option>
+            {HS_ZONE_OPTIONS.filter((o) => o.value !== "unknown").map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
+            Helps us verify we have a driver available in your area before you pick a time.
+          </p>
+        </div>
+
+        <div>
+          <label className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+            <MapPin className="h-3.5 w-3.5" />
+            Full Address{" "}
+            <span className="normal-case font-normal">(optional — fill in later)</span>
+          </label>
+          <PlacesAutocomplete
+            id="hs-address-location"
+            value={form.hsAddress}
+            onChange={(val) =>
+              onChange({ ...form, hsAddress: val, hsLat: null, hsLng: null, hsPlaceId: "", hsFormattedAddress: "" })
+            }
+            onPlaceSelect={(result: PlaceSelectResult | null) => {
+              if (result) {
+                onChange({
+                  ...form,
+                  hsAddress: result.formattedAddress,
+                  hsLat: result.lat,
+                  hsLng: result.lng,
+                  hsPlaceId: result.placeId,
+                  hsFormattedAddress: result.formattedAddress,
+                });
+              }
+            }}
+            placeholder="House/Unit no., Street, Subdivision"
+            className={INPUT_CLS}
+          />
+          <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
+            You can complete your full address on the next step.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 6 (or 7 for HS): Details ─────────────────────────────────────────────
 
 type DetailsForm = {
   fullName: string;
@@ -1519,26 +1708,15 @@ function StepDetails({
               Our team will use this to dispatch your therapist. Please be specific.
             </p>
 
-            <div>
-              <label htmlFor="hs-zone" className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
-                <MapPin className="h-3.5 w-3.5" />
-                Location Zone
-              </label>
-              <select
-                id="hs-zone"
-                value={form.hsZone}
-                onChange={(e) => onChange({ ...form, hsZone: e.target.value })}
-                className={INPUT_CLS}
-              >
-                {HS_ZONE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
-                Helps us assign the nearest available driver.
-              </p>
+            {/* Zone — read-only; set in the Location step */}
+            <div className="flex items-center gap-2 rounded-xl px-4 py-3 border" style={{ background: "white", borderColor: "#EDE4D3" }}>
+              <MapPin className="h-4 w-4 shrink-0" style={{ color: "#C8A96B" }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA89A" }}>Zone</p>
+                <p className="text-[13px] font-medium" style={{ color: "#163A2B" }}>
+                  {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
+                </p>
+              </div>
             </div>
 
             <div>

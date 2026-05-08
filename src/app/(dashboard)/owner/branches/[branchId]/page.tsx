@@ -2,10 +2,12 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getBranchDetailAction } from "@/app/(dashboard)/owner/branches/actions";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { createClient } from "@/lib/supabase/server";
 import { BranchEditForm } from "./branch-edit-form";
 import { BranchBookingRulesForm } from "./branch-booking-rules-form";
 import { BranchResourcesManager } from "./branch-resources-manager";
 import { BranchServicesPanel } from "./branch-services-panel";
+import type { GlobalService } from "./branch-services-panel";
 import type { Database } from "@/types/supabase";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
@@ -20,6 +22,7 @@ type ServiceLite = {
   custom_price: number | null;
   available_in_spa: boolean;
   available_home_service: boolean;
+  booking_visibility: string;
   services: {
     id: string;
     name: string;
@@ -52,9 +55,21 @@ export default async function BranchDetailPage({
   params: Promise<{ branchId: string }>;
 }) {
   const { branchId } = await params;
-  const [result, bookingRules] = await Promise.all([
+
+  async function getAllActiveServices(): Promise<GlobalService[]> {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("services")
+      .select("id, name, duration_minutes, price")
+      .eq("is_active", true)
+      .order("name");
+    return (data ?? []) as GlobalService[];
+  }
+
+  const [result, bookingRules, allServices] = await Promise.all([
     getBranchDetailAction(branchId),
     getBranchBookingRulesOrDefault(branchId),
+    getAllActiveServices(),
   ]);
 
   if ("error" in result || !isBranchDetailPayload(result)) {
@@ -122,7 +137,12 @@ export default async function BranchDetailPage({
             </div>
           </div>
 
-          <BranchServicesPanel branchId={branch.id} services={services as ServiceLite[]} />
+          <BranchServicesPanel
+            branchId={branch.id}
+            services={services as ServiceLite[]}
+            allServices={allServices}
+            isOwner
+          />
         </div>
       </div>
     </div>

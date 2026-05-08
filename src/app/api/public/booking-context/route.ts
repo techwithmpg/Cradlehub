@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllBranches, getBranchServices } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
+
+const INHOUSE_CONTEXT_ROLES = new Set([
+  "owner",
+  "manager",
+  "crm",
+  "csr",
+  "csr_head",
+  "csr_staff",
+]);
 
 type BranchRow = Pick<
   Database["public"]["Tables"]["branches"]["Row"],
@@ -85,8 +95,28 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
   throw new Error(primary.error.message);
 }
 
+async function canUseInhouseContext(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return false;
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("system_role")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  return !!me?.system_role && INHOUSE_CONTEXT_ROLES.has(me.system_role);
+}
+
 export async function GET(request: NextRequest) {
   const requestedBranchId = request.nextUrl.searchParams.get("branchId");
+  const mode = request.nextUrl.searchParams.get("mode"); // "public" | "inhouse" | null
+  const publicOnly = mode === "inhouse" ? !(await canUseInhouseContext()) : true;
   const rawBranches = (await getAllBranches()) as BranchRow[];
 
   const branches = rawBranches.map((branch) => ({
@@ -111,7 +141,7 @@ export async function GET(request: NextRequest) {
       : branches[0]!.id;
 
   const [rawBranchServices, rawStaff, bookingRules] = await Promise.all([
-    getBranchServices(selectedBranchId),
+    getBranchServices(selectedBranchId, { publicOnly }),
     getPublicStaffByBranch(selectedBranchId),
     getBranchBookingRulesOrDefault(selectedBranchId),
   ]);

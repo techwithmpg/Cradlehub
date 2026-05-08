@@ -411,6 +411,7 @@ export type Database = {
         Row: {
           available_home_service: boolean
           available_in_spa: boolean
+          booking_visibility: string
           branch_id: string
           created_at: string
           custom_price: number | null
@@ -421,6 +422,7 @@ export type Database = {
         Insert: {
           available_home_service?: boolean
           available_in_spa?: boolean
+          booking_visibility?: string
           branch_id: string
           created_at?: string
           custom_price?: number | null
@@ -431,6 +433,7 @@ export type Database = {
         Update: {
           available_home_service?: boolean
           available_in_spa?: boolean
+          booking_visibility?: string
           branch_id?: string
           created_at?: string
           custom_price?: number | null
@@ -818,6 +821,7 @@ export type Database = {
           duration_minutes: number
           id: string
           is_active: boolean
+          metadata: Json
           name: string
           price: number
           updated_at: string
@@ -831,6 +835,7 @@ export type Database = {
           duration_minutes: number
           id?: string
           is_active?: boolean
+          metadata?: Json
           name: string
           price: number
           updated_at?: string
@@ -844,6 +849,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           is_active?: boolean
+          metadata?: Json
           name?: string
           price?: number
           updated_at?: string

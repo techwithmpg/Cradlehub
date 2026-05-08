@@ -16,12 +16,20 @@ import {
   Users,
 } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
-import { getAllServices } from "@/lib/queries/services";
 import {
   getPublicSiteAssets,
   getPublicSiteSections,
   type PublicSiteSectionRow,
 } from "@/lib/queries/public-site";
+import {
+  getPublicServiceCatalog,
+  type PublicCatalogService,
+} from "@/lib/queries/services";
+import {
+  PUBLIC_CATALOG_CATEGORY_DETAILS,
+  PUBLIC_CATALOG_CATEGORY_NAMES,
+  type PublicCatalogCategoryName,
+} from "@/lib/public/service-catalog-config";
 import {
   bookingJourneySteps,
   businessInfo,
@@ -36,18 +44,7 @@ import {
   teamRoles,
   whyGuestsChooseCradle,
 } from "@/lib/public/public-site-data";
-import type { Database } from "@/types/supabase";
 import { ScrollReveal } from "./scroll-reveal";
-
-type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
-type CategoryRow = Pick<
-  Database["public"]["Tables"]["service_categories"]["Row"],
-  "id" | "name" | "display_order"
->;
-type CategoryRelation = CategoryRow | CategoryRow[] | null;
-type ServiceWithCategory = ServiceRow & {
-  service_categories?: CategoryRelation;
-};
 
 type CoverImageProps = {
   src: string;
@@ -56,18 +53,6 @@ type CoverImageProps = {
   sizes: string;
   className?: string;
 };
-
-const DEFAULT_DESCRIPTION =
-  "A calming wellness treatment designed to help you pause, release tension, and feel renewed.";
-
-const SERVICE_IMAGES = [
-  SPA_IMAGES.swedish,
-  SPA_IMAGES.deepTissue,
-  SPA_IMAGES.aromatherapy,
-  SPA_IMAGES.hotStone,
-  SPA_IMAGES.reflexology,
-  SPA_IMAGES.couples,
-] as const;
 
 const proofIcons = [ShieldCheck, Home, MapPin, MessageCircle] as const;
 const journeyIcons = [Home, Sparkles, CalendarDays, HeartHandshake] as const;
@@ -130,45 +115,24 @@ function CoverImage({ src, alt, priority, sizes, className = "" }: CoverImagePro
   return <img src={src} alt={alt} className={`absolute inset-0 h-full w-full ${imageClass}`} />;
 }
 
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 0,
-  }).format(amount);
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
-function firstCategory(value: CategoryRelation | undefined): CategoryRow | null {
-  if (!value) return null;
-  return Array.isArray(value) ? value[0] ?? null : value;
-}
-
-function resolveServiceImage(name: string, index: number) {
-  const key = name.toLowerCase();
-  if (key.includes("swedish")) return SPA_IMAGES.swedish;
-  if (key.includes("deep")) return SPA_IMAGES.deepTissue;
-  if (key.includes("aroma")) return SPA_IMAGES.aromatherapy;
-  if (key.includes("stone")) return SPA_IMAGES.hotStone;
-  if (key.includes("reflex")) return SPA_IMAGES.reflexology;
-  if (key.includes("couple")) return SPA_IMAGES.couples;
-  return SERVICE_IMAGES[index % SERVICE_IMAGES.length]!;
-}
-
-function buildServiceTags(serviceName: string, categoryName: string) {
-  const key = serviceName.toLowerCase();
-  if (key.includes("swedish")) return ["Relaxation", "Stress relief", "First-time friendly"];
-  if (key.includes("deep")) return ["Deep pressure", "Muscle tension", "Recovery"];
-  if (key.includes("aroma")) return ["Relaxation", "Calming scent", "Gentle reset"];
-  if (key.includes("stone")) return ["Warmth", "Deep relaxation", "In-spa"];
-  if (key.includes("reflex")) return ["Pressure points", "Foot care", "Relaxation"];
-  if (key.includes("couple")) return ["Shared session", "In-spa", "Self-care"];
-  if (key.includes("home")) return ["Home service", "Comfort", "Relaxation"];
-  return [categoryName, "Relaxation", "Wellness"];
+function servicesForCategory(
+  services: PublicCatalogService[],
+  categoryName: PublicCatalogCategoryName
+) {
+  return services.filter((service) => service.categoryName === categoryName);
 }
 
 export async function HomePageSections() {
   const [services, managedSections, managedGalleryAssets] = await Promise.all([
-    getAllServices() as Promise<ServiceWithCategory[]>,
+    getPublicServiceCatalog(),
     getPublicSiteSections({ includeDisabled: true }),
     getPublicSiteAssets("gallery", { includeDisabled: true }),
   ]);
@@ -243,12 +207,12 @@ export async function HomePageSections() {
   const servicesTitle = sectionText(
     servicesSection,
     "title",
-    "Treatment storytelling, pulled from the real service menu."
+    "Explore Cradle's full menu by care category."
   );
   const servicesBody = sectionText(
     servicesSection,
     "body",
-    "Browse a preview of published services, then continue into the live booking system to choose branch, setting, time, and therapist."
+    "Massage, salon, skin care, packages, and group spa experiences are organized for easy browsing. Booking availability still depends on branch and visit type."
   );
   const quoteSection = enabledSection("quote_banner");
   const quoteTitle = sectionText(
@@ -281,17 +245,14 @@ export async function HomePageSections() {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
 
-  const displayServices = services.slice(0, 6).map((service, index) => {
-    const category = firstCategory(service.service_categories)?.name ?? "Wellness";
+  const serviceCategoryCards = PUBLIC_CATALOG_CATEGORY_NAMES.map((categoryName) => {
+    const categoryServices = servicesForCategory(services, categoryName);
     return {
-      id: service.id,
-      category,
-      name: service.name,
-      description: service.description ?? DEFAULT_DESCRIPTION,
-      duration: `${service.duration_minutes} min`,
-      price: `From ${formatCurrency(Number(service.price))}`,
-      image: resolveServiceImage(service.name, index),
-      tags: buildServiceTags(service.name, category),
+      name: categoryName,
+      details: PUBLIC_CATALOG_CATEGORY_DETAILS[categoryName],
+      count: categoryServices.length,
+      examples: categoryServices.slice(0, 3).map((service) => service.name),
+      href: `/services#${slugify(categoryName)}`,
     };
   });
   const galleryAssetItems = managedGalleryAssets
@@ -589,67 +550,66 @@ export async function HomePageSections() {
             </p>
           </div>
 
-          {displayServices.length === 0 ? (
-            <div className="rounded-[8px] border border-[#EDE4D3] bg-[#F7F3EB] px-8 py-12 text-center">
-              <p className="text-[15px] font-medium text-[#163A2B]">No services published yet.</p>
-              <p className="mt-2 text-[13px] text-[#6B7A6F]">
-                Add services in the dashboard to show them here.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {displayServices.map((service, index) => (
-                <ScrollReveal key={service.id} delay={index * 70} variant="scale">
-                  <article className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-[#EDE4D3] bg-white shadow-[0_6px_22px_rgba(22,58,43,0.05)] transition hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(22,58,43,0.1)]">
-                    <div className="relative aspect-[4/3] overflow-hidden">
-                      <Image
-                        src={service.image}
-                        alt={`${service.name} treatment preview`}
-                        fill
-                        className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                      />
-                      <div className="absolute left-4 top-4 rounded-[8px] bg-[#10261D]/82 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#E8D5A3] backdrop-blur">
-                        {service.category}
-                      </div>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+            {serviceCategoryCards.map((category, index) => (
+              <ScrollReveal key={category.name} delay={index * 70} variant="scale">
+                <article className="group flex h-full flex-col overflow-hidden rounded-[8px] border border-[#EDE4D3] bg-white shadow-[0_6px_22px_rgba(22,58,43,0.05)] transition hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(22,58,43,0.1)]">
+                  <div className="relative aspect-[4/3] overflow-hidden">
+                    <Image
+                      src={category.details.image}
+                      alt={`${category.name} at Cradle`}
+                      fill
+                      className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 20vw"
+                    />
+                    <div className="absolute inset-0 bg-[#10261D]/22" />
+                    <div className="absolute left-4 top-4 rounded-[8px] bg-[#10261D]/82 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#E8D5A3] backdrop-blur">
+                      {category.details.eyebrow}
                     </div>
-                    <div className="flex flex-1 flex-col p-6">
-                      <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#B68A3C]">
-                        <span>{service.duration}</span>
-                        <span className="h-1 w-1 rounded-full bg-[#EDE4D3]" />
-                        <span>{service.price}</span>
-                      </div>
-                      <h3
-                        className="text-xl font-medium text-[#163A2B]"
-                        style={{ fontFamily: "var(--sp-font-display)" }}
-                      >
-                        {service.name}
-                      </h3>
-                      <p className="mt-3 flex-1 text-[14px] leading-7 text-[#6B7A6F]">
-                        {service.description}
-                      </p>
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {service.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full border border-[#EDE4D3] bg-[#F7F3EB] px-3 py-1 text-[11px] font-medium text-[#5F6F63]"
-                          >
-                            {tag}
-                          </span>
+                  </div>
+                  <div className="flex flex-1 flex-col p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#B68A3C]">
+                      {category.count > 0 ? `${category.count} menu items` : "Catalog"}
+                    </p>
+                    <h3
+                      className="mt-3 text-xl font-medium leading-tight text-[#163A2B]"
+                      style={{ fontFamily: "var(--sp-font-display)" }}
+                    >
+                      {category.details.shortName}
+                    </h3>
+                    <p className="mt-3 flex-1 text-[13px] leading-6 text-[#6B7A6F]">
+                      {category.details.description}
+                    </p>
+                    {category.examples.length > 0 && (
+                      <div className="mt-5 space-y-1.5">
+                        {category.examples.map((example) => (
+                          <p key={example} className="text-[12px] font-medium text-[#163A2B]">
+                            {example}
+                          </p>
                         ))}
                       </div>
-                      <Link
-                        href="/book"
-                        className="mt-6 inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#163A2B] px-5 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#163A2B] transition hover:bg-[#163A2B] hover:text-[#FCFAF5]"
-                      >
-                        Book Now
-                      </Link>
-                    </div>
-                  </article>
-                </ScrollReveal>
-              ))}
-            </div>
-          )}
+                    )}
+                    <Link
+                      href={category.href}
+                      className="mt-6 inline-flex min-h-10 items-center justify-center rounded-[8px] border border-[#163A2B] px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#163A2B] transition hover:bg-[#163A2B] hover:text-[#FCFAF5]"
+                    >
+                      View Menu
+                    </Link>
+                  </div>
+                </article>
+              </ScrollReveal>
+            ))}
+          </div>
+
+          <div className="mt-10 text-center">
+            <Link
+              href="/services"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-[#163A2B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#214F3B]"
+            >
+              Explore All Services
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </section>
       )}

@@ -54,6 +54,16 @@ export async function createOnlineBookingAction(
   };
 
   try {
+    // Home service requires address+zone for dispatch validation — must use the
+    // multi-service action which carries those fields.
+    if (d.type === "home_service") {
+      return {
+        ok: false,
+        code: "USE_MULTI_ACTION",
+        message: "Home Service bookings require additional address details. Please use the booking wizard.",
+      };
+    }
+
     const rulesCheck = await validateBookingAgainstBranchRules({
       branchId: d.branchId,
       bookingType: d.type,
@@ -80,8 +90,7 @@ export async function createOnlineBookingAction(
       .maybeSingle();
 
     if (eligRow) {
-      const eligible = d.type !== "home_service" ? eligRow.available_in_spa : eligRow.available_home_service;
-      if (!eligible) {
+      if (!eligRow.available_in_spa) {
         return {
           ok: false,
           code: "SERVICE_INELIGIBLE",
@@ -142,10 +151,7 @@ export async function createOnlineBookingAction(
         end_time: endTime,
         type: d.type,
         status: "pending",
-        travel_buffer_mins:
-          d.type === "home_service"
-            ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
-            : null,
+        travel_buffer_mins: null,
         metadata,
       })
       .select("id")

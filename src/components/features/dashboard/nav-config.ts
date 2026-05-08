@@ -29,6 +29,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Staff", href: "/manager/staff", icon: "Users" },
   { label: "Spaces", href: "/manager/resources", icon: "Activity" },
   { label: "Operations", href: "/manager/operations", icon: "Monitor" },
+  { label: "Settings", href: "/manager/settings", icon: "Settings" },
   { label: "Reports", href: "/manager/reports", icon: "BarChart2" },
 ];
 

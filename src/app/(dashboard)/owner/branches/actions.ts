@@ -24,6 +24,29 @@ async function requireOwner() {
   return supabase;
 }
 
+// Returns supabase client if caller is owner OR is a manager for the given branch.
+async function requireOwnerOrBranchManager(branchId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return supabase;
+  }
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("system_role, branch_id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!me) return null;
+  if (me.system_role === "owner") return supabase;
+  if (me.system_role === "manager" && me.branch_id === branchId) return supabase;
+  return null;
+}
+
 export async function createBranchAction(rawInput: unknown) {
   const parsed = createBranchSchema.safeParse(rawInput);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -128,7 +151,7 @@ export async function toggleBranchActiveAction(branchId: string, isActive: boole
 // ── Remove a service from a branch (set is_active = false) ───────────────
 // Named explicitly — cleaner than using setBranchServiceAction with isActive:false.
 export async function removeBranchServiceAction(branchId: string, serviceId: string) {
-  const supabase = await requireOwner();
+  const supabase = await requireOwnerOrBranchManager(branchId);
   if (!supabase) return { success: false, error: "Unauthorized" };
 
   const { error } = await supabase
@@ -151,7 +174,7 @@ export async function addBranchServiceAction(
   serviceId: string,
   customPrice?: number
 ) {
-  const supabase = await requireOwner();
+  const supabase = await requireOwnerOrBranchManager(branchId);
   if (!supabase) return { success: false, error: "Unauthorized" };
 
   const { error } = await supabase
@@ -181,7 +204,7 @@ export async function updateBranchServiceEligibilityAction(
   availableInSpa: boolean,
   availableHomeService: boolean
 ) {
-  const supabase = await requireOwner();
+  const supabase = await requireOwnerOrBranchManager(branchId);
   if (!supabase) return { success: false, error: "Unauthorized" };
 
   const { error } = await supabase
@@ -219,4 +242,55 @@ export async function updateBranchServicePriceAction(
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/owner/branches");
   return { success: true };
+}
+
+// ── Update per-branch service booking visibility ──────────────────────────
+// 'public' = shown in public wizard; 'csr_only' = CRM only; 'vip' = VIP only.
+// Owner-only: visibility is a catalog-level decision, not a per-branch op config.
+export async function updateBranchServiceVisibilityAction(
+  branchId: string,
+  serviceId: string,
+  visibility: "public" | "csr_only" | "vip"
+) {
+  const supabase = await requireOwner();
+  if (!supabase) return { success: false, error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("branch_services")
+    .update({ booking_visibility: visibility })
+    .eq("branch_id", branchId)
+    .eq("service_id", serviceId);
+
+  if (error) return { success: false, error: error.message };
+
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath(`/owner/branches/${branchId}`);
+  return { success: true };
+}
+
+// ── Manager: get own branch booking rules ────────────────────────────────
+export async function getMyBranchBookingRulesAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("system_role, branch_id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!me || (me.system_role !== "manager" && me.system_role !== "owner")) {
+    return { error: "Unauthorized" };
+  }
+  if (!me.branch_id) return { error: "No branch assigned" };
+
+  const { getBranchBookingRulesOrDefault } = await import("@/lib/queries/branch-booking-rules");
+  const { getBranchWithFullDetail } = await import("@/lib/queries/branches");
+  const [rules, detail] = await Promise.all([
+    getBranchBookingRulesOrDefault(me.branch_id),
+    getBranchWithFullDetail(me.branch_id),
+  ]);
+  return { branchId: me.branch_id, rules, services: detail.services };
 }

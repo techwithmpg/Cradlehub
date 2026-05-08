@@ -1,195 +1,92 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { ArrowRight, MessageCircle } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
-import { getAllServices } from "@/lib/queries/services";
-import type { Database } from "@/types/supabase";
-import { ScrollReveal } from "@/components/public/scroll-reveal";
-import { Check } from "lucide-react";
+import { ServiceCatalogClient } from "@/components/public/service-catalog-client";
+import { getPublicServiceCatalog } from "@/lib/queries/services";
 
-type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
-type CategoryRow = Pick<
-  Database["public"]["Tables"]["service_categories"]["Row"],
-  "id" | "name" | "display_order"
->;
-type CategoryRelation = CategoryRow | CategoryRow[] | null;
-type ServiceWithCategory = ServiceRow & {
-  service_categories?: CategoryRelation;
+export const metadata: Metadata = {
+  title: "Cradle Services | Massage, Salon, Skin Care & Spa Packages",
+  description:
+    "Explore the Cradle Massage & Wellness Spa service catalog in Bacolod, including massage services, salon care, skin care treatments, Divine Renewal packages, and spa party packages.",
+  keywords: [
+    "Cradle services",
+    "Bacolod massage menu",
+    "Cradle Massage & Wellness Spa",
+    "salon services Bacolod",
+    "skin care services Bacolod",
+    "spa party Bacolod",
+  ],
 };
 
-const DEFAULT_DESCRIPTION =
-  "A premium treatment designed to ease tension, improve circulation, and support deeper recovery.";
-
-const DEFAULT_BENEFITS = ["Stress relief", "Muscle recovery", "Improved circulation"];
-
-const IMAGE_CYCLE = [
-  SPA_IMAGES.swedish,
-  SPA_IMAGES.deepTissue,
-  SPA_IMAGES.aromatherapy,
-  SPA_IMAGES.hotStone,
-  SPA_IMAGES.reflexology,
-  SPA_IMAGES.couples,
-] as const;
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
-
-function firstCategory(value: CategoryRelation | undefined): CategoryRow | null {
-  if (!value) return null;
-  return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-function resolveServiceImage(name: string, index: number) {
-  const key = name.toLowerCase();
-  if (key.includes("swedish")) return SPA_IMAGES.swedish;
-  if (key.includes("deep")) return SPA_IMAGES.deepTissue;
-  if (key.includes("aroma")) return SPA_IMAGES.aromatherapy;
-  if (key.includes("stone")) return SPA_IMAGES.hotStone;
-  if (key.includes("reflex")) return SPA_IMAGES.reflexology;
-  if (key.includes("couple")) return SPA_IMAGES.couples;
-  return IMAGE_CYCLE[index % IMAGE_CYCLE.length]!;
-}
-
-function buildBenefits(serviceName: string, categoryName: string) {
-  const key = serviceName.toLowerCase();
-  if (key.includes("swedish")) return ["Improved circulation", "Stress relief", "Muscle relaxation"];
-  if (key.includes("deep")) return ["Knot release", "Chronic pain relief", "Improved mobility"];
-  if (key.includes("aroma")) return ["Sensory balance", "Emotional calm", "Natural healing"];
-  if (key.includes("stone")) return ["Deep heat penetration", "Energy flow", "Lasting relaxation"];
-  if (key.includes("reflex")) return ["Pressure-point therapy", "Full-body stimulation", "Energy rebalance"];
-  if (key.includes("couple")) return ["Shared experience", "Private suite", "Romantic ambiance"];
-  return [`${categoryName} treatment`, ...DEFAULT_BENEFITS.slice(1)];
-}
-
 export default async function ServicesPage() {
-  const services = (await getAllServices()) as ServiceWithCategory[];
-  const displayServices = services.map((service, index) => {
-    const categoryName = firstCategory(service.service_categories)?.name ?? "Wellness";
-    return {
-      id: service.id,
-      name: service.name,
-      description: service.description ?? DEFAULT_DESCRIPTION,
-      duration: `${service.duration_minutes} min`,
-      price: `From ${formatCurrency(Number(service.price))}`,
-      image: resolveServiceImage(service.name, index),
-      benefits: buildBenefits(service.name, categoryName),
-    };
-  });
+  const services = await getPublicServiceCatalog();
 
   return (
     <div className="sp-public">
-      {/* Page Header */}
-      <div className="pt-32 pb-16 lg:pt-40 lg:pb-20" style={{ background: "#F7F3EB" }}>
-        <div className="mx-auto max-w-4xl px-6 text-center">
-          <p
-            className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-4"
-            style={{ color: "#C8A96B" }}
-          >
-            Our Menu
-          </p>
-          <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-medium leading-tight mb-5"
-            style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-          >
-            Signature Treatments
-          </h1>
-          <p className="text-[15px] max-w-xl mx-auto" style={{ color: "#6B7A6F" }}>
-            Each treatment is thoughtfully designed to restore your body and calm your mind.
-            Choose the experience that speaks to your needs.
-          </p>
+      <section className="relative overflow-hidden bg-[#10261D] pt-32 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
+        <div className="absolute inset-0">
+          <Image
+            src={SPA_IMAGES.ctaBanner}
+            alt="Cradle spa treatment details"
+            fill
+            priority
+            className="object-cover opacity-60"
+            sizes="100vw"
+          />
+          <div className="absolute inset-0 bg-[#10261D]/70" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.97)_0%,rgba(16,38,29,0.74)_52%,rgba(16,38,29,0.4)_100%)]" />
+          <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#FCFAF5_0%,rgba(252,250,245,0)_100%)]" />
         </div>
-      </div>
 
-      {/* Services List */}
-      <section className="py-20 lg:py-28" style={{ background: "#FCFAF5" }}>
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="flex flex-col gap-16">
-            {displayServices.length === 0 ? (
-              <div
-                className="rounded-2xl border px-8 py-12 text-center"
-                style={{ borderColor: "#EDE4D3", background: "#F7F3EB" }}
+        <div className="relative mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[1fr_0.52fr] lg:items-end lg:px-12">
+          <div>
+            <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E8D5A3]">
+              Cradle Service Menu
+            </p>
+            <h1
+              className="max-w-4xl text-4xl font-medium leading-[1.04] sm:text-6xl lg:text-7xl"
+              style={{ fontFamily: "var(--sp-font-display)" }}
+            >
+              Massage, salon, skin care, and spa rituals in one calm menu.
+            </h1>
+            <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/76">
+              Browse Cradle&apos;s real service catalog by category. The public booking flow
+              remains branch-aware, so only assigned and available services appear when you book.
+            </p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/book"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#E8D5A3]"
               >
-                <p className="text-[15px] font-medium" style={{ color: "#163A2B" }}>
-                  No services published yet.
-                </p>
-                <p className="text-[13px] mt-2" style={{ color: "#6B7A6F" }}>
-                  Add services in the dashboard to show them here.
-                </p>
-              </div>
-            ) : (
-              displayServices.map((service, i) => (
-                <ScrollReveal key={service.id}>
-                  <div
-                    className={`grid lg:grid-cols-2 gap-10 items-center ${
-                      i % 2 === 1 ? "lg:flex-row-reverse" : ""
-                    }`}
-                  >
-                    <div className={i % 2 === 1 ? "lg:order-2" : ""}>
-                      <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-lg">
-                        <Image
-                          src={service.image}
-                          alt={service.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 1024px) 100vw, 50vw"
-                        />
-                      </div>
-                    </div>
-                    <div className={i % 2 === 1 ? "lg:order-1" : ""}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <span
-                          className="text-[12px] font-semibold tracking-widest uppercase"
-                          style={{ color: "#C8A96B" }}
-                        >
-                          {service.duration}
-                        </span>
-                        <span className="w-1 h-1 rounded-full bg-[#EDE4D3]" />
-                        <span
-                          className="text-[12px] font-semibold tracking-widest uppercase"
-                          style={{ color: "#163A2B" }}
-                        >
-                          {service.price}
-                        </span>
-                      </div>
-                      <h2
-                        className="text-2xl sm:text-3xl font-medium mb-4"
-                        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-                      >
-                        {service.name}
-                      </h2>
-                      <p className="text-[15px] leading-relaxed mb-6" style={{ color: "#6B7A6F" }}>
-                        {service.description}
-                      </p>
-                      <ul className="flex flex-col gap-2 mb-8">
-                        {service.benefits.map((b) => (
-                          <li key={b} className="flex items-center gap-2 text-[13px]" style={{ color: "#6B7A6F" }}>
-                            <Check className="h-4 w-4 text-[#C8A96B] shrink-0" />
-                            {b}
-                          </li>
-                        ))}
-                      </ul>
-                      <Link
-                        href="/book"
-                        className="inline-flex items-center rounded-full px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 hover:shadow-lg"
-                        style={{
-                          background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
-                          color: "#10261D",
-                        }}
-                      >
-                        Book This Treatment
-                      </Link>
-                    </div>
-                  </div>
-                </ScrollReveal>
-              ))
-            )}
+                Book Appointment
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                href="/contact"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/28 px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-white/10"
+              >
+                Ask Front Desk
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-[8px] border border-[#F7F3EB]/14 bg-[#FCFAF5] p-5 text-[#163A2B] shadow-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#B68A3C]">
+              What appears in booking?
+            </p>
+            <p className="mt-3 text-[14px] leading-6 text-[#5F6F63]">
+              The catalog below is for browsing. The booking wizard only shows services that are
+              assigned to your selected branch, active, public, and available for your visit type.
+            </p>
           </div>
         </div>
       </section>
+
+      <ServiceCatalogClient services={services} />
     </div>
   );
 }
+

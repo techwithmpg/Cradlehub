@@ -207,6 +207,7 @@ export const CSR_BLOCKED_PREFIXES = [
   "/manager/staff",
   "/manager/operations",
   "/manager/reports",
+  "/manager/settings",
 ];
 
 /** CRM sub-routes blocked for front-desk staff (csr_staff + legacy csr) */

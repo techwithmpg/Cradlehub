@@ -6,6 +6,7 @@ const AVAILABLE_TOOLS = [
   { icon: "📅", label: "Booking Management", desc: "View, edit, and transition booking statuses", href: "/manager/bookings" },
   { icon: "👥", label: "Staff Schedule & Time-Off", desc: "Weekly hours, day overrides, and blocked time windows", href: "/manager/staff" },
   { icon: "🏠", label: "Space Utilization", desc: "Room and bed occupancy for any date", href: "/manager/resources" },
+  { icon: "⚙️", label: "Branch Settings", desc: "Booking rules, Home Service config, and service availability", href: "/manager/settings" },
 ];
 
 const COMING_SOON = [

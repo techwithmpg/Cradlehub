@@ -1,5 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 
+function isMissingServiceVisibilityError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("booking_visibility") &&
+    (lower.includes("does not exist") ||
+      lower.includes("schema cache") ||
+      lower.includes("could not find"))
+  );
+}
+
 export async function getAllBranches() {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -22,21 +32,40 @@ export async function getBranchById(branchId: string) {
   return data;
 }
 
-export async function getBranchServices(branchId: string) {
+export async function getBranchServices(
+  branchId: string,
+  options?: { publicOnly?: boolean }
+) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("branch_services")
-    .select(`
-      *,
-      services (
-        id, name, description, duration_minutes, price,
-        buffer_before, buffer_after,
-        service_categories ( id, name, display_order )
-      )
-    `)
-    .eq("branch_id", branchId)
-    .eq("is_active", true)
-    .order("id");
+
+  const baseQuery = () =>
+    supabase
+      .from("branch_services")
+      .select(`
+        *,
+        services (
+          id, name, description, duration_minutes, price,
+          buffer_before, buffer_after,
+          service_categories ( id, name, display_order )
+        )
+      `)
+      .eq("branch_id", branchId)
+      .eq("is_active", true);
+
+  let query = baseQuery();
+
+  if (options?.publicOnly) {
+    query = query.eq("booking_visibility", "public");
+  }
+
+  const { data, error } = await query.order("id");
+
+  if (error && options?.publicOnly && isMissingServiceVisibilityError(error.message)) {
+    const fallback = await baseQuery().order("id");
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ?? [];
+  }
+
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -58,7 +87,7 @@ export async function getBranchWithFullDetail(branchId: string) {
     supabase
       .from("branch_services")
       .select(`
-        id, is_active, custom_price, available_in_spa, available_home_service,
+        id, is_active, custom_price, available_in_spa, available_home_service, booking_visibility,
         services (
           id, name, description,
           duration_minutes, price,

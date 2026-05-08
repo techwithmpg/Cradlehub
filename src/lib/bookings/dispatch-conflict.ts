@@ -119,7 +119,7 @@ export async function checkHomeServiceDispatchConflict({
     return {
       conflict: "hard",
       message:
-        "Home Service is already fully scheduled for this time. Please choose another time or wait for CSR confirmation.",
+        "Home Service is already fully scheduled for this time. Please choose another time or contact the front desk.",
     };
   }
 
