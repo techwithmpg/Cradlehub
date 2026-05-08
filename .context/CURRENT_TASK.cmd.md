@@ -1,30 +1,49 @@
-# 🎯 CURRENT TASK: CRADLE-SPACES-AUTO-001 — Branch Spaces & Auto Room Assignment on Confirmation
+# CURRENT TASK: PUBLIC-MOBILE-RESET-001 — Approved Mobile Public UI Reset
 
-## 📌 Overview
-Implement branch-level spaces (rooms, beds, chairs) and automate the assignment of an available space when a booking is confirmed by CRM.
+## Overview
+Implement the approved mobile-only public website layout for Cradle Massage & Wellness Spa using:
 
-## 🏗️ Implementation Plan
-1. **Part 1 — Audit**: ✅ Completed.
-2. **Part 2 & 3 — Database Model**: ✅ Completed.
-3. **Part 4 — Auto Room Assignment Service**: ✅ Completed.
-4. **Part 5 — Resource Conflict Prevention**: ✅ Completed.
-5. **Part 6 — CRM Confirmation Flow**: ✅ Completed.
-6. **Part 7 — Walk-in / In-house Booking**: ✅ Completed.
-7. **Part 8 & 9 — UI Components**: ✅ Completed.
-8. **Verification**: ✅ Completed.
+`docs/design-references/cradle-mobile-public-ui-reference.png`
 
-## ✅ Progress Tracking
-- [x] Audit current booking flow
-- [x] Implement auto-assignment logic
-- [x] Update online booking to start as 'pending'
-- [x] Implement confirmation auto-assignment in server actions
-- [x] Update UI to show 'Confirm' button for pending bookings
-- [x] Display assigned spaces on schedule and staff portal
-- [x] Final verification
+## Scope
+- Public mobile pages only:
+  - `/`
+  - `/services`
+  - `/book`
+  - `/branches`
+  - `/about`
+  - `/contact`
+- Preserve existing desktop layouts at `md` and above.
+- Preserve booking, CRM, auth, routing, database, Supabase, and dashboard logic.
 
-## 📎 References
-- `src/lib/actions/online-booking.ts`
-- `src/app/(dashboard)/manager/bookings/actions.ts`
-- `src/components/features/dashboard/booking-action-menu.tsx`
-- `supabase/migrations/20260505000001_branch_resources.sql`
-- `src/lib/engine/resource-availability.ts`
+## Implementation Plan
+1. Create mobile-only public components for the approved header, bottom nav, section/card patterns, home, services, branches, about, and contact.
+2. Render mobile components with `md:hidden`.
+3. Keep existing desktop components wrapped with `hidden md:block` where needed.
+4. Adjust the booking wizard presentation only on mobile while preserving all existing state, API calls, validation, and submit actions.
+5. Verify mobile route rendering and desktop stability.
+
+## Progress
+- [x] Read required `.context` and docs files.
+- [x] Inspected approved mobile reference image.
+- [x] Audited current public page structure and mobile split points.
+- [x] Reported pre-edit public page/mobile component audit.
+- [ ] Implement mobile-only public UI reset and polish existing reset scaffold.
+- [ ] Run lint, type-check, build.
+- [ ] Update changelog/handoff/errors/roadmap.
+
+## Route-by-Route Implementation Plan
+- `/` → keep existing desktop `HomePageSections`; refine `PublicMobileHome` to match screen 01 with dark image hero, two CTAs, experience cards, trust strip, and branded gallery teaser copy.
+- `/services` → keep desktop catalog; refine `PublicMobileServices` for screen 02 with image hero, category chips, compact real-data rows, correct public booking/inquiry rules, and show-more behavior.
+- `/book` → preserve `BookingWizard` state/API/server-action behavior; only adjust public mobile container, progress indicator, branch-card visuals, and bottom action spacing to match screen 03.
+- `/branches` → keep desktop branch page; refine `PublicMobileBranches` for screen 04 using real branch rows and safe neutral availability copy.
+- `/about` → keep desktop about page; refine `PublicMobileAbout` for screen 05 with image hero, story card, value icons, and dark CTA.
+- `/contact` → keep desktop contact page; wire `PublicMobileContact` to real branch rows and available contact methods for screen 06.
+
+## Guardrails
+- Do not touch booking logic.
+- Do not touch CRM logic.
+- Do not touch auth/routing.
+- Do not touch database/migrations.
+- Do not touch dashboard/workspace pages.
+- Do not redesign desktop.
