@@ -48,6 +48,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "📈", label: "Reports", href: "/owner/reports" },
       { icon: "🏢", label: "Branches", href: "/owner/branches" },
       { icon: "👥", label: "Staff", href: "/owner/staff" },
+      { icon: "📋", label: "Onboarding Requests", href: "/owner/staff/onboarding", description: "Review and approve staff applications from the shared onboarding link." },
       { icon: "✨", label: "Services", href: "/owner/services" },
       {
         icon: "🎨",
@@ -69,6 +70,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "🔧", label: "Operations", href: "/manager/operations" },
       { icon: "⚙️", label: "Settings", href: "/manager/settings", description: "Branch booking rules, Home Service config, and service availability." },
       { icon: "📈", label: "Reports", href: "/manager/reports" },
+      { icon: "📋", label: "Onboarding Requests", href: "/manager/staff/onboarding", description: "Review staff applications for your branch." },
     ],
   },
   {
@@ -114,6 +116,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "✨", label: "Services", href: "/services" },
       { icon: "📖", label: "About", href: "/about" },
       { icon: "📞", label: "Contact", href: "/contact" },
+      { icon: "📝", label: "Staff Onboarding", href: "/staff-onboarding", description: "Shared onboarding form for new hires (requires access code + STAFF_ONBOARDING_ENABLED=true)." },
     ],
   },
 ];

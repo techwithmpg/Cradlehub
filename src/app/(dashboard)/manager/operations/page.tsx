@@ -7,6 +7,7 @@ const AVAILABLE_TOOLS = [
   { icon: "👥", label: "Staff Schedule & Time-Off", desc: "Weekly hours, day overrides, and blocked time windows", href: "/manager/staff" },
   { icon: "🏠", label: "Space Utilization", desc: "Room and bed occupancy for any date", href: "/manager/resources" },
   { icon: "⚙️", label: "Branch Settings", desc: "Booking rules, Home Service config, and service availability", href: "/manager/settings" },
+  { icon: "📋", label: "Onboarding Requests", desc: "Review and approve staff applications from the shared onboarding link", href: "/manager/staff/onboarding" },
 ];
 
 const COMING_SOON = [

@@ -99,7 +99,25 @@ export async function loginAction(
     if (isDevAuthBypassEnabled()) {
       redirect("/owner");
     }
+
+    // Check if this user has a pending onboarding request
+    const { data: onboardingRequest } = await supabase
+      .from("staff_onboarding_requests")
+      .select("status")
+      .eq("auth_user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     await supabase.auth.signOut();
+
+    if (onboardingRequest?.status === "submitted") {
+      return { error: "Your application is pending review. You'll be able to log in once a manager approves your account." };
+    }
+    if (onboardingRequest?.status === "rejected") {
+      return { error: "Your application was not approved. Please contact your administrator for more information." };
+    }
+
     return { error: "Your account has not been set up yet. Contact your administrator." };
   }
 

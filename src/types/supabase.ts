@@ -923,6 +923,94 @@ export type Database = {
           },
         ]
       }
+      staff_onboarding_requests: {
+        Row: {
+          id: string
+          full_name: string
+          email: string
+          phone: string | null
+          address: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          experience_notes: string | null
+          preferred_role: string | null
+          requested_branch_id: string | null
+          auth_user_id: string | null
+          staff_id: string | null
+          status: string
+          reviewed_by_staff_id: string | null
+          reviewed_at: string | null
+          rejection_reason: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          full_name: string
+          email: string
+          phone?: string | null
+          address?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          experience_notes?: string | null
+          preferred_role?: string | null
+          requested_branch_id?: string | null
+          auth_user_id?: string | null
+          staff_id?: string | null
+          status?: string
+          reviewed_by_staff_id?: string | null
+          reviewed_at?: string | null
+          rejection_reason?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          email?: string
+          phone?: string | null
+          address?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          experience_notes?: string | null
+          preferred_role?: string | null
+          requested_branch_id?: string | null
+          auth_user_id?: string | null
+          staff_id?: string | null
+          status?: string
+          reviewed_by_staff_id?: string | null
+          reviewed_at?: string | null
+          rejection_reason?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_onboarding_requests_requested_branch_id_fkey"
+            columns: ["requested_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_onboarding_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_onboarding_requests_reviewed_by_staff_id_fkey"
+            columns: ["reviewed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_services: {
         Row: {
           created_at: string
