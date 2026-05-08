@@ -21,7 +21,20 @@ export function NotificationListClient({
     );
   }
 
-  if (!items.length) return null;
+  if (!items.length) {
+    return (
+      <div style={{
+        padding:      "32px 16px",
+        textAlign:    "center",
+        color:        "var(--cs-text-muted)",
+        fontSize:     12,
+        borderRadius: "var(--cs-r-sm)",
+        border:       "1px solid var(--cs-border-soft)",
+      }}>
+        No active notifications.
+      </div>
+    );
+  }
 
   return (
     <div>

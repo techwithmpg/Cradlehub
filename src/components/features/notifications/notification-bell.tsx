@@ -25,7 +25,7 @@ export function NotificationBell({ role }: { role: string }) {
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<WorkspaceNotification[]>([]);
   const [open, setOpen] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   useEffect(() => {
     getUnreadCountAction().then(setCount).catch(() => {});
@@ -37,22 +37,31 @@ export function NotificationBell({ role }: { role: string }) {
   async function toggleOpen() {
     const nextOpen = !open;
     setOpen(nextOpen);
-    if (nextOpen && !loaded) {
+
+    // Re-fetch fresh data every time the popover opens so read/dismiss
+    // changes made on the notification page are immediately reflected here.
+    if (nextOpen) {
+      setFetching(true);
       try {
         const notifications = await getNotificationPopoverAction(8);
         setItems(notifications);
+        // Sync badge to freshly-fetched unread count.
         setCount(notifications.filter((item) => item.status === "unread").length);
-        setLoaded(true);
       } catch {
         setItems([]);
-        setLoaded(true);
+      } finally {
+        setFetching(false);
       }
     }
   }
 
   function remove(id: string) {
+    const target = items.find((item) => item.id === id);
     setItems((prev) => prev.filter((item) => item.id !== id));
-    setCount((prev) => Math.max(0, prev - 1));
+    // Only decrement the unread badge when dismissing an unread notification.
+    if (target?.status === "unread") {
+      setCount((prev) => Math.max(0, prev - 1));
+    }
   }
 
   function markRead(id: string) {
@@ -67,7 +76,7 @@ export function NotificationBell({ role }: { role: string }) {
       <button
         type="button"
         onClick={toggleOpen}
-        aria-expanded={open}
+        aria-expanded={open ? "true" : "false"}
         aria-label={count > 0 ? `${count} unread notification${count === 1 ? "" : "s"}` : "Notifications"}
         title={count > 0 ? `${count} unread notification${count === 1 ? "" : "s"}` : "Notifications"}
         style={{
@@ -165,13 +174,13 @@ export function NotificationBell({ role }: { role: string }) {
             </Link>
           </div>
 
-          {!loaded ? (
+          {fetching ? (
             <div style={{ padding: "18px 8px", fontSize: 12, color: "var(--cs-text-muted)", textAlign: "center" }}>
-              Loading notifications...
+              Loading…
             </div>
           ) : items.length === 0 ? (
             <div style={{ padding: "22px 8px", fontSize: 12, color: "var(--cs-text-muted)", textAlign: "center" }}>
-              No action required.
+              No active notifications.
             </div>
           ) : (
             <div>
