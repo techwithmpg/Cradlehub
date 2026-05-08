@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
+import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 
 export type OnboardingFormState = {
   success?: boolean;
@@ -149,6 +150,35 @@ export async function submitStaffOnboardingAction(
     console.error("Failed to create onboarding request row", requestInsert.error.message);
   }
 
+  // Notify owner and branch manager of new application
+  const requestId = (requestInsert.data as { id?: string } | null)?.id ?? staffId;
+  const notifBody = `${fullName} submitted an onboarding application.`;
+  await Promise.all([
+    createNotification({
+      targetWorkspace: "owner",
+      type: "staff_onboarding_submitted",
+      title: "New staff onboarding request",
+      body: notifBody,
+      entityType: "staff_onboarding_request",
+      entityId: requestId,
+      actionHref: "/owner/staff/onboarding",
+      priority: "high",
+      requiresAction: true,
+    }),
+    createNotification({
+      branchId: branchId,
+      targetWorkspace: "manager",
+      type: "staff_onboarding_submitted",
+      title: "New branch onboarding request",
+      body: `${fullName} submitted an application for your branch.`,
+      entityType: "staff_onboarding_request",
+      entityId: requestId,
+      actionHref: "/manager/staff/onboarding",
+      priority: "high",
+      requiresAction: true,
+    }),
+  ]);
+
   return { success: true };
 }
 
@@ -207,6 +237,9 @@ export async function approveOnboardingAction(input: {
     reviewed_at: new Date().toISOString(),
   }).eq("id", input.requestId);
 
+  // Resolve pending onboarding notifications for this request
+  await resolveNotificationsForEntity("staff_onboarding_request", input.requestId);
+
   return { success: true };
 }
 
@@ -240,6 +273,9 @@ export async function rejectOnboardingAction(input: {
     reviewed_at: new Date().toISOString(),
     rejection_reason: input.rejectionReason ?? null,
   }).eq("id", input.requestId);
+
+  // Resolve pending onboarding notifications for this request
+  await resolveNotificationsForEntity("staff_onboarding_request", input.requestId);
 
   return { success: true };
 }

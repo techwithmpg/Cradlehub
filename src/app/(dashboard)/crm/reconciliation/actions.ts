@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { createNotification } from "@/lib/notifications/create";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -80,6 +81,31 @@ export async function upsertReconciliationAction(rawInput: unknown) {
     );
 
   if (error) return { ok: false as const, error: error.message };
+
+  if (d.status === "submitted") {
+    const dateLabel = d.date;
+    createNotification({
+      branchId: d.branchId,
+      targetWorkspace: "manager",
+      type: "reconciliation_submitted",
+      title: "Daily reconciliation submitted",
+      body: `Cash reconciliation for ${dateLabel} has been submitted for review.`,
+      entityType: "reconciliation",
+      actionHref: "/manager/reconciliation",
+      priority: "normal",
+      requiresAction: true,
+    });
+    createNotification({
+      targetWorkspace: "owner",
+      type: "reconciliation_submitted",
+      title: "Daily reconciliation submitted",
+      body: `Cash reconciliation for ${dateLabel} (branch ${d.branchId.slice(0, 8)}…) has been submitted.`,
+      entityType: "reconciliation",
+      actionHref: "/owner/reconciliation",
+      priority: "low",
+      requiresAction: false,
+    });
+  }
 
   revalidatePath("/crm/reconciliation");
   return { ok: true as const };

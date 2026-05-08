@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createNotification } from "@/lib/notifications/create";
 import { z } from "zod";
 
 const uuid = z.guid("Invalid ID");
@@ -143,6 +144,19 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  createNotification({
+    branchId: d.branchId,
+    targetWorkspace: "crm",
+    type: "waitlist_request_submitted",
+    title: "New waitlist request",
+    body: `${d.customerName} joined the waitlist.`,
+    entityType: "waitlist_request",
+    entityId: data.id,
+    actionHref: "/crm/waitlist",
+    priority: "normal",
+    requiresAction: true,
+  });
 
   return NextResponse.json({ ok: true, requestId: data.id }, { status: 201 });
 }

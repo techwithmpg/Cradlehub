@@ -664,6 +664,76 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_notifications: {
+        Row: {
+          id: string
+          branch_id: string | null
+          target_workspace: string
+          target_role: string | null
+          recipient_staff_id: string | null
+          actor_staff_id: string | null
+          type: string
+          title: string
+          body: string | null
+          entity_type: string | null
+          entity_id: string | null
+          action_href: string | null
+          priority: string
+          status: string
+          requires_action: boolean
+          metadata: Record<string, unknown>
+          created_at: string
+          read_at: string | null
+          resolved_at: string | null
+        }
+        Insert: {
+          id?: string
+          branch_id?: string | null
+          target_workspace: string
+          target_role?: string | null
+          recipient_staff_id?: string | null
+          actor_staff_id?: string | null
+          type: string
+          title: string
+          body?: string | null
+          entity_type?: string | null
+          entity_id?: string | null
+          action_href?: string | null
+          priority?: string
+          status?: string
+          requires_action?: boolean
+          metadata?: Record<string, unknown>
+          created_at?: string
+          read_at?: string | null
+          resolved_at?: string | null
+        }
+        Update: {
+          id?: string
+          branch_id?: string | null
+          target_workspace?: string
+          target_role?: string | null
+          recipient_staff_id?: string | null
+          actor_staff_id?: string | null
+          type?: string
+          title?: string
+          body?: string | null
+          entity_type?: string | null
+          entity_id?: string | null
+          action_href?: string | null
+          priority?: string
+          status?: string
+          requires_action?: boolean
+          metadata?: Record<string, unknown>
+          created_at?: string
+          read_at?: string | null
+          resolved_at?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "workspace_notifications_branch_id_fkey"; columns: ["branch_id"]; referencedRelation: "branches"; referencedColumns: ["id"] },
+          { foreignKeyName: "workspace_notifications_recipient_staff_id_fkey"; columns: ["recipient_staff_id"]; referencedRelation: "staff"; referencedColumns: ["id"] },
+          { foreignKeyName: "workspace_notifications_actor_staff_id_fkey"; columns: ["actor_staff_id"]; referencedRelation: "staff"; referencedColumns: ["id"] }
+        ]
+      }
       waitlist_requests: {
         Row: {
           id: string

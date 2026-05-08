@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
+import { ActionRequiredList } from "@/components/features/notifications/action-required-list";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { createClient } from "@/lib/supabase/server";
 import { getTodaysSchedule, getDailyPaymentSummary, getManagerDashboardStats } from "@/lib/queries/bookings";
@@ -142,6 +143,8 @@ export default async function CrmTodayPage() {
         })} · Daily front-desk operations`}
         icon="🌅"
       />
+
+      <ActionRequiredList limit={3} />
 
       {/* Quick Actions */}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>

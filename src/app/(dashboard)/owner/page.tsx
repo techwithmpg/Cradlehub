@@ -1,4 +1,5 @@
 ﻿import { StatCard } from "@/components/features/dashboard/stat-card";
+import { ActionRequiredList } from "@/components/features/notifications/action-required-list";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { getOwnerDashboardAction, getOwnerBookingsAction } from "./bookings/actions";
@@ -58,6 +59,8 @@ export default async function OwnerOverviewPage() {
           </div>
         </div>
       </div>
+
+      <ActionRequiredList limit={5} />
 
       {/* KPI Grid */}
       <div style={{

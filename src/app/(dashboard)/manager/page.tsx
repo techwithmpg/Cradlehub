@@ -1,5 +1,6 @@
 ﻿import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
+import { ActionRequiredList } from "@/components/features/notifications/action-required-list";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
@@ -190,6 +191,8 @@ export default async function ManagerTodayPage() {
           day: "numeric",
         })} · Daily operations, live bookings, and branch activity`}
       />
+
+      <ActionRequiredList limit={5} />
 
       {/* Stats */}
       <div

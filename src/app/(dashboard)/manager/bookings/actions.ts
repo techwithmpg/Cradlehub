@@ -10,6 +10,7 @@ import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { revalidatePath } from "next/cache";
 import type { Database } from "@/types/supabase";
 import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
+import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 
 // ── Auth helper ────────────────────────────────────────────────────────────
 async function getOperationsContext() {
@@ -94,6 +95,14 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     }
   }
 
+  // Fetch booking before updating so we have staff_id + date
+  const { data: bookingBefore } = await supabase
+    .from("bookings")
+    .select("staff_id, branch_id, booking_date, start_time")
+    .eq("id", parsed.data.bookingId)
+    .eq("branch_id", me.branch_id)
+    .single();
+
   const { error } = await supabase
     .from("bookings")
     .update(updates)
@@ -101,6 +110,43 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     .eq("branch_id", me.branch_id); // RLS-equivalent guard
 
   if (error) return { success: false, error: error.message };
+
+  // Notify the assigned therapist on cancel or customer_arrived
+  if (bookingBefore?.staff_id) {
+    const status = parsed.data.status;
+    if (status === "cancelled") {
+      const sameDay = bookingBefore.booking_date === new Date().toISOString().split("T")[0];
+      createNotification({
+        branchId: bookingBefore.branch_id,
+        targetWorkspace: "staff",
+        recipientStaffId: bookingBefore.staff_id,
+        type: "booking_cancelled",
+        title: "Booking cancelled",
+        body: `Your booking on ${bookingBefore.booking_date} at ${bookingBefore.start_time} has been cancelled.`,
+        entityType: "booking",
+        entityId: parsed.data.bookingId,
+        actionHref: "/staff-portal",
+        priority: sameDay ? "high" : "normal",
+        requiresAction: sameDay,
+      });
+      resolveNotificationsForEntity("booking", parsed.data.bookingId, "staff");
+    }
+    if (status === "confirmed") {
+      createNotification({
+        branchId: bookingBefore.branch_id,
+        targetWorkspace: "staff",
+        recipientStaffId: bookingBefore.staff_id,
+        type: "customer_arrived",
+        title: "Customer has arrived",
+        body: `Your customer is ready for their session on ${bookingBefore.booking_date} at ${bookingBefore.start_time}.`,
+        entityType: "booking",
+        entityId: parsed.data.bookingId,
+        actionHref: "/staff-portal",
+        priority: "high",
+        requiresAction: true,
+      });
+    }
+  }
 
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");
@@ -257,6 +303,45 @@ export async function editBookingAction(rawInput: unknown) {
     .eq("branch_id", me.branch_id);
 
   if (error) return { success: false, error: error.message };
+
+  // Notify newly assigned therapist if staff changed
+  if (changes.staffId && changes.staffId !== current.staff_id) {
+    const newDate = changes.date ?? current.booking_date;
+    const newTime = changes.startTime ?? current.start_time;
+    const isHS = (changes.type ?? current.type) === "home_service";
+    createNotification({
+      branchId: me.branch_id,
+      targetWorkspace: "staff",
+      recipientStaffId: changes.staffId,
+      type: isHS ? "home_service_assigned" : "booking_assigned",
+      title: isHS ? "Home Service booking assigned" : "Booking assigned to you",
+      body: `You have been assigned a booking on ${newDate} at ${newTime}.`,
+      entityType: "booking",
+      entityId: bookingId,
+      actionHref: "/staff-portal",
+      priority: isHS ? "high" : "normal",
+      requiresAction: isHS,
+    });
+  }
+
+  // Notify existing therapist of reschedule (if date/time changed, staff unchanged)
+  if ((changes.date || changes.startTime) && !changes.staffId && current.staff_id) {
+    const newDate = changes.date ?? current.booking_date;
+    const newTime = changes.startTime ?? current.start_time;
+    createNotification({
+      branchId: me.branch_id,
+      targetWorkspace: "staff",
+      recipientStaffId: current.staff_id,
+      type: "booking_rescheduled",
+      title: "Booking time changed",
+      body: `Your booking has been rescheduled to ${newDate} at ${newTime}.`,
+      entityType: "booking",
+      entityId: bookingId,
+      actionHref: "/staff-portal",
+      priority: "high",
+      requiresAction: true,
+    });
+  }
 
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");
