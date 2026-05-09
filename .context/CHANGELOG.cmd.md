@@ -903,3 +903,28 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 - No database schema or migration changes.
 - No booking logic, CRM logic, Supabase booking rules, or RLS policy changes.
 - No new dependencies.
+
+---
+
+### 2026-05-09 — Codex (STAFF-BRANCH-001 — Group Staff by Branch in Owner Staff Page)
+
+**Task:** Surface branch separation in the owner staff management page — both Active Staff and Pending Staff views now group staff under branch section headings with a count badge.
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/staff/page.tsx`
+  - Added `BranchGroup` local type.
+  - Extracted `groupStaffByBranch(staff)` helper: groups by `branch_id`, sorts branches alphabetically, puts "Unassigned Branch" last.
+  - Changed `readBranchName` null fallback from "Unknown branch" to "Unassigned Branch".
+  - Replaced inline `groupsMap` block for active staff with `groupStaffByBranch`.
+  - Added count badge to each active staff branch section heading.
+  - Applied `groupStaffByBranch` to pending staff — replaced flat "Awaiting Approval" / "Invites Sent" top-level sections with branch-level sections; each branch section shows claimed (linkable, "Review & Approve") and unclaimed ("Not claimed") rows in their query order (created_at desc).
+
+**Behavior:**
+- Active Staff: staff are grouped under named branch headings with count badge; unassigned staff go under "Unassigned Branch" sorted last; inactive staff remain visible with "Inactive" badge at 0.5 opacity.
+- Pending Staff: pending staff are grouped under named branch headings with count badge; each row retains its "Review & Approve" (claimed) or "Not claimed" (unclaimed) badge; empty state unchanged.
+- Staff with null branch_id are safely handled as "Unassigned Branch" — no crash.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.

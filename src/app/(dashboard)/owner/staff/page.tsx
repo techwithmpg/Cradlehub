@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { RoleBadge } from "@/components/features/dashboard/role-badge";
@@ -11,6 +11,12 @@ type StaffRow = Database["public"]["Tables"]["staff"]["Row"];
 type BranchRel = { id: string; name: string } | { id: string; name: string }[] | null;
 type StaffWithBranch = StaffRow & { branches: BranchRel };
 
+type BranchGroup = {
+  branchId: string;
+  branchName: string;
+  staff: StaffWithBranch[];
+};
+
 const TIER_LABELS: Record<string, string> = {
   senior: "Senior",
   mid: "Mid",
@@ -18,9 +24,31 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 function readBranchName(relation: BranchRel): string {
-  if (!relation) return "Unknown branch";
-  if (Array.isArray(relation)) return relation[0]?.name ?? "Unknown branch";
+  if (!relation) return "Unassigned Branch";
+  if (Array.isArray(relation)) return relation[0]?.name ?? "Unassigned Branch";
   return relation.name;
+}
+
+function groupStaffByBranch(staff: StaffWithBranch[]): BranchGroup[] {
+  const map = new Map<string, BranchGroup>();
+  for (const member of staff) {
+    const key = member.branch_id ?? "__unassigned__";
+    const existing = map.get(key);
+    if (existing) {
+      existing.staff.push(member);
+    } else {
+      map.set(key, {
+        branchId: key,
+        branchName: readBranchName(member.branches),
+        staff: [member],
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.branchId === "__unassigned__") return 1;
+    if (b.branchId === "__unassigned__") return -1;
+    return a.branchName.localeCompare(b.branchName);
+  });
 }
 
 function daysSince(dateStr: string): number {
@@ -44,32 +72,17 @@ export default async function OwnerStaffPage({
   const typedAllStaff = allStaff as StaffWithBranch[];
   const typedPending = pendingStaff as StaffWithBranch[];
 
-  const groupsMap = new Map<string, { name: string; staff: StaffWithBranch[] }>();
-  typedAllStaff.forEach((staffMember) => {
-    const key = staffMember.branch_id;
-    const existing = groupsMap.get(key);
-    if (existing) {
-      existing.staff.push(staffMember);
-      return;
-    }
-    groupsMap.set(key, {
-      name: readBranchName(staffMember.branches),
-      staff: [staffMember],
-    });
-  });
+  const grouped = groupStaffByBranch(typedAllStaff);
+  const pendingGrouped = groupStaffByBranch(typedPending);
 
-  const grouped = Array.from(groupsMap.entries())
-    .map(([branchId, value]) => ({ branchId, branchName: value.name, staff: value.staff }))
-    .sort((a, b) => a.branchName.localeCompare(b.branchName));
-
-  const pendingClaimed = typedPending.filter((s) => s.auth_user_id !== null);
-  const pendingUnclaimed = typedPending.filter((s) => s.auth_user_id === null);
+  const awaitingCount = typedPending.filter((s) => s.auth_user_id !== null).length;
+  const invitedCount = typedPending.filter((s) => s.auth_user_id === null).length;
 
   return (
     <div>
       <PageHeader
         title="Staff"
-        description={`${typedAllStaff.filter((s) => s.is_active).length} active · ${pendingClaimed.length} awaiting approval · ${pendingUnclaimed.length} invites sent`}
+        description={`${typedAllStaff.filter((s) => s.is_active).length} active · ${awaitingCount} awaiting approval · ${invitedCount} invites sent`}
         action={
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <Button
@@ -146,6 +159,9 @@ export default async function OwnerStaffPage({
                 <div key={branchId}>
                   <div
                     style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
                       fontSize: "0.8125rem",
                       fontWeight: 600,
                       color: "var(--cs-text-muted)",
@@ -154,7 +170,21 @@ export default async function OwnerStaffPage({
                       marginBottom: "0.625rem",
                     }}
                   >
-                    {branchName}
+                    <span>{branchName}</span>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        fontWeight: 600,
+                        color: "var(--cs-text-muted)",
+                        backgroundColor: "var(--cs-border)",
+                        padding: "1px 6px",
+                        borderRadius: 9999,
+                        textTransform: "none",
+                        letterSpacing: 0,
+                      }}
+                    >
+                      {staff.length}
+                    </span>
                   </div>
                   <div
                     style={{
@@ -237,178 +267,7 @@ export default async function OwnerStaffPage({
 
       {activeTab === "pending" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          {/* Awaiting Approval */}
-          {pendingClaimed.length > 0 && (
-            <div>
-              <div
-                style={{
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  color: "var(--cs-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginBottom: "0.625rem",
-                }}
-              >
-                Awaiting Approval ({pendingClaimed.length})
-              </div>
-              <div
-                style={{
-                  backgroundColor: "var(--cs-surface)",
-                  border: "1px solid var(--cs-border)",
-                  borderRadius: 10,
-                  overflow: "hidden",
-                }}
-              >
-                {pendingClaimed.map((s, i) => (
-                  <Link
-                    key={s.id}
-                    href={`/owner/staff/${s.id}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.875rem",
-                      padding: "0.75rem 1rem",
-                      borderBottom: i < pendingClaimed.length - 1 ? "1px solid var(--cs-border)" : "none",
-                      textDecoration: "none",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        backgroundColor: "var(--cs-sand-mist)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "0.8125rem",
-                        fontWeight: 600,
-                        color: "var(--cs-sand)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {s.full_name.charAt(0)}
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
-                        {s.full_name}
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                        {s.phone && s.phone !== "0000000000" && `${s.phone} · `}
-                        {readBranchName(s.branches)}
-                      </div>
-                    </div>
-
-                    <span
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "var(--cs-sand)",
-                        backgroundColor: "var(--cs-sand-mist)",
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}
-                    >
-                      Review & Approve
-                    </span>
-
-                    <div style={{ color: "var(--cs-text-muted)", fontSize: 16 }}>›</div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Invites Sent (not yet claimed) */}
-          {pendingUnclaimed.length > 0 && (
-            <div>
-              <div
-                style={{
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  color: "var(--cs-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginBottom: "0.625rem",
-                }}
-              >
-                Invites Sent ({pendingUnclaimed.length})
-              </div>
-              <div
-                style={{
-                  backgroundColor: "var(--cs-surface)",
-                  border: "1px solid var(--cs-border)",
-                  borderRadius: 10,
-                  overflow: "hidden",
-                }}
-              >
-                {pendingUnclaimed.map((s, i) => {
-                  const age = daysSince(s.created_at);
-                  const expiresIn = Math.max(0, 7 - age);
-                  return (
-                    <div
-                      key={s.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.875rem",
-                        padding: "0.75rem 1rem",
-                        borderBottom: i < pendingUnclaimed.length - 1 ? "1px solid var(--cs-border)" : "none",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: "50%",
-                          backgroundColor: "var(--cs-border)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.8125rem",
-                          fontWeight: 600,
-                          color: "var(--cs-text-muted)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        ?
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text-muted)" }}>
-                          Invite link generated
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                          {readBranchName(s.branches)}
-                          {" · "}
-                          {expiresIn > 0 ? `Expires in ${expiresIn} day${expiresIn !== 1 ? "s" : ""}` : "Expired"}
-                        </div>
-                      </div>
-
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          color: "var(--cs-text-muted)",
-                          backgroundColor: "var(--cs-border)",
-                          padding: "2px 8px",
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          flexShrink: 0,
-                        }}
-                      >
-                        Not claimed
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {typedPending.length === 0 && (
+          {typedPending.length === 0 ? (
             <EmptyState
               title="No pending staff"
               description="Generate an invite link to add new team members."
@@ -418,10 +277,162 @@ export default async function OwnerStaffPage({
                 </Button>
               }
             />
+          ) : (
+            pendingGrouped.map(({ branchId, branchName, staff: pendingInBranch }) => (
+              <div key={branchId}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    fontSize: "0.8125rem",
+                    fontWeight: 600,
+                    color: "var(--cs-text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: "0.625rem",
+                  }}
+                >
+                  <span>{branchName}</span>
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      color: "var(--cs-text-muted)",
+                      backgroundColor: "var(--cs-border)",
+                      padding: "1px 6px",
+                      borderRadius: 9999,
+                      textTransform: "none",
+                      letterSpacing: 0,
+                    }}
+                  >
+                    {pendingInBranch.length}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    backgroundColor: "var(--cs-surface)",
+                    border: "1px solid var(--cs-border)",
+                    borderRadius: 10,
+                    overflow: "hidden",
+                  }}
+                >
+                  {pendingInBranch.map((s, i) => {
+                    const isClaimed = s.auth_user_id !== null;
+                    const age = daysSince(s.created_at);
+                    const expiresIn = Math.max(0, 7 - age);
+                    const rowStyle = {
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.875rem",
+                      padding: "0.75rem 1rem",
+                      borderBottom: i < pendingInBranch.length - 1 ? "1px solid var(--cs-border)" : "none",
+                      textDecoration: "none",
+                    } as const;
+
+                    if (isClaimed) {
+                      return (
+                        <Link key={s.id} href={`/owner/staff/${s.id}`} style={rowStyle}>
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              backgroundColor: "var(--cs-sand-mist)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "0.8125rem",
+                              fontWeight: 600,
+                              color: "var(--cs-sand)",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {s.full_name.charAt(0)}
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
+                              {s.full_name}
+                            </div>
+                            <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                              {s.phone && s.phone !== "0000000000" && `${s.phone} · `}
+                              Awaiting approval
+                            </div>
+                          </div>
+
+                          <span
+                            style={{
+                              fontSize: "0.7rem",
+                              color: "var(--cs-sand)",
+                              backgroundColor: "var(--cs-sand-mist)",
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              fontWeight: 600,
+                              flexShrink: 0,
+                            }}
+                          >
+                            Review & Approve
+                          </span>
+
+                          <div style={{ color: "var(--cs-text-muted)", fontSize: 16 }}>›</div>
+                        </Link>
+                      );
+                    }
+
+                    return (
+                      <div key={s.id} style={rowStyle}>
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: "50%",
+                            backgroundColor: "var(--cs-border)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.8125rem",
+                            fontWeight: 600,
+                            color: "var(--cs-text-muted)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          ?
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text-muted)" }}>
+                            Invite link generated
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                            {expiresIn > 0
+                              ? `Expires in ${expiresIn} day${expiresIn !== 1 ? "s" : ""}`
+                              : "Expired"}
+                          </div>
+                        </div>
+
+                        <span
+                          style={{
+                            fontSize: "0.7rem",
+                            color: "var(--cs-text-muted)",
+                            backgroundColor: "var(--cs-border)",
+                            padding: "2px 8px",
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            flexShrink: 0,
+                          }}
+                        >
+                          Not claimed
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
           )}
         </div>
       )}
     </div>
   );
 }
-

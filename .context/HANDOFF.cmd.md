@@ -1,4 +1,4 @@
-# HANDOFF — STABILITY-001 Workspace Stabilization Pass
+# HANDOFF — STAFF-BRANCH-001 Group Staff by Branch
 
 ## Date
 2026-05-09
@@ -7,25 +7,21 @@
 Codex
 
 ## Summary
-Completed a stabilization audit pass across the public layer and workspace route map. No new product features were added.
+Small UI enhancement to the owner staff management page. Active Staff and Pending Staff views now group staff under named branch section headings, each with a count badge. No schema, auth, RBAC, or booking logic was changed.
 
-## Fixes Applied
-- Added `/manager/today` as a redirect alias to `/manager`.
-- Added `/staff-portal/today` as a redirect alias to `/staff-portal`.
-- Corrected public booking success copy so public online bookings are described as received for front-desk review, matching the pending-online-booking behavior.
-- Fixed notification unread count refresh in the header bell so opening the popover does not undercount unread items when more than the limited popover result set exists.
-- Changed driver/utility notification "View all" links to existing `/driver` and `/utility` panels.
-- Updated `docs/ARCHITECTURE.md` to reference `src/proxy.ts` for Next.js 16.
+## Changes Applied
+- `src/app/(dashboard)/owner/staff/page.tsx`:
+  - Added `BranchGroup` type and `groupStaffByBranch` helper (alphabetical sort, "Unassigned Branch" last).
+  - Fixed `readBranchName` null fallback from "Unknown branch" to "Unassigned Branch".
+  - Active Staff: replaced inline groupsMap with `groupStaffByBranch`; branch headings now include a count badge.
+  - Pending Staff: applied `groupStaffByBranch`; replaced flat "Awaiting Approval" / "Invites Sent" sections with branch-level sections; claimed rows show "Review & Approve", unclaimed rows show "Not claimed".
 
 ## Verification Status
 - `pnpm lint`: passing.
 - `pnpm type-check`: passing.
-- `pnpm test`: passing, 70 tests. The sandbox run hit the known Vitest `spawn EPERM`; elevated run passed.
 - `pnpm build`: passing, 68 app routes.
-- Public HTTP routes checked on a local production server: `/`, `/services`, `/branches`, `/about`, `/contact`, `/book`, `/book/confirm`, `/book/success`, `/products`, `/staff-onboarding`, `/login`.
-- Protected unauthenticated routes checked for redirects: owner, manager, CRM, staff portal, driver, utility, and dev routes.
 
 ## Remaining Risks
-- Authenticated workspace workflows still need role-specific browser testing with real or seeded owner/manager/CRM/staff accounts.
-- `/driver` and `/utility` remain placeholder panels by design.
-- No database migrations or RLS changes were made during this stabilization pass.
+- Manager staff page (`/manager/staff`) is a schedule management view scoped to the manager's own branch — no branch grouping needed there.
+- RBAC audit findings (assistant_manager/store_manager migration conflict) remain unaddressed — separate task.
+- No database migrations or RLS changes were made.

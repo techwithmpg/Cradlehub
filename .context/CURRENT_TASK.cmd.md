@@ -1,89 +1,25 @@
-# CURRENT TASK: STABILITY-001 — Workspace Stabilization Audit & Fix Pass
+# CURRENT TASK: STAFF-BRANCH-001 — Group Staff by Branch (Complete)
 
 ## Overview
-Run a workspace-by-workspace stabilization pass for CradleHub / Cradle Massage & Wellness Spa.
-
-This is a stabilization task, not a feature-building task.
+Small UI/data enhancement to the owner staff management page: both Active Staff and Pending Staff views now group staff under named branch section headings with a count badge.
 
 ## Scope
-- Public workflows:
-  - `/`
-  - `/services`
-  - `/branches`
-  - `/about`
-  - `/contact`
-  - `/book`
-  - `/staff-onboarding`
-- Admin workspaces:
-  - `/owner`
-  - `/manager`
-  - `/crm`
-  - `/staff-portal`
-- Specialized existing routes:
-  - `/driver`
-  - `/utility`
-  - `/dev`
+- `src/app/(dashboard)/owner/staff/page.tsx` only.
+- No RBAC changes, no auth changes, no schema changes, no booking logic changes.
 
-## Guardrails
-- Do not add new features.
-- Do not redesign UI unless a layout bug blocks workflow usage.
-- Do not change database schema unless absolutely required to fix a broken workflow.
-- Do not change auth/routing unless a workspace cannot be accessed correctly.
-- Do not create new modules or dependencies.
-- Do not rewrite working logic.
-- Preserve booking, CRM, staff portal, owner, manager, public flows, RLS, and Supabase booking rules.
-
-## Discovery Completed Before Implementation
-- Read required `.context` files and project docs.
-- Read local Next.js 16 guidance for App Router, Server/Client Components, Route Handlers, and Proxy.
-- Inventoried public, owner, manager, CRM, staff, specialized, auth, and API routes.
-- Created workflow inventory and stabilization test checklist in the active thread.
-
-## Initial Route Inventory Risks
-- `/manager/today` was not a concrete route; `/manager` serves Manager Today. Fixed with a redirect alias.
-- `/staff-portal/today` was not a concrete route; `/staff-portal` serves Staff Today. Fixed with a redirect alias.
-- `/driver` and `/utility` exist as owner-only placeholder panels.
-- Notification bell mapped driver/utility notification hrefs to missing routes. Fixed to point to the existing panels.
-- `docs/ARCHITECTURE.md` referenced `src/middleware.ts`, while this Next.js 16 repo uses `src/proxy.ts`. Fixed.
-
-## Implementation Plan
-1. Run baseline static checks:
-   - `pnpm lint`
-   - `pnpm type-check`
-   - `pnpm build`
-2. Stabilize blockers in priority order:
-   - build/type/lint blockers
-   - auth/routing blockers
-   - public booking blockers
-   - CRM booking blockers
-   - owner/manager permission blockers
-   - staff visibility blockers
-   - notification lifecycle bugs
-   - workflow-blocking UI bugs only
-3. Run focused static/browser/manual checks for the stabilized workflows.
-4. Update context files and commit with a conventional stabilization message.
-
-## Progress
-- [x] Read required context and docs.
-- [x] Complete no-edit route discovery.
-- [x] Produce route inventory, workflow inventory, and stabilization test plan.
-- [x] Run baseline lint/type-check/build.
-- [x] Fix stabilization blockers only.
-- [x] Run final regression checks.
-- [x] Update `.context` files and docs.
-- [ ] Commit stabilization pass.
-
-## Bugs Fixed
-- Public booking success copy now matches the current online-booking behavior: public bookings are received for front-desk review instead of presented as immediately confirmed.
-- Notification bell now refreshes the unread badge from the full unread-count query instead of only the limited popover results.
-- Driver and utility notification "View all" links now point to existing routes instead of missing `/driver/notifications` and `/utility/notifications` pages.
-- Added lightweight redirect aliases for `/manager/today` and `/staff-portal/today` to the existing Today pages.
+## Changes Made
+- Added `BranchGroup` type.
+- Added `groupStaffByBranch(staff: StaffWithBranch[]): BranchGroup[]` helper.
+  - Groups by `branch_id` (null → sentinel `"__unassigned__"`).
+  - Sorts alphabetically by branch name; "Unassigned Branch" sorted last.
+- Fixed `readBranchName` null fallback: "Unknown branch" → "Unassigned Branch".
+- Active Staff: replaced inline `groupsMap` block with `groupStaffByBranch`; added count badge to each branch heading.
+- Pending Staff: applied `groupStaffByBranch` to `typedPending`; replaced flat "Awaiting Approval" / "Invites Sent" sections with branch-level sections; each row retains "Review & Approve" (claimed) or "Not claimed" (unclaimed) badge.
 
 ## Verification
-- `pnpm lint`: passing.
-- `pnpm type-check`: passing.
-- `pnpm test`: passing, 70 tests. Normal sandbox hit the known Vitest `spawn EPERM`; elevated run passed.
-- `pnpm build`: passing, 68 app routes.
-- Public HTTP route checks on local server: `/`, `/services`, `/branches`, `/about`, `/contact`, `/book`, `/book/confirm`, `/book/success`, `/products`, `/staff-onboarding`, `/login` returned 200.
-- Unauthenticated protected route checks returned redirects for owner, manager, CRM, staff, driver, utility, and dev routes.
-- `/api/public/booking-context` returned branch/service context and booking rules.
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.
+
+## Status
+Complete. Ready to commit.
