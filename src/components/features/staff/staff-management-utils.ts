@@ -33,6 +33,12 @@ export type StaffFilters = {
   status: string;
 };
 
+export type StaffDisplayRole = {
+  roleLabel: string;
+  shouldShowTier: boolean;
+  tierLabel: string | null;
+};
+
 export const UNASSIGNED_BRANCH_ID = "__unassigned__";
 
 const TIER_LABELS: Record<string, string> = {
@@ -43,8 +49,9 @@ const TIER_LABELS: Record<string, string> = {
 
 const STAFF_TYPE_DISPLAY_LABELS: Record<string, string> = {
   ...STAFF_TYPE_LABELS,
+  csr: "CSR",
   nail_tech: "Nail Technician",
-  utility: "Utility / Maintenance",
+  utility: "Utility",
 };
 
 const NON_TIER_ROLES = new Set([
@@ -62,6 +69,21 @@ const NON_TIER_ROLES = new Set([
   "managerial",
   "salon_head",
 ]);
+
+const ADMIN_ROLE_LABELS: Record<string, string> = {
+  owner: "Owner",
+  manager: "Managerial",
+  assistant_manager: "Managerial",
+  store_manager: "Managerial",
+  crm: "CRM",
+  csr: "CSR",
+  csr_head: "CSR Head",
+  csr_staff: "CSR Staff",
+  driver: "Driver",
+  utility: "Utility",
+};
+
+const TIER_ELIGIBLE_STAFF_TYPES = new Set(["therapist"]);
 
 const NON_TIER_STAFF_TYPES = new Set([
   "csr",
@@ -82,17 +104,6 @@ function titleCase(value: string): string {
 function cleanOptionalText(value: string | null | undefined): string | null {
   const cleaned = value?.trim();
   return cleaned ? cleaned : null;
-}
-
-function getManagerFallbackLabel(member: StaffMember, roleLabel: string): string | null {
-  const branchShortName = getBranchShortName(readBranchName(member.branches));
-
-  if (member.system_role === "manager") return "Manager Main/SM Branch";
-  if (member.system_role === "assistant_manager") return "Asst. Manager Main/SM Branch";
-  if (member.system_role === "store_manager") return `${roleLabel} ${branchShortName}`;
-  if (member.system_role === "utility") return "Utility / Maintenance";
-
-  return null;
 }
 
 export function readBranchName(relation: StaffBranchRelation): string {
@@ -139,40 +150,60 @@ export function getStaffTypeLabel(staffType: string | null | undefined): string 
   return STAFF_TYPE_DISPLAY_LABELS[staffType] ?? titleCase(staffType);
 }
 
-export function getStaffDisplayPosition(member: StaffMember): string {
+function getBaseStaffRoleLabel(member: StaffMember): string {
   const jobTitle = cleanOptionalText(member.job_title);
   const staffType = cleanOptionalText(member.staff_type);
   const role = member.system_role;
-  const roleLabel = getSystemRoleLabel(role);
-  const staffTypeLabel = getStaffTypeLabel(staffType);
-  const managerFallbackLabel = getManagerFallbackLabel(member, roleLabel);
 
-  let baseLabel: string;
   if (jobTitle && jobTitle.toLowerCase() !== "pending invitation") {
-    baseLabel = jobTitle;
-  } else if (managerFallbackLabel) {
-    baseLabel = managerFallbackLabel;
-  } else if (role === "service_head" && staffType === "salon_head") {
-    baseLabel = staffTypeLabel;
-  } else if (NON_TIER_ROLES.has(role) || role === "service_head") {
-    baseLabel = roleLabel;
-  } else {
-    baseLabel = staffTypeLabel;
+    return jobTitle;
   }
 
-  const normalizedBase = baseLabel.toLowerCase();
+  if (staffType === "managerial") return "Managerial";
+  if (staffType === "salon_head") return "Salon Head";
+
+  const protectedRoleLabel = ADMIN_ROLE_LABELS[role];
+  if (protectedRoleLabel) return protectedRoleLabel;
+
+  return getStaffTypeLabel(staffType);
+}
+
+export function getStaffDisplayRole(member: StaffMember): StaffDisplayRole {
+  const staffType = cleanOptionalText(member.staff_type);
+  const role = member.system_role;
+  const roleLabel = getBaseStaffRoleLabel(member);
+  const normalizedBase = roleLabel.toLowerCase();
   const hasTierInTitle =
     normalizedBase.includes("senior") ||
     normalizedBase.includes("mid") ||
     normalizedBase.includes("junior");
-  const canShowTier =
-    staffType === "therapist" &&
+
+  const shouldShowTier =
+    !!staffType &&
+    TIER_ELIGIBLE_STAFF_TYPES.has(staffType) &&
     !NON_TIER_ROLES.has(role) &&
     !NON_TIER_STAFF_TYPES.has(staffType) &&
     !hasTierInTitle;
-  const tierLabel = canShowTier ? TIER_LABELS[member.tier] : undefined;
+  const tierLabel = shouldShowTier ? TIER_LABELS[member.tier] ?? null : null;
 
-  return tierLabel ? `${baseLabel} · ${tierLabel}` : baseLabel;
+  return {
+    roleLabel,
+    shouldShowTier,
+    tierLabel,
+  };
+}
+
+export function getStaffDisplayPosition(member: StaffMember): string {
+  const { roleLabel, tierLabel } = getStaffDisplayRole(member);
+  return tierLabel ? `${roleLabel} · ${tierLabel}` : roleLabel;
+}
+
+export function getStaffDisplaySubtitle(member: StaffMember): string {
+  const parts = [getStaffDisplayPosition(member)];
+  if (member.phone && member.phone !== "0000000000") {
+    parts.push(member.phone);
+  }
+  return parts.join(" · ");
 }
 
 export function getInitials(name: string): string {
@@ -236,6 +267,7 @@ export function staffMatchesFilters(member: StaffMember, filters: StaffFilters):
     readBranchName(member.branches),
     getBranchShortName(readBranchName(member.branches)),
     getStaffDisplayPosition(member),
+    getStaffDisplaySubtitle(member),
     getSystemRoleLabel(member.system_role),
     getStaffTypeLabel(member.staff_type),
   ]

@@ -13,6 +13,7 @@ import { StaffRoleBadge, StaffStatusBadge } from "./staff-badges";
 import {
   getInitials,
   getStaffDisplayPosition,
+  getStaffDisplaySubtitle,
   getStaffStatus,
   type StaffMember,
   type StaffTab,
@@ -36,6 +37,7 @@ export function StaffTableRow({
   const status = getStaffStatus(member);
   const displayName = status === "invited" ? "Invite link generated" : member.full_name;
   const position = status === "invited" ? "Pending invitation" : getStaffDisplayPosition(member);
+  const subtitle = status === "invited" ? "Pending invitation" : getStaffDisplaySubtitle(member);
 
   return (
     <tr
@@ -67,7 +69,7 @@ export function StaffTableRow({
               {displayName}
             </span>
             <span className="mt-0.5 block truncate text-xs text-[var(--cs-text-muted)]">
-              {position}
+              {subtitle}
             </span>
           </span>
         </button>

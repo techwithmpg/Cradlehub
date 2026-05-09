@@ -1021,3 +1021,29 @@ On a fresh `db reset`, migration 20260501000002 may fail row validation because 
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 68 app routes.
+
+---
+
+### 2026-05-09 — Codex (STAFF-TIER-001 — Staff Display Tier Eligibility Fix)
+
+**Task:** Fix Staff page role/tier subtitles so therapist/service tier labels only appear for staff types that actually use tiers.
+
+**Files Changed:**
+- `src/components/features/staff/staff-management-utils.ts`
+  - Added typed `StaffDisplayRole`.
+  - Added `getStaffDisplayRole(staff)` and `getStaffDisplaySubtitle(staff)`.
+  - Uses `job_title` first, then safe staff type/system role fallbacks.
+  - Suppresses tier for owner, manager, assistant manager, store manager, CRM, CSR roles, service head, driver, utility, managerial, and salon head rows.
+- `src/components/features/staff/staff-table-row.tsx`
+  - Uses `getStaffDisplaySubtitle()` so row subtitle displays `Role · Tier · Phone` only when tier is eligible.
+
+**Behavior:**
+- Managers and admin/support staff no longer display `Therapist · Junior`.
+- Therapists still display tier when available.
+- CSR, driver, utility, owner, and manager rows never show therapist tier labels even if legacy data has `tier = junior`.
+- Branch grouping, Active/Pending tabs, filters, selected staff rail, and staff actions are unchanged.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.

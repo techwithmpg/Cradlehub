@@ -104,8 +104,8 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `STAFF-UI-001`  |
-| **Completion**      | `Staff Management workspace redesign complete; authenticated visual QA remains`        |
+| **Sprint**          | `STAFF-TIER-001`  |
+| **Completion**      | `Staff tier display eligibility fix complete; authenticated visual QA remains`        |
 | **Last Agent**      | `Codex (GPT-5)` |
 | **Last Updated**    | `2026-05-09` |
 | **Blockers**        | `No build/type/lint blockers; browser visual QA needs authenticated seeded credentials`      |
@@ -151,7 +151,7 @@ pnpm ui:add [component]     # Add shadcn/ui component
 
 ## Latest Agent Update (2026-05-09)
 
-- Completed `STAFF-UI-001`: rebuilt `/owner/staff` into a premium staff management dashboard with KPI cards, search/filters, Active/Pending tabs, branch-grouped dense tables, selected-row state, and a right-side profile/quick-action rail.
-- Preserved existing staff data queries, invite/edit/review routes, staff CRUD actions, auth/RBAC, booking logic, and database schema.
-- Fixed staff position/tier display so admin/support roles do not render as therapist tier labels.
+- Completed `STAFF-TIER-001`: hardened the staff display helper so tier labels appear only for tier-eligible therapist rows.
+- Staff row subtitles now append phone through a shared `getStaffDisplaySubtitle()` helper.
+- Managers, owners, CSR roles, drivers, utility, CRM, service heads, managerial, and salon heads no longer show therapist tier labels even if legacy seed data has `tier = junior`.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing.
