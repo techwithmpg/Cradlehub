@@ -929,8 +929,6 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 68 app routes.
 
----
-
 ### 2026-05-13 — Codex (RBAC-001 — Align Cradle Staff Roles with Workspace Access)
 
 **Task:** Implement the smallest safe RBAC forward-fix to align the real Cradle org structure with workspace routing. Four phases: schema fix, permission helpers, real staff seed, hardcoded role audit.
@@ -1082,6 +1080,69 @@ On a fresh `db reset`, migration 20260501000002 may fail row validation because 
 - Manager profile Staff Type now resolves to `Managerial`; admin/front-desk/support rows resolve to their protected staff type labels.
 - Service staff can still display tier labels when eligible.
 - Active/Pending tabs, search/filter behavior, branch grouping after filters, selected-row behavior, and existing staff action routes remain unchanged.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.
+
+---
+
+### 2026-05-09 — Codex (BK-WS-001 — Shared Bookings Workspace + Mockup Alignment)
+
+**Task:** Replace the three separate booking list implementations (Owner, Manager, CRM) with a single shared `BookingsWorkspace` + `BookingsTable` component pair. Then align the implementation with the approved 4:3 mockup layout.
+
+**Files Created:**
+- `src/components/features/bookings/bookings-workspace.tsx` — shared server-renderable workspace: header, filter bar with integrated New Booking CTA (CRM only), 4 KPI cards, and `BookingsTable` render. Accepts `cashSummary` for KPI computation only (no DailyCashSummary widget rendered). KPI labels: Total Bookings / Confirmed / Checked In / Today's Collection.
+- `src/components/features/bookings/bookings-table.tsx` — `"use client"` table with auto-select-first-booking, always-on 2-column layout (table + details panel), responsive panel hiding below 1100px. Column order: Booking ID | Customer | Type | Time | Service | [Branch] | Status | Payment | Amount | Actions.
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/bookings/actions.ts` — added `getOwnerWorkspaceBookingsAction` (calls `getAllBookings` which includes payment fields) and `ownerUpdateBookingPaymentAction` (cross-branch, no branch filter).
+- `src/app/(dashboard)/owner/bookings/page.tsx` — replaced previous implementation with thin wrapper passing `statusAction` and `paymentAction` as props.
+- `src/app/(dashboard)/manager/bookings/page.tsx` — replaced with thin wrapper; passes `cashSummary` for KPI.
+- `src/app/(dashboard)/crm/bookings/page.tsx` — replaced with thin wrapper; passes `cashSummary` for KPI.
+- `src/components/features/dashboard/booking-action-menu.tsx` — added optional `statusAction` prop override so owner context can inject cross-branch action without forking the component.
+- `src/components/features/dashboard/payment-action-menu.tsx` — added optional `paymentAction` prop override for same reason.
+
+**Design decisions:**
+- All three routes use the same component tree — role differences are prop-only (`workspaceContext`, `viewerRole`, `statusAction`, `paymentAction`).
+- Owner passes `statusAction`/`paymentAction`; manager/CRM use default hardcoded branch-scoped actions.
+- `DailyCashSummary` widget removed from bookings pages — `cashSummary` data still feeds KPI collection/expected totals.
+- Details panel always occupies the second column; responsive CSS (`bw-panel`) hides it below 1100px.
+- First booking in the filtered list is auto-selected on mount so the panel is never empty.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.
+
+---
+
+### 2026-05-10 — Codex (BK-WS-002 — Shared Bookings Workspace Polish)
+
+**Task:** Polish the current shared BookingsWorkspace to match the approved simplified mockup more closely without changing auth, RBAC, booking engine logic, payment rules, public booking flow, or the shared Owner/Manager/CRM layout.
+
+**Files Changed:**
+- `src/components/features/bookings/bookings-workspace.tsx`
+  - Removed the old centered footer count so the table card owns its pagination/count area.
+- `src/components/features/bookings/bookings-table.tsx`
+  - Added client-side pagination after search filtering, defaulting to 8 rows per page with 8/10/20 row options.
+  - Added bottom pagination with range text, previous/next, page buttons, and rows-per-page selector.
+  - Removed the visible Branch column so table columns are Booking ID, Customer, Type, Time, Service, Status, Payment, Amount, Actions.
+  - Tightened fixed-layout table sizing, compact row cells, truncation/tooltips, and narrow Actions/Amount columns.
+  - Replaced row-level `Actions` + `Pay` buttons with a single compact three-dot action trigger.
+  - Simplified the right details panel actions into disabled `Edit Booking`, `Change Status`, `Take Payment`, and optional separate `Cancel Booking`.
+- `src/components/features/dashboard/booking-action-menu.tsx`
+  - Added typed trigger variants and action scopes so the same existing status actions can render as row icon actions, panel status actions, or cancel-only action.
+- `src/components/features/dashboard/payment-action-menu.tsx`
+  - Added typed trigger label/variant/full-width props while preserving existing payment mutation behavior and owner action override support.
+
+**Behavior:**
+- Owner, Manager, and CRM still share the same BookingsWorkspace component tree.
+- Existing booking status actions and payment actions remain wired through the existing server actions/action overrides.
+- Pagination happens after the current filters/search.
+- Selected booking details fall back to the first visible row when page/search changes.
+- The details panel no longer shows cramped action buttons.
 
 **Verification:**
 - `pnpm type-check`: ✅ Passing

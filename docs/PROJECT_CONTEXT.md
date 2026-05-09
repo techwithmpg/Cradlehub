@@ -104,10 +104,10 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `STAFF-UI-002`  |
-| **Completion**      | `Staff display metadata normalization and compact profile panel complete`        |
+| **Sprint**          | `BK-WS-002`  |
+| **Completion**      | `Shared bookings workspace action/pagination polish complete`        |
 | **Last Agent**      | `Codex (GPT-5)` |
-| **Last Updated**    | `2026-05-09` |
+| **Last Updated**    | `2026-05-10` |
 | **Blockers**        | `No build/type/lint blockers; authenticated visual QA still depends on seeded login access`      |
 
 ---
@@ -149,10 +149,10 @@ pnpm ui:add [component]     # Add shadcn/ui component
 
 ---
 
-## Latest Agent Update (2026-05-09)
+## Latest Agent Update (2026-05-10)
 
-- Completed `STAFF-UI-002`: normalized Staff Management row, badge, and profile metadata through shared `getStaffDisplayMeta(staff)`.
-- Manager/admin/front-desk/support rows now derive protected staff type labels from `system_role`, so stale raw therapist/tier defaults do not render as `Therapist · Junior`.
-- Branch-grouped staff tables no longer repeat the Branch column; branch remains in section headers, filters, and the profile panel.
-- Right profile panel now uses self-start/content-height layout instead of stretching vertically with empty space.
+- Completed `BK-WS-002`: polished the shared Owner/Manager/CRM BookingsWorkspace without forking role layouts.
+- Booking rows now use a single compact three-dot action trigger; the right panel uses simplified Edit Booking, Change Status, Take Payment, and optional Cancel Booking actions.
+- The shared bookings table now paginates client-side after search filtering, defaults to 8 rows, and includes bottom range/page/rows-per-page controls.
+- The visible Branch column was removed from the bookings table to keep the row layout compact; branch remains available in the details panel.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing.

@@ -1,31 +1,35 @@
-# CURRENT TASK: STAFF-UI-002 — Staff Management Display Normalization and Compact Profile (Complete)
+# CURRENT TASK: BK-WS-002 - Shared Bookings Workspace Polish (Complete)
 
 ## Overview
-Refined the existing owner Staff Management workspace UI/data display layer so staff table rows, role badges, and the selected profile panel use one shared display helper. No auth, RBAC, booking logic, database schema, staff CRUD, public pages, or route structure were changed.
+Polished the current shared `BookingsWorkspace` implementation to better match the approved simplified bookings mockup while preserving the shared Owner/Manager/CRM layout, existing booking actions, payment actions, auth, RBAC, booking engine logic, payment rules, and public booking flow.
 
-## Exact Files Identified Before Editing
-- Staff Management route: `src/app/(dashboard)/owner/staff/page.tsx`
-- Workspace component: `src/components/features/staff/staff-management-workspace.tsx`
-- Branch/table component: `src/components/features/staff/staff-branch-section.tsx`
-- Staff row component: `src/components/features/staff/staff-table-row.tsx`
-- Right profile panel: `src/components/features/staff/staff-preview-panel.tsx`
-- Role/status badge component: `src/components/features/staff/staff-badges.tsx`
-- Display/group/filter helper: `src/components/features/staff/staff-management-utils.ts`
-- Label sources inspected: `src/lib/permissions.ts`, `src/constants/staff.ts`
+## Exact Files Changed
+- `src/components/features/bookings/bookings-workspace.tsx`
+- `src/components/features/bookings/bookings-table.tsx`
+- `src/components/features/dashboard/booking-action-menu.tsx`
+- `src/components/features/dashboard/payment-action-menu.tsx`
 
 ## Completed
-- Added shared `getStaffDisplayMeta(staff)` for Staff Management role labels, staff type labels, access role badge labels, tier eligibility, and subtitles.
-- Profile panel and table rows now use the same helper, removing the old mismatch where the table could show managerial identity while the right panel showed therapist data.
-- Protected manager/admin/front-desk/support roles suppress legacy default `tier = junior` even when raw seed data has `staff_type = therapist`.
-- Service staff roles can still display Junior/Mid/Senior tiers when staff type is service-eligible.
-- Removed the repeated Branch column from branch-grouped staff tables; branch remains in headers, filters, and profile details.
-- Made the right profile panel content-height with self-start alignment instead of stretching down the page.
-- Preserved existing links/actions for invite, review/edit profile, assign branch, change role, deactivate, and pending approval review.
+- Kept Owner, Manager, and CRM on the same shared `BookingsWorkspace`.
+- Removed the table footer count from the workspace shell and moved count/pagination into the table card.
+- Updated `BookingsTable` to paginate client-side after the current server filters and search filter.
+- Defaulted visible rows to 8 per page, with 8/10/20 row options.
+- Added bottom pagination with "Showing X to Y of Z bookings", previous/next, page buttons, and rows-per-page selector.
+- Removed the table Branch column so visible columns are: Booking ID, Customer, Type, Time, Service, Status, Payment, Amount, Actions.
+- Tightened table sizing with fixed layout, compact cells, truncation/tooltips for long customer/service text, and a narrow Actions column.
+- Replaced per-row `Actions` + `Pay` buttons with one compact three-dot booking action trigger.
+- Simplified the details panel action area:
+  - Disabled `Edit Booking` primary button because no edit panel/route is currently wired in this shared component.
+  - `Change Status` uses the existing booking status action menu with cancel removed from that dropdown.
+  - `Take Payment` uses the existing payment action menu with a clean panel trigger.
+  - `Cancel Booking` appears separately as a full-width subtle red action only when the existing cancel transition is available.
+- Kept the details panel content-height/sticky behavior and avoided empty vertical stretching.
+- Extended the existing booking/payment action menu components with typed trigger variants instead of creating role-specific layouts.
 
 ## Verification
-- `pnpm type-check`: passing
-- `pnpm lint`: passing
-- `pnpm build`: passing, 68 app routes
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing
+- `pnpm build`: Passing, 68 app routes
 
 ## Status
-Complete. Ready to commit as `fix(staff): normalize staff display and compact profile panel`.
+Complete. Ready to commit as `fix(bookings): simplify actions and add compact pagination`.

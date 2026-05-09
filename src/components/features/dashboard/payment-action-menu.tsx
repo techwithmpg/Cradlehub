@@ -8,6 +8,8 @@ import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/validations/boo
 
 const QUICK_METHODS: PaymentMethod[] = ["cash", "gcash", "maya", "card"];
 
+type PaymentAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
+
 type Props = {
   bookingId:        string;
   paymentStatus:    string;
@@ -15,6 +17,11 @@ type Props = {
   amountPaid:       number;
   pricePaid:        number;
   onUpdate?:        () => void;
+  paymentAction?:   PaymentAction;
+  triggerLabel?:    string;
+  triggerAriaLabel?: string;
+  triggerVariant?:  "default" | "panelSecondary";
+  fullWidth?:       boolean;
 };
 
 type ViewState = "idle" | "quickPay" | "editForm";
@@ -26,7 +33,13 @@ export function PaymentActionMenu({
   amountPaid,
   pricePaid,
   onUpdate,
+  paymentAction,
+  triggerLabel = "Pay",
+  triggerAriaLabel,
+  triggerVariant = "default",
+  fullWidth = false,
 }: Props) {
+  const callPaymentAction = paymentAction ?? updateBookingPaymentAction;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [view, setView] = useState<ViewState>("idle");
@@ -37,6 +50,8 @@ export function PaymentActionMenu({
   const [editStatus,    setEditStatus]    = useState(paymentStatus);
   const [editAmount,    setEditAmount]    = useState(String(amountPaid > 0 ? amountPaid : pricePaid));
   const [editReference, setEditReference] = useState("");
+  const triggerStyle = getTriggerButtonStyle(triggerVariant, fullWidth, isPending);
+  const triggerText = `${triggerLabel} ▾`;
 
   function showFeedback(msg: string) {
     setFeedback(msg);
@@ -46,7 +61,7 @@ export function PaymentActionMenu({
   function handleQuickPay(method: PaymentMethod) {
     setView("idle");
     startTransition(async () => {
-      const result = await updateBookingPaymentAction({
+      const result = await callPaymentAction({
         bookingId,
         paymentMethod:    method,
         paymentStatus:    "paid",
@@ -65,7 +80,7 @@ export function PaymentActionMenu({
   function handleMarkUnpaid() {
     setView("idle");
     startTransition(async () => {
-      const result = await updateBookingPaymentAction({
+      const result = await callPaymentAction({
         bookingId,
         paymentMethod:    "pay_on_site",
         paymentStatus:    "unpaid",
@@ -89,7 +104,7 @@ export function PaymentActionMenu({
     }
     setView("idle");
     startTransition(async () => {
-      const result = await updateBookingPaymentAction({
+      const result = await callPaymentAction({
         bookingId,
         paymentMethod:    editMethod as PaymentMethod,
         paymentStatus:    editStatus as "unpaid" | "pending" | "paid" | "refunded",
@@ -107,7 +122,7 @@ export function PaymentActionMenu({
 
   if (view === "editForm") {
     return (
-      <div style={{ position: "relative", display: "inline-flex", gap: 4, alignItems: "center" }}>
+      <div style={{ position: "relative", display: fullWidth ? "block" : "inline-flex", gap: 4, alignItems: "center", width: fullWidth ? "100%" : undefined }}>
         <div
           style={{
             position: "absolute",
@@ -169,13 +184,22 @@ export function PaymentActionMenu({
             </div>
           </div>
         </div>
-        <button type="button" style={triggerButtonStyle}>Pay ▾</button>
+        <button
+          type="button"
+          onClick={() => setView("quickPay")}
+          disabled={isPending}
+          style={triggerStyle}
+          aria-haspopup="menu"
+          aria-label={triggerAriaLabel}
+        >
+          {triggerText}
+        </button>
       </div>
     );
   }
 
   return (
-    <div style={{ position: "relative", display: "inline-block" }}>
+    <div style={{ position: "relative", display: fullWidth ? "block" : "inline-block", width: fullWidth ? "100%" : undefined }}>
       {feedback && (
         <div style={feedbackStyle}>{feedback}</div>
       )}
@@ -184,11 +208,14 @@ export function PaymentActionMenu({
         type="button"
         onClick={() => setView(view === "quickPay" ? "idle" : "quickPay")}
         disabled={isPending}
-        style={{ ...triggerButtonStyle, opacity: isPending ? 0.5 : 1 }}
+        style={triggerStyle}
+        aria-haspopup="menu"
+        aria-expanded={view === "quickPay"}
+        aria-label={triggerAriaLabel}
       >
         {isPending
           ? <Loader2 className="animate-spin" style={{ width: 12, height: 12, display: "inline" }} />
-          : "Pay ▾"}
+          : triggerText}
       </button>
 
       {view === "quickPay" && (
@@ -254,16 +281,6 @@ const cancelButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const triggerButtonStyle: React.CSSProperties = {
-  padding: "4px 9px",
-  borderRadius: 6,
-  border: "1px solid var(--cs-border)",
-  backgroundColor: "var(--cs-surface)",
-  color: "var(--cs-text)",
-  fontSize: "0.75rem",
-  cursor: "pointer",
-};
-
 const dropdownStyle: React.CSSProperties = {
   position: "absolute",
   right: 0,
@@ -312,3 +329,41 @@ const feedbackStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
   zIndex: 10,
 };
+
+function getTriggerButtonStyle(
+  variant: NonNullable<Props["triggerVariant"]>,
+  fullWidth: boolean,
+  disabled: boolean
+): React.CSSProperties {
+  const base: React.CSSProperties = {
+    borderRadius: 6,
+    border: "1px solid var(--cs-border)",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.55 : 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    whiteSpace: "nowrap",
+    width: fullWidth ? "100%" : undefined,
+  };
+
+  if (variant === "panelSecondary") {
+    return {
+      ...base,
+      height: 38,
+      padding: "0 0.875rem",
+      backgroundColor: "var(--cs-surface-warm)",
+      color: "var(--cs-text)",
+      fontSize: "0.8125rem",
+      fontWeight: 600,
+    };
+  }
+
+  return {
+    ...base,
+    padding: "4px 9px",
+    backgroundColor: "var(--cs-surface)",
+    color: "var(--cs-text)",
+    fontSize: "0.75rem",
+  };
+}

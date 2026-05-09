@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, MoreHorizontal } from "lucide-react";
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { canCancelBooking, canChangeBookingStatus } from "@/lib/permissions";
 
@@ -31,11 +31,22 @@ const TRANSITIONS: Record<string, TransitionAction[]> = {
   ],
 };
 
+type StatusAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
+type ActionScope = "all" | "status" | "cancel";
+type TriggerVariant = "default" | "icon" | "panelSecondary" | "panelDanger";
+
 type BookingActionMenuProps = {
   bookingId: string;
   currentStatus: string;
   userRole?: string;
   onUpdate?: () => void;
+  statusAction?: StatusAction;
+  actionScope?: ActionScope;
+  triggerLabel?: string;
+  triggerAriaLabel?: string;
+  triggerVariant?: TriggerVariant;
+  fullWidth?: boolean;
+  emptyBehavior?: "hide" | "disabled";
 };
 
 export function BookingActionMenu({
@@ -43,20 +54,36 @@ export function BookingActionMenu({
   currentStatus,
   userRole,
   onUpdate,
+  statusAction,
+  actionScope = "all",
+  triggerLabel = "Actions",
+  triggerAriaLabel,
+  triggerVariant = "default",
+  fullWidth = false,
+  emptyBehavior = "hide",
 }: BookingActionMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const actions = (TRANSITIONS[currentStatus] ?? []).filter((action) => {
+  const permittedActions = (TRANSITIONS[currentStatus] ?? []).filter((action) => {
     if (!userRole) return true;
     if (action.status === "cancelled") {
       return canCancelBooking(userRole);
     }
     return canChangeBookingStatus(userRole);
   });
-  if (!actions?.length) return null;
+
+  const actions = permittedActions.filter((action) => {
+    if (actionScope === "cancel") return action.status === "cancelled";
+    if (actionScope === "status") return action.status !== "cancelled";
+    return true;
+  });
+  const hasActions = actions.length > 0;
+  const directAction = actionScope === "cancel" ? actions[0] : undefined;
+
+  if (!hasActions && emptyBehavior === "hide") return null;
 
   function closeFeedbackAfterDelay() {
     window.setTimeout(() => setFeedback(null), 3000);
@@ -65,7 +92,8 @@ export function BookingActionMenu({
   function handleAction(status: BookingTransitionStatus) {
     setOpen(false);
     startTransition(async () => {
-      const result = await updateBookingStatusAction({ bookingId, status });
+      const callAction = statusAction ?? updateBookingStatusAction;
+      const result = await callAction({ bookingId, status });
       if (!result.success) {
         setFeedback(result.error ?? "Failed to update booking");
         closeFeedbackAfterDelay();
@@ -76,8 +104,21 @@ export function BookingActionMenu({
     });
   }
 
+  function handleTriggerClick() {
+    if (directAction) {
+      handleAction(directAction.status);
+      return;
+    }
+    if (hasActions) {
+      setOpen((current) => !current);
+    }
+  }
+
+  const triggerStyle = getTriggerButtonStyle(triggerVariant, fullWidth, isPending || !hasActions);
+  const menuLabel = triggerVariant === "icon" ? triggerAriaLabel ?? "Open booking actions" : triggerAriaLabel;
+
   return (
-    <div style={{ position: "relative", display: "inline-block" }}>
+    <div style={{ position: "relative", display: fullWidth ? "block" : "inline-block", width: fullWidth ? "100%" : undefined }}>
       {feedback && (
         <div
           style={{
@@ -100,25 +141,27 @@ export function BookingActionMenu({
 
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
-        disabled={isPending}
-        style={{
-          padding: "4px 10px",
-          borderRadius: 6,
-          border: "1px solid var(--cs-border)",
-          backgroundColor: "var(--cs-surface)",
-          color: "var(--cs-text)",
-          fontSize: "0.8125rem",
-          cursor: "pointer",
-          opacity: isPending ? 0.5 : 1,
-        }}
+        onClick={handleTriggerClick}
+        disabled={isPending || !hasActions}
+        style={triggerStyle}
+        aria-haspopup={directAction ? undefined : "menu"}
+        aria-expanded={directAction ? undefined : open}
+        aria-label={menuLabel}
+        title={menuLabel}
       >
         {isPending
           ? <Loader2 className="animate-spin" style={{ width: 13, height: 13, display: "inline" }} />
-          : "Actions ▾"}
+          : triggerVariant === "icon"
+            ? <MoreHorizontal aria-hidden="true" style={{ width: 15, height: 15 }} />
+            : (
+                <>
+                  {triggerLabel}
+                  {!directAction && hasActions && <span aria-hidden="true"> ▾</span>}
+                </>
+              )}
       </button>
 
-      {open && (
+      {open && hasActions && !directAction && (
         <>
           <div
             onClick={() => setOpen(false)}
@@ -167,4 +210,68 @@ export function BookingActionMenu({
       )}
     </div>
   );
+}
+
+function getTriggerButtonStyle(
+  variant: TriggerVariant,
+  fullWidth: boolean,
+  disabled: boolean
+): React.CSSProperties {
+  const base: React.CSSProperties = {
+    borderRadius: 6,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.55 : 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    whiteSpace: "nowrap",
+    width: fullWidth ? "100%" : undefined,
+  };
+
+  if (variant === "icon") {
+    return {
+      ...base,
+      width: 30,
+      height: 30,
+      padding: 0,
+      border: "1px solid var(--cs-border)",
+      backgroundColor: "var(--cs-surface)",
+      color: "var(--cs-text-muted)",
+    };
+  }
+
+  if (variant === "panelSecondary") {
+    return {
+      ...base,
+      height: 38,
+      padding: "0 0.875rem",
+      border: "1px solid var(--cs-border)",
+      backgroundColor: "var(--cs-surface-warm)",
+      color: "var(--cs-text)",
+      fontSize: "0.8125rem",
+      fontWeight: 600,
+    };
+  }
+
+  if (variant === "panelDanger") {
+    return {
+      ...base,
+      height: 38,
+      padding: "0 0.875rem",
+      border: "1px solid #FECACA",
+      backgroundColor: "#FFF7F7",
+      color: "#B91C1C",
+      fontSize: "0.8125rem",
+      fontWeight: 600,
+    };
+  }
+
+  return {
+    ...base,
+    padding: "4px 10px",
+    border: "1px solid var(--cs-border)",
+    backgroundColor: "var(--cs-surface)",
+    color: "var(--cs-text)",
+    fontSize: "0.8125rem",
+  };
 }

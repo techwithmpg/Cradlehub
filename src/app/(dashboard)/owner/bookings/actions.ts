@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { updateBookingStatusSchema } from "@/lib/validations/booking";
 import {
+  getAllBookings,
   getAllBookingsOwner,
   getBookingById,
 } from "@/lib/queries/bookings";
@@ -137,6 +138,25 @@ export async function getCashSummaryAction(fromDate: string, toDate: string, bra
   const ctx = await requireOwner();
   if (!ctx) return { error: "Unauthorized" };
   return getCrossbranchCashSummary(fromDate, toDate, branchId);
+}
+
+// ── Payment-aware booking list for the new shared workspace ──────────────
+// Uses the full-featured query that returns payment fields + branch resources.
+export async function getOwnerWorkspaceBookingsAction(filters?: {
+  date?:     string;
+  branchId?: string;
+  status?:   string;
+  type?:     string;
+}) {
+  const ctx = await requireOwner();
+  if (!ctx) return { error: "Unauthorized" as const };
+  const bookings = await getAllBookings({
+    date:     filters?.date,
+    branchId: filters?.branchId,
+    status:   filters?.status,
+    type:     filters?.type,
+  });
+  return { bookings };
 }
 
 // ── Update payment on any booking (cross-branch, owner only) ─────────────

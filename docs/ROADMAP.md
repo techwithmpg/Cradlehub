@@ -152,3 +152,4 @@
 | 2026-05-09 | Logged STABILITY-001 workspace stabilization audit and blocker fixes | Stabilize route aliases, notification count behavior, public booking status copy, and Next.js 16 proxy documentation before broader client/staff testing | Codex |
 | 2026-05-09 | Logged STAFF-UI-001 staff management workspace redesign | Track the owner staff dashboard rebuild with branch-grouped tables, filters, KPI cards, and selected staff preview rail | Codex |
 | 2026-05-09 | Logged STAFF-UI-002 staff display normalization and compact profile panel | Track shared staff metadata helper usage, tier eligibility safeguards, branch-column removal, and profile panel compacting | Codex |
+| 2026-05-10 | Logged BK-WS-002 shared bookings workspace polish | Track simplified booking detail actions, compact row action menu, table pagination, and fixed compact columns across Owner/Manager/CRM | Codex |
