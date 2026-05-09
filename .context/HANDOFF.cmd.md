@@ -1,50 +1,39 @@
-# HANDOFF — RBAC-001 Align Cradle Staff Roles with Workspace Access
+# HANDOFF — STAFF-UI-001 Staff Management Workspace Layout Redesign
 
 ## Date
-2026-05-13
+2026-05-09
 
 ## Agent
 Codex
 
 ## Summary
-Forward-fix RBAC implementation. Added 6 new system_role values to the DB constraint, updated all routing and permission helpers, seeded Anna Liza F. Lacson as owner, corrected all existing staff role assignments, and extended 8 action files to cover manager variants.
+Rebuilt `/owner/staff` into a premium, branch-grouped Staff Management dashboard without changing auth, RBAC, booking logic, database schema, staff CRUD actions, invite flows, or manager schedule management.
 
-## Changes Applied
+## Files Changed
+- `src/app/(dashboard)/owner/staff/page.tsx` — server page now fetches existing staff datasets and renders the new workspace component.
+- `src/components/features/staff/staff-management-workspace.tsx` — main client orchestration for filters, tabs, selected staff, and layout.
+- `src/components/features/staff/staff-management-utils.ts` — staff display labels, branch grouping, filtering, status, date, and initials helpers.
+- `src/components/features/staff/staff-stats-cards.tsx` — KPI row.
+- `src/components/features/staff/staff-filter-bar.tsx` — search and branch/role/status filters.
+- `src/components/features/staff/staff-tabs.tsx` — Active Staff and Pending segmented tabs.
+- `src/components/features/staff/staff-branch-section.tsx` — branch section shell with branch count and table container.
+- `src/components/features/staff/staff-table-row.tsx` — dense staff table rows with avatar/initials, selected checkbox, badges, and row menu.
+- `src/components/features/staff/staff-preview-panel.tsx` — selected staff profile and quick actions rail.
+- `src/components/features/staff/staff-badges.tsx` — staff status and role badges.
+- `src/components/features/staff/staff-empty-list.tsx` — filtered/empty state.
 
-### Migrations (new — do not edit)
-- `supabase/migrations/20260513000001_rbac_role_constraint_fix.sql` — re-creates system_role CHECK with full 13-role set; resolves the migration conflict between 20260429000009 and 20260501000002.
-- `supabase/migrations/20260513000002_real_staff_rbac_seed.sql` — seeds Anna Liza F. Lacson (owner); updates all staff records from migration 010 to precise roles and staff_type values.
+## Behavior Notes
+- Active and pending datasets remain separate. Pending is still driven by existing inactive staff records from `getPendingStaff()`.
+- Branch grouping happens after client-side search/filtering.
+- Staff with missing branch data are grouped under `Unassigned Branch`.
+- Role/title display uses `job_title` when present, falls back through system role labels for admin/non-service roles, and only appends tier for therapist rows.
+- Invite Link, Direct Invite, row edit/review, Approve Staff, Assign Branch, Change Role, and Deactivate Staff quick actions all route into existing owner staff pages/actions.
 
-### TypeScript
-- `src/lib/permissions.ts` — SYSTEM_ROLES, MANAGERS, ROLE_LABELS, getDefaultDashboardPath updated for all new roles.
-- `src/proxy.ts` — resolveWorkspace covers all 13 roles.
-- `src/app/(dashboard)/owner/staff/actions.ts` — 3 checks extended to manager variants.
-- `src/app/(dashboard)/owner/branches/actions.ts` — branch manager check extended.
-- `src/app/(dashboard)/owner/branches/resources-actions.ts` — branch manager check extended.
-- `src/app/(dashboard)/manager/bookings/actions.ts` — allowedRoles extended.
-- `src/lib/actions/inhouse-booking.ts` — bookingRoles extended.
-- `src/lib/queries/branch-booking-rules.ts` — manager check extended.
-- `src/app/(dashboard)/driver/page.tsx` — requireDriverAccess now allows driver role.
-- `src/app/(dashboard)/utility/page.tsx` — requireUtilityAccess now allows utility role.
-
-## Role Routing
-- owner → /owner
-- manager / assistant_manager / store_manager → /manager
-- crm / csr / csr_head / csr_staff → /crm
-- staff / service_head / service_staff → /staff-portal
-- driver → /driver
-- utility → /utility
-
-## Verification Status
-- `pnpm lint`: passing.
+## Verification
 - `pnpm type-check`: passing.
+- `pnpm lint`: passing.
 - `pnpm build`: passing, 68 app routes.
 
-## Known Remaining Issue
-On a fresh db reset, migration 20260501000002 fails row validation if migration 010 has already inserted assistant_manager/store_manager rows. The forward-fix migration (20260513000001) cannot run before 20260501000002 fails. Running instances are unaffected. Fresh-reset workaround: apply migrations 20260429000001 through 20260429000009, skip 010 temporarily, apply through 20260501000002, then apply 010 and 20260513000001.
-
-## Remaining Gaps (out of scope for this pass)
-- Onboarding approval role allowlist (staff-onboarding/actions.ts) not updated — only owner can approve new staff, so the allowed-roles-for-assignment array there controls what roles can be handed out during approval, not who can approve. Low risk.
-- crm/actions.ts allowedRoles stays as-is — CRM workspace is not a manager workspace.
-- No RLS changes made.
-- No new UI built for driver/utility workspaces — both remain "Coming Soon" placeholders.
+## Remaining Notes
+- No browser screenshot verification was run in this pass; verification was via TypeScript, lint, and production build.
+- Existing unrelated working tree changes were left untouched.

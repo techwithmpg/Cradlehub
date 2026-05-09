@@ -150,3 +150,4 @@
 | 2026-05-01 | Added CSR Head/CSR Staff RBAC completion note (CRM workspace only, no separate CSR workspace) | Align workspace access with front-desk org structure and server-side permission enforcement | Codex |
 | 2026-05-01 | Logged STAFF-005 mobile accordion/day-card refinement for `/staff-portal/week` | Track focused mobile planner UX/accessibility improvements and verification run | Codex |
 | 2026-05-09 | Logged STABILITY-001 workspace stabilization audit and blocker fixes | Stabilize route aliases, notification count behavior, public booking status copy, and Next.js 16 proxy documentation before broader client/staff testing | Codex |
+| 2026-05-09 | Logged STAFF-UI-001 staff management workspace redesign | Track the owner staff dashboard rebuild with branch-grouped tables, filters, KPI cards, and selected staff preview rail | Codex |

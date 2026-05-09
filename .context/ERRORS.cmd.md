@@ -72,3 +72,10 @@ _No errors logged yet._
   - Resolution: changed those hrefs to the existing `/driver` and `/utility` panels.
 - Public booking success copy still said bookings were confirmed even though current online booking behavior starts public bookings as pending/front-desk-reviewed.
   - Resolution: changed the success copy to "request received" language.
+
+## 2026-05-09 — STAFF-UI-001 execution notes
+
+- Initial `pnpm lint` failed on `react-hooks/set-state-in-effect` because the selected staff row was being repaired inside an effect.
+  - Resolution: replaced the effect with derived selected-staff fallback state and a deliberate empty-selection sentinel for the close action.
+- A `git diff` command using an unquoted route-group path failed in PowerShell because `(dashboard)` was parsed as syntax.
+  - Resolution: reran path-sensitive Git commands with quoted paths.

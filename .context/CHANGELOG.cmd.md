@@ -989,3 +989,35 @@ On a fresh `db reset`, migration 20260501000002 may fail row validation because 
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 68 app routes.
+
+---
+
+### 2026-05-09 — Codex (STAFF-UI-001 — Staff Management Workspace Redesign)
+
+**Task:** Rebuild the owner Staff Management workspace UI to match the approved dashboard layout while preserving existing data, actions, RBAC/auth, booking logic, active/pending/invite behavior, and branch grouping.
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/staff/page.tsx` — thin server page fetching existing staff data and rendering the new workspace.
+- `src/components/features/staff/staff-management-workspace.tsx` — new workspace layout orchestration.
+- `src/components/features/staff/staff-management-utils.ts` — branch grouping, filtering, status, and role/title display helpers.
+- `src/components/features/staff/staff-stats-cards.tsx` — KPI cards.
+- `src/components/features/staff/staff-filter-bar.tsx` — search and filters.
+- `src/components/features/staff/staff-tabs.tsx` — Active/Pending segmented tabs.
+- `src/components/features/staff/staff-branch-section.tsx` — branch grouped table shell.
+- `src/components/features/staff/staff-table-row.tsx` — dense staff table rows with row actions.
+- `src/components/features/staff/staff-preview-panel.tsx` — selected staff profile and quick actions rail.
+- `src/components/features/staff/staff-badges.tsx` — status and role badges.
+- `src/components/features/staff/staff-empty-list.tsx` — empty state.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md` — updated task docs and execution notes.
+
+**Behavior:**
+- Active Staff and Pending tabs remain separate.
+- Branch grouping applies after search/filtering.
+- Staff with missing branch data render under `Unassigned Branch`.
+- Existing invite/edit/review action routes are preserved.
+- Managers/admin/support roles no longer display therapist tier text; tier only appears for eligible therapist rows.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.

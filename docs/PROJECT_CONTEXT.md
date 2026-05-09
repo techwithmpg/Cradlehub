@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `STABILITY-001`  |
-| **Completion**      | `Workspace audit pass complete; authenticated manual role QA remains`        |
+| **Sprint**          | `STAFF-UI-001`  |
+| **Completion**      | `Staff Management workspace redesign complete; authenticated visual QA remains`        |
 | **Last Agent**      | `Codex (GPT-5)` |
 | **Last Updated**    | `2026-05-09` |
-| **Blockers**        | `No build/type/lint blockers; role-specific browser QA needs seeded credentials`      |
+| **Blockers**        | `No build/type/lint blockers; browser visual QA needs authenticated seeded credentials`      |
 
 ---
 
@@ -151,8 +151,7 @@ pnpm ui:add [component]     # Add shadcn/ui component
 
 ## Latest Agent Update (2026-05-09)
 
-- Completed `STABILITY-001`: workspace route inventory, workflow inventory, stabilization checklist, and targeted blocker fixes.
-- Added explicit Today route aliases for manager and staff portal workspaces.
-- Fixed notification unread count refresh and missing driver/utility notification href targets.
-- Updated public booking success copy to match pending/front-desk-reviewed online booking behavior.
-- Verified lint, type-check, test, and build are passing.
+- Completed `STAFF-UI-001`: rebuilt `/owner/staff` into a premium staff management dashboard with KPI cards, search/filters, Active/Pending tabs, branch-grouped dense tables, selected-row state, and a right-side profile/quick-action rail.
+- Preserved existing staff data queries, invite/edit/review routes, staff CRUD actions, auth/RBAC, booking logic, and database schema.
+- Fixed staff position/tier display so admin/support roles do not render as therapist tier labels.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing.
