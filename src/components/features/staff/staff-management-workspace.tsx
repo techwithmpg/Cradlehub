@@ -170,7 +170,7 @@ export function StaffManagementWorkspace({
         </p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-4">
           {groupedStaff.length > 0 ? (
             groupedStaff.map((group) => (

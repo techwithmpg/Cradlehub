@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `STAFF-TIER-001`  |
-| **Completion**      | `Staff tier display eligibility fix complete; authenticated visual QA remains`        |
+| **Sprint**          | `STAFF-UI-002`  |
+| **Completion**      | `Staff display metadata normalization and compact profile panel complete`        |
 | **Last Agent**      | `Codex (GPT-5)` |
 | **Last Updated**    | `2026-05-09` |
-| **Blockers**        | `No build/type/lint blockers; browser visual QA needs authenticated seeded credentials`      |
+| **Blockers**        | `No build/type/lint blockers; authenticated visual QA still depends on seeded login access`      |
 
 ---
 
@@ -151,7 +151,8 @@ pnpm ui:add [component]     # Add shadcn/ui component
 
 ## Latest Agent Update (2026-05-09)
 
-- Completed `STAFF-TIER-001`: hardened the staff display helper so tier labels appear only for tier-eligible therapist rows.
-- Staff row subtitles now append phone through a shared `getStaffDisplaySubtitle()` helper.
-- Managers, owners, CSR roles, drivers, utility, CRM, service heads, managerial, and salon heads no longer show therapist tier labels even if legacy seed data has `tier = junior`.
+- Completed `STAFF-UI-002`: normalized Staff Management row, badge, and profile metadata through shared `getStaffDisplayMeta(staff)`.
+- Manager/admin/front-desk/support rows now derive protected staff type labels from `system_role`, so stale raw therapist/tier defaults do not render as `Therapist · Junior`.
+- Branch-grouped staff tables no longer repeat the Branch column; branch remains in section headers, filters, and the profile panel.
+- Right profile panel now uses self-start/content-height layout instead of stretching vertically with empty space.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing.

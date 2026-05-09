@@ -79,3 +79,10 @@ _No errors logged yet._
   - Resolution: replaced the effect with derived selected-staff fallback state and a deliberate empty-selection sentinel for the close action.
 - A `git diff` command using an unquoted route-group path failed in PowerShell because `(dashboard)` was parsed as syntax.
   - Resolution: reran path-sensitive Git commands with quoted paths.
+
+## 2026-05-09 — STAFF-UI-002 execution notes
+
+- An `rg` inspection command using an unquoted route-group path failed in PowerShell because `(dashboard)` was parsed as syntax.
+  - Resolution: reran the search with the route-group path quoted.
+- Initial `pnpm type-check` failed after adding tier guards because nullable `staff_type` was passed directly into `Set.has`.
+  - Resolution: normalized the nullable value before the non-tier staff type check and reran `pnpm type-check` successfully.

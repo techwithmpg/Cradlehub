@@ -1,5 +1,11 @@
 import { Badge } from "@/components/ui/badge";
-import { getStaffStatusLabel, getSystemRoleLabel, type StaffStatus } from "./staff-management-utils";
+import {
+  getStaffDisplayMeta,
+  getStaffStatusLabel,
+  getSystemRoleLabel,
+  type StaffMember,
+  type StaffStatus,
+} from "./staff-management-utils";
 
 const statusClassNames: Record<StaffStatus, string> = {
   active: "border-[#CFE4D5] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]",
@@ -32,10 +38,13 @@ export function StaffStatusBadge({ status }: { status: StaffStatus }) {
   );
 }
 
-export function StaffRoleBadge({ role }: { role: string }) {
+export function StaffRoleBadge({ role, staff }: { role?: string; staff?: StaffMember }) {
+  const resolvedRole = staff?.system_role ?? role ?? "staff";
+  const label = staff ? getStaffDisplayMeta(staff).badgeLabel : getSystemRoleLabel(resolvedRole);
+
   return (
-    <Badge variant="outline" className={getRoleClassName(role)}>
-      {getSystemRoleLabel(role)}
+    <Badge variant="outline" className={getRoleClassName(resolvedRole)}>
+      {label}
     </Badge>
   );
 }

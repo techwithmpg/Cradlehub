@@ -11,9 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StaffRoleBadge, StaffStatusBadge } from "./staff-badges";
 import {
+  getStaffDisplayMeta,
   getInitials,
-  getStaffDisplayPosition,
-  getStaffDisplaySubtitle,
   getStaffStatus,
   type StaffMember,
   type StaffTab,
@@ -22,7 +21,6 @@ import {
 type StaffTableRowProps = {
   member: StaffMember;
   activeTab: StaffTab;
-  branchShortName: string;
   isSelected: boolean;
   onSelectStaff: (staff: StaffMember) => void;
 };
@@ -30,14 +28,19 @@ type StaffTableRowProps = {
 export function StaffTableRow({
   member,
   activeTab,
-  branchShortName,
   isSelected,
   onSelectStaff,
 }: StaffTableRowProps) {
   const status = getStaffStatus(member);
+  const meta = getStaffDisplayMeta(member);
   const displayName = status === "invited" ? "Invite link generated" : member.full_name;
-  const position = status === "invited" ? "Pending invitation" : getStaffDisplayPosition(member);
-  const subtitle = status === "invited" ? "Pending invitation" : getStaffDisplaySubtitle(member);
+  const position =
+    status === "invited"
+      ? "Pending invitation"
+      : meta.tierLabel
+        ? `${meta.roleLabel} · ${meta.tierLabel}`
+        : meta.roleLabel;
+  const subtitle = status === "invited" ? "Pending invitation" : meta.subtitle;
 
   return (
     <tr
@@ -78,16 +81,15 @@ export function StaffTableRow({
         <span className="block truncate">{position}</span>
       </td>
       <td className="px-3 py-2.5 align-middle text-sm text-[var(--cs-text-secondary)]">
-        {member.phone && member.phone !== "0000000000" ? member.phone : "—"}
-      </td>
-      <td className="px-3 py-2.5 align-middle text-sm text-[var(--cs-text-secondary)]">
-        {branchShortName}
+        <span className="block truncate">
+          {member.phone && member.phone !== "0000000000" ? member.phone : "—"}
+        </span>
       </td>
       <td className="px-3 py-2.5 align-middle">
         <StaffStatusBadge status={status} />
       </td>
       <td className="px-3 py-2.5 align-middle">
-        <StaffRoleBadge role={member.system_role} />
+        <StaffRoleBadge staff={member} />
       </td>
       <td className="px-3 py-2.5 align-middle">
         <StaffRowActions member={member} activeTab={activeTab} onSelectStaff={onSelectStaff} />

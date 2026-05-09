@@ -1047,3 +1047,43 @@ On a fresh `db reset`, migration 20260501000002 may fail row validation because 
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 68 app routes.
+
+---
+
+### 2026-05-09 — Codex (STAFF-UI-002 — Staff Management Display Normalization)
+
+**Task:** Refine Staff Management display logic and compact the selected staff profile panel without changing auth, RBAC, booking, schema, staff CRUD, or public pages.
+
+**Files Changed:**
+- `src/components/features/staff/staff-management-utils.ts`
+  - Added shared `getStaffDisplayMeta(staff)` for role label, staff type label, badge label, tier eligibility, and subtitle parts.
+  - Uses `job_title` first for position identity.
+  - Derives Staff Type from protected `system_role` mappings so managers/admin/front-desk/support rows do not inherit stale `staff_type = therapist` data.
+  - Shows tier only for service access roles (`staff`, `service_staff`) with service staff types (`therapist`, `nail_tech`, `aesthetician`) and hides legacy default tiers from admin/support roles.
+- `src/components/features/staff/staff-badges.tsx`
+  - Allows Staff Management role badges to use the shared display helper when a staff member is available.
+- `src/components/features/staff/staff-table-row.tsx`
+  - Uses `getStaffDisplayMeta()` for row subtitle, position/role display, and access role badge.
+  - Removes the repeated Branch cell from rows inside branch-grouped tables.
+- `src/components/features/staff/staff-branch-section.tsx`
+  - Removes the Branch column from branch-grouped tables.
+  - Keeps compact branch sections with existing per-branch show more/show less behavior.
+- `src/components/features/staff/staff-preview-panel.tsx`
+  - Uses `getStaffDisplayMeta()` for profile subtitle, System Role, Staff Type, and badge display.
+  - Makes the right profile panel content-height/self-start instead of vertically stretched.
+  - Keeps existing detail-page links for review/edit/assign/change/deactivate flows.
+- `src/components/features/staff/staff-management-workspace.tsx`
+  - Aligns the main grid to the top so the right rail does not stretch with the branch list.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`
+  - Updated task documentation and verification notes.
+
+**Behavior:**
+- Charilyn Abellar and other manager/admin/support rows no longer display `Therapist` or `Junior` from stale raw staff data.
+- Manager profile Staff Type now resolves to `Managerial`; admin/front-desk/support rows resolve to their protected staff type labels.
+- Service staff can still display tier labels when eligible.
+- Active/Pending tabs, search/filter behavior, branch grouping after filters, selected-row behavior, and existing staff action routes remain unchanged.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.

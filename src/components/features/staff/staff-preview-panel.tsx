@@ -25,12 +25,10 @@ import {
 import { StaffRoleBadge, StaffStatusBadge } from "./staff-badges";
 import {
   formatStaffDate,
+  getStaffDisplayMeta,
   getInitials,
-  getStaffDisplayPosition,
   getStaffStatus,
   getStaffStatusLabel,
-  getStaffTypeLabel,
-  getSystemRoleLabel,
   readBranchName,
   type StaffMember,
 } from "./staff-management-utils";
@@ -43,20 +41,22 @@ type StaffPreviewPanelProps = {
 export function StaffPreviewPanel({ staff, onClearSelection }: StaffPreviewPanelProps) {
   if (!staff) {
     return (
-      <aside className="rounded-xl border border-dashed border-[var(--cs-border-strong)] bg-[var(--cs-surface-warm)] p-6 text-center text-sm text-[var(--cs-text-muted)] xl:sticky xl:top-20">
+      <aside className="self-start rounded-xl border border-dashed border-[var(--cs-border-strong)] bg-[var(--cs-surface-warm)] p-6 text-center text-sm text-[var(--cs-text-muted)] xl:sticky xl:top-20">
         Select a staff member to view details.
       </aside>
     );
   }
 
   const status = getStaffStatus(staff);
+  const meta = getStaffDisplayMeta(staff);
   const branchName = readBranchName(staff.branches);
   const displayName = status === "invited" ? "Invite link generated" : staff.full_name;
-  const displayPosition = status === "invited" ? "Pending invitation" : getStaffDisplayPosition(staff);
+  const displayPosition = status === "invited" ? "Pending invitation" : meta.subtitle;
   const canApprove = status === "awaiting";
+  const profileActionLabel = status === "active" ? "Edit Profile" : "Review Profile";
 
   return (
-    <aside className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)] xl:sticky xl:top-20">
+    <aside className="self-start rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)] xl:sticky xl:top-20">
       <div className="flex items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] px-4 py-3">
         <StaffStatusBadge status={status} />
         <div className="flex items-center gap-1">
@@ -98,14 +98,14 @@ export function StaffPreviewPanel({ staff, onClearSelection }: StaffPreviewPanel
           <h2 className="mt-3 mb-0 text-lg font-semibold text-[var(--cs-text)]">{displayName}</h2>
           <p className="mt-1 mb-0 text-sm text-[var(--cs-text-secondary)]">{displayPosition}</p>
           <div className="mt-3">
-            <StaffRoleBadge role={staff.system_role} />
+            <StaffRoleBadge staff={staff} />
           </div>
         </div>
 
         <dl className="mt-5 space-y-2.5">
           <DetailRow Icon={Building2} label="Branch" value={branchName} />
-          <DetailRow Icon={ShieldCheck} label="System Role" value={getSystemRoleLabel(staff.system_role)} />
-          <DetailRow Icon={UserCog} label="Staff Type" value={getStaffTypeLabel(staff.staff_type)} />
+          <DetailRow Icon={ShieldCheck} label="System Role" value={meta.badgeLabel} />
+          <DetailRow Icon={UserCog} label="Staff Type" value={meta.staffTypeLabel} />
           <DetailRow
             Icon={Phone}
             label="Phone"
@@ -131,7 +131,7 @@ export function StaffPreviewPanel({ staff, onClearSelection }: StaffPreviewPanel
                 </Link>
               </Button>
             )}
-            <QuickAction href={`/owner/staff/${staff.id}`} label="Edit Profile" Icon={UserCog} />
+            <QuickAction href={`/owner/staff/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
             <QuickAction href={`/owner/staff/${staff.id}`} label="Assign Branch" Icon={MapPin} />
             <QuickAction href={`/owner/staff/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
             {status === "active" && (

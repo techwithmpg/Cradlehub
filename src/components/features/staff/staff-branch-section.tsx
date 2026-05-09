@@ -2,12 +2,7 @@
 
 import { ChevronRight } from "lucide-react";
 import { StaffTableRow } from "./staff-table-row";
-import {
-  getBranchShortName,
-  type StaffBranchGroup,
-  type StaffMember,
-  type StaffTab,
-} from "./staff-management-utils";
+import { type StaffBranchGroup, type StaffMember, type StaffTab } from "./staff-management-utils";
 
 const MAX_COLLAPSED_ROWS = 8;
 
@@ -30,7 +25,6 @@ export function StaffBranchSection({
 }: StaffBranchSectionProps) {
   const visibleStaff = isExpanded ? group.staff : group.staff.slice(0, MAX_COLLAPSED_ROWS);
   const isTruncated = group.staff.length > MAX_COLLAPSED_ROWS;
-  const branchShortName = getBranchShortName(group.branchName);
 
   return (
     <section className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]">
@@ -44,19 +38,18 @@ export function StaffBranchSection({
         </span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] border-collapse text-left">
+      <div className="overflow-hidden">
+        <table className="w-full table-fixed border-collapse text-left">
           <thead>
             <tr className="border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-xs font-semibold text-[var(--cs-text-muted)]">
               <th className="w-10 px-4 py-2.5">
                 <span className="sr-only">Selected</span>
               </th>
-              <th className="px-3 py-2.5">Staff</th>
-              <th className="px-3 py-2.5">Position / Role</th>
-              <th className="px-3 py-2.5">Phone</th>
-              <th className="px-3 py-2.5">Branch</th>
-              <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5">Role</th>
+              <th className="w-[31%] px-3 py-2.5">Staff</th>
+              <th className="w-[22%] px-3 py-2.5">Position / Role</th>
+              <th className="w-[16%] px-3 py-2.5">Phone</th>
+              <th className="w-[15%] px-3 py-2.5">Status</th>
+              <th className="w-[14%] px-3 py-2.5">Access Role</th>
               <th className="w-12 px-3 py-2.5">
                 <span className="sr-only">Actions</span>
               </th>
@@ -68,7 +61,6 @@ export function StaffBranchSection({
                 key={member.id}
                 member={member}
                 activeTab={activeTab}
-                branchShortName={branchShortName}
                 isSelected={selectedStaffId === member.id}
                 onSelectStaff={onSelectStaff}
               />
