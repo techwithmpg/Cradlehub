@@ -1148,3 +1148,138 @@ On a fresh `db reset`, migration 20260501000002 may fail row validation because 
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 68 app routes.
+
+
+---
+
+### 2026-05-10 — Codex (LAYOUT-001 — Desktop Workspace Layout Width Fix)
+
+**Task:** Remove the global 1280px max-width constraint on dashboard workspace content so cards, tables, and panels can use available desktop space.
+
+**Files Changed:**
+- `src/app/(dashboard)/layout.tsx`
+  - Root flex container: `minHeight: "100vh"` → `height: "100vh"` to constrain the dashboard shell to the viewport.
+  - `<main>`: removed `maxWidth: 1280`.
+  - `<main>`: added `minWidth: 0` and `overflowY: "auto"` so the content area scrolls independently and flex grandchildren size correctly.
+
+**Behavior:**
+- All workspace pages (Owner, Manager, CRM, Staff Portal) now use the full available desktop width.
+- Bookings table + details panel no longer feels squeezed.
+- Staff management branch tables and right profile rail have more room.
+- Schedule timeline board is no longer trapped in a narrow container.
+- Header remains sticky while main content scrolls independently.
+- Sidebar remains unchanged.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.
+
+
+---
+
+### 2026-05-10 — Kimi (SCHED-STAFF-001 — Staff Mode in Shared ScheduleWorkspace)
+
+**Task:** Implement Staff Mode as the first complete view inside the shared ScheduleWorkspace, with Day/Week/Staff mode switching.
+
+**Files Created:**
+- `src/components/features/schedule/schedule-mode-switcher.tsx` — Day/Week/Staff toggle with icons
+- `src/components/features/schedule/schedule-staff-mode.tsx` — Staff mode orchestrator (profile, summary, day list, upcoming, summary, weekly placeholder)
+- `src/components/features/schedule/schedule-staff-profile-card.tsx` — Avatar, name, tier label, availability dot, assigned room
+- `src/components/features/schedule/schedule-staff-summary-cards.tsx` — 5 compact cards: Today's Bookings, Scheduled Time, Utilization, Break Time, Travel Time
+- `src/components/features/schedule/schedule-staff-day-list.tsx` — Vertical timeline rendering bookings, blocks, and off-duty gaps with status colors
+
+**Files Changed:**
+- `src/components/features/schedule/schedule-workspace.tsx`
+  - Added `viewMode` state (default `"staff"`)
+  - Replaced manual `useMemo` calls with plain derivations for React Compiler compatibility
+  - Wired `viewMode` + `onViewModeChange` into `ScheduleBoardPanel`
+- `src/components/features/schedule/schedule-board-panel.tsx`
+  - Added `ScheduleModeSwitcher` to panel header
+  - Added conditional body rendering: Day → `DailyScheduleBoard`, Staff → `ScheduleStaffMode`, Week → placeholder
+- `src/components/features/schedule/schedule-booking-block.tsx` — removed unused `branchResources` destructuring
+- `src/components/features/schedule/schedule-details-panel.tsx` — removed unused `Phone` import
+- `src/components/features/schedule/schedule-kpi-cards.tsx` — removed unused `CalendarDays` import
+
+**Design decisions:**
+- Staff mode defaults to the first staff in the filtered rows. Prev/Next buttons cycle through all staff.
+- Day list interleaves bookings, blocks, and off-duty gaps in chronological order.
+- Upcoming bookings panel shows same-day remaining active bookings only (no future-week data yet).
+- Weekly workload panel renders a safe placeholder — no fake data.
+- All metrics derived safely from existing `getDailySchedule` data. No new queries or RPCs.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 68 app routes
+
+
+---
+
+### 2026-05-10 — Kimi (SCHED-WEEK-001 — Week Planning Mode in Shared ScheduleWorkspace)
+
+**Task:** Implement Week Planning Mode inside the shared ScheduleWorkspace, replacing the placeholder with a real planning dashboard.
+
+**Files Created:**
+- `src/components/features/schedule/schedule-week-utils.ts` — Pure typed date helpers: `getWeekRange`, `formatWeekRange`, `formatDayCard`, `formatPreviewTitle`, `shiftDate`, `isToday`
+- `src/components/features/schedule/schedule-week-day-card.tsx` — Day card with day name, date, booking/staff/alert metrics, 2–3 booking previews, "+X more", alert badge, selected/muted/empty states
+- `src/components/features/schedule/schedule-week-day-preview.tsx` — Selected day preview: title with date, booking count badge, compact booking rows (time, service, staff, room, status), "View full day" button
+- `src/components/features/schedule/schedule-week-mode.tsx` — Week orchestrator: header with date range, 7-card grid, selected day state, preview or placeholder for non-loaded days
+
+**Files Changed:**
+- `src/components/features/schedule/schedule-board-panel.tsx` — Replaced week placeholder with `<ScheduleWeekMode />`, passing all required props
+
+**Untouched:**
+- `schedule-workspace.tsx` (already wired for mode switching)
+- All route pages, Staff Mode components, Day Mode components, Toolbar, KPI cards, Details panel, Alerts panel, Legend
+- All queries, actions, auth, RBAC, schema, booking engine, public booking
+
+**Design Decisions:**
+- Uses **one-day data strategy** for safety: only the currently loaded date (from `getDailySchedule`) shows real metrics and booking previews. Other 6 days show safe placeholders ("—" / 0) with muted styling.
+- Non-loaded selected day shows an info placeholder explaining how to use the date navigator.
+- "View full day" button switches mode to "day" using the existing `onViewModeChange` callback.
+- Booking rows in the preview reuse the existing `onBookingClick` → `selectedBookingId` → right Details panel flow.
+- Week range is computed client-side from the server-provided `date` prop (Monday-Sunday).
+- Alert counts are derived locally using the same logic as `ScheduleWorkspace` (travel buffer, missing assignment, room conflicts).
+
+**Known Limitations:**
+- Real weekly data requires either: (a) route pages fetching 7 days of `getDailySchedule`, (b) a new `getWeeklySchedule` RPC, or (c) client-side Supabase fetching. None of these are implemented yet.
+- Mode resets on date navigation because `viewMode` is client-only state.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 68 app routes
+
+
+---
+
+### 2026-05-10 — Kimi (SCHED-DAY-POLISH-001 — Day Mode Timeline Visual Polish)
+
+**Task:** Polish Day Mode visuals inside the existing shared ScheduleWorkspace without touching Staff Mode, Week Mode, route pages, or workspace plumbing.
+
+**Files Changed:**
+- `src/components/features/schedule/schedule-board-panel.tsx`
+  - `ScheduleLegend` now conditionally renders only when `viewMode === "day"`
+  - Added "Daily timeline" gold badge subtitle for Day mode
+- `src/components/features/schedule/schedule-staff-cell.tsx`
+  - Added initials/avatar circle with green (on-duty) / grey (off-duty) coloring
+  - `formatStaffLabel`: null tier now returns "Service Staff" instead of "Staff"
+  - Off-duty cells use muted background and text; status label reads "Off today"
+- `src/components/features/schedule/schedule-booking-block.tsx`
+  - Added 3px status-colored left border accent for quick visual status identification
+- `src/components/features/schedule/schedule-blocked-time-block.tsx`
+  - Added `formatBlockedLabel` helper: reason containing "break"/"lunch" → "Break", "travel" → "Travel", else "Blocked"
+- `src/components/features/schedule/daily-schedule-board.tsx`
+  - Fixed `minWidth` from hardcoded `STAFF_CELL_WIDTH_PX + 600` to `STAFF_CELL_WIDTH_PX + getTimelineTotalWidthPx()` for correct scrollable width
+
+**Untouched:**
+- `schedule-workspace.tsx`, `schedule-toolbar.tsx`, `schedule-kpi-cards.tsx`, `schedule-details-panel.tsx`, `schedule-alerts-panel.tsx`
+- `schedule-legend.tsx`, `schedule-mode-switcher.tsx`
+- All Staff Mode and Week Mode components
+- All route pages, queries, actions, auth, RBAC, schema, booking engine, public booking
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 68 app routes

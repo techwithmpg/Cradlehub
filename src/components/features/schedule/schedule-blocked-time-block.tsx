@@ -10,6 +10,14 @@ type BlockedTimeBlockProps = {
   block: DailyScheduleBlock;
 };
 
+function formatBlockedLabel(reason: string | null): string {
+  if (!reason) return "Blocked";
+  const lower = reason.toLowerCase();
+  if (lower.includes("break") || lower.includes("lunch")) return "Break";
+  if (lower.includes("travel")) return "Travel";
+  return reason;
+}
+
 export function ScheduleBlockedTimeBlock({ block }: BlockedTimeBlockProps) {
   const left = getTimelineOffsetPx(block.start_time);
   const width = getTimelineWidthPx(block.start_time, block.end_time);
@@ -50,7 +58,7 @@ export function ScheduleBlockedTimeBlock({ block }: BlockedTimeBlockProps) {
           textOverflow: "ellipsis",
         }}
       >
-        {block.reason || "Blocked"}
+        {formatBlockedLabel(block.reason)}
       </span>
     </div>
   );

@@ -1,55 +1,60 @@
-# HANDOFF - BK-WS-002 Shared Bookings Workspace Polish
+# HANDOFF — SCHED-DAY-POLISH-001 Day Mode Timeline Visual Polish
 
 ## Date
 2026-05-10
 
 ## Agent
-Codex
+Kimi
 
 ## Summary
-Polished the shared bookings workspace to match the simplified mockup more closely. The Owner, Manager, and CRM booking routes still use the same shared component tree; changes are limited to layout, pagination, table density, and trigger presentation for existing actions.
+Polished Day Mode visuals inside the existing shared ScheduleWorkspace. Five focused improvements to the timeline board: conditional legend, staff avatars, status left borders, friendly blocked labels, and correct scrollable width.
 
 ## Files Changed
 
-- `src/components/features/bookings/bookings-workspace.tsx`
-  - Removed the old centered footer count below the table.
-  - Keeps shared KPI/filter/header shell unchanged.
-  - Continues passing shared action overrides into `BookingsTable`.
+### Edited:
+- `src/components/features/schedule/schedule-board-panel.tsx` — Legend Day-mode-only + "Daily timeline" subtitle
+- `src/components/features/schedule/schedule-staff-cell.tsx` — Avatar circle, improved labels, muted off-duty styling
+- `src/components/features/schedule/schedule-booking-block.tsx` — Status-colored 3px left border accent
+- `src/components/features/schedule/schedule-blocked-time-block.tsx` — Friendly label normalization
+- `src/components/features/schedule/daily-schedule-board.tsx` — Fixed minWidth to match actual timeline width
 
-- `src/components/features/bookings/bookings-table.tsx`
-  - Client-side pagination added after search filtering.
-  - Default rows per page is 8 with 8/10/20 options.
-  - Bottom pagination row includes result range, previous/next, page buttons, and rows-per-page selector.
-  - Table columns are now exactly: Booking ID, Customer, Type, Time, Service, Status, Payment, Amount, Actions.
-  - Branch is removed from visible table rows; branch remains visible in the details panel.
-  - Rows use compact fixed-layout cells and truncate long customer/service/staff/resource text.
-  - Row actions are one compact MoreHorizontal/kebab trigger only.
-  - Selected booking is derived from the current visible page; if the selected booking falls off the page/filter, the first visible booking is shown.
-  - Details panel uses a simplified action layout:
-    - disabled `Edit Booking` placeholder because no edit UI is wired here yet
-    - `Change Status`
-    - `Take Payment`
-    - optional separate `Cancel Booking`
+### Untouched:
+- `schedule-workspace.tsx` — no plumbing changes
+- `schedule-toolbar.tsx`, `schedule-kpi-cards.tsx`, `schedule-details-panel.tsx`, `schedule-alerts-panel.tsx`
+- `schedule-legend.tsx`, `schedule-mode-switcher.tsx`
+- All Staff Mode components
+- All Week Mode components
+- All route pages: `owner/schedule/page.tsx`, `manager/schedule/page.tsx`, `crm/schedule/page.tsx`
+- All queries, actions, auth, RBAC, schema, booking engine, public booking
 
-- `src/components/features/dashboard/booking-action-menu.tsx`
-  - Added typed trigger variants for default, compact icon, panel secondary, and panel danger buttons.
-  - Added action scopes for all actions, non-cancel status actions, and cancel-only action.
-  - Added optional disabled fallback for unavailable status actions.
-  - Preserves the existing status action logic and owner override prop.
+## Behavior After Change
 
-- `src/components/features/dashboard/payment-action-menu.tsx`
-  - Added typed trigger label/variant/full-width props.
-  - Preserves existing quick-pay, mark-unpaid, and edit-payment-details behavior.
-  - Preserves optional payment action override for owner workspace.
+- **Day mode** header now shows a "Daily timeline" gold badge and the legend only appears in Day mode.
+- **Week mode** and **Staff mode** no longer show the timeline legend in their headers.
+- **Staff cells** now display a circular avatar with initials (green for on-duty, grey for off).
+- **Staff labels** are friendlier: null tier shows "Service Staff", senior/mid/junior map to "Senior Therapist"/"Therapist"/"Junior Therapist".
+- **Off-duty staff** cells have a muted cream background and the status label reads "Off today".
+- **Booking blocks** have a 3px left border matching their status color (green for confirmed, violet for in-progress, etc.).
+- **Blocked time** labels are normalized: "lunch_break" → "Break", "travel_buffer" → "Travel", anything else → "Blocked".
+- **Timeline horizontal scroll** now uses the correct minimum width (2696px instead of 800px), ensuring all content is scrollable.
+- Clicking a booking block still updates the same right-side Booking Details panel.
+- Current-time gold line, off-duty overlays, and blocked-time stripes all still work.
 
 ## Verification
 
-- `pnpm type-check`: Passing
-- `pnpm lint`: Passing
-- `pnpm build`: Passing, 68 app routes
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 68 app routes
 
 ## Remaining Notes
 
-- `Edit Booking` is intentionally disabled in the right panel because the shared bookings workspace does not currently have an edit booking UI or route wired. Existing edit server action remains untouched.
-- Existing unrelated working tree changes left untouched: `.claude/settings.json`, `supabase/migrations/20260513000002_real_staff_rbac_seed.sql`, `docs/design-references/`, `next-smoke.err.log`, `next-smoke.log`.
-- Commit message: `fix(bookings): simplify actions and add compact pagination`
+- **Week Mode only has real data for the currently loaded date.** The other 6 day cards show placeholders. Weekly data fetching is a future enhancement.
+- **Mode resets on date navigation** because `viewMode` is client-only state. A future enhancement could persist `?mode=` in the URL.
+- The existing deprecated component `staff-schedule-grid.tsx` remains in the tree but is unused. Safe to delete later if desired.
+- To change the default mode, edit `useState<ScheduleViewMode>("staff")` in `schedule-workspace.tsx`.
+
+## Commit Message
+
+```
+fix(schedule): polish day timeline visuals
+```

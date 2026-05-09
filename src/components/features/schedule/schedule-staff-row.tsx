@@ -20,9 +20,12 @@ type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 type StaffRowProps = {
   staff: DailyScheduleStaffRow;
   branchResources?: ResourceRow[];
+  date?: string;
+  onBookingClick?: (bookingId: string) => void;
+  selectedBookingId?: string | null;
 };
 
-export function ScheduleStaffRow({ staff, branchResources }: StaffRowProps) {
+export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick, selectedBookingId }: StaffRowProps) {
   const totalWidth = getTimelineTotalWidthPx();
   const isFullyOff = !staff.work_start || !staff.work_end;
 
@@ -132,6 +135,9 @@ export function ScheduleStaffRow({ staff, branchResources }: StaffRowProps) {
             key={booking.id}
             booking={booking}
             branchResources={branchResources}
+            date={date}
+            onClick={onBookingClick}
+            isSelected={selectedBookingId === booking.id}
           />
         ))}
       </div>

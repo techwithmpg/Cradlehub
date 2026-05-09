@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import {
   STAFF_CELL_WIDTH_PX,
+  getTimelineTotalWidthPx,
   isToday,
 } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
@@ -20,6 +21,8 @@ type DailyScheduleBoardProps = {
   date: string;
   staffRows: DailyScheduleStaffRow[];
   branchResources?: ResourceRow[];
+  onBookingClick?: (bookingId: string) => void;
+  selectedBookingId?: string | null;
 };
 
 function useScheduleRealtime(branchId: string, date: string) {
@@ -57,7 +60,9 @@ export function DailyScheduleBoard({
   branchId, 
   date, 
   staffRows,
-  branchResources 
+  branchResources,
+  onBookingClick,
+  selectedBookingId,
 }: DailyScheduleBoardProps) {
   useScheduleRealtime(branchId, date);
 
@@ -98,7 +103,7 @@ export function DailyScheduleBoard({
           overflowY: "hidden",
         }}
       >
-        <div style={{ minWidth: STAFF_CELL_WIDTH_PX + 600 }}>
+        <div style={{ minWidth: STAFF_CELL_WIDTH_PX + getTimelineTotalWidthPx() }}>
           <ScheduleTimeHeader />
 
           <div style={{ position: "relative" }}>
@@ -109,6 +114,9 @@ export function DailyScheduleBoard({
                 key={staff.staff_id} 
                 staff={staff} 
                 branchResources={branchResources}
+                date={date}
+                onBookingClick={onBookingClick}
+                selectedBookingId={selectedBookingId}
               />
             ))}
           </div>

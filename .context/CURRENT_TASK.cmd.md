@@ -1,35 +1,56 @@
-# CURRENT TASK: BK-WS-002 - Shared Bookings Workspace Polish (Complete)
+# CURRENT TASK: SCHED-DAY-POLISH-001 — Day Mode Timeline Visual Polish (Complete)
 
 ## Overview
-Polished the current shared `BookingsWorkspace` implementation to better match the approved simplified bookings mockup while preserving the shared Owner/Manager/CRM layout, existing booking actions, payment actions, auth, RBAC, booking engine logic, payment rules, and public booking flow.
+Polished Day Mode visuals inside the existing shared ScheduleWorkspace without touching Staff Mode, Week Mode, route pages, or workspace plumbing. Five focused visual improvements to the timeline board and its sub-components.
 
 ## Exact Files Changed
-- `src/components/features/bookings/bookings-workspace.tsx`
-- `src/components/features/bookings/bookings-table.tsx`
-- `src/components/features/dashboard/booking-action-menu.tsx`
-- `src/components/features/dashboard/payment-action-menu.tsx`
+
+### Files edited:
+- `src/components/features/schedule/schedule-board-panel.tsx`
+  - `ScheduleLegend` now renders only when `viewMode === "day"` (hidden in Week/Staff modes)
+  - Added "Daily timeline" gold badge subtitle in Day mode header
+- `src/components/features/schedule/schedule-staff-cell.tsx`
+  - Added initials/avatar circle (34px, green for on-duty, grey for off)
+  - Improved `formatStaffLabel`: null tier now shows "Service Staff" instead of "Staff"
+  - Off-duty cells now have muted background (`var(--cs-bg)`) and muted text
+  - Off-duty status label changed from "Off" to "Off today"
+- `src/components/features/schedule/schedule-booking-block.tsx`
+  - Added 3px status-colored left border accent for quick visual identification
+  - Adjusted padding to accommodate the left border
+- `src/components/features/schedule/schedule-blocked-time-block.tsx`
+  - Added `formatBlockedLabel` helper: break/lunch → Break, travel → Travel, else Blocked
+- `src/components/features/schedule/daily-schedule-board.tsx`
+  - Fixed `minWidth` from hardcoded `STAFF_CELL_WIDTH_PX + 600` to `STAFF_CELL_WIDTH_PX + getTimelineTotalWidthPx()`
+
+### Untouched:
+- `schedule-workspace.tsx` — no plumbing changes
+- `schedule-toolbar.tsx`, `schedule-kpi-cards.tsx`, `schedule-details-panel.tsx`, `schedule-alerts-panel.tsx`
+- `schedule-legend.tsx`, `schedule-mode-switcher.tsx`
+- All Staff Mode components
+- All Week Mode components
+- All route pages
+- All queries, actions, auth, RBAC, schema, booking engine, public booking
 
 ## Completed
-- Kept Owner, Manager, and CRM on the same shared `BookingsWorkspace`.
-- Removed the table footer count from the workspace shell and moved count/pagination into the table card.
-- Updated `BookingsTable` to paginate client-side after the current server filters and search filter.
-- Defaulted visible rows to 8 per page, with 8/10/20 row options.
-- Added bottom pagination with "Showing X to Y of Z bookings", previous/next, page buttons, and rows-per-page selector.
-- Removed the table Branch column so visible columns are: Booking ID, Customer, Type, Time, Service, Status, Payment, Amount, Actions.
-- Tightened table sizing with fixed layout, compact cells, truncation/tooltips for long customer/service text, and a narrow Actions column.
-- Replaced per-row `Actions` + `Pay` buttons with one compact three-dot booking action trigger.
-- Simplified the details panel action area:
-  - Disabled `Edit Booking` primary button because no edit panel/route is currently wired in this shared component.
-  - `Change Status` uses the existing booking status action menu with cancel removed from that dropdown.
-  - `Take Payment` uses the existing payment action menu with a clean panel trigger.
-  - `Cancel Booking` appears separately as a full-width subtle red action only when the existing cancel transition is available.
-- Kept the details panel content-height/sticky behavior and avoided empty vertical stretching.
-- Extended the existing booking/payment action menu components with typed trigger variants instead of creating role-specific layouts.
+- Day Mode legend appears only in Day mode; Week and Staff modes no longer show it.
+- Day Mode header shows "Daily timeline" gold badge.
+- Staff cells show initials/avatar circles.
+- Null staff tier displays "Service Staff".
+- Off-duty staff cells are subtly muted.
+- Booking blocks have a clear status-colored left accent border.
+- Booking click still updates the right details panel.
+- No dialog/modal appears from booking blocks.
+- Blocked-time labels are friendly: Break, Travel, or Blocked.
+- Timeline min-width matches actual content width.
+- Current time indicator, off-duty overlays, blocked-time stripes all still work.
+- Staff Mode still works.
+- Week Mode still works.
+- Owner, Manager, and CRM still use the same shared ScheduleWorkspace.
 
 ## Verification
-- `pnpm type-check`: Passing
-- `pnpm lint`: Passing
-- `pnpm build`: Passing, 68 app routes
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 68 app routes
 
 ## Status
-Complete. Ready to commit as `fix(bookings): simplify actions and add compact pagination`.
+Complete. Ready to commit as `fix(schedule): polish day timeline visuals`.

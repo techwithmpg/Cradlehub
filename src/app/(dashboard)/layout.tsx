@@ -44,7 +44,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div style={{
       display:    "flex",
-      minHeight:  "100vh",
+      height:     "100vh",
       background: "var(--cs-bg)",
     }}>
       <Sidebar
@@ -66,10 +66,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           avatarUrl={null}
         />
         <main style={{
-          flex:    1,
-          padding: "20px",
-          maxWidth: 1280,
-          width:   "100%",
+          flex:       1,
+          minWidth:   0,
+          padding:    "20px",
+          width:      "100%",
+          overflowY:  "auto",
         }}>
           {children}
         </main>
