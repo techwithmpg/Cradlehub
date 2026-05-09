@@ -8,7 +8,11 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 function resolveWorkspace(systemRole: string): string {
   if (systemRole === "owner") return "/owner";
 
-  if (systemRole === "manager") {
+  if (
+    systemRole === "manager" ||
+    systemRole === "assistant_manager" ||
+    systemRole === "store_manager"
+  ) {
     return "/manager";
   }
 
@@ -21,7 +25,16 @@ function resolveWorkspace(systemRole: string): string {
     return "/crm";
   }
 
-  if (systemRole === "staff") return "/staff-portal";
+  if (
+    systemRole === "staff" ||
+    systemRole === "service_head" ||
+    systemRole === "service_staff"
+  ) {
+    return "/staff-portal";
+  }
+
+  if (systemRole === "driver") return "/driver";
+  if (systemRole === "utility") return "/utility";
 
   return "/";
 }

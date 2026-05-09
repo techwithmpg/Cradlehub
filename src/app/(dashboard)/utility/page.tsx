@@ -38,9 +38,7 @@ async function requireUtilityAccess() {
     .eq("is_active", true)
     .maybeSingle();
 
-  // Owner can access everything.
-  // Others redirect to staff portal until staff_type routing is available.
-  if (me?.system_role === "owner") return;
+  if (me?.system_role === "owner" || me?.system_role === "utility") return;
   redirect("/staff-portal");
 }
 

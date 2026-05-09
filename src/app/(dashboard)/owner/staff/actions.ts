@@ -36,7 +36,7 @@ async function requireOwnerOrManager() {
   const { data: me } = await supabase
     .from("staff").select("id, branch_id, system_role").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
   if (!me) return { error: "No active staff record linked to this account" } as const;
-  if (!["owner", "manager"].includes(me.system_role)) {
+  if (!["owner", "manager", "assistant_manager", "store_manager"].includes(me.system_role)) {
     return { error: "Owner or manager access required" } as const;
   }
   return { supabase, admin: createAdminClient(), me };
@@ -150,8 +150,9 @@ export async function generateInviteAction(rawInput: unknown) {
 
   const { branchId } = rawInput as { branchId?: string; email?: string };
 
-  // Manager can only invite to their own branch
-  if (ctx.me.system_role === "manager" && branchId && branchId !== ctx.me.branch_id) {
+  // Non-owner managers can only invite to their own branch
+  const isNonOwnerManager = ["manager", "assistant_manager", "store_manager"].includes(ctx.me.system_role);
+  if (isNonOwnerManager && branchId && branchId !== ctx.me.branch_id) {
     return { success: false, error: "You can only invite staff to your own branch" };
   }
 
@@ -269,8 +270,8 @@ export async function updateStaffAction(rawInput: unknown) {
 
   const { staffId, serviceIds, ...updates } = parsed.data;
 
-  // Manager can only update staff in their branch
-  if (ctx.me.system_role === "manager") {
+  // Non-owner managers can only update staff in their branch
+  if (["manager", "assistant_manager", "store_manager"].includes(ctx.me.system_role)) {
     const { data: target } = await ctx.supabase
       .from("staff").select("branch_id").eq("id", staffId).single();
     if (!target || target.branch_id !== ctx.me.branch_id) {

@@ -43,7 +43,10 @@ async function requireOwnerOrBranchManager(branchId: string) {
 
   if (!me) return null;
   if (me.system_role === "owner") return supabase;
-  if (me.system_role === "manager" && me.branch_id === branchId) return supabase;
+  if (
+    ["manager", "assistant_manager", "store_manager"].includes(me.system_role) &&
+    me.branch_id === branchId
+  ) return supabase;
   return null;
 }
 

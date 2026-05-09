@@ -10,29 +10,41 @@
 export const SYSTEM_ROLES = [
   "owner",
   "manager",
+  "assistant_manager",
+  "store_manager",
   "crm",
   "csr",
   "csr_head",
   "csr_staff",
   "staff",
+  "service_head",
+  "service_staff",
+  "driver",
+  "utility",
 ] as const;
 
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
 export const ROLE_LABELS: Record<SystemRole | string, string> = {
-  owner: "Owner",
-  manager: "Manager",
-  crm: "CRM",
-  csr: "CSR",
-  csr_head: "CSR Head",
-  csr_staff: "CSR Staff",
-  staff: "Therapist",
+  owner:             "Owner",
+  manager:           "Manager",
+  assistant_manager: "Asst. Manager",
+  store_manager:     "Store Manager",
+  crm:               "CRM",
+  csr:               "CSR",
+  csr_head:          "CSR Head",
+  csr_staff:         "CSR Staff",
+  staff:             "Service Staff",
+  service_head:      "Service Head",
+  service_staff:     "Service Staff",
+  driver:            "Driver",
+  utility:           "Utility",
 };
 
 // ── Role groups ─────────────────────────────────────────────────────────────
 
 const OWNERS: readonly string[] = ["owner"];
-const MANAGERS: readonly string[] = ["owner", "manager"];
+const MANAGERS: readonly string[] = ["owner", "manager", "assistant_manager", "store_manager"];
 const CSR_ROLES: readonly string[] = ["csr_head", "csr_staff", "csr"];
 const CRM_ROLES: readonly string[] = ["crm"];
 const BOOKING_OPERATIONS: readonly string[] = [
@@ -251,5 +263,7 @@ export function getDefaultDashboardPath(role: string): string {
   if (isManager(role)) return "/manager";
   if (isCsr(role)) return "/crm";
   if (role === "crm") return "/crm";
-  return "/staff-portal";
+  if (role === "driver") return "/driver";
+  if (role === "utility") return "/utility";
+  return "/staff-portal";  // staff, service_head, service_staff
 }

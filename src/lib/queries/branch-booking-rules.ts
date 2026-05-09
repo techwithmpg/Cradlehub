@@ -139,7 +139,10 @@ async function canManageBranchRules(branchId: string): Promise<boolean> {
   if (!staff) return false;
   if (staff.system_role === "owner") return true;
 
-  return staff.system_role === "manager" && staff.branch_id === branchId;
+  return (
+    ["manager", "assistant_manager", "store_manager"].includes(staff.system_role) &&
+    staff.branch_id === branchId
+  );
 }
 
 export async function updateBranchBookingRules(

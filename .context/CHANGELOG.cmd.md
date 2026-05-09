@@ -928,3 +928,64 @@ o_show_at to bookings Row/Insert/Update; added update_booking_progress RPC type
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 68 app routes.
+
+---
+
+### 2026-05-13 — Codex (RBAC-001 — Align Cradle Staff Roles with Workspace Access)
+
+**Task:** Implement the smallest safe RBAC forward-fix to align the real Cradle org structure with workspace routing. Four phases: schema fix, permission helpers, real staff seed, hardcoded role audit.
+
+**Files Created:**
+
+- `supabase/migrations/20260513000001_rbac_role_constraint_fix.sql`
+  — Drops and re-creates `staff_system_role_check` with the full role set:
+  `owner`, `manager`, `assistant_manager`, `store_manager`, `crm`, `csr`, `csr_head`, `csr_staff`, `staff`, `service_head`, `service_staff`, `driver`, `utility`.
+  Fixes the migration conflict where 20260429000009 added `assistant_manager`/`store_manager` but 20260501000002 dropped them.
+
+- `supabase/migrations/20260513000002_real_staff_rbac_seed.sql`
+  — Seeds Anna Liza F. Lacson (owner). Updates all existing staff records seeded by migration 010 to use precise `system_role` and `staff_type` values: `csr_head`/`csr_staff` for CSR team, `service_head`/`service_staff` for salon/therapy dept, `driver` for drivers, `utility` for housekeeping.
+
+**Files Changed:**
+
+- `src/lib/permissions.ts`
+  — `SYSTEM_ROLES`: added `assistant_manager`, `store_manager`, `service_head`, `service_staff`, `driver`, `utility`.
+  — `MANAGERS` constant: added `assistant_manager`, `store_manager` so `isManager()` covers all manager variants.
+  — `ROLE_LABELS`: labels for all new roles.
+  — `getDefaultDashboardPath()`: added cases for `driver` → `/driver`, `utility` → `/utility`; `service_head`/`service_staff` fall through to `/staff-portal`.
+
+- `src/proxy.ts`
+  — `resolveWorkspace()`: added `assistant_manager`, `store_manager` → `/manager`; `service_head`, `service_staff` → `/staff-portal`; `driver` → `/driver`; `utility` → `/utility`.
+
+- `src/app/(dashboard)/owner/staff/actions.ts`
+  — `requireOwnerOrManager` inline check: added `assistant_manager`, `store_manager`.
+  — Branch invite restriction: extended to all non-owner manager variants.
+  — Branch update restriction: extended to all non-owner manager variants.
+
+- `src/app/(dashboard)/owner/branches/actions.ts`
+  — `requireOwnerOrBranchManager`: extended `manager` check to include `assistant_manager`, `store_manager`.
+
+- `src/app/(dashboard)/owner/branches/resources-actions.ts`
+  — `requireOwnerOrManager`: extended `manager` check to include `assistant_manager`, `store_manager`.
+
+- `src/app/(dashboard)/manager/bookings/actions.ts`
+  — `getOperationsContext` `allowedRoles`: added `assistant_manager`, `store_manager`.
+
+- `src/lib/actions/inhouse-booking.ts`
+  — `bookingRoles`: added `assistant_manager`, `store_manager`.
+
+- `src/lib/queries/branch-booking-rules.ts`
+  — `canManageBranchBookingRules`: extended `manager` check to include `assistant_manager`, `store_manager`.
+
+- `src/app/(dashboard)/driver/page.tsx`
+  — `requireDriverAccess`: allows `driver` role in addition to `owner`.
+
+- `src/app/(dashboard)/utility/page.tsx`
+  — `requireUtilityAccess`: allows `utility` role in addition to `owner`.
+
+**Known migration conflict (documented, not fixed here):**
+On a fresh `db reset`, migration 20260501000002 may fail row validation because migration 010 inserts `assistant_manager`/`store_manager` rows before 20260501000002 removes those values from the CHECK. The forward-fix migration (20260513000001) resolves this on running instances. Fresh-reset recovery requires manual intervention or editing 20260501000002 (not done here per the immutable-migrations rule).
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 68 app routes.
