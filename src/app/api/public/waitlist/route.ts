@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications/create";
+import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { z } from "zod";
 
 const uuid = z.guid("Invalid ID");
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
     body: `${d.customerName} joined the waitlist.`,
     entityType: "waitlist_request",
     entityId: data.id,
-    actionHref: "/crm/waitlist",
+    actionHref: getNotificationTargetPath({ workspace: "crm", entityType: "waitlist_request", entityId: data.id }),
     priority: "normal",
     requiresAction: true,
   });

@@ -25,6 +25,7 @@ type StaffManagementWorkspaceProps = {
   allStaff: StaffMember[];
   pendingStaff: StaffMember[];
   initialTab: StaffTab;
+  workspaceContext?: "owner" | "manager";
 };
 
 const initialFilters: StaffFilters = {
@@ -38,7 +39,11 @@ export function StaffManagementWorkspace({
   allStaff,
   pendingStaff,
   initialTab,
+  workspaceContext = "owner",
 }: StaffManagementWorkspaceProps) {
+  const isOwner = workspaceContext === "owner";
+  const basePath = `/${workspaceContext}/staff`;
+
   const [activeTab, setActiveTab] = useState<StaffTab>(initialTab);
   const [filters, setFilters] = useState<StaffFilters>(initialFilters);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
@@ -117,29 +122,31 @@ export function StaffManagementWorkspace({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            asChild
-            variant="outline"
-            size="lg"
-            className="border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]"
-          >
-            <Link href="/owner/staff/invite">
-              <LinkIcon className="size-4" aria-hidden="true" />
-              Invite Link
-            </Link>
-          </Button>
-          <Button
-            asChild
-            size="lg"
-            className="bg-[var(--cs-text)] text-[var(--cs-text-inverse)] hover:bg-[var(--cs-sand-dark)]"
-          >
-            <Link href="/owner/staff/new">
-              <UserPlus className="size-4" aria-hidden="true" />
-              Direct Invite
-            </Link>
-          </Button>
-        </div>
+        {isOwner && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]"
+            >
+              <Link href={`${basePath}/invite`}>
+                <LinkIcon className="size-4" aria-hidden="true" />
+                Invite Link
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              className="bg-[var(--cs-text)] text-[var(--cs-text-inverse)] hover:bg-[var(--cs-sand-dark)]"
+            >
+              <Link href={`${basePath}/new`}>
+                <UserPlus className="size-4" aria-hidden="true" />
+                Direct Invite
+              </Link>
+            </Button>
+          </div>
+        )}
       </header>
 
       <StaffStatsCards
@@ -156,6 +163,7 @@ export function StaffManagementWorkspace({
         statusOptions={statusOptions}
         onFiltersChange={setFilters}
         onClear={() => setFilters(initialFilters)}
+        hideBranchFilter={!isOwner}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -182,6 +190,7 @@ export function StaffManagementWorkspace({
                 isExpanded={expandedBranches.has(group.branchId)}
                 onSelectStaff={(member) => setSelectedStaffId(member.id)}
                 onToggleExpanded={toggleExpanded}
+                workspaceContext={workspaceContext}
               />
             ))
           ) : (
@@ -189,7 +198,11 @@ export function StaffManagementWorkspace({
           )}
         </div>
 
-        <StaffPreviewPanel staff={selectedStaff} onClearSelection={() => setSelectedStaffId("")} />
+        <StaffPreviewPanel
+          staff={selectedStaff}
+          onClearSelection={() => setSelectedStaffId("")}
+          workspaceContext={workspaceContext}
+        />
       </div>
     </div>
   );

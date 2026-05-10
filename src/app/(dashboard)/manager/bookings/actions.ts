@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import type { Database } from "@/types/supabase";
 import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 
 // ── Auth helper ────────────────────────────────────────────────────────────
 async function getOperationsContext() {
@@ -125,7 +126,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
         body: `Your booking on ${bookingBefore.booking_date} at ${bookingBefore.start_time} has been cancelled.`,
         entityType: "booking",
         entityId: parsed.data.bookingId,
-        actionHref: "/staff-portal",
+        actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: parsed.data.bookingId }),
         priority: sameDay ? "high" : "normal",
         requiresAction: sameDay,
       });
@@ -152,7 +153,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
         body: `Your customer is ready for their session on ${bookingBefore.booking_date} at ${bookingBefore.start_time}.`,
         entityType: "booking",
         entityId: parsed.data.bookingId,
-        actionHref: "/staff-portal",
+        actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: parsed.data.bookingId }),
         priority: "high",
         requiresAction: true,
       });
@@ -331,7 +332,7 @@ export async function editBookingAction(rawInput: unknown) {
       body: `You have been assigned a booking on ${newDate} at ${newTime}.`,
       entityType: "booking",
       entityId: bookingId,
-      actionHref: "/staff-portal",
+      actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: bookingId }),
       priority: isHS ? "high" : "normal",
       requiresAction: isHS,
     });
@@ -350,7 +351,7 @@ export async function editBookingAction(rawInput: unknown) {
       body: `Your booking has been rescheduled to ${newDate} at ${newTime}.`,
       entityType: "booking",
       entityId: bookingId,
-      actionHref: "/staff-portal",
+      actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: bookingId }),
       priority: "high",
       requiresAction: true,
     });
@@ -406,7 +407,7 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
       body: "A booking payment is unpaid or pending confirmation.",
       entityType: "booking",
       entityId: bookingId,
-      actionHref: "/crm/bookings",
+      actionHref: getNotificationTargetPath({ workspace: "crm", entityType: "booking", entityId: bookingId }),
       priority: "normal",
       requiresAction: true,
     });

@@ -32,8 +32,6 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Spaces & Rules", href: "/manager/spaces-rules", icon: "Building2" },
   { label: "Operations", href: "/manager/operations", icon: "Monitor" },
   { label: "Settings", href: "/manager/settings", icon: "Settings" },
-  { label: "Reports", href: "/manager/reports", icon: "BarChart2" },
-  { label: "Notifications", href: "/manager/notifications", icon: "Bell" },
 ];
 
 const CRM_NAV_ITEMS: NavItem[] = [

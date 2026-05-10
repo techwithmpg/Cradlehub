@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 
 async function notifyOwnerAndManager(input: {
   branchId: string;
@@ -20,7 +21,7 @@ async function notifyOwnerAndManager(input: {
       body: input.body,
       entityType: "branch",
       entityId: input.branchId,
-      actionHref: `/owner/branches/${input.branchId}`,
+      actionHref: getNotificationTargetPath({ workspace: "owner", entityType: "branch", entityId: input.branchId }),
       priority: input.priority,
       requiresAction: true,
     }),
@@ -32,7 +33,7 @@ async function notifyOwnerAndManager(input: {
       body: input.body,
       entityType: "branch",
       entityId: input.branchId,
-      actionHref: "/manager/settings",
+      actionHref: getNotificationTargetPath({ workspace: "manager", entityType: "branch", entityId: input.branchId }),
       priority: input.priority,
       requiresAction: true,
     }),
@@ -91,7 +92,7 @@ export async function ensureBranchSetupWarningNotifications(branchId: string) {
       body: "Home Service dispatch is enabled, but the server-side Google Maps key is not configured.",
       entityType: "branch",
       entityId: branchId,
-      actionHref: `/owner/branches/${branchId}`,
+      actionHref: getNotificationTargetPath({ workspace: "owner", entityType: "branch", entityId: branchId }),
       priority: "high",
       requiresAction: true,
     });

@@ -1,72 +1,25 @@
-# CURRENT TASK: SPACES-RULES-001 — Shared Spaces & Rules Workspace (Complete)
+# CURRENT TASK: PUB-001 — Hide Therapist Tier from Public Booking
 
 ## Overview
-Implemented a shared "Spaces & Rules" workspace for Owner, Manager, and CRM roles. The workspace reuses existing `BranchResourcesManager` and `BranchBookingRulesForm` components and adds new orchestration, KPIs, tabs, conflict detection, and a detail rail.
+Removed internal staff tier labels (Junior/Mid/Senior) from the public booking wizard. Public customers now see customer-friendly role labels (Therapist, Nail Tech, Aesthetician / Facialist, etc.) based on `staff_type`. Internal tier sorting and auto-assignment logic remain unchanged.
 
 ## Exact Files Changed
 
-### Files created:
-- `src/components/features/spaces-rules/spaces-rules-workspace.tsx`
-- `src/components/features/spaces-rules/spaces-rules-utils.ts`
-- `src/components/features/spaces-rules/spaces-rules-header.tsx`
-- `src/components/features/spaces-rules/spaces-rules-kpi-cards.tsx`
-- `src/components/features/spaces-rules/spaces-rules-tabs.tsx`
-- `src/components/features/spaces-rules/overview-tab.tsx`
-- `src/components/features/spaces-rules/spaces-tab.tsx`
-- `src/components/features/spaces-rules/booking-rules-tab.tsx`
-- `src/components/features/spaces-rules/rule-impact-preview.tsx`
-- `src/components/features/spaces-rules/conflicts-tab.tsx`
-- `src/components/features/spaces-rules/space-detail-panel.tsx`
-- `src/app/(dashboard)/owner/spaces-rules/page.tsx`
-- `src/app/(dashboard)/manager/spaces-rules/page.tsx`
-- `src/app/(dashboard)/crm/spaces-rules/page.tsx`
+### File edited:
+- `src/components/public/booking-wizard.tsx`
 
-### Files edited:
-- `src/components/features/dashboard/nav-config.ts` — added Spaces & Rules to Owner, renamed Manager Spaces, added Spaces to CRM
-- `src/app/(dashboard)/owner/branches/[branchId]/branch-resources-manager.tsx` — added `onRowClick` and `readOnly` props
-- `next.config.ts` — redirect `/manager/resources` → `/manager/spaces-rules`
-- `src/app/api/manager/resource-check/route.ts` — role/branch authorization guard
-
-### Untouched:
-- `src/lib/engine/resource-availability.ts`
-- `src/lib/engine/availability.ts`
-- Booking creation/confirmation actions
-- Public booking flow
-- Payment logic
-- Auth/middleware (except API guard)
-- Owner branch detail page (`/owner/branches/[id]`)
-- Schema/migrations
-
-## Behavior by Role
-
-**Owner (`/owner/spaces-rules`):**
-- Branch selector dropdown
-- Full resource CRUD (add/edit/toggle active)
-- Full booking rules editing
-- Conflict detection
-- Resource detail rail with admin actions
-
-**Manager (`/manager/spaces-rules`):**
-- Locked branch pill
-- Full resource CRUD for assigned branch
-- Full booking rules editing for assigned branch
-- Conflict detection
-- Resource detail rail with admin actions
-
-**CRM (`/crm/spaces-rules`):**
-- Locked branch pill
-- Read-only resource list (no add/edit/toggle)
-- Booking Rules tab hidden
-- Conflict detection (read-only)
-- Resource detail rail without admin actions
-- KPI cards hide "Active Rules"
+## Behavior After Change
+- Public booking wizard `StepTherapist` displays role labels instead of tier badges.
+- Auto-assign helper text no longer mentions seniority.
+- Internal `TIER_ORDER` sorting still drives auto-assign priority (Senior → Mid → Junior).
+- Owner/Manager/CRM staff management pages, schedule views, and internal tier display are untouched.
 
 ## Verification
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing, 69 app routes
+- `pnpm build`: ✅ Passing, 71 app routes.
 
 ## Commit Message
 ```
-feat(spaces-rules): expose shared spaces views by workspace
+fix(booking): hide therapist tier from public booking
 ```

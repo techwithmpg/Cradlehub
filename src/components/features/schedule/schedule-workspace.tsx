@@ -112,7 +112,7 @@ export function ScheduleWorkspace({
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ScheduleViewMode>("staff");
+  const [viewMode, setViewMode] = useState<ScheduleViewMode>("day");
 
   let filteredRows = staffRows;
 

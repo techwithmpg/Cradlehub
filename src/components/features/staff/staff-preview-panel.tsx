@@ -36,9 +36,13 @@ import {
 type StaffPreviewPanelProps = {
   staff: StaffMember | null;
   onClearSelection: () => void;
+  workspaceContext?: "owner" | "manager";
 };
 
-export function StaffPreviewPanel({ staff, onClearSelection }: StaffPreviewPanelProps) {
+export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = "owner" }: StaffPreviewPanelProps) {
+  const isOwner = workspaceContext === "owner";
+  const basePath = `/${workspaceContext}/staff`;
+
   if (!staff) {
     return (
       <aside className="self-start rounded-xl border border-dashed border-[var(--cs-border-strong)] bg-[var(--cs-surface-warm)] p-6 text-center text-sm text-[var(--cs-text-muted)] xl:sticky xl:top-20">
@@ -74,7 +78,7 @@ export function StaffPreviewPanel({ staff, onClearSelection }: StaffPreviewPanel
             />
             <DropdownMenuContent align="end" className="min-w-44">
               <DropdownMenuItem>
-                <Link href={`/owner/staff/${staff.id}`} className="flex w-full items-center gap-2">
+                <Link href={`${basePath}/${staff.id}`} className="flex w-full items-center gap-2">
                   <UserCog className="size-4" aria-hidden="true" />
                   Edit profile
                 </Link>
@@ -125,17 +129,21 @@ export function StaffPreviewPanel({ staff, onClearSelection }: StaffPreviewPanel
                 size="lg"
                 className="justify-start bg-[var(--cs-sand-dark)] text-white hover:bg-[var(--cs-sand)]"
               >
-                <Link href={`/owner/staff/${staff.id}`}>
+                <Link href={`${basePath}/${staff.id}`}>
                   <UserCheck className="size-4" aria-hidden="true" />
                   Approve Staff
                 </Link>
               </Button>
             )}
-            <QuickAction href={`/owner/staff/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
-            <QuickAction href={`/owner/staff/${staff.id}`} label="Assign Branch" Icon={MapPin} />
-            <QuickAction href={`/owner/staff/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
-            {status === "active" && (
-              <QuickAction href={`/owner/staff/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
+            <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
+            {isOwner && (
+              <>
+                <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
+                <QuickAction href={`${basePath}/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
+                {status === "active" && (
+                  <QuickAction href={`${basePath}/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
+                )}
+              </>
             )}
           </div>
         </div>

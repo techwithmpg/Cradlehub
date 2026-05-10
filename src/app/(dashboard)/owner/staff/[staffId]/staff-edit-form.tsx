@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
 import { STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff";
@@ -283,7 +282,21 @@ function EditField({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       <Label htmlFor={name}>{label}</Label>
-      <Input id={name} name={name} defaultValue={defaultValue} />
+      <input
+        id={name}
+        name={name}
+        defaultValue={defaultValue}
+        style={{
+          height: 36,
+          borderRadius: 6,
+          border: "1px solid var(--cs-border)",
+          padding: "0 0.5rem",
+          fontSize: "0.875rem",
+          backgroundColor: "var(--cs-surface)",
+          color: "var(--cs-text)",
+          width: "100%",
+        }}
+      />
     </div>
   );
 }

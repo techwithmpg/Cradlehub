@@ -164,6 +164,66 @@ export async function getBlockedTimes(
   return data ?? [];
 }
 
+// ── Active staff for a branch WITH branches relation ──────────────────────
+export async function getStaffByBranchWithBranches(branchId: string) {
+  const supabase = await createClient();
+  const primary = await supabase
+    .from("staff")
+    .select("*, branches ( id, name )")
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("tier")
+    .order("full_name");
+
+  if (!primary.error) {
+    return (primary.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  if (isMissingStaffOrgColumnsError(primary.error.message)) {
+    const fallback = await supabase
+      .from("staff")
+      .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("tier")
+      .order("full_name");
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  throw new Error(primary.error.message);
+}
+
+// ── Pending staff for a branch (invite generated but not yet active) ───────
+export async function getPendingStaffByBranch(branchId: string) {
+  const supabase = await createClient();
+  const primary = await supabase
+    .from("staff")
+    .select("*, branches ( id, name )")
+    .eq("branch_id", branchId)
+    .eq("is_active", false)
+    .order("created_at", { ascending: false });
+
+  if (!primary.error) {
+    return (primary.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  if (isMissingStaffOrgColumnsError(primary.error.message)) {
+    const fallback = await supabase
+      .from("staff")
+      .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
+      .eq("branch_id", branchId)
+      .eq("is_active", false)
+      .order("created_at", { ascending: false });
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
+  }
+
+  throw new Error(primary.error.message);
+}
+
 // ── Pending staff (invite generated but not yet active) ───────────────────
 export async function getPendingStaff() {
   const supabase = await createClient();

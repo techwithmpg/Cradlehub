@@ -16,10 +16,12 @@ export async function getWorkspaceNotificationsAction(
   limit = 30
 ): Promise<WorkspaceNotification[]> {
   const supabase = await createClient();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from("workspace_notifications")
     .select("*")
     .in("status", ["unread", "read"])
+    .gte("created_at", thirtyDaysAgo)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
@@ -67,7 +69,18 @@ export async function getUnreadCountAction(): Promise<number> {
 export async function getNotificationPopoverAction(
   limit = 8
 ): Promise<WorkspaceNotification[]> {
-  return getWorkspaceNotificationsAction(limit);
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workspace_notifications")
+    .select("*")
+    .eq("status", "unread")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error("[notifications] getNotificationPopover", error.message);
+    return [];
+  }
+  return (data ?? []) as WorkspaceNotification[];
 }
 
 // ── Mutation helpers ───────────────────────────────────────────────────────

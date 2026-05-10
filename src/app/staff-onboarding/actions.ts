@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 
 export type OnboardingFormState = {
   success?: boolean;
@@ -162,7 +163,7 @@ export async function submitStaffOnboardingAction(
         body: notifBody,
         entityType: "staff_onboarding_request",
         entityId: requestId,
-        actionHref: "/owner/staff/onboarding",
+        actionHref: getNotificationTargetPath({ workspace: "owner", entityType: "staff_onboarding_request", entityId: requestId }),
         priority: "high",
         requiresAction: true,
       }),
@@ -174,7 +175,7 @@ export async function submitStaffOnboardingAction(
         body: `${fullName} submitted an application for your branch.`,
         entityType: "staff_onboarding_request",
         entityId: requestId,
-        actionHref: "/manager/staff/onboarding",
+        actionHref: getNotificationTargetPath({ workspace: "manager", entityType: "staff_onboarding_request", entityId: requestId }),
         priority: "high",
         requiresAction: true,
       }),

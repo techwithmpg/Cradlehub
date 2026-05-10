@@ -13,6 +13,7 @@ type StaffBranchSectionProps = {
   isExpanded: boolean;
   onSelectStaff: (staff: StaffMember) => void;
   onToggleExpanded: (branchId: string) => void;
+  workspaceContext?: "owner" | "manager";
 };
 
 export function StaffBranchSection({
@@ -22,6 +23,7 @@ export function StaffBranchSection({
   isExpanded,
   onSelectStaff,
   onToggleExpanded,
+  workspaceContext = "owner",
 }: StaffBranchSectionProps) {
   const visibleStaff = isExpanded ? group.staff : group.staff.slice(0, MAX_COLLAPSED_ROWS);
   const isTruncated = group.staff.length > MAX_COLLAPSED_ROWS;
@@ -63,6 +65,7 @@ export function StaffBranchSection({
                 activeTab={activeTab}
                 isSelected={selectedStaffId === member.id}
                 onSelectStaff={onSelectStaff}
+                workspaceContext={workspaceContext}
               />
             ))}
           </tbody>

@@ -17,6 +17,7 @@ export default async function OwnerStaffPage({
       allStaff={allStaff as StaffMember[]}
       pendingStaff={pendingStaff as StaffMember[]}
       initialTab={initialTab}
+      workspaceContext="owner"
     />
   );
 }

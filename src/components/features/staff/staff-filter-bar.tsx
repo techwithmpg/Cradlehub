@@ -17,6 +17,7 @@ type StaffFilterBarProps = {
   statusOptions: FilterOption[];
   onFiltersChange: (filters: StaffFilters) => void;
   onClear: () => void;
+  hideBranchFilter?: boolean;
 };
 
 const selectClassName =
@@ -29,6 +30,7 @@ export function StaffFilterBar({
   statusOptions,
   onFiltersChange,
   onClear,
+  hideBranchFilter,
 }: StaffFilterBarProps) {
   const hasFilters =
     filters.search.trim().length > 0 ||
@@ -63,12 +65,14 @@ export function StaffFilterBar({
           />
         </div>
 
-        <FilterSelect
-          label="Branch"
-          value={filters.branchId}
-          options={branchOptions}
-          onChange={(value) => updateFilter("branchId", value)}
-        />
+        {!hideBranchFilter && (
+          <FilterSelect
+            label="Branch"
+            value={filters.branchId}
+            options={branchOptions}
+            onChange={(value) => updateFilter("branchId", value)}
+          />
+        )}
         <FilterSelect
           label="Role"
           value={filters.role}

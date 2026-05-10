@@ -11,7 +11,7 @@ import { NotificationCard } from "./notification-card";
 
 const WORKSPACE_HREF: Record<string, string> = {
   owner:     "/owner/notifications",
-  manager:   "/manager/notifications",
+  manager:   "/manager",
   crm:       "/crm/notifications",
   csr_head:  "/crm/notifications",
   csr_staff: "/crm/notifications",

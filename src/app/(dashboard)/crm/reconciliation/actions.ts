@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -96,7 +97,7 @@ export async function upsertReconciliationAction(rawInput: unknown) {
       body: `Cash reconciliation for ${dateLabel} has been submitted for review.`,
       entityType: "reconciliation",
       entityId: reconciliation.id,
-      actionHref: "/crm/reconciliation",
+      actionHref: getNotificationTargetPath({ workspace: "manager", entityType: "reconciliation", entityId: reconciliation.id }),
       priority: "normal",
       requiresAction: true,
     });
@@ -107,7 +108,7 @@ export async function upsertReconciliationAction(rawInput: unknown) {
       body: `Cash reconciliation for ${dateLabel} (branch ${d.branchId.slice(0, 8)}…) has been submitted.`,
       entityType: "reconciliation",
       entityId: reconciliation.id,
-      actionHref: "/owner/reports",
+      actionHref: getNotificationTargetPath({ workspace: "owner", entityType: "reconciliation", entityId: reconciliation.id }),
       priority: "low",
       requiresAction: false,
     });

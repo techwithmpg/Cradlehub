@@ -46,7 +46,14 @@ export async function createNotification(input: CreateNotificationInput): Promis
 
       const { data: existing, error: existingError } = await existingQuery.maybeSingle();
 
-      if (!existingError && existing) return;
+      if (!existingError && existing) {
+        // Refresh timestamp so the same unresolved issue resurfaces as recent
+        await admin
+          .from("workspace_notifications")
+          .update({ created_at: new Date().toISOString() })
+          .eq("id", existing.id);
+        return;
+      }
     }
 
     const { error } = await admin.from("workspace_notifications").insert({
@@ -71,25 +78,6 @@ export async function createNotification(input: CreateNotificationInput): Promis
   } catch (err) {
     console.error("[notifications] unexpected error", err);
   }
-}
-
-// Create a notification for both owner workspace and a specific branch's manager workspace.
-export async function createOwnerAndManagerNotification(
-  input: Omit<CreateNotificationInput, "targetWorkspace"> & { branchId: string }
-): Promise<void> {
-  await Promise.all([
-    createNotification({ ...input, targetWorkspace: "owner" }),
-    createNotification({ ...input, targetWorkspace: "manager" }),
-  ]);
-}
-
-export async function createBranchWorkspaceNotification(
-  input: Omit<CreateNotificationInput, "targetWorkspace"> & {
-    branchId: string;
-    targetWorkspace: Extract<NotificationWorkspace, "manager" | "crm">;
-  }
-): Promise<void> {
-  await createNotification(input);
 }
 
 export async function createStaffNotification(

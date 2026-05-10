@@ -1333,3 +1333,73 @@ On a fresh `db reset`, migration 20260501000002 may fail row validation because 
 - `pnpm lint`: âœ… Passing (0 errors, 0 warnings)
 - `pnpm build`: âœ… Passing, 69 app routes (new `/crm/spaces-rules` registered)
 
+
+---
+
+### 2026-05-10 — Kimi (NOTIF-001 — Workspace-Aware Notification Routing + Manager Workflow Alerts)
+
+**Task:** Fix notification routing so alerts open in the correct workspace. Remove dedicated Manager Notifications page. Make manager alerts workflow-based. Fix persistent/repetitive notifications. Set Schedule default to Day mode.
+
+**Files Created:**
+- src/lib/notifications/notification-targets.ts — workspace-aware routing helper
+
+**Files Changed:**
+- src/lib/notifications/create.ts — dedupe refreshes created_at; removed dead createOwnerAndManagerNotification and createBranchWorkspaceNotification
+- src/lib/notifications/queries.ts — popover fetches unread-only; 30-day staleness cutoff
+- src/lib/notifications/setup-warnings.ts — uses helper for branch links
+- src/app/staff-onboarding/actions.ts — uses helper for onboarding links
+- src/app/(dashboard)/crm/reconciliation/actions.ts — uses helper; fixed manager href bug (/crm/reconciliation ? /manager)
+- src/app/api/public/waitlist/route.ts — uses helper for waitlist link
+- src/app/(dashboard)/manager/bookings/actions.ts — uses helper for staff booking links
+- src/components/features/notifications/notification-card.tsx — runtime workspace-aware fallback for stored hrefs
+- src/components/features/notifications/notification-bell.tsx — manager "View all" ? /manager
+- src/app/(dashboard)/manager/notifications/page.tsx — redirect to /manager
+- src/components/features/schedule/schedule-workspace.tsx — default viewMode "day"
+- src/components/features/manager-today/manager-today-header.tsx — <a> ? <Link> (lint fix)
+- src/components/features/manager-today/manager-today-utils.ts — removed unused 
+owMins param
+- src/components/features/manager-today/manager-today-workspace.tsx — removed unused import
+
+**Behavior:**
+- All notification creation sites use getNotificationTargetPath() for workspace-correct hrefs
+- NotificationCard validates stored href against 	arget_workspace and corrects mismatches at runtime
+- Manager has no dedicated notification inbox; bell routes to /manager
+- Bell popover only shows unread notifications; 30-day cutoff prevents stale accumulation
+- Schedule opens in Day mode by default for all workspaces
+
+**Verification:**
+- pnpm type-check: ? Passing
+- pnpm lint: ? Passing (0 errors, 0 warnings)
+- pnpm build: ? Passing, 71 app routes
+
+
+---
+
+### 2026-05-10 â€” Kimi (PUB-001 â€” Hide Therapist Tier from Public Booking)
+
+**Task:** Remove internal staff tier labels (Junior/Mid/Senior) from the public booking wizard. Replace with customer-friendly role labels based on `staff_type`.
+
+**Files Changed:**
+- `src/components/public/booking-wizard.tsx`
+  - Imported `STAFF_TYPE_LABELS` and `StaffType` from `@/constants/staff`.
+  - Added `staffTypeMap` state to store `staffId â†’ staffType` lookup from `/api/public/booking-context`.
+  - Updated `StaffOption` type to include optional `staff_type`.
+  - Updated `staffAtSlot()` to accept `staffTypeMap` and enrich each option with `staff_type`.
+  - Parsed `data.staff` from booking-context response to populate `staffTypeMap` when branch changes.
+  - Replaced tier badge in `StepTherapist` with a neutral role-label badge using `STAFF_TYPE_LABELS`.
+  - Updated auto-assign helper text from "best available therapist by seniority" to "available qualified therapist for your selected service."
+  - Removed unused `TIER_LABEL` constant.
+  - Kept `TIER_ORDER` for internal seniority sorting (auto-assign logic unchanged).
+
+**Behavior:**
+- Public customers now see "Therapist", "Nail Tech", "Aesthetician / Facialist", etc. instead of "Junior", "Mid-Level", "Senior".
+- Auto-assign option no longer mentions seniority/tier.
+- Internal sorting by tier still works for auto-assignment priority.
+- Owner/Manager staff pages, schedule views, and internal badges are unaffected.
+
+**Verification:**
+- `pnpm type-check`: âœ… Passing
+- `pnpm lint`: âœ… Passing (0 errors, 0 warnings)
+- `pnpm build`: âœ… Passing, 71 app routes.
+
+---

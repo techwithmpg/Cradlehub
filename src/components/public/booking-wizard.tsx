@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SPA_IMAGES } from "@/constants/spa-images";
+import { STAFF_TYPE_LABELS, type StaffType } from "@/constants/staff";
 import {
   Check,
   ChevronLeft,
@@ -76,6 +77,7 @@ type StaffOption = {
   staff_id: string;
   staff_name: string;
   staff_tier: string;
+  staff_type?: string;
 };
 
 type InitialCustomer = {
@@ -122,8 +124,6 @@ function getMobileProgressIndex(stepName: string) {
 }
 
 const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
-const TIER_LABEL: Record<string, string> = { senior: "Senior", mid: "Mid-Level", junior: "Junior" };
-
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -167,7 +167,12 @@ function normalizePublicSlots(rawSlots: Slot[]): Slot[] {
 }
 
 // Unique available therapists at a specific slot_time, sorted by tier then name.
-function staffAtSlot(rawSlots: Slot[], slotTime: string): StaffOption[] {
+// Tier is used internally for seniority sorting but never displayed to customers.
+function staffAtSlot(
+  rawSlots: Slot[],
+  slotTime: string,
+  staffTypeMap: Map<string, string>
+): StaffOption[] {
   const seen = new Set<string>();
   const out: StaffOption[] = [];
   for (const s of rawSlots) {
@@ -175,7 +180,12 @@ function staffAtSlot(rawSlots: Slot[], slotTime: string): StaffOption[] {
     if (!s.slot_time.startsWith(slotTime.substring(0, 5))) continue;
     if (seen.has(s.staff_id)) continue;
     seen.add(s.staff_id);
-    out.push({ staff_id: s.staff_id, staff_name: s.staff_name, staff_tier: s.staff_tier });
+    out.push({
+      staff_id: s.staff_id,
+      staff_name: s.staff_name,
+      staff_tier: s.staff_tier,
+      staff_type: staffTypeMap.get(s.staff_id),
+    });
   }
   out.sort((a, b) => {
     const td = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
@@ -203,6 +213,7 @@ export function BookingWizard({
   const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(
     null
   );
+  const [staffTypeMap, setStaffTypeMap] = useState<Map<string, string>>(new Map());
   const [existingHsBookings, setExistingHsBookings] = useState<ExistingHsBooking[]>([]);
   const [hsDriverCapacity, setHsDriverCapacity] = useState(1);
 
@@ -280,8 +291,8 @@ export function BookingWizard({
     [services, isHomeService]
   );
   const availableStaffAtSlot = useMemo(
-    () => (selectedSlot ? staffAtSlot(rawSlots, selectedSlot.slot_time) : []),
-    [rawSlots, selectedSlot]
+    () => (selectedSlot ? staffAtSlot(rawSlots, selectedSlot.slot_time, staffTypeMap) : []),
+    [rawSlots, selectedSlot, staffTypeMap]
   );
 
   // Dispatch status per slot_time (home_service only)
@@ -345,6 +356,13 @@ export function BookingWizard({
           })
         );
         setServices(svcs);
+        // Build staff type lookup from booking-context response for public role labels
+        const staffList = (data.staff ?? []) as Array<{ id: string; staffType?: string }>;
+        const nextStaffTypeMap = new Map<string, string>();
+        for (const member of staffList) {
+          if (member.staffType) nextStaffTypeMap.set(member.id, member.staffType);
+        }
+        setStaffTypeMap(nextStaffTypeMap);
         setBookingRules((data.bookingRules ?? null) as BranchBookingRules | null);
         setLoadingServices(false);
       })
@@ -1505,7 +1523,7 @@ function StepTherapist({
               </span>
             </div>
             <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
-              We will assign the best available therapist by seniority.
+              We&apos;ll assign an available qualified therapist for your selected service.
             </p>
           </div>
           {selected === "auto" && (
@@ -1547,15 +1565,9 @@ function StepTherapist({
                     </p>
                     <span
                       className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                      style={
-                        staff.staff_tier === "senior"
-                          ? { background: "#C8A96B20", color: "#8A6B35" }
-                          : staff.staff_tier === "mid"
-                          ? { background: "#163A2B15", color: "#163A2B" }
-                          : { background: "#F0ECE5", color: "#6B7A6F" }
-                      }
+                      style={{ background: "#F0ECE5", color: "#6B7A6F" }}
                     >
-                      {TIER_LABEL[staff.staff_tier] ?? staff.staff_tier}
+                      {STAFF_TYPE_LABELS[(staff.staff_type ?? "") as StaffType] ?? "Therapist"}
                     </span>
                   </div>
                   <p className="text-[12px] mt-1" style={{ color: "#9AA89A" }}>

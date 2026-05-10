@@ -23,6 +23,7 @@ type StaffTableRowProps = {
   activeTab: StaffTab;
   isSelected: boolean;
   onSelectStaff: (staff: StaffMember) => void;
+  workspaceContext?: "owner" | "manager";
 };
 
 export function StaffTableRow({
@@ -30,6 +31,7 @@ export function StaffTableRow({
   activeTab,
   isSelected,
   onSelectStaff,
+  workspaceContext = "owner",
 }: StaffTableRowProps) {
   const status = getStaffStatus(member);
   const meta = getStaffDisplayMeta(member);
@@ -41,6 +43,7 @@ export function StaffTableRow({
         ? `${meta.roleLabel} · ${meta.tierLabel}`
         : meta.roleLabel;
   const subtitle = status === "invited" ? "Pending invitation" : meta.subtitle;
+  const basePath = `/${workspaceContext}/staff`;
 
   return (
     <tr
@@ -92,7 +95,12 @@ export function StaffTableRow({
         <StaffRoleBadge staff={member} />
       </td>
       <td className="px-3 py-2.5 align-middle">
-        <StaffRowActions member={member} activeTab={activeTab} onSelectStaff={onSelectStaff} />
+        <StaffRowActions
+          member={member}
+          activeTab={activeTab}
+          onSelectStaff={onSelectStaff}
+          basePath={basePath}
+        />
       </td>
     </tr>
   );
@@ -127,10 +135,12 @@ function StaffRowActions({
   member,
   activeTab,
   onSelectStaff,
+  basePath,
 }: {
   member: StaffMember;
   activeTab: StaffTab;
   onSelectStaff: (staff: StaffMember) => void;
+  basePath: string;
 }) {
   return (
     <DropdownMenu>
@@ -151,7 +161,7 @@ function StaffRowActions({
           View in panel
         </DropdownMenuItem>
         <DropdownMenuItem>
-          <Link href={`/owner/staff/${member.id}`} className="flex w-full items-center gap-2">
+          <Link href={`${basePath}/${member.id}`} className="flex w-full items-center gap-2">
             <Pencil className="size-4" aria-hidden="true" />
             {activeTab === "pending" ? "Review profile" : "Edit profile"}
           </Link>
