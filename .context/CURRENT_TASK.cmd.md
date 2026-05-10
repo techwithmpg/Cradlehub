@@ -1,56 +1,72 @@
-# CURRENT TASK: SCHED-DAY-POLISH-001 — Day Mode Timeline Visual Polish (Complete)
+# CURRENT TASK: SPACES-RULES-001 — Shared Spaces & Rules Workspace (Complete)
 
 ## Overview
-Polished Day Mode visuals inside the existing shared ScheduleWorkspace without touching Staff Mode, Week Mode, route pages, or workspace plumbing. Five focused visual improvements to the timeline board and its sub-components.
+Implemented a shared "Spaces & Rules" workspace for Owner, Manager, and CRM roles. The workspace reuses existing `BranchResourcesManager` and `BranchBookingRulesForm` components and adds new orchestration, KPIs, tabs, conflict detection, and a detail rail.
 
 ## Exact Files Changed
 
+### Files created:
+- `src/components/features/spaces-rules/spaces-rules-workspace.tsx`
+- `src/components/features/spaces-rules/spaces-rules-utils.ts`
+- `src/components/features/spaces-rules/spaces-rules-header.tsx`
+- `src/components/features/spaces-rules/spaces-rules-kpi-cards.tsx`
+- `src/components/features/spaces-rules/spaces-rules-tabs.tsx`
+- `src/components/features/spaces-rules/overview-tab.tsx`
+- `src/components/features/spaces-rules/spaces-tab.tsx`
+- `src/components/features/spaces-rules/booking-rules-tab.tsx`
+- `src/components/features/spaces-rules/rule-impact-preview.tsx`
+- `src/components/features/spaces-rules/conflicts-tab.tsx`
+- `src/components/features/spaces-rules/space-detail-panel.tsx`
+- `src/app/(dashboard)/owner/spaces-rules/page.tsx`
+- `src/app/(dashboard)/manager/spaces-rules/page.tsx`
+- `src/app/(dashboard)/crm/spaces-rules/page.tsx`
+
 ### Files edited:
-- `src/components/features/schedule/schedule-board-panel.tsx`
-  - `ScheduleLegend` now renders only when `viewMode === "day"` (hidden in Week/Staff modes)
-  - Added "Daily timeline" gold badge subtitle in Day mode header
-- `src/components/features/schedule/schedule-staff-cell.tsx`
-  - Added initials/avatar circle (34px, green for on-duty, grey for off)
-  - Improved `formatStaffLabel`: null tier now shows "Service Staff" instead of "Staff"
-  - Off-duty cells now have muted background (`var(--cs-bg)`) and muted text
-  - Off-duty status label changed from "Off" to "Off today"
-- `src/components/features/schedule/schedule-booking-block.tsx`
-  - Added 3px status-colored left border accent for quick visual identification
-  - Adjusted padding to accommodate the left border
-- `src/components/features/schedule/schedule-blocked-time-block.tsx`
-  - Added `formatBlockedLabel` helper: break/lunch → Break, travel → Travel, else Blocked
-- `src/components/features/schedule/daily-schedule-board.tsx`
-  - Fixed `minWidth` from hardcoded `STAFF_CELL_WIDTH_PX + 600` to `STAFF_CELL_WIDTH_PX + getTimelineTotalWidthPx()`
+- `src/components/features/dashboard/nav-config.ts` — added Spaces & Rules to Owner, renamed Manager Spaces, added Spaces to CRM
+- `src/app/(dashboard)/owner/branches/[branchId]/branch-resources-manager.tsx` — added `onRowClick` and `readOnly` props
+- `next.config.ts` — redirect `/manager/resources` → `/manager/spaces-rules`
+- `src/app/api/manager/resource-check/route.ts` — role/branch authorization guard
 
 ### Untouched:
-- `schedule-workspace.tsx` — no plumbing changes
-- `schedule-toolbar.tsx`, `schedule-kpi-cards.tsx`, `schedule-details-panel.tsx`, `schedule-alerts-panel.tsx`
-- `schedule-legend.tsx`, `schedule-mode-switcher.tsx`
-- All Staff Mode components
-- All Week Mode components
-- All route pages
-- All queries, actions, auth, RBAC, schema, booking engine, public booking
+- `src/lib/engine/resource-availability.ts`
+- `src/lib/engine/availability.ts`
+- Booking creation/confirmation actions
+- Public booking flow
+- Payment logic
+- Auth/middleware (except API guard)
+- Owner branch detail page (`/owner/branches/[id]`)
+- Schema/migrations
 
-## Completed
-- Day Mode legend appears only in Day mode; Week and Staff modes no longer show it.
-- Day Mode header shows "Daily timeline" gold badge.
-- Staff cells show initials/avatar circles.
-- Null staff tier displays "Service Staff".
-- Off-duty staff cells are subtly muted.
-- Booking blocks have a clear status-colored left accent border.
-- Booking click still updates the right details panel.
-- No dialog/modal appears from booking blocks.
-- Blocked-time labels are friendly: Break, Travel, or Blocked.
-- Timeline min-width matches actual content width.
-- Current time indicator, off-duty overlays, blocked-time stripes all still work.
-- Staff Mode still works.
-- Week Mode still works.
-- Owner, Manager, and CRM still use the same shared ScheduleWorkspace.
+## Behavior by Role
+
+**Owner (`/owner/spaces-rules`):**
+- Branch selector dropdown
+- Full resource CRUD (add/edit/toggle active)
+- Full booking rules editing
+- Conflict detection
+- Resource detail rail with admin actions
+
+**Manager (`/manager/spaces-rules`):**
+- Locked branch pill
+- Full resource CRUD for assigned branch
+- Full booking rules editing for assigned branch
+- Conflict detection
+- Resource detail rail with admin actions
+
+**CRM (`/crm/spaces-rules`):**
+- Locked branch pill
+- Read-only resource list (no add/edit/toggle)
+- Booking Rules tab hidden
+- Conflict detection (read-only)
+- Resource detail rail without admin actions
+- KPI cards hide "Active Rules"
 
 ## Verification
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing, 68 app routes
+- `pnpm build`: ✅ Passing, 69 app routes
 
-## Status
-Complete. Ready to commit as `fix(schedule): polish day timeline visuals`.
+## Commit Message
+```
+feat(spaces-rules): expose shared spaces views by workspace
+```

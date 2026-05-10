@@ -25,9 +25,13 @@ type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 export function BranchResourcesManager({
   branchId,
   resources,
+  onRowClick,
+  readOnly = false,
 }: {
   branchId: string;
   resources: ResourceRow[];
+  onRowClick?: (resourceId: string) => void;
+  readOnly?: boolean;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingResource, setEditingResource] = useState<ResourceRow | null>(
@@ -56,26 +60,30 @@ export function BranchResourcesManager({
           Spaces & Equipment
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          style={{ height: 24, fontSize: "0.75rem", gap: 4 }}
-          onClick={() => setIsAdding(true)}
-        >
-          <Plus size={14} /> Add Space
-        </Button>
+        {!readOnly && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              style={{ height: 24, fontSize: "0.75rem", gap: 4 }}
+              onClick={() => setIsAdding(true)}
+            >
+              <Plus size={14} /> Add Space
+            </Button>
 
-        <Dialog open={isAdding} onOpenChange={setIsAdding}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Space</DialogTitle>
-            </DialogHeader>
-            <ResourceForm
-              branchId={branchId}
-              onSuccess={() => setIsAdding(false)}
-            />
-          </DialogContent>
-        </Dialog>
+            <Dialog open={isAdding} onOpenChange={setIsAdding}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Space</DialogTitle>
+                </DialogHeader>
+                <ResourceForm
+                  branchId={branchId}
+                  onSuccess={() => setIsAdding(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
       </div>
 
       <div
@@ -100,6 +108,7 @@ export function BranchResourcesManager({
           resources.map((r, i) => (
             <div
               key={r.id}
+              onClick={() => onRowClick?.(r.id)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -110,10 +119,11 @@ export function BranchResourcesManager({
                     ? "1px solid var(--cs-border)"
                     : "none",
                 opacity: r.is_active ? 1 : 0.5,
+                cursor: onRowClick ? "pointer" : "default",
               }}
             >
               <div
-                style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+                style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, minWidth: 0 }}
               >
                 <div
                   style={{
@@ -162,38 +172,43 @@ export function BranchResourcesManager({
                 </div>
               </div>
 
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  style={{ width: 28, height: 28 }}
-                  onClick={() => setEditingResource(r)}
+              {!readOnly && (
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
                 >
-                  <Edit2 size={14} />
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    style={{ width: 28, height: 28 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingResource(r);
+                    }}
+                  >
+                    <Edit2 size={14} />
+                  </Button>
 
-                <Dialog
-                  open={editingResource?.id === r.id}
-                  onOpenChange={(open) => !open && setEditingResource(null)}
-                >
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Edit Space</DialogTitle>
-                    </DialogHeader>
-                    {editingResource && (
-                      <ResourceForm
-                        branchId={branchId}
-                        resource={editingResource}
-                        onSuccess={() => setEditingResource(null)}
-                      />
-                    )}
-                  </DialogContent>
-                </Dialog>
+                  <Dialog
+                    open={editingResource?.id === r.id}
+                    onOpenChange={(open) => !open && setEditingResource(null)}
+                  >
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Edit Space</DialogTitle>
+                      </DialogHeader>
+                      {editingResource && (
+                        <ResourceForm
+                          branchId={branchId}
+                          resource={editingResource}
+                          onSuccess={() => setEditingResource(null)}
+                        />
+                      )}
+                    </DialogContent>
+                  </Dialog>
 
-                <ToggleActiveButton resource={r} />
-              </div>
+                  <ToggleActiveButton resource={r} />
+                </div>
+              )}
             </div>
           ))
         )}

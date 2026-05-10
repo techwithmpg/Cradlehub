@@ -1283,3 +1283,53 @@ On a fresh `db reset`, migration 20260501000002 may fail row validation because 
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 68 app routes
+
+---
+
+### 2026-05-10 — Kimi (SPACES-RULES-001 — Shared Spaces & Rules Workspace)
+
+**Task:** Implement a shared "Spaces & Rules" workspace for Owner, Manager, and CRM roles, reusing existing components where safe.
+
+**Files Created:**
+- `src/components/features/spaces-rules/spaces-rules-workspace.tsx` — shared orchestrator: header, KPI cards, tabs, main panel + detail rail. Supports `workspaceContext: "owner" | "manager" | "crm"`.
+- `src/components/features/spaces-rules/spaces-rules-utils.ts` — pure utilities: conflict detection, KPI computation, type helpers.
+- `src/components/features/spaces-rules/spaces-rules-header.tsx` — branch selector (owner) or locked pill (manager/CRM) with context-aware title/subtitle.
+- `src/components/features/spaces-rules/spaces-rules-kpi-cards.tsx` — 5 KPI cards (Total Spaces, Available Today, Active Rules, Conflicts, Missing Assignments). CRM mode hides Active Rules.
+- `src/components/features/spaces-rules/spaces-rules-tabs.tsx` — tab navigation. CRM mode hides Booking Rules tab.
+- `src/components/features/spaces-rules/overview-tab.tsx` — inventory breakdown, today's schedule preview, alerts summary.
+- `src/components/features/spaces-rules/spaces-tab.tsx` — filter bar + `BranchResourcesManager` integration. Passes `readOnly` when `canManage=false`.
+- `src/components/features/spaces-rules/booking-rules-tab.tsx` — reuses existing `BranchBookingRulesForm` + `RuleImpactPreview` side panel.
+- `src/components/features/spaces-rules/rule-impact-preview.tsx` — read-only rule summary sidebar.
+- `src/components/features/spaces-rules/conflicts-tab.tsx` — missing assignments, overlaps, capacity overflows with severity badges.
+- `src/components/features/spaces-rules/space-detail-panel.tsx` — right rail: resource stats, today's bookings, quick actions (only when `canManage=true`).
+- `src/app/(dashboard)/owner/spaces-rules/page.tsx` — owner route wrapper with branch selector, full management.
+- `src/app/(dashboard)/manager/spaces-rules/page.tsx` — manager route wrapper with locked branch, full management.
+- `src/app/(dashboard)/crm/spaces-rules/page.tsx` — CRM route wrapper with locked branch, read-only.
+
+**Files Changed:**
+- `src/components/features/dashboard/nav-config.ts`
+  - Owner: added "Spaces & Rules" → `/owner/spaces-rules`.
+  - Manager: renamed "Spaces" → "Spaces & Rules", href → `/manager/spaces-rules`.
+  - CRM: added "Spaces" → `/crm/spaces-rules`.
+- `src/app/(dashboard)/owner/branches/[branchId]/branch-resources-manager.tsx`
+  - Added optional `onRowClick` prop for row selection into detail panel.
+  - Added optional `readOnly` prop: hides Add Space button, Edit button, Toggle button.
+  - Added `e.stopPropagation()` on Edit button to prevent row click interference.
+- `next.config.ts` — added redirect `/manager/resources` → `/manager/spaces-rules`.
+- `src/app/api/manager/resource-check/route.ts` — hardened API guard: now checks user role and branch ownership before returning resource availability.
+
+**Capability Matrix by Context:**
+| Capability | Owner | Manager | CRM |
+|---|---|---|---|
+| Switch Branch | ✅ | ❌ | ❌ |
+| Manage Resources (add/edit/toggle) | ✅ | ✅ | ❌ |
+| Edit Booking Rules | ✅ | ✅ | ❌ |
+| View Booking Rules | ✅ | ✅ | ❌ (tab hidden) |
+| View Conflicts | ✅ | ✅ | ✅ |
+| View Resource Detail | ✅ | ✅ | ✅ |
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 69 app routes (new `/crm/spaces-rules` registered)
+

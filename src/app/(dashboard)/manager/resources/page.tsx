@@ -2,6 +2,7 @@ import { redirect }     from "next/navigation";
 import { PageHeader }   from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { DatePickerForm } from "./date-picker-form";
 
 const ALLOWED_ROLES = ["owner", "manager", "crm", "csr_head"];
 
@@ -191,26 +192,7 @@ export default async function ResourcesPage({
           flexWrap: "wrap",
         }}
       >
-        <form method="GET">
-          <input
-            type="date"
-            name="date"
-            defaultValue={selectedDate}
-            style={{
-              height: 36,
-              borderRadius: 8,
-              border: "1px solid var(--cs-border)",
-              backgroundColor: "var(--cs-surface)",
-              color: "var(--cs-text)",
-              padding: "0 0.75rem",
-              fontSize: "0.875rem",
-            }}
-            onChange={(e) => {
-              const form = (e.target as HTMLInputElement).form;
-              if (form) form.submit();
-            }}
-          />
-        </form>
+        <DatePickerForm defaultValue={selectedDate} />
 
         {selectedDate === today ? (
           <span style={{ fontSize: "0.8125rem", color: "var(--cs-sand)", fontWeight: 600 }}>Today</span>

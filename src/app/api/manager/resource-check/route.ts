@@ -19,6 +19,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
   }
 
+  // Authorization: resolve user role + branch ownership
+  const { data: staff } = await supabase
+    .from("staff")
+    .select("system_role, branch_id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const systemRole = staff?.system_role as string | undefined;
+  const userBranchId = staff?.branch_id as string | undefined;
+
+  // Look up resource's branch
+  const { data: resource } = await supabase
+    .from("branch_resources")
+    .select("branch_id")
+    .eq("id", resourceId)
+    .maybeSingle();
+
+  if (!resource) {
+    return NextResponse.json({ error: "Resource not found" }, { status: 404 });
+  }
+
+  const resourceBranchId = resource.branch_id as string;
+
+  const isOwner = systemRole === "owner";
+  const isManager = systemRole === "manager";
+  const isAssignedToBranch = isManager && userBranchId === resourceBranchId;
+
+  if (!isOwner && !isAssignedToBranch) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const endTime = await computeEndTime(startTime, serviceId);
     const available = await isResourceAvailable({
