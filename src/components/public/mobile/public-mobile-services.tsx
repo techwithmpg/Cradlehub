@@ -60,7 +60,7 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
   const categoryDetails = PUBLIC_CATALOG_CATEGORY_DETAILS[selectedCategory];
 
   return (
-    <div className="md:hidden bg-[#FBF6EC] pb-24 pt-14 text-[#10261D]">
+    <div className="md:hidden bg-[#FBF6EC] pb-12 pt-14 text-[#10261D]">
       <section className="relative h-[214px] overflow-hidden bg-[#10261D]">
         <Image
           src={SPA_IMAGES.ctaBanner}

@@ -1,33 +1,53 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
-import { PublicBottomNav } from "@/components/public/public-bottom-nav";
+import {
+  BUSINESS_NAME,
+  BUSINESS_TAGLINE,
+  DEFAULT_DESCRIPTION,
+  SITE_DOMAIN,
+} from "@/lib/seo/constants";
 
 export const metadata: Metadata = {
   title: {
-    default: "Cradle Massage & Wellness Spa",
-    template: "%s | Cradle Spa",
+    default: `${BUSINESS_NAME} | ${BUSINESS_TAGLINE}`,
+    template: `%s | ${BUSINESS_NAME}`,
   },
-  description:
-    "Cradle Massage & Wellness Spa in Bacolod offers massage and wellness services with in-spa and home-service booking support through CradleHub.",
+  description: DEFAULT_DESCRIPTION,
   keywords: [
-    "Cradle Massage & Wellness Spa",
-    "CradleHub",
-    "Bacolod massage",
+    "Cradle Wellness Living",
+    "Cradle Massage and Wellness Spa",
+    "massage spa Bacolod",
     "wellness spa Bacolod",
-    "in-spa booking",
+    "home service massage Bacolod",
+    "book massage Bacolod",
+    "spa services Bacolod",
+    "Bacolod massage",
+    "Bacolod wellness spa",
+    "in-spa booking Bacolod",
     "home service massage",
   ],
+  metadataBase: new URL(SITE_DOMAIN),
+  openGraph: {
+    siteName: BUSINESS_NAME,
+    locale: "en_PH",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="sp-public">
       <SiteHeader />
-      {/* pb-20 md:pb-0 — space for mobile bottom nav on small screens */}
-      <main className="pb-20 md:pb-0">{children}</main>
+      <main>{children}</main>
       <SiteFooter />
-      <PublicBottomNav />
     </div>
   );
 }

@@ -39,23 +39,32 @@ const SOCIALS = [
   },
 ];
 
+const QUICK_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/services", label: "Services" },
+  { href: "/book", label: "Book" },
+  { href: "/branches", label: "Branches" },
+  { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
+];
+
 export function SiteFooter() {
   return (
-    <footer className="hidden bg-[#10261D] text-[#9AA89A] md:block">
-      <div className="mx-auto max-w-7xl px-6 py-16">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+    <footer className="bg-[#10261D] text-[#9AA89A]">
+      <div className="mx-auto max-w-7xl px-6 py-12 md:py-16">
+        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
 
           {/* Brand */}
           <div className="lg:col-span-1">
-            <Link href="/" className="inline-flex mb-6 hover:opacity-85 transition-opacity duration-300">
-              <BrandLogo size="md" variant="dark" className="w-44 md:w-56" />
+            <Link href="/" className="inline-flex mb-5 hover:opacity-85 transition-opacity duration-300">
+              <BrandLogo size="md" variant="dark" className="w-36 md:w-44 lg:w-56" />
             </Link>
             <p className="text-[13px] leading-relaxed max-w-xs">
               A sanctuary of calm where skilled hands and natural therapies guide you back to balance.
             </p>
 
             {/* Social icons */}
-            <div className="flex items-center gap-3 mt-6">
+            <div className="flex items-center gap-3 mt-5">
               {SOCIALS.map((s) => (
                 <a
                   key={s.href}
@@ -63,7 +72,7 @@ export function SiteFooter() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={s.label}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-[#163A2B] text-[#9AA89A] hover:text-[#C8A96B] hover:bg-[#1D4A35] transition-colors duration-300"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#163A2B] text-[#9AA89A] hover:text-[#C8A96B] hover:bg-[#1D4A35] transition-colors duration-300"
                 >
                   <s.icon className="h-3.5 w-3.5" />
                 </a>
@@ -73,18 +82,11 @@ export function SiteFooter() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-5">
-              Explore
+            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-4">
+              Quick Links
             </h4>
-            <ul className="flex flex-col gap-3">
-              {[
-                { href: "/", label: "Home" },
-                { href: "/#experience", label: "Experience" },
-                { href: "/#services", label: "Services" },
-                { href: "/#plan-your-visit", label: "Plan Your Visit" },
-                { href: "/book", label: "Book Now" },
-                { href: "/#contact", label: "Contact" },
-              ].map((link) => (
+            <ul className="flex flex-col gap-2.5">
+              {QUICK_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -99,10 +101,10 @@ export function SiteFooter() {
 
           {/* Locations & Contact */}
           <div>
-            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-5">
+            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-4">
               Contact
             </h4>
-            <ul className="flex flex-col gap-4">
+            <ul className="flex flex-col gap-3">
               <li className="flex items-start gap-3 text-[13px]">
                 <Phone className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
                 <div className="flex flex-col gap-1">
@@ -145,7 +147,7 @@ export function SiteFooter() {
 
           {/* Hours */}
           <div>
-            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-5">
+            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-4">
               Hours
             </h4>
             <ul className="flex flex-col gap-3">
@@ -160,9 +162,9 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-14 pt-8 border-t border-[#163A2B]">
+        <div className="mt-10 md:mt-14 pt-6 md:pt-8 border-t border-[#163A2B]">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-[12px] text-[#6B7A6F]">
+            <p className="text-[12px] text-[#6B7A6F] text-center md:text-left">
               &copy; {new Date().getFullYear()} Cradle Massage & Wellness Spa. All rights reserved.
             </p>
             <div className="flex items-center gap-4">

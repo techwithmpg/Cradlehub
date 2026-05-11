@@ -42,7 +42,7 @@ export async function PublicMobileHome() {
   }
 
   return (
-    <div className="md:hidden bg-[#F8F2E7] pb-28 pt-14 text-[#022316]">
+    <div className="md:hidden bg-[#F8F2E7] pb-12 pt-14 text-[#022316]">
 
       {/* ── Hero Carousel ─────────────────────────────────────────────────── */}
       <MobileHomeHeroCarousel />
@@ -175,7 +175,7 @@ export async function PublicMobileHome() {
         </section>
 
         {/* ── Inside Cradle Experience ─────────────────────────────────────── */}
-        <section className="mt-5 px-4 pb-4">
+        <section className="mt-5 px-4">
           <div className="overflow-hidden rounded-[16px] border border-[#E8DDCA] bg-[#FCFAF5] shadow-[0_8px_22px_rgba(2,35,22,0.08)]">
             <div className="relative h-[148px]">
               <Image
@@ -201,6 +201,39 @@ export async function PublicMobileHome() {
                 From soothing treatments to thoughtful details, every part of Cradle is created to help you feel cared for.
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* ── FAQ ──────────────────────────────────────────────────────────── */}
+        <section className="mt-5 px-4 pb-4">
+          <h2 className="mb-3.5 text-[16px] font-semibold">Frequently Asked Questions</h2>
+          <div className="flex flex-col gap-3">
+            {[
+              {
+                q: "How do I book a massage?",
+                a: "Book online at cradlewellnessliving.com/book. Choose in-spa or home service, select your treatment, and confirm your schedule.",
+              },
+              {
+                q: "Do you offer home service massage in Bacolod?",
+                a: "Yes. Select Home Service when booking and provide your address. Our therapist will come to your location.",
+              },
+              {
+                q: "Where are your branches?",
+                a: "SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (Lacson National Highway).",
+              },
+              {
+                q: "What services do you offer?",
+                a: "Massage, foot spa, body scrub, skin care, salon services, spa packages, and home service massage.",
+              },
+            ].map((faq) => (
+              <div
+                key={faq.q}
+                className="rounded-[14px] border border-[#E8DDCA] bg-white p-4 shadow-[0_2px_10px_rgba(2,35,22,0.05)]"
+              >
+                <h3 className="text-[13px] font-semibold text-[#022316]">{faq.q}</h3>
+                <p className="mt-1 text-[11px] leading-4 text-[#5F6F63]">{faq.a}</p>
+              </div>
+            ))}
           </div>
         </section>
 

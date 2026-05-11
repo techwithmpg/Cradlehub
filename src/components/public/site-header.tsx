@@ -62,7 +62,8 @@ export function SiteHeader() {
             type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10 transition-colors"
-            aria-label="Toggle menu"
+            aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileOpen}
           >
             {mobileOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
           </button>
@@ -161,11 +162,21 @@ export function SiteHeader() {
           }`}
           style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
-          <div className="flex h-full flex-col px-6 pt-20 pb-8">
-            {/* Logo in drawer */}
-            <BrandLogo size="sm" variant="dark" className="w-28 mb-8" />
+          <div className="flex h-full flex-col px-6 pt-16 pb-8">
+            {/* Close button + Logo */}
+            <div className="flex items-center justify-between mb-8">
+              <BrandLogo size="sm" variant="dark" className="w-28" />
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                aria-label="Close navigation menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-            <nav className="flex flex-col gap-1">
+            <nav className="flex flex-col gap-1" aria-label="Mobile navigation">
               {navLinks.map((link) => {
                 const isActive =
                   link.href === "/"
@@ -176,7 +187,7 @@ export function SiteHeader() {
                     key={link.href}
                     href={link.href}
                     className={[
-                      "flex items-center gap-3 rounded-xl px-4 py-3 text-[15px] font-medium transition-colors",
+                      "flex items-center rounded-xl px-4 py-3.5 text-[16px] font-medium transition-colors",
                       isActive
                         ? "bg-white/10 text-[#C8A96B]"
                         : "text-white/75 hover:bg-white/8 hover:text-white",
@@ -184,15 +195,18 @@ export function SiteHeader() {
                     style={{ fontFamily: "var(--sp-font-body)" }}
                   >
                     {link.label}
+                    {isActive && (
+                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#C8A96B]" />
+                    )}
                   </Link>
                 );
               })}
             </nav>
 
-            <div className="mt-auto space-y-3">
+            <div className="mt-auto space-y-3 pt-6">
               <Link
                 href="/book"
-                className="flex w-full items-center justify-center rounded-full px-6 py-3 text-[12px] font-semibold tracking-widest uppercase"
+                className="flex w-full items-center justify-center rounded-full px-6 py-3.5 text-[12px] font-semibold tracking-widest uppercase"
                 style={{
                   background: "linear-gradient(135deg, #C8A96B, #B68A3C)",
                   color:      "#10261D",
@@ -203,7 +217,7 @@ export function SiteHeader() {
               {primaryPhone && (
                 <a
                   href={primaryPhone.href}
-                  className="flex w-full items-center justify-center gap-2 rounded-full border border-white/20 px-6 py-3 text-[12px] font-medium text-white/80"
+                  className="flex w-full items-center justify-center gap-2 rounded-full border border-white/20 px-6 py-3.5 text-[12px] font-medium text-white/80 hover:bg-white/5 transition-colors"
                 >
                   <Phone className="h-4 w-4" />
                   {primaryPhone.label}

@@ -891,6 +891,58 @@ export async function HomePageSections() {
         </div>
       </section>
 
+      <section className="bg-[#FCFAF5] py-20 lg:py-28">
+        <div className="mx-auto max-w-4xl px-6">
+          <div className="text-center mb-12">
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
+              Common Questions
+            </p>
+            <h2
+              className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
+              style={{ fontFamily: "var(--sp-font-display)" }}
+            >
+              Frequently Asked Questions
+            </h2>
+          </div>
+          <div className="flex flex-col gap-4">
+            {[
+              {
+                q: "How do I book a massage at Cradle Wellness Living?",
+                a: "You can book online through our website at cradlewellnessliving.com/book. Choose your setting (in-spa or home service), select your treatment, pick a date and time, and confirm your appointment.",
+              },
+              {
+                q: "Do you offer home service massage in Bacolod?",
+                a: "Yes. We offer home service massage across Bacolod City. Select Home Service when booking and provide your complete address and a nearby landmark.",
+              },
+              {
+                q: "Where are your branches located?",
+                a: "We have two branches in Bacolod: SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (3rd Floor, La Luz Building, Lacson National Highway).",
+              },
+              {
+                q: "What services does Cradle Wellness Living offer?",
+                a: "We offer massage services, foot spa, body scrub, skin care treatments, salon services, Divine Renewal packages, and spa party packages.",
+              },
+              {
+                q: "Can I book online?",
+                a: "Absolutely. Online booking is available 24/7 at cradlewellnessliving.com/book. The guided flow helps you choose your branch, service, schedule, and therapist in under two minutes.",
+              },
+              {
+                q: "Can I choose a therapist?",
+                a: "Yes. Our booking system lets you pick from available therapists based on your selected branch, date, and time.",
+              },
+            ].map((faq) => (
+              <div
+                key={faq.q}
+                className="rounded-[8px] border border-[#EDE4D3] bg-white p-6"
+              >
+                <h3 className="text-[15px] font-semibold text-[#163A2B]">{faq.q}</h3>
+                <p className="mt-2 text-[14px] leading-6 text-[#6B7A6F]">{faq.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="bg-[#F7F3EB] py-20 text-center lg:py-28">
         <div className="mx-auto max-w-3xl px-6">
           <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">

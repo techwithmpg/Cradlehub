@@ -81,7 +81,7 @@ export function PublicMobileContact({
   const actions = getContactActions(branches);
 
   return (
-    <div className="md:hidden bg-[#FBF6EC] pb-24 pt-14 text-[#10261D]">
+    <div className="md:hidden bg-[#FBF6EC] pb-12 pt-14 text-[#10261D]">
       <section className="bg-[#082E22] px-5 pb-8 pt-9 text-center text-[#FCFAF5]">
         <h1
           className="text-[30px] font-medium leading-tight"
