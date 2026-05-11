@@ -6,7 +6,6 @@ import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
 import { MobileExperienceGrid } from "./mobile-experience-grid";
-import { MobileTrustPanel } from "./mobile-trust-panel";
 
 // ── Static data ──────────────────────────────────────────────────────────────
 
@@ -52,11 +51,6 @@ export async function PublicMobileHome() {
 
         {/* ── Choose Your Experience ──────────────────────────────────────── */}
         <MobileExperienceGrid />
-
-        {/* ── Why Choose Cradle ──────────────────────────────────────────── */}
-        <div className="mt-5">
-          <MobileTrustPanel />
-        </div>
 
         {/* ── Popular Services ───────────────────────────────────────────── */}
         {featured.length > 0 && (

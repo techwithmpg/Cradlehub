@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { Phone, MapPin, Clock } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
-import { businessInfo, publicBranches, publicPhones } from "@/lib/public/public-site-data";
 
 function IconFacebook({ className }: { className?: string }) {
   return (
@@ -51,20 +49,18 @@ const QUICK_LINKS = [
 export function SiteFooter() {
   return (
     <footer className="bg-[#10261D] text-[#9AA89A]">
-      <div className="mx-auto max-w-7xl px-6 py-12 md:py-16">
-        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mx-auto max-w-7xl px-6 py-8 md:py-12">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8">
 
-          {/* Brand */}
-          <div className="lg:col-span-1">
-            <Link href="/" className="inline-flex mb-5 hover:opacity-85 transition-opacity duration-300">
-              <BrandLogo size="md" variant="dark" className="w-36 md:w-44 lg:w-56" />
+          {/* Brand + Social */}
+          <div className="md:max-w-xs">
+            <Link href="/" className="inline-flex mb-3 hover:opacity-85 transition-opacity duration-300">
+              <BrandLogo size="md" variant="dark" className="w-32 md:w-40" />
             </Link>
-            <p className="text-[13px] leading-relaxed max-w-xs">
-              A sanctuary of calm where skilled hands and natural therapies guide you back to balance.
+            <p className="text-[13px] leading-relaxed">
+              A sanctuary of calm in Bacolod.
             </p>
-
-            {/* Social icons */}
-            <div className="flex items-center gap-3 mt-5">
+            <div className="flex items-center gap-2.5 mt-3">
               {SOCIALS.map((s) => (
                 <a
                   key={s.href}
@@ -72,7 +68,7 @@ export function SiteFooter() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={s.label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#163A2B] text-[#9AA89A] hover:text-[#C8A96B] hover:bg-[#1D4A35] transition-colors duration-300"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-[#163A2B] text-[#9AA89A] hover:text-[#C8A96B] hover:bg-[#1D4A35] transition-colors duration-300"
                 >
                   <s.icon className="h-3.5 w-3.5" />
                 </a>
@@ -82,10 +78,10 @@ export function SiteFooter() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-4">
+            <h4 className="text-[11px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-3">
               Quick Links
             </h4>
-            <ul className="flex flex-col gap-2.5">
+            <ul className="grid grid-cols-2 gap-x-8 gap-y-2">
               {QUICK_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
@@ -98,90 +94,17 @@ export function SiteFooter() {
               ))}
             </ul>
           </div>
-
-          {/* Locations & Contact */}
-          <div>
-            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-4">
-              Contact
-            </h4>
-            <ul className="flex flex-col gap-3">
-              <li className="flex items-start gap-3 text-[13px]">
-                <Phone className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
-                <div className="flex flex-col gap-1">
-                  {publicPhones.map((phone) => (
-                    <a
-                      key={phone.href}
-                      href={phone.href}
-                      className="hover:text-[#C8A96B] transition-colors"
-                    >
-                      {phone.label}
-                    </a>
-                  ))}
-                </div>
-              </li>
-              {publicBranches.map((branch) => (
-                <li key={branch.id} className="flex items-start gap-3 text-[13px]">
-                  <MapPin className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
-                  {branch.mapHref ? (
-                    <a
-                      href={branch.mapHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-[#C8A96B] transition-colors leading-relaxed"
-                    >
-                      {branch.name}
-                      <br />
-                      {branch.area}
-                    </a>
-                  ) : (
-                    <span className="leading-relaxed">
-                      {branch.name}
-                      <br />
-                      {branch.area}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Hours */}
-          <div>
-            <h4 className="text-[12px] font-semibold tracking-[0.15em] uppercase text-[#C8A96B] mb-4">
-              Hours
-            </h4>
-            <ul className="flex flex-col gap-3">
-              <li className="flex items-start gap-3 text-[13px]">
-                <Clock className="h-4 w-4 mt-0.5 text-[#C8A96B] shrink-0" />
-                <div>
-                  <p className="text-[#FCFAF5]">Open Daily</p>
-                  <p>{businessInfo.hours}</p>
-                </div>
-              </li>
-            </ul>
-          </div>
         </div>
 
-        <div className="mt-10 md:mt-14 pt-6 md:pt-8 border-t border-[#163A2B]">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-[12px] text-[#6B7A6F] text-center md:text-left">
+        {/* Bottom line */}
+        <div className="mt-8 pt-5 border-t border-[#163A2B]">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-[11px] text-[#6B7A6F]">
+              Open daily · Book online
+            </p>
+            <p className="text-[11px] text-[#6B7A6F]">
               &copy; {new Date().getFullYear()} Cradle Massage & Wellness Spa. All rights reserved.
             </p>
-            <div className="flex items-center gap-4">
-              {SOCIALS.map((s) => (
-                <a
-                  key={s.href}
-                  href={s.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={s.label}
-                  className="text-[12px] text-[#6B7A6F] hover:text-[#C8A96B] transition-colors flex items-center gap-1.5"
-                >
-                  <s.icon className="h-3.5 w-3.5" />
-                  <span>{s.icon === IconFacebook ? "Facebook" : s.label === "Instagram" ? "Instagram" : "IG · SM Bacolod"}</span>
-                </a>
-              ))}
-            </div>
           </div>
         </div>
       </div>
