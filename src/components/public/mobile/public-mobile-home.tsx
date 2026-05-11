@@ -6,6 +6,9 @@ import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
 import { MobileExperienceGrid } from "./mobile-experience-grid";
+import { FaqAccordion } from "../faq-accordion";
+import { ServiceShowcaseCarousel } from "../service-showcase-carousel";
+import { SERVICE_SHOWCASE_SLIDES } from "@/constants/service-showcase";
 
 // ── Static data ──────────────────────────────────────────────────────────────
 
@@ -169,65 +172,43 @@ export async function PublicMobileHome() {
         </section>
 
         {/* ── Inside Cradle Experience ─────────────────────────────────────── */}
-        <section className="mt-5 px-4">
-          <div className="overflow-hidden rounded-[16px] border border-[#E8DDCA] bg-[#FCFAF5] shadow-[0_8px_22px_rgba(2,35,22,0.08)]">
-            <div className="relative h-[148px]">
-              <Image
-                src={SPA_IMAGES.about}
-                alt="Inside the Cradle spa experience"
-                fill
-                className="object-cover"
-                sizes="100vw"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(2,35,22,0.60),rgba(2,35,22,0.08))]" />
-            </div>
-            <div className="p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#B68A3C]">
-                Inside Cradle
-              </p>
-              <h2 className="mt-1 text-[17px] font-semibold">
-                Inside the Cradle Experience
-              </h2>
-              <p className="mt-2 text-[12px] leading-5 text-[#5F6F63]">
-                Step into a calming space designed for rest, recovery, and everyday renewal.
-              </p>
-              <p className="mt-2 text-[12px] leading-5 text-[#5F6F63]">
-                From soothing treatments to thoughtful details, every part of Cradle is created to help you feel cared for.
-              </p>
-            </div>
-          </div>
+        <section className="mt-5">
+          <ServiceShowcaseCarousel
+            slides={SERVICE_SHOWCASE_SLIDES}
+            eyebrow="Inside Cradle"
+            heading="Inside the Cradle Experience"
+            subheading="From soothing treatments to thoughtful details, every part of Cradle is created to help you feel cared for."
+          />
         </section>
 
         {/* ── FAQ ──────────────────────────────────────────────────────────── */}
         <section className="mt-5 px-4 pb-4">
           <h2 className="mb-3.5 text-[16px] font-semibold">Frequently Asked Questions</h2>
-          <div className="flex flex-col gap-3">
-            {[
-              {
-                q: "How do I book a massage?",
-                a: "Book online at cradlewellnessliving.com/book. Choose in-spa or home service, select your treatment, and confirm your schedule.",
-              },
-              {
-                q: "Do you offer home service massage in Bacolod?",
-                a: "Yes. Select Home Service when booking and provide your address. Our therapist will come to your location.",
-              },
-              {
-                q: "Where are your branches?",
-                a: "SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (Lacson National Highway).",
-              },
-              {
-                q: "What services do you offer?",
-                a: "Massage, foot spa, body scrub, skin care, salon services, spa packages, and home service massage.",
-              },
-            ].map((faq) => (
-              <div
-                key={faq.q}
-                className="rounded-[14px] border border-[#E8DDCA] bg-white p-4 shadow-[0_2px_10px_rgba(2,35,22,0.05)]"
-              >
-                <h3 className="text-[13px] font-semibold text-[#022316]">{faq.q}</h3>
-                <p className="mt-1 text-[11px] leading-4 text-[#5F6F63]">{faq.a}</p>
-              </div>
-            ))}
+          <div className="rounded-[16px] border border-[#E8DDCA] bg-white px-4 shadow-[0_2px_10px_rgba(2,35,22,0.05)]">
+            <FaqAccordion
+              items={[
+                {
+                  question: "How do I book a massage?",
+                  answer:
+                    "Book online at cradlewellnessliving.com/book. Choose in-spa or home service, select your treatment, and confirm your schedule.",
+                },
+                {
+                  question: "Do you offer home service massage in Bacolod?",
+                  answer:
+                    "Yes. Select Home Service when booking and provide your address. Our therapist will come to your location.",
+                },
+                {
+                  question: "Where are your branches?",
+                  answer:
+                    "SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (Lacson National Highway).",
+                },
+                {
+                  question: "What services do you offer?",
+                  answer:
+                    "Massage, foot spa, body scrub, skin care, salon services, spa packages, and home service massage.",
+                },
+              ]}
+            />
           </div>
         </section>
 

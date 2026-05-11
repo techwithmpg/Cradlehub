@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import {
-  getPublicSiteAssets,
   getPublicSiteSections,
   type PublicSiteSectionRow,
 } from "@/lib/queries/public-site";
@@ -33,7 +32,6 @@ import {
 import {
   bookingJourneySteps,
   businessInfo,
-  galleryItems,
   guestReasons,
   heroProofPoints,
   planningNotes,
@@ -45,6 +43,9 @@ import {
   whyGuestsChooseCradle,
 } from "@/lib/public/public-site-data";
 import { ScrollReveal } from "./scroll-reveal";
+import { FaqAccordion } from "./faq-accordion";
+import { ServiceShowcaseCarousel } from "./service-showcase-carousel";
+import { SERVICE_SHOWCASE_SLIDES } from "@/constants/service-showcase";
 
 type CoverImageProps = {
   src: string;
@@ -131,10 +132,9 @@ function servicesForCategory(
 }
 
 export async function HomePageSections() {
-  const [services, managedSections, managedGalleryAssets] = await Promise.all([
+  const [services, managedSections] = await Promise.all([
     getPublicServiceCatalog(),
     getPublicSiteSections({ includeDisabled: true }),
-    getPublicSiteAssets("gallery", { includeDisabled: true }),
   ]);
   const sectionMap = new Map(
     managedSections.map((section) => [section.section_key, section])
@@ -255,18 +255,6 @@ export async function HomePageSections() {
       href: `/services#${slugify(categoryName)}`,
     };
   });
-  const galleryAssetItems = managedGalleryAssets
-    .filter((asset) => asset.is_enabled)
-    .map((asset) => ({
-      id: asset.id,
-      title: asset.title ?? "Gallery image",
-      detail: "",
-      image: asset.image_url,
-      imageAlt: asset.alt_text ?? asset.title ?? "Cradle spa gallery image",
-    }));
-  const displayedGalleryItems =
-    galleryAssetItems.length > 0 ? galleryAssetItems : galleryItems;
-
   return (
     <>
       {sectionIsVisible("hero") && (
@@ -652,44 +640,12 @@ export async function HomePageSections() {
       {sectionIsVisible("gallery") && (
       <section className="bg-[#F7F3EB] py-20 lg:py-28">
         <div className="mx-auto max-w-7xl px-6 lg:px-12">
-          <div className="mb-12 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
-                Inside the Cradle Experience
-              </p>
-              <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
-                style={{ fontFamily: "var(--sp-font-display)" }}
-              >
-                Step into a calming space designed for rest, recovery, and everyday renewal.
-              </h2>
-            </div>
-            <p className="max-w-md text-[14px] leading-7 text-[#6B7A6F]">
-              From soothing treatments to thoughtful details, every part of Cradle is created to help you feel cared for.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {displayedGalleryItems.map((item, index) => (
-              <ScrollReveal key={item.id} delay={index * 60}>
-                <figure className="group overflow-hidden rounded-[8px] bg-[#10261D]">
-                  <div className="relative aspect-[4/3]">
-                    <CoverImage
-                      src={item.image}
-                      alt={item.imageAlt}
-                      className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(16,38,29,0.7),rgba(16,38,29,0)_62%)]" />
-                    <figcaption className="absolute inset-x-0 bottom-0 p-5">
-                      <p className="font-semibold text-[#FCFAF5]">{item.title}</p>
-                      <p className="mt-1 text-[12px] leading-5 text-[#F7F3EB]/68">{item.detail}</p>
-                    </figcaption>
-                  </div>
-                </figure>
-              </ScrollReveal>
-            ))}
-          </div>
+          <ServiceShowcaseCarousel
+            slides={SERVICE_SHOWCASE_SLIDES}
+            eyebrow="Inside the Cradle Experience"
+            heading="Step into a calming space designed for rest, recovery, and everyday renewal."
+            subheading="From soothing treatments to thoughtful details, every part of Cradle is created to help you feel cared for."
+          />
         </div>
       </section>
       )}
@@ -904,41 +860,41 @@ export async function HomePageSections() {
               Frequently Asked Questions
             </h2>
           </div>
-          <div className="flex flex-col gap-4">
-            {[
-              {
-                q: "How do I book a massage at Cradle Wellness Living?",
-                a: "You can book online through our website at cradlewellnessliving.com/book. Choose your setting (in-spa or home service), select your treatment, pick a date and time, and confirm your appointment.",
-              },
-              {
-                q: "Do you offer home service massage in Bacolod?",
-                a: "Yes. We offer home service massage across Bacolod City. Select Home Service when booking and provide your complete address and a nearby landmark.",
-              },
-              {
-                q: "Where are your branches located?",
-                a: "We have two branches in Bacolod: SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (3rd Floor, La Luz Building, Lacson National Highway).",
-              },
-              {
-                q: "What services does Cradle Wellness Living offer?",
-                a: "We offer massage services, foot spa, body scrub, skin care treatments, salon services, Divine Renewal packages, and spa party packages.",
-              },
-              {
-                q: "Can I book online?",
-                a: "Absolutely. Online booking is available 24/7 at cradlewellnessliving.com/book. The guided flow helps you choose your branch, service, schedule, and therapist in under two minutes.",
-              },
-              {
-                q: "Can I choose a therapist?",
-                a: "Yes. Our booking system lets you pick from available therapists based on your selected branch, date, and time.",
-              },
-            ].map((faq) => (
-              <div
-                key={faq.q}
-                className="rounded-[8px] border border-[#EDE4D3] bg-white p-6"
-              >
-                <h3 className="text-[15px] font-semibold text-[#163A2B]">{faq.q}</h3>
-                <p className="mt-2 text-[14px] leading-6 text-[#6B7A6F]">{faq.a}</p>
-              </div>
-            ))}
+          <div className="rounded-[8px] border border-[#EDE4D3] bg-white px-6">
+            <FaqAccordion
+              items={[
+                {
+                  question: "How do I book a massage at Cradle Wellness Living?",
+                  answer:
+                    "You can book online through our website at cradlewellnessliving.com/book. Choose your setting (in-spa or home service), select your treatment, pick a date and time, and confirm your appointment.",
+                },
+                {
+                  question: "Do you offer home service massage in Bacolod?",
+                  answer:
+                    "Yes. We offer home service massage across Bacolod City. Select Home Service when booking and provide your complete address and a nearby landmark.",
+                },
+                {
+                  question: "Where are your branches located?",
+                  answer:
+                    "We have two branches in Bacolod: SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (3rd Floor, La Luz Building, Lacson National Highway).",
+                },
+                {
+                  question: "What services does Cradle Wellness Living offer?",
+                  answer:
+                    "We offer massage services, foot spa, body scrub, skin care treatments, salon services, Divine Renewal packages, and spa party packages.",
+                },
+                {
+                  question: "Can I book online?",
+                  answer:
+                    "Absolutely. Online booking is available 24/7 at cradlewellnessliving.com/book. The guided flow helps you choose your branch, service, schedule, and therapist in under two minutes.",
+                },
+                {
+                  question: "Can I choose a therapist?",
+                  answer:
+                    "Yes. Our booking system lets you pick from available therapists based on your selected branch, date, and time.",
+                },
+              ]}
+            />
           </div>
         </div>
       </section>

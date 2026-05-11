@@ -42,16 +42,17 @@ export function SiteHeader() {
     <>
       <header
         className={[
-          // Mobile: always dark green, fixed, safe-area aware
           "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
-          // Mobile bg: always dark forest green
-          "bg-[#10261D]",
+          // Mobile: blend into hero on homepage at top, solid elsewhere
+          isHome && !scrolled
+            ? "bg-[#10261D]/30 border-b border-transparent"
+            : "bg-[#10261D] border-b border-[#C8A96B]/15",
           // Desktop override: transparent on homepage hero, cream when scrolled
           isHeroMode
-            ? "md:bg-transparent"
+            ? "md:bg-transparent md:border-transparent"
             : scrolled
-            ? "md:bg-[#FCFAF5]/95 md:backdrop-blur-md md:shadow-[0_1px_20px_rgba(22,58,43,0.06)]"
-            : "md:bg-[#10261D]",
+            ? "md:bg-[#FCFAF5]/95 md:backdrop-blur-md md:shadow-[0_1px_20px_rgba(22,58,43,0.06)] md:border-[#E8D5A3]/20"
+            : "md:bg-[#10261D] md:border-transparent",
         ].join(" ")}
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
