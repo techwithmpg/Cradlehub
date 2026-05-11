@@ -18,7 +18,7 @@ type ServiceShowcaseCarouselProps = {
   eyebrow?: string;
   heading?: string;
   subheading?: string;
-  /** Auto-advance interval in ms. Default 4000. */
+  /** Auto-advance interval in ms. Default 7000. */
   autoPlayInterval?: number;
 };
 
@@ -27,7 +27,7 @@ export function ServiceShowcaseCarousel({
   eyebrow,
   heading,
   subheading,
-  autoPlayInterval = 4000,
+  autoPlayInterval = 7000,
 }: ServiceShowcaseCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
