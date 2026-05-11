@@ -18,6 +18,8 @@ type ServiceShowcaseCarouselProps = {
   eyebrow?: string;
   heading?: string;
   subheading?: string;
+  /** Auto-advance interval in ms. Default 4000. */
+  autoPlayInterval?: number;
 };
 
 export function ServiceShowcaseCarousel({
@@ -25,9 +27,14 @@ export function ServiceShowcaseCarousel({
   eyebrow,
   heading,
   subheading,
+  autoPlayInterval = 4000,
 }: ServiceShowcaseCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userInteractedRef = useRef(false);
 
   const updateActive = useCallback(() => {
     const el = containerRef.current;
@@ -51,18 +58,22 @@ export function ServiceShowcaseCarousel({
     setActiveIndex(closest);
   }, [slides.length]);
 
-  const goTo = (index: number) => {
-    const el = containerRef.current;
-    if (!el) return;
-    const children = Array.from(el.children) as HTMLElement[];
-    const child = children[index];
-    if (!child) return;
+  const goTo = useCallback(
+    (index: number) => {
+      const el = containerRef.current;
+      if (!el) return;
+      const children = Array.from(el.children) as HTMLElement[];
+      const child = children[index];
+      if (!child) return;
 
-    const scrollLeft =
-      child.offsetLeft - el.clientWidth / 2 + child.offsetWidth / 2;
-    el.scrollTo({ left: scrollLeft, behavior: "smooth" });
-  };
+      const scrollLeft =
+        child.offsetLeft - el.clientWidth / 2 + child.offsetWidth / 2;
+      el.scrollTo({ left: scrollLeft, behavior: "smooth" });
+    },
+    []
+  );
 
+  /* ── Scroll listener for active index ── */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -71,10 +82,66 @@ export function ServiceShowcaseCarousel({
     return () => el.removeEventListener("scroll", updateActive);
   }, [updateActive]);
 
+  /* ── IntersectionObserver: only autoplay when visible ── */
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) setIsInView(entry.isIntersecting);
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  /* ── Auto-play timer ── */
+  useEffect(() => {
+    if (slides.length <= 1) return;
+    if (!isInView || isPaused || userInteractedRef.current) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setActiveIndex((prev) => {
+        const next = prev >= slides.length - 1 ? 0 : prev + 1;
+        goTo(next);
+        return next;
+      });
+    }, autoPlayInterval);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [slides.length, isInView, isPaused, autoPlayInterval, goTo]);
+
+  const handleDotClick = (index: number) => {
+    userInteractedRef.current = true;
+    goTo(index);
+    setActiveIndex(index);
+    // Resume auto-play after a grace period
+    setTimeout(() => {
+      userInteractedRef.current = false;
+    }, autoPlayInterval * 1.5);
+  };
+
   if (slides.length === 0) return null;
 
   return (
-    <div>
+    <div
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onTouchStart={() => setIsPaused(true)}
+      onTouchEnd={() => setIsPaused(false)}
+    >
       {(eyebrow || heading || subheading) && (
         <div className="mb-6 px-4 md:mb-8 md:px-0">
           {eyebrow && (
@@ -143,7 +210,7 @@ export function ServiceShowcaseCarousel({
         {slides.map((_, i) => (
           <button
             key={i}
-            onClick={() => goTo(i)}
+            onClick={() => handleDotClick(i)}
             aria-label={`Go to slide ${i + 1}`}
             className={`h-[6px] rounded-full transition-all duration-300 ${
               i === activeIndex
