@@ -44,7 +44,7 @@ export async function PublicMobileHome() {
   }
 
   return (
-    <div className="md:hidden bg-[#F8F2E7] pb-12 pt-14 text-[#022316]">
+    <div className="md:hidden bg-[#F8F2E7] pb-12 text-[#022316]">
 
       {/* ── Hero Carousel ─────────────────────────────────────────────────── */}
       <MobileHomeHeroCarousel />
