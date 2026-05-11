@@ -104,10 +104,10 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `BK-WS-002`  |
-| **Completion**      | `Shared bookings workspace action/pagination polish complete`        |
-| **Last Agent**      | `Codex (GPT-5)` |
-| **Last Updated**    | `2026-05-10` |
+| **Sprint**          | `MGR-MOB-001`  |
+| **Completion**      | `Mobile Manager Workspace variant added`        |
+| **Last Agent**      | `Kimi` |
+| **Last Updated**    | `2026-05-11` |
 | **Blockers**        | `No build/type/lint blockers; authenticated visual QA still depends on seeded login access`      |
 
 ---
@@ -149,10 +149,10 @@ pnpm ui:add [component]     # Add shadcn/ui component
 
 ---
 
-## Latest Agent Update (2026-05-10)
+## Latest Agent Update (2026-05-11)
 
-- Completed `BK-WS-002`: polished the shared Owner/Manager/CRM BookingsWorkspace without forking role layouts.
-- Booking rows now use a single compact three-dot action trigger; the right panel uses simplified Edit Booking, Change Status, Take Payment, and optional Cancel Booking actions.
-- The shared bookings table now paginates client-side after search filtering, defaults to 8 rows, and includes bottom range/page/rows-per-page controls.
-- The visible Branch column was removed from the bookings table to keep the row layout compact; branch remains available in the details panel.
+- Completed `MGR-MOB-001`: added a mobile-first Manager Workspace variant that activates only on mobile breakpoints.
+- Desktop `/manager` page preserves the existing `ManagerTodayWorkspace` exactly via responsive `hidden md:block` / `block md:hidden` wrapper.
+- Mobile experience includes 5 bottom-nav tabs (Today, Schedule, Bookings, Staff, More) with simplified card-based screens, large touch targets, and spa design tokens.
+- Reuses existing data queries (`getTodaysSchedule`, `getDailySchedule`, `getStaffByBranch`, `getPendingStaffByBranch`) without new auth, RLS, or schema changes.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing.

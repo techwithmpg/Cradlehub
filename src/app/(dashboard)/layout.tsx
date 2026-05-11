@@ -60,18 +60,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
         display:       "flex",
         flexDirection: "column",
       }}>
-        <Header
-          role={resolvedMe.system_role}
-          fullName={resolvedMe.full_name}
-          avatarUrl={null}
-        />
-        <main style={{
-          flex:       1,
-          minWidth:   0,
-          padding:    "20px",
-          width:      "100%",
-          overflowY:  "auto",
-        }}>
+        <div className="hidden md:block">
+          <Header
+            role={resolvedMe.system_role}
+            fullName={resolvedMe.full_name}
+            avatarUrl={null}
+          />
+        </div>
+        <main
+          className="p-0 md:p-5"
+          style={{
+            flex:       1,
+            minWidth:   0,
+            width:      "100%",
+            overflowY:  "auto",
+          }}
+        >
           {children}
         </main>
       </div>

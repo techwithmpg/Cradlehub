@@ -1403,3 +1403,62 @@ owMins param
 - `pnpm build`: âœ… Passing, 71 app routes.
 
 ---
+
+
+---
+
+### 2026-05-11 — Kimi (MGR-MOB-001 — Mobile Manager Workspace)
+
+**Task:** Create a mobile-first simplified Manager Workspace that activates only on mobile breakpoints without breaking the existing desktop experience.
+
+**Files Created:**
+- src/components/features/manager/mobile/types.ts — shared mobile types
+- src/components/features/manager/mobile/manager-mobile-workspace.tsx — main mobile orchestrator with tab state
+- src/components/features/manager/mobile/manager-bottom-nav.tsx — fixed bottom navigation (Today, Schedule, Bookings, Staff, More)
+- src/components/features/manager/mobile/manager-today-screen.tsx — greeting, KPIs, quick actions, today's flow, attention needed
+- src/components/features/manager/mobile/manager-schedule-screen.tsx — staff schedule list with filter pills
+- src/components/features/manager/mobile/manager-bookings-screen.tsx — bookings/issues cards with search and filters
+- src/components/features/manager/mobile/manager-staff-screen.tsx — active/pending/off-duty staff cards
+- src/components/features/manager/mobile/manager-approvals-screen.tsx — approval queue summary + operations tiles
+- src/components/features/manager/mobile/manager-more-screen.tsx — branch summary, alerts, settings menu
+
+**Files Changed:**
+- src/app/(dashboard)/manager/page.tsx — responsive wrapper (hidden md:block desktop / lock md:hidden mobile); fetches schedule + staff data for mobile while preserving desktop props exactly
+
+**Design Decisions:**
+- Desktop workspace is completely untouched; same component tree, same props, same data flow.
+- Mobile workspace reuses existing data queries and utility functions (computeKpiData, computeAlerts, getUrgencyScore, eadRelation, etc.).
+- Bottom nav uses Lucide icons with large tap targets and clear active states.
+- All screens use card-based layouts, large text, and spa design tokens (--cs-*).
+- Empty states are included on every list screen.
+- Placeholder actions (Review/Resolve) are rendered with disabled state where full server action wiring does not yet exist.
+
+**Build Status:** ? Passing | **Type-check:** ? Passing | **Lint:** ? Passing (0 errors, 0 warnings)
+
+
+
+---
+
+### 2026-05-11 — Kimi (MGR-MOB-001-v2 — Mobile Manager Workspace Shell Separation + Spacing Polish)
+
+**Task:** Fix mobile manager workspace so it no longer renders inside the desktop shell, and tighten spacing across all mobile screens.
+
+**Files Changed:**
+- src/app/(dashboard)/layout.tsx — desktop header wrapped in hidden md:block; main content padding changed to p-0 md:p-5
+- src/components/features/dashboard/sidebar.tsx — mobile hamburger hidden on /manager* routes
+- src/components/features/manager/mobile/manager-mobile-workspace.tsx — increased bottom padding to 96px for nav safe area
+- src/components/features/manager/mobile/manager-bottom-nav.tsx — added env(safe-area-inset-bottom) padding
+- src/components/features/manager/mobile/manager-today-screen.tsx — compact KPIs (32px icon, 10px padding), shorter quick actions (32px icon, 10px padding), tighter gaps (6px), smaller fonts
+- src/components/features/manager/mobile/manager-schedule-screen.tsx — reduced card padding and font sizes
+- src/components/features/manager/mobile/manager-bookings-screen.tsx — reduced card padding and font sizes
+- src/components/features/manager/mobile/manager-staff-screen.tsx — reduced card padding and font sizes
+- src/components/features/manager/mobile/manager-approvals-screen.tsx — reduced card padding and font sizes
+- src/components/features/manager/mobile/manager-more-screen.tsx — reduced card padding and font sizes
+
+**Design Decisions:**
+- Global layout change (header hidden on mobile, responsive main padding) benefits all future mobile workspaces.
+- Sidebar hamburger is route-guarded for /manager* only; other workspaces still get the hamburger on mobile.
+- All manager mobile screens use consistent compact spacing: 12px horizontal page padding, 8px card padding, 11px body text, 14px headings.
+
+**Build Status:** ? Passing | **Type-check:** ? Passing | **Lint:** ? Passing (0 errors, 0 warnings)
+

@@ -1,25 +1,49 @@
-# CURRENT TASK: PUB-001 — Hide Therapist Tier from Public Booking
+# CURRENT TASK: MGR-MOB-001 — Mobile Manager Workspace (v2 shell separation + spacing polish)
 
 ## Overview
-Removed internal staff tier labels (Junior/Mid/Senior) from the public booking wizard. Public customers now see customer-friendly role labels (Therapist, Nail Tech, Aesthetician / Facialist, etc.) based on `staff_type`. Internal tier sorting and auto-assignment logic remain unchanged.
+Created a mobile-first simplified Manager Workspace that activates only on mobile breakpoints (`< md`). The existing desktop Manager Workspace is preserved exactly.
+
+v2 fixes:
+- Desktop workspace header/sidebar hamburger are now hidden on mobile for manager routes.
+- Mobile manager no longer shows "Workspace: Owner" or desktop shell elements.
+- KPI cards, quick actions, and booking cards are more compact.
+- Bottom nav uses safe-area-inset-bottom and page content has enough bottom padding.
+- All screens use tighter spacing for better information density.
 
 ## Exact Files Changed
 
-### File edited:
-- `src/components/public/booking-wizard.tsx`
+### New files:
+- `src/components/features/manager/mobile/types.ts`
+- `src/components/features/manager/mobile/manager-mobile-workspace.tsx`
+- `src/components/features/manager/mobile/manager-bottom-nav.tsx`
+- `src/components/features/manager/mobile/manager-today-screen.tsx`
+- `src/components/features/manager/mobile/manager-schedule-screen.tsx`
+- `src/components/features/manager/mobile/manager-bookings-screen.tsx`
+- `src/components/features/manager/mobile/manager-staff-screen.tsx`
+- `src/components/features/manager/mobile/manager-approvals-screen.tsx`
+- `src/components/features/manager/mobile/manager-more-screen.tsx`
+
+### Modified:
+- `src/app/(dashboard)/manager/page.tsx` — responsive wrapper (`hidden md:block` desktop / `block md:hidden` mobile); fetches additional data for mobile
+- `src/app/(dashboard)/layout.tsx` — header wrapped in `hidden md:block`; main padding changed to `p-0 md:p-5` so mobile workspaces control their own padding
+- `src/components/features/dashboard/sidebar.tsx` — mobile hamburger is hidden on `/manager*` routes since manager has its own mobile shell
 
 ## Behavior After Change
-- Public booking wizard `StepTherapist` displays role labels instead of tier badges.
-- Auto-assign helper text no longer mentions seniority.
-- Internal `TIER_ORDER` sorting still drives auto-assign priority (Senior → Mid → Junior).
-- Owner/Manager/CRM staff management pages, schedule views, and internal tier display are untouched.
+- Desktop (`md` and up): existing `ManagerTodayWorkspace` renders unchanged with full sidebar, KPI cards, timeline, alerts, and action center.
+- Mobile (below `md`): new `ManagerMobileWorkspace` renders with bottom nav (Today, Schedule, Bookings, Staff, More) and simplified card-based screens.
+- Mobile Today screen: greeting, KPI tiles, quick actions, today's booking flow, attention-needed cards.
+- Mobile Schedule screen: staff list with status badges, filter pills (All / Therapists / Available).
+- Mobile Bookings screen: search, Bookings/Issues toggle, status filter pills, action cards.
+- Mobile Staff screen: pending approval banner, Active/Pending/Off Duty tabs, staff cards with badges.
+- Mobile Approvals screen: summary strip, approval cards, operations quick tiles.
+- Mobile More screen: branch summary, alerts, menu links (Notifications, Spaces, Settings, Help, Logout).
 
 ## Verification
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing, 71 app routes.
+- `pnpm build`: ✅ Passing (71/71 app routes)
 
 ## Commit Message
 ```
-fix(booking): hide therapist tier from public booking
+feat(manager): add mobile-first manager workspace variant with shell separation
 ```

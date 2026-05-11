@@ -331,6 +331,7 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
 export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps) {
   const pathname        = usePathname();
   const [open, setOpen] = useState(false);
+  const isManagerRoute  = pathname.startsWith("/manager");
 
   return (
     <>
@@ -339,28 +340,30 @@ export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps)
         <SidebarContent role={role} fullName={fullName} avatarUrl={avatarUrl} branchName={branchName} pathname={pathname} />
       </div>
 
-      {/* Mobile hamburger */}
-      <button
-        type="button"
-        className="md:hidden"
-        onClick={() => setOpen(true)}
-        style={{
-          position:        "fixed",
-          top:             12,
-          left:            12,
-          zIndex:          50,
-          padding:         8,
-          borderRadius:    "var(--cs-r-sm)",
-          backgroundColor: "var(--cs-sidebar)",
-          border:          "none",
-          cursor:          "pointer",
-          color:           "var(--cs-sidebar-text)",
-          boxShadow:       "var(--cs-shadow-md)",
-        }}
-        aria-label="Open menu"
-      >
-        <Menu size={18} />
-      </button>
+      {/* Mobile hamburger — hidden on manager routes because manager has its own mobile shell */}
+      {!isManagerRoute && (
+        <button
+          type="button"
+          className="md:hidden"
+          onClick={() => setOpen(true)}
+          style={{
+            position:        "fixed",
+            top:             12,
+            left:            12,
+            zIndex:          50,
+            padding:         8,
+            borderRadius:    "var(--cs-r-sm)",
+            backgroundColor: "var(--cs-sidebar)",
+            border:          "none",
+            cursor:          "pointer",
+            color:           "var(--cs-sidebar-text)",
+            boxShadow:       "var(--cs-shadow-md)",
+          }}
+          aria-label="Open menu"
+        >
+          <Menu size={18} />
+        </button>
+      )}
 
       {/* Mobile overlay */}
       {open && (
