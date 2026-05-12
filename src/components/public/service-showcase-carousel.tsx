@@ -166,43 +166,66 @@ export function ServiceShowcaseCarousel({
         ref={containerRef}
         className="flex snap-x snap-mandatory overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {slides.map((slide) => (
-          <article
-            key={slide.id}
-            className="w-[85vw] shrink-0 snap-center px-1.5 first:pl-4 last:pr-4 md:w-[320px] md:px-2 md:first:pl-0 md:last:pr-0 lg:w-[380px]"
-          >
-            <div className="group relative overflow-hidden rounded-[16px] md:rounded-[12px]">
-              <Link href={slide.href} className="block">
-                <div className="relative aspect-[4/3] overflow-hidden md:aspect-[16/10]">
-                  <Image
-                    src={slide.image}
-                    alt={slide.title}
-                    fill
-                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
-                    sizes="(max-width: 768px) 85vw, 380px"
-                  />
-                  <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(2,35,22,0.78)_0%,rgba(2,35,22,0.25)_50%,rgba(2,35,22,0.06)_100%)]" />
-                </div>
-
-                <div className="absolute inset-x-0 bottom-0 p-4 md:p-5">
-                  <h3 className="text-[15px] font-semibold text-[#FCFAF5] md:text-[16px]">
-                    {slide.title}
-                  </h3>
-                  <p className="mt-1 text-[11px] leading-4 text-[#F7F3EB]/80 md:text-[12px] md:leading-5">
-                    {slide.description}
-                  </p>
-                  <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#E0B84B] md:mt-4">
-                    Explore
-                    <ArrowRight
-                      className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-0.5"
-                      aria-hidden="true"
+        {slides.map((slide, i) => {
+          const isActive = i === activeIndex;
+          return (
+            <article
+              key={slide.id}
+              className="w-[82vw] shrink-0 snap-center px-1.5 first:pl-4 last:pr-4 md:w-[320px] md:px-2 md:first:pl-0 md:last:pr-0 lg:w-[380px]"
+            >
+              <div
+                className={[
+                  "group relative overflow-hidden rounded-[16px] md:rounded-[12px]",
+                  "transition-all duration-500 ease-out",
+                  isActive
+                    ? "scale-100 opacity-100 blur-0 brightness-100 shadow-[0_12px_40px_rgba(2,35,22,0.25)]"
+                    : "scale-[0.93] opacity-55 blur-[1px] brightness-[0.85]",
+                ].join(" ")}
+              >
+                <Link href={slide.href} className="block">
+                  <div className="relative aspect-[4/3] overflow-hidden md:aspect-[16/10]">
+                    <Image
+                      src={slide.image}
+                      alt={slide.title}
+                      fill
+                      className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                      sizes="(max-width: 768px) 82vw, 380px"
                     />
-                  </span>
-                </div>
-              </Link>
-            </div>
-          </article>
-        ))}
+                    <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(2,35,22,0.78)_0%,rgba(2,35,22,0.25)_50%,rgba(2,35,22,0.06)_100%)]" />
+                  </div>
+
+                  <div
+                    className={[
+                      "absolute inset-x-0 bottom-0 p-4 md:p-5",
+                      "transition-opacity duration-500",
+                      isActive ? "opacity-100" : "opacity-60",
+                    ].join(" ")}
+                  >
+                    <h3 className="text-[15px] font-semibold text-[#FCFAF5] md:text-[16px]">
+                      {slide.title}
+                    </h3>
+                    <p className="mt-1 text-[11px] leading-4 text-[#F7F3EB]/80 md:text-[12px] md:leading-5">
+                      {slide.description}
+                    </p>
+                    <span
+                      className={[
+                        "mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#E0B84B] md:mt-4",
+                        "transition-opacity duration-500",
+                        isActive ? "opacity-100" : "opacity-0",
+                      ].join(" ")}
+                    >
+                      Explore
+                      <ArrowRight
+                        className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-0.5"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </div>
+                </Link>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       {/* Pagination dots */}
