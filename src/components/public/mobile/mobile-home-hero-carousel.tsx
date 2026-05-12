@@ -74,7 +74,7 @@ export function MobileHomeHeroCarousel() {
 
   return (
     <section
-      className="relative w-full min-h-[100svh] overflow-hidden"
+      className="relative w-screen min-h-[100svh] overflow-hidden"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onMouseEnter={() => setPaused(true)}

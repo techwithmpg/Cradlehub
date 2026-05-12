@@ -188,6 +188,7 @@ export function ServiceShowcaseCarousel({
                       src={slide.image}
                       alt={slide.title}
                       fill
+                      priority
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                       sizes="(max-width: 768px) 82vw, 380px"
                     />
