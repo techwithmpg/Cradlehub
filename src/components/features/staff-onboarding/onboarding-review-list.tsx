@@ -5,6 +5,7 @@ import { approveOnboardingAction, rejectOnboardingAction } from "@/app/staff-onb
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 import { getOnboardingRoleLabel } from "@/lib/staff/onboarding-roles";
 import { isTherapistRole } from "@/lib/staff/profile-completeness";
+import { ROLE_LABELS } from "@/lib/permissions";
 import type { Database } from "@/types/supabase";
 
 type OnboardingRequest = Database["public"]["Tables"]["staff_onboarding_requests"]["Row"];
@@ -24,13 +25,11 @@ function formatDate(iso: string) {
 function RequestCard({
   request,
   branches,
-  isOwner,
   reviewerSystemRole,
   reviewerBranchId,
 }: {
   request: OnboardingRequest;
   branches: Branch[];
-  isOwner: boolean;
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
 }) {
@@ -44,16 +43,28 @@ function RequestCard({
     approverRole: reviewerSystemRole,
     approverBranchId: reviewerBranchId,
     targetBranchId: request.requested_branch_id,
-    requestedSystemRole: "staff", // default; user can change within allowed
+    requestedSystemRole: request.preferred_role === "managerial" ? "manager" : "staff",
   });
 
-  const availableRoles = approvalCheck.assignableRoles.map((r) => ({ value: r, label: r }));
+  const availableRoles = approvalCheck.assignableRoles.map((r) => ({ 
+    value: r, 
+    label: ROLE_LABELS[r] ?? r 
+  }));
 
   const defaultBranchId = request.requested_branch_id ?? reviewerBranchId ?? branches[0]?.id ?? "";
   const isApplicantTherapist = isTherapistRole(request.preferred_role ?? "");
 
   const [selectedBranchId, setSelectedBranchId] = useState(defaultBranchId);
-  const [selectedRole, setSelectedRole] = useState(approvalCheck.assignableRoles[0] ?? "staff");
+  
+  // Smart default role assignment
+  const initialRole = () => {
+    if (request.preferred_role === "csr") return approvalCheck.assignableRoles.includes("csr_staff") ? "csr_staff" : "staff";
+    if (request.preferred_role === "driver") return approvalCheck.assignableRoles.includes("driver") ? "driver" : "staff";
+    if (request.preferred_role === "utility") return approvalCheck.assignableRoles.includes("utility") ? "utility" : "staff";
+    return approvalCheck.assignableRoles.includes("staff") ? "staff" : (approvalCheck.assignableRoles[0] ?? "staff");
+  };
+
+  const [selectedRole, setSelectedRole] = useState(initialRole());
   const [selectedTier, setSelectedTier] = useState(isApplicantTherapist ? "junior" : "n/a");
 
   const requestedServiceIds = (request.metadata as { requested_service_ids?: string[] } | null)?.requested_service_ids ?? [];
@@ -89,6 +100,7 @@ function RequestCard({
   }
 
   const isSubmitted = request.status === "submitted";
+  const canApprove = approvalCheck.allowed;
 
   return (
     <div
@@ -124,6 +136,11 @@ function RequestCard({
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+          {!canApprove && isSubmitted && (
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cs-error)", background: "var(--cs-error-bg)", padding: "2px 8px", borderRadius: 4 }}>
+              Owner/Manager required
+            </span>
+          )}
           <span
             style={{
               fontSize: "0.75rem",
@@ -166,7 +183,7 @@ function RequestCard({
           >
             {[
               { label: "Preferred role", value: getOnboardingRoleLabel(request.preferred_role ?? "") },
-              { label: "Requested branch", value: request.requested_branch_id ?? "No preference" },
+              { label: "Requested branch", value: branches.find(b => b.id === request.requested_branch_id)?.name ?? request.requested_branch_id ?? "No preference" },
               { label: "Services requested", value: requestedServiceIds.length > 0 ? `${requestedServiceIds.length} service(s)` : "None — will use legacy fallback" },
               { label: "Address", value: request.address ?? "—" },
               { label: "Emergency contact", value: request.emergency_contact_name ? `${request.emergency_contact_name} · ${request.emergency_contact_phone ?? "—"}` : "—" },
@@ -215,7 +232,16 @@ function RequestCard({
                 Assign &amp; Approve
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
+              {!canApprove && (
+                <div style={{ padding: "0.75rem", backgroundColor: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: 6, fontSize: "0.8125rem", color: "#991B1B" }}>
+                  <strong>{approvalCheck.reason ?? "Owner/Manager approval required."}</strong>
+                  <p style={{ margin: "4px 0 0", color: "#B91C1C", fontSize: "0.75rem" }}>
+                    This role has management access and cannot be approved from the current workspace.
+                  </p>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", opacity: canApprove ? 1 : 0.5, pointerEvents: canApprove ? "auto" : "none" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                   <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>Branch</label>
                   <select
@@ -268,7 +294,7 @@ function RequestCard({
 
               <button
                 onClick={handleApprove}
-                disabled={isPending}
+                disabled={isPending || !canApprove}
                 style={{
                   padding: "8px 16px",
                   borderRadius: 6,
@@ -277,8 +303,8 @@ function RequestCard({
                   color: "#fff",
                   fontSize: "0.875rem",
                   fontWeight: 600,
-                  cursor: isPending ? "not-allowed" : "pointer",
-                  opacity: isPending ? 0.7 : 1,
+                  cursor: (isPending || !canApprove) ? "not-allowed" : "pointer",
+                  opacity: (isPending || !canApprove) ? 0.7 : 1,
                   alignSelf: "flex-start",
                 }}
               >
@@ -350,13 +376,11 @@ const selectStyle: React.CSSProperties = {
 export function OnboardingReviewList({
   requests,
   branches,
-  isOwner,
   reviewerSystemRole,
   reviewerBranchId,
 }: {
   requests: OnboardingRequest[];
   branches: Branch[];
-  isOwner: boolean;
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
 }) {
@@ -382,7 +406,6 @@ export function OnboardingReviewList({
           key={r.id}
           request={r}
           branches={branches}
-          isOwner={isOwner}
           reviewerSystemRole={reviewerSystemRole}
           reviewerBranchId={reviewerBranchId}
         />

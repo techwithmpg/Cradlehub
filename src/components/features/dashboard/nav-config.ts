@@ -40,6 +40,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
   { label: "Spaces", href: "/crm/spaces-rules", icon: "Building2" },
+  { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
   { label: "Repeats", href: "/crm/repeats", icon: "Heart" },
   { label: "Lapsed", href: "/crm/lapsed", icon: "ClockAlert" },
   { label: "Waitlist", href: "/crm/waitlist", icon: "UserPlus" },
@@ -52,6 +53,7 @@ const CSR_HEAD_NAV_ITEMS: NavItem[] = [
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
+  { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
   { label: "Waitlist", href: "/crm/waitlist", icon: "UserPlus" },
   { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
   { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
@@ -62,6 +64,7 @@ const CSR_STAFF_NAV_ITEMS: NavItem[] = [
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
+  { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
   { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
   { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
 ];

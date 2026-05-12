@@ -99,7 +99,7 @@ export function canApproveStaffOnboarding({
       return {
         allowed: false,
         reason: "You can only approve staff for your own branch.",
-        assignableRoles: ["staff"],
+        assignableRoles: ["staff", "csr_staff", "driver", "utility"],
       };
     }
 
@@ -108,14 +108,14 @@ export function canApproveStaffOnboarding({
       return {
         allowed: false,
         reason: "Management and admin roles require owner or manager approval.",
-        assignableRoles: ["staff"],
+        assignableRoles: ["staff", "csr_staff", "driver", "utility"],
       };
     }
 
     // Can only assign operational roles
     return {
       allowed: true,
-      assignableRoles: ["staff"], // CSR can only assign the base operational role
+      assignableRoles: ["staff", "csr_staff", "driver", "utility"],
     };
   }
 

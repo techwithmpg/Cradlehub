@@ -4,10 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllBranches } from "@/lib/queries/branches";
 import { OnboardingReviewList } from "@/components/features/staff-onboarding/onboarding-review-list";
+import { canReviewStaffOnboarding } from "@/lib/permissions";
 
-export const metadata = { title: "Onboarding Requests" };
+export const metadata = { title: "Staff Applications | Front Desk" };
 
-async function requireOwnerOrManager() {
+async function requireAuthorizedStaff() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -19,28 +20,35 @@ async function requireOwnerOrManager() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"].includes(me.system_role)) {
-    redirect("/owner");
+  if (!me || !canReviewStaffOnboarding(me.system_role)) {
+    redirect("/crm/today");
   }
 
   return me;
 }
 
-export default async function OwnerOnboardingPage({
+export default async function CrmOnboardingPage({
   searchParams,
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  const me = await requireOwnerOrManager();
+  const me = await requireAuthorizedStaff();
   const { status = "submitted" } = await searchParams;
 
   const admin = createAdminClient();
+  
+  // CSR can only see requests for their own branch (unless owner/manager)
+  let query = admin
+    .from("staff_onboarding_requests")
+    .select("*")
+    .eq("status", status);
+  
+  if (me.system_role !== "owner" && me.branch_id) {
+    query = query.eq("requested_branch_id", me.branch_id);
+  }
+
   const [requestsResult, branches] = await Promise.all([
-    admin
-      .from("staff_onboarding_requests")
-      .select("*")
-      .eq("status", status)
-      .order("created_at", { ascending: false }),
+    query.order("created_at", { ascending: false }),
     getAllBranches(),
   ]);
 
@@ -49,10 +57,32 @@ export default async function OwnerOnboardingPage({
   return (
     <div>
       <PageHeader
-        title="Onboarding Requests"
-        description="Review and approve staff applications submitted via the shared onboarding link."
+        title="Staff Applications"
+        description="Review staff onboarding requests and activate approved operational staff."
         icon="📋"
       />
+
+      <div style={{ 
+        marginBottom: "1.5rem", 
+        padding: "1rem", 
+        backgroundColor: "var(--cs-surface-warm)", 
+        borderRadius: 8,
+        border: "1px solid var(--cs-border-soft)",
+        fontSize: "0.8125rem",
+        color: "var(--cs-text-muted)",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "0.75rem"
+      }}>
+        <span style={{ fontSize: "1.25rem" }}>ℹ️</span>
+        <div>
+          <p style={{ margin: 0, fontWeight: 500, color: "var(--cs-text)" }}>MVP Helper Note</p>
+          <p style={{ margin: "4px 0 0" }}>
+            CSR users can approve only normal operational staff (Therapists, Drivers, Utility, and Front Desk). 
+            Management roles require owner or manager approval.
+          </p>
+        </div>
+      </div>
 
       {/* Status tabs */}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>

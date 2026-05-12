@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllBranches } from "@/lib/queries/branches";
-import { OnboardingReviewList } from "@/app/(dashboard)/owner/staff/onboarding/review-list";
+import { OnboardingReviewList } from "@/components/features/staff-onboarding/onboarding-review-list";
 
 export const metadata = { title: "Onboarding Requests" };
 
@@ -78,7 +78,6 @@ export default async function ManagerOnboardingPage({
       <OnboardingReviewList
         requests={requests}
         branches={branchOptions}
-        isOwner={false}
         reviewerSystemRole={me.system_role}
         reviewerBranchId={me.branch_id}
       />
