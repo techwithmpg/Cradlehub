@@ -23,7 +23,7 @@ export default async function ManagerOnboardingPage({
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || me.system_role !== "manager") redirect("/manager");
+  if (!me || !["manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"].includes(me.system_role)) redirect("/manager");
   if (!me.branch_id) redirect("/manager");
 
   const { status = "submitted" } = await searchParams;
@@ -79,6 +79,7 @@ export default async function ManagerOnboardingPage({
         requests={requests}
         branches={branchOptions}
         isOwner={false}
+        reviewerSystemRole={me.system_role}
         reviewerBranchId={me.branch_id}
       />
     </div>

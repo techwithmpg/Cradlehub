@@ -2,35 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { approveOnboardingAction, rejectOnboardingAction } from "@/app/staff-onboarding/actions";
+import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
+import { getOnboardingRoleLabel } from "@/lib/staff/onboarding-roles";
+import { isTherapistRole } from "@/lib/staff/profile-completeness";
 import type { Database } from "@/types/supabase";
 
 type OnboardingRequest = Database["public"]["Tables"]["staff_onboarding_requests"]["Row"];
 type Branch = { id: string; name: string };
 
-const SYSTEM_ROLES = [
-  { value: "staff", label: "Service Staff" },
-  { value: "csr_staff", label: "CSR Staff" },
-  { value: "csr", label: "CRM / Front Desk" },
-];
-
-const OWNER_EXTRA_ROLES = [
-  { value: "csr_head", label: "CSR Head" },
-  { value: "manager", label: "Manager" },
-];
-
-const TIERS = [
+const ALL_TIERS = [
   { value: "junior", label: "Junior" },
   { value: "mid", label: "Mid" },
   { value: "senior", label: "Senior" },
+  { value: "n/a", label: "N/A" },
 ];
-
-const PREFERRED_ROLE_LABELS: Record<string, string> = {
-  therapist: "Therapist / Service Staff",
-  csr: "CSR / Front Desk",
-  driver: "Driver",
-  utility: "Utility / Room Prep",
-  other: "Other",
-};
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
@@ -40,11 +25,13 @@ function RequestCard({
   request,
   branches,
   isOwner,
+  reviewerSystemRole,
   reviewerBranchId,
 }: {
   request: OnboardingRequest;
   branches: Branch[];
   isOwner: boolean;
+  reviewerSystemRole: string;
   reviewerBranchId: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -53,15 +40,23 @@ function RequestCard({
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const availableRoles = isOwner
-    ? [...SYSTEM_ROLES, ...OWNER_EXTRA_ROLES]
-    : SYSTEM_ROLES;
+  const approvalCheck = canApproveStaffOnboarding({
+    approverRole: reviewerSystemRole,
+    approverBranchId: reviewerBranchId,
+    targetBranchId: request.requested_branch_id,
+    requestedSystemRole: "staff", // default; user can change within allowed
+  });
+
+  const availableRoles = approvalCheck.assignableRoles.map((r) => ({ value: r, label: r }));
 
   const defaultBranchId = request.requested_branch_id ?? reviewerBranchId ?? branches[0]?.id ?? "";
+  const isApplicantTherapist = isTherapistRole(request.preferred_role ?? "");
 
   const [selectedBranchId, setSelectedBranchId] = useState(defaultBranchId);
-  const [selectedRole, setSelectedRole] = useState("staff");
-  const [selectedTier, setSelectedTier] = useState("junior");
+  const [selectedRole, setSelectedRole] = useState(approvalCheck.assignableRoles[0] ?? "staff");
+  const [selectedTier, setSelectedTier] = useState(isApplicantTherapist ? "junior" : "n/a");
+
+  const requestedServiceIds = (request.metadata as { requested_service_ids?: string[] } | null)?.requested_service_ids ?? [];
 
   function handleApprove() {
     if (!request.staff_id) { setApproveError("No staff record linked to this request."); return; }
@@ -73,6 +68,7 @@ function RequestCard({
         branchId: selectedBranchId,
         systemRole: selectedRole,
         tier: selectedTier,
+        serviceIds: requestedServiceIds,
       });
       if (!result.success) setApproveError(result.error ?? "Failed to approve");
       else window.location.reload();
@@ -169,8 +165,9 @@ function RequestCard({
             }}
           >
             {[
-              { label: "Preferred role", value: PREFERRED_ROLE_LABELS[request.preferred_role ?? ""] ?? request.preferred_role ?? "—" },
+              { label: "Preferred role", value: getOnboardingRoleLabel(request.preferred_role ?? "") },
               { label: "Requested branch", value: request.requested_branch_id ?? "No preference" },
+              { label: "Services requested", value: requestedServiceIds.length > 0 ? `${requestedServiceIds.length} service(s)` : "None — will use legacy fallback" },
               { label: "Address", value: request.address ?? "—" },
               { label: "Emergency contact", value: request.emergency_contact_name ? `${request.emergency_contact_name} · ${request.emergency_contact_phone ?? "—"}` : "—" },
               { label: "Submitted", value: formatDate(request.created_at) },
@@ -246,17 +243,24 @@ function RequestCard({
                   </select>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                  <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>Tier</label>
+                  <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                    {isApplicantTherapist ? "Therapist Level *" : "Tier"}
+                  </label>
                   <select
                     value={selectedTier}
                     onChange={(e) => setSelectedTier(e.target.value)}
                     title="Assign tier"
                     style={selectStyle}
                   >
-                    {TIERS.map((t) => (
+                    {ALL_TIERS.map((t) => (
                       <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
+                  {isApplicantTherapist && selectedTier === "n/a" && (
+                    <span style={{ fontSize: "0.75rem", color: "#92400E" }}>
+                      Therapist level should be Junior, Mid, or Senior.
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -347,11 +351,13 @@ export function OnboardingReviewList({
   requests,
   branches,
   isOwner,
+  reviewerSystemRole,
   reviewerBranchId,
 }: {
   requests: OnboardingRequest[];
   branches: Branch[];
   isOwner: boolean;
+  reviewerSystemRole: string;
   reviewerBranchId: string | null;
 }) {
   if (requests.length === 0) {
@@ -377,6 +383,7 @@ export function OnboardingReviewList({
           request={r}
           branches={branches}
           isOwner={isOwner}
+          reviewerSystemRole={reviewerSystemRole}
           reviewerBranchId={reviewerBranchId}
         />
       ))}

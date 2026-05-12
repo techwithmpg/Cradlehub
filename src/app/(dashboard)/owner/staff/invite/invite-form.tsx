@@ -1,48 +1,32 @@
-﻿"use client";
+"use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { generateInviteAction } from "../actions";
-import type { Database } from "@/types/supabase";
 
-type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
-
-type InviteState = {
-  success?: boolean;
-  error?: string;
-  staffId?: string;
-};
-
-const initialState: InviteState = {};
-
-export function InviteForm({ branches }: { branches: BranchRow[] }) {
+export function InviteForm({
+  onboardingUrl,
+  accessCode,
+  isOwner,
+}: {
+  onboardingUrl: string;
+  accessCode: string;
+  isOwner: boolean;
+}) {
   const router = useRouter();
-  const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
-  const [state, formAction, pending] = useActionState(
-    async (_prev: InviteState, formData: FormData): Promise<InviteState> => {
-      const result = await generateInviteAction({
-        branchId: String(formData.get("branchId") ?? ""),
-        email: String(formData.get("email") ?? ""),
-      });
-      return result as InviteState;
-    },
-    initialState
-  );
+  function handleCopyUrl() {
+    navigator.clipboard.writeText(onboardingUrl);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  }
 
-  const inviteLink = state.staffId
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/onboard/${state.staffId}`
-    : null;
-
-  function handleCopy() {
-    if (inviteLink) {
-      navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  function handleCopyCode() {
+    navigator.clipboard.writeText(accessCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
   }
 
   return (
@@ -54,151 +38,168 @@ export function InviteForm({ branches }: { branches: BranchRow[] }) {
         padding: "1.5rem",
       }}
     >
-      {state.error && (
-        <div
+      {/* Onboarding URL */}
+      <div style={{ marginBottom: "1.25rem" }}>
+        <label
           style={{
-            padding: "0.75rem",
-            backgroundColor: "#FEF2F2",
-            border: "1px solid #FECACA",
-            borderRadius: 8,
-            fontSize: "0.875rem",
-            color: "#991B1B",
-            marginBottom: "1rem",
+            fontSize: "0.8125rem",
+            fontWeight: 600,
+            color: "var(--cs-text-secondary)",
+            display: "block",
+            marginBottom: "0.375rem",
           }}
         >
-          {state.error}
-        </div>
-      )}
-
-      {state.success && inviteLink && (
+          Public Onboarding Link
+        </label>
         <div
           style={{
-            padding: "1rem",
-            backgroundColor: "var(--cs-success-bg)",
-            border: "1px solid var(--cs-success)",
-            borderRadius: 8,
-            marginBottom: "1.5rem",
+            display: "flex",
+            gap: "0.5rem",
+            alignItems: "center",
           }}
         >
-          <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-success)", marginBottom: "0.5rem" }}>
-            ✅ Invite link generated
-          </div>
           <div
             style={{
+              flex: 1,
               padding: "0.625rem 0.75rem",
-              backgroundColor: "var(--cs-surface)",
+              backgroundColor: "var(--cs-surface-warm)",
               borderRadius: 6,
               fontSize: "0.8125rem",
               fontFamily: "monospace",
               wordBreak: "break-all",
               color: "var(--cs-text)",
-              marginBottom: "0.75rem",
+              border: "1px solid var(--cs-border)",
             }}
           >
-            {inviteLink}
+            {onboardingUrl}
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <Button
-              type="button"
-              onClick={handleCopy}
-              size="sm"
-              style={{ backgroundColor: "var(--cs-sand)", color: "#fff", border: "none" }}
+          <Button
+            type="button"
+            onClick={handleCopyUrl}
+            size="sm"
+            style={{
+              backgroundColor: "var(--cs-sand)",
+              color: "#fff",
+              border: "none",
+              flexShrink: 0,
+            }}
+          >
+            {copiedUrl ? "Copied!" : "Copy Link"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Access code */}
+      {accessCode && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <label
+            style={{
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              color: "var(--cs-text-secondary)",
+              display: "block",
+              marginBottom: "0.375rem",
+            }}
+          >
+            Access Code
+          </label>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                padding: "0.625rem 0.75rem",
+                backgroundColor: "var(--cs-surface-warm)",
+                borderRadius: 6,
+                fontSize: "0.8125rem",
+                fontFamily: "monospace",
+                letterSpacing: "0.15em",
+                color: "var(--cs-text)",
+                border: "1px solid var(--cs-border)",
+              }}
             >
-              {copied ? "Copied!" : "Copy Link"}
-            </Button>
+              {accessCode}
+            </div>
             <Button
               type="button"
+              onClick={handleCopyCode}
+              size="sm"
               variant="outline"
-              size="sm"
-              onClick={() => router.push("/owner/staff?tab=pending")}
+              style={{ flexShrink: 0 }}
             >
-              View Pending
+              {copiedCode ? "Copied!" : "Copy Code"}
             </Button>
           </div>
+          <p
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--cs-text-muted)",
+              margin: "0.375rem 0 0",
+            }}
+          >
+            Applicants must enter this code on the onboarding page.
+          </p>
         </div>
       )}
 
-      {!state.success && (
-        <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <Label htmlFor="email">Email (optional)</Label>
-            <Input id="email" name="email" type="email" placeholder="maria@cradlespa.com" />
-            <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: 0 }}>
-              If provided, you can share this with the staff member for reference.
-            </p>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <Label htmlFor="branchId">Branch *</Label>
-            <select
-              id="branchId"
-              name="branchId"
-              required
-              style={{
-                height: 36,
-                borderRadius: 6,
-                border: "1px solid var(--cs-border)",
-                padding: "0 0.5rem",
-                fontSize: "0.875rem",
-                backgroundColor: "var(--cs-surface)",
-                color: "var(--cs-text)",
-              }}
+      {/* Instructions */}
+      <div
+        style={{
+          padding: "0.75rem",
+          backgroundColor: "var(--cs-surface-warm)",
+          border: "1px solid var(--cs-border-soft)",
+          borderRadius: 8,
+          fontSize: "0.8125rem",
+          color: "var(--cs-text-muted)",
+          marginBottom: "1.25rem",
+        }}
+      >
+        <strong style={{ color: "var(--cs-text)" }}>How it works:</strong>
+        <ol style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem", lineHeight: 1.5 }}>
+          <li>Copy the onboarding link above</li>
+          <li>Share the link and access code with the applicant</li>
+          <li>They fill in their details and select their intended role</li>
+          <li>They appear in{" "}
+            <a
+              href={isOwner ? "/owner/staff/onboarding" : "/manager/staff/onboarding"}
+              style={{ color: "var(--cs-sand)", textDecoration: "none" }}
             >
-              <option value="">Select branch…</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              Onboarding Requests
+            </a>{" "}
+            for you to review
+          </li>
+          <li>Approve them and assign their final system role, tier, and branch</li>
+        </ol>
+      </div>
 
-          <div
-            style={{
-              padding: "0.75rem",
-              backgroundColor: "var(--cs-surface-warm)",
-              border: "1px solid var(--cs-border-soft)",
-              borderRadius: 8,
-              fontSize: "0.8125rem",
-              color: "var(--cs-text-muted)",
-            }}
-          >
-            <strong style={{ color: "var(--cs-text)" }}>How it works:</strong>
-            <ol style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem", lineHeight: 1.5 }}>
-              <li>Generate a unique invite link</li>
-              <li>Share the link with the new staff member</li>
-              <li>They fill in their details and create a password</li>
-              <li>They appear in Pending Approvals for you to review</li>
-              <li>Approve them and assign their final role, tier, and branch</li>
-            </ol>
-          </div>
-
-          <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.back()}
-              style={{ flex: 1 }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={pending}
-              style={{
-                flex: 1,
-                backgroundColor: "var(--cs-sand)",
-                color: "#fff",
-                border: "none",
-                opacity: pending ? 0.7 : 1,
-              }}
-            >
-              {pending ? "Generating…" : "Generate Invite Link"}
-            </Button>
-          </div>
-        </form>
-      )}
+      {/* Actions */}
+      <div style={{ display: "flex", gap: "0.75rem" }}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.back()}
+          style={{ flex: 1 }}
+        >
+          Back
+        </Button>
+        <Button
+          type="button"
+          onClick={() => router.push(isOwner ? "/owner/staff/onboarding" : "/manager/staff/onboarding")}
+          style={{
+            flex: 1,
+            backgroundColor: "var(--cs-sand)",
+            color: "#fff",
+            border: "none",
+          }}
+        >
+          View Onboarding Requests
+        </Button>
+      </div>
     </div>
   );
 }
-

@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
+import { mapPreferredRoleToStaffType } from "@/lib/staff/onboarding-roles";
+import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 
 export type OnboardingFormState = {
   success?: boolean;
@@ -38,6 +40,7 @@ export async function submitStaffOnboardingAction(
   const emergencyContactName = String(formData.get("emergencyContactName") ?? "").trim() || null;
   const emergencyContactPhone = String(formData.get("emergencyContactPhone") ?? "").trim() || null;
   const experienceNotes = String(formData.get("experienceNotes") ?? "").trim() || null;
+  const serviceIds = formData.getAll("serviceIds").map((v) => String(v));
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
   const consent = formData.get("consent") === "on";
@@ -95,6 +98,7 @@ export async function submitStaffOnboardingAction(
       phone,
       branch_id: branchId,
       system_role: "staff",
+      staff_type: mapPreferredRoleToStaffType(preferredRole),
       tier: "junior",
       is_active: false,
     })
@@ -140,10 +144,14 @@ export async function submitStaffOnboardingAction(
     emergency_contact_phone: emergencyContactPhone,
     experience_notes: experienceNotes,
     preferred_role: preferredRole,
-    requested_branch_id: preferredBranchId,
+    requested_branch_id: branchId,
     auth_user_id: authUserId,
     staff_id: staffId,
     status: "submitted",
+    metadata: {
+      requested_service_ids: serviceIds.length > 0 ? serviceIds : [],
+      profile_notes: experienceNotes,
+    },
   }).select("id").single();
 
   if (requestInsert.error) {
@@ -155,7 +163,7 @@ export async function submitStaffOnboardingAction(
   const requestId = requestInsert.data?.id;
   if (requestId) {
     const notifBody = `${fullName} submitted an onboarding application.`;
-    await Promise.all([
+    const notifications = [
       createNotification({
         targetWorkspace: "owner",
         type: "staff_onboarding_submitted",
@@ -179,7 +187,27 @@ export async function submitStaffOnboardingAction(
         priority: "high",
         requiresAction: true,
       }),
-    ]);
+    ];
+
+    // If no services selected, add a profile-incomplete notification for managers
+    if (serviceIds.length === 0) {
+      notifications.push(
+        createNotification({
+          branchId: branchId,
+          targetWorkspace: "manager",
+          type: "staff_profile_incomplete",
+          title: "New applicant — services not selected",
+          body: `${fullName} applied but did not select any services. Please assign capabilities during review.`,
+          entityType: "staff_onboarding_request",
+          entityId: requestId,
+          actionHref: getNotificationTargetPath({ workspace: "manager", entityType: "staff_onboarding_request", entityId: requestId }),
+          priority: "normal",
+          requiresAction: true,
+        })
+      );
+    }
+
+    await Promise.all(notifications);
   }
 
   return { success: true };
@@ -190,13 +218,14 @@ export async function getBranchesForOnboarding() {
   return branches.map((b) => ({ id: b.id, name: b.name }));
 }
 
-// ── Approve onboarding request (owner or manager) ─────────────────────────
+// ── Approve onboarding request (owner, manager, or CSR for MVP) ───────────
 export async function approveOnboardingAction(input: {
   requestId: string;
   staffId: string;
   branchId: string;
   systemRole: string;
   tier: string;
+  serviceIds?: string[];
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -210,19 +239,10 @@ export async function approveOnboardingAction(input: {
     .maybeSingle();
 
   if (!me) return { success: false, error: "No active staff record found" };
-  if (!["owner", "manager"].includes(me.system_role)) {
-    return { success: false, error: "Owner or manager access required" };
-  }
-  const ownerRoles = ["manager", "crm", "csr", "csr_head", "csr_staff", "staff"];
-  const managerRoles = ["crm", "csr", "csr_staff", "staff"];
-  const allowedRoles = me.system_role === "owner" ? ownerRoles : managerRoles;
-  if (!allowedRoles.includes(input.systemRole)) {
-    return { success: false, error: "That role cannot be assigned through onboarding." };
-  }
 
   const { data: request } = await supabase
     .from("staff_onboarding_requests")
-    .select("id, requested_branch_id, staff_id, status")
+    .select("id, requested_branch_id, staff_id, status, preferred_role, metadata")
     .eq("id", input.requestId)
     .maybeSingle();
 
@@ -233,25 +253,55 @@ export async function approveOnboardingAction(input: {
   if (request.staff_id && request.staff_id !== input.staffId) {
     return { success: false, error: "Staff record does not match this request." };
   }
-  if (me.system_role === "manager") {
-    if (input.branchId !== me.branch_id || request.requested_branch_id !== me.branch_id) {
-      return { success: false, error: "You can only approve requests for your own branch" };
-    }
+
+  // Permission check using centralized helper
+  const approvalCheck = canApproveStaffOnboarding({
+    approverRole: me.system_role,
+    approverBranchId: me.branch_id,
+    targetBranchId: request.requested_branch_id,
+    requestedSystemRole: input.systemRole,
+  });
+
+  if (!approvalCheck.allowed) {
+    return { success: false, error: approvalCheck.reason ?? "You do not have permission to approve this request." };
+  }
+
+  if (!approvalCheck.assignableRoles.includes(input.systemRole)) {
+    return { success: false, error: "That role cannot be assigned with your permission level." };
   }
 
   const admin = createAdminClient();
 
+  // Update staff record
   const { error: staffErr } = await admin
     .from("staff")
     .update({
       is_active: true,
       branch_id: input.branchId,
       system_role: input.systemRole,
+      staff_type: mapPreferredRoleToStaffType(request?.preferred_role ?? ""),
       tier: input.tier,
     })
     .eq("id", input.staffId);
 
   if (staffErr) return { success: false, error: staffErr.message };
+
+  // Sync service capabilities if provided
+  const confirmedServiceIds = input.serviceIds;
+  if (confirmedServiceIds && confirmedServiceIds.length > 0) {
+    const { error: delErr } = await admin
+      .from("staff_services")
+      .delete()
+      .eq("staff_id", input.staffId);
+    if (delErr) {
+      return { success: false, error: `Activated staff but failed to clear old services: ${delErr.message}` };
+    }
+    const rows = confirmedServiceIds.map((serviceId) => ({ staff_id: input.staffId, service_id: serviceId }));
+    const { error: insErr } = await admin.from("staff_services").insert(rows);
+    if (insErr) {
+      return { success: false, error: `Activated staff but failed to set services: ${insErr.message}` };
+    }
+  }
 
   await admin.from("staff_onboarding_requests").update({
     status: "approved",
@@ -262,10 +312,22 @@ export async function approveOnboardingAction(input: {
   // Resolve pending onboarding notifications for this request
   await resolveNotificationsForEntity("staff_onboarding_request", input.requestId);
 
+  // Notify staff that they were approved
+  await createNotification({
+    recipientStaffId: input.staffId,
+    targetWorkspace: "staff",
+    type: "staff_onboarding_approved",
+    title: "Your account has been approved",
+    body: "Your staff account is now active. Please complete your profile in the staff portal.",
+    priority: "high",
+    requiresAction: true,
+    actionHref: "/staff-portal/profile",
+  });
+
   return { success: true };
 }
 
-// ── Reject onboarding request (owner or manager) ──────────────────────────
+// ── Reject onboarding request (owner, manager, or CSR for MVP) ────────────
 export async function rejectOnboardingAction(input: {
   requestId: string;
   staffId: string;
@@ -283,8 +345,11 @@ export async function rejectOnboardingAction(input: {
     .maybeSingle();
 
   if (!me) return { success: false, error: "No active staff record found" };
-  if (!["owner", "manager"].includes(me.system_role)) {
-    return { success: false, error: "Owner or manager access required" };
+
+  // Allow owner, manager, and CSR roles to reject for MVP
+  const canReject = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"].includes(me.system_role);
+  if (!canReject) {
+    return { success: false, error: "You do not have permission to reject applications." };
   }
 
   const admin = createAdminClient();
@@ -296,8 +361,12 @@ export async function rejectOnboardingAction(input: {
     .maybeSingle();
 
   if (!request) return { success: false, error: "Onboarding request not found" };
-  if (me.system_role === "manager" && request.requested_branch_id !== me.branch_id) {
-    return { success: false, error: "You can only reject requests for your own branch" };
+
+  // Branch scope check for non-owners
+  if (!["owner"].includes(me.system_role)) {
+    if (request.requested_branch_id && request.requested_branch_id !== me.branch_id) {
+      return { success: false, error: "You can only reject requests for your own branch" };
+    }
   }
 
   await admin.from("staff_onboarding_requests").update({

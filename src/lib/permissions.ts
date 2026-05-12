@@ -177,6 +177,11 @@ export function canManageStaff(role: string): boolean {
   return MANAGERS.includes(role);
 }
 
+/** Can approve staff onboarding applications (owner/manager/CSR for MVP) */
+export function canReviewStaffOnboarding(role: string): boolean {
+  return MANAGERS.includes(role) || CSR_ROLES.includes(role);
+}
+
 /** Can manage branches (owner/manager only) */
 export function canManageBranches(role: string): boolean {
   return MANAGERS.includes(role);

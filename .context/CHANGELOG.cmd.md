@@ -1462,3 +1462,49 @@ owMins param
 
 **Build Status:** ? Passing | **Type-check:** ? Passing | **Lint:** ? Passing (0 errors, 0 warnings)
 
+
+
+---
+
+### 2026-05-12 — Kimi (ONBOARD-001 — Eliminate Legacy Invite Flow, Refine Public Onboarding)
+
+**Task:** Remove the insecure legacy invite flow (`/onboard/[staffId]`) that created incomplete staff records. Refine the public `/staff-onboarding` page to be the single entry point for staff applications, with proper `staff_type` mapping from the applicant's selected role.
+
+**Files Removed:**
+- `src/app/onboard/[staffId]/page.tsx` — legacy invite claim page
+- `src/app/onboard/[staffId]/onboard-form.tsx` — legacy invite claim form
+- `src/lib/queries/staff.ts` — removed unused `getStaffForOnboard` query
+
+**Files Created:**
+- `src/app/onboard/page.tsx` — simple redirect to `/staff-onboarding`
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/staff/actions.ts`
+  - Removed `generateInviteAction` — no longer creates incomplete "Pending Invitation" staff rows.
+  - Removed `onboardStaffAction` — eliminated the unauthenticated auth-user creation security hole.
+- `src/app/(dashboard)/owner/staff/invite/page.tsx`
+  - Rewritten as a read-only info page. Passes `onboardingUrl` and `accessCode` to the form.
+- `src/app/(dashboard)/owner/staff/invite/invite-form.tsx`
+  - Rewritten to display the public onboarding URL and access code with copy buttons.
+  - Removed `generateInviteAction` dependency.
+  - Added link to Onboarding Requests page.
+- `src/app/staff-onboarding/actions.ts`
+  - Added `mapPreferredRoleToStaffType()` helper: `therapist`→`therapist`, `csr`→`csr`, `driver`→`driver`, `utility`→`utility`, `other`→`therapist`.
+  - `submitStaffOnboardingAction`: now sets `staff_type` on the created inactive staff row.
+  - `submitStaffOnboardingAction`: fixed `requested_branch_id` to use the resolved `branchId` (fallback to first branch) instead of potentially-null `preferredBranchId`.
+  - `approveOnboardingAction`: now derives and sets `staff_type` from the request's `preferred_role` when activating the staff record.
+- `docs/MVP_SYSTEM_SCORE_REPORT.md`
+  - Marked C5 (`onboardStaffAction` security) and H4 (`generateInviteAction` validation) as ✅ FIXED.
+  - Updated RBAC score from 6→7 and risks table.
+
+**Behavior:**
+- All staff onboarding now goes through `/staff-onboarding` (protected by `STAFF_ONBOARDING_ACCESS_CODE`).
+- Applicants select their intended role during onboarding; the inactive staff record captures the matching `staff_type`.
+- Owner/manager reviews applications in `/owner/staff/onboarding` or `/manager/staff/onboarding`.
+- On approval, the staff record is activated with the reviewer-assigned `system_role`, `tier`, `branch_id`, and the applicant's `staff_type`.
+- No more incomplete "Pending Invitation" staff rows polluting the database.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 76 app routes.

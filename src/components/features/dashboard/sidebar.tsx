@@ -62,10 +62,10 @@ const WORKSPACE_META: Record<string, {
     icon:     "◇",
   },
   crm: {
-    label:    "CRM WORKSPACE",
-    sublabel: "CRM access",
-    accent:   "var(--cs-crm-accent)",
-    accentBg: "rgba(90, 138, 106, 0.15)",
+    label:    "FRONT DESK WORKSPACE",
+    sublabel: "Front-desk access",
+    accent:   "var(--cs-csr-accent)",
+    accentBg: "rgba(138, 122, 90, 0.15)",
     icon:     "✦",
   },
   staff: {
@@ -117,7 +117,12 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
       ? roleWorkspaceKey
       : pathWorkspaceKey ?? roleWorkspaceKey;
   const nav          = NAV_CONFIG[workspaceKey];
-  const meta         = WORKSPACE_META[role] ?? WORKSPACE_META[workspaceKey] ?? WORKSPACE_META["staff"]!;
+  const pathMeta     = WORKSPACE_META[pathWorkspaceKey ?? ""] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
+  const roleMeta     = WORKSPACE_META[role] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
+  const meta         = {
+    ...pathMeta,
+    sublabel: roleMeta.sublabel,
+  };
   if (!nav) return null;
 
   return (

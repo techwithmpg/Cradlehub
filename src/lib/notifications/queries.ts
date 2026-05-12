@@ -56,6 +56,25 @@ export async function getActionRequiredNotificationsAction(
     .slice(0, limit);
 }
 
+export async function getRecentNotificationsAction(
+  limit = 20
+): Promise<WorkspaceNotification[]> {
+  const supabase = await createClient();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("workspace_notifications")
+    .select("*")
+    .in("status", ["unread", "read"])
+    .gte("created_at", thirtyDaysAgo)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error("[notifications] getRecentNotifications", error.message);
+    return [];
+  }
+  return (data ?? []) as WorkspaceNotification[];
+}
+
 export async function getUnreadCountAction(): Promise<number> {
   const supabase = await createClient();
   const { count, error } = await supabase
@@ -91,6 +110,14 @@ export async function markNotificationReadAction(id: string): Promise<void> {
     .from("workspace_notifications")
     .update({ status: "read", read_at: new Date().toISOString() })
     .eq("id", id)
+    .eq("status", "unread");
+}
+
+export async function markAllNotificationsReadAction(): Promise<void> {
+  const supabase = await createClient();
+  await supabase
+    .from("workspace_notifications")
+    .update({ status: "read", read_at: new Date().toISOString() })
     .eq("status", "unread");
 }
 

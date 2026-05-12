@@ -1,49 +1,41 @@
-# CURRENT TASK: MGR-MOB-001 — Mobile Manager Workspace (v2 shell separation + spacing polish)
+# CURRENT TASK: ONBOARD-001 — Eliminate Legacy Invite Flow, Refine Public Onboarding
 
 ## Overview
-Created a mobile-first simplified Manager Workspace that activates only on mobile breakpoints (`< md`). The existing desktop Manager Workspace is preserved exactly.
+Removed the insecure legacy invite flow (`/onboard/[staffId]`) that created incomplete staff records and had no auth checks. The public `/staff-onboarding` page is now the single, secure entry point for all staff applications.
 
-v2 fixes:
-- Desktop workspace header/sidebar hamburger are now hidden on mobile for manager routes.
-- Mobile manager no longer shows "Workspace: Owner" or desktop shell elements.
-- KPI cards, quick actions, and booking cards are more compact.
-- Bottom nav uses safe-area-inset-bottom and page content has enough bottom padding.
-- All screens use tighter spacing for better information density.
+## What changed
+1. **Deleted legacy invite claim flow:**
+   - `/onboard/[staffId]` page and form removed
+   - `/onboard` now redirects to `/staff-onboarding`
+   - `onboardStaffAction` removed (was creating confirmed auth users without verifying caller)
+   - `generateInviteAction` removed (was creating incomplete "Pending Invitation" staff rows)
+   - `getStaffForOnboard` query removed (unused)
 
-## Exact Files Changed
+2. **Refined public onboarding:**
+   - `submitStaffOnboardingAction` now sets `staff_type` based on the applicant's selected role (`therapist`, `csr`, `driver`, `utility`, `other`)
+   - `requested_branch_id` now correctly falls back to the first available branch (fixes manager review visibility)
+   - `approveOnboardingAction` now derives `staff_type` from the request's `preferred_role` on activation
 
-### New files:
-- `src/components/features/manager/mobile/types.ts`
-- `src/components/features/manager/mobile/manager-mobile-workspace.tsx`
-- `src/components/features/manager/mobile/manager-bottom-nav.tsx`
-- `src/components/features/manager/mobile/manager-today-screen.tsx`
-- `src/components/features/manager/mobile/manager-schedule-screen.tsx`
-- `src/components/features/manager/mobile/manager-bookings-screen.tsx`
-- `src/components/features/manager/mobile/manager-staff-screen.tsx`
-- `src/components/features/manager/mobile/manager-approvals-screen.tsx`
-- `src/components/features/manager/mobile/manager-more-screen.tsx`
+3. **Updated owner invite page:**
+   - `/owner/staff/invite` now displays the public onboarding URL and access code
+   - No more per-staff invite links — owners/managers simply share the onboarding link + code
 
-### Modified:
-- `src/app/(dashboard)/manager/page.tsx` — responsive wrapper (`hidden md:block` desktop / `block md:hidden` mobile); fetches additional data for mobile
-- `src/app/(dashboard)/layout.tsx` — header wrapped in `hidden md:block`; main padding changed to `p-0 md:p-5` so mobile workspaces control their own padding
-- `src/components/features/dashboard/sidebar.tsx` — mobile hamburger is hidden on `/manager*` routes since manager has its own mobile shell
+4. **Updated audit report:**
+   - Marked C5 (`onboardStaffAction` security flaw) and H4 (`generateInviteAction` validation) as FIXED
+   - RBAC score bumped from 6→7
 
-## Behavior After Change
-- Desktop (`md` and up): existing `ManagerTodayWorkspace` renders unchanged with full sidebar, KPI cards, timeline, alerts, and action center.
-- Mobile (below `md`): new `ManagerMobileWorkspace` renders with bottom nav (Today, Schedule, Bookings, Staff, More) and simplified card-based screens.
-- Mobile Today screen: greeting, KPI tiles, quick actions, today's booking flow, attention-needed cards.
-- Mobile Schedule screen: staff list with status badges, filter pills (All / Therapists / Available).
-- Mobile Bookings screen: search, Bookings/Issues toggle, status filter pills, action cards.
-- Mobile Staff screen: pending approval banner, Active/Pending/Off Duty tabs, staff cards with badges.
-- Mobile Approvals screen: summary strip, approval cards, operations quick tiles.
-- Mobile More screen: branch summary, alerts, menu links (Notifications, Spaces, Settings, Help, Logout).
+## Files changed
+- `src/app/onboard/[staffId]/page.tsx` — DELETED
+- `src/app/onboard/[staffId]/onboard-form.tsx` — DELETED
+- `src/app/onboard/page.tsx` — CREATED (redirect)
+- `src/lib/queries/staff.ts` — removed `getStaffForOnboard`
+- `src/app/(dashboard)/owner/staff/actions.ts` — removed `generateInviteAction` and `onboardStaffAction`
+- `src/app/(dashboard)/owner/staff/invite/page.tsx` — rewritten as read-only info page
+- `src/app/(dashboard)/owner/staff/invite/invite-form.tsx` — rewritten to show onboarding URL + code
+- `src/app/staff-onboarding/actions.ts` — added `staff_type` mapping, fixed branch fallback
+- `docs/MVP_SYSTEM_SCORE_REPORT.md` — updated scores and risk table
 
 ## Verification
 - `pnpm type-check`: ✅ Passing
-- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing (71/71 app routes)
-
-## Commit Message
-```
-feat(manager): add mobile-first manager workspace variant with shell separation
-```
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing (76 routes)

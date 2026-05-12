@@ -27,7 +27,11 @@ export type NotificationType =
   | "staff_availability_conflict"
   | "marketing_content_updated"
   | "system_warning"
-  | "staff_progress_required";
+  | "staff_progress_required"
+  | "staff_profile_incomplete"
+  | "staff_capabilities_pending"
+  | "staff_capabilities_confirmed"
+  | "staff_therapist_level_missing";
 
 export type NotificationWorkspace =
   | "owner"

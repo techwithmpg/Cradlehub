@@ -2,9 +2,12 @@
 
 import { useState, useTransition, useRef, useCallback } from "react";
 import { submitStaffOnboardingAction, type OnboardingFormState } from "./actions";
+import { ONBOARDING_ROLE_OPTIONS, getOnboardingRoleLabel } from "@/lib/staff/onboarding-roles";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 type Branch = { id: string; name: string };
+
+type ServiceOption = { id: string; name: string; categoryName: string };
 
 type WizardData = {
   accessCode: string;
@@ -16,6 +19,7 @@ type WizardData = {
   profilePreviewUrl: string | null;
   preferredBranchId: string;
   preferredRole: string;
+  serviceIds: string[];
   emergencyContactName: string;
   emergencyContactPhone: string;
   experienceNotes: string;
@@ -28,25 +32,18 @@ const INITIAL_DATA: WizardData = {
   accessCode: "",
   fullName: "", email: "", phone: "", address: "",
   profilePicture: null, profilePreviewUrl: null,
-  preferredBranchId: "", preferredRole: "",
+  preferredBranchId: "", preferredRole: "", serviceIds: [],
   emergencyContactName: "", emergencyContactPhone: "", experienceNotes: "",
   password: "", confirmPassword: "",
   consent: false,
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const ROLES = [
-  { value: "therapist", label: "Therapist", sublabel: "Service Staff", icon: "💆" },
-  { value: "csr",       label: "CSR",       sublabel: "Front Desk",    icon: "🎧" },
-  { value: "driver",    label: "Driver",    sublabel: "Home Service",  icon: "🚗" },
-  { value: "utility",   label: "Utility",   sublabel: "Room Prep",     icon: "🧹" },
-  { value: "other",     label: "Other",     sublabel: "Other role",    icon: "📋" },
-];
-
 const STEPS = [
   { label: "Access",   icon: "🔐" },
   { label: "Profile",  icon: "👤" },
   { label: "Role",     icon: "💼" },
+  { label: "Services", icon: "✂️" },
   { label: "Contact",  icon: "🆘" },
   { label: "Account",  icon: "🔒" },
   { label: "Review",   icon: "✅" },
@@ -308,7 +305,7 @@ function Step3Role({ data, onChange, branches, errors }: {
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
         <span style={labelStyle}>Preferred role *</span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.625rem", marginTop: 2 }}>
-          {ROLES.map((role) => {
+          {ONBOARDING_ROLE_OPTIONS.map((role) => {
             const selected = data.preferredRole === role.value;
             return (
               <button
@@ -327,7 +324,7 @@ function Step3Role({ data, onChange, branches, errors }: {
                   backgroundColor: selected ? "rgba(180,148,111,0.08)" : "var(--cs-surface)",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
-                  gridColumn: role.value === "other" ? "1 / -1" : undefined,
+                  gridColumn: ["other", "managerial", "salon_head"].includes(role.value) ? "1 / -1" : undefined,
                 }}
               >
                 <span style={{ fontSize: "1.75rem" }}>{role.icon}</span>
@@ -360,6 +357,53 @@ function Step3Role({ data, onChange, branches, errors }: {
           </select>
         </div>
       )}
+    </div>
+  );
+}
+
+function Step4Services({ data, onChange }: {
+  data: WizardData;
+  onChange: (k: keyof WizardData, v: unknown) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div style={{ textAlign: "center" }}>
+        <h2 style={stepTitleStyle}>Services You Offer</h2>
+        <p style={stepSubStyle}>
+          Choose the services you can confidently perform. A manager will review and confirm before your profile becomes fully active.
+        </p>
+      </div>
+
+      <div
+        style={{
+          padding: "0.75rem",
+          backgroundColor: "var(--cs-surface-warm)",
+          borderRadius: 8,
+          fontSize: "0.8125rem",
+          color: "var(--cs-text-muted)",
+          lineHeight: 1.5,
+        }}
+      >
+        <strong style={{ color: "var(--cs-text)" }}>Tip:</strong> If you are unsure, leave this empty and a manager will assign services during your review.
+        You will still be visible for booking under legacy scheduling until specialization is configured.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <span style={labelStyle}>Selected: {data.serviceIds.length} service(s)</span>
+        <div
+          style={{
+            padding: "0.75rem",
+            backgroundColor: "var(--cs-surface)",
+            border: "1px solid var(--cs-border)",
+            borderRadius: 8,
+            fontSize: "0.8125rem",
+            color: "var(--cs-text-muted)",
+          }}
+        >
+          Service selection will be enabled once your application is submitted and reviewed by a manager.
+          For now, your preferred role is recorded and services will be assigned during approval.
+        </div>
+      </div>
     </div>
   );
 }
@@ -498,7 +542,8 @@ function Step6Review({ data, onChange, serverError, isPending, onSubmit }: {
   isPending: boolean;
   onSubmit: () => void;
 }) {
-  const roleLabel = ROLES.find((r) => r.value === data.preferredRole)?.label ?? data.preferredRole;
+  const roleLabel = getOnboardingRoleLabel(data.preferredRole);
+  const serviceCount = data.serviceIds.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -525,6 +570,7 @@ function Step6Review({ data, onChange, serverError, isPending, onSubmit }: {
         <ReviewRow label="Phone"                 value={data.phone} />
         <ReviewRow label="Address"               value={data.address} />
         <ReviewRow label="Preferred role"        value={roleLabel} />
+        <ReviewRow label="Services selected"     value={serviceCount > 0 ? `${serviceCount} service(s)` : "None selected — manager will assign during review"} />
         <ReviewRow label="Emergency contact"     value={data.emergencyContactName} />
         <ReviewRow label="Emergency phone"       value={data.emergencyContactPhone} />
         {data.experienceNotes && (
@@ -646,6 +692,9 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
       if (!data.preferredRole) errs.preferredRole = "Please choose a role";
     }
     if (step === 4) {
+      // Services step is optional — no validation required
+    }
+    if (step === 5) {
       if (data.password.length < 8) errs.password = "Password must be at least 8 characters";
       if (data.password !== data.confirmPassword) errs.confirmPassword = "Passwords do not match";
     }
@@ -674,6 +723,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
     fd.append("address",              data.address);
     fd.append("preferredBranchId",    data.preferredBranchId);
     fd.append("preferredRole",        data.preferredRole);
+    data.serviceIds.forEach((id) => fd.append("serviceIds", id));
     fd.append("emergencyContactName", data.emergencyContactName);
     fd.append("emergencyContactPhone",data.emergencyContactPhone);
     fd.append("experienceNotes",      data.experienceNotes);
@@ -747,9 +797,10 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
         {step === 0 && <Step1Access  data={data} onChange={update} errors={errors} />}
         {step === 1 && <Step2Profile data={data} onChange={update} errors={errors} />}
         {step === 2 && <Step3Role    data={data} onChange={update} branches={branches} errors={errors} />}
-        {step === 3 && <Step4Emergency data={data} onChange={update} />}
-        {step === 4 && <Step5Account data={data} onChange={update} errors={errors} />}
-        {step === 5 && (
+        {step === 3 && <Step4Services data={data} onChange={update} />}
+        {step === 4 && <Step4Emergency data={data} onChange={update} />}
+        {step === 5 && <Step5Account data={data} onChange={update} errors={errors} />}
+        {step === 6 && (
           <Step6Review
             data={data}
             onChange={update}
@@ -761,7 +812,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
       </div>
 
       {/* Navigation */}
-      {step < 5 && (
+      {step < 6 && (
         <div
           style={{
             display: "flex",
@@ -803,7 +854,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
               cursor: "pointer",
             }}
           >
-            {step === 4 ? "Review Application →" : "Continue →"}
+            {step === 5 ? "Review Application →" : "Continue →"}
           </button>
         </div>
       )}

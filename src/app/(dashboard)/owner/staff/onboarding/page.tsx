@@ -19,7 +19,7 @@ async function requireOwnerOrManager() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !["owner", "manager"].includes(me.system_role)) {
+  if (!me || !["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"].includes(me.system_role)) {
     redirect("/owner");
   }
 
@@ -81,6 +81,7 @@ export default async function OwnerOnboardingPage({
         requests={requests}
         branches={branches.map((b) => ({ id: b.id, name: b.name }))}
         isOwner={me.system_role === "owner"}
+        reviewerSystemRole={me.system_role}
         reviewerBranchId={me.branch_id}
       />
     </div>

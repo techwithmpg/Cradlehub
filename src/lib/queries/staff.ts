@@ -251,14 +251,4 @@ export async function getPendingStaff() {
   throw new Error(primary.error.message);
 }
 
-// ── Staff record for onboarding claim verification ────────────────────────
-export async function getStaffForOnboard(staffId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("staff")
-    .select("id, auth_user_id, is_active, created_at, branch_id, branches ( id, name )")
-    .eq("id", staffId)
-    .single();
-  if (error) return null;
-  return data;
-}
+
