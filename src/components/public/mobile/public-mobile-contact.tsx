@@ -6,7 +6,6 @@ import {
   Phone,
   type LucideIcon,
 } from "lucide-react";
-import { publicPhones } from "@/lib/public/public-site-data";
 import type { Database } from "@/types/supabase";
 
 const CRADLE_FACEBOOK_HREF =
@@ -14,7 +13,7 @@ const CRADLE_FACEBOOK_HREF =
 
 type MobileContactBranch = Pick<
   Database["public"]["Tables"]["branches"]["Row"],
-  "id" | "name" | "address" | "phone" | "email" | "messenger_link" | "fb_page"
+  "id" | "name" | "address" | "phone" | "secondary_phone" | "email" | "messenger_link" | "fb_page" | "opening_hours"
 >;
 
 type ContactAction = {
@@ -24,8 +23,11 @@ type ContactAction = {
   Icon: LucideIcon;
 };
 
-function primaryPhoneHref() {
-  return publicPhones[0]?.href ?? "tel:+639177077070";
+function primaryPhoneHref(branch: MobileContactBranch | undefined) {
+  if (branch?.phone) {
+    return `tel:${branch.phone.replace(/\s/g, "")}`;
+  }
+  return "tel:+639177077070";
 }
 
 function branchMapHref(branch: MobileContactBranch) {
@@ -37,11 +39,12 @@ function getContactActions(branches: MobileContactBranch[]): ContactAction[] {
     (branch) => branch.messenger_link || branch.fb_page
   );
   const firstBranchWithEmail = branches.find((branch) => branch.email);
+  const firstBranchWithPhone = branches.find((branch) => branch.phone);
 
   const actions: ContactAction[] = [
     {
       label: "Call Us",
-      href: primaryPhoneHref(),
+      href: primaryPhoneHref(firstBranchWithPhone),
       Icon: Phone,
     },
   ];
@@ -151,7 +154,7 @@ export function PublicMobileContact({
           <h2 className="mb-3 text-[14px] font-semibold">Opening Hours</h2>
           <div className="flex items-center justify-between text-[12px]">
             <span>Daily</span>
-            <span>10:00 AM - 10:00 PM</span>
+            <span>{branches[0]?.opening_hours ?? "10:00 AM - 10:00 PM"}</span>
           </div>
         </div>
       </section>

@@ -35,13 +35,12 @@ import {
   guestReasons,
   heroProofPoints,
   planningNotes,
-  publicBranches,
-  publicPhones,
   quickTrustPoints,
   settingCards,
   teamRoles,
   whyGuestsChooseCradle,
 } from "@/lib/public/public-site-data";
+import type { Database } from "@/types/supabase";
 import { ScrollReveal } from "./scroll-reveal";
 import { FaqAccordion } from "./faq-accordion";
 import { ServiceShowcaseCarousel } from "./service-showcase-carousel";
@@ -131,7 +130,13 @@ function servicesForCategory(
   return services.filter((service) => service.categoryName === categoryName);
 }
 
-export async function HomePageSections() {
+type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
+
+type HomePageSectionsProps = {
+  branches?: BranchRow[];
+};
+
+export async function HomePageSections({ branches = [] }: HomePageSectionsProps) {
   const [services, managedSections] = await Promise.all([
     getPublicServiceCatalog(),
     getPublicSiteSections({ includeDisabled: true }),
@@ -330,16 +335,31 @@ export async function HomePageSections() {
                   Contact
                 </p>
                 <div className="mt-3 flex flex-col gap-2">
-                  {publicPhones.map((phone) => (
-                    <a
-                      key={phone.href}
-                      href={phone.href}
-                      className="text-lg font-semibold text-[#163A2B] transition hover:text-[#B68A3C]"
-                      style={{ fontFamily: "var(--sp-font-display)" }}
-                    >
-                      {phone.label}
-                    </a>
+                  {branches.slice(0, 1).map((branch) => (
+                    <div key={branch.id} className="flex flex-col gap-2">
+                      {branch.phone && (
+                        <a
+                          href={`tel:${branch.phone.replace(/\s/g, "")}`}
+                          className="text-lg font-semibold text-[#163A2B] transition hover:text-[#B68A3C]"
+                          style={{ fontFamily: "var(--sp-font-display)" }}
+                        >
+                          {branch.phone}
+                        </a>
+                      )}
+                      {branch.secondary_phone && (
+                        <a
+                          href={`tel:${branch.secondary_phone.replace(/\s/g, "")}`}
+                          className="text-lg font-semibold text-[#163A2B] transition hover:text-[#B68A3C]"
+                          style={{ fontFamily: "var(--sp-font-display)" }}
+                        >
+                          {branch.secondary_phone}
+                        </a>
+                      )}
+                    </div>
                   ))}
+                  {branches.length === 0 && (
+                    <span className="text-sm text-[#6B7A6F]">Contact info updating</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -791,7 +811,7 @@ export async function HomePageSections() {
                   Book Appointment
                 </Link>
                 <a
-                  href={publicPhones[0]?.href ?? "tel:+639177077070"}
+                  href={branches[0]?.phone ? `tel:${branches[0].phone.replace(/\s/g, "")}` : "tel:+639177077070"}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/24 px-6 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:border-[#E8D5A3] hover:bg-white/10"
                 >
                   <Phone className="h-4 w-4" aria-hidden="true" />
@@ -804,34 +824,50 @@ export async function HomePageSections() {
               <div className="rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6">
                 <Clock className="mb-5 h-5 w-5 text-[#E8D5A3]" aria-hidden="true" />
                 <h3 className="font-semibold">Availability</h3>
-                <p className="mt-2 text-[13px] leading-6 text-[#F7F3EB]/64">{businessInfo.hours}</p>
+                <p className="mt-2 text-[13px] leading-6 text-[#F7F3EB]/64">
+                  {branches[0]?.opening_hours ?? businessInfo.hours}
+                </p>
               </div>
               <div className="rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6">
                 <Phone className="mb-5 h-5 w-5 text-[#E8D5A3]" aria-hidden="true" />
                 <h3 className="font-semibold">Phone</h3>
                 <div className="mt-3 flex flex-col gap-2">
-                  {publicPhones.map((phone) => (
-                    <a
-                      key={phone.href}
-                      href={phone.href}
-                      className="text-[14px] text-[#F7F3EB]/76 transition hover:text-[#E8D5A3]"
-                    >
-                      {phone.label}
-                    </a>
+                  {branches.slice(0, 1).map((branch) => (
+                    <div key={branch.id} className="flex flex-col gap-2">
+                      {branch.phone && (
+                        <a
+                          href={`tel:${branch.phone.replace(/\s/g, "")}`}
+                          className="text-[14px] text-[#F7F3EB]/76 transition hover:text-[#E8D5A3]"
+                        >
+                          {branch.phone}
+                        </a>
+                      )}
+                      {branch.secondary_phone && (
+                        <a
+                          href={`tel:${branch.secondary_phone.replace(/\s/g, "")}`}
+                          className="text-[14px] text-[#F7F3EB]/76 transition hover:text-[#E8D5A3]"
+                        >
+                          {branch.secondary_phone}
+                        </a>
+                      )}
+                    </div>
                   ))}
+                  {branches.length === 0 && (
+                    <span className="text-[13px] text-[#F7F3EB]/64">Contact info updating</span>
+                  )}
                 </div>
               </div>
-              {publicBranches.map((branch) => (
+              {branches.map((branch) => (
                 <div
                   key={branch.id}
                   className="rounded-[8px] border border-[#F7F3EB]/12 bg-white/[0.04] p-6"
                 >
                   <MapPin className="mb-5 h-5 w-5 text-[#E8D5A3]" aria-hidden="true" />
                   <h3 className="font-semibold">{branch.name}</h3>
-                  <p className="mt-2 text-[13px] text-[#F7F3EB]/64">{branch.area}</p>
-                  {branch.mapHref ? (
+                  <p className="mt-2 text-[13px] text-[#F7F3EB]/64">{branch.address}</p>
+                  {branch.maps_embed_url ? (
                     <a
-                      href={branch.mapHref}
+                      href={branch.maps_embed_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-4 inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#E8D5A3] transition hover:text-[#FCFAF5]"
@@ -918,7 +954,7 @@ export async function HomePageSections() {
               Book Appointment
             </Link>
             <a
-              href={publicPhones[0]?.href ?? "tel:+639177077070"}
+              href={branches[0]?.phone ? `tel:${branches[0].phone.replace(/\s/g, "")}` : "tel:+639177077070"}
               className="inline-flex min-h-12 items-center justify-center rounded-[8px] border border-[#163A2B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#163A2B] transition hover:bg-[#163A2B] hover:text-[#FCFAF5]"
             >
               Call / Message

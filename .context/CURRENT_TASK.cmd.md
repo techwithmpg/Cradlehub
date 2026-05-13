@@ -1,41 +1,38 @@
-# CURRENT TASK: ONBOARD-001 — Eliminate Legacy Invite Flow, Refine Public Onboarding
+# CURRENT TASK: CONTROL-001 — Booking Control Console MVP
 
 ## Overview
-Removed the insecure legacy invite flow (`/onboard/[staffId]`) that created incomplete staff records and had no auth checks. The public `/staff-onboarding` page is now the single, secure entry point for all staff applications.
+Created a professional operational control page (`/manager/control` and `/crm/control`) that gives manager and CRM users a consolidated view of today's bookings with KPIs, progress tracking, payment actions, and operational warnings.
 
 ## What changed
-1. **Deleted legacy invite claim flow:**
-   - `/onboard/[staffId]` page and form removed
-   - `/onboard` now redirects to `/staff-onboarding`
-   - `onboardStaffAction` removed (was creating confirmed auth users without verifying caller)
-   - `generateInviteAction` removed (was creating incomplete "Pending Invitation" staff rows)
-   - `getStaffForOnboard` query removed (unused)
+1. **New components:**
+   - `control-kpi-strip.tsx` — 7 operational KPIs
+   - `control-booking-card.tsx` — Enhanced cards with progress stepper, payment badges, warning banners, inline actions
+   - `control-queue.tsx` — Tabbed queue (All, Active, Home, In Spa, Unpaid, Issues)
+   - `control-console-page.tsx` — Main layout with left queue + right summary rail
 
-2. **Refined public onboarding:**
-   - `submitStaffOnboardingAction` now sets `staff_type` based on the applicant's selected role (`therapist`, `csr`, `driver`, `utility`, `other`)
-   - `requested_branch_id` now correctly falls back to the first available branch (fixes manager review visibility)
-   - `approveOnboardingAction` now derives `staff_type` from the request's `preferred_role` on activation
+2. **New routes:**
+   - `/manager/control` — Manager branch-scoped control console
+   - `/crm/control` — CRM/CSR branch-scoped control console
 
-3. **Updated owner invite page:**
-   - `/owner/staff/invite` now displays the public onboarding URL and access code
-   - No more per-staff invite links — owners/managers simply share the onboarding link + code
+3. **Query enhancements:**
+   - `getTodaysSchedule` select variants now include `booking_progress_status` and timestamp fields
+   - `TodayScheduleRow` type extended with `MaybeProgressFields`
 
-4. **Updated audit report:**
-   - Marked C5 (`onboardStaffAction` security flaw) and H4 (`generateInviteAction` validation) as FIXED
-   - RBAC score bumped from 6→7
+4. **Navigation:**
+   - "Control" added to Manager, CRM, CSR Head, and CSR Staff sidebars
 
 ## Files changed
-- `src/app/onboard/[staffId]/page.tsx` — DELETED
-- `src/app/onboard/[staffId]/onboard-form.tsx` — DELETED
-- `src/app/onboard/page.tsx` — CREATED (redirect)
-- `src/lib/queries/staff.ts` — removed `getStaffForOnboard`
-- `src/app/(dashboard)/owner/staff/actions.ts` — removed `generateInviteAction` and `onboardStaffAction`
-- `src/app/(dashboard)/owner/staff/invite/page.tsx` — rewritten as read-only info page
-- `src/app/(dashboard)/owner/staff/invite/invite-form.tsx` — rewritten to show onboarding URL + code
-- `src/app/staff-onboarding/actions.ts` — added `staff_type` mapping, fixed branch fallback
-- `docs/MVP_SYSTEM_SCORE_REPORT.md` — updated scores and risk table
+- `src/lib/queries/bookings.ts` — progress fields in select variants
+- `src/components/features/dashboard/nav-config.ts` — Control nav items
+- `src/components/features/control-console/*` — 5 new files
+- `src/app/(dashboard)/manager/control/page.tsx` — CREATED
+- `src/app/(dashboard)/crm/control/page.tsx` — CREATED
 
 ## Verification
 - `pnpm type-check`: ✅ Passing
-- `pnpm lint`: ✅ Passing
-- `pnpm build`: ✅ Passing (76 routes)
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 79 app routes.
+
+## Next Phase
+Phase 3.1: Owner cross-branch control console (requires cross-branch today's schedule query).
+Phase 4: Booking Delivery Type Cleanup (`in_spa` as first-class database type).

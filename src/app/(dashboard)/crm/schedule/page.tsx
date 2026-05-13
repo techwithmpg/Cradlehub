@@ -4,6 +4,7 @@ import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 
 async function getCRMContext() {
   const supabase = await createClient();
@@ -66,6 +67,7 @@ export default async function CRMSchedulePage({
       branchResources={resourcesResult.data ?? []}
       stats={stats}
       viewBookingsHref="/crm/bookings"
+      paymentAction={updateBookingPaymentAction}
     />
   );
 }

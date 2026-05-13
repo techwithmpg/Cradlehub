@@ -133,3 +133,104 @@
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 77 app routes.
+
+---
+
+### 2026-05-13 — Kimi (BRANCH-SOT-001 — Public Branch Address Source of Truth)
+
+**Task:** Unify public branch/contact data into a single database source of truth. Eliminate dual-sourcing between `branches` table and hardcoded `public-site-data.ts`.
+
+**Files Created:**
+- `supabase/migrations/20260516000001_branch_public_fields.sql` — adds `opening_hours`, `secondary_phone`, `sort_order` to `branches`
+
+**Files Changed:**
+- `src/types/supabase.ts` — added `opening_hours`, `secondary_phone`, `sort_order` to `branches` Row/Insert/Update types
+- `src/lib/queries/branches.ts` — added `getPublicBranches()` helper (active branches ordered by `sort_order`, then `name`)
+- `src/lib/public/public-site-data.ts` — marked `publicPhones` and `publicBranches` as `@deprecated` with explanation
+- `src/app/(public)/layout.tsx` — now async; fetches `getPublicBranches()` and passes `primaryPhone` to `SiteHeader`, `branches` to `SiteFooter`
+- `src/app/page.tsx` — now async; fetches `getPublicBranches()`, passes to `SiteHeader`, `SiteFooter`, `PublicMobileHome`, `HomePageSections`; FAQ answers now dynamically list branch names from DB
+- `src/app/(public)/contact/page.tsx` — uses branch data for primary/secondary phones, opening hours, branch name/address cards, and CTA call button
+- `src/app/(public)/branches/page.tsx` — switched to `getPublicBranches()`; per-branch `opening_hours` replaces hardcoded "Daily · 9:00 AM – 9:00 PM"
+- `src/components/public/site-header.tsx` — accepts `primaryPhone` prop instead of importing hardcoded `publicPhones`
+- `src/components/public/site-footer.tsx` — accepts `branches` prop; derives hours text from first branch `opening_hours`
+- `src/components/public/home-page-sections.tsx` — accepts `branches` prop; contact section phones, branch cards, and CTA buttons now use branch data
+- `src/components/public/mobile/public-mobile-home.tsx` — accepts `branches` prop; FAQ branch answer is now dynamic
+- `src/components/public/mobile/public-mobile-contact.tsx` — `primaryPhoneHref()` now uses first branch phone; opening hours uses branch `opening_hours`
+- `src/components/public/mobile/public-mobile-branches.tsx` — uses `branch.opening_hours` instead of hardcoded fallback text
+
+**Design Decisions:**
+- Marketing narrative (hero copy, proof points, trust points) remains in `public-site-data.ts` and `public_site_sections` table. Only operational contact/address/hours data was migrated.
+- All components keep safe fallbacks when branch data is missing: "Contact info updating", "Branch details are being updated", etc.
+- `getPublicBranches()` orders by `sort_order` then `name`, giving owners control over display order without code changes.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 77 app routes.
+
+---
+
+### 2026-05-13 — Kimi (PAYMENT-001 — Manual Payment Recording Capability)
+
+**Task:** Wire PaymentActionMenu into all workspace contexts, create booking_payment_logs audit table, and ensure all payment changes are logged with old→new values.
+
+**Files Created:**
+- `supabase/migrations/20260517000001_booking_payment_logs.sql` — append-only audit table for payment changes
+- `supabase/migrations/20260517000002_update_daily_schedule_payment_fields.sql` — adds payment fields to `get_daily_schedule` RPC
+
+**Files Changed:**
+- `src/types/supabase.ts` — added `booking_payment_logs` table type
+- `src/lib/validations/booking.ts` — extended `updateBookingPaymentSchema` with optional `reason` field
+- `src/components/features/dashboard/payment-action-menu.tsx` — added `reason` state, `confirmUnpaid` view, significant-change guard (requires reason for voids/refunds/corrections)
+- `src/app/(dashboard)/owner/bookings/actions.ts` — `ownerUpdateBookingPaymentAction` now reads old values, inserts audit log, then updates
+- `src/app/(dashboard)/manager/bookings/actions.ts` — `updateBookingPaymentAction` now reads old values, inserts audit log, then updates
+- `src/components/features/schedule/schedule-details-panel.tsx` — fixed hardcoded payment values, now passes actual booking payment state
+- `src/lib/queries/schedule.ts` — `DailyScheduleBooking` type extended with payment fields
+- `src/app/(dashboard)/manager/bookings/page.tsx` — wired `updateBookingPaymentAction`
+- `src/app/(dashboard)/manager/schedule/page.tsx` — wired `updateBookingPaymentAction`
+- `src/app/(dashboard)/crm/bookings/page.tsx` — wired `updateBookingPaymentAction`
+- `src/app/(dashboard)/crm/schedule/page.tsx` — wired `updateBookingPaymentAction`
+- `src/app/(dashboard)/crm/today/page.tsx` — computes `price_paid` from metadata, passes `paymentAction` to queue panel
+- `src/components/features/crm/today/crm-booking-queue-panel.tsx` — added inline `PaymentActionMenu` on each card with event propagation stop
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 77 app routes.
+
+---
+
+### 2026-05-13 — Kimi (CONTROL-001 — Booking Control Console MVP)
+
+**Task:** Create a professional operational control page for manager and CRM users showing today's bookings with KPIs, progress status, payment actions, and home-service warnings.
+
+**Files Created:**
+- `src/components/features/control-console/types.ts` — `ControlBooking` and `ControlTab` types
+- `src/components/features/control-console/control-kpi-strip.tsx` — 7 KPI cards (Total, Active, In Progress, Completed, Unpaid, Home Service, Issues)
+- `src/components/features/control-console/control-booking-card.tsx` — Enhanced booking card with progress mini-stepper, payment badge, status badge, home-service warnings, and inline action buttons
+- `src/components/features/control-console/control-queue.tsx` — Filterable queue with tabs: All, Active, Home, In Spa, Unpaid, Issues
+- `src/components/features/control-console/control-console-page.tsx` — Main layout with KPIs, queue, and operational summary side rail
+- `src/app/(dashboard)/manager/control/page.tsx` — Manager control console route (branch-scoped)
+- `src/app/(dashboard)/crm/control/page.tsx` — CRM control console route (branch-scoped)
+
+**Files Changed:**
+- `src/lib/queries/bookings.ts` — added `booking_progress_status` and timestamp fields to `TODAY_SCHEDULE_SELECT` variants; added `MaybeProgressFields` to `TodayScheduleRow`
+- `src/components/features/dashboard/nav-config.ts` — added "Control" to Manager, CRM, CSR Head, and CSR Staff navigation
+
+**Design Decisions:**
+- Reuses `getTodaysSchedule` and existing server actions (`updateBookingPaymentAction`, `updateBookingStatusAction`).
+- No new external APIs, no live maps, no GPS tracking.
+- Cards show progress as a compact dot stepper rather than full timeline.
+- Home service warnings (dispatch_warning, needs_location_review) are shown as red banners at the top of affected cards.
+- Issues tab surfaces: dispatch warnings, location review needs, missing room assignments, and unassigned staff.
+- Staff availability diagnostic is a placeholder linking to Schedule/Staff settings pages.
+- Owner control console is documented as a Phase 3.1 follow-up (requires cross-branch today's schedule query).
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 79 app routes.
+
+**Follow-up:**
+- Phase 3.1: Owner cross-branch control console.
+- Phase 4: Booking Delivery Type Cleanup (`in_spa` as first-class type).

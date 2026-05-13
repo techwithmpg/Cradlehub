@@ -9,6 +9,7 @@ import { CrmBookingQueuePanel } from "@/components/features/crm/today/crm-bookin
 import { TodayAttentionStrip } from "@/components/features/crm/today/today-attention-strip";
 import { TodayQuickActions } from "@/components/features/crm/today/today-quick-actions";
 import { TodaySideRail } from "@/components/features/crm/today/today-side-rail";
+import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 
 type Relation<T> = T | T[] | null;
 type CustomerRel = { full_name: string; phone: string | null };
@@ -88,6 +89,8 @@ export default async function CrmTodayPage() {
     const meta = (b as { metadata?: unknown }).metadata as Record<string, unknown> | null;
     const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
     const dispatch = meta?.dispatch as Record<string, unknown> | null;
+    const priceRaw = meta?.price_paid;
+    const pricePaid = typeof priceRaw === "number" && Number.isFinite(priceRaw) ? priceRaw : 0;
     return {
       id:               b.id,
       start_time:       b.start_time,
@@ -98,6 +101,7 @@ export default async function CrmTodayPage() {
       payment_status:   b.payment_status,
       payment_method:   b.payment_method,
       amount_paid:      b.amount_paid,
+      price_paid:       pricePaid,
       customer_name:    first(b.customers)?.full_name ?? null,
       service_name:     first(b.services)?.name ?? null,
       service_duration: first(b.services)?.duration_minutes ?? null,
@@ -230,6 +234,7 @@ export default async function CrmTodayPage() {
             <CrmBookingQueuePanel
               bookings={queueData}
               nextApptId={nextAppt?.id}
+              paymentAction={updateBookingPaymentAction}
             />
           </div>
         </div>

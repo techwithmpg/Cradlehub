@@ -1,52 +1,51 @@
-# HANDOFF — MGR-MOB-001 Mobile Manager Workspace
+# HANDOFF — CONTROL-001 Booking Control Console MVP
 
 ## Date
-2026-05-11
+2026-05-13
 
 ## Agent
 Kimi
 
 ## Summary
-Added a premium mobile-first Manager Workspace that renders only on mobile breakpoints. v2 separated the mobile manager from the desktop workspace shell and tightened spacing across all mobile screens.
+Created a Booking Control Console MVP at `/manager/control` and `/crm/control`. This is a professional operational page showing today's bookings with KPIs, progress tracking, payment actions, and home-service warnings. It serves as the base for future tracking, dispatch, and conflict handling features.
 
-## Files Changed
+## Files Created
 
-### New:
-- `src/components/features/manager/mobile/types.ts`
-- `src/components/features/manager/mobile/manager-mobile-workspace.tsx`
-- `src/components/features/manager/mobile/manager-bottom-nav.tsx`
-- `src/components/features/manager/mobile/manager-today-screen.tsx`
-- `src/components/features/manager/mobile/manager-schedule-screen.tsx`
-- `src/components/features/manager/mobile/manager-bookings-screen.tsx`
-- `src/components/features/manager/mobile/manager-staff-screen.tsx`
-- `src/components/features/manager/mobile/manager-approvals-screen.tsx`
-- `src/components/features/manager/mobile/manager-more-screen.tsx`
+### New Components:
+- `src/components/features/control-console/types.ts` — `ControlBooking`, `ControlTab` types
+- `src/components/features/control-console/control-kpi-strip.tsx` — 7 KPI cards
+- `src/components/features/control-console/control-booking-card.tsx` — Enhanced booking card with progress, payment, warnings, actions
+- `src/components/features/control-console/control-queue.tsx` — Tabbed queue with 6 filters
+- `src/components/features/control-console/control-console-page.tsx` — Main layout component
 
-### Modified:
-- `src/app/(dashboard)/manager/page.tsx`
-- `src/app/(dashboard)/layout.tsx`
-- `src/components/features/dashboard/sidebar.tsx`
+### New Routes:
+- `src/app/(dashboard)/manager/control/page.tsx` — Manager control console
+- `src/app/(dashboard)/crm/control/page.tsx` — CRM control console
+
+## Files Modified
+- `src/lib/queries/bookings.ts` — Added `booking_progress_status` and timestamps to select variants; `MaybeProgressFields` on `TodayScheduleRow`
+- `src/components/features/dashboard/nav-config.ts` — Added "Control" to Manager, CRM, CSR Head, CSR Staff navs
 
 ## Behavior After Change
-- Desktop (`md` and up): existing `ManagerTodayWorkspace` with sidebar, KPI cards, timeline, alerts.
-- Mobile (below `md`): new `ManagerMobileWorkspace` with bottom nav and 5 tabs:
-  - **Today**: greeting, branch label, compact KPI tiles, compact quick actions, today's booking flow, attention-needed cards.
-  - **Schedule**: staff list with status badges, filter pills (All / Therapists / Available).
-  - **Bookings**: search, Bookings/Issues toggle, status filter pills, booking/issue cards.
-  - **Staff**: pending approval banner, Active/Pending/Off Duty tabs, staff cards with badges.
-  - **More**: branch summary, alerts, menu links (Notifications, Spaces, Settings, Help, Logout).
-- Desktop shell (header "Workspace: X", sidebar hamburger) is hidden on mobile for manager routes.
-- Bottom nav uses `env(safe-area-inset-bottom)` so it is not cut off on devices with home indicators.
-- Page content has 96px bottom padding so it scrolls above the bottom nav.
+- Manager and CRM users see a "Control" item in their sidebar.
+- The control console shows today's bookings with:
+  - KPI strip: Total, Active, In Progress, Completed, Unpaid, Home Service, Issues
+  - Queue tabs: All, Active, Home, In Spa, Unpaid, Issues
+  - Each card shows: time, customer, service, staff, room, status badge, type badge, payment badge, progress mini-stepper
+  - Home service warnings displayed as red banners (dispatch_warning, needs_location_review)
+  - Inline PaymentActionMenu and BookingActionMenu on each card
+- Right rail shows operational summary and staff availability placeholder.
+- Role scoping: Manager sees their branch only; CRM/CSR sees their branch only.
+- No live maps, no GPS tracking, no external APIs used.
 
 ## Verification
 - `pnpm type-check`: ✅ Passing
-- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing (71/71 app routes)
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 79 app routes.
 
 ## Remaining Notes / Future Improvements
-- The mobile BookingCard and AttentionCard have disabled Review/Resolve buttons. Wire them to existing server actions when mobile action flows are ready.
-- The mobile Schedule screen does not yet filter by "Nail Techs" because `get_daily_schedule` RPC does not return `staff_type`.
-- The mobile "Add Walk-in" quick action opens the existing `WalkinDialog`. Test dialog sizing on real mobile viewports.
-- Consider adding swipe gestures between tabs for smoother mobile navigation.
-- Other workspaces (owner, CRM, staff-portal) on mobile now have no desktop header and no layout padding. They will need their own mobile shells when mobile variants are built.
+- **Owner cross-branch control console:** The existing `getTodaysSchedule` requires a `branchId`. For owner control, we'd need a cross-branch variant or loop over branches. Documented as Phase 3.1.
+- **Realtime updates:** Currently server-rendered. Supabase Realtime could push booking status changes to the console in a future phase.
+- **Staff availability integration:** The side rail has a placeholder. Real staff availability panel could be embedded from `ManagerTodayWorkspace` components.
+- **Conflict visualization:** The "Issues" tab flags basic problems. A dedicated conflict timeline or resource grid view could be added later.
+- **Delivery type cleanup:** `in_spa` is not a database type yet. Currently `online` and `walkin` both map to in-spa delivery. Phase 4 should add a `delivery_type` column.

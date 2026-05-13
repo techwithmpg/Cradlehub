@@ -161,6 +161,7 @@ export async function getOwnerWorkspaceBookingsAction(filters?: {
 
 // ── Update payment on any booking (cross-branch, owner only) ─────────────
 // No branch filter — owner can record payment for any branch.
+// Appends an audit row to booking_payment_logs before updating.
 export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
   const parsed = updateBookingPaymentSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -170,7 +171,37 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
   const ctx = await requireOwner();
   if (!ctx) return { success: false, error: "Unauthorized" };
 
-  const { bookingId, paymentMethod, paymentStatus, amountPaid, paymentReference } = parsed.data;
+  const { bookingId, paymentMethod, paymentStatus, amountPaid, paymentReference, reason } = parsed.data;
+
+  // Fetch current payment state for audit log
+  const { data: before } = await ctx.supabase
+    .from("bookings")
+    .select("payment_method, payment_status, amount_paid, payment_reference")
+    .eq("id", bookingId)
+    .single();
+
+  const isSignificantChange =
+    (before?.payment_status === "paid" && paymentStatus !== "paid") ||
+    ((before?.amount_paid ?? 0) > amountPaid);
+
+  if (isSignificantChange && !reason?.trim()) {
+    return { success: false, error: "Reason is required for voids, refunds, or corrections" };
+  }
+
+  // Insert audit log
+  await ctx.supabase.from("booking_payment_logs").insert({
+    booking_id:            bookingId,
+    changed_by:            ctx.me.id,
+    old_payment_method:    before?.payment_method ?? null,
+    old_payment_status:    before?.payment_status ?? null,
+    old_amount_paid:       before?.amount_paid ?? null,
+    old_payment_reference: before?.payment_reference ?? null,
+    new_payment_method:    paymentMethod,
+    new_payment_status:    paymentStatus,
+    new_amount_paid:       amountPaid,
+    new_payment_reference: paymentReference ?? null,
+    reason:                reason?.trim() ?? null,
+  });
 
   const { error } = await ctx.supabase
     .from("bookings")

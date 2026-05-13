@@ -57,11 +57,13 @@ export const businessInfo = {
   planHref: "#plan-your-visit",
 };
 
+/** @deprecated Operational phone numbers now come from the branches table via getPublicBranches(). Keep only as a temporary fallback. */
 export const publicPhones: PublicPhone[] = [
   { label: "0917 707 7070", href: "tel:+639177077070" },
   { label: "0909 008 7815", href: "tel:+639090087815" },
 ];
 
+/** @deprecated Operational branch data now comes from the branches table via getPublicBranches(). Keep only as a temporary fallback. */
 export const publicBranches: PublicBranch[] = [
   {
     id: "sm-city-bacolod",

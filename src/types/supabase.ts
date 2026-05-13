@@ -107,6 +107,69 @@ export type Database = {
           },
         ]
       }
+      booking_payment_logs: {
+        Row: {
+          id: string
+          booking_id: string
+          changed_by: string | null
+          old_payment_method: string | null
+          old_payment_status: string | null
+          old_amount_paid: number | null
+          old_payment_reference: string | null
+          new_payment_method: string | null
+          new_payment_status: string | null
+          new_amount_paid: number | null
+          new_payment_reference: string | null
+          reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          booking_id: string
+          changed_by?: string | null
+          old_payment_method?: string | null
+          old_payment_status?: string | null
+          old_amount_paid?: number | null
+          old_payment_reference?: string | null
+          new_payment_method?: string | null
+          new_payment_status?: string | null
+          new_amount_paid?: number | null
+          new_payment_reference?: string | null
+          reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          booking_id?: string
+          changed_by?: string | null
+          old_payment_method?: string | null
+          old_payment_status?: string | null
+          old_amount_paid?: number | null
+          old_payment_reference?: string | null
+          new_payment_method?: string | null
+          new_payment_status?: string | null
+          new_amount_paid?: number | null
+          new_payment_reference?: string | null
+          reason?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_payment_logs_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_payment_logs_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           amount_paid: number
@@ -469,8 +532,11 @@ export type Database = {
           maps_embed_url: string | null
           messenger_link: string | null
           name: string
+          opening_hours: string | null
           phone: string | null
+          secondary_phone: string | null
           slot_interval_minutes: number
+          sort_order: number
           updated_at: string
         }
         Insert: {
@@ -483,8 +549,11 @@ export type Database = {
           maps_embed_url?: string | null
           messenger_link?: string | null
           name: string
+          opening_hours?: string | null
           phone?: string | null
+          secondary_phone?: string | null
           slot_interval_minutes?: number
+          sort_order?: number
           updated_at?: string
         }
         Update: {
@@ -497,8 +566,11 @@ export type Database = {
           maps_embed_url?: string | null
           messenger_link?: string | null
           name?: string
+          opening_hours?: string | null
           phone?: string | null
+          secondary_phone?: string | null
           slot_interval_minutes?: number
+          sort_order?: number
           updated_at?: string
         }
         Relationships: []

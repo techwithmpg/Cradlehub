@@ -195,5 +195,6 @@ export const updateBookingPaymentSchema = z.object({
   paymentStatus:    z.enum(PAYMENT_STATUSES),
   amountPaid:       z.number().min(0, "Amount cannot be negative"),
   paymentReference: z.string().max(100).optional(),
+  reason:           z.string().max(500).optional(),
 });
 export type UpdateBookingPaymentInput = z.infer<typeof updateBookingPaymentSchema>;

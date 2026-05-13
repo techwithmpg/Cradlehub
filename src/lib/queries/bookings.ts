@@ -63,6 +63,8 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
   id, booking_date, start_time, end_time, type, status,
   travel_buffer_mins, metadata,
   payment_method, payment_status, payment_reference, amount_paid,
+  booking_progress_status,
+  checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
   resource_id,
   services  ( id, name, duration_minutes ),
   staff     ( id, full_name, tier ),
@@ -73,6 +75,8 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   id, booking_date, start_time, end_time, type, status,
   travel_buffer_mins, metadata,
   payment_method, payment_status, payment_reference, amount_paid,
+  booking_progress_status,
+  checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
   services  ( id, name, duration_minutes ),
   staff     ( id, full_name, tier ),
   customers ( id, full_name, phone )
@@ -93,6 +97,15 @@ type MaybePaymentFields = {
   payment_status?: unknown;
   payment_reference?: unknown;
   amount_paid?: unknown;
+};
+type MaybeProgressFields = {
+  booking_progress_status?: unknown;
+  checked_in_at?: unknown;
+  travel_started_at?: unknown;
+  arrived_at?: unknown;
+  session_started_at?: unknown;
+  session_completed_at?: unknown;
+  no_show_at?: unknown;
 };
 type OneOrMany<T> = T | T[] | null;
 type BranchRelation = OneOrMany<{ id: string; name: string }>;
@@ -139,7 +152,7 @@ type TodayScheduleRow = {
   services: ServiceRelation;
   staff: StaffRelation;
   customers: CustomerRelation;
-} & MaybePaymentFields;
+} & MaybePaymentFields & MaybeProgressFields;
 type StaffUpcomingRow = {
   id: string;
   booking_date: string;

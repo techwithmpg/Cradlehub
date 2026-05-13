@@ -10,6 +10,9 @@ export type DailyScheduleBooking = {
   type: string | null;
   resource_id: string | null;
   resource_name: string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  amount_paid?: number | null;
 };
 
 export type DailyScheduleBlock = {

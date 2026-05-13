@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
 import { PublicMobileContact } from "@/components/public/mobile/public-mobile-contact";
-import { getAllBranches } from "@/lib/queries/branches";
+import { getPublicBranches } from "@/lib/queries/branches";
 import { Phone, MapPin, Clock, MessageSquare } from "lucide-react";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd, LocalBusinessJsonLd } from "@/components/seo/structured-data";
@@ -28,12 +28,19 @@ function IconInstagram({ className }: { className?: string }) {
 export const metadata: Metadata = buildMetadata({
   title: "Contact | Cradle Wellness Living — Bacolod Massage & Spa Booking",
   description:
-    "Contact Cradle Wellness Living in Bacolod. Call 0917 707 7070, message us on Facebook, or visit our SM City and La Luz branches. Online booking available.",
+    "Contact Cradle Wellness Living in Bacolod. Call us, message us on Facebook, or visit our branches. Online booking available.",
   path: "/contact",
 });
 
 export default async function ContactPage() {
-  const branches = await getAllBranches();
+  const branches = await getPublicBranches();
+  const primaryBranch = branches[0];
+  const primaryPhone = primaryBranch?.phone ?? "";
+  const secondaryPhone = primaryBranch?.secondary_phone ?? "";
+  const primaryPhoneHref = primaryPhone ? `tel:${primaryPhone.replace(/\s/g, "")}` : "";
+  const secondaryPhoneHref = secondaryPhone ? `tel:${secondaryPhone.replace(/\s/g, "")}` : "";
+  const messengerHref = primaryBranch?.messenger_link ?? primaryBranch?.fb_page ?? "";
+  const openingHours = primaryBranch?.opening_hours ?? "10:00 AM – 10:00 PM";
 
   return (
     <div className="sp-public">
@@ -68,34 +75,64 @@ export default async function ContactPage() {
         <section className="pt-12 pb-4 lg:pt-16" style={{ background: "#FCFAF5" }}>
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-              <a
-                href="tel:+639177077070"
-                className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
-                style={{ background: "#163A2B" }}
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
-                  <Phone className="h-6 w-6" style={{ color: "#C8A96B" }} />
+              {primaryPhone ? (
+                <a
+                  href={primaryPhoneHref}
+                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+                  style={{ background: "#163A2B" }}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
+                    <Phone className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Call Us</p>
+                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>{primaryPhone}</p>
+                  </div>
+                </a>
+              ) : (
+                <div
+                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center"
+                  style={{ background: "#163A2B", opacity: 0.7 }}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
+                    <Phone className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Call Us</p>
+                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Contact info updating</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Call Us</p>
-                  <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>0917 707 7070</p>
+              )}
+              {messengerHref ? (
+                <a
+                  href={messengerHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+                  style={{ background: "#163A2B" }}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
+                    <MessageSquare className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Message Us</p>
+                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Facebook Page</p>
+                  </div>
+                </a>
+              ) : (
+                <div
+                  className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center"
+                  style={{ background: "#163A2B", opacity: 0.7 }}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
+                    <MessageSquare className="h-6 w-6" style={{ color: "#C8A96B" }} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Message Us</p>
+                    <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Facebook Page</p>
+                  </div>
                 </div>
-              </a>
-              <a
-                href="https://www.facebook.com/518084738045813?ref=NONE_xav_ig_profile_page_web"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
-                style={{ background: "#163A2B" }}
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,169,107,0.15)" }}>
-                  <MessageSquare className="h-6 w-6" style={{ color: "#C8A96B" }} />
-                </div>
-                <div>
-                  <p className="text-[13px] font-semibold tracking-widest uppercase mb-1" style={{ color: "#C8A96B" }}>Message Us</p>
-                  <p className="text-[15px] font-medium" style={{ color: "#FCFAF5" }}>Facebook Page</p>
-                </div>
-              </a>
+              )}
             </div>
           </div>
         </section>
@@ -118,7 +155,7 @@ export default async function ContactPage() {
                     Hours
                   </h3>
                   <p className="text-[13px] font-medium" style={{ color: "#163A2B" }}>Open Daily</p>
-                  <p className="text-[13px] mt-1" style={{ color: "#6B7A6F" }}>10:00 AM – 10:00 PM</p>
+                  <p className="text-[13px] mt-1" style={{ color: "#6B7A6F" }}>{openingHours}</p>
                 </div>
               </ScrollReveal>
 
@@ -134,70 +171,56 @@ export default async function ContactPage() {
                   >
                     Phone
                   </h3>
-                  <a
-                    href="tel:+639177077070"
-                    className="block text-[13px] transition-colors hover:text-[#C8A96B]"
-                    style={{ color: "#6B7A6F" }}
-                  >
-                    0917 707 7070
-                  </a>
-                  <a
-                    href="tel:+639090087815"
-                    className="block text-[13px] mt-1 transition-colors hover:text-[#C8A96B]"
-                    style={{ color: "#6B7A6F" }}
-                  >
-                    0909 008 7815
-                  </a>
+                  {primaryPhone ? (
+                    <a
+                      href={primaryPhoneHref}
+                      className="block text-[13px] transition-colors hover:text-[#C8A96B]"
+                      style={{ color: "#6B7A6F" }}
+                    >
+                      {primaryPhone}
+                    </a>
+                  ) : (
+                    <p className="text-[13px]" style={{ color: "#6B7A6F" }}>Contact info updating</p>
+                  )}
+                  {secondaryPhone ? (
+                    <a
+                      href={secondaryPhoneHref}
+                      className="block text-[13px] mt-1 transition-colors hover:text-[#C8A96B]"
+                      style={{ color: "#6B7A6F" }}
+                    >
+                      {secondaryPhone}
+                    </a>
+                  ) : null}
                 </div>
               </ScrollReveal>
 
-              {/* SM City Branch */}
-              <ScrollReveal delay={200}>
-                <div className="bg-white rounded-2xl p-7 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 h-full text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
-                    <MapPin className="h-6 w-6" />
+              {/* Branch cards */}
+              {branches.map((branch, index) => (
+                <ScrollReveal key={branch.id} delay={(index + 2) * 100}>
+                  <div className="bg-white rounded-2xl p-7 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 h-full text-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
+                      <MapPin className="h-6 w-6" />
+                    </div>
+                    <h3
+                      className="text-[16px] font-semibold mb-3"
+                      style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                    >
+                      {branch.name}
+                    </h3>
+                    {branch.address && (
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(branch.address)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13px] leading-relaxed transition-colors hover:text-[#C8A96B]"
+                        style={{ color: "#6B7A6F" }}
+                      >
+                        {branch.address}
+                      </a>
+                    )}
                   </div>
-                  <h3
-                    className="text-[16px] font-semibold mb-3"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-                  >
-                    SM City Branch
-                  </h3>
-                  <a
-                    href="https://maps.google.com/?q=3rd+Floor+North+Wing+SM+City+Bacolod"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[13px] leading-relaxed transition-colors hover:text-[#C8A96B]"
-                    style={{ color: "#6B7A6F" }}
-                  >
-                    3rd Floor, North Wing,<br />SM City Bacolod
-                  </a>
-                </div>
-              </ScrollReveal>
-
-              {/* La Luz Branch */}
-              <ScrollReveal delay={300}>
-                <div className="bg-white rounded-2xl p-7 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 h-full text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
-                    <MapPin className="h-6 w-6" />
-                  </div>
-                  <h3
-                    className="text-[16px] font-semibold mb-3"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-                  >
-                    La Luz Branch
-                  </h3>
-                  <a
-                    href="https://maps.google.com/?q=PX26+XQ+Bacolod+Negros+Occidental"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[13px] leading-relaxed transition-colors hover:text-[#C8A96B]"
-                    style={{ color: "#6B7A6F" }}
-                  >
-                    3rd Floor, La Luz Bldg Lacson,<br />National Highway, Bacolod,<br />6100 Negros Occidental
-                  </a>
-                </div>
-              </ScrollReveal>
+                </ScrollReveal>
+              ))}
             </div>
 
             {/* Social + Quick Actions */}
@@ -264,17 +287,19 @@ export default async function ContactPage() {
                   >
                     Book Online
                   </Link>
-                  <a
-                    href="tel:+639177077070"
-                    className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[12px] font-medium tracking-widest uppercase border transition-all duration-300 hover:bg-white/10"
-                    style={{
-                      borderColor: "rgba(247,243,235,0.25)",
-                      color: "rgba(247,243,235,0.9)",
-                    }}
-                  >
-                    <Phone className="h-4 w-4" />
-                    Call Us
-                  </a>
+                  {primaryPhone ? (
+                    <a
+                      href={primaryPhoneHref}
+                      className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[12px] font-medium tracking-widest uppercase border transition-all duration-300 hover:bg-white/10"
+                      style={{
+                        borderColor: "rgba(247,243,235,0.25)",
+                        color: "rgba(247,243,235,0.9)",
+                      }}
+                    >
+                      <Phone className="h-4 w-4" />
+                      Call Us
+                    </a>
+                  ) : null}
                 </div>
               </div>
             </ScrollReveal>

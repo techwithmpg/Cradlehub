@@ -1,5 +1,12 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import type { Database } from "@/types/supabase";
+
+type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
+
+type SiteFooterProps = {
+  branches?: BranchRow[];
+};
 
 function IconFacebook({ className }: { className?: string }) {
   return (
@@ -46,7 +53,10 @@ const QUICK_LINKS = [
   { href: "/contact", label: "Contact" },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({ branches }: SiteFooterProps) {
+  const firstBranchHours = branches?.[0]?.opening_hours;
+  const hoursText = firstBranchHours ?? "Open daily · Book online";
+
   return (
     <footer className="bg-[#10261D] text-[#9AA89A]">
       <div className="mx-auto max-w-7xl px-6 py-8 md:py-12">
@@ -100,7 +110,7 @@ export function SiteFooter() {
         <div className="mt-8 pt-5 border-t border-[#163A2B]">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-[11px] text-[#6B7A6F]">
-              Open daily · Book online
+              {hoursText}
             </p>
             <p className="text-[11px] text-[#6B7A6F]">
               &copy; {new Date().getFullYear()} Cradle Massage & Wellness Spa. All rights reserved.

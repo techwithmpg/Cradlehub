@@ -21,6 +21,21 @@ export async function getAllBranches() {
   return data ?? [];
 }
 
+// ── Public-facing branches (ordered for display) ───────────────────────────
+// Returns active branches sorted by sort_order then name.
+// Use this for all public site components instead of hardcoded arrays.
+export async function getPublicBranches() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("branches")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("name");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function getBranchById(branchId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

@@ -203,9 +203,9 @@ export function ScheduleDetailsPanel({
               />
               <PaymentActionMenu
                 bookingId={booking.id}
-                paymentStatus="unpaid"
-                paymentMethod="pay_on_site"
-                amountPaid={0}
+                paymentStatus={booking.payment_status ?? "unpaid"}
+                paymentMethod={booking.payment_method ?? "pay_on_site"}
+                amountPaid={booking.amount_paid ?? 0}
                 pricePaid={0}
                 paymentAction={paymentAction}
                 triggerLabel="Take Payment"

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 
 type BookingCardData = {
   id: string;
@@ -13,6 +14,7 @@ type BookingCardData = {
   payment_status?: string;
   payment_method?: string;
   amount_paid?: number;
+  price_paid?: number;
   customer_name: string | null;
   service_name: string | null;
   service_duration: number | null;
@@ -26,6 +28,8 @@ type BookingCardData = {
   dispatch_warning?: string | null;
   needs_location_review?: boolean;
 };
+
+type PaymentAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
 type FilterTab = "active" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
@@ -84,7 +88,7 @@ function PaymentBadge({ status, amount }: { status?: string; method?: string; am
   );
 }
 
-function BookingCard({ booking, isNext }: { booking: BookingCardData; isNext: boolean }) {
+function BookingCard({ booking, isNext, paymentAction }: { booking: BookingCardData; isNext: boolean; paymentAction?: PaymentAction }) {
   const payStatus = booking.payment_status ?? "pay_on_site";
   const isHomeService = booking.type === "home_service";
   const hasHsFooter = isHomeService && (booking.hs_zone || booking.hs_address);
@@ -213,6 +217,20 @@ function BookingCard({ booking, isNext }: { booking: BookingCardData; isNext: bo
           method={booking.payment_method}
           amount={booking.amount_paid}
         />
+        {paymentAction && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <PaymentActionMenu
+              bookingId={booking.id}
+              paymentStatus={booking.payment_status ?? "unpaid"}
+              paymentMethod={booking.payment_method ?? "pay_on_site"}
+              amountPaid={booking.amount_paid ?? 0}
+              pricePaid={booking.price_paid ?? 0}
+              paymentAction={paymentAction}
+              triggerLabel="Pay"
+              triggerVariant="default"
+            />
+          </div>
+        )}
         {booking.needs_location_review && (
           <span
             style={{
@@ -276,9 +294,11 @@ function BookingCard({ booking, isNext }: { booking: BookingCardData; isNext: bo
 export function CrmBookingQueuePanel({
   bookings,
   nextApptId,
+  paymentAction,
 }: {
   bookings: BookingCardData[];
   nextApptId?: string;
+  paymentAction?: PaymentAction;
 }) {
   const [activeTab, setActiveTab] = useState<FilterTab>("active");
 
@@ -368,6 +388,7 @@ export function CrmBookingQueuePanel({
               key={booking.id}
               booking={booking}
               isNext={booking.id === nextApptId}
+              paymentAction={paymentAction}
             />
           ))}
         </div>

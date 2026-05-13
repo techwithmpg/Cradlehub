@@ -5,7 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Phone } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
-import { publicPhones } from "@/lib/public/public-site-data";
+
+type SiteHeaderProps = {
+  primaryPhone?: { label: string; href: string };
+};
 
 const navLinks = [
   { href: "/",          label: "Home" },
@@ -16,7 +19,7 @@ const navLinks = [
   { href: "/contact",   label: "Contact" },
 ];
 
-export function SiteHeader() {
+export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
   const [scrolled,    setScrolled]    = useState(false);
   const [mobileOpen, setMobileOpen]  = useState(false);
   const pathname = usePathname();
@@ -35,8 +38,6 @@ export function SiteHeader() {
     const id = setTimeout(() => setMobileOpen(false), 0);
     return () => clearTimeout(id);
   }, [pathname]);
-
-  const primaryPhone = publicPhones[0];
 
   return (
     <>

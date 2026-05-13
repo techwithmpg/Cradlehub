@@ -4,6 +4,7 @@ import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypas
 import { getTodaysSchedule, getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { BookingsWorkspace } from "@/components/features/bookings/bookings-workspace";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
+import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 
 async function getCrmContext() {
   const supabase = await createClient();
@@ -63,6 +64,7 @@ export default async function CrmBookingsPage({
       search={params.search}
       bookings={bookings}
       cashSummary={cashSummary}
+      paymentAction={updateBookingPaymentAction}
     />
   );
 }

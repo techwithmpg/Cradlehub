@@ -8,6 +8,7 @@ type MobileBranch = {
   name: string;
   address: string | null;
   phone: string | null;
+  opening_hours?: string | null;
 };
 
 function mapHref(branch: MobileBranch) {
@@ -63,7 +64,7 @@ export function PublicMobileBranches({ branches }: { branches: MobileBranch[] })
                 <div className="mt-2 space-y-1 text-[10.5px] text-[#3F4F44]">
                   <p className="flex items-center gap-1.5">
                     <Clock className="h-3 w-3 text-[#10261D]" aria-hidden="true" />
-                    Daily availability through booking
+                    {branch.opening_hours ?? "Daily availability through booking"}
                   </p>
                   {branch.phone && (
                     <p className="flex items-center gap-1.5">

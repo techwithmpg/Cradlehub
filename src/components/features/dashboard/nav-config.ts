@@ -26,16 +26,18 @@ const OWNER_NAV_ITEMS: NavItem[] = [
 
 const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/manager", icon: "LayoutDashboard" },
+  { label: "Control", href: "/manager/control", icon: "Monitor" },
   { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
   { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
   { label: "Staff", href: "/manager/staff", icon: "Users" },
   { label: "Spaces & Rules", href: "/manager/spaces-rules", icon: "Building2" },
-  { label: "Operations", href: "/manager/operations", icon: "Monitor" },
+  { label: "Operations", href: "/manager/operations", icon: "Wrench" },
   { label: "Settings", href: "/manager/settings", icon: "Settings" },
 ];
 
 const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
+  { label: "Control", href: "/crm/control", icon: "Monitor" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
@@ -50,6 +52,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
 
 const CSR_HEAD_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
+  { label: "Control", href: "/crm/control", icon: "Monitor" },
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
@@ -61,6 +64,7 @@ const CSR_HEAD_NAV_ITEMS: NavItem[] = [
 
 const CSR_STAFF_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
+  { label: "Control", href: "/crm/control", icon: "Monitor" },
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Customers", href: "/crm/customers", icon: "Users" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },

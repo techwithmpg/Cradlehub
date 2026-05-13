@@ -4,11 +4,14 @@ import { ArrowRight, CalendarDays, Star } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
+import type { Database } from "@/types/supabase";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
 import { MobileExperienceGrid } from "./mobile-experience-grid";
 import { FaqAccordion } from "../faq-accordion";
 import { ServiceShowcaseCarousel } from "../service-showcase-carousel";
 import { SERVICE_SHOWCASE_SLIDES } from "@/constants/service-showcase";
+
+type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
 // ── Static data ──────────────────────────────────────────────────────────────
 
@@ -32,7 +35,11 @@ function serviceImg(categoryName: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export async function PublicMobileHome() {
+type PublicMobileHomeProps = {
+  branches?: BranchRow[];
+};
+
+export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps) {
   let featured: PublicCatalogService[] = [];
   try {
     const all = await getPublicServiceCatalog();
@@ -42,6 +49,17 @@ export async function PublicMobileHome() {
   } catch {
     // non-fatal — section hidden when data unavailable
   }
+
+  const branchNames = branches.map((b) => b.name).filter(Boolean);
+  const branchAddresses = branches.map((b) => b.address).filter(Boolean);
+  const branchListText =
+    branchNames.length >= 2
+      ? `${branchNames.slice(0, -1).join(", ")} and ${branchNames[branchNames.length - 1]}`
+      : branchNames[0] ?? "our Bacolod branches";
+  const branchAddressText =
+    branchAddresses.length >= 2
+      ? `${branchAddresses.slice(0, -1).join(" and ")}`
+      : branchAddresses[0] ?? "";
 
   return (
     <div className="md:hidden bg-[#F8F2E7] pb-12 text-[#022316]">
@@ -200,7 +218,9 @@ export async function PublicMobileHome() {
                 {
                   question: "Where are your branches?",
                   answer:
-                    "SM City Bacolod (3rd Floor, North Wing) and La Luz Branch (Lacson National Highway).",
+                    branchNames.length > 0
+                      ? `${branchListText}${branchAddressText ? `. ${branchAddressText}` : ""}`
+                      : "We have branches in Bacolod City. Please contact us for the latest location information.",
                 },
                 {
                   question: "What services do you offer?",

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAllBranches } from "@/lib/queries/branches";
+import { getPublicBranches } from "@/lib/queries/branches";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
 import { PublicMobileBranches } from "@/components/public/mobile/public-mobile-branches";
 import { MapPin, Phone, Mail, Clock, ArrowRight } from "lucide-react";
@@ -8,14 +8,14 @@ import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd, LocalBusinessJsonLd } from "@/components/seo/structured-data";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Branches | SM City & La Luz — Bacolod Massage & Spa Locations",
+  title: "Branches | Cradle Wellness Living — Bacolod Massage & Spa Locations",
   description:
-    "Find Cradle Wellness Living branches in Bacolod. Visit SM City Bacolod or La Luz Branch for in-spa massage and wellness treatments. Home service also available.",
+    "Find Cradle Wellness Living branches in Bacolod. Visit our branches for in-spa massage and wellness treatments. Home service also available.",
   path: "/branches",
 });
 
 export default async function BranchesPage() {
-  const branches = await getAllBranches();
+  const branches = await getPublicBranches();
 
   return (
     <div className="sp-public">
@@ -97,7 +97,7 @@ export default async function BranchesPage() {
                             )}
                             <div className="flex items-center gap-2 text-[13px]" style={{ color: "#6B7A6F" }}>
                               <Clock className="h-3.5 w-3.5 text-[#C8A96B] shrink-0" />
-                              Daily · 9:00 AM – 9:00 PM
+                              {branch.opening_hours ?? "Daily availability through booking"}
                             </div>
                           </div>
                         </div>
