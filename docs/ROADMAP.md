@@ -154,3 +154,4 @@
 | 2026-05-09 | Logged STAFF-UI-002 staff display normalization and compact profile panel | Track shared staff metadata helper usage, tier eligibility safeguards, branch-column removal, and profile panel compacting | Codex |
 | 2026-05-10 | Logged BK-WS-002 shared bookings workspace polish | Track simplified booking detail actions, compact row action menu, table pagination, and fixed compact columns across Owner/Manager/CRM | Codex |
 | 2026-05-11 | Logged MGR-MOB-001 mobile manager workspace | Track mobile-first manager variant with bottom nav, simplified card screens, and preserved desktop behavior | Kimi |
+| 2026-05-13 | Logged STAFF-ORG-001 staff organization/access model fix | Track full staff edit role/function separation, driver/utility/service role exposure, manager-safe RBAC, and conditional service capability behavior | Codex |

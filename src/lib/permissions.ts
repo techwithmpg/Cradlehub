@@ -7,39 +7,15 @@
 
 // ── Roles ───────────────────────────────────────────────────────────────────
 
-export const SYSTEM_ROLES = [
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr",
-  "csr_head",
-  "csr_staff",
-  "staff",
-  "service_head",
-  "service_staff",
-  "driver",
-  "utility",
-] as const;
+import {
+  SYSTEM_ROLE_LABELS,
+  SYSTEM_ROLES,
+  type SystemRole,
+} from "@/constants/staff-roles";
 
-export type SystemRole = (typeof SYSTEM_ROLES)[number];
+export { SYSTEM_ROLES, type SystemRole };
 
-export const ROLE_LABELS: Record<SystemRole | string, string> = {
-  owner:             "Owner",
-  manager:           "Manager",
-  assistant_manager: "Asst. Manager",
-  store_manager:     "Store Manager",
-  crm:               "CRM",
-  csr:               "CSR",
-  csr_head:          "CSR Head",
-  csr_staff:         "CSR Staff",
-  staff:             "Service Staff",
-  service_head:      "Service Head",
-  service_staff:     "Service Staff",
-  driver:            "Driver",
-  utility:           "Utility",
-};
+export const ROLE_LABELS: Record<string, string> = { ...SYSTEM_ROLE_LABELS };
 
 // ── Role groups ─────────────────────────────────────────────────────────────
 

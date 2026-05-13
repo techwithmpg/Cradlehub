@@ -162,8 +162,14 @@ const MANAGER_SAFE_ROLES = new Set([
 
 // ── Update staff profile (owner or manager) ───────────────────────────────
 export async function updateStaffAction(rawInput: unknown) {
+  console.log("[updateStaffAction] raw input:", JSON.stringify(rawInput, null, 2));
   const parsed = updateStaffSchema.safeParse(rawInput);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const field = issue?.path?.join(".") ?? "unknown";
+    console.error("[updateStaffAction] validation failed:", JSON.stringify(parsed.error.issues, null, 2));
+    return { success: false, error: `Validation failed on field "${field}": ${issue?.message}` };
+  }
 
   const ctx = await requireOwnerOrManager();
   if ("error" in ctx) return { success: false, error: ctx.error };

@@ -73,11 +73,11 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     // 1. Fetch current booking details
     const { data: booking } = await supabase
       .from("bookings")
-      .select("branch_id, booking_date, start_time, end_time, type, resource_id")
+      .select("branch_id, booking_date, start_time, end_time, type, delivery_type, resource_id")
       .eq("id", parsed.data.bookingId)
       .single();
 
-    if (booking && booking.type !== "home_service" && !booking.resource_id) {
+    if (booking && booking.delivery_type !== "home_service" && !booking.resource_id) {
       const assignedResourceId = await autoAssignBookingResource({
         branchId: booking.branch_id,
         date: booking.booking_date,
@@ -277,13 +277,17 @@ export async function editBookingAction(rawInput: unknown) {
 
   if (changes.type !== undefined) {
     updates.type = changes.type;
+  }
+
+  if (changes.deliveryType !== undefined) {
+    updates.delivery_type = changes.deliveryType;
     updates.travel_buffer_mins =
-      changes.type === "home_service"
+      changes.deliveryType === "home_service"
         ? (changes.travelBufferMins ?? 30)
         : null;
   }
 
-  if (changes.travelBufferMins !== undefined && changes.type === undefined) {
+  if (changes.travelBufferMins !== undefined && changes.deliveryType === undefined) {
     updates.travel_buffer_mins = changes.travelBufferMins;
   }
 
@@ -320,7 +324,7 @@ export async function editBookingAction(rawInput: unknown) {
   if (changes.staffId && changes.staffId !== current.staff_id) {
     const newDate = changes.date ?? current.booking_date;
     const newTime = changes.startTime ?? current.start_time;
-    const isHS = (changes.type ?? current.type) === "home_service";
+    const isHS = (changes.deliveryType ?? current.delivery_type ?? current.type) === "home_service";
     await resolveNotificationsForEntity("booking", bookingId, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", bookingId, "staff", "home_service_assigned");
     await createNotification({

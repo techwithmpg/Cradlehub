@@ -180,6 +180,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           customer_id: string
+          delivery_type: string
+          driver_id: string | null
           end_time: string
           home_service_tracking_status: string
           id: string
@@ -210,6 +212,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           customer_id: string
+          delivery_type?: string
+          driver_id?: string | null
           end_time: string
           home_service_tracking_status?: string
           id?: string
@@ -240,6 +244,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           customer_id?: string
+          delivery_type?: string
+          driver_id?: string | null
           end_time?: string
           home_service_tracking_status?: string
           id?: string
@@ -274,6 +280,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
@@ -1221,6 +1234,410 @@ export type Database = {
           {
             foreignKeyName: "staff_schedules_staff_id_fkey"
             columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_tracking_links: {
+        Row: {
+          id: string
+          booking_id: string
+          branch_id: string | null
+          customer_id: string | null
+          token: string
+          expires_at: string
+          is_active: boolean
+          access_count: number
+          last_accessed_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          booking_id: string
+          branch_id?: string | null
+          customer_id?: string | null
+          token: string
+          expires_at: string
+          is_active?: boolean
+          access_count?: number
+          last_accessed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          booking_id?: string
+          branch_id?: string | null
+          customer_id?: string | null
+          token?: string
+          expires_at?: string
+          is_active?: boolean
+          access_count?: number
+          last_accessed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_tracking_links_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_tracking_links_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_tracking_links_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_tracking_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_location_snapshots: {
+        Row: {
+          id: string
+          staff_id: string
+          booking_id: string | null
+          branch_id: string | null
+          lat: number
+          lng: number
+          accuracy_meters: number | null
+          recorded_at: string
+          source: string
+          metadata: Json
+        }
+        Insert: {
+          id?: string
+          staff_id: string
+          booking_id?: string | null
+          branch_id?: string | null
+          lat: number
+          lng: number
+          accuracy_meters?: number | null
+          recorded_at?: string
+          source?: string
+          metadata?: Json
+        }
+        Update: {
+          id?: string
+          staff_id?: string
+          booking_id?: string | null
+          branch_id?: string | null
+          lat?: number
+          lng?: number
+          accuracy_meters?: number | null
+          recorded_at?: string
+          source?: string
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_location_snapshots_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_location_snapshots_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_location_snapshots_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_pay_profiles: {
+        Row: {
+          id: string
+          staff_id: string
+          branch_id: string | null
+          base_pay_amount: number
+          base_pay_type: string
+          commission_percent: number
+          per_service_bonus: number
+          home_service_allowance: number
+          transport_allowance: number
+          is_active: boolean
+          effective_from: string
+          effective_until: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          staff_id: string
+          branch_id?: string | null
+          base_pay_amount?: number
+          base_pay_type?: string
+          commission_percent?: number
+          per_service_bonus?: number
+          home_service_allowance?: number
+          transport_allowance?: number
+          is_active?: boolean
+          effective_from?: string
+          effective_until?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          staff_id?: string
+          branch_id?: string | null
+          base_pay_amount?: number
+          base_pay_type?: string
+          commission_percent?: number
+          per_service_bonus?: number
+          home_service_allowance?: number
+          transport_allowance?: number
+          is_active?: boolean
+          effective_from?: string
+          effective_until?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_pay_profiles_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_pay_profiles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_periods: {
+        Row: {
+          id: string
+          branch_id: string | null
+          period_start: string
+          period_end: string
+          status: string
+          created_by: string | null
+          approved_by: string | null
+          approved_at: string | null
+          paid_at: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id?: string | null
+          period_start: string
+          period_end: string
+          status?: string
+          created_by?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          paid_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string | null
+          period_start?: string
+          period_end?: string
+          status?: string
+          created_by?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          paid_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_periods_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_items: {
+        Row: {
+          id: string
+          payroll_period_id: string
+          staff_id: string
+          branch_id: string | null
+          completed_bookings_count: number
+          home_service_bookings_count: number
+          gross_revenue: number
+          base_pay: number
+          commission_pay: number
+          bonus_pay: number
+          reimbursement_pay: number
+          home_service_allowance_pay: number
+          deduction_amount: number
+          salary_advance_amount: number
+          net_pay: number
+          status: string
+          metadata: import("./supabase").Json
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          payroll_period_id: string
+          staff_id: string
+          branch_id?: string | null
+          completed_bookings_count?: number
+          home_service_bookings_count?: number
+          gross_revenue?: number
+          base_pay?: number
+          commission_pay?: number
+          bonus_pay?: number
+          reimbursement_pay?: number
+          home_service_allowance_pay?: number
+          deduction_amount?: number
+          salary_advance_amount?: number
+          net_pay?: number
+          status?: string
+          metadata?: import("./supabase").Json
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          payroll_period_id?: string
+          staff_id?: string
+          branch_id?: string | null
+          completed_bookings_count?: number
+          home_service_bookings_count?: number
+          gross_revenue?: number
+          base_pay?: number
+          commission_pay?: number
+          bonus_pay?: number
+          reimbursement_pay?: number
+          home_service_allowance_pay?: number
+          deduction_amount?: number
+          salary_advance_amount?: number
+          net_pay?: number
+          status?: string
+          metadata?: import("./supabase").Json
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_items_payroll_period_id_fkey"
+            columns: ["payroll_period_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_items_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_items_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_adjustments: {
+        Row: {
+          id: string
+          payroll_item_id: string
+          adjustment_type: string
+          amount: number
+          reason: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          payroll_item_id: string
+          adjustment_type: string
+          amount: number
+          reason: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          payroll_item_id?: string
+          adjustment_type?: string
+          amount?: number
+          reason?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_adjustments_payroll_item_id_fkey"
+            columns: ["payroll_item_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_adjustments_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]

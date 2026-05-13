@@ -19,18 +19,12 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export const BOOKING_TYPES = ["online", "walkin", "home_service"] as const;
 export type BookingType = (typeof BOOKING_TYPES)[number];
 
-export const SYSTEM_ROLES = [
-  "owner",
-  "manager",
-  "crm",
-  "csr",
-  "csr_head",
-  "csr_staff",
-  "staff",
-] as const;
-export type SystemRole = (typeof SYSTEM_ROLES)[number];
+export const DELIVERY_TYPES = ["in_spa", "home_service"] as const;
+export type DeliveryType = (typeof DELIVERY_TYPES)[number];
 
-export const STAFF_TIERS = ["senior", "mid", "junior"] as const;
+export { SYSTEM_ROLES, type SystemRole } from "@/constants/staff";
+
+export const STAFF_TIERS = ["senior", "mid", "junior", "head", "n/a"] as const;
 export type StaffTier = (typeof STAFF_TIERS)[number];
 
 export type AvailabilitySlot = {

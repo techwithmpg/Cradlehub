@@ -92,11 +92,11 @@ describe("booking progress state machine", () => {
     });
   });
 
-  describe("walkin (in-spa) flow", () => {
+  describe("in_spa flow", () => {
     it("allows not_started → checked_in", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "not_started",
           nextStatus: "checked_in",
         })
@@ -106,7 +106,7 @@ describe("booking progress state machine", () => {
     it("allows checked_in → session_started", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "checked_in",
           nextStatus: "session_started",
         })
@@ -116,7 +116,7 @@ describe("booking progress state machine", () => {
     it("allows session_started → completed", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "session_started",
           nextStatus: "completed",
         })
@@ -126,7 +126,7 @@ describe("booking progress state machine", () => {
     it("allows not_started → no_show", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "not_started",
           nextStatus: "no_show",
         })
@@ -136,7 +136,7 @@ describe("booking progress state machine", () => {
     it("allows checked_in → no_show", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "checked_in",
           nextStatus: "no_show",
         })
@@ -146,7 +146,7 @@ describe("booking progress state machine", () => {
     it("blocks not_started → travel_started", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "not_started",
           nextStatus: "travel_started",
         })
@@ -156,7 +156,7 @@ describe("booking progress state machine", () => {
     it("blocks walkin checked_in → arrived", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "checked_in",
           nextStatus: "arrived",
         })
@@ -164,35 +164,35 @@ describe("booking progress state machine", () => {
     });
   });
 
-  describe("online flow", () => {
-    it("allows not_started → session_started", () => {
+  describe("in_spa direct transitions", () => {
+    it("blocks not_started → session_started (must check in first)", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "online",
+          bookingType: "in_spa",
           currentStatus: "not_started",
           nextStatus: "session_started",
         })
-      ).toBe(true);
+      ).toBe(false);
     });
 
     it("allows session_started → completed", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "online",
+          bookingType: "in_spa",
           currentStatus: "session_started",
           nextStatus: "completed",
         })
       ).toBe(true);
     });
 
-    it("blocks online not_started → checked_in", () => {
+    it("allows not_started → checked_in", () => {
       expect(
         canTransitionBookingProgress({
-          bookingType: "online",
+          bookingType: "in_spa",
           currentStatus: "not_started",
           nextStatus: "checked_in",
         })
-      ).toBe(false);
+      ).toBe(true);
     });
   });
 
@@ -209,7 +209,7 @@ describe("booking progress state machine", () => {
     it("returns correct actions for walkin not_started", () => {
       expect(
         getNextAllowedProgressActions({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "not_started",
         })
       ).toEqual(["checked_in", "no_show"]);
@@ -238,7 +238,7 @@ describe("booking progress state machine", () => {
     it("returns checked_in for walkin not_started", () => {
       expect(
         getNextBookingProgressStatus({
-          bookingType: "walkin",
+          bookingType: "in_spa",
           currentStatus: "not_started",
         })
       ).toBe("checked_in");

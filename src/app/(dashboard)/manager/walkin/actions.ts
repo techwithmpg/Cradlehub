@@ -18,6 +18,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
   }
 
   const d = parsed.data;
+  const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
 
   // Get auth context — manager's branch_id
   const supabase = await createClient();
@@ -55,7 +56,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     let resolvedResourceId = d.resourceId ?? null;
 
     // ── Auto-assign room if not provided ──────────────────────────────────
-    if (d.type !== "home_service" && !resolvedResourceId) {
+    if (deliveryType !== "home_service" && !resolvedResourceId) {
       resolvedResourceId = await autoAssignBookingResource({
         branchId,
         date: d.date,
@@ -140,9 +141,10 @@ export async function createWalkinBookingAction(rawInput: unknown) {
         start_time: d.startTime,
         end_time: endTime,
         type: d.type,
+        delivery_type: deliveryType,
         status: "confirmed",
         travel_buffer_mins:
-          d.type === "home_service" ? (d.travelBufferMins ?? 30) : null,
+          deliveryType === "home_service" ? (d.travelBufferMins ?? 30) : null,
         metadata,
       })
       .select("id")

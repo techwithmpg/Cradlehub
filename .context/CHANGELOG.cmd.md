@@ -269,3 +269,65 @@
 **Follow-up:**
 - Manager direct-invite (`/manager/staff/new`) if business wants managers to create staff directly.
 - Staff delete/soft-delete if needed (currently only deactivate).
+
+---
+
+### 2026-05-13 - Codex (STAFF-ORG-001 - Staff Edit Organization & Access Model)
+
+**Task:** Fix Staff Edit so it mirrors the full organizational model from owner-level access through operational staff, while keeping workspace access, job function, and supervisor status distinct.
+
+**Files Created:**
+- `src/constants/staff-roles.ts` - shared typed source for supported `system_role`, `staff_type`, service staff types, labels, options, sensitive role policy, and assignable role policy.
+
+**Files Changed:**
+- `src/constants/staff.ts` - compatibility re-export from the shared catalog.
+- `src/lib/validations/staff.ts` - staff create/update schemas now accept every DB-supported system role and existing staff type.
+- `src/app/(dashboard)/owner/staff/actions.ts` - manager-safe role assignment and protected-role checks now use shared policy; non-service staff clear service mappings server-side.
+- `src/components/features/staff/staff-edit-form.tsx` - added Organization & Access section, full role/function options, leadership toggle help text, active status help text, and service fields only for service staff functions.
+- `src/app/(dashboard)/owner/staff/new/staff-invite-form.tsx` - direct invite now uses the same role/function source and conditional service capability logic.
+- `src/components/features/staff/staff-branch-section.tsx`, `staff-table-row.tsx`, `staff-preview-panel.tsx`, `staff-management-utils.ts`, `staff-filter-bar.tsx`, `staff-management-workspace.tsx` - display now separates Workspace Access from Staff Function and shows Head / Supervisor as distinct metadata.
+- `src/lib/staff/approval-permissions.ts` - onboarding approval role lists now reuse shared assignable role arrays.
+- `src/app/(auth)/login/actions.ts` - login redirect now uses shared role routing for driver, utility, service, and manager variant roles.
+- `src/types/index.ts` - re-exports shared system roles and broadens staff tier typing to current schema values.
+- `eslint.config.mjs` - ignores generated `.claude/**` worktree output so lint does not scan build artifacts.
+
+**Behavior:**
+- Driver, utility, CSR/front-desk, managerial, salon head, therapist, nail tech, and aesthetician functions are available in edit/direct invite.
+- Owner can assign all DB-supported access roles; manager can assign only operational roles.
+- Managers cannot edit protected owner/manager-level records or assign forbidden high-level access.
+- Service assignment appears only for therapist, nail tech, aesthetician, and salon head.
+- Saving driver/utility/CSR/managerial functions clears `staff_services` mappings even if stale client data is submitted.
+- Defensive admin-like role names remain protected but are not exposed because current DB constraints do not support them.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
+- `pnpm build`: ✅ Passing, 79 app routes.
+
+**Hotfix:**
+- Added `public/sw.js` as a self-unregistering service worker cleanup script and no-store `/sw.js` headers in `next.config.ts`.
+- Reason: browser logs showed stale `/sw.js` activity and stale client chunks still requiring the old `@base-ui/react/button` module after the Button component moved to Radix Slot.
+- Verification after hotfix: `pnpm type-check`, `pnpm lint`, and `pnpm build` still pass.
+
+---
+
+### 2026-05-14 - Codex (PHASE-10.1 - Compact Precise Home-Service Location Input)
+
+**Task:** Refine the existing public booking wizard home-service location step into a compact Google-Maps-style precise location input.
+
+**Files Changed:**
+- `src/components/public/places-autocomplete.tsx` - extended the shared Places wrapper to return formatted address, place ID, lat/lng, address components, map URL, and load/error status without exposing the server Maps key.
+- `src/components/public/booking-wizard.tsx` - public home-service location step now shows one Google Places search field, a compact selected-location confirmation card with Change, and one merged Delivery notes textarea.
+- `src/lib/validations/booking.ts` - public multi-service booking validation now requires a selected Google place for home-service bookings while leaving in-spa unaffected.
+- `src/lib/actions/online-booking.ts` - server action now enforces precise home-service place data and saves `formatted_address`, `place_id`, `lat`, `lng`, `address_components`, `map_url`, `source: "google_places"`, and `delivery_notes` while preserving legacy address/notes/zone keys.
+
+**Behavior:**
+- Public home-service customers must select a Google suggestion before continuing; typed text alone is rejected.
+- Customer-facing zone, house/unit, landmark, and separate driver-note fields were removed/merged into a single Delivery notes field.
+- Metadata keeps `zone: "unknown"` when customers are not asked to choose a zone, while precise lat/lng remain available for dispatch/ETA systems.
+- In-spa booking flow is unchanged.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
+- `pnpm build`: ✅ Passing, 79 app routes.

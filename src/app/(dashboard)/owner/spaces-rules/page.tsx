@@ -84,7 +84,7 @@ export default async function OwnerSpacesRulesPage({
             `id, start_time, end_time, status, type, resource_id, staff_id, service_id,
             customers ( full_name ),
             services ( name ),
-            staff ( full_name )`
+            staff!staff_id ( full_name )`
           )
           .eq("branch_id", selectedBranchId)
           .eq("booking_date", today)

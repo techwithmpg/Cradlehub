@@ -74,7 +74,7 @@ export function StaffFilterBar({
           />
         )}
         <FilterSelect
-          label="Role"
+          label="Workspace Access"
           value={filters.role}
           options={roleOptions}
           onChange={(value) => updateFilter("role", value)}
@@ -125,7 +125,7 @@ function FilterSelect({
   options: FilterOption[];
   onChange: (value: string) => void;
 }) {
-  const id = `staff-filter-${label.toLowerCase()}`;
+  const id = `staff-filter-${label.toLowerCase().replace(/\s+/g, "-")}`;
 
   return (
     <div className="min-w-0">

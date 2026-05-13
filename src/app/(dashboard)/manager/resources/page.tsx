@@ -113,7 +113,7 @@ export default async function ResourcesPage({
         id, start_time, end_time, status, type, resource_id,
         customers ( full_name ),
         services  ( name ),
-        staff     ( full_name )
+        staff!staff_id ( full_name )
       `)
       .eq("branch_id", branchId)
       .eq("booking_date", selectedDate)
@@ -123,7 +123,7 @@ export default async function ResourcesPage({
   ]);
 
   const resources = (resourcesRes.data ?? []) as Resource[];
-  const bookings = (bookingsRes.data ?? []) as Array<{
+  const bookings = ((bookingsRes.data ?? []) as unknown) as Array<{
     id: string;
     start_time: string;
     end_time: string;

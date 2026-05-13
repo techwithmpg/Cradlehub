@@ -1,62 +1,31 @@
-# CURRENT TASK: MGR-STAFF-001 — Manager Staff Parity
+# CURRENT TASK: PHASE-10.1 - Compact Precise Home-Service Location Input
 
-## Overview
-Mirror Owner staff-management capabilities into the Manager workspace, safely branch-scoped, without redesigning the app or rewriting staff management from scratch.
+## Status
+Completed on 2026-05-14.
 
-## What changed
-1. **Audit:** Created `docs/MANAGER_STAFF_PARITY_AUDIT.md` documenting Owner capabilities, Manager gaps, and safe parity plan.
+## Scope
+Enhanced only the existing public booking wizard home-service location step. This was a compact UI/UX refinement, not a new booking flow or booking wizard redesign.
 
-2. **Shared edit form:**
-   - Extracted `src/components/features/staff/staff-edit-form.tsx` from Owner route.
-   - Accepts `workspaceContext: "owner" | "manager"`.
-   - Owner: full controls, all branches, all roles.
-   - Manager: branch-locked, manager-safe roles only, protected-account warning.
+## Completed
+- Reused and extended `src/components/public/places-autocomplete.tsx`.
+- Public home-service location step now uses one Google Places search field.
+- Selected Google suggestion is required before continuing; typed text alone is rejected.
+- Selected location confirmation card shows the formatted address and a small Change action.
+- Customer-facing zone, house/unit, landmark, and separate driver-note fields were removed/merged into one optional Delivery notes textarea.
+- Public booking metadata saves `formatted_address`, `place_id`, `lat`, `lng`, optional `address_components`, optional `map_url`, `source: "google_places"`, and `delivery_notes`.
+- Legacy metadata keys are preserved where useful: `address`, `full_address`, `notes`, `parking_notes`, `customer_notes`, `zone`, `lat`, and `lng`.
+- In-spa booking flow is unaffected.
+- Browser code uses only `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`.
 
-3. **New Manager route:**
-   - Created `src/app/(dashboard)/manager/staff/[staffId]/page.tsx`.
-   - Loads staff only from manager's branch; returns `notFound()` otherwise.
-   - Renders shared `StaffEditForm` with `workspaceContext="manager"`.
-
-4. **Owner route updated:**
-   - `src/app/(dashboard)/owner/staff/[staffId]/page.tsx` now imports shared `StaffEditForm`.
-   - Deleted old local `staff-edit-form.tsx`.
-
-5. **Server action hardening (`updateStaffAction`):**
-   - Added `SENSITIVE_SYSTEM_ROLES` and `MANAGER_SAFE_ROLES` sets.
-   - Manager updates check: target staff is in manager's branch.
-   - Manager updates check: target staff is NOT a protected account.
-   - Manager updates check: new `systemRole` must be manager-safe.
-   - Manager updates check: new `branchId` must equal manager's branch.
-   - Revalidates both `/owner/staff` and `/manager/staff` (list + detail pages).
-
-6. **Preview panel updates:**
-   - `src/components/features/staff/staff-preview-panel.tsx`
-   - Manager now sees "Change Role" and "Deactivate Staff" quick actions.
-   - "Assign Branch" remains Owner-only.
-
-7. **Mobile staff screen:**
-   - `src/components/features/manager/mobile/manager-staff-screen.tsx`
-   - Staff cards are now clickable `Link` elements to `/manager/staff/[staffId]`.
-
-8. **Pre-existing lint fix:**
-   - Fixed `<a>` → `<Link>` in `control-console-page.tsx` (was blocking lint).
-
-## Files changed
-- `docs/MANAGER_STAFF_PARITY_AUDIT.md` — CREATED
-- `src/components/features/staff/staff-edit-form.tsx` — CREATED (extracted)
-- `src/app/(dashboard)/manager/staff/[staffId]/page.tsx` — CREATED
-- `src/app/(dashboard)/owner/staff/[staffId]/page.tsx` — updated import to shared form
-- `src/app/(dashboard)/owner/staff/[staffId]/staff-edit-form.tsx` — DELETED
-- `src/app/(dashboard)/owner/staff/actions.ts` — hardened `updateStaffAction`
-- `src/components/features/staff/staff-preview-panel.tsx` — manager quick actions
-- `src/components/features/manager/mobile/manager-staff-screen.tsx` — clickable cards
-- `src/components/features/control-console/control-console-page.tsx` — `<a>` to `<Link>`
+## Out of Scope
+- Payroll.
+- Staff leaderboard or performance.
+- Payment logic.
+- Auth, proxy, middleware, or RLS.
+- Driver workflow, live tracking, customer tracking pages, internal live maps, or route/ETA redesign.
+- Routes API calls while typing.
 
 ## Verification
-- `pnpm type-check`: ✅ Passing
-- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
-- `pnpm build`: ✅ Passing, 80 app routes (was 79).
-
-## Next Phase
-- Manager direct-invite page (`/manager/staff/new`) if business wants managers to create staff directly.
-- Staff delete/soft-delete capability if business needs it (currently only deactivate).
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- `pnpm build`: Passing, 79 app routes.

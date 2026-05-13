@@ -39,9 +39,9 @@ export function StaffTableRow({
   const position =
     status === "invited"
       ? "Pending invitation"
-      : meta.tierLabel
-        ? `${meta.roleLabel} · ${meta.tierLabel}`
-        : meta.roleLabel;
+      : [meta.staffTypeLabel, member.is_head ? "Head / Supervisor" : null, meta.tierLabel]
+        .filter(Boolean)
+        .join(" · ");
   const subtitle = status === "invited" ? "Pending invitation" : meta.subtitle;
   const basePath = `/${workspaceContext}/staff`;
 

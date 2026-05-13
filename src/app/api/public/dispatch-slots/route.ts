@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       .select("start_time, end_time, metadata")
       .eq("branch_id", parsed.data.branchId)
       .eq("booking_date", parsed.data.date)
-      .eq("type", "home_service")
+      .eq("delivery_type", "home_service")
       .in("status", ["pending", "confirmed", "in_progress"]),
     getBranchBookingRulesOrDefault(parsed.data.branchId),
   ]);

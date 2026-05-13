@@ -17,6 +17,7 @@ export type StaffPortalBooking = {
   start_time: string;
   end_time: string;
   type: "online" | "walkin" | "home_service";
+  delivery_type: "in_spa" | "home_service";
   status: "pending" | "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
   booking_progress_status: BookingProgressStatus;
   home_service_tracking_status: string;

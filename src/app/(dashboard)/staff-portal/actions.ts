@@ -219,10 +219,10 @@ export async function updateBookingProgressAction({
     };
   }
 
-  // Fetch the booking
+  // Fetch the booking — include driver_id for Phase 5 permission checks
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
-    .select("id, staff_id, branch_id, type, status, booking_progress_status")
+    .select("id, staff_id, branch_id, type, status, booking_progress_status, driver_id")
     .eq("id", bookingId)
     .single();
 
@@ -235,18 +235,22 @@ export async function updateBookingProgressAction({
   }
 
   const isAssignedStaff = booking.staff_id === me.id;
+  const isAssignedDriver =
+    (booking as { driver_id?: string | null }).driver_id === me.id;
   const isManager = ["owner", "manager"].includes(me.system_role);
   const isCsr = ["csr", "csr_head", "csr_staff"].includes(me.system_role);
+  const isDriver = me.system_role === "driver";
 
   // Categorize the requested action
   const therapistActions: BookingProgressStatus[] = [
-    "travel_started",
-    "arrived",
     "session_started",
     "completed",
   ];
+  // Drivers can advance travel stages for home-service trips
+  const driverActions: BookingProgressStatus[] = ["travel_started", "arrived"];
   const csrActions: BookingProgressStatus[] = ["checked_in", "no_show"];
   const isTherapistAction = therapistActions.includes(nextStatus);
+  const isDriverAction = driverActions.includes(nextStatus);
   const isCsrAction = csrActions.includes(nextStatus);
 
   // ── Permission checks ──
@@ -255,6 +259,14 @@ export async function updateBookingProgressAction({
       ok: false,
       code: "PERMISSION_DENIED",
       message: "Only the assigned therapist can perform this action.",
+    };
+  }
+
+  if (isDriverAction && !isAssignedStaff && !isManager && !(isDriver && isAssignedDriver)) {
+    return {
+      ok: false,
+      code: "PERMISSION_DENIED",
+      message: "Only the assigned driver or therapist can advance travel status.",
     };
   }
 
@@ -285,7 +297,9 @@ export async function updateBookingProgressAction({
 
   // ── Transition validation ──
   const currentStatus = booking.booking_progress_status as BookingProgressStatus;
-  const bookingType = booking.type as "home_service" | "walkin" | "online";
+  const rawType = booking.type as string;
+  const bookingType: import("@/lib/bookings/progress").BookingTypeForProgress =
+    rawType === "home_service" ? "home_service" : "in_spa";
 
   if (!canTransitionBookingProgress({ bookingType, currentStatus, nextStatus })) {
     return {
@@ -356,7 +370,7 @@ function getInvalidTransitionMessage(
     }
   }
 
-  if (bookingType === "walkin") {
+  if (bookingType === "in_spa") {
     if (current === "not_started" && next !== "checked_in" && next !== "no_show") {
       return "Please check in the client or mark no-show.";
     }

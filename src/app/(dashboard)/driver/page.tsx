@@ -1,167 +1,124 @@
-﻿import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getDriverTodayTrips } from "@/lib/actions/driver-actions";
+import { PageHeader } from "@/components/features/dashboard/page-header";
+import { DriverTripList } from "@/components/features/driver/driver-trip-list";
 
-const COMING_SOON_MODULES = [
-  {
-    icon: "🚗",
-    label: "Assigned Home Service Trips",
-    desc: "View all home service bookings assigned to you with pickup details",
-  },
-  {
-    icon: "📍",
-    label: "Customer Location",
-    desc: "Delivery addresses and contact info for each trip",
-  },
-  {
-    icon: "👩‍💼",
-    label: "Therapist Assignment",
-    desc: "See which therapist you are transporting for each appointment",
-  },
-  {
-    icon: "⏱️",
-    label: "Travel Buffer",
-    desc: "Built-in buffer time to ensure on-time arrival",
-  },
-  {
-    icon: "🗺️",
-    label: "Open in Maps",
-    desc: "Launch navigation to the customer location",
-  },
-  {
-    icon: "✅",
-    label: "Trip Status",
-    desc: "Mark trips as picked up, in transit, or completed",
-  },
-];
-
-async function requireDriverAccess() {
+async function requireDriverRecord() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: me } = await supabase
     .from("staff")
-    .select("system_role")
+    .select("id, full_name, branch_id, system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
 
-  if (me?.system_role === "owner" || me?.system_role === "driver") return;
-  redirect("/staff-portal");
+  if (!me) {
+    if (isDevAuthBypassEnabled()) {
+      return {
+        id: "00000000-0000-0000-0000-000000000000",
+        full_name: "Dev Driver",
+        branch_id: "00000000-0000-0000-0000-000000000000",
+        system_role: "driver",
+      };
+    }
+    redirect("/login");
+  }
+
+  // Allow owner + driver roles; others go back to staff portal
+  if (me.system_role !== "owner" && me.system_role !== "driver") {
+    redirect("/staff-portal");
+  }
+
+  return me;
+}
+
+function first<T>(v: T | T[] | null): T | null {
+  if (!v) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
+function formatDate(d: Date): string {
+  return d.toLocaleDateString("en-PH", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 }
 
 export default async function DriverPanelPage() {
-  await requireDriverAccess();
+  const me = await requireDriverRecord();
+  const today = new Date().toISOString().split("T")[0]!;
+
+  let trips: Awaited<ReturnType<typeof getDriverTodayTrips>> = [];
+  let fetchError: string | null = null;
+
+  try {
+    trips = await getDriverTodayTrips(me.id, today);
+  } catch (e) {
+    fetchError = e instanceof Error ? e.message : "Failed to load trips";
+  }
+
+  // Normalise trips for the client component
+  const normalised = trips.map((t) => {
+    const meta = (t.metadata as Record<string, unknown> | null) ?? {};
+    const hsAddr = (meta.home_service_address as Record<string, unknown> | null) ?? {};
+
+    return {
+      id: t.id,
+      booking_date: t.booking_date,
+      start_time: t.start_time,
+      end_time: t.end_time,
+      type: t.type as string,
+      status: t.status,
+      booking_progress_status: (t.booking_progress_status as string | null) ?? "not_started",
+      travel_buffer_mins: t.travel_buffer_mins ?? null,
+      travel_started_at: (t.travel_started_at as string | null) ?? null,
+      arrived_at: (t.arrived_at as string | null) ?? null,
+      session_started_at: (t.session_started_at as string | null) ?? null,
+      session_completed_at: (t.session_completed_at as string | null) ?? null,
+      service_name: first(t.services)?.name ?? "Service",
+      service_duration: first(t.services)?.duration_minutes ?? null,
+      customer_name: first(t.customers)?.full_name ?? "Customer",
+      therapist_name: first((t.staff as unknown) as { id: string; full_name: string } | { id: string; full_name: string }[] | null)?.full_name ?? null,
+      hs_address: typeof hsAddr.full_address === "string" ? hsAddr.full_address : null,
+      hs_city: typeof hsAddr.city === "string" ? hsAddr.city : null,
+      hs_zone: typeof hsAddr.zone === "string" ? hsAddr.zone : null,
+      hs_map_url: typeof hsAddr.map_url === "string" ? hsAddr.map_url : null,
+    };
+  });
 
   return (
     <div>
       <PageHeader
         title="Driver Panel"
-        description="Home service dispatch, assigned trips, therapist pickup coordination, and route support will appear here."
+        description={`${me.full_name} · ${formatDate(new Date())}`}
         icon="🚗"
       />
 
-      <div
-        style={{
-          backgroundColor: "var(--cs-surface-warm)",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: "var(--cs-r-lg)",
-          padding: "2rem",
-          textAlign: "center",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🚗</div>
-        <h3
+      {fetchError ? (
+        <div
           style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "1.25rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            marginBottom: "0.25rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "#FEF2F2",
+            border: "1px solid #FECACA",
+            borderRadius: 8,
+            fontSize: "0.875rem",
+            color: "#991B1B",
+            marginBottom: "1rem",
           }}
         >
-          Coming Soon
-        </h3>
-        <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", maxWidth: 480, margin: "0 auto" }}>
-          Driver dispatch and home service trip management are being built.
-          Check back soon.
-        </p>
-      </div>
+          Error loading trips: {fetchError}
+        </div>
+      ) : null}
 
-      <div
-        style={{
-          fontSize: "0.6875rem",
-          fontWeight: 600,
-          color: "var(--cs-text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          marginBottom: "0.75rem",
-        }}
-      >
-        Planned Modules
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: "0.75rem",
-        }}
-      >
-        {COMING_SOON_MODULES.map((m) => (
-          <div
-            key={m.label}
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "0.75rem",
-              padding: "1rem",
-              borderRadius: "var(--cs-r-lg)",
-              backgroundColor: "var(--cs-surface-warm)",
-              border: "1px solid var(--cs-border-soft)",
-              opacity: 0.7,
-            }}
-          >
-            <span style={{ fontSize: 20, lineHeight: 1, filter: "grayscale(0.6)" }}>{m.icon}</span>
-            <div>
-              <div
-                style={{
-                  fontSize: "0.875rem",
-                  fontWeight: 600,
-                  color: "var(--cs-text-muted)",
-                  marginBottom: 2,
-                }}
-              >
-                {m.label}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", lineHeight: 1.4 }}>
-                {m.desc}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ marginTop: "1.5rem", textAlign: "center" }}>
-        <Link
-          href="/staff-portal"
-          style={{
-            padding: "8px 16px",
-            borderRadius: 6,
-            border: "1px solid var(--cs-border)",
-            backgroundColor: "var(--cs-surface)",
-            color: "var(--cs-text)",
-            fontSize: "0.8125rem",
-            fontWeight: 500,
-            textDecoration: "none",
-          }}
-        >
-          &larr; Back to Staff Portal
-        </Link>
-      </div>
+      <DriverTripList trips={normalised} />
     </div>
   );
 }
-

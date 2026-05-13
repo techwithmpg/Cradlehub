@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { ControlBookingCard } from "./control-booking-card";
+import type { AvailableDriver } from "./driver-assign-menu";
 import type { ControlBooking, ControlTab } from "./types";
+import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
 
 const TAB_CONFIG: { key: ControlTab; label: string }[] = [
   { key: "all", label: "All" },
@@ -18,9 +20,13 @@ export type ControlQueueProps = {
   viewerRole: string;
   paymentAction?: (input: unknown) => Promise<{ success: boolean; error?: string }>;
   statusAction?: (input: unknown) => Promise<{ success: boolean; error?: string }>;
+  assignDriverAction?: (input: unknown) => Promise<{ success: boolean; error?: string }>;
+  availableDrivers?: AvailableDriver[];
+  getTrackingLinkAction?: (input: unknown) => Promise<{ ok: boolean; message?: string; error?: string }>;
+  refreshEtaAction?: (bookingId: string) => Promise<EtaRefreshResult>;
 };
 
-export function ControlQueue({ bookings, viewerRole, paymentAction, statusAction }: ControlQueueProps) {
+export function ControlQueue({ bookings, viewerRole, paymentAction, statusAction, assignDriverAction, availableDrivers, getTrackingLinkAction, refreshEtaAction }: ControlQueueProps) {
   const [activeTab, setActiveTab] = useState<ControlTab>("all");
 
   const filtered = bookings.filter((b) => {
@@ -33,12 +39,20 @@ export function ControlQueue({ bookings, viewerRole, paymentAction, statusAction
       return (
         !!b.dispatch_warning ||
         !!b.needs_location_review ||
-        !b.resource_name && b.type !== "home_service" ||
+        !!b.no_driver_warning ||
+        (!b.resource_name && b.type !== "home_service") ||
         !b.staff_name
       );
     }
     return true;
   });
+
+  const isIssue = (b: ControlBooking) =>
+    !!b.dispatch_warning ||
+    !!b.needs_location_review ||
+    !!b.no_driver_warning ||
+    (!b.resource_name && b.type !== "home_service") ||
+    !b.staff_name;
 
   const tabCounts = {
     all: bookings.length,
@@ -46,7 +60,7 @@ export function ControlQueue({ bookings, viewerRole, paymentAction, statusAction
     home_service: bookings.filter((b) => b.type === "home_service").length,
     in_spa: bookings.filter((b) => b.type !== "home_service").length,
     unpaid: bookings.filter((b) => (b.payment_status ?? "unpaid") === "unpaid" || (b.payment_status ?? "unpaid") === "pending").length,
-    issues: bookings.filter((b) => !!b.dispatch_warning || !!b.needs_location_review || (!b.resource_name && b.type !== "home_service") || !b.staff_name).length,
+    issues: bookings.filter(isIssue).length,
   };
 
   return (
@@ -118,6 +132,10 @@ export function ControlQueue({ bookings, viewerRole, paymentAction, statusAction
               viewerRole={viewerRole}
               paymentAction={paymentAction}
               statusAction={statusAction}
+              assignDriverAction={assignDriverAction}
+              availableDrivers={availableDrivers}
+              getTrackingLinkAction={getTrackingLinkAction}
+              refreshEtaAction={refreshEtaAction}
             />
           ))}
         </div>

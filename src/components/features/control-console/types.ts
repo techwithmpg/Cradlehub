@@ -22,6 +22,21 @@ export type ControlBooking = {
   hs_map_url?: string | null;
   dispatch_warning?: string | null;
   needs_location_review?: boolean;
+  /** Phase 5: driver assignment */
+  driver_id?: string | null;
+  driver_name?: string | null;
+  no_driver_warning?: boolean;
+  /** Phase 6: last known location timestamp (ISO string) */
+  last_location_at?: string | null;
+  /** Phase 7: active customer tracking link */
+  tracking_token?: string | null;
+  tracking_url?: string | null;
+  tracking_message?: string | null;
+  /** Phase 10: destination coords for ETA calculation */
+  dest_lat?: number | null;
+  dest_lng?: number | null;
+  /** Phase 10: live ETA stored in metadata after refresh */
+  live_eta?: import("@/lib/bookings/ops-warnings").LiveEtaData | null;
 };
 
 export type ControlTab =

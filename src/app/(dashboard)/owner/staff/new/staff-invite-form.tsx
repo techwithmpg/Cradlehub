@@ -1,12 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createStaffAction } from "@/app/(dashboard)/owner/staff/actions";
-import { STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff";
+import {
+  STAFF_TYPE_OPTIONS,
+  SYSTEM_ROLE_OPTIONS,
+  isServiceStaffType,
+  isStaffType,
+  isSystemRole,
+  type StaffType,
+} from "@/constants/staff";
 import type { Database } from "@/types/supabase";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
@@ -14,8 +21,6 @@ type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
 type Tier = "senior" | "mid" | "junior" | "head" | "n/a";
-type StaffRole = "manager" | "crm" | "csr" | "csr_head" | "csr_staff" | "staff";
-type StaffType = (typeof STAFF_TYPES)[number];
 
 type StaffActionState = {
   success?: boolean;
@@ -34,19 +39,8 @@ function isTier(value: string): value is Tier {
   );
 }
 
-function isStaffRole(value: string): value is StaffRole {
-  return (
-    value === "manager" ||
-    value === "crm" ||
-    value === "csr" ||
-    value === "csr_head" ||
-    value === "csr_staff" ||
-    value === "staff"
-  );
-}
-
-function isStaffType(value: string): value is StaffType {
-  return STAFF_TYPES.includes(value as StaffType);
+function resolveStaffType(value: string): StaffType | "" {
+  return isStaffType(value) ? value : "";
 }
 
 export function InviteStaffForm({
@@ -57,6 +51,8 @@ export function InviteStaffForm({
   services: ServiceRow[];
 }) {
   const router = useRouter();
+  const [selectedStaffType, setSelectedStaffType] = useState<StaffType | "">("");
+  const showServiceCapabilities = isServiceStaffType(selectedStaffType);
 
   const [state, formAction, pending] = useActionState(
     async (_prev: StaffActionState, formData: FormData): Promise<StaffActionState> => {
@@ -64,11 +60,13 @@ export function InviteStaffForm({
       const roleValue = String(formData.get("systemRole") ?? "");
       const typeValue = String(formData.get("staffType") ?? "");
 
-      if (!isTier(tierValue) || !isStaffRole(roleValue) || !isStaffType(typeValue)) {
-        return { success: false, error: "Please select valid role, tier, and job function." };
+      if (!isTier(tierValue) || !isSystemRole(roleValue) || !isStaffType(typeValue)) {
+        return { success: false, error: "Please select valid access, tier, and staff function." };
       }
 
-      const serviceIds = formData.getAll("serviceIds").map((v) => String(v));
+      const serviceIds = isServiceStaffType(typeValue)
+        ? formData.getAll("serviceIds").map((v) => String(v))
+        : [];
 
       const result = await createStaffAction({
         branchId: String(formData.get("branchId") ?? ""),
@@ -79,7 +77,7 @@ export function InviteStaffForm({
         systemRole: roleValue,
         staffType: typeValue,
         isHead: formData.get("isHead") === "on",
-        serviceIds: serviceIds.length > 0 ? serviceIds : undefined,
+        serviceIds,
       });
 
       if (result.success) {
@@ -127,6 +125,11 @@ export function InviteStaffForm({
           </div>
         )}
 
+        <SectionHeader
+          title="Organization & Access"
+          description="Set workspace access separately from the staff member's operational function."
+        />
+
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           <Label htmlFor="fullName">Full name *</Label>
           <Input id="fullName" name="fullName" placeholder="Maria Santos" required />
@@ -145,44 +148,59 @@ export function InviteStaffForm({
           <Input id="phone" name="phone" type="tel" placeholder="+63 XXX XXX XXXX" />
         </div>
 
-        <SelectField id="branchId" name="branchId" label="Branch *">
-          <option value="">Select branch…</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
+        <SelectField id="branchId" name="branchId" label="Branch *" helpText="Primary branch assignment.">
+          <option value="">Select branch...</option>
+          {branches.map((branch) => (
+            <option key={branch.id} value={branch.id}>
+              {branch.name}
             </option>
           ))}
         </SelectField>
 
-        <SelectField id="systemRole" name="systemRole" label="System access role *">
-          <option value="">Select role…</option>
-          <option value="manager">Manager — daily schedule, walk-ins, bookings</option>
-          <option value="crm">CRM — customer records, reports, and booking support</option>
-          <option value="csr_head">CSR Head — front-desk supervisor (cancel/reassign support)</option>
-          <option value="csr_staff">CSR Staff — front-desk booking and customer support</option>
-          <option value="csr">CSR (legacy) — same operational access as CSR Staff</option>
-          <option value="staff">Staff — own schedule and assigned bookings</option>
+        <SelectField
+          id="systemRole"
+          name="systemRole"
+          label="Workspace Access *"
+          helpText="Controls which workspace this staff member can enter."
+        >
+          <option value="">Select role...</option>
+          {SYSTEM_ROLE_OPTIONS.map((role) => (
+            <option key={role.value} value={role.value}>
+              {role.label}
+            </option>
+          ))}
         </SelectField>
 
-        <SelectField id="staffType" name="staffType" label="Job function *">
-          <option value="">Select job function…</option>
-          {STAFF_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {STAFF_TYPE_LABELS[t]}
+        <SelectField
+          id="staffType"
+          name="staffType"
+          label="Staff Function *"
+          helpText="Controls what kind of work this person performs."
+          onChange={(event) => setSelectedStaffType(resolveStaffType(event.currentTarget.value))}
+        >
+          <option value="">Select staff function...</option>
+          {STAFF_TYPE_OPTIONS.map((staffType) => (
+            <option key={staffType.value} value={staffType.value}>
+              {staffType.label}
             </option>
           ))}
         </SelectField>
 
         <label
           htmlFor="isHead"
-          style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem" }}
+          style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", fontSize: "0.875rem" }}
         >
           <input id="isHead" name="isHead" type="checkbox" />
-          Department head / supervisor
+          <span>
+            <span style={{ display: "block", fontWeight: 600 }}>Head / Supervisor</span>
+            <span style={{ display: "block", color: "var(--cs-text-muted)", fontSize: "0.75rem" }}>
+              Use this for head therapist, head driver, head CSR, or other supervisor positions.
+            </span>
+          </span>
         </label>
 
         <SelectField id="tier" name="tier" label="Tier *">
-          <option value="">Select tier…</option>
+          <option value="">Select tier...</option>
           <option value="senior">Senior Therapist</option>
           <option value="mid">Mid Therapist</option>
           <option value="junior">Junior Therapist</option>
@@ -190,57 +208,58 @@ export function InviteStaffForm({
           <option value="n/a">N/A (non-service role)</option>
         </SelectField>
 
-        <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
-          <legend
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--cs-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "0.5rem",
-            }}
-          >
-            Service capabilities
-          </legend>
-          <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0 0 0.75rem" }}>
-            If left empty, this staff member will temporarily remain available under the legacy
-            scheduling behavior until service specialization is fully configured.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {Object.entries(groupedServices).map(([category, catServices]) => (
-              <div key={category}>
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: "var(--cs-text-muted)",
-                    marginBottom: "0.375rem",
-                  }}
-                >
-                  {category}
+        {showServiceCapabilities && (
+          <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+            <legend
+              style={{
+                fontSize: "0.8125rem",
+                fontWeight: 600,
+                color: "var(--cs-text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                marginBottom: "0.5rem",
+              }}
+            >
+              Service Capability
+            </legend>
+            <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0 0 0.75rem" }}>
+              Assign only the spa services this service provider can perform.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {Object.entries(groupedServices).map(([category, catServices]) => (
+                <div key={category}>
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "var(--cs-text-muted)",
+                      marginBottom: "0.375rem",
+                    }}
+                  >
+                    {category}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
+                    {catServices.map((service) => (
+                      <label
+                        key={service.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.375rem",
+                          fontSize: "0.8125rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input type="checkbox" name="serviceIds" value={service.id} />
+                        {service.name}
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
-                  {catServices.map((s) => (
-                    <label
-                      key={s.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.375rem",
-                        fontSize: "0.8125rem",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <input type="checkbox" name="serviceIds" value={s.id} />
-                      {s.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </fieldset>
+              ))}
+            </div>
+          </fieldset>
+        )}
 
         <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
           <Button type="button" variant="outline" onClick={() => router.back()} style={{ flex: 1 }}>
@@ -257,10 +276,27 @@ export function InviteStaffForm({
               opacity: pending ? 0.7 : 1,
             }}
           >
-            {pending ? "Sending invite…" : "Send Invite"}
+            {pending ? "Sending invite..." : "Send Invite"}
           </Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function SectionHeader({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div style={{ borderBottom: "1px solid var(--cs-border-soft)", paddingBottom: "0.75rem" }}>
+      <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "var(--cs-text)" }}>{title}</h2>
+      <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+        {description}
+      </p>
     </div>
   );
 }
@@ -269,20 +305,28 @@ function SelectField({
   id,
   name,
   label,
+  helpText,
   children,
+  onChange,
 }: {
   id: string;
   name: string;
   label: string;
+  helpText?: string;
   children: React.ReactNode;
+  onChange?: React.ChangeEventHandler<HTMLSelectElement>;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       <Label htmlFor={id}>{label}</Label>
+      {helpText && (
+        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>{helpText}</p>
+      )}
       <select
         id={id}
         name={name}
         required
+        onChange={onChange}
         style={{
           height: 36,
           borderRadius: 6,

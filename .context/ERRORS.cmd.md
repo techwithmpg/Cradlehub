@@ -86,3 +86,13 @@ _No errors logged yet._
   - Resolution: reran the search with the route-group path quoted.
 - Initial `pnpm type-check` failed after adding tier guards because nullable `staff_type` was passed directly into `Set.has`.
   - Resolution: normalized the nullable value before the non-tier staff type check and reran `pnpm type-check` successfully.
+
+## 2026-05-13 - STAFF-ORG-001 execution notes
+
+- Initial `pnpm lint` failed because ESLint scanned generated files under `.claude/worktrees/**/.next/**`.
+  - Resolution: added `.claude/**` to `eslint.config.mjs` global ignores and reran `pnpm lint`; source lint passed with only two pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are still absent in this repo.
+  - Resolution: used the existing `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, and `docs/AGENT_RULES.md` files.
+- Browser runtime continued to report a stale client chunk requiring `@base-ui/react/button` from `src/components/ui/button.tsx`, even though current source imports Radix `Slot`.
+  - Clue: dev logs also showed `GET /sw.js 404`, indicating a stale service worker registration on localhost.
+  - Resolution: added a self-unregistering `public/sw.js` and no-store headers for `/sw.js` in `next.config.ts`; restart dev server and hard refresh the browser once.

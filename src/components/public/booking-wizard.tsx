@@ -27,7 +27,12 @@ import {
 import { toast } from "sonner";
 import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
-import { PlacesAutocomplete, type PlaceSelectResult } from "@/components/public/places-autocomplete";
+import {
+  PlacesAutocomplete,
+  type GoogleAddressComponent,
+  type PlaceSelectResult,
+  type PlacesAutocompleteStatus,
+} from "@/components/public/places-autocomplete";
 import {
   getSlotDispatchStatus,
   type ExistingHsBooking,
@@ -106,6 +111,8 @@ const STEPS_HS = [
 ];
 
 const MOBILE_PROGRESS_STEPS = ["Branch", "Service", "Date & Time", "Details", "Confirm"] as const;
+const PRECISE_LOCATION_ERROR =
+  "Please select your address from the Google suggestions so our therapist and driver can find you accurately.";
 
 function getSteps(isHomeService: boolean) {
   return isHomeService ? STEPS_HS : STEPS_BASE;
@@ -242,6 +249,7 @@ export function BookingWizard({
     notes: "",
     // Home service address fields
     hsAddress: "",
+    hsAddressDetails: "",
     hsBarangay: "",
     hsCity: "",
     hsLandmark: "",
@@ -252,8 +260,11 @@ export function BookingWizard({
     hsLng: null as number | null,
     hsPlaceId: "",
     hsFormattedAddress: "",
+    hsAddressComponents: [] as GoogleAddressComponent[],
+    hsMapUrl: "",
   });
   const [formError, setFormError] = useState("");
+  const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
 
   // Computed
   const totalDuration = useMemo(
@@ -481,6 +492,11 @@ export function BookingWizard({
       setFormError("Please enter your full name and phone number.");
       return;
     }
+    if (mode === "public" && isHomeService && !isPreciseHomeServiceLocation(form)) {
+      setFormError(PRECISE_LOCATION_ERROR);
+      setStep(4);
+      return;
+    }
     setFormError("");
     setSubmitting(true);
 
@@ -488,15 +504,21 @@ export function BookingWizard({
       visitType === "home_service"
         ? {
             homeServiceAddress:          form.hsAddress || undefined,
+            homeServiceAddressDetails:   form.hsAddressDetails || undefined,
             homeServiceBarangay:         form.hsBarangay || undefined,
             homeServiceCity:             form.hsCity || undefined,
             homeServiceLandmark:         form.hsLandmark || undefined,
             homeServiceParkingNotes:     form.hsParkingNotes || undefined,
+            homeServiceCustomerNotes:    form.hsParkingNotes || undefined,
             homeServiceZone:             form.hsZone || "unknown",
             homeServiceLat:              form.hsLat ?? undefined,
             homeServiceLng:              form.hsLng ?? undefined,
             homeServicePlaceId:          form.hsPlaceId || undefined,
             homeServiceFormattedAddress: form.hsFormattedAddress || undefined,
+            homeServiceAddressComponents: form.hsAddressComponents.length > 0
+              ? form.hsAddressComponents
+              : undefined,
+            homeServiceMapUrl:           form.hsMapUrl || undefined,
           }
         : {};
 
@@ -539,13 +561,23 @@ export function BookingWizard({
     }
   }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaff, form, mode, isHomeService, successStep]);
 
+  const preciseHomeServiceLocationSelected = isPreciseHomeServiceLocation(form);
+  const preciseLocationRequired = mode === "public" && isHomeService;
   const hsAddressFilled =
     !isHomeService ||
-    (form.hsAddress.trim().length >= 5 &&
-      (form.hsBarangay.trim().length >= 2 || form.hsCity.trim().length >= 2));
+    (preciseLocationRequired
+      ? preciseHomeServiceLocationSelected
+      : form.hsAddress.trim().length >= 5 &&
+        (form.hsBarangay.trim().length >= 2 || form.hsCity.trim().length >= 2));
 
-  // Location step is valid when a non-unknown zone is chosen
-  const locationValid = !isHomeService || (form.hsZone !== "unknown" && form.hsZone !== "");
+  // Public home-service location is Google place-first; zone stays unknown for
+  // backward-compatible dispatch metadata and can be refined by operations later.
+  const locationValid =
+    !isHomeService
+      ? true
+      : preciseLocationRequired
+        ? preciseHomeServiceLocationSelected
+        : form.hsZone !== "unknown" && form.hsZone !== "";
 
   const canProceed =
     currentStepName === "branch"    ? !!selectedBranch
@@ -556,7 +588,22 @@ export function BookingWizard({
     : currentStepName === "therapist" ? true
     : currentStepName === "details"  ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7 && hsAddressFilled
     : false;
+  const canClickContinue = currentStepName === "location" || canProceed;
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
+
+  const handleContinue = useCallback(() => {
+    if (currentStepName === "location" && !locationValid) {
+      setFormError(
+        preciseLocationRequired
+          ? PRECISE_LOCATION_ERROR
+          : "Please select a location zone before continuing."
+      );
+      return;
+    }
+
+    setFormError("");
+    setStep((current) => current + 1);
+  }, [currentStepName, locationValid, preciseLocationRequired]);
 
   return (
     <div className={mode === "public" ? "min-h-screen pt-14 md:pt-0" : ""} style={{ background: mode === "public" ? "#F7F3EB" : "transparent" }}>
@@ -716,7 +763,17 @@ export function BookingWizard({
             {currentStepName === "location" && (
               <StepLocation
                 form={form}
-                onChange={setForm}
+                onChange={(nextForm) => {
+                  setForm(nextForm);
+                  if (formError === PRECISE_LOCATION_ERROR) {
+                    setFormError("");
+                  }
+                }}
+                placesStatus={placesStatus}
+                onPlacesStatusChange={setPlacesStatus}
+                preciseLocationRequired={mode === "public"}
+                mode={mode}
+                error={formError}
               />
             )}
             {currentStepName === "date_time" && (
@@ -753,6 +810,7 @@ export function BookingWizard({
                 onChange={setForm}
                 error={formError}
                 visitType={visitType}
+                mode={mode}
               />
             )}
             {currentStepName === "success" && success && (
@@ -780,11 +838,11 @@ export function BookingWizard({
                 </button>
                 {currentStepName !== "details" ? (
                   <button
-                    onClick={() => setStep(step + 1)}
-                    disabled={!canProceed}
+                    onClick={handleContinue}
+                    disabled={!canClickContinue}
                     className={[
                       "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
-                      canProceed
+                      canClickContinue
                         ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
                         : "bg-[#EDE4D3] text-[#9AA89A]",
                     ].join(" ")}
@@ -1594,13 +1652,110 @@ const LABEL_CLS = "flex items-center gap-2 text-[12px] font-semibold uppercase t
 
 // ── Step 4 (HS only): Location ────────────────────────────────────────────────
 
+function isPreciseHomeServiceLocation(form: DetailsForm): boolean {
+  return (
+    form.hsPlaceId.trim().length > 0 &&
+    form.hsFormattedAddress.trim().length >= 5 &&
+    typeof form.hsLat === "number" &&
+    Number.isFinite(form.hsLat) &&
+    typeof form.hsLng === "number" &&
+    Number.isFinite(form.hsLng)
+  );
+}
+
+function getAddressComponent(
+  components: GoogleAddressComponent[],
+  types: string[]
+): string {
+  return (
+    components.find((component) =>
+      types.some((type) => component.types.includes(type))
+    )?.long_name ?? ""
+  );
+}
+
+function applySelectedPlace(form: DetailsForm, result: PlaceSelectResult): DetailsForm {
+  const barangay = getAddressComponent(result.addressComponents, [
+    "sublocality_level_1",
+    "sublocality",
+    "neighborhood",
+    "administrative_area_level_3",
+  ]);
+  const city = getAddressComponent(result.addressComponents, [
+    "locality",
+    "administrative_area_level_2",
+    "administrative_area_level_1",
+  ]);
+
+  return {
+    ...form,
+    hsAddress: result.formattedAddress,
+    hsLat: result.lat,
+    hsLng: result.lng,
+    hsPlaceId: result.placeId,
+    hsFormattedAddress: result.formattedAddress,
+    hsAddressComponents: result.addressComponents,
+    hsMapUrl: result.mapUrl,
+    hsBarangay: barangay || form.hsBarangay,
+    hsCity: city || form.hsCity,
+  };
+}
+
+function clearSelectedPlace(form: DetailsForm, hsAddress: string): DetailsForm {
+  return {
+    ...form,
+    hsAddress,
+    hsLat: null,
+    hsLng: null,
+    hsPlaceId: "",
+    hsFormattedAddress: "",
+    hsAddressComponents: [],
+    hsMapUrl: "",
+  };
+}
+
+function placesStatusMessage(status: PlacesAutocompleteStatus): string {
+  if (status === "missing_key") {
+    return "Google address search is unavailable right now. Please contact us so a CSR can help confirm your home-service location.";
+  }
+  if (status === "failed") {
+    return "Google address search failed to load. Please refresh the page or contact us for help booking home service.";
+  }
+  if (status === "place_missing_coordinates") {
+    return "That selected place did not include coordinates. Please choose a different Google suggestion.";
+  }
+  if (status === "loading") {
+    return "Loading Google address suggestions...";
+  }
+  return "";
+}
+
 function StepLocation({
   form,
   onChange,
+  placesStatus,
+  onPlacesStatusChange,
+  preciseLocationRequired,
+  mode,
+  error,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
+  placesStatus: PlacesAutocompleteStatus;
+  onPlacesStatusChange: (status: PlacesAutocompleteStatus) => void;
+  preciseLocationRequired: boolean;
+  mode: BookingWizardMode;
+  error: string;
 }) {
+  const preciseLocationSelected = isPreciseHomeServiceLocation(form);
+  const hasTypedAddress = form.hsAddress.trim().length > 0;
+  const statusMessage = placesStatusMessage(placesStatus);
+  const showSelectionError =
+    (preciseLocationRequired && hasTypedAddress && !preciseLocationSelected) ||
+    error === PRECISE_LOCATION_ERROR;
+  const helperId = "hs-address-helper";
+  const showCustomerCompactLocation = mode === "public";
+
   return (
     <div>
       <h2
@@ -1610,63 +1765,116 @@ function StepLocation({
         Your Location
       </h2>
       <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
-        Tell us your area so we can check driver availability before showing time slots.
+        Search and select your exact location so our therapist and driver can find you easily.
       </p>
 
       <div className="flex flex-col gap-5">
+        {!showCustomerCompactLocation && (
+          <div>
+            <label htmlFor="hs-zone" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+              <MapPin className="h-3.5 w-3.5" />
+              Location Zone *
+            </label>
+            <select
+              id="hs-zone"
+              value={form.hsZone}
+              onChange={(event) => onChange({ ...form, hsZone: event.target.value })}
+              className={INPUT_CLS}
+            >
+              <option value="" disabled>Select your zone...</option>
+              {HS_ZONE_OPTIONS.filter((option) => option.value !== "unknown").map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
+              Helps us verify we have a driver available in your area before you pick a time.
+            </p>
+          </div>
+        )}
+
         <div>
-          <label htmlFor="hs-zone" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
-            <MapPin className="h-3.5 w-3.5" />
-            Location Zone *
-          </label>
-          <select
-            id="hs-zone"
-            value={form.hsZone}
-            onChange={(e) => onChange({ ...form, hsZone: e.target.value })}
-            className={INPUT_CLS}
-          >
-            <option value="" disabled>Select your zone…</option>
-            {HS_ZONE_OPTIONS.filter((o) => o.value !== "unknown").map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
-            Helps us verify we have a driver available in your area before you pick a time.
-          </p>
+          {!preciseLocationSelected ? (
+            <>
+              <label htmlFor="hs-address-location" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+                <MapPin className="h-3.5 w-3.5" />
+                Search your home location *
+              </label>
+              <PlacesAutocomplete
+                id="hs-address-location"
+                value={form.hsAddress}
+                onChange={(value) => onChange(clearSelectedPlace(form, value))}
+                onPlaceSelect={(result: PlaceSelectResult | null) => {
+                  if (result) {
+                    onChange(applySelectedPlace(form, result));
+                  }
+                }}
+                onStatusChange={onPlacesStatusChange}
+                placeholder="Search your address, building, or nearby landmark"
+                className={INPUT_CLS}
+                ariaDescribedBy={helperId}
+              />
+              <p id={helperId} className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
+                Choose a Google suggestion; typed text alone is not enough for routing.
+              </p>
+            </>
+          ) : (
+            <div
+              className="flex items-start gap-3 rounded-xl border px-4 py-3"
+              style={{ background: "#F7FBF5", borderColor: "#CDE3C7" }}
+            >
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#2F6B3C]" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#2F6B3C]">
+                  Selected location
+                </p>
+                <p className="mt-0.5 text-[13px] leading-5 text-[#163A2B]">
+                  {form.hsFormattedAddress}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onChange(clearSelectedPlace(form, ""))}
+                className="rounded-full border border-[#CDE3C7] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#2F6B3C] transition-colors hover:bg-white"
+              >
+                Change
+              </button>
+            </div>
+          )}
+
+          {statusMessage && (
+            <p
+              className={`mt-2 rounded-lg px-3 py-2 text-[12px] ${
+                placesStatus === "loading"
+                  ? "bg-[#FCFAF5] text-[#6B7A6F]"
+                  : "bg-amber-50 text-amber-800"
+              }`}
+            >
+              {statusMessage}
+            </p>
+          )}
+
+          {showSelectionError && (
+            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
+              {PRECISE_LOCATION_ERROR}
+            </p>
+          )}
         </div>
 
         <div>
-          <label className={LABEL_CLS} style={{ color: "#9AA89A" }}>
-            <MapPin className="h-3.5 w-3.5" />
-            Full Address{" "}
-            <span className="normal-case font-normal">(optional — fill in later)</span>
+          <label htmlFor="hs-delivery-notes" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+            Delivery notes{" "}
+            <span className="normal-case font-normal">(optional)</span>
           </label>
-          <PlacesAutocomplete
-            id="hs-address-location"
-            value={form.hsAddress}
-            onChange={(val) =>
-              onChange({ ...form, hsAddress: val, hsLat: null, hsLng: null, hsPlaceId: "", hsFormattedAddress: "" })
-            }
-            onPlaceSelect={(result: PlaceSelectResult | null) => {
-              if (result) {
-                onChange({
-                  ...form,
-                  hsAddress: result.formattedAddress,
-                  hsLat: result.lat,
-                  hsLng: result.lng,
-                  hsPlaceId: result.placeId,
-                  hsFormattedAddress: result.formattedAddress,
-                });
-              }
-            }}
-            placeholder="House/Unit no., Street, Subdivision"
-            className={INPUT_CLS}
+          <textarea
+            id="hs-delivery-notes"
+            value={form.hsParkingNotes}
+            onChange={(event) => onChange({ ...form, hsParkingNotes: event.target.value })}
+            placeholder="House number, unit, gate color, landmark, parking instructions..."
+            rows={3}
+            className={`${INPUT_CLS} resize-none`}
           />
-          <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
-            You can complete your full address on the next step.
-          </p>
         </div>
       </div>
     </div>
@@ -1681,6 +1889,7 @@ type DetailsForm = {
   email: string;
   notes: string;
   hsAddress: string;
+  hsAddressDetails: string;
   hsBarangay: string;
   hsCity: string;
   hsLandmark: string;
@@ -1690,6 +1899,8 @@ type DetailsForm = {
   hsLng: number | null;
   hsPlaceId: string;
   hsFormattedAddress: string;
+  hsAddressComponents: GoogleAddressComponent[];
+  hsMapUrl: string;
 };
 
 const HS_ZONE_OPTIONS: { value: string; label: string }[] = [
@@ -1706,11 +1917,13 @@ function StepDetails({
   onChange,
   error,
   visitType,
+  mode,
 }: {
   form: DetailsForm;
   onChange: (f: DetailsForm) => void;
   error: string;
   visitType: VisitType;
+  mode: BookingWizardMode;
 }) {
   const isHomeService = visitType === "home_service";
 
@@ -1786,7 +1999,7 @@ function StepDetails({
           />
         </div>
 
-        {/* ── Home Service Address ── */}
+        {/* Home Service Address */}
         {isHomeService && (
           <div
             className="flex flex-col gap-4 rounded-2xl p-5 border"
@@ -1805,102 +2018,84 @@ function StepDetails({
               </span>
             </div>
             <p className="text-[12px] -mt-2" style={{ color: "#6B7A6F" }}>
-              Our team will use this to dispatch your therapist. Please be specific.
+              We will use the selected Google location from the Location step for dispatch and routing.
             </p>
 
-            {/* Zone — read-only; set in the Location step */}
-            <div className="flex items-center gap-2 rounded-xl px-4 py-3 border" style={{ background: "white", borderColor: "#EDE4D3" }}>
-              <MapPin className="h-4 w-4 shrink-0" style={{ color: "#C8A96B" }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA89A" }}>Zone</p>
-                <p className="text-[13px] font-medium" style={{ color: "#163A2B" }}>
-                  {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
+            {mode === "inhouse" && (
+              <div className="flex items-center gap-2 rounded-xl px-4 py-3 border" style={{ background: "white", borderColor: "#EDE4D3" }}>
+                <MapPin className="h-4 w-4 shrink-0" style={{ color: "#C8A96B" }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA89A" }}>Zone</p>
+                  <p className="text-[13px] font-medium" style={{ color: "#163A2B" }}>
+                    {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isPreciseHomeServiceLocation(form) ? (
+              <div
+                className="flex items-start gap-3 rounded-xl border px-4 py-3"
+                style={{ background: "white", borderColor: "#EDE4D3" }}
+              >
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#2F6B3C]" />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#2F6B3C]">
+                    Selected location
+                  </p>
+                  <p className="mt-0.5 text-[13px] leading-5" style={{ color: "#163A2B" }}>
+                    {form.hsFormattedAddress}
+                  </p>
+                  <p className="mt-1 text-[11px]" style={{ color: "#6B7A6F" }}>
+                    Place ID captured for routing.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-lg bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700">
+                {PRECISE_LOCATION_ERROR}
+              </p>
+            )}
+
+            {form.hsAddressDetails && (
+              <div className="rounded-xl border px-4 py-3" style={{ background: "white", borderColor: "#EDE4D3" }}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA89A" }}>
+                  House / Unit Details
+                </p>
+                <p className="mt-0.5 text-[13px]" style={{ color: "#163A2B" }}>
+                  {form.hsAddressDetails}
                 </p>
               </div>
-            </div>
+            )}
 
-            <div>
-              <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
-                <MapPin className="h-3.5 w-3.5" />
-                Full Address *
-              </label>
-              <PlacesAutocomplete
-                id="hs-address"
-                value={form.hsAddress}
-                onChange={(val) =>
-                  onChange({ ...form, hsAddress: val, hsLat: null, hsLng: null, hsPlaceId: "", hsFormattedAddress: "" })
-                }
-                onPlaceSelect={(result: PlaceSelectResult | null) => {
-                  if (result) {
-                    onChange({
-                      ...form,
-                      hsAddress: result.formattedAddress,
-                      hsLat: result.lat,
-                      hsLng: result.lng,
-                      hsPlaceId: result.placeId,
-                      hsFormattedAddress: result.formattedAddress,
-                    });
-                  }
-                }}
-                placeholder="House/Unit no., Street, Subdivision"
-                className={INPUT_CLS}
-              />
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
-                  Barangay *
-                </label>
-                <input
-                  type="text"
-                  value={form.hsBarangay}
-                  onChange={(e) => onChange({ ...form, hsBarangay: e.target.value })}
-                  placeholder="e.g. Brgy. San Antonio"
-                  className={INPUT_CLS}
-                />
+            {mode === "inhouse" && (
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                    Barangay *
+                  </label>
+                  <input
+                    type="text"
+                    value={form.hsBarangay}
+                    onChange={(event) => onChange({ ...form, hsBarangay: event.target.value })}
+                    placeholder="e.g. Brgy. San Antonio"
+                    className={INPUT_CLS}
+                  />
+                </div>
+                <div>
+                  <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                    City / Municipality *
+                  </label>
+                  <input
+                    type="text"
+                    value={form.hsCity}
+                    onChange={(event) => onChange({ ...form, hsCity: event.target.value })}
+                    placeholder="e.g. Bacolod City"
+                    className={INPUT_CLS}
+                  />
+                </div>
               </div>
-              <div>
-                <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
-                  City / Municipality *
-                </label>
-                <input
-                  type="text"
-                  value={form.hsCity}
-                  onChange={(e) => onChange({ ...form, hsCity: e.target.value })}
-                  placeholder="e.g. Bacolod City"
-                  className={INPUT_CLS}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
-                Landmark{" "}
-                <span className="normal-case font-normal">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={form.hsLandmark}
-                onChange={(e) => onChange({ ...form, hsLandmark: e.target.value })}
-                placeholder="e.g. Near SM City Bacolod or a nearby landmark"
-                className={INPUT_CLS}
-              />
-            </div>
-
-            <div>
-              <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
-                Access / Parking Notes{" "}
-                <span className="normal-case font-normal">(optional)</span>
-              </label>
-              <textarea
-                value={form.hsParkingNotes}
-                onChange={(e) => onChange({ ...form, hsParkingNotes: e.target.value })}
-                placeholder="e.g. Ring the bell at Gate 2, limited parking on street"
-                rows={2}
-                className={`${INPUT_CLS} resize-none`}
-              />
-            </div>
+            )}
           </div>
         )}
       </div>

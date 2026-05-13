@@ -78,7 +78,7 @@ export async function getBookingsPerTherapist(fromDate: string, toDate: string, 
   const supabase = await createClient();
   let q = supabase
     .from("bookings")
-    .select("staff_id, status, metadata, staff ( id, full_name, tier, branch_id )")
+    .select("staff_id, status, metadata, staff!staff_id ( id, full_name, tier, branch_id )")
     .gte("booking_date", fromDate)
     .lte("booking_date", toDate);
   if (branchId) q = q.eq("branch_id", branchId);

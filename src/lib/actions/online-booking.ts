@@ -6,6 +6,7 @@ import {
   createOnlineBookingSchema,
   type CreateOnlineBookingInput,
   createOnlineBookingMultiSchema,
+  PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
   type CreateOnlineBookingMultiInput,
 } from "@/lib/validations/booking";
 import {
@@ -17,7 +18,7 @@ import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { validateBookingAgainstBranchRules, getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-conflict";
-import { geocodeAddress, buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
+import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 
@@ -33,6 +34,21 @@ function logBookingError(context: Record<string, unknown>, error: unknown) {
   });
 }
 
+function toAddressComponentsJson(
+  components: CreateOnlineBookingMultiInput["homeServiceAddressComponents"]
+): Json | null {
+  if (!components || components.length === 0) return null;
+
+  return components.map(
+    (component) =>
+      ({
+        long_name: component.long_name,
+        short_name: component.short_name,
+        types: component.types,
+      }) satisfies { [key: string]: Json | undefined }
+  );
+}
+
 export async function createOnlineBookingAction(
   input: CreateOnlineBookingInput
 ): Promise<CreateOnlineBookingResult> {
@@ -46,6 +62,7 @@ export async function createOnlineBookingAction(
   }
 
   const d = parsed.data;
+  const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
   const logContext = {
     branchId: d.branchId,
     serviceId: d.serviceId,
@@ -151,6 +168,7 @@ export async function createOnlineBookingAction(
         start_time: d.startTime,
         end_time: endTime,
         type: d.type,
+        delivery_type: deliveryType,
         status: "pending",
         travel_buffer_mins: null,
         metadata,
@@ -226,6 +244,7 @@ export async function createOnlineBookingMultiAction(
   }
 
   const d = parsed.data;
+  const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
   const logContext = {
     branchId: d.branchId,
     serviceIds: d.serviceIds,
@@ -260,7 +279,7 @@ export async function createOnlineBookingMultiAction(
       .eq("is_active", true);
 
     if (eligibilityRows) {
-      const needsInSpa = d.type !== "home_service";
+      const needsInSpa = deliveryType !== "home_service";
       for (const row of eligibilityRows) {
         const eligible = needsInSpa ? row.available_in_spa : row.available_home_service;
         if (!eligible) {
@@ -307,13 +326,21 @@ export async function createOnlineBookingMultiAction(
     }
     const resolvedCustomerId = String(customerId);
 
-    // Home service requires address details
-    if (d.type === "home_service") {
-      if (!d.homeServiceAddress?.trim()) {
-        return { ok: false, code: "HS_ADDRESS_MISSING", message: "Full address is required for home service bookings." };
-      }
-      if (!d.homeServiceBarangay?.trim() && !d.homeServiceCity?.trim()) {
-        return { ok: false, code: "HS_LOCATION_MISSING", message: "Barangay or city is required for home service bookings." };
+    // Public home service requires a selected Google place, not typed text alone.
+    if (deliveryType === "home_service") {
+      if (
+        !d.homeServicePlaceId?.trim() ||
+        !d.homeServiceFormattedAddress?.trim() ||
+        typeof d.homeServiceLat !== "number" ||
+        !Number.isFinite(d.homeServiceLat) ||
+        typeof d.homeServiceLng !== "number" ||
+        !Number.isFinite(d.homeServiceLng)
+      ) {
+        return {
+          ok: false,
+          code: "HS_PRECISE_LOCATION_REQUIRED",
+          message: PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
+        };
       }
     }
 
@@ -326,36 +353,33 @@ export async function createOnlineBookingMultiAction(
       dispatch_warning: null,
     };
 
-    if (d.type === "home_service" && d.homeServiceAddress) {
-      const geocoded =
-        typeof d.homeServiceLat === "number" && typeof d.homeServiceLng === "number"
-          ? {
-              lat: d.homeServiceLat,
-              lng: d.homeServiceLng,
-              formattedAddress: d.homeServiceFormattedAddress ?? "",
-              placeId: d.homeServicePlaceId ?? "",
-              mapUrl: buildGoogleMapsSearchUrl(d.homeServiceLat, d.homeServiceLng),
-            }
-          : await geocodeAddress(
-              [d.homeServiceAddress, d.homeServiceBarangay, d.homeServiceCity]
-                .filter(Boolean)
-                .join(", ")
-            );
+    if (deliveryType === "home_service") {
+      const homeServiceLat = d.homeServiceLat as number;
+      const homeServiceLng = d.homeServiceLng as number;
+      const formattedAddress = d.homeServiceFormattedAddress?.trim() ?? "";
+      const mapUrl =
+        d.homeServiceMapUrl?.trim() ||
+        buildGoogleMapsSearchUrl(homeServiceLat, homeServiceLng);
 
       hsAddressData = {
-        full_address:      d.homeServiceAddress,
+        address:           formattedAddress,
+        full_address:      d.homeServiceAddress?.trim() || formattedAddress,
+        address_details:   d.homeServiceAddressDetails ?? null,
         barangay:          d.homeServiceBarangay ?? null,
         city:              d.homeServiceCity ?? null,
         landmark:          d.homeServiceLandmark ?? null,
         parking_notes:     d.homeServiceParkingNotes ?? null,
+        delivery_notes:    d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
+        notes:             d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
+        customer_notes:    d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
         zone:              d.homeServiceZone ?? "unknown",
-        formatted_address: geocoded?.formattedAddress ?? null,
-        place_id:          geocoded?.placeId ?? null,
-        lat:               geocoded?.lat ?? null,
-        lng:               geocoded?.lng ?? null,
-        map_url:           geocoded
-          ? buildGoogleMapsSearchUrl(geocoded.lat, geocoded.lng)
-          : null,
+        formatted_address: formattedAddress,
+        place_id:          d.homeServicePlaceId?.trim() ?? null,
+        lat:               homeServiceLat,
+        lng:               homeServiceLng,
+        address_components: toAddressComponentsJson(d.homeServiceAddressComponents),
+        map_url:           mapUrl,
+        source:            "google_places",
       } satisfies { [key: string]: Json | undefined };
 
       // Compute total end time for dispatch check
@@ -384,8 +408,8 @@ export async function createOnlineBookingMultiAction(
         startTime: d.startTime,
         endTime: estimatedEndTime,
         selectedZone: d.homeServiceZone ?? "unknown",
-        selectedLat: geocoded?.lat ?? null,
-        selectedLng: geocoded?.lng ?? null,
+        selectedLat: homeServiceLat,
+        selectedLng: homeServiceLng,
         driverCapacity: branchRules.homeServiceDriverCapacity,
       });
 
@@ -424,9 +448,10 @@ export async function createOnlineBookingMultiAction(
           start_time: currentStart,
           end_time: endTime,
           type: d.type,
+          delivery_type: deliveryType,
           status: "pending",
           travel_buffer_mins:
-            d.type === "home_service"
+            deliveryType === "home_service"
               ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
               : null,
           metadata,
@@ -456,7 +481,7 @@ export async function createOnlineBookingMultiAction(
       currentStart = endTime;
     }
 
-    const isHSMulti = d.type === "home_service";
+    const isHSMulti = deliveryType === "home_service";
     const notificationJobs: Promise<void>[] = [
       createNotification({
       branchId: d.branchId,

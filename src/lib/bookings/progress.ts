@@ -18,7 +18,7 @@ export const BOOKING_PROGRESS_STATUSES = [
 export type BookingProgressStatus =
   (typeof BOOKING_PROGRESS_STATUSES)[number];
 
-export type BookingTypeForProgress = "home_service" | "walkin" | "online";
+export type BookingTypeForProgress = "home_service" | "in_spa";
 
 export const BOOKING_PROGRESS_LABELS: Record<BookingProgressStatus, string> = {
   not_started: "Not started",
@@ -45,7 +45,7 @@ const HOME_SERVICE_TRANSITIONS: Record<
   no_show: [],
 };
 
-const WALKIN_TRANSITIONS: Record<
+const IN_SPA_TRANSITIONS: Record<
   BookingProgressStatus,
   BookingProgressStatus[]
 > = {
@@ -58,27 +58,12 @@ const WALKIN_TRANSITIONS: Record<
   no_show: [],
 };
 
-const ONLINE_TRANSITIONS: Record<
-  BookingProgressStatus,
-  BookingProgressStatus[]
-> = {
-  not_started: ["session_started"],
-  session_started: ["completed"],
-  completed: [],
-  checked_in: [],
-  travel_started: [],
-  arrived: [],
-  no_show: [],
-};
-
 function getTransitions(type: BookingTypeForProgress) {
   switch (type) {
     case "home_service":
       return HOME_SERVICE_TRANSITIONS;
-    case "walkin":
-      return WALKIN_TRANSITIONS;
-    case "online":
-      return ONLINE_TRANSITIONS;
+    case "in_spa":
+      return IN_SPA_TRANSITIONS;
     default:
       return {} as Record<BookingProgressStatus, BookingProgressStatus[]>;
   }

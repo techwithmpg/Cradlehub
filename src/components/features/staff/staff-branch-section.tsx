@@ -48,10 +48,10 @@ export function StaffBranchSection({
                 <span className="sr-only">Selected</span>
               </th>
               <th className="w-[31%] px-3 py-2.5">Staff</th>
-              <th className="w-[22%] px-3 py-2.5">Position / Role</th>
+              <th className="w-[22%] px-3 py-2.5">Staff Function</th>
               <th className="w-[16%] px-3 py-2.5">Phone</th>
               <th className="w-[15%] px-3 py-2.5">Status</th>
-              <th className="w-[14%] px-3 py-2.5">Access Role</th>
+              <th className="w-[14%] px-3 py-2.5">Workspace Access</th>
               <th className="w-12 px-3 py-2.5">
                 <span className="sr-only">Actions</span>
               </th>

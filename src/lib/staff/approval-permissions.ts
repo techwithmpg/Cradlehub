@@ -7,18 +7,15 @@
  * This should be reviewed after MVP.
  */
 
+import {
+  MANAGER_ASSIGNABLE_SYSTEM_ROLES,
+  OWNER_ASSIGNABLE_SYSTEM_ROLES,
+  SENSITIVE_SYSTEM_ROLES as STAFF_SENSITIVE_SYSTEM_ROLES,
+} from "@/constants/staff";
 import { isOwner, isManager } from "@/lib/permissions";
 
 /** System roles that grant management or admin access. */
-export const SENSITIVE_SYSTEM_ROLES = [
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "branch_manager",
-  "super_admin",
-  "platform_admin",
-] as const;
+export const SENSITIVE_SYSTEM_ROLES = STAFF_SENSITIVE_SYSTEM_ROLES;
 
 /** System roles considered safe for CRM/CSR to approve. */
 export const OPERATIONAL_SYSTEM_ROLES = [
@@ -72,7 +69,7 @@ export function canApproveStaffOnboarding({
   if (isOwner(approverRole)) {
     return {
       allowed: true,
-      assignableRoles: ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr_head", "csr_staff", "csr", "staff", "service_head", "service_staff", "driver", "utility"],
+      assignableRoles: [...OWNER_ASSIGNABLE_SYSTEM_ROLES],
     };
   }
 
@@ -82,12 +79,12 @@ export function canApproveStaffOnboarding({
       return {
         allowed: false,
         reason: "You can only approve staff for your own branch.",
-        assignableRoles: ["crm", "csr", "csr_staff", "staff", "service_head", "service_staff", "driver", "utility"],
+        assignableRoles: [...MANAGER_ASSIGNABLE_SYSTEM_ROLES],
       };
     }
     return {
       allowed: true,
-      assignableRoles: ["crm", "csr", "csr_staff", "staff", "service_head", "service_staff", "driver", "utility"],
+      assignableRoles: [...MANAGER_ASSIGNABLE_SYSTEM_ROLES],
     };
   }
 

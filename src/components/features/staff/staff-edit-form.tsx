@@ -13,7 +13,7 @@ type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
 type Tier = "senior" | "mid" | "junior" | "head" | "n/a";
-type StaffRole = "manager" | "crm" | "csr" | "csr_head" | "csr_staff" | "staff";
+type StaffRole = "manager" | "crm" | "csr" | "csr_head" | "csr_staff" | "staff" | "driver";
 type StaffType = (typeof STAFF_TYPES)[number];
 
 type StaffActionState = {
@@ -30,6 +30,7 @@ const OWNER_ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: "csr_staff", label: "CSR Staff" },
   { value: "csr", label: "CSR (legacy)" },
   { value: "staff", label: "Staff" },
+  { value: "driver", label: "Driver" },
 ];
 
 const MANAGER_ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
@@ -95,6 +96,7 @@ export function StaffEditForm({
 
       const serviceIds = formData.getAll("serviceIds").map((v) => String(v));
 
+      const branchIdRaw = String(formData.get("branchId") ?? "").trim();
       const result = await updateStaffAction({
         staffId: staffMember.id,
         fullName: String(formData.get("fullName") ?? "").trim(),
@@ -103,7 +105,7 @@ export function StaffEditForm({
         systemRole: roleValue,
         staffType: typeValue,
         isHead: formData.get("isHead") === "on",
-        branchId: String(formData.get("branchId") ?? ""),
+        branchId: branchIdRaw.length > 0 ? branchIdRaw : undefined,
         isActive: formData.get("isActive") === "on",
         serviceIds: serviceIds.length > 0 ? serviceIds : undefined,
       });

@@ -81,6 +81,7 @@ export async function createInhouseBookingMultiAction(
   }
 
   const d: CreateInhouseBookingMultiInput = parsed.data;
+  const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
 
   const supabase = await createClient();
   const {
@@ -125,7 +126,7 @@ export async function createInhouseBookingMultiAction(
   }
 
   // Home service requires address details
-  if (d.type === "home_service") {
+  if (deliveryType === "home_service") {
     if (!d.homeServiceAddress?.trim()) {
       return { ok: false, code: "HS_ADDRESS_MISSING", message: "Full address is required for home service bookings." };
     }
@@ -201,7 +202,7 @@ export async function createInhouseBookingMultiAction(
     const combinedEndTime = computeEndTimeLocal(d.startTime, totalMinutesCombined);
 
     // ── Auto-assign room if not provided ──────────────────────────────────
-    if (d.type !== "home_service" && !resolvedResourceId && combinedEndTime) {
+    if (deliveryType !== "home_service" && !resolvedResourceId && combinedEndTime) {
       resolvedResourceId = await autoAssignBookingResource({
         branchId: resolvedBranchId,
         date: d.date,
@@ -297,7 +298,7 @@ export async function createInhouseBookingMultiAction(
     );
 
     // Verify each service is eligible for the booking type
-    const needsInSpa = d.type !== "home_service";
+    const needsInSpa = deliveryType !== "home_service";
     for (const serviceId of d.serviceIds) {
       const override = overrideByServiceId.get(serviceId);
       if (override) {
@@ -307,7 +308,7 @@ export async function createInhouseBookingMultiAction(
           return {
             ok: false,
             code: "SERVICE_INELIGIBLE",
-            message: `${svc?.name ?? "A selected service"} is not available for ${d.type === "home_service" ? "home service" : "in-spa"} bookings at this branch.`,
+            message: `${svc?.name ?? "A selected service"} is not available for ${deliveryType === "home_service" ? "home service" : "in-spa"} bookings at this branch.`,
           };
         }
       }
@@ -322,7 +323,7 @@ export async function createInhouseBookingMultiAction(
       dispatch_warning: null,
     };
 
-    if (d.type === "home_service" && d.homeServiceAddress) {
+    if (deliveryType === "home_service" && d.homeServiceAddress) {
       const geocoded =
         typeof d.homeServiceLat === "number" && typeof d.homeServiceLng === "number"
           ? {
@@ -433,9 +434,10 @@ export async function createInhouseBookingMultiAction(
           start_time: currentStart,
           end_time: endTime,
           type: d.type,
+          delivery_type: deliveryType,
           status: "confirmed",
           travel_buffer_mins:
-            d.type === "home_service"
+            deliveryType === "home_service"
               ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
               : null,
           metadata,
@@ -466,7 +468,7 @@ export async function createInhouseBookingMultiAction(
       currentStart = endTime;
     }
 
-    const isHomeService = d.type === "home_service";
+    const isHomeService = deliveryType === "home_service";
     const notificationJobs: Promise<void>[] = [
       createNotification({
         branchId: resolvedBranchId,

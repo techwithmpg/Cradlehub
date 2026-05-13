@@ -793,3 +793,13 @@ No `payroll_periods`, `payroll_items`, `commission_rules`, or `staff_performance
 **Follow-up:**
 - Phase 3.1: Owner cross-branch control console
 - Phase 4: Booking Delivery Type Cleanup (`in_spa` as first-class type)
+
+### 2026-05-14 — Phase 10.1: Compact Precise Home-Service Location Input ✅ COMPLETE
+
+**Scope:** Existing public booking wizard home-service location step only.
+
+**UI:** The customer-facing step now uses one Google Places search field, a compact selected-location confirmation card with Change, and one optional Delivery notes textarea. Separate customer-facing zone, house/unit, landmark, and driver-note fields were removed/merged.
+
+**Data captured:** `metadata.home_service_address` now stores Google-selected `formatted_address`, `place_id`, `lat`, `lng`, optional `address_components`, optional `map_url`, `source: "google_places"`, and `delivery_notes`, while preserving legacy address/notes/zone keys.
+
+**Build status:** type-check ✅ | lint ✅ (0 errors, 2 pre-existing warnings) | build ✅ (79 routes)

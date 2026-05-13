@@ -105,7 +105,7 @@ export async function checkHomeServiceDispatchConflict({
     .select("id, start_time, end_time, metadata")
     .eq("branch_id", branchId)
     .eq("booking_date", bookingDate)
-    .eq("type", "home_service")
+    .eq("delivery_type", "home_service")
     .not("status", "in", '("cancelled","no_show")');
 
   const rows = (existing ?? []).filter((r) => r.id !== excludeBookingId);

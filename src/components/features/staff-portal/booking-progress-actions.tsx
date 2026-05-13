@@ -58,11 +58,8 @@ function getStepperStages(bookingType: string): BookingProgressStatus[] {
   if (bookingType === "home_service") {
     return ["not_started", "travel_started", "arrived", "session_started", "completed"];
   }
-  if (bookingType === "walkin") {
-    return ["not_started", "checked_in", "session_started", "completed"];
-  }
-  // online
-  return ["not_started", "session_started", "completed"];
+  // in_spa (walkin + online)
+  return ["not_started", "checked_in", "session_started", "completed"];
 }
 
 type BookingProgressActionsProps = {
@@ -74,7 +71,7 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
   const [isPending, startTransition] = useTransition();
   const currentStatus = booking.booking_progress_status;
   const nextStatus = getNextBookingProgressStatus({
-    bookingType: booking.type as "home_service" | "walkin" | "online",
+    bookingType: (booking.delivery_type ?? "in_spa") as "home_service" | "in_spa",
     currentStatus,
   });
   const isTerminal = isBookingProgressTerminal(currentStatus);
@@ -91,7 +88,7 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
     });
   }
 
-  const stages = getStepperStages(booking.type);
+  const stages = getStepperStages(booking.delivery_type ?? "in_spa");
   const currentIndex = stages.indexOf(currentStatus);
 
   return (
@@ -194,8 +191,8 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
           </button>
         )}
 
-        {/* No-show button for walkin when allowed */}
-        {booking.type === "walkin" &&
+        {/* No-show button for in-spa when allowed */}
+        {(booking.delivery_type ?? "in_spa") === "in_spa" &&
           (currentStatus === "not_started" || currentStatus === "checked_in") && (
             <button
               onClick={() => handleAdvance("no_show")}

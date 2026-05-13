@@ -1,5 +1,4 @@
-import { STAFF_TYPE_LABELS } from "@/constants/staff";
-import { ROLE_LABELS } from "@/lib/permissions";
+import { STAFF_TYPE_LABELS, SYSTEM_ROLE_LABELS } from "@/constants/staff";
 import type { Database } from "@/types/supabase";
 
 type StaffRow = Database["public"]["Tables"]["staff"]["Row"];
@@ -59,38 +58,6 @@ const STAFF_TYPE_DISPLAY_LABELS: Record<string, string> = {
   ...STAFF_TYPE_LABELS,
   csr: "CSR",
   nail_tech: "Nail Technician",
-  utility: "Utility",
-};
-
-const SYSTEM_ROLE_LABELS: Record<string, string> = {
-  owner: "Owner / General Manager",
-  manager: "Manager",
-  assistant_manager: "Assistant Manager",
-  store_manager: "Store Manager",
-  crm: "CRM",
-  csr: "CSR",
-  csr_head: "CSR Head",
-  csr_staff: "CSR Staff",
-  staff: "Service Staff",
-  service_head: "Salon Head",
-  service_staff: "Service Staff",
-  driver: "Driver",
-  utility: "Utility",
-};
-
-const STAFF_TYPE_LABELS_BY_SYSTEM_ROLE: Record<string, string> = {
-  owner: "Administration",
-  manager: "Managerial",
-  assistant_manager: "Managerial",
-  store_manager: "Managerial",
-  crm: "Front Desk / CRM",
-  csr: "Front Desk / CSR",
-  csr_head: "Front Desk / CSR",
-  csr_staff: "Front Desk / CSR",
-  staff: "Service Staff",
-  service_head: "Service Lead",
-  service_staff: "Service Staff",
-  driver: "Driver",
   utility: "Utility",
 };
 
@@ -170,7 +137,7 @@ export function getStaffStatusLabel(status: StaffStatus): string {
 }
 
 export function getSystemRoleLabel(role: string): string {
-  return SYSTEM_ROLE_LABELS[role] ?? ROLE_LABELS[role] ?? titleCase(role);
+  return SYSTEM_ROLE_LABELS[role as keyof typeof SYSTEM_ROLE_LABELS] ?? titleCase(role);
 }
 
 export function getStaffTypeLabel(staffType: string | null | undefined): string {
@@ -179,7 +146,7 @@ export function getStaffTypeLabel(staffType: string | null | undefined): string 
 }
 
 function getStaffTypeLabelForDisplay(member: StaffMember): string {
-  return STAFF_TYPE_LABELS_BY_SYSTEM_ROLE[member.system_role] ?? getStaffTypeLabel(member.staff_type);
+  return getStaffTypeLabel(member.staff_type);
 }
 
 function getPrimaryRoleLabel(member: StaffMember): string {
@@ -230,9 +197,12 @@ export function getStaffDisplayMeta(member: StaffMember): StaffDisplayMeta {
     !isNonTierJobTitle(jobTitle) &&
     !hasTierInTitle;
   const tierLabel = shouldShowTier ? rawTierLabel : null;
-  const subtitleParts = [staffTypeLabel, tierLabel, member.phone && member.phone !== "0000000000" ? member.phone : null].filter(
-    (part): part is string => Boolean(part)
-  );
+  const subtitleParts = [
+    staffTypeLabel,
+    member.is_head ? "Head / Supervisor" : null,
+    tierLabel,
+    member.phone && member.phone !== "0000000000" ? member.phone : null,
+  ].filter((part): part is string => Boolean(part));
 
   return {
     roleLabel,

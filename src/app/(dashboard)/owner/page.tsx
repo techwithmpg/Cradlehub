@@ -19,7 +19,13 @@ export default async function OwnerOverviewPage() {
   ]);
 
   const statsData = "error" in stats ? null : stats;
-  const bookingsData = "error" in recentBookings ? [] : recentBookings;
+  const bookingsData = ("error" in recentBookings ? [] : recentBookings) as Array<{
+    id: string; start_time: string; status: string; type: string;
+    customers?: { full_name?: string } | null;
+    services?: { name?: string } | null;
+    staff?: { full_name?: string } | null;
+    branches?: { name?: string } | null;
+  }>;
   const activeStaff = staff.filter((s) => s.is_active).length;
 
   return (

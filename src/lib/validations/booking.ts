@@ -25,6 +25,30 @@ const onlineBookingDate = z
 
 const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Time must be HH:MM");
+export const PRECISE_HOME_SERVICE_LOCATION_MESSAGE =
+  "Please select your address from the Google suggestions so our therapist and driver can find you accurately.";
+
+const googleAddressComponentSchema = z.object({
+  long_name: z.string().max(200),
+  short_name: z.string().max(100),
+  types: z.array(z.string().max(80)).max(12),
+});
+
+function isPreciseHomeServiceLocation(input: {
+  homeServicePlaceId?: string;
+  homeServiceFormattedAddress?: string;
+  homeServiceLat?: number | null;
+  homeServiceLng?: number | null;
+}): boolean {
+  return (
+    !!input.homeServicePlaceId?.trim() &&
+    !!input.homeServiceFormattedAddress?.trim() &&
+    typeof input.homeServiceLat === "number" &&
+    Number.isFinite(input.homeServiceLat) &&
+    typeof input.homeServiceLng === "number" &&
+    Number.isFinite(input.homeServiceLng)
+  );
+}
 
 // ── Public online booking ──────────────────────────────────────────────────
 export const createOnlineBookingSchema = z.object({
@@ -34,6 +58,7 @@ export const createOnlineBookingSchema = z.object({
   date:             onlineBookingDate,
   startTime:        timeStr,
   type:             z.enum(["online", "home_service"]).default("online"),
+  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
   travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone,
@@ -50,6 +75,7 @@ export const createWalkinBookingSchema = z.object({
   date:             anyDate,                  // no 30-day limit for front desk
   startTime:        timeStr,
   type:             z.enum(["walkin", "home_service"]).default("walkin"),
+  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
   travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2).max(100),
   phone,
@@ -67,6 +93,7 @@ export const createInhouseBookingMultiSchema = z.object({
   date:             anyDate,
   startTime:        timeStr,
   type:             z.enum(["walkin", "home_service"]).default("walkin"),
+  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
   travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone,
@@ -74,16 +101,20 @@ export const createInhouseBookingMultiSchema = z.object({
   notes:            z.string().max(500).optional(),
   // Home service address (required when type=home_service, validated in action)
   homeServiceAddress:          z.string().max(500).optional(),
+  homeServiceAddressDetails:   z.string().max(300).optional(),
   homeServiceBarangay:         z.string().max(100).optional(),
   homeServiceCity:             z.string().max(100).optional(),
   homeServiceLandmark:         z.string().max(200).optional(),
   homeServiceParkingNotes:     z.string().max(300).optional(),
+  homeServiceCustomerNotes:    z.string().max(500).optional(),
   homeServiceZone:             z.string().max(50).optional(),
   // Captured client-side by Places Autocomplete — skip server geocoding when present
   homeServiceLat:              z.number().optional().nullable(),
   homeServiceLng:              z.number().optional().nullable(),
   homeServicePlaceId:          z.string().max(300).optional(),
   homeServiceFormattedAddress: z.string().max(500).optional(),
+  homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
+  homeServiceMapUrl:           z.string().url().max(1000).optional(),
 });
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 
@@ -97,6 +128,7 @@ export const editBookingSchema = z
     date:             anyDate.optional(),
     startTime:        timeStr.optional(),
     type:             z.enum(["online", "walkin", "home_service"]).optional(),
+    deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
     travelBufferMins: z.number().int().min(0).max(240).optional(),
     notes:            z.string().max(500).optional(),
   })
@@ -143,6 +175,7 @@ export const createOnlineBookingMultiSchema = z.object({
   date:             onlineBookingDate,
   startTime:        timeStr,
   type:             z.enum(["online", "home_service"]).default("online"),
+  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
   travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone,
@@ -150,16 +183,33 @@ export const createOnlineBookingMultiSchema = z.object({
   notes:            z.string().max(500).optional(),
   // Home service address (required when type=home_service, validated in action)
   homeServiceAddress:          z.string().max(500).optional(),
+  homeServiceAddressDetails:   z.string().max(300).optional(),
   homeServiceBarangay:         z.string().max(100).optional(),
   homeServiceCity:             z.string().max(100).optional(),
   homeServiceLandmark:         z.string().max(200).optional(),
   homeServiceParkingNotes:     z.string().max(300).optional(),
+  homeServiceCustomerNotes:    z.string().max(500).optional(),
   homeServiceZone:             z.string().max(50).optional(),
   // Captured client-side by Places Autocomplete — skip server geocoding when present
   homeServiceLat:              z.number().optional().nullable(),
   homeServiceLng:              z.number().optional().nullable(),
   homeServicePlaceId:          z.string().max(300).optional(),
   homeServiceFormattedAddress: z.string().max(500).optional(),
+  homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
+  homeServiceMapUrl:           z.string().url().max(1000).optional(),
+}).superRefine((data, ctx) => {
+  const deliveryType =
+    data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
+
+  if (deliveryType !== "home_service") return;
+
+  if (!isPreciseHomeServiceLocation(data)) {
+    ctx.addIssue({
+      code: "custom",
+      message: PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
+      path: ["homeServicePlaceId"],
+    });
+  }
 });
 export type CreateOnlineBookingMultiInput = z.infer<typeof createOnlineBookingMultiSchema>;
 

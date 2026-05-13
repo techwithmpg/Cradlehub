@@ -8,7 +8,7 @@ const BOOKING_SELECT = `
   resource_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
-  staff      ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers  ( id, full_name, phone, email )
 `;
 
@@ -17,7 +17,7 @@ const BOOKING_SELECT_CORE = `
   travel_buffer_mins, metadata, created_at, updated_at,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
-  staff      ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers  ( id, full_name, phone, email )
 `;
 
@@ -28,7 +28,7 @@ const BOOKING_SELECT_WITH_PAYMENTS = `
   resource_id,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
-  staff      ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers  ( id, full_name, phone, email )
 `;
 
@@ -38,7 +38,7 @@ const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   payment_method, payment_status, payment_reference, amount_paid,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
-  staff      ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers  ( id, full_name, phone, email )
 `;
 
@@ -47,7 +47,7 @@ const TODAY_SCHEDULE_SELECT = `
   travel_buffer_mins, metadata,
   resource_id,
   services  ( id, name, duration_minutes ),
-  staff     ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers ( id, full_name, phone )
 `;
 
@@ -55,7 +55,7 @@ const TODAY_SCHEDULE_SELECT_CORE = `
   id, booking_date, start_time, end_time, type, status,
   travel_buffer_mins, metadata,
   services  ( id, name, duration_minutes ),
-  staff     ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers ( id, full_name, phone )
 `;
 
@@ -67,7 +67,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
   checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
   resource_id,
   services  ( id, name, duration_minutes ),
-  staff     ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers ( id, full_name, phone )
 `;
 
@@ -78,7 +78,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   booking_progress_status,
   checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
   services  ( id, name, duration_minutes ),
-  staff     ( id, full_name, tier ),
+  staff!staff_id ( id, full_name, tier ),
   customers ( id, full_name, phone )
 `;
 
@@ -554,7 +554,7 @@ export async function getWeekSchedule(
     .select(`
       id, booking_date, start_time, end_time, type, status,
       services ( id, name, duration_minutes ),
-      staff    ( id, full_name, tier ),
+      staff!staff_id ( id, full_name, tier ),
       customers( id, full_name )
     `)
     .eq("branch_id", branchId)
@@ -604,7 +604,7 @@ export async function getAllBookingsOwner(filters?: {
       travel_buffer_mins, metadata, created_at,
       branches  ( id, name ),
       services  ( id, name, duration_minutes ),
-      staff     ( id, full_name, tier ),
+      staff!staff_id ( id, full_name, tier ),
       customers ( id, full_name, phone )
     `);
 

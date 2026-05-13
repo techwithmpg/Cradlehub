@@ -2,7 +2,9 @@ import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ControlKpiStrip } from "./control-kpi-strip";
 import { ControlQueue } from "./control-queue";
+import type { AvailableDriver } from "./driver-assign-menu";
 import type { ControlBooking } from "./types";
+import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
 
 export type ControlConsolePageProps = {
   branchName: string;
@@ -12,6 +14,10 @@ export type ControlConsolePageProps = {
   bookings: ControlBooking[];
   paymentAction?: (input: unknown) => Promise<{ success: boolean; error?: string }>;
   statusAction?: (input: unknown) => Promise<{ success: boolean; error?: string }>;
+  assignDriverAction?: (input: unknown) => Promise<{ success: boolean; error?: string }>;
+  availableDrivers?: AvailableDriver[];
+  getTrackingLinkAction?: (input: unknown) => Promise<{ ok: boolean; message?: string; error?: string }>;
+  refreshEtaAction?: (bookingId: string) => Promise<EtaRefreshResult>;
 };
 
 export function ControlConsolePage({
@@ -22,6 +28,10 @@ export function ControlConsolePage({
   bookings,
   paymentAction,
   statusAction,
+  assignDriverAction,
+  availableDrivers,
+  getTrackingLinkAction,
+  refreshEtaAction,
 }: ControlConsolePageProps) {
   const active = bookings.filter((b) => b.status === "confirmed" || b.status === "in_progress");
   const inProgress = bookings.filter((b) => b.status === "in_progress");
@@ -32,6 +42,7 @@ export function ControlConsolePage({
     (b) =>
       !!b.dispatch_warning ||
       !!b.needs_location_review ||
+      !!b.no_driver_warning ||
       (!b.resource_name && b.type !== "home_service") ||
       !b.staff_name
   );
@@ -69,6 +80,10 @@ export function ControlConsolePage({
             viewerRole={viewerRole}
             paymentAction={paymentAction}
             statusAction={statusAction}
+            assignDriverAction={assignDriverAction}
+            availableDrivers={availableDrivers}
+            getTrackingLinkAction={getTrackingLinkAction}
+            refreshEtaAction={refreshEtaAction}
           />
         </div>
 

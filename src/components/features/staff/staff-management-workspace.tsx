@@ -85,7 +85,7 @@ export function StaffManagementWorkspace({
     );
 
     return [
-      { value: "all", label: "All roles" },
+      { value: "all", label: "All access roles" },
       ...roles.map((role) => ({ value: role, label: getSystemRoleLabel(role) })),
     ];
   }, [activeStaff, pendingStaff]);

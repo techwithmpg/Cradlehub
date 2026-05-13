@@ -108,8 +108,9 @@ export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = 
 
         <dl className="mt-5 space-y-2.5">
           <DetailRow Icon={Building2} label="Branch" value={branchName} />
-          <DetailRow Icon={ShieldCheck} label="System Role" value={meta.badgeLabel} />
-          <DetailRow Icon={UserCog} label="Staff Type" value={meta.staffTypeLabel} />
+          <DetailRow Icon={ShieldCheck} label="Workspace Access" value={meta.badgeLabel} />
+          <DetailRow Icon={UserCog} label="Staff Function" value={meta.staffTypeLabel} />
+          <DetailRow Icon={UserCheck} label="Head / Supervisor" value={staff.is_head ? "Yes" : "No"} />
           <DetailRow
             Icon={Phone}
             label="Phone"

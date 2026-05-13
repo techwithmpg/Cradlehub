@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getDefaultDashboardPath } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -13,22 +14,6 @@ export type LoginState = {
   error?: string;
   fieldErrors?: { email?: string; password?: string };
 };
-
-function resolveRedirect(systemRole: string): string {
-  if (systemRole === "owner") return "/owner";
-  if (systemRole === "manager") return "/manager";
-  if (systemRole === "crm") return "/crm";
-  if (systemRole === "csr" || systemRole === "csr_head" || systemRole === "csr_staff") {
-    return "/crm";
-  }
-
-  // system_role = staff — route to portal
-  if (systemRole === "staff") {
-    return "/staff-portal";
-  }
-
-  return "/";
-}
 
 export async function loginAction(
   _prev: LoginState,
@@ -121,7 +106,7 @@ export async function loginAction(
     return { error: "Your account has not been set up yet. Contact your administrator." };
   }
 
-  const destination = resolveRedirect(staffRecord.system_role);
+  const destination = getDefaultDashboardPath(staffRecord.system_role);
   redirect(destination);
 }
 
