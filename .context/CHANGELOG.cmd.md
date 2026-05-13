@@ -234,3 +234,38 @@
 **Follow-up:**
 - Phase 3.1: Owner cross-branch control console.
 - Phase 4: Booking Delivery Type Cleanup (`in_spa` as first-class type).
+
+---
+
+### 2026-05-13 — Kimi (MGR-STAFF-001 — Manager Staff Parity)
+
+**Task:** Give Manager workspace the same staff-management capabilities as Owner, safely branch-scoped, without redesigning staff management.
+
+**Files Created:**
+- `docs/MANAGER_STAFF_PARITY_AUDIT.md` — full audit of Owner vs Manager staff capabilities, gaps, safe parity plan, and implementation summary
+- `src/components/features/staff/staff-edit-form.tsx` — shared reusable staff edit form extracted from Owner route
+- `src/app/(dashboard)/manager/staff/[staffId]/page.tsx` — Manager staff detail/edit page (branch-scoped)
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/staff/[staffId]/page.tsx` — refactored to use shared `StaffEditForm`
+- `src/app/(dashboard)/owner/staff/[staffId]/staff-edit-form.tsx` — DELETED (replaced by shared component)
+- `src/app/(dashboard)/owner/staff/actions.ts` — hardened `updateStaffAction` with sensitive-role guards, manager-safe role enforcement, branch-change validation, and revalidation of both owner and manager paths
+- `src/components/features/staff/staff-preview-panel.tsx` — Manager now sees "Change Role" and "Deactivate Staff" quick actions; "Assign Branch" remains Owner-only
+- `src/components/features/manager/mobile/manager-staff-screen.tsx` — Staff cards are now clickable `Link` elements to detail pages
+- `src/components/features/control-console/control-console-page.tsx` — fixed pre-existing `<a>` → `<Link>` lint error
+
+**Behavior:**
+- Manager can now edit staff profiles, update roles (manager-safe only), change tier/level, assign service capabilities, activate/deactivate, and toggle department head — all for staff in their branch.
+- Branch field is locked to manager's branch.
+- Protected accounts (owner, manager, assistant_manager, store_manager, super_admin, platform_admin) show "This action requires owner approval." and cannot be modified by manager.
+- Owner staff management is untouched and continues to work with full controls.
+- Mobile manager staff tab now links to detail edit pages.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 80 app routes.
+
+**Follow-up:**
+- Manager direct-invite (`/manager/staff/new`) if business wants managers to create staff directly.
+- Staff delete/soft-delete if needed (currently only deactivate).

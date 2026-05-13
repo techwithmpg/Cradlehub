@@ -137,13 +137,11 @@ export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = 
             )}
             <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
             {isOwner && (
-              <>
-                <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
-                <QuickAction href={`${basePath}/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
-                {status === "active" && (
-                  <QuickAction href={`${basePath}/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
-                )}
-              </>
+              <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
+            )}
+            <QuickAction href={`${basePath}/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
+            {status === "active" && (
+              <QuickAction href={`${basePath}/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
             )}
           </div>
         </div>

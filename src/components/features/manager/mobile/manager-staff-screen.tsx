@@ -155,7 +155,8 @@ function StaffCard({ member }: { member: StaffMember }) {
   const statusLabel = getStaffStatusLabel(status);
 
   return (
-    <div
+    <Link
+      href={`/manager/staff/${member.id}`}
       style={{
         background: "var(--cs-surface)",
         border: "1px solid var(--cs-border-soft)",
@@ -165,6 +166,7 @@ function StaffCard({ member }: { member: StaffMember }) {
         alignItems: "center",
         gap: 12,
         boxShadow: "var(--cs-shadow-xs)",
+        textDecoration: "none",
       }}
     >
       <div
@@ -220,7 +222,7 @@ function StaffCard({ member }: { member: StaffMember }) {
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 

@@ -143,6 +143,23 @@ export async function createStaffAction(rawInput: unknown) {
   return { success: true };
 }
 
+const SENSITIVE_SYSTEM_ROLES = new Set([
+  "owner",
+  "manager",
+  "assistant_manager",
+  "store_manager",
+  "super_admin",
+  "platform_admin",
+]);
+
+const MANAGER_SAFE_ROLES = new Set([
+  "staff",
+  "csr_staff",
+  "csr_head",
+  "crm",
+  "csr",
+]);
+
 // ── Update staff profile (owner or manager) ───────────────────────────────
 export async function updateStaffAction(rawInput: unknown) {
   const parsed = updateStaffSchema.safeParse(rawInput);
@@ -152,13 +169,30 @@ export async function updateStaffAction(rawInput: unknown) {
   if ("error" in ctx) return { success: false, error: ctx.error };
 
   const { staffId, serviceIds, ...updates } = parsed.data;
+  const isManager = ["manager", "assistant_manager", "store_manager"].includes(ctx.me.system_role);
 
-  // Non-owner managers can only update staff in their branch
-  if (["manager", "assistant_manager", "store_manager"].includes(ctx.me.system_role)) {
+  // Non-owner managers: branch scope + protected account + role safety checks
+  if (isManager) {
     const { data: target } = await ctx.supabase
-      .from("staff").select("branch_id").eq("id", staffId).single();
+      .from("staff")
+      .select("branch_id, system_role")
+      .eq("id", staffId)
+      .single();
+
     if (!target || target.branch_id !== ctx.me.branch_id) {
       return { success: false, error: "You can only manage staff in your branch" };
+    }
+
+    if (SENSITIVE_SYSTEM_ROLES.has(target.system_role)) {
+      return { success: false, error: "This action requires owner approval." };
+    }
+
+    if (updates.branchId !== undefined && updates.branchId !== ctx.me.branch_id) {
+      return { success: false, error: "You can only assign staff to your own branch." };
+    }
+
+    if (updates.systemRole !== undefined && !MANAGER_SAFE_ROLES.has(updates.systemRole)) {
+      return { success: false, error: "This role requires owner approval." };
     }
   }
 
@@ -202,5 +236,8 @@ export async function updateStaffAction(rawInput: unknown) {
   }
 
   revalidatePath("/owner/staff");
+  revalidatePath(`/owner/staff/${staffId}`);
+  revalidatePath("/manager/staff");
+  revalidatePath(`/manager/staff/${staffId}`);
   return { success: true };
 }

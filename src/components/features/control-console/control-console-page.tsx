@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ControlKpiStrip } from "./control-kpi-strip";
 import { ControlQueue } from "./control-queue";
@@ -118,16 +119,16 @@ export function ControlConsolePage({
             </div>
             <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", lineHeight: 1.5 }}>
               Staff availability diagnostics are shown on the{" "}
-              <a href="/manager/schedule" style={{ color: "var(--cs-sand)", fontWeight: 600, textDecoration: "none" }}>
+              <Link href="/manager/schedule" style={{ color: "var(--cs-sand)", fontWeight: 600, textDecoration: "none" }}>
                 Schedule
-              </a>{" "}
+              </Link>{" "}
               page.
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginTop: "0.5rem" }}>
               Staff not showing? Use{" "}
-              <a href="/manager/staff" style={{ color: "var(--cs-sand)", fontWeight: 600, textDecoration: "none" }}>
+              <Link href="/manager/staff" style={{ color: "var(--cs-sand)", fontWeight: 600, textDecoration: "none" }}>
                 Staff Settings
-              </a>{" "}
+              </Link>{" "}
               to check schedules and overrides.
             </div>
           </div>

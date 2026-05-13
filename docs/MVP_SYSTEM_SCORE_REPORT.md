@@ -33,7 +33,7 @@ If these three are fixed by Thursday, the score becomes a solid 7.5–8.0 and sh
 | Branch/service setup | 8 | PASS | Owner can create branches, services, categories, branch-level pricing, room/bed resources, and service eligibility flags. Real data, not demo stubs. |
 | Availability and scheduling engine | 8 | PASS | `get_available_slots` RPC, seniority-based assignment, schedule overrides, blocked times, resource collision detection, and auto-room assignment on confirmation. |
 | CRM/front desk workflow | 7 | PARTIAL | Today page, bookings list, customer search, in-house booking wizard, schedule board, and payment recording are all real. Recently cleaned up (fewer KPI cards, compact attention strip). Some mobile UX gaps remain. |
-| Manager workflow | 7 | PARTIAL | Today dashboard with timeline grid, booking management, staff schedule editor, resource manager, and mobile variant are solid. Operations page exposes 6 "Coming Soon" tiles which is fine for MVP but not ideal for a polished demo. |
+| Manager workflow | 8 | PASS | Today dashboard with timeline grid, booking management, staff schedule editor, resource manager, and mobile variant are solid. Manager can now edit staff profiles, roles, tiers, service capabilities, and activation status (branch-scoped). Operations page still exposes 6 "Coming Soon" tiles. |
 | Staff portal and schedule visibility | 7 | PASS | Staff sees own today + week + stats. Real data. Mobile accordion for week view. Schedule, overrides, and blocked times all visible. |
 | Staff progress/status updates | 7 | PARTIAL | Unified progress state machine (home_service / walkin / online) with type-aware RPC transitions. Staff can update progress via stepper UI. **Missing: returned/closed stage for home service.** |
 | Home-service lifecycle tracking | 6 | PARTIAL | Travel → Arrived → Session → Complete is implemented. **No "returned to base" or "closed" step.** Dispatch conflict detection exists. Driver/utility panels are placeholders. |
@@ -42,7 +42,7 @@ If these three are fixed by Thursday, the score becomes a solid 7.5–8.0 and sh
 | Payment handling/manual payment flow | 7 | PASS | Payment status/method/amount fields on bookings. Quick-pay dropdown (Cash/GCash/Maya/Card). Daily cash summary with expected/collected/outstanding. No real payment gateway — manual recording only (acceptable for MVP). |
 | RBAC/auth/workspace security | 7 | PASS | Proxy enforces role-based routing. Most server actions check permissions. **However:** `updateBranchBookingRulesAction` has NO auth, and several actions rely solely on RLS without application-layer guards. Legacy invite flow (`onboardStaffAction` / `generateInviteAction`) was removed in favor of the public onboarding page. Dev bypass is safe (disabled in production). |
 | UI clarity and usability | 6 | PARTIAL | Desktop workspaces are professional. CRM Today was recently cleaned. **Mobile is broken for non-manager workspaces** — sidebar hamburger hidden, no mobile shell. Some emoji usage in dashboard headers. Manager operations page shows "Coming Soon" tiles. |
-| Build/type/lint health | 10 | PASS | Zero errors across type-check, lint, and build. 75 routes compile. |
+| Build/type/lint health | 10 | PASS | Zero errors across type-check, lint, and build. 80 routes compile. |
 | Deployment readiness | 6 | PARTIAL | Build passes. Env vars documented. **Migration conflict risk on fresh reset.** No CI/CD verification. Supabase CLI not available in this environment — remote push untested. |
 
 ---

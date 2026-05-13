@@ -5,7 +5,8 @@ import { getAllBranches } from "@/lib/queries/branches";
 import { getAllServices } from "@/lib/queries/services";
 import { getStaffServices } from "@/lib/queries/staff";
 import type { Database } from "@/types/supabase";
-import { StaffEditForm } from "./staff-edit-form";
+import { StaffEditForm } from "@/components/features/staff/staff-edit-form";
+import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 
 type StaffRow = Database["public"]["Tables"]["staff"]["Row"];
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
@@ -50,10 +51,11 @@ export default async function StaffDetailPage({
         description={`${readBranchName(staffMember.branches)} · ${staffMember.system_role}`}
       />
       <StaffEditForm
-        staffMember={staffMember}
+        staffMember={staffMember as unknown as StaffMember}
         branches={typedBranches}
         services={typedServices}
         staffServiceIds={staffServiceIds}
+        workspaceContext="owner"
       />
     </div>
   );
