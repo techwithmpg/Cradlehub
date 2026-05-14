@@ -20,6 +20,8 @@ type ScheduleBoardPanelProps = {
   selectedBookingId: string | null;
   viewMode: ScheduleViewMode;
   onViewModeChange: (mode: ScheduleViewMode) => void;
+  onHoverEnter?: (bookingId: string, x: number, y: number) => void;
+  onHoverLeave?: () => void;
 };
 
 export function ScheduleBoardPanel({
@@ -32,6 +34,8 @@ export function ScheduleBoardPanel({
   selectedBookingId,
   viewMode,
   onViewModeChange,
+  onHoverEnter,
+  onHoverLeave,
 }: ScheduleBoardPanelProps) {
   return (
     <div
@@ -100,6 +104,8 @@ export function ScheduleBoardPanel({
             branchResources={branchResources}
             onBookingClick={onBookingClick}
             selectedBookingId={selectedBookingId}
+            onHoverEnter={onHoverEnter}
+            onHoverLeave={onHoverLeave}
           />
         </div>
       )}
