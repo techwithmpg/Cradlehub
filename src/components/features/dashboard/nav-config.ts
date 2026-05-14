@@ -83,6 +83,7 @@ const CSR_STAFF_NAV_ITEMS: NavItem[] = [
 
 const STAFF_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/staff-portal", icon: "LayoutDashboard" },
+  { label: "My Schedule", href: "/staff-portal/schedule", icon: "CalendarDays" },
   { label: "Dispatch", href: "/staff-portal/dispatch", icon: "Truck" },
   { label: "My Schedule", href: "/staff-portal/schedule", icon: "CalendarDays" },
   { label: "My Week", href: "/staff-portal/week", icon: "CalendarDays" },

@@ -9,17 +9,17 @@ type TodayActionResult =
   | { bookings: StaffPortalBooking[]; staff: StaffPortalStaff };
 
 export default async function StaffTodayPage() {
-  const today = new Date().toISOString().split("T")[0]!;
+  const today  = new Date().toISOString().split("T")[0]!;
   const result = (await getMyTodayAction(today)) as TodayActionResult;
 
   if ("error" in result) {
     return (
       <div
         style={{
-          padding: "2rem",
+          padding:   "2rem",
           textAlign: "center",
-          color: "var(--cs-text-muted)",
-          fontSize: "0.875rem",
+          color:     "var(--cs-text-muted)",
+          fontSize:  "0.875rem",
         }}
       >
         {result.error}

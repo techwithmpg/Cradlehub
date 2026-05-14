@@ -53,6 +53,7 @@ CREATE INDEX staff_onboarding_requests_auth_user_idx
 
 -- ── updated_at trigger ────────────────────────────────────────────────────────
 
+DROP TRIGGER IF EXISTS staff_onboarding_requests_updated_at ON public.staff_onboarding_requests;
 CREATE TRIGGER staff_onboarding_requests_updated_at
   BEFORE UPDATE ON public.staff_onboarding_requests
   FOR EACH ROW

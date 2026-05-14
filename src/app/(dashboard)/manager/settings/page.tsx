@@ -5,6 +5,8 @@ import { BranchServicesPanel } from "@/app/(dashboard)/owner/branches/[branchId]
 import { getMyBranchBookingRulesAction } from "@/app/(dashboard)/owner/branches/actions";
 import { createClient } from "@/lib/supabase/server";
 import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
+import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
+import { SchedulingRulesForm } from "@/components/features/scheduling/scheduling-rules-form";
 import type { GlobalService, ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 
 async function getAllActiveServices(): Promise<GlobalService[]> {
@@ -28,11 +30,13 @@ export default async function ManagerSettingsPage() {
   const { branchId, rules, services } = result;
   await ensureBranchSetupWarningNotifications(branchId);
 
+  const schedulingRules = await getSchedulingRules(branchId);
+
   return (
     <div>
       <PageHeader
         title="Branch Settings"
-        description="Manage booking rules and service availability for your branch"
+        description="Manage booking rules, service availability, and scheduling automation for your branch"
       />
 
       <div
@@ -51,6 +55,10 @@ export default async function ManagerSettingsPage() {
           allServices={allServices}
           isOwner={false}
         />
+      </div>
+
+      <div style={{ marginTop: "1.5rem" }}>
+        <SchedulingRulesForm rules={schedulingRules} />
       </div>
     </div>
   );

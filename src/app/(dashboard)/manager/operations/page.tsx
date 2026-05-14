@@ -6,15 +6,15 @@ const AVAILABLE_TOOLS = [
   { icon: "📅", label: "Booking Management", desc: "View, edit, and transition booking statuses", href: "/manager/bookings" },
   { icon: "👥", label: "Staff Schedule & Time-Off", desc: "Weekly hours, day overrides, and blocked time windows", href: "/manager/staff" },
   { icon: "🏠", label: "Space Utilization", desc: "Room and bed occupancy for any date", href: "/manager/resources" },
-  { icon: "⚙️", label: "Branch Settings", desc: "Booking rules, Home Service config, and service availability", href: "/manager/settings" },
+  { icon: "⚙️", label: "Branch Settings", desc: "Booking rules, Home Service config, service availability, and scheduling automation", href: "/manager/settings" },
   { icon: "📋", label: "Onboarding Requests", desc: "Review and approve staff applications from the shared onboarding link", href: "/manager/staff/onboarding" },
+  { icon: "⚖️", label: "Schedule Automation", desc: "Auto-generated break blocks, travel buffers, and coverage health checks", href: "/manager" },
 ];
 
 const COMING_SOON = [
   { icon: "🚗", label: "Driver Dispatch", desc: "Assign drivers to home service appointments" },
   { icon: "🧹", label: "Utility Task Management", desc: "Track cleaning, maintenance, and support tasks" },
   { icon: "🎧", label: "CSR Shift Tracking", desc: "Front-desk coverage and handover logs" },
-  { icon: "⚖️", label: "Staff Workload Balancing", desc: "Evenly distribute appointments across therapists" },
   { icon: "📝", label: "Branch Issue Log", desc: "Record and track operational incidents" },
   { icon: "✅", label: "Daily Closing Checklist", desc: "End-of-day tasks and verification" },
 ];
