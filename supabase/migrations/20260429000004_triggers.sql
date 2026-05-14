@@ -31,22 +31,27 @@ COMMENT ON FUNCTION fn_update_updated_at IS
   'Generic trigger function. Sets updated_at = NOW() on any UPDATE.';
 
 -- Apply to all tables that have updated_at
+DROP TRIGGER IF EXISTS trg_branches_updated_at ON branches;
 CREATE TRIGGER trg_branches_updated_at
   BEFORE UPDATE ON branches
   FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
 
+DROP TRIGGER IF EXISTS trg_staff_updated_at ON staff;
 CREATE TRIGGER trg_staff_updated_at
   BEFORE UPDATE ON staff
   FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
 
+DROP TRIGGER IF EXISTS trg_services_updated_at ON services;
 CREATE TRIGGER trg_services_updated_at
   BEFORE UPDATE ON services
   FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
 
+DROP TRIGGER IF EXISTS trg_customers_updated_at ON customers;
 CREATE TRIGGER trg_customers_updated_at
   BEFORE UPDATE ON customers
   FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
 
+DROP TRIGGER IF EXISTS trg_bookings_updated_at ON bookings;
 CREATE TRIGGER trg_bookings_updated_at
   BEFORE UPDATE ON bookings
   FOR EACH ROW EXECUTE FUNCTION fn_update_updated_at();
@@ -83,6 +88,7 @@ $$;
 COMMENT ON FUNCTION fn_on_booking_created IS
   'Logs initial booking status to booking_events on INSERT. from_status = NULL marks creation.';
 
+DROP TRIGGER IF EXISTS trg_on_booking_created ON bookings;
 CREATE TRIGGER trg_on_booking_created
   AFTER INSERT ON bookings
   FOR EACH ROW EXECUTE FUNCTION fn_on_booking_created();
@@ -138,6 +144,7 @@ COMMENT ON FUNCTION fn_on_booking_status_changed IS
   'Set via: SELECT set_config(''app.current_staff_id'', ''<uuid>'', TRUE)';
 
 -- Only fires when status column is the thing being updated
+DROP TRIGGER IF EXISTS trg_on_booking_status_changed ON bookings;
 CREATE TRIGGER trg_on_booking_status_changed
   AFTER UPDATE OF status ON bookings
   FOR EACH ROW EXECUTE FUNCTION fn_on_booking_status_changed();
@@ -185,6 +192,7 @@ COMMENT ON FUNCTION fn_maintain_customer_stats IS
   'Fires on every booking status change. Un-completing a booking decrements the counter '
   'but does not revert date fields (by design — recalculation would be expensive).';
 
+DROP TRIGGER IF EXISTS trg_maintain_customer_stats ON bookings;
 CREATE TRIGGER trg_maintain_customer_stats
   AFTER UPDATE OF status ON bookings
   FOR EACH ROW EXECUTE FUNCTION fn_maintain_customer_stats();

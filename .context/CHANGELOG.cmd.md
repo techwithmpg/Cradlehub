@@ -361,3 +361,37 @@
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
 - `pnpm build`: ✅ Passing, 88 app routes.
+
+---
+
+### 2026-05-14 — Claude (SCHED-RULES-001 — Rule-Based Scheduling Engine)
+
+**Task:** Implement a deterministic rule-based automatic scheduling/blocking system. No AI. Full manager approval workflow with staff notifications after apply/reject.
+
+**Files Created:**
+- `supabase/migrations/20260520000001_scheduling_rules_foundation.sql` — 4 new tables: scheduling_rules, staff_scheduling_preferences, schedule_suggestions, schedule_health_checks. RLS, indexes, updated_at triggers.
+- `src/lib/scheduling/types.ts` — TypeScript domain types (SchedulingRules, StaffSchedulingPreferences, ScheduleSuggestion, ScheduleHealthCheck, etc.)
+- `src/lib/scheduling/schemas.ts` — Zod schemas for all server actions.
+- `src/lib/scheduling/rules/get-scheduling-rules.ts` — fetches branch rules with safe defaults fallback.
+- `src/lib/scheduling/rules/evaluate-schedule-health.ts` — pure function producing HealthEvaluationResult with issues and recommendations.
+- `src/lib/scheduling/rules/generate-routine-blocks.ts` — break/travel/room-reset buffer suggestion helpers.
+- `src/lib/scheduling/rules/generate-schedule-suggestions.ts` — loads daily snapshot, generates and persists deduplicated suggestions.
+- `src/lib/scheduling/rules/apply-approved-suggestion.ts` — applies approved suggestions as schedule_overrides or blocked_times rows.
+- `src/lib/scheduling/rules/notify-affected-staff.ts` — fires workspace_notifications after approve/reject/apply.
+- `src/lib/scheduling/rules/explain-suggestion.ts` — returns human-readable headline + detail for any suggestion type.
+- `src/app/(dashboard)/manager/scheduling/actions.ts` — server actions: upsertSchedulingRulesAction, generateSuggestionsAction, listPendingSuggestionsAction, approveSuggestionAction, rejectSuggestionAction.
+- `src/components/features/scheduling/scheduling-rules-form.tsx` — client form for coverage, day-off, break, auto-blocking, and approval flow settings.
+- `src/components/features/scheduling/schedule-health-panel.tsx` — daily health status panel with count grid, issues list, recommendations, and Generate button.
+- `src/components/features/scheduling/suggestions-review-panel.tsx` — suggestion cards with Approve and Apply / Reject actions.
+
+**Files Changed:**
+- `src/types/supabase.ts` — Row/Insert/Update types for all 4 new tables.
+- `src/lib/notifications/types.ts` — added schedule_suggestion_approved, schedule_suggestion_rejected, schedule_block_applied.
+- `src/app/(dashboard)/manager/page.tsx` — health panel and suggestions review panel added below ManagerTodayWorkspace on desktop.
+- `src/app/(dashboard)/manager/settings/page.tsx` — SchedulingRulesForm added below existing booking rules section.
+- `src/app/(dashboard)/manager/operations/page.tsx` — Staff Workload Balancing moved from Coming Soon to Available as Schedule Automation.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
+- `pnpm build`: ✅ Passing

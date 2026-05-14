@@ -942,6 +942,258 @@ export type Database = {
           },
         ]
       }
+      schedule_health_checks: {
+        Row: {
+          id: string
+          branch_id: string
+          check_date: string
+          status: string
+          scheduled_staff_count: number
+          available_staff_count: number
+          checked_in_staff_count: number | null
+          scheduled_therapists_count: number
+          available_therapists_count: number
+          scheduled_drivers_count: number
+          available_drivers_count: number
+          missing_staff_count: number
+          affected_bookings_count: number
+          issues: Json
+          recommendations: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id: string
+          check_date: string
+          status?: string
+          scheduled_staff_count?: number
+          available_staff_count?: number
+          checked_in_staff_count?: number | null
+          scheduled_therapists_count?: number
+          available_therapists_count?: number
+          scheduled_drivers_count?: number
+          available_drivers_count?: number
+          missing_staff_count?: number
+          affected_bookings_count?: number
+          issues?: Json
+          recommendations?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string
+          check_date?: string
+          status?: string
+          scheduled_staff_count?: number
+          available_staff_count?: number
+          checked_in_staff_count?: number | null
+          scheduled_therapists_count?: number
+          available_therapists_count?: number
+          scheduled_drivers_count?: number
+          available_drivers_count?: number
+          missing_staff_count?: number
+          affected_bookings_count?: number
+          issues?: Json
+          recommendations?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_health_checks_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_suggestions: {
+        Row: {
+          id: string
+          branch_id: string
+          staff_id: string | null
+          suggestion_type: string
+          target_date: string
+          start_time: string | null
+          end_time: string | null
+          current_value: Json | null
+          suggested_value: Json
+          reason: string
+          impact_summary: string | null
+          priority: string
+          status: string
+          created_by: string
+          approved_by: string | null
+          approved_at: string | null
+          rejected_by: string | null
+          rejected_at: string | null
+          applied_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id: string
+          staff_id?: string | null
+          suggestion_type: string
+          target_date: string
+          start_time?: string | null
+          end_time?: string | null
+          current_value?: Json | null
+          suggested_value: Json
+          reason: string
+          impact_summary?: string | null
+          priority?: string
+          status?: string
+          created_by?: string
+          approved_by?: string | null
+          approved_at?: string | null
+          rejected_by?: string | null
+          rejected_at?: string | null
+          applied_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string
+          staff_id?: string | null
+          suggestion_type?: string
+          target_date?: string
+          start_time?: string | null
+          end_time?: string | null
+          current_value?: Json | null
+          suggested_value?: Json
+          reason?: string
+          impact_summary?: string | null
+          priority?: string
+          status?: string
+          created_by?: string
+          approved_by?: string | null
+          approved_at?: string | null
+          rejected_by?: string | null
+          rejected_at?: string | null
+          applied_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_suggestions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_suggestions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_suggestions_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_suggestions_rejected_by_fkey"
+            columns: ["rejected_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduling_rules: {
+        Row: {
+          id: string
+          branch_id: string
+          min_daily_staff: number
+          min_daily_therapists: number
+          min_daily_csr: number
+          min_daily_drivers: number
+          min_daily_utility: number
+          default_days_off_per_week: number
+          max_same_role_off_per_day: number
+          max_therapists_off_per_day: number
+          protect_weekends: boolean
+          default_break_minutes: number
+          auto_breaks_enabled: boolean
+          max_working_hours_per_day: number
+          max_services_per_staff_per_day: number | null
+          auto_generate_breaks: boolean
+          auto_generate_travel_buffers: boolean
+          auto_generate_room_reset_buffers: boolean
+          room_reset_buffer_minutes: number
+          home_service_travel_buffer_minutes: number
+          suggestions_require_manager_approval: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id: string
+          min_daily_staff?: number
+          min_daily_therapists?: number
+          min_daily_csr?: number
+          min_daily_drivers?: number
+          min_daily_utility?: number
+          default_days_off_per_week?: number
+          max_same_role_off_per_day?: number
+          max_therapists_off_per_day?: number
+          protect_weekends?: boolean
+          default_break_minutes?: number
+          auto_breaks_enabled?: boolean
+          max_working_hours_per_day?: number
+          max_services_per_staff_per_day?: number | null
+          auto_generate_breaks?: boolean
+          auto_generate_travel_buffers?: boolean
+          auto_generate_room_reset_buffers?: boolean
+          room_reset_buffer_minutes?: number
+          home_service_travel_buffer_minutes?: number
+          suggestions_require_manager_approval?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string
+          min_daily_staff?: number
+          min_daily_therapists?: number
+          min_daily_csr?: number
+          min_daily_drivers?: number
+          min_daily_utility?: number
+          default_days_off_per_week?: number
+          max_same_role_off_per_day?: number
+          max_therapists_off_per_day?: number
+          protect_weekends?: boolean
+          default_break_minutes?: number
+          auto_breaks_enabled?: boolean
+          max_working_hours_per_day?: number
+          max_services_per_staff_per_day?: number | null
+          auto_generate_breaks?: boolean
+          auto_generate_travel_buffers?: boolean
+          auto_generate_room_reset_buffers?: boolean
+          room_reset_buffer_minutes?: number
+          home_service_travel_buffer_minutes?: number
+          suggestions_require_manager_approval?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: true
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_categories: {
         Row: {
           created_at: string
@@ -1236,6 +1488,75 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_scheduling_preferences: {
+        Row: {
+          id: string
+          staff_id: string
+          branch_id: string | null
+          preferred_day_off: number | null
+          secondary_preferred_day_off: number | null
+          default_break_start: string | null
+          default_break_end: string | null
+          can_do_home_service: boolean
+          can_drive: boolean
+          max_services_per_day: number | null
+          max_trips_per_day: number | null
+          max_working_hours_per_day: number | null
+          requires_manager_approval_for_changes: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          staff_id: string
+          branch_id?: string | null
+          preferred_day_off?: number | null
+          secondary_preferred_day_off?: number | null
+          default_break_start?: string | null
+          default_break_end?: string | null
+          can_do_home_service?: boolean
+          can_drive?: boolean
+          max_services_per_day?: number | null
+          max_trips_per_day?: number | null
+          max_working_hours_per_day?: number | null
+          requires_manager_approval_for_changes?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          staff_id?: string
+          branch_id?: string | null
+          preferred_day_off?: number | null
+          secondary_preferred_day_off?: number | null
+          default_break_start?: string | null
+          default_break_end?: string | null
+          can_do_home_service?: boolean
+          can_drive?: boolean
+          max_services_per_day?: number | null
+          max_trips_per_day?: number | null
+          max_working_hours_per_day?: number | null
+          requires_manager_approval_for_changes?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_scheduling_preferences_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_scheduling_preferences_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
         ]

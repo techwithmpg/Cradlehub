@@ -31,7 +31,10 @@ export type NotificationType =
   | "staff_profile_incomplete"
   | "staff_capabilities_pending"
   | "staff_capabilities_confirmed"
-  | "staff_therapist_level_missing";
+  | "staff_therapist_level_missing"
+  | "schedule_suggestion_approved"
+  | "schedule_suggestion_rejected"
+  | "schedule_block_applied";
 
 export type NotificationWorkspace =
   | "owner"
