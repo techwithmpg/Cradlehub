@@ -336,7 +336,9 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
 export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps) {
   const pathname        = usePathname();
   const [open, setOpen] = useState(false);
-  const isManagerRoute  = pathname.startsWith("/manager");
+  const isManagerRoute     = pathname.startsWith("/manager");
+  const isStaffPortalRoute = pathname.startsWith("/staff-portal");
+  const isDriverRoute      = pathname.startsWith("/driver");
 
   return (
     <>
@@ -345,8 +347,8 @@ export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps)
         <SidebarContent role={role} fullName={fullName} avatarUrl={avatarUrl} branchName={branchName} pathname={pathname} />
       </div>
 
-      {/* Mobile hamburger — hidden on manager routes because manager has its own mobile shell */}
-      {!isManagerRoute && (
+      {/* Mobile hamburger — hidden on routes that have their own mobile nav (manager, staff-portal, driver) */}
+      {!isManagerRoute && !isStaffPortalRoute && !isDriverRoute && (
         <button
           type="button"
           className="md:hidden"

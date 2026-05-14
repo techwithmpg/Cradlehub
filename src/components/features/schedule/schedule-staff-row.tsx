@@ -23,9 +23,11 @@ type StaffRowProps = {
   date?: string;
   onBookingClick?: (bookingId: string) => void;
   selectedBookingId?: string | null;
+  onHoverEnter?: (bookingId: string, x: number, y: number) => void;
+  onHoverLeave?: () => void;
 };
 
-export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick, selectedBookingId }: StaffRowProps) {
+export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick, selectedBookingId, onHoverEnter, onHoverLeave }: StaffRowProps) {
   const totalWidth = getTimelineTotalWidthPx();
   const isFullyOff = !staff.work_start || !staff.work_end;
 
@@ -138,6 +140,8 @@ export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick,
             date={date}
             onClick={onBookingClick}
             isSelected={selectedBookingId === booking.id}
+            onHoverEnter={onHoverEnter}
+            onHoverLeave={onHoverLeave}
           />
         ))}
       </div>

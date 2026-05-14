@@ -23,6 +23,8 @@ type DailyScheduleBoardProps = {
   branchResources?: ResourceRow[];
   onBookingClick?: (bookingId: string) => void;
   selectedBookingId?: string | null;
+  onHoverEnter?: (bookingId: string, x: number, y: number) => void;
+  onHoverLeave?: () => void;
 };
 
 function useScheduleRealtime(branchId: string, date: string) {
@@ -56,13 +58,15 @@ function useScheduleRealtime(branchId: string, date: string) {
   }, [branchId, date, router]);
 }
 
-export function DailyScheduleBoard({ 
-  branchId, 
-  date, 
+export function DailyScheduleBoard({
+  branchId,
+  date,
   staffRows,
   branchResources,
   onBookingClick,
   selectedBookingId,
+  onHoverEnter,
+  onHoverLeave,
 }: DailyScheduleBoardProps) {
   useScheduleRealtime(branchId, date);
 
@@ -110,13 +114,15 @@ export function DailyScheduleBoard({
             {showCurrentTime && <ScheduleCurrentTimeIndicator />}
 
             {staffRows.map((staff) => (
-              <ScheduleStaffRow 
-                key={staff.staff_id} 
-                staff={staff} 
+              <ScheduleStaffRow
+                key={staff.staff_id}
+                staff={staff}
                 branchResources={branchResources}
                 date={date}
                 onBookingClick={onBookingClick}
                 selectedBookingId={selectedBookingId}
+                onHoverEnter={onHoverEnter}
+                onHoverLeave={onHoverLeave}
               />
             ))}
           </div>

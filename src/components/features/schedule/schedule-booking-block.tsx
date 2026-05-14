@@ -44,12 +44,16 @@ type BookingBlockProps = {
   date?: string;
   onClick?: (bookingId: string) => void;
   isSelected?: boolean;
+  onHoverEnter?: (bookingId: string, x: number, y: number) => void;
+  onHoverLeave?: () => void;
 };
 
 export function ScheduleBookingBlock({
   booking,
   onClick,
   isSelected,
+  onHoverEnter,
+  onHoverLeave,
 }: BookingBlockProps) {
   const left = getTimelineOffsetPx(booking.start_time);
   const width = getTimelineWidthPx(booking.start_time, booking.end_time);
@@ -72,7 +76,9 @@ export function ScheduleBookingBlock({
         top: 6,
         bottom: 6,
         backgroundColor: bg,
-        border: isSelected ? `2.5px solid var(--cs-sand)` : `1.5px solid ${border}`,
+        borderTop: isSelected ? `2.5px solid var(--cs-sand)` : `1.5px solid ${border}`,
+        borderRight: isSelected ? `2.5px solid var(--cs-sand)` : `1.5px solid ${border}`,
+        borderBottom: isSelected ? `2.5px solid var(--cs-sand)` : `1.5px solid ${border}`,
         borderLeft: `3px solid ${border}`,
         borderRadius: 8,
         padding: isCompact ? "2px 6px 2px 5px" : "6px 8px 6px 7px",
@@ -88,11 +94,13 @@ export function ScheduleBookingBlock({
         e.currentTarget.style.boxShadow = "0 4px 12px rgba(30,25,22,0.12)";
         e.currentTarget.style.transform = "scale(1.01)";
         e.currentTarget.style.zIndex = "10";
+        onHoverEnter?.(booking.id, e.clientX, e.clientY);
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.boxShadow = "none";
         e.currentTarget.style.transform = "none";
         e.currentTarget.style.zIndex = isSelected ? "10" : "3";
+        onHoverLeave?.();
       }}
       aria-label={`Booking: ${booking.service} for ${booking.customer}`}
       aria-pressed={isSelected}

@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { ScheduleToolbar } from "./schedule-toolbar";
 import { ScheduleKpiCards } from "./schedule-kpi-cards";
 import { ScheduleBoardPanel } from "./schedule-board-panel";
 import { ScheduleDetailsPanel } from "./schedule-details-panel";
 import { ScheduleAlertsPanel } from "./schedule-alerts-panel";
+import { ScheduleBookingHoverCard, type BookingHoverPreview } from "./schedule-booking-hover-card";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { ScheduleViewMode } from "./schedule-mode-switcher";
-import type { DailyScheduleStaffRow, DailyScheduleBooking } from "@/lib/queries/schedule";
+import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
@@ -62,7 +64,7 @@ function computeAlerts(staffRows: DailyScheduleStaffRow[]): import("./schedule-a
   }
 
   // Room conflicts: two bookings using same resource at same time
-  const resourceBookings = new Map<string, DailyScheduleBooking[]>();
+  const resourceBookings = new Map<string, import("@/lib/queries/schedule").DailyScheduleBooking[]>();
   for (const staff of staffRows) {
     for (const booking of staff.bookings) {
       if (booking.resource_id && booking.status !== "cancelled" && booking.status !== "no_show") {
@@ -112,7 +114,11 @@ export function ScheduleWorkspace({
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ScheduleViewMode>("day");
+  const [hoveredPreview, setHoveredPreview] = useState<BookingHoverPreview | null>(null);
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   let filteredRows = staffRows;
 
@@ -152,17 +158,58 @@ export function ScheduleWorkspace({
   };
 
   const handleBookingClick = useCallback((bookingId: string) => {
-    setSelectedBookingId((current) => (current === bookingId ? null : bookingId));
+    setSelectedBookingId(bookingId);
+    setIsSheetOpen(true);
   }, []);
 
-  const handleDateChange = useCallback(
-    (nextDate: string) => {
-      const params = new URLSearchParams(window.location.search);
-      params.set("date", nextDate);
-      window.location.search = params.toString();
-    },
-    []
-  );
+  const handleCloseSheet = useCallback(() => {
+    setIsSheetOpen(false);
+    setSelectedBookingId(null);
+  }, []);
+
+  const handleDateChange = useCallback((nextDate: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("date", nextDate);
+    window.location.search = params.toString();
+  }, []);
+
+  // Hover card handlers — plain functions so they always close over current filteredRows/date
+  function handleHoverEnter(bookingId: string, x: number, y: number) {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    for (const staff of filteredRows) {
+      const booking = staff.bookings.find((b) => b.id === bookingId);
+      if (booking) {
+        setHoveredPreview({ booking, staffName: staff.staff_name, date, x, y });
+        break;
+      }
+    }
+  }
+
+  const handleHoverLeave = useCallback(() => {
+    closeTimerRef.current = setTimeout(() => setHoveredPreview(null), 200);
+  }, []);
+
+  const handleHoverCardMouseEnter = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const handleHoverCardMouseLeave = useCallback(() => {
+    setHoveredPreview(null);
+  }, []);
+
+  const handleOpenDetailsFromHover = useCallback(() => {
+    if (hoveredPreview) {
+      setSelectedBookingId(hoveredPreview.booking.id);
+      setIsSheetOpen(true);
+      setHoveredPreview(null);
+    }
+  }, [hoveredPreview]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -198,35 +245,53 @@ export function ScheduleWorkspace({
       {/* KPI Cards */}
       <ScheduleKpiCards data={kpiData} />
 
-      {/* Main content: board + details panel */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "1rem", alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 }}>
-          <ScheduleBoardPanel
-            branchId={branchId}
-            branchName={branchName}
-            date={date}
-            staffRows={filteredRows}
-            branchResources={branchResources}
-            onBookingClick={handleBookingClick}
-            selectedBookingId={selectedBookingId}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-          />
-
-          {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
-        </div>
-
-        <ScheduleDetailsPanel
-          booking={selectedBookingWithStaff?.booking ?? null}
-          staffName={selectedBookingWithStaff?.staff.staff_name ?? ""}
-          branchResources={branchResources}
+      {/* Full-width schedule board */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <ScheduleBoardPanel
+          branchId={branchId}
+          branchName={branchName}
           date={date}
-          viewerRole={viewerRole}
-          statusAction={statusAction}
-          paymentAction={paymentAction}
-          onClose={() => setSelectedBookingId(null)}
+          staffRows={filteredRows}
+          branchResources={branchResources}
+          onBookingClick={handleBookingClick}
+          selectedBookingId={selectedBookingId}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onHoverEnter={handleHoverEnter}
+          onHoverLeave={handleHoverLeave}
         />
+
+        {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
       </div>
+
+      {/* Booking details — opens in a right-side sheet on click */}
+      <Sheet
+        open={isSheetOpen}
+        onOpenChange={(open: boolean) => { if (!open) handleCloseSheet(); }}
+      >
+        <SheetContent side="right" showCloseButton={false}>
+          <ScheduleDetailsPanel
+            booking={selectedBookingWithStaff?.booking ?? null}
+            staffName={selectedBookingWithStaff?.staff.staff_name ?? ""}
+            branchResources={branchResources}
+            date={date}
+            viewerRole={viewerRole}
+            statusAction={statusAction}
+            paymentAction={paymentAction}
+            onClose={handleCloseSheet}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Hover card — desktop only, appears near the booking block */}
+      {hoveredPreview && (
+        <ScheduleBookingHoverCard
+          preview={hoveredPreview}
+          onOpenDetails={handleOpenDetailsFromHover}
+          onMouseEnter={handleHoverCardMouseEnter}
+          onMouseLeave={handleHoverCardMouseLeave}
+        />
+      )}
     </div>
   );
 }

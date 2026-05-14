@@ -331,3 +331,33 @@
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
 - `pnpm build`: ✅ Passing, 79 app routes.
+
+---
+
+### 2026-05-14 — Claude Sonnet 4.6 (SCHED-LAYOUT-001 — Full-Width Schedule Timeline)
+
+**Task:** Improve the Manager/Owner/CRM Schedule workspace so the daily timeline uses the full available content width instead of being cramped by the permanent 340px Booking Details side panel.
+
+**Files Created:**
+- `src/components/features/schedule/schedule-booking-hover-card.tsx` — Lightweight floating hover preview card for booking blocks (fixed-positioned, shows ID, status/type badges, customer, time, duration, service, staff, room/payment, View Details button)
+
+**Files Changed:**
+- `src/components/features/schedule/schedule-workspace.tsx` — Removed permanent two-column grid layout (`minmax(0,1fr) 340px`); schedule board now expands to full width. Added controlled Sheet (right drawer) for full booking details on click. Added `ScheduleBookingHoverCard` floating preview on hover. Added `hoveredPreview` state, `isSheetOpen` state, and `closeTimerRef` for safe hover-card interaction with 200ms close delay.
+- `src/components/features/schedule/schedule-board-panel.tsx` — Threaded `onHoverEnter` / `onHoverLeave` optional callback props to `DailyScheduleBoard`.
+- `src/components/features/schedule/daily-schedule-board.tsx` — Threaded `onHoverEnter` / `onHoverLeave` optional callback props to `ScheduleStaffRow`.
+- `src/components/features/schedule/schedule-staff-row.tsx` — Threaded `onHoverEnter` / `onHoverLeave` optional callback props to `ScheduleBookingBlock`.
+- `src/components/features/schedule/schedule-booking-block.tsx` — Added `onHoverEnter` and `onHoverLeave` optional props; calls them from existing `onMouseEnter`/`onMouseLeave` handlers with `booking.id` and cursor coordinates.
+
+**Design Decisions:**
+- Booking details panel (`ScheduleDetailsPanel`) moved from permanent right-column to a Sheet (right-side drawer). All existing actions are preserved: Change Status, Take Payment, Cancel Booking, Room/Bed Assignment.
+- Hover card shows a lightweight preview only; full actions remain in the Sheet to avoid complexity in the hover card.
+- Hover card uses a 200ms close delay via `closeTimerRef` so the pointer can move from the booking block into the card without flickering.
+- On touch/mobile/tablet, the Sheet opens on booking click — no hover dependency.
+- Hover callbacks are plain functions (not `useCallback`) so they always close over current `filteredRows` and `date` without ref-mutation lint violations.
+- Change benefits all three schedule workspaces (Owner, Manager, CRM) that share `ScheduleWorkspace`.
+- No auth, RBAC, Supabase schema, or database changes.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
+- `pnpm build`: ✅ Passing, 88 app routes.
