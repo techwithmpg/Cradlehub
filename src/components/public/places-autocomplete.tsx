@@ -15,6 +15,7 @@ export type PlaceSelectResult = {
   placeId: string;
   addressComponents: GoogleAddressComponent[];
   mapUrl: string;
+  source: "google_places";
 };
 
 export type PlacesAutocompleteStatus =
@@ -340,6 +341,7 @@ export function PlacesAutocomplete({
               placeId,
               addressComponents: normalizeAddressComponents(place.addressComponents),
               mapUrl: place.googleMapsURI ?? buildMapsUrl(lat, lng, placeId),
+              source: "google_places",
             });
             onStatusChangeRef.current?.("ready");
           } catch {

@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  BookingServicePicker,
+  type BookingWizardService,
+} from "@/components/public/booking-service-picker";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { STAFF_TYPE_LABELS, type StaffType } from "@/constants/staff";
 import {
@@ -20,8 +24,6 @@ import {
   Building,
   CalendarDays,
   Loader2,
-  Plus,
-  Minus,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -59,16 +61,7 @@ type Branch = {
   address?: string | null;
 };
 
-type Service = {
-  id: string;
-  name: string;
-  description?: string | null;
-  durationMinutes: number;
-  price: number;
-  categoryName?: string;
-  availableInSpa?: boolean;
-  availableHomeService?: boolean;
-};
+type Service = BookingWizardService;
 
 type Slot = {
   staff_id: string;
@@ -83,6 +76,37 @@ type StaffOption = {
   staff_name: string;
   staff_tier: string;
   staff_type?: string;
+};
+
+type StaffLookup = {
+  staffType: string | null;
+  serviceIds: string[];
+  isServiceProvider: boolean;
+};
+
+type BookingContextService = {
+  serviceId?: string;
+  id?: string;
+  name: string;
+  description?: string | null;
+  durationMinutes: number;
+  price: number;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  categorySortOrder?: number | null;
+  availableInSpa?: boolean;
+  availableHomeService?: boolean;
+};
+
+type BookingContextStaff = {
+  id: string;
+  staffType?: string | null;
+  serviceIds?: string[];
+};
+
+type BookingContextServiceEligibility = {
+  serviceId: string;
+  hasStaffMappings: boolean;
 };
 
 type InitialCustomer = {
@@ -154,6 +178,24 @@ function toLocalYmd(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function staffCanPerformSelectedServices(
+  lookup: StaffLookup | undefined,
+  selectedServiceIds: string[],
+  serviceIdsWithStaffMappings: Set<string>
+): lookup is StaffLookup {
+  if (!lookup?.isServiceProvider || selectedServiceIds.length === 0) return false;
+
+  const constrainedServiceIds = selectedServiceIds.filter((serviceId) =>
+    serviceIdsWithStaffMappings.has(serviceId)
+  );
+
+  if (constrainedServiceIds.length === 0) return true;
+
+  return constrainedServiceIds.every((serviceId) =>
+    lookup.serviceIds.includes(serviceId)
+  );
+}
+
 // Collapse multiple per-staff rows to one entry per slot_time.
 // Prefers an available row over an unavailable one.
 function normalizePublicSlots(rawSlots: Slot[]): Slot[] {
@@ -178,7 +220,9 @@ function normalizePublicSlots(rawSlots: Slot[]): Slot[] {
 function staffAtSlot(
   rawSlots: Slot[],
   slotTime: string,
-  staffTypeMap: Map<string, string>
+  staffLookup: Map<string, StaffLookup>,
+  selectedServiceIds: string[],
+  serviceIdsWithStaffMappings: Set<string>
 ): StaffOption[] {
   const seen = new Set<string>();
   const out: StaffOption[] = [];
@@ -186,12 +230,16 @@ function staffAtSlot(
     if (!s.available) continue;
     if (!s.slot_time.startsWith(slotTime.substring(0, 5))) continue;
     if (seen.has(s.staff_id)) continue;
+    const lookup = staffLookup.get(s.staff_id);
+    if (!staffCanPerformSelectedServices(lookup, selectedServiceIds, serviceIdsWithStaffMappings)) {
+      continue;
+    }
     seen.add(s.staff_id);
     out.push({
       staff_id: s.staff_id,
       staff_name: s.staff_name,
       staff_tier: s.staff_tier,
-      staff_type: staffTypeMap.get(s.staff_id),
+      staff_type: lookup.staffType ?? undefined,
     });
   }
   out.sort((a, b) => {
@@ -220,7 +268,10 @@ export function BookingWizard({
   const [bookingRules, setBookingRules] = useState<BranchBookingRules | null>(
     null
   );
-  const [staffTypeMap, setStaffTypeMap] = useState<Map<string, string>>(new Map());
+  const [staffLookup, setStaffLookup] = useState<Map<string, StaffLookup>>(new Map());
+  const [serviceIdsWithStaffMappings, setServiceIdsWithStaffMappings] = useState<Set<string>>(
+    new Set()
+  );
   const [existingHsBookings, setExistingHsBookings] = useState<ExistingHsBooking[]>([]);
   const [hsDriverCapacity, setHsDriverCapacity] = useState(1);
 
@@ -275,6 +326,10 @@ export function BookingWizard({
     () => selectedServices.reduce((s, svc) => s + svc.price, 0),
     [selectedServices]
   );
+  const selectedServiceIds = useMemo(
+    () => selectedServices.map((service) => service.id),
+    [selectedServices]
+  );
   const selectedVisitType = useMemo(
     () => getVisitTypeForBookingType(bookingType, mode),
     [bookingType, mode]
@@ -302,8 +357,25 @@ export function BookingWizard({
     [services, isHomeService]
   );
   const availableStaffAtSlot = useMemo(
-    () => (selectedSlot ? staffAtSlot(rawSlots, selectedSlot.slot_time, staffTypeMap) : []),
-    [rawSlots, selectedSlot, staffTypeMap]
+    () =>
+      selectedSlot
+        ? staffAtSlot(
+            rawSlots,
+            selectedSlot.slot_time,
+            staffLookup,
+            selectedServiceIds,
+            serviceIdsWithStaffMappings
+          )
+        : [],
+    [rawSlots, selectedSlot, selectedServiceIds, serviceIdsWithStaffMappings, staffLookup]
+  );
+  const selectedStaffForBooking = useMemo(
+    () =>
+      selectedStaff === "auto" ||
+      availableStaffAtSlot.some((staff) => staff.staff_id === selectedStaff)
+        ? selectedStaff
+        : "auto",
+    [availableStaffAtSlot, selectedStaff]
   );
 
   // Dispatch status per slot_time (home_service only)
@@ -356,29 +428,46 @@ export function BookingWizard({
       .then((r) => r.json())
       .then((data) => {
         const svcs = (data.services ?? []).map(
-          (s: { serviceId?: string; id?: string; name: string; description?: string | null; durationMinutes: number; price: number; availableInSpa?: boolean; availableHomeService?: boolean }) => ({
+          (s: BookingContextService) => ({
             id: s.serviceId ?? s.id ?? "",
             name: s.name,
             description: s.description,
             durationMinutes: s.durationMinutes,
             price: s.price,
+            categoryId: s.categoryId ?? null,
+            categoryName: s.categoryName ?? "Wellness",
+            categorySortOrder: s.categorySortOrder ?? 999,
             availableInSpa: s.availableInSpa ?? true,
             availableHomeService: s.availableHomeService ?? false,
           })
         );
         setServices(svcs);
-        // Build staff type lookup from booking-context response for public role labels
-        const staffList = (data.staff ?? []) as Array<{ id: string; staffType?: string }>;
-        const nextStaffTypeMap = new Map<string, string>();
+        // Build a provider lookup from booking-context response for public staff filtering.
+        const staffList = (data.staff ?? []) as BookingContextStaff[];
+        const nextStaffLookup = new Map<string, StaffLookup>();
         for (const member of staffList) {
-          if (member.staffType) nextStaffTypeMap.set(member.id, member.staffType);
+          nextStaffLookup.set(member.id, {
+            staffType: member.staffType ?? null,
+            serviceIds: member.serviceIds ?? [],
+            isServiceProvider: true,
+          });
         }
-        setStaffTypeMap(nextStaffTypeMap);
+        const serviceEligibility = (data.serviceEligibility ?? []) as BookingContextServiceEligibility[];
+        setStaffLookup(nextStaffLookup);
+        setServiceIdsWithStaffMappings(
+          new Set(
+            serviceEligibility
+              .filter((entry) => entry.hasStaffMappings)
+              .map((entry) => entry.serviceId)
+          )
+        );
         setBookingRules((data.bookingRules ?? null) as BranchBookingRules | null);
         setLoadingServices(false);
       })
       .catch(() => {
         setBookingRules(null);
+        setStaffLookup(new Map());
+        setServiceIdsWithStaffMappings(new Set());
         setLoadingServices(false);
       });
     return () => clearTimeout(id);
@@ -525,7 +614,7 @@ export function BookingWizard({
     const payload = {
       branchId: selectedBranch.id,
       serviceIds: selectedServices.map((s) => s.id),
-      staffId: selectedStaff !== "auto" ? selectedStaff : undefined,
+      staffId: selectedStaffForBooking !== "auto" ? selectedStaffForBooking : undefined,
       date: toLocalYmd(selectedDate),
       startTime: selectedSlot.slot_time,
       fullName: form.fullName,
@@ -559,7 +648,7 @@ export function BookingWizard({
       toast.error("Booking failed", { description: result.message });
       setFormError(result.message);
     }
-  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaff, form, mode, isHomeService, successStep]);
+  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaffForBooking, form, mode, isHomeService, successStep]);
 
   const preciseHomeServiceLocationSelected = isPreciseHomeServiceLocation(form);
   const preciseLocationRequired = mode === "public" && isHomeService;
@@ -750,7 +839,7 @@ export function BookingWizard({
               />
             )}
             {currentStepName === "services" && (
-              <StepServices
+              <BookingServicePicker
                 services={eligibleServices}
                 loading={loadingServices}
                 selected={selectedServices}
@@ -800,7 +889,7 @@ export function BookingWizard({
             {currentStepName === "therapist" && (
               <StepTherapist
                 availableStaff={availableStaffAtSlot}
-                selected={selectedStaff}
+                selected={selectedStaffForBooking}
                 onSelect={setSelectedStaff}
               />
             )}
@@ -888,7 +977,7 @@ export function BookingWizard({
                 totalPrice={totalPrice}
                 selectedDate={selectedDate}
                 selectedSlot={selectedSlot}
-                selectedStaff={selectedStaff}
+                selectedStaff={selectedStaffForBooking}
                 availableStaff={availableStaffAtSlot}
                 visitType={visitType}
                 bookingRules={bookingRules}
@@ -1236,149 +1325,6 @@ function StepVisitType({
   );
 }
 
-// ── Step 3: Services (multi-select) ────────────────────────────────────────────
-
-function StepServices({
-  services,
-  loading,
-  selected,
-  onToggle,
-  totalDuration,
-  totalPrice,
-  visitType,
-}: {
-  services: Service[];
-  loading: boolean;
-  selected: Service[];
-  onToggle: (s: Service) => void;
-  totalDuration: number;
-  totalPrice: number;
-  visitType: VisitType;
-}) {
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-24 rounded-xl" />
-        ))}
-      </div>
-    );
-  }
-
-  if (services.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-[15px] font-medium" style={{ color: "#163A2B" }}>
-          No services available
-        </p>
-        <p className="text-[13px] mt-2" style={{ color: "#6B7A6F" }}>
-          {visitType === "home_service"
-            ? "No services are currently available for home service. Please choose in-spa or contact us."
-            : "This location does not have any services listed yet."}
-        </p>
-      </div>
-    );
-  }
-
-  const selectedIds = new Set(selected.map((s) => s.id));
-
-  return (
-    <div>
-      <h2
-        className="text-2xl font-medium mb-2"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-      >
-        Choose Your Services
-      </h2>
-      <p className="text-[14px] mb-6" style={{ color: "#6B7A6F" }}>
-        Select one or more treatments. They will be performed consecutively by the same therapist.
-      </p>
-
-      <div className="flex flex-col gap-3">
-        {services.map((service) => {
-          const isSelected = selectedIds.has(service.id);
-          return (
-            <button
-              key={service.id}
-              onClick={() => onToggle(service)}
-              className={`flex items-center gap-5 p-5 rounded-xl border text-left transition-all duration-300 ${
-                isSelected
-                  ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-                  : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
-              }`}
-            >
-              {/* Checkbox indicator */}
-              <div
-                className={`flex h-6 w-6 items-center justify-center rounded-full border-2 shrink-0 transition-all ${
-                  isSelected
-                    ? "bg-[#163A2B] border-[#163A2B]"
-                    : "border-[#D5C9BB] bg-white"
-                }`}
-              >
-                {isSelected && <Check className="h-3.5 w-3.5 text-[#C8A96B]" />}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-[14px] font-semibold truncate" style={{ color: "#163A2B" }}>
-                    {service.name}
-                  </p>
-                  <span className="text-[13px] font-semibold shrink-0" style={{ color: "#C8A96B" }}>
-                    {formatCurrency(service.price)}
-                  </span>
-                </div>
-                {service.description && (
-                  <p className="text-[12px] mt-1 line-clamp-2" style={{ color: "#6B7A6F" }}>
-                    {service.description}
-                  </p>
-                )}
-                <p className="text-[11px] mt-2 font-medium" style={{ color: "#9AA89A" }}>
-                  {service.durationMinutes} minutes
-                </p>
-              </div>
-
-              {/* Toggle icon */}
-              <div
-                className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 transition-all ${
-                  isSelected
-                    ? "bg-[#163A2B]/10 text-[#163A2B]"
-                    : "bg-[#163A2B]/5 text-[#9AA89A]"
-                }`}
-              >
-                {isSelected ? (
-                  <Minus className="h-4 w-4" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Running total */}
-      {selected.length > 0 && (
-        <div
-          className="mt-6 flex items-center justify-between rounded-xl px-5 py-4"
-          style={{ background: "#163A2B" }}
-        >
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "rgba(247,243,235,0.5)" }}>
-              {selected.length} {selected.length === 1 ? "service" : "services"} selected
-            </p>
-            <p className="text-[13px] font-medium mt-0.5" style={{ color: "#FCFAF5" }}>
-              {totalDuration} min total
-            </p>
-          </div>
-          <p className="text-[20px] font-semibold" style={{ color: "#C8A96B" }}>
-            {formatCurrency(totalPrice)}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Step 4: Date & Time ────────────────────────────────────────────────────────
 
 function StepDateTime({
@@ -1545,10 +1491,10 @@ function StepTherapist({
         className="text-2xl font-medium mb-2"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
-        Choose Your Therapist
+        Choose your provider
       </h2>
       <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
-        Pick a preferred therapist or let us match you with the best available.
+        Keep auto-assign for the fastest booking or choose a qualified provider.
       </p>
 
       <div className="flex flex-col gap-3">
@@ -1571,7 +1517,7 @@ function StepTherapist({
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
-                Auto-assign
+                Any available provider
               </p>
               <span
                 className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
@@ -1581,7 +1527,7 @@ function StepTherapist({
               </span>
             </div>
             <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
-              We&apos;ll assign an available qualified therapist for your selected service.
+              Recommended for fastest booking. We&apos;ll assign the best qualified staff.
             </p>
           </div>
           {selected === "auto" && (
@@ -1595,7 +1541,7 @@ function StepTherapist({
         {availableStaff.length > 0 && (
           <>
             <p className="text-[11px] font-semibold uppercase tracking-wide pt-2" style={{ color: "#9AA89A" }}>
-              Or choose a specific therapist
+              Or choose a specific provider
             </p>
             {availableStaff.map((staff) => (
               <button
@@ -1640,6 +1586,15 @@ function StepTherapist({
               </button>
             ))}
           </>
+        )}
+        {availableStaff.length === 0 && (
+          <div
+            className="rounded-xl border border-dashed px-4 py-5 text-[13px] leading-6"
+            style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}
+          >
+            No specific provider is available for this time. You can continue with Any Available and
+            our team will assign the best qualified staff.
+          </div>
         )}
       </div>
     </div>

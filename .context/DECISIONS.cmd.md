@@ -52,3 +52,17 @@
 - Gives immediate test coverage for owner/manager/CRM/staff portal flows with realistic records.
 - Avoids destructive table resets and avoids production-logic changes.
 - Enables safe cleanup of demo bookings by metadata marker instead of broad deletes.
+
+### DEC-010: Workflow signals split notifications from action-required tasks
+**Status:** ACCEPTED - 2026-05-14
+
+**Decision:**
+- Keep `workspace_notifications` as the status/update layer.
+- Add `workflow_tasks` as the action-required layer.
+- Route new workflow-producing modules through `emitWorkflowEvent()` instead of direct ad hoc notification inserts.
+- Use dedupe keys built from entity, event/task type, recipient staff or role, workspace scope, and branch.
+
+**Rationale:**
+- Prevents one operational event from creating multiple urgent notifications.
+- Keeps work discovery inside the relevant workspace/module instead of pushing users toward a notification page.
+- Preserves existing notification UI and RLS while giving future booking, dispatch, payment, and room-assignment workflows a safer central entry point.

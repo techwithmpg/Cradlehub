@@ -3,11 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
-import { NotificationTabs } from "./notification-tabs";
+import { NotificationTabs, type NotificationTab } from "./notification-tabs";
 import { NotificationRow } from "./notification-row";
 import { markAllNotificationsReadAction } from "@/lib/notifications/queries";
-
-type Tab = "all" | "unread" | "action";
 
 type Props = {
   items: WorkspaceNotification[];
@@ -24,19 +22,25 @@ export function NotificationPopover({
   onDismiss,
   onMarkAllRead,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("all");
+  const [activeTab, setActiveTab] = useState<NotificationTab>(
+    items.some((n) => n.requires_action && n.status !== "resolved") ? "action" : "updates"
+  );
   const [markingAll, setMarkingAll] = useState(false);
 
-  const filtered = items.filter((n) => {
-    if (activeTab === "unread") return n.status === "unread";
-    if (activeTab === "action") return n.requires_action;
-    return true;
-  });
+  function groupFor(notification: WorkspaceNotification): NotificationTab {
+    if (notification.status === "resolved") return "resolved";
+    if (notification.requires_action) return "action";
+    if (notification.metadata?.signal_group === "activity") return "activity";
+    return "updates";
+  }
+
+  const filtered = items.filter((n) => groupFor(n) === activeTab);
 
   const counts = {
-    all: items.length,
-    unread: items.filter((n) => n.status === "unread").length,
-    action: items.filter((n) => n.requires_action).length,
+    action: items.filter((n) => groupFor(n) === "action").length,
+    updates: items.filter((n) => groupFor(n) === "updates").length,
+    resolved: items.filter((n) => groupFor(n) === "resolved").length,
+    activity: items.filter((n) => groupFor(n) === "activity").length,
   };
 
   async function handleMarkAll() {
@@ -84,10 +88,10 @@ export function NotificationPopover({
         }}
       >
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--cs-text)" }}>
-          Notifications
+          Workflow Signals
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {counts.unread > 0 && (
+          {items.some((item) => item.status === "unread") && (
             <button
               type="button"
               onClick={handleMarkAll}
@@ -136,11 +140,13 @@ export function NotificationPopover({
               textAlign: "center",
             }}
           >
-            {activeTab === "unread"
-              ? "No unread notifications."
-              : activeTab === "action"
+            {activeTab === "action"
               ? "No action items right now."
-              : "No notifications."}
+              : activeTab === "resolved"
+              ? "No resolved items yet."
+              : activeTab === "activity"
+              ? "No activity summaries yet."
+              : "No updates right now."}
           </div>
         ) : (
           <div>

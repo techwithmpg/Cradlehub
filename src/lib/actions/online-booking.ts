@@ -12,6 +12,7 @@ import {
 import {
   assignTherapistBySeniority,
   assignTherapistBySeniorityMulti,
+  assertMultiServiceSlotAvailable,
   assertSlotAvailable,
 } from "@/lib/engine/availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
@@ -301,9 +302,9 @@ export async function createOnlineBookingMultiAction(
         startTime: d.startTime,
       });
     } else {
-      await assertSlotAvailable({
+      await assertMultiServiceSlotAvailable({
         branchId: d.branchId,
-        serviceId: d.serviceIds[0]!,
+        serviceIds: d.serviceIds,
         staffId: d.staffId,
         date: d.date,
         startTime: d.startTime,

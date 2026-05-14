@@ -22,24 +22,15 @@ export type PlaceAutocompleteInputProps = {
   "aria-describedby"?: string;
 };
 
-const API_KEY =
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ||
-  "";
-
-const HAS_KEY = API_KEY.length > 0;
+const HAS_BROWSER_KEY = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY);
 
 /**
  * Reusable location input that safely degrades when Google Maps is not configured.
  *
  * - When the API key is missing: renders a normal text input so the booking wizard
  *   and dispatch forms never break.
- * - When the API key is present: renders the same text input but is structured to
- *   accept Google Places suggestions in a future iteration.
- *
- * TODO: wire up Places Autocomplete suggestions (useMapsLibrary("places") or the
- * existing src/components/public/places-autocomplete.tsx widget) when the app is
- * ready for dropdown UX.
+ * - When a browser key is present: callers should prefer the active
+ *   `src/components/public/places-autocomplete.tsx` widget for Places API (New).
  */
 export function PlaceAutocompleteInput({
   value,
@@ -73,7 +64,7 @@ export function PlaceAutocompleteInput({
         autoComplete="off"
         className="w-full"
       />
-      {HAS_KEY && (
+      {HAS_BROWSER_KEY && (
         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground/60">
           Maps ready
         </span>

@@ -1,21 +1,18 @@
 "use client";
 
-type Tab = "all" | "unread" | "action";
+export type NotificationTab = "action" | "updates" | "resolved" | "activity";
 
 type Props = {
-  active: Tab;
-  onChange: (tab: Tab) => void;
-  counts: {
-    all: number;
-    unread: number;
-    action: number;
-  };
+  active: NotificationTab;
+  onChange: (tab: NotificationTab) => void;
+  counts: Record<NotificationTab, number>;
 };
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "unread", label: "Unread" },
-  { key: "action", label: "Action required" },
+const TABS: { key: NotificationTab; label: string }[] = [
+  { key: "action", label: "Action Required" },
+  { key: "updates", label: "Updates" },
+  { key: "resolved", label: "Resolved" },
+  { key: "activity", label: "Activity" },
 ];
 
 export function NotificationTabs({ active, onChange, counts }: Props) {

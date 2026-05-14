@@ -13,9 +13,9 @@ import {
 } from "@/lib/notifications/notification-targets";
 
 const PRIORITY_DOT: Record<string, string> = {
-  critical: "#ef4444",
-  high:     "#f97316",
-  normal:   "#3b82f6",
+  critical: "#DC2626",
+  high:     "#D97706",
+  normal:   "var(--cs-sand)",
   low:      "var(--cs-text-subtle)",
 };
 
@@ -142,8 +142,8 @@ export function NotificationCard({ notification: n, onMarkRead, onDismiss }: Pro
             <span style={{
               fontSize: 9.5,
               fontWeight: 700,
-              color: "#991b1b",
-              background: "#fee2e2",
+              color: "#92400E",
+              background: "#FEF3C7",
               borderRadius: "9999px",
               padding: "1px 6px",
             }}>

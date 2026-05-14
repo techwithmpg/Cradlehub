@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `MGR-MOB-001`  |
-| **Completion**      | `Mobile Manager Workspace variant added`        |
-| **Last Agent**      | `Kimi` |
-| **Last Updated**    | `2026-05-11` |
-| **Blockers**        | `No build/type/lint blockers; authenticated visual QA still depends on seeded login access`      |
+| **Sprint**          | `BOOKING-WIZARD-UX-10.2`  |
+| **Completion**      | `Public booking wizard service picker and staff eligibility optimized`        |
+| **Last Agent**      | `Codex` |
+| **Last Updated**    | `2026-05-14` |
+| **Blockers**        | `No build/type blockers; lint has 2 pre-existing warnings in staff onboarding form`      |
 
 ---
 
@@ -156,3 +156,18 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Mobile experience includes 5 bottom-nav tabs (Today, Schedule, Bookings, Staff, More) with simplified card-based screens, large touch targets, and spa design tokens.
 - Reuses existing data queries (`getTodaysSchedule`, `getDailySchedule`, `getStaffByBranch`, `getPendingStaffByBranch`) without new auth, RLS, or schema changes.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing.
+
+## Latest Agent Update (2026-05-14)
+
+- Completed `NOTIF-001`: added a premium workflow signal foundation with deduped notifications and a new `workflow_tasks` action layer.
+- Staff onboarding submission now creates one manager review task and one applicant status update.
+- Routine onboarding no longer creates urgent owner notification noise, and CRM receives no HR onboarding notification.
+- Manager onboarding review tasks resolve on approval/rejection, and applicant approval/rejection updates are deduped by entity and recipient.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; lint still reports the two pre-existing onboarding-form warnings.
+
+## Latest Agent Update (2026-05-14)
+
+- Completed `BOOKING-WIZARD-UX-10.2`: public booking wizard service selection is now compact and category-based.
+- Active `/book` source path uses the modern Places API (New) widget via `google.maps.importLibrary("places")` and `PlaceAutocompleteElement`; no legacy Places Autocomplete usage remains under `src`.
+- Public staff selection now filters to real service-provider staff and respects selected service eligibility mappings; drivers, utility, and non-service staff are hidden from specific provider selection.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; `/book` returned `200 OK` from the existing local dev server.

@@ -47,7 +47,7 @@ export function TodayAttentionStrip({ notifications }: Props) {
           width: 6,
           height: 6,
           borderRadius: "50%",
-          background: "#ef4444",
+          background: "var(--cs-sand)",
           flexShrink: 0,
         }}
       />

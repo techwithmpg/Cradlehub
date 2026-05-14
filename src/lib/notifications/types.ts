@@ -3,6 +3,9 @@ import type { Database } from "@/types/supabase";
 export type WorkspaceNotification =
   Database["public"]["Tables"]["workspace_notifications"]["Row"];
 
+export type WorkflowTask =
+  Database["public"]["Tables"]["workflow_tasks"]["Row"];
+
 export type NotificationType =
   | "staff_onboarding_submitted"
   | "staff_onboarding_approved"
@@ -43,6 +46,7 @@ export type NotificationWorkspace =
 
 export type NotificationPriority = "low" | "normal" | "high" | "critical";
 export type NotificationStatus = "unread" | "read" | "resolved" | "dismissed";
+export type WorkflowTaskStatus = "open" | "in_progress" | "completed" | "cancelled";
 
 export type CreateNotificationInput = {
   branchId?: string | null;
@@ -58,5 +62,58 @@ export type CreateNotificationInput = {
   actionHref?: string | null;
   priority?: NotificationPriority;
   requiresAction?: boolean;
+  dedupeKey?: string | null;
   metadata?: Record<string, unknown>;
+};
+
+export type CreateWorkflowTaskInput = {
+  branchId?: string | null;
+  workspaceScope: NotificationWorkspace;
+  assignedToStaffId?: string | null;
+  assignedToRole?: string | null;
+  taskType: string;
+  title: string;
+  body?: string | null;
+  entityType: string;
+  entityId: string;
+  actionHref?: string | null;
+  priority?: NotificationPriority;
+  dueAt?: string | null;
+  dedupeKey?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+export type ResolveWorkflowTaskInput = {
+  branchId?: string | null;
+  workspaceScope: NotificationWorkspace;
+  assignedToStaffId?: string | null;
+  assignedToRole?: string | null;
+  taskType: string;
+  entityType: string;
+  entityId: string;
+  completedByStaffId?: string | null;
+  status?: Extract<WorkflowTaskStatus, "completed" | "cancelled">;
+  dedupeKey?: string | null;
+};
+
+export type MarkNotificationResolvedInput = {
+  branchId?: string | null;
+  targetWorkspace?: NotificationWorkspace | null;
+  targetRole?: string | null;
+  recipientStaffId?: string | null;
+  type?: NotificationType | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  dedupeKey?: string | null;
+};
+
+export type NotificationDedupeInput = {
+  branchId?: string | null;
+  workspaceScope: NotificationWorkspace;
+  recipientStaffId?: string | null;
+  recipientRole?: string | null;
+  eventType?: string | null;
+  taskType?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
 };

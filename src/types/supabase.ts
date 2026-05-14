@@ -753,6 +753,7 @@ export type Database = {
         Row: {
           id: string
           branch_id: string | null
+          dedupe_key: string | null
           target_workspace: string
           target_role: string | null
           recipient_staff_id: string | null
@@ -774,6 +775,7 @@ export type Database = {
         Insert: {
           id?: string
           branch_id?: string | null
+          dedupe_key?: string | null
           target_workspace: string
           target_role?: string | null
           recipient_staff_id?: string | null
@@ -795,6 +797,7 @@ export type Database = {
         Update: {
           id?: string
           branch_id?: string | null
+          dedupe_key?: string | null
           target_workspace?: string
           target_role?: string | null
           recipient_staff_id?: string | null
@@ -817,6 +820,79 @@ export type Database = {
           { foreignKeyName: "workspace_notifications_branch_id_fkey"; columns: ["branch_id"]; referencedRelation: "branches"; referencedColumns: ["id"] },
           { foreignKeyName: "workspace_notifications_recipient_staff_id_fkey"; columns: ["recipient_staff_id"]; referencedRelation: "staff"; referencedColumns: ["id"] },
           { foreignKeyName: "workspace_notifications_actor_staff_id_fkey"; columns: ["actor_staff_id"]; referencedRelation: "staff"; referencedColumns: ["id"] }
+        ]
+      }
+      workflow_tasks: {
+        Row: {
+          id: string
+          branch_id: string | null
+          workspace_scope: string
+          assigned_to_staff_id: string | null
+          assigned_to_role: string | null
+          task_type: string
+          title: string
+          body: string | null
+          entity_type: string
+          entity_id: string
+          action_href: string | null
+          priority: string
+          status: string
+          due_at: string | null
+          completed_at: string | null
+          completed_by_staff_id: string | null
+          dedupe_key: string
+          metadata: Record<string, unknown>
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id?: string | null
+          workspace_scope: string
+          assigned_to_staff_id?: string | null
+          assigned_to_role?: string | null
+          task_type: string
+          title: string
+          body?: string | null
+          entity_type: string
+          entity_id: string
+          action_href?: string | null
+          priority?: string
+          status?: string
+          due_at?: string | null
+          completed_at?: string | null
+          completed_by_staff_id?: string | null
+          dedupe_key: string
+          metadata?: Record<string, unknown>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string | null
+          workspace_scope?: string
+          assigned_to_staff_id?: string | null
+          assigned_to_role?: string | null
+          task_type?: string
+          title?: string
+          body?: string | null
+          entity_type?: string
+          entity_id?: string
+          action_href?: string | null
+          priority?: string
+          status?: string
+          due_at?: string | null
+          completed_at?: string | null
+          completed_by_staff_id?: string | null
+          dedupe_key?: string
+          metadata?: Record<string, unknown>
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "workflow_tasks_branch_id_fkey"; columns: ["branch_id"]; referencedRelation: "branches"; referencedColumns: ["id"] },
+          { foreignKeyName: "workflow_tasks_assigned_to_staff_id_fkey"; columns: ["assigned_to_staff_id"]; referencedRelation: "staff"; referencedColumns: ["id"] },
+          { foreignKeyName: "workflow_tasks_completed_by_staff_id_fkey"; columns: ["completed_by_staff_id"]; referencedRelation: "staff"; referencedColumns: ["id"] }
         ]
       }
       waitlist_requests: {

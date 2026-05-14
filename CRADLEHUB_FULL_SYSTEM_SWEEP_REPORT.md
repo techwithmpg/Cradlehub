@@ -803,3 +803,15 @@ No `payroll_periods`, `payroll_items`, `commission_rules`, or `staff_performance
 **Data captured:** `metadata.home_service_address` now stores Google-selected `formatted_address`, `place_id`, `lat`, `lng`, optional `address_components`, optional `map_url`, `source: "google_places"`, and `delivery_notes`, while preserving legacy address/notes/zone keys.
 
 **Build status:** type-check ✅ | lint ✅ (0 errors, 2 pre-existing warnings) | build ✅ (79 routes)
+
+### 2026-05-14 — Booking Wizard UX Patch 10.2 ✅ COMPLETE
+
+**Scope:** Active public booking wizard optimization only.
+
+**Places:** `/book` continues to use `src/components/public/places-autocomplete.tsx`, which loads Google Maps JS without `libraries=places`, calls `google.maps.importLibrary("places")`, and renders `PlaceAutocompleteElement`. Source search found no active legacy Places Autocomplete usage under `src`.
+
+**Services:** The service step is now compact and category-based: mobile category chips, desktop category rail, compact service rows, selected summary, and no all-categories-expanded catalog inside the wizard.
+
+**Staff:** Public provider selection is filtered to active service-provider staff who are available for the selected slot and eligible for the selected service set. Drivers, utility, CSR/front-desk, admin, and manager-only staff are hidden from specific provider selection. Auto-assign remains the default.
+
+**Build status:** type-check ✅ | lint ✅ (0 errors, 2 pre-existing warnings) | build ✅ (80 routes)

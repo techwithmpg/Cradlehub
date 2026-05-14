@@ -1,5 +1,6 @@
 import { getMyTodayAction } from "./actions";
 import { StaffTodayDashboard } from "@/components/features/staff-portal/staff-today-dashboard";
+import { StaffMobileHome } from "@/components/features/staff-portal/mobile/staff-mobile-home";
 import { ActionRequiredList } from "@/components/features/notifications/action-required-list";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 
@@ -27,13 +28,25 @@ export default async function StaffTodayPage() {
   }
 
   return (
-    <div>
-      <ActionRequiredList limit={3} />
-      <StaffTodayDashboard
-        staff={result.staff}
-        bookings={result.bookings}
-        date={today}
-      />
-    </div>
+    <>
+      {/* ── Desktop layout (md and above) ── */}
+      <div className="hidden md:block">
+        <ActionRequiredList limit={3} />
+        <StaffTodayDashboard
+          staff={result.staff}
+          bookings={result.bookings}
+          date={today}
+        />
+      </div>
+
+      {/* ── Mobile layout (below md) ── */}
+      <div className="block md:hidden">
+        <StaffMobileHome
+          staff={result.staff}
+          bookings={result.bookings}
+          date={today}
+        />
+      </div>
+    </>
   );
 }

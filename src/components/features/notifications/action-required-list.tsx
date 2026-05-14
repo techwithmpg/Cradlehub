@@ -1,5 +1,26 @@
 import Link from "next/link";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
+import {
+  getNotificationTargetPath,
+  getWorkspacePathPrefix,
+} from "@/lib/notifications/notification-targets";
+import type { WorkspaceNotification } from "@/lib/notifications/types";
+
+function hrefForNotification(notification: WorkspaceNotification): string {
+  if (notification.action_href) return notification.action_href;
+  const workspace =
+    notification.target_workspace === "staff"
+      ? "staff-portal"
+      : notification.target_workspace;
+  const prefix = getWorkspacePathPrefix(
+    workspace as "owner" | "manager" | "crm" | "staff-portal" | "driver" | "utility"
+  );
+  return getNotificationTargetPath({
+    workspace: workspace as "owner" | "manager" | "crm" | "staff-portal" | "driver" | "utility",
+    entityType: notification.entity_type,
+    entityId: notification.entity_id,
+  }) || prefix;
+}
 
 export async function ActionRequiredList({ limit = 5 }: { limit?: number }) {
   const notifications = await getActionRequiredNotificationsAction(limit);
@@ -7,6 +28,7 @@ export async function ActionRequiredList({ limit = 5 }: { limit?: number }) {
 
   const titles = notifications.slice(0, 2).map((n) => n.title);
   const remaining = Math.max(0, notifications.length - titles.length);
+  const reviewHref = hrefForNotification(notifications[0]!);
 
   return (
     <div
@@ -27,7 +49,7 @@ export async function ActionRequiredList({ limit = 5 }: { limit?: number }) {
           width: 6,
           height: 6,
           borderRadius: "50%",
-          background: "#ef4444",
+          background: "var(--cs-sand)",
           flexShrink: 0,
         }}
       />
@@ -42,7 +64,7 @@ export async function ActionRequiredList({ limit = 5 }: { limit?: number }) {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <Link
-          href="/crm/notifications"
+          href={reviewHref}
           style={{
             fontSize: 11.5,
             fontWeight: 600,

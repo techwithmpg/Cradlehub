@@ -6,7 +6,7 @@ import {
   getUnreadCountAction,
 } from "@/lib/notifications/queries";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
-import { NotificationPopover } from "./notification-popover";
+import { NotificationBellDropdown } from "./notification-bell-dropdown";
 
 const WORKSPACE_HREF: Record<string, string> = {
   owner: "/owner/notifications",
@@ -152,7 +152,7 @@ export function NotificationBell({ role }: { role: string }) {
               position: "absolute",
               top: 1,
               right: 1,
-              background: "#ef4444",
+              background: "var(--cs-sand)",
               color: "#fff",
               borderRadius: "9999px",
               fontSize: 9,
@@ -173,7 +173,7 @@ export function NotificationBell({ role }: { role: string }) {
       </button>
 
       {open && (
-        <NotificationPopover
+        <NotificationBellDropdown
           items={items}
           roleHref={href}
           onMarkRead={markRead}

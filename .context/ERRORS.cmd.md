@@ -96,3 +96,20 @@ _No errors logged yet._
 - Browser runtime continued to report a stale client chunk requiring `@base-ui/react/button` from `src/components/ui/button.tsx`, even though current source imports Radix `Slot`.
   - Clue: dev logs also showed `GET /sw.js 404`, indicating a stale service worker registration on localhost.
   - Resolution: added a self-unregistering `public/sw.js` and no-store headers for `/sw.js` in `next.config.ts`; restart dev server and hard refresh the browser once.
+
+## 2026-05-14 - NOTIF-001 audit findings
+
+- Duplicate source confirmed in `src/app/staff-onboarding/actions.ts`.
+  - Submission created an urgent owner notification and an urgent manager notification for the same onboarding request.
+  - If the applicant selected no services, submission also created a second manager action notification (`staff_profile_incomplete`) for the same underlying review task.
+  - Old dedupe only matched same workspace + same type + same entity, so different notification types for one workflow were not collapsed.
+  - Resolution: staff onboarding now emits a central workflow event that creates one manager workflow task and stores missing-service detail in task metadata.
+- Owner notification noise confirmed for routine onboarding.
+  - Resolution: routine onboarding no longer emits owner urgent notifications; owner activity history remains a future connection point.
+
+## 2026-05-14 - BOOKING-WIZARD-UX-10.2 verification notes
+
+- First temporary `/book` smoke test attempted to start `pnpm dev -- --port 3012`, which Next interpreted as an invalid project directory (`E:\cradlehub\--port`).
+  - Resolution: corrected the argument shape to `pnpm dev --port 3012`.
+- Starting a second dev server on port 3012 was blocked because an existing Next dev server was already running for `E:\cradlehub` on port 3000.
+  - Resolution: did not stop the existing server; used `http://localhost:3000/book` for a smoke test, which returned `200 OK`.

@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AvailabilitySlot } from "@/types";
 import { SlotUnavailableError } from "@/types/errors";
+import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import {
   filterPastSlotsForDate,
   rangesOverlap,
@@ -8,11 +9,130 @@ import {
   toLocalYmd,
 } from "./slot-time";
 
+type StaffProviderRow = {
+  id: string;
+  branch_id: string;
+  is_active: boolean;
+  staff_type: string | null;
+  system_role: string | null;
+};
+
+type StaffServiceRow = {
+  staff_id: string;
+  service_id: string;
+};
+
+function isMissingStaffProviderColumnError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("staff_type") &&
+    (lower.includes("does not exist") ||
+      lower.includes("schema cache") ||
+      lower.includes("could not find"))
+  );
+}
+
+async function getActiveStaffProviderRows(branchId: string): Promise<StaffProviderRow[]> {
+  const supabase = createAdminClient();
+  const primary = await supabase
+    .from("staff")
+    .select("id, branch_id, is_active, staff_type, system_role")
+    .eq("branch_id", branchId)
+    .eq("is_active", true);
+
+  if (!primary.error) {
+    return (primary.data ?? []) as StaffProviderRow[];
+  }
+
+  if (!isMissingStaffProviderColumnError(primary.error.message)) {
+    throw new Error(`Staff provider query failed: ${primary.error.message}`);
+  }
+
+  const fallback = await supabase
+    .from("staff")
+    .select("id, branch_id, is_active, system_role")
+    .eq("branch_id", branchId)
+    .eq("is_active", true);
+
+  if (fallback.error) {
+    throw new Error(`Staff provider fallback query failed: ${fallback.error.message}`);
+  }
+
+  return ((fallback.data ?? []) as Array<Omit<StaffProviderRow, "staff_type">>).map(
+    (member) => ({
+      ...member,
+      staff_type: null,
+    })
+  );
+}
+
+function serviceCapabilitySets(rows: StaffServiceRow[]) {
+  const staffIdsByService = new Map<string, Set<string>>();
+  const serviceIdsByStaff = new Map<string, Set<string>>();
+
+  for (const row of rows) {
+    const staffSet = staffIdsByService.get(row.service_id) ?? new Set<string>();
+    staffSet.add(row.staff_id);
+    staffIdsByService.set(row.service_id, staffSet);
+
+    const serviceSet = serviceIdsByStaff.get(row.staff_id) ?? new Set<string>();
+    serviceSet.add(row.service_id);
+    serviceIdsByStaff.set(row.staff_id, serviceSet);
+  }
+
+  return { staffIdsByService, serviceIdsByStaff };
+}
+
+async function filterSlotsForQualifiedProviders(params: {
+  branchId: string;
+  serviceIds: string[];
+  slots: AvailabilitySlot[];
+}): Promise<AvailabilitySlot[]> {
+  if (params.slots.length === 0 || params.serviceIds.length === 0) return params.slots;
+
+  const supabase = createAdminClient();
+  const [staffRows, capabilityResult] = await Promise.all([
+    getActiveStaffProviderRows(params.branchId),
+    supabase
+      .from("staff_services")
+      .select("staff_id, service_id")
+      .in("service_id", params.serviceIds),
+  ]);
+
+  if (capabilityResult.error) {
+    throw new Error(`Staff service capability query failed: ${capabilityResult.error.message}`);
+  }
+
+  const staffById = new Map(staffRows.map((member) => [member.id, member]));
+  const { staffIdsByService, serviceIdsByStaff } = serviceCapabilitySets(
+    (capabilityResult.data ?? []) as StaffServiceRow[]
+  );
+
+  return params.slots.filter((slot) => {
+    const staff = staffById.get(slot.staff_id);
+    if (!staff) return false;
+
+    const staffServiceIds = serviceIdsByStaff.get(slot.staff_id) ?? new Set<string>();
+    const hasMatchingCapability = params.serviceIds.some((serviceId) =>
+      staffServiceIds.has(serviceId)
+    );
+
+    if (!canActAsBookingServiceProvider(staff, hasMatchingCapability)) {
+      return false;
+    }
+
+    return params.serviceIds.every((serviceId) => {
+      const qualifiedStaffIds = staffIdsByService.get(serviceId);
+      return !qualifiedStaffIds || qualifiedStaffIds.has(slot.staff_id);
+    });
+  });
+}
+
 /**
  * Calls the get_available_slots RPC and returns all slots.
- * If staff_services rows exist for the selected service, slots are filtered
- * to only qualified staff members. If no rows exist, legacy behavior applies
- * (all staff are considered eligible).
+ * If staff_services rows exist for the selected service, slots are filtered to
+ * those staff members. When no capability rows exist, legacy fallback still
+ * excludes drivers, utility, CSR, admin, and manager-only staff.
  */
 export async function getAvailableSlots(params: {
   branchId:  string;
@@ -37,18 +157,11 @@ export async function getAvailableSlots(params: {
   if (error) throw new Error(`Availability query failed: ${error.message}`);
   let slots = (data ?? []) as AvailabilitySlot[];
 
-  // ── Safe service-capability filter ────────────────────────────────────────
-  // Only filter if staff_services has explicit rows for this service.
-  // Empty staff_services table = fallback to legacy behavior.
-  const { data: capabilityRows, error: capErr } = await supabase
-    .from("staff_services")
-    .select("staff_id")
-    .eq("service_id", params.serviceId);
-
-  if (!capErr && capabilityRows && capabilityRows.length > 0) {
-    const qualifiedIds = new Set(capabilityRows.map((r) => r.staff_id));
-    slots = slots.filter((s) => qualifiedIds.has(s.staff_id));
-  }
+  slots = await filterSlotsForQualifiedProviders({
+    branchId: params.branchId,
+    serviceIds: [params.serviceId],
+    slots,
+  });
 
   return filterPastSlotsForDate({
     selectedDate: params.date,
@@ -130,34 +243,11 @@ export async function getAvailableSlotsMulti(params: {
     0
   );
 
-  // 2. Staff qualification intersection — only staff qualified for ALL services
-  const qualifiedIds = new Set<string>();
-  let hasCapabilityRows = false;
-
-  for (const serviceId of serviceIds) {
-    const { data: rows, error: capErr } = await supabase
-      .from("staff_services")
-      .select("staff_id")
-      .eq("service_id", serviceId);
-
-    if (!capErr && rows && rows.length > 0) {
-      const ids = new Set(rows.map((r) => r.staff_id));
-      if (!hasCapabilityRows) {
-        ids.forEach((id) => qualifiedIds.add(id));
-        hasCapabilityRows = true;
-      } else {
-        for (const id of qualifiedIds) {
-          if (!ids.has(id)) qualifiedIds.delete(id);
-        }
-      }
-    }
-  }
-
-  // 3. Get base slots using first service (provides correct slot intervals)
+  // 2. Get base slots using first service (provides correct slot intervals)
   const baseSlots = await getAvailableSlots({ branchId, serviceId: serviceIds[0]!, date });
   if (baseSlots.length === 0) return [];
 
-  // 4. Fetch existing bookings for the day to validate full combined window
+  // 3. Fetch existing bookings for the day to validate full combined window
   const { data: dayBookings } = await supabase
     .from("bookings")
     .select("staff_id, start_time, end_time")
@@ -174,21 +264,25 @@ export async function getAvailableSlotsMulti(params: {
     });
   }
 
-  return baseSlots
-    .filter((slot) => !hasCapabilityRows || qualifiedIds.has(slot.staff_id))
-    .map((slot) => {
-      if (!slot.available) return slot;
+  const combinedSlots = baseSlots.map((slot) => {
+    if (!slot.available) return slot;
 
-      const slotStart = timeToMinutes(slot.slot_time);
-      const slotEnd   = slotStart + totalMinutes;
+    const slotStart = timeToMinutes(slot.slot_time);
+    const slotEnd   = slotStart + totalMinutes;
 
-      const staffBookings = bookingsByStaff.get(slot.staff_id) ?? [];
-      const hasConflict = staffBookings.some((b) =>
-        rangesOverlap(slotStart, slotEnd, b.start, b.end)
-      );
+    const staffBookings = bookingsByStaff.get(slot.staff_id) ?? [];
+    const hasConflict = staffBookings.some((b) =>
+      rangesOverlap(slotStart, slotEnd, b.start, b.end)
+    );
 
-      return { ...slot, available: !hasConflict };
-    });
+    return { ...slot, available: !hasConflict };
+  });
+
+  return filterSlotsForQualifiedProviders({
+    branchId,
+    serviceIds,
+    slots: combinedSlots,
+  });
 }
 
 /**
@@ -251,4 +345,27 @@ export async function assertSlotAvailable(params: {
   );
 
   if (!slot?.available) throw new SlotUnavailableError();
+}
+
+export async function assertMultiServiceSlotAvailable(params: {
+  branchId: string;
+  serviceIds: string[];
+  staffId: string;
+  date: string;
+  startTime: string;
+}): Promise<void> {
+  const slots = await getAvailableSlotsMulti({
+    branchId: params.branchId,
+    serviceIds: params.serviceIds,
+    date: params.date,
+  });
+
+  const slot = slots.find(
+    (candidate) =>
+      candidate.staff_id === params.staffId &&
+      candidate.available &&
+      candidate.slot_time.startsWith(params.startTime.substring(0, 5))
+  );
+
+  if (!slot) throw new SlotUnavailableError();
 }

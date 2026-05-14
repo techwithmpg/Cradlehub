@@ -6,7 +6,9 @@ import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 import { getOnboardingRoleLabel } from "@/lib/staff/onboarding-roles";
 import { isTherapistRole } from "@/lib/staff/profile-completeness";
 import { ROLE_LABELS } from "@/lib/permissions";
+import { InlineWorkflowTaskCard } from "@/components/features/notifications/inline-workflow-task-card";
 import type { Database } from "@/types/supabase";
+import type { WorkflowTask } from "@/lib/notifications/types";
 
 type OnboardingRequest = Database["public"]["Tables"]["staff_onboarding_requests"]["Row"];
 type Branch = { id: string; name: string };
@@ -27,11 +29,13 @@ function RequestCard({
   branches,
   reviewerSystemRole,
   reviewerBranchId,
+  workflowTask,
 }: {
   request: OnboardingRequest;
   branches: Branch[];
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
+  workflowTask?: WorkflowTask;
 }) {
   const [isPending, startTransition] = useTransition();
   const [expanded, setExpanded] = useState(false);
@@ -172,6 +176,8 @@ function RequestCard({
           }}
         >
           {/* Details grid */}
+          {workflowTask && isSubmitted && <InlineWorkflowTaskCard task={workflowTask} />}
+
           <div
             style={{
               display: "grid",
@@ -378,11 +384,13 @@ export function OnboardingReviewList({
   branches,
   reviewerSystemRole,
   reviewerBranchId,
+  workflowTasks = [],
 }: {
   requests: OnboardingRequest[];
   branches: Branch[];
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
+  workflowTasks?: WorkflowTask[];
 }) {
   if (requests.length === 0) {
     return (
@@ -399,6 +407,8 @@ export function OnboardingReviewList({
     );
   }
 
+  const taskByEntityId = new Map(workflowTasks.map((task) => [task.entity_id, task]));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       {requests.map((r) => (
@@ -408,6 +418,7 @@ export function OnboardingReviewList({
           branches={branches}
           reviewerSystemRole={reviewerSystemRole}
           reviewerBranchId={reviewerBranchId}
+          workflowTask={taskByEntityId.get(r.id)}
         />
       ))}
     </div>

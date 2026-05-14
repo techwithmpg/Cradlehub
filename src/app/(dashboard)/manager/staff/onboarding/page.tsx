@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllBranches } from "@/lib/queries/branches";
 import { OnboardingReviewList } from "@/components/features/staff-onboarding/onboarding-review-list";
+import { getOpenWorkflowTasksAction } from "@/lib/notifications/workflow-queries";
 
 export const metadata = { title: "Onboarding Requests" };
 
@@ -29,7 +30,7 @@ export default async function ManagerOnboardingPage({
   const { status = "submitted" } = await searchParams;
 
   const admin = createAdminClient();
-  const [requestsResult, branches] = await Promise.all([
+  const [requestsResult, branches, workflowTasks] = await Promise.all([
     admin
       .from("staff_onboarding_requests")
       .select("*")
@@ -37,6 +38,7 @@ export default async function ManagerOnboardingPage({
       .eq("requested_branch_id", me.branch_id)
       .order("created_at", { ascending: false }),
     getAllBranches(),
+    getOpenWorkflowTasksAction(50),
   ]);
 
   const requests = requestsResult.data ?? [];
@@ -80,6 +82,9 @@ export default async function ManagerOnboardingPage({
         branches={branchOptions}
         reviewerSystemRole={me.system_role}
         reviewerBranchId={me.branch_id}
+        workflowTasks={workflowTasks.filter(
+          (task) => task.entity_type === "staff_onboarding_request"
+        )}
       />
     </div>
   );

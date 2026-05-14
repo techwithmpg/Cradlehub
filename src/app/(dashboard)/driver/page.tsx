@@ -4,6 +4,7 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getDriverTodayTrips } from "@/lib/actions/driver-actions";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { DriverTripList } from "@/components/features/driver/driver-trip-list";
+import { DriverMobileHome } from "@/components/features/driver/driver-mobile-home";
 
 async function requireDriverRecord() {
   const supabase = await createClient();
@@ -95,30 +96,38 @@ export default async function DriverPanelPage() {
   });
 
   return (
-    <div>
-      <PageHeader
-        title="Driver Panel"
-        description={`${me.full_name} · ${formatDate(new Date())}`}
-        icon="🚗"
-      />
+    <>
+      {/* ── Desktop layout (md and above) ── */}
+      <div className="hidden md:block">
+        <PageHeader
+          title="Driver Panel"
+          description={`${me.full_name} · ${formatDate(new Date())}`}
+          icon="🚗"
+        />
 
-      {fetchError ? (
-        <div
-          style={{
-            padding: "0.75rem 1rem",
-            backgroundColor: "#FEF2F2",
-            border: "1px solid #FECACA",
-            borderRadius: 8,
-            fontSize: "0.875rem",
-            color: "#991B1B",
-            marginBottom: "1rem",
-          }}
-        >
-          Error loading trips: {fetchError}
-        </div>
-      ) : null}
+        {fetchError ? (
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              backgroundColor: "#FEF2F2",
+              border: "1px solid #FECACA",
+              borderRadius: 8,
+              fontSize: "0.875rem",
+              color: "#991B1B",
+              marginBottom: "1rem",
+            }}
+          >
+            Error loading trips: {fetchError}
+          </div>
+        ) : null}
 
-      <DriverTripList trips={normalised} />
-    </div>
+        <DriverTripList trips={normalised} />
+      </div>
+
+      {/* ── Mobile layout (below md) ── */}
+      <div className="block md:hidden">
+        <DriverMobileHome driver={me} trips={normalised} />
+      </div>
+    </>
   );
 }

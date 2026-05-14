@@ -3,8 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
-import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
-import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
+import { emitWorkflowEvent } from "@/lib/notifications/workflow-signals";
 import { mapPreferredRoleToStaffType } from "@/lib/staff/onboarding-roles";
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 
@@ -159,55 +158,17 @@ export async function submitStaffOnboardingAction(
     console.error("Failed to create onboarding request row", requestInsert.error.message);
   }
 
-  // Notify owner and branch manager of new application
+  // Emit one role-aware workflow signal for the new application.
   const requestId = requestInsert.data?.id;
   if (requestId) {
-    const notifBody = `${fullName} submitted an onboarding application.`;
-    const notifications = [
-      createNotification({
-        targetWorkspace: "owner",
-        type: "staff_onboarding_submitted",
-        title: "New staff onboarding request",
-        body: notifBody,
-        entityType: "staff_onboarding_request",
-        entityId: requestId,
-        actionHref: getNotificationTargetPath({ workspace: "owner", entityType: "staff_onboarding_request", entityId: requestId }),
-        priority: "high",
-        requiresAction: true,
-      }),
-      createNotification({
-        branchId: branchId,
-        targetWorkspace: "manager",
-        type: "staff_onboarding_submitted",
-        title: "New branch onboarding request",
-        body: `${fullName} submitted an application for your branch.`,
-        entityType: "staff_onboarding_request",
-        entityId: requestId,
-        actionHref: getNotificationTargetPath({ workspace: "manager", entityType: "staff_onboarding_request", entityId: requestId }),
-        priority: "high",
-        requiresAction: true,
-      }),
-    ];
-
-    // If no services selected, add a profile-incomplete notification for managers
-    if (serviceIds.length === 0) {
-      notifications.push(
-        createNotification({
-          branchId: branchId,
-          targetWorkspace: "manager",
-          type: "staff_profile_incomplete",
-          title: "New applicant — services not selected",
-          body: `${fullName} applied but did not select any services. Please assign capabilities during review.`,
-          entityType: "staff_onboarding_request",
-          entityId: requestId,
-          actionHref: getNotificationTargetPath({ workspace: "manager", entityType: "staff_onboarding_request", entityId: requestId }),
-          priority: "normal",
-          requiresAction: true,
-        })
-      );
-    }
-
-    await Promise.all(notifications);
+    await emitWorkflowEvent({
+      eventType: "staff_onboarding.submitted",
+      requestId,
+      branchId,
+      applicantStaffId: staffId,
+      applicantName: fullName,
+      requestedServiceIds: serviceIds,
+    });
   }
 
   return { success: true };
@@ -242,7 +203,7 @@ export async function approveOnboardingAction(input: {
 
   const { data: request } = await supabase
     .from("staff_onboarding_requests")
-    .select("id, requested_branch_id, staff_id, status, preferred_role, metadata")
+    .select("id, requested_branch_id, staff_id, status, preferred_role, full_name, metadata")
     .eq("id", input.requestId)
     .maybeSingle();
 
@@ -309,19 +270,13 @@ export async function approveOnboardingAction(input: {
     reviewed_at: new Date().toISOString(),
   }).eq("id", input.requestId);
 
-  // Resolve pending onboarding notifications for this request
-  await resolveNotificationsForEntity("staff_onboarding_request", input.requestId);
-
-  // Notify staff that they were approved
-  await createNotification({
-    recipientStaffId: input.staffId,
-    targetWorkspace: "staff",
-    type: "staff_onboarding_approved",
-    title: "Your account has been approved",
-    body: "Your staff account is now active. Please complete your profile in the staff portal.",
-    priority: "high",
-    requiresAction: true,
-    actionHref: "/staff-portal/profile",
+  await emitWorkflowEvent({
+    eventType: "staff_onboarding.approved",
+    requestId: input.requestId,
+    branchId: request.requested_branch_id,
+    applicantStaffId: input.staffId,
+    applicantName: request.full_name,
+    actorStaffId: me.id,
   });
 
   return { success: true };
@@ -356,11 +311,14 @@ export async function rejectOnboardingAction(input: {
 
   const { data: request } = await supabase
     .from("staff_onboarding_requests")
-    .select("id, requested_branch_id, status")
+    .select("id, requested_branch_id, status, staff_id, full_name")
     .eq("id", input.requestId)
     .maybeSingle();
 
   if (!request) return { success: false, error: "Onboarding request not found" };
+  if (request.status !== "submitted") {
+    return { success: false, error: "This onboarding request has already been reviewed." };
+  }
 
   // Branch scope check for non-owners
   if (!["owner"].includes(me.system_role)) {
@@ -376,8 +334,15 @@ export async function rejectOnboardingAction(input: {
     rejection_reason: input.rejectionReason ?? null,
   }).eq("id", input.requestId);
 
-  // Resolve pending onboarding notifications for this request
-  await resolveNotificationsForEntity("staff_onboarding_request", input.requestId);
+  await emitWorkflowEvent({
+    eventType: "staff_onboarding.rejected",
+    requestId: input.requestId,
+    branchId: request.requested_branch_id,
+    applicantStaffId: request.staff_id ?? input.staffId,
+    applicantName: request.full_name,
+    actorStaffId: me.id,
+    rejectionReason: input.rejectionReason ?? null,
+  });
 
   return { success: true };
 }

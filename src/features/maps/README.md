@@ -3,10 +3,7 @@
 ## Environment Variables
 
 ```bash
-# Required for map rendering (@vis.gl/react-google-maps)
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
-
-# Fallback / existing browser key for Places Autocomplete
+# Required for browser map rendering and Places Autocomplete
 NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=
 
 # Server-side key (Geocoding, Routes API)

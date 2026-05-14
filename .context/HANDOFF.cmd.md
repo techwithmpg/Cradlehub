@@ -1,34 +1,47 @@
-# HANDOFF - PHASE-10.1 Compact Precise Home-Service Location Input
+# HANDOFF — BOOKING-WIZARD-UX-10.2 Public Booking Wizard Optimization
 
 ## Date
 2026-05-14
 
-## Agent
-Codex
+## What Changed
+- `/book` still renders `BookingWizard` directly and its home-service location step uses `PlacesAutocomplete` from `src/components/public/places-autocomplete.tsx`.
+- `PlacesAutocomplete` loads Google Maps JS without `libraries=places`, then calls `google.maps.importLibrary("places")` and instantiates `PlaceAutocompleteElement`.
+- The selected place payload includes formatted address, place ID, lat/lng, address components, map URL, and `source: "google_places"`.
+- `GoogleMapsProvider` no longer requests the legacy Places library and now standardizes on `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`.
 
-## Summary
-The existing public booking wizard home-service location step now behaves like a compact Google Maps search: customers search for their home location, select a Google suggestion, see a confirmation card, and optionally add one Delivery notes field.
+## Service Selection
+- `BookingServicePicker` in `src/components/public/booking-service-picker.tsx` groups services by category.
+- `src/components/public/booking-wizard.tsx` keeps the existing selected-services state and passes it into the picker.
+- Mobile shows horizontal category chips.
+- Desktop shows a compact category rail and one service list.
+- Only the active category is expanded; the full catalog is no longer shown at once.
+- Multi-service state, total duration, total price, and existing submission payload are preserved.
 
-## Files Modified
-- `src/components/public/places-autocomplete.tsx` - shared Google Places wrapper now returns precise place metadata (`formattedAddress`, `placeId`, `lat`, `lng`, `addressComponents`, `mapUrl`) and exposes load/error status.
-- `src/components/public/booking-wizard.tsx` - public home-service location step now has one search field, selected-location card with Change, and one Delivery notes textarea; public zone/landmark/unit fields are no longer shown.
-- `src/lib/validations/booking.ts` - public multi-service home-service bookings require selected Google place data.
-- `src/lib/actions/online-booking.ts` - server action rejects missing precise home-service place data and saves the new metadata while preserving legacy keys.
+## Staff Eligibility
+- New helper: `src/lib/staff/service-providers.ts`.
+- `src/app/api/public/booking-context/route.ts` returns:
+  - service category metadata
+  - filtered service-provider staff
+  - per-staff service IDs
+  - per-service mapping presence
+- `src/lib/engine/availability.ts` now strips non-service staff from availability and auto-assignment results.
+- Drivers and utility staff are hard-excluded by system role.
+- CSR/front-desk/admin/manager-only staff are excluded unless they are explicitly modeled as service staff by `staff_type`.
+- If `staff_services` mappings exist for a selected service, specific providers must be mapped to that service.
+- For multi-service bookings, selected specific staff must satisfy all mapped selected services.
 
-## Behavior After Change
-- Public home-service customers cannot continue without selecting a Google suggestion.
-- Selected place data saved: `formatted_address`, `place_id`, `lat`, `lng`, optional `address_components`, optional `map_url`, and `source: "google_places"`.
-- Delivery notes are saved as `delivery_notes` and mapped to legacy notes-style keys for compatibility.
-- Customer-facing zone selection is removed; metadata keeps `zone: "unknown"` until operations refine it later.
-- In-spa flow is unaffected.
-- No server Maps key is exposed in browser code; the autocomplete wrapper reads only `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`.
-- No Routes API or ETA calls were added while typing.
+## Preserved
+- No payment changes.
+- No tracking, live map, driver tracking, payroll, auth, middleware, RLS, or booking-engine rewrite.
+- No database migration and no new packages.
+- In-spa and home-service payload shape remains backward-compatible.
 
 ## Verification
-- `pnpm type-check`: Passing
-- `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`
-- `pnpm build`: Passing, 79 app routes
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- `pnpm build`: Passing.
+- `/book` smoke test: existing localhost server on port 3000 returned `200 OK`.
 
-## Remaining Notes / Future Improvements
-- Phase 11 Payroll remains untouched and can start after this phase.
-- Optional future dispatch work can derive or assign zones from the selected address components, but this phase intentionally leaves customer zone selection removed.
+## Notes
+- Browser console verification for Google Places warnings was not possible from this toolset. Source search confirms no active legacy Places Autocomplete usage under `src`.
+- A temporary dev-server launch on port 3012 could not start because another Next dev server was already running for this repo on port 3000; the existing server was used for the `/book` smoke test.

@@ -3,8 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { WorkspaceNotification } from "./types";
 
-// ── Read helpers (RLS enforced via user client) ────────────────────────────
-
 const PRIORITY_RANK: Record<string, number> = {
   critical: 4,
   high:     3,
@@ -20,7 +18,7 @@ export async function getWorkspaceNotificationsAction(
   const { data, error } = await supabase
     .from("workspace_notifications")
     .select("*")
-    .in("status", ["unread", "read"])
+    .in("status", ["unread", "read", "resolved"])
     .gte("created_at", thirtyDaysAgo)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -64,7 +62,7 @@ export async function getRecentNotificationsAction(
   const { data, error } = await supabase
     .from("workspace_notifications")
     .select("*")
-    .in("status", ["unread", "read"])
+    .in("status", ["unread", "read", "resolved"])
     .gte("created_at", thirtyDaysAgo)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -101,8 +99,6 @@ export async function getNotificationPopoverAction(
   }
   return (data ?? []) as WorkspaceNotification[];
 }
-
-// ── Mutation helpers ───────────────────────────────────────────────────────
 
 export async function markNotificationReadAction(id: string): Promise<void> {
   const supabase = await createClient();

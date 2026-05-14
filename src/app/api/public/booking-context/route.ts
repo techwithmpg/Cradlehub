@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllBranches, getBranchServices } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
@@ -22,7 +23,16 @@ type BranchRow = Pick<
 type ServiceRow = Pick<
   Database["public"]["Tables"]["services"]["Row"],
   "id" | "name" | "description" | "duration_minutes" | "price"
+> & {
+  service_categories?: CategoryRelation;
+};
+
+type CategoryRow = Pick<
+  Database["public"]["Tables"]["service_categories"]["Row"],
+  "id" | "name" | "display_order"
 >;
+
+type CategoryRelation = CategoryRow | CategoryRow[] | null;
 
 type ServiceRelation = ServiceRow | ServiceRow[] | null;
 
@@ -33,17 +43,32 @@ type BranchServiceRow = Pick<
   services: ServiceRelation;
 };
 
-type StaffRow = Pick<
-  Database["public"]["Tables"]["staff"]["Row"],
-  "id" | "full_name" | "tier" | "is_active" | "staff_type" | "is_head"
->;
+type StaffRow = {
+  id: string;
+  full_name: string;
+  tier: string;
+  is_active: boolean;
+  staff_type: string | null;
+  system_role: string | null;
+  is_head: boolean | null;
+};
 
 type LegacyStaffRow = Pick<
   Database["public"]["Tables"]["staff"]["Row"],
-  "id" | "full_name" | "tier" | "is_active"
+  "id" | "full_name" | "tier" | "is_active" | "system_role"
+>;
+
+type StaffServiceRow = Pick<
+  Database["public"]["Tables"]["staff_services"]["Row"],
+  "staff_id" | "service_id"
 >;
 
 function firstService(value: ServiceRelation): ServiceRow | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function firstCategory(value: CategoryRelation | undefined): CategoryRow | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
@@ -64,7 +89,7 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
   const supabase = createAdminClient();
   const primary = await supabase
     .from("staff")
-    .select("id, full_name, tier, is_active, staff_type, is_head")
+    .select("id, full_name, tier, is_active, staff_type, system_role, is_head")
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
@@ -77,7 +102,7 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
   if (isMissingStaffOrgColumnsError(primary.error.message)) {
     const fallback = await supabase
       .from("staff")
-      .select("id, full_name, tier, is_active")
+      .select("id, full_name, tier, is_active, system_role")
       .eq("branch_id", branchId)
       .eq("is_active", true)
       .order("tier")
@@ -87,12 +112,41 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
 
     return ((fallback.data ?? []) as LegacyStaffRow[]).map((member) => ({
       ...member,
-      staff_type: "therapist",
+      staff_type: null,
       is_head: false,
     })) as StaffRow[];
   }
 
   throw new Error(primary.error.message);
+}
+
+async function getStaffServiceRows(
+  staffIds: string[],
+  serviceIds: string[]
+): Promise<StaffServiceRow[]> {
+  if (staffIds.length === 0 || serviceIds.length === 0) return [];
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("staff_services")
+    .select("staff_id, service_id")
+    .in("staff_id", staffIds)
+    .in("service_id", serviceIds);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as StaffServiceRow[];
+}
+
+function groupServiceIdsByStaff(rows: StaffServiceRow[]): Map<string, string[]> {
+  const serviceIdsByStaff = new Map<string, string[]>();
+
+  for (const row of rows) {
+    const current = serviceIdsByStaff.get(row.staff_id) ?? [];
+    current.push(row.service_id);
+    serviceIdsByStaff.set(row.staff_id, current);
+  }
+
+  return serviceIdsByStaff;
 }
 
 async function canUseInhouseContext(): Promise<boolean> {
@@ -151,6 +205,7 @@ export async function GET(request: NextRequest) {
     .map((record) => {
       const service = firstService(record.services);
       if (!service) return null;
+      const category = firstCategory(service.service_categories);
 
       return {
         branchServiceId: record.id,
@@ -159,20 +214,43 @@ export async function GET(request: NextRequest) {
         description: service.description,
         durationMinutes: service.duration_minutes,
         price: Number(record.custom_price ?? service.price),
+        categoryId: category?.id ?? null,
+        categoryName: category?.name ?? "Wellness",
+        categorySortOrder: category?.display_order ?? 999,
         availableInSpa: record.available_in_spa ?? true,
         availableHomeService: record.available_home_service ?? false,
       };
     })
-    .filter((service): service is NonNullable<typeof service> => service !== null);
+    .filter((service): service is NonNullable<typeof service> => service !== null)
+    .sort((a, b) => {
+      const categoryDelta = a.categorySortOrder - b.categorySortOrder;
+      return categoryDelta !== 0 ? categoryDelta : a.name.localeCompare(b.name);
+    });
+
+  const serviceIds = branchServices.map((service) => service.serviceId);
+  const staffServiceRows = await getStaffServiceRows(
+    (rawStaff as StaffRow[]).map((member) => member.id),
+    serviceIds
+  );
+  const serviceIdsByStaff = groupServiceIdsByStaff(staffServiceRows);
+  const serviceIdsWithStaffMappings = new Set(
+    staffServiceRows.map((row) => row.service_id)
+  );
 
   const staff = (rawStaff as StaffRow[])
-    .filter((member) => member.is_active)
+    .filter((member) =>
+      canActAsBookingServiceProvider(
+        member,
+        (serviceIdsByStaff.get(member.id)?.length ?? 0) > 0
+      )
+    )
     .map((member) => ({
       id: member.id,
       name: member.full_name,
       tier: member.tier,
       staffType: member.staff_type,
       isHead: member.is_head,
+      serviceIds: serviceIdsByStaff.get(member.id) ?? [],
     }));
 
   return NextResponse.json({
@@ -180,6 +258,10 @@ export async function GET(request: NextRequest) {
     selectedBranchId,
     services: branchServices,
     staff,
+    serviceEligibility: serviceIds.map((serviceId) => ({
+      serviceId,
+      hasStaffMappings: serviceIdsWithStaffMappings.has(serviceId),
+    })),
     bookingRules,
   });
 }

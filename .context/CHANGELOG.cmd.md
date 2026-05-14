@@ -331,3 +331,104 @@
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
 - `pnpm build`: ✅ Passing, 79 app routes.
+
+---
+
+### 2026-05-14 - Codex (NOTIF-001 - Premium Workflow Signal Foundation)
+
+**Task:** Audit and replace the noisy staff onboarding notification fanout with a role-aware, deduplicated workflow signal foundation.
+
+**Files Created:**
+- `supabase/migrations/20260519000001_workflow_signal_foundation.sql` - adds `workspace_notifications.dedupe_key` and new `workflow_tasks` table with RLS.
+- `src/lib/notifications/workflow-dedupe.ts` - shared dedupe key builder and signal href validation.
+- `src/lib/notifications/workflow-notifications-store.ts` - create/update and resolve notification storage helpers.
+- `src/lib/notifications/workflow-task-store.ts` - create/update and resolve workflow task storage helpers.
+- `src/lib/notifications/workflow-signals.ts` - central `emitWorkflowEvent()` routing for staff onboarding.
+- `src/lib/notifications/workflow-queries.ts` - RLS-safe open workflow task query.
+- `src/components/features/notifications/workspace-attention-strip.tsx` - calm workspace attention strip.
+- `src/components/features/notifications/inline-workflow-task-card.tsx` - inline workflow task card for module surfaces.
+- `src/components/features/notifications/notification-priority-badge.tsx` - Low/Normal/High/Critical priority badge.
+- `src/components/features/notifications/notification-section.tsx` - grouped notification list section.
+- `src/components/features/notifications/notification-bell-dropdown.tsx` - bell dropdown alias around the grouped popover.
+
+**Files Changed:**
+- `src/app/staff-onboarding/actions.ts` - staff onboarding now emits workflow events instead of direct owner/manager notification fanout.
+- `src/app/(dashboard)/manager/page.tsx` - manager dashboard surfaces open workflow tasks in a calm attention strip.
+- `src/app/(dashboard)/manager/staff/onboarding/page.tsx` - manager onboarding page passes open workflow tasks to the review list.
+- `src/components/features/staff-onboarding/onboarding-review-list.tsx` - shows inline workflow task context for manager review.
+- `src/components/features/notifications/*` - bell/list grouping and visual tone adjusted toward quieter workflow signals.
+- `src/lib/notifications/create.ts` - legacy `createNotification()` now routes through deduped create/update helper.
+- `src/lib/notifications/queries.ts` - active notification reads include resolved items for grouped inbox compatibility.
+- `src/lib/notifications/types.ts`, `src/types/supabase.ts` - added workflow task and dedupe types.
+
+**Behavior:**
+- `staff_onboarding.submitted` creates one manager workflow task and one applicant status update.
+- Routine onboarding no longer creates an urgent owner notification.
+- CRM receives no staff onboarding notification.
+- Missing service selections are metadata on the same manager review task, not a second manager notification.
+- Approval/rejection resolves the manager workflow task and old legacy onboarding notifications for that request.
+- Applicant receives one deduped approval/rejection status update.
+- Existing direct notification callers remain compatible but now use dedupe keys.
+
+**Verification:**
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- `pnpm build`: Passing, 80 app routes.
+
+---
+
+### 2026-05-14 — Claude (MOBILE-001 — Mobile-First Staff & Driver Portal)
+
+**Task:** Add mobile-first UI to Staff Portal and Driver Portal without breaking existing desktop layouts.
+
+**Files Created:**
+- `src/components/features/staff-portal/mobile/staff-mobile-bottom-nav.tsx` — Fixed mobile bottom nav (5 items) with active state
+- `src/components/features/staff-portal/mobile/staff-mobile-home.tsx` — Full service staff mobile home: greeting, next action card, today timeline, overview stats, home service alert, quick links
+- `src/components/features/driver/driver-mobile-home.tsx` — Driver-focused mobile home: greeting, current trip card, trip overview stats, upcoming trips list, quick actions
+
+**Files Modified:**
+- `src/app/(dashboard)/staff-portal/page.tsx` — Added `hidden md:block` / `block md:hidden` split; desktop unchanged, mobile renders StaffMobileHome
+- `src/app/(dashboard)/driver/page.tsx` — Added `hidden md:block` / `block md:hidden` split; desktop unchanged, mobile renders DriverMobileHome
+
+**Also in this session (schedule task):**
+- `src/lib/staff-portal/schedule.ts` — StaffScheduleEvent type + buildDayEvents/buildWeekEvents helpers
+- `src/app/(dashboard)/staff-portal/schedule/page.tsx` — My Schedule server route
+- `src/components/features/staff-portal/staff-schedule-page.tsx` — Schedule client component (week grid + mobile agenda + bottom nav)
+- `src/components/features/staff-portal/staff-schedule-page.module.css` — Schedule CSS module
+- `src/components/features/dashboard/nav-config.ts` — Added "My Schedule" to STAFF_NAV_ITEMS
+
+**Build Status:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings only)
+- `pnpm build`: Not run (build was 80 routes prior; new routes add /staff-portal/schedule)
+
+---
+
+### 2026-05-14 - Codex (BOOKING-WIZARD-UX-10.2 - Public Booking Wizard Optimization)
+
+**Task:** Fix active public booking wizard Places usage, compact the service-selection UX, and restrict specific staff selection to real qualified service providers.
+
+**Files Created:**
+- `src/components/public/booking-service-picker.tsx` - extracted compact category-based booking service picker used by the wizard.
+- `src/lib/staff/service-providers.ts` - shared guard for service-provider eligibility, hard-excluding driver/utility system roles and non-service job functions.
+
+**Files Changed:**
+- `src/components/public/booking-wizard.tsx` - delegates service selection to the compact picker; staff picker now keeps Any Available as default and hides unqualified providers.
+- `src/components/public/places-autocomplete.tsx` - selected place result now carries `source: "google_places"` while continuing to use `google.maps.importLibrary("places")` and `PlaceAutocompleteElement`.
+- `src/app/api/public/booking-context/route.ts` - public booking context now preserves service category metadata and returns staff service mappings for eligibility-aware filtering.
+- `src/lib/engine/availability.ts` - availability results and auto-assignment now filter out driver, utility, CSR/front-desk, admin/owner/manager-only staff; selected staff must satisfy service capability constraints when mappings exist.
+- `src/lib/actions/online-booking.ts` - multi-service specific staff submission now verifies eligibility against all selected services, not only the first.
+- `src/features/maps/GoogleMapsProvider.tsx`, `src/features/maps/PlaceAutocompleteInput.tsx`, `src/features/maps/README.md` - browser map key usage now standardizes on `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`; the provider no longer requests legacy Places libraries.
+
+**Behavior:**
+- Active `/book` path has no legacy `google.maps.places.Autocomplete`, `AutocompleteService`, `PlacesService`, `libraries=places`, or `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` usage under `src`.
+- Public home-service location remains a single Places API (New) search field, selected-location confirmation card, and optional delivery notes field.
+- Service selection shows one category at a time instead of expanding the full catalog.
+- Multi-service selection, total duration, and total price remain intact.
+- Specific provider selection shows only active service-provider staff who are available for the selected slot and eligible for the selected service set; Any Available remains the default.
+
+**Verification:**
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- `pnpm build`: Passing, 80 app routes.
+- `/book` smoke test: Existing localhost dev server at port 3000 returned `200 OK`.
