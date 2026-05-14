@@ -1,5 +1,8 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { cacheTags } from "@/lib/cache/cache-tags";
 
 function isMissingServiceVisibilityError(message: string): boolean {
   const lower = message.toLowerCase();
@@ -23,10 +26,24 @@ export async function getAllBranches() {
 }
 
 // ── Public-facing branches (ordered for display) ───────────────────────────
-// Returns active branches sorted by sort_order then name.
-// Use this for all public site components instead of hardcoded arrays.
-// getPublicBranchesCached deduplicates calls within a single request render tree.
-export const getPublicBranchesCached = cache(getPublicBranches);
+// Cross-request cache (unstable_cache) + per-request dedup (React.cache).
+// Busted by revalidateTag(cacheTags.publicBranches) after any branch mutation.
+const _getPublicBranchesUncached = unstable_cache(
+  async () => {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("branches")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("name");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+  ["public-branches"],
+  { tags: [cacheTags.publicBranches], revalidate: 3600 }
+);
+export const getPublicBranchesCached = cache(_getPublicBranchesUncached);
 
 export async function getPublicBranches() {
   const supabase = await createClient();
@@ -194,6 +211,36 @@ export async function getBranchesOverview() {
     active_staff_count: staffByBranch[b.id] ?? 0,
     todays_bookings: bookingsByBranch[b.id] ?? 0,
   }));
+}
+
+// ── Branch services — public-only cached variant ──────────────────────────
+// Uses admin client (no cookie dependency) so the result can be safely cached
+// across requests. Only caches the publicOnly=true view used by the booking wizard.
+// Busted by revalidateTag(cacheTags.branchServices(branchId)) after any service mutation.
+export function getBranchServicesPublicCached(branchId: string) {
+  return unstable_cache(
+    async () => {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("branch_services")
+        .select(`
+          *,
+          services (
+            id, name, description, duration_minutes, price,
+            buffer_before, buffer_after,
+            service_categories ( id, name, display_order )
+          )
+        `)
+        .eq("branch_id", branchId)
+        .eq("is_active", true)
+        .eq("booking_visibility", "public")
+        .order("id");
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    ["branch-services", branchId],
+    { tags: [cacheTags.branchServices(branchId)], revalidate: 300 }
+  )();
 }
 
 // ── Branch slot config (used by booking flow) ─────────────────────────────

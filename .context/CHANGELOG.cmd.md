@@ -551,3 +551,43 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
 - `pnpm build`: ✅ Passing, 79+ app routes compiled successfully
+
+---
+
+### 2026-05-15 — Claude (PERF-PHASE3-001 — Selective Revalidation and Cache Tags)
+
+**Task:** Phase 3 — Replace selected broad `revalidatePath()` usage with scoped cache tags using `unstable_cache` on stable read data.
+
+**Files Created:**
+- `src/lib/cache/cache-tags.ts` — Tag constants (`publicBranches`, `branchBookingRules(id)`, `branchServices(id)`) and `invalidateTag()` wrapper that handles Next.js 16's required second `profile` argument to `revalidateTag`.
+
+**Files Modified:**
+- `src/lib/queries/branches.ts` — Upgraded `getPublicBranchesCached` from `React.cache()` (per-request only) to `React.cache(unstable_cache(...))` (cross-request + per-request dedup). Added `getBranchServicesPublicCached(branchId)` using `createAdminClient()` + `unstable_cache`; tags `branch-services:{branchId}`, TTL 300s.
+- `src/lib/queries/branch-booking-rules.ts` — Added `getBranchBookingRulesOrDefaultCached(branchId)` using `unstable_cache`; tags `branch-booking-rules:{branchId}`, TTL 3600s. `updateBranchBookingRules` now calls `invalidateTag` on commit.
+- `src/app/(dashboard)/owner/branches/actions.ts` — All branch mutations (`createBranchAction`, `updateBranchAction`, `toggleBranchActiveAction`) now call `invalidateTag(cacheTags.publicBranches)`. All service mutations (`removeBranchServiceAction`, `addBranchServiceAction`, `updateBranchServiceEligibilityAction`, `updateBranchServicePriceAction`, `updateBranchServiceVisibilityAction`) now call `invalidateTag(cacheTags.branchServices(branchId))`.
+- `src/app/(dashboard)/owner/services/actions.ts` — `setBranchServiceAction` now calls `invalidateTag(cacheTags.branchServices(d.branchId))`.
+- `src/app/api/public/booking-context/route.ts` — Hot path now uses `getBranchServicesPublicCached` (when `publicOnly=true`) and `getBranchBookingRulesOrDefaultCached`. Inhouse context (publicOnly=false) keeps uncached `getBranchServices`.
+- `src/app/api/public/dispatch-slots/route.ts` — Now uses `getBranchBookingRulesOrDefaultCached`.
+
+**Domains cached:**
+1. Public branches (`public-branches` tag, 1h TTL)
+2. Branch booking rules per branch (`branch-booking-rules:{id}` tag, 1h TTL)
+3. Branch services — public-only (`branch-services:{id}` tag, 5min TTL)
+
+**Intentionally NOT cached:**
+- `getBranchesOverview` — includes live stats (today's bookings, active staff count)
+- `getBranchWithFullDetail` — owner edit page; includes live staff list
+- All booking/dispatch/schedule data
+- Inhouse context service list (user-facing, may differ by role)
+- Notification, payroll, reconciliation data
+
+**Revalidation paths kept:**
+- All existing `revalidatePath()` calls preserved alongside the new `invalidateTag()` calls. The path invalidation clears Next.js route cache; the tag invalidation clears the `unstable_cache` function result. Both are needed.
+
+**Next.js 16 compatibility note:**
+- `revalidateTag` in Next.js 16 requires a second `profile` argument. The `invalidateTag(tag)` wrapper in `cache-tags.ts` passes `{}` (empty `CacheLifeConfig`) as the profile, which works for `unstable_cache` entries.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
+- `pnpm build`: ✅ Passing, 79+ app routes compiled

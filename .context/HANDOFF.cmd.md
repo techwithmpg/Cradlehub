@@ -1,74 +1,86 @@
-# HANDOFF — PERF-PHASE2B-001 Phase 2B Query Pagination + Index Planning
+# HANDOFF — PERF-PHASE3-001 Phase 3 Selective Revalidation and Cache Tags
 
 ## Date
 2026-05-15
 
 ## What Changed
 
-### A — Shared pagination utility
-**New file:** `src/lib/queries/pagination.ts`
+### Cache tag infrastructure
+**New file:** `src/lib/cache/cache-tags.ts`
 
-Exports:
-- `PaginationParams` — `{ page?: number; pageSize?: number }`
-- `PaginatedResult<T>` — `{ data: T[]; page: number; pageSize: number; total: number; pageCount: number }`
-- `normalizePagination(params, defaults?)` — clamps page ≥ 1, pageSize within [1, maxPageSize], returns `{ page, pageSize, from, to }` for Supabase `.range(from, to)`
-- `toPaginatedResult(args)` — wraps Supabase `{ data, count }` into `PaginatedResult`
+```ts
+export const cacheTags = {
+  publicBranches: "public-branches",
+  branchBookingRules: (branchId: string) => `branch-booking-rules:${branchId}`,
+  branchServices: (branchId: string) => `branch-services:${branchId}`,
+};
 
-### B — CRM customer paginated search
-**Modified:** `src/lib/queries/customers.ts`
-- Added `CustomerPageRow` exported type (previously was a local type in the page component)
-- Added `getCustomersPage({ branchId?, search?, page?, pageSize? })` — branch scoping + ILIKE search (`%_` chars escaped) + server-side pagination with `count: "exact"`
-
-**Modified:** `src/app/(dashboard)/crm/customers/page.tsx`
-- Imports `getCustomersPage` + `CustomerPageRow` (dropped `getAllCustomers`)
-- Accepts `?q=` search param alongside `?page=`
-- Plain `<form method="GET" action="/crm/customers">` search bar — no client state needed
-- Quick action cards hidden during active search
-- `Prev`/`Next` pagination links preserve `q` param: `?page=N&q=${encodeURIComponent(search)}`
-- `EmptyState` shows search-specific title/description when `search` is set
-
-### C/D — Booking and staff list pages
-**No changes.** Booking list pages (`/manager/bookings`, `/crm/bookings`, `/owner/bookings`) are already scoped to one day + one branch — naturally bounded. Staff pages use client-side filtering on safety-capped (500/200) results. Both documented in `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`.
-
-### E — Index gap identified
-**New file:** `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`
-
-Key finding: `bookings(branch_id, customer_id)` index is missing. The `branchCustomerIds()` helper (called on every CRM page load that is branch-scoped) does:
-```sql
-SELECT customer_id FROM bookings WHERE branch_id = $1 AND customer_id IS NOT NULL
+// Wrapper: Next.js 16 revalidateTag() requires second profile arg.
+// Pass {} (empty CacheLifeConfig) — works for both unstable_cache and "use cache" entries.
+export function invalidateTag(tag: string): void {
+  revalidateTag(tag, {});
+}
 ```
-The existing `idx_bookings_branch_date` covers `(branch_id, booking_date)` but does NOT include `customer_id` — heap access is required. Recommended migration in the doc.
 
-### F — Pre-existing type errors fixed
-**Modified:** `src/app/(dashboard)/dev/page.tsx`
-- After `if (process.env.NODE_ENV === "production") { notFound() }`, TypeScript narrows `NODE_ENV` to `"development" | "test"`. Subsequent comparisons to `"production"` triggered TS2367. Fixed by extracting `const nodeEnv = process.env.NODE_ENV as string` before the guard.
+### Domain 1 — Public branches
+**Modified:** `src/lib/queries/branches.ts`
+- `getPublicBranchesCached` upgraded from `cache(getPublicBranches)` (per-request React dedup only) to `cache(unstable_cache(...))` (cross-request data cache + per-request dedup).
+- The `unstable_cache` wrapper uses `createAdminClient()` internally — no cookie dependency, safe for cross-request caching.
+- Tag: `public-branches`, TTL: 3600s.
+- **New:** `getBranchServicesPublicCached(branchId)` — `unstable_cache` with `createAdminClient()`, queries `branch_services` with `is_active=true AND booking_visibility='public'`. Tag: `branch-services:{branchId}`, TTL: 300s.
 
-**Modified:** `src/lib/logger.ts`
-- `LogContext` was `Record<string, string | number | boolean | null | undefined>`. Action files pass `{ error: unknown, ...context }` to `logError`. TypeScript TS2345 because `unknown` doesn't satisfy the index signature. Fixed by widening `LogContext` to `Record<string, unknown>`.
+### Domain 2 — Branch booking rules
+**Modified:** `src/lib/queries/branch-booking-rules.ts`
+- **New:** `getBranchBookingRulesOrDefaultCached(branchId)` — wraps existing function with `unstable_cache`. The underlying query already uses `createAdminClient()`. Tag: `branch-booking-rules:{branchId}`, TTL: 3600s.
+- `updateBranchBookingRules` (the mutation) now calls `invalidateTag(cacheTags.branchBookingRules(branchId))` before the existing `revalidatePath` calls.
+
+### Hot paths updated
+- `src/app/api/public/booking-context/route.ts` — Uses `getBranchServicesPublicCached` when `publicOnly=true`, `getBranchBookingRulesOrDefaultCached` always. Inhouse mode keeps uncached `getBranchServices`.
+- `src/app/api/public/dispatch-slots/route.ts` — Uses `getBranchBookingRulesOrDefaultCached`.
+
+### Mutations updated (tag invalidation added)
+- `src/app/(dashboard)/owner/branches/actions.ts` — All 8 mutations now call `invalidateTag` for either `publicBranches` (branch CRUD) or `branchServices(branchId)` (service toggles/prices/visibility).
+- `src/app/(dashboard)/owner/services/actions.ts` — `setBranchServiceAction` now calls `invalidateTag(cacheTags.branchServices(d.branchId))`.
 
 ## Verification
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
-- `pnpm build`: ✅ Passing, 79+ app routes compiled
+- `pnpm build`: ✅ Passing, 79+ routes
 
-## What's Next — Phase 3 (suggested)
+## What Was Intentionally NOT Changed
 
-### Selective Cache Invalidation
-- Replace broad `revalidatePath("/crm/customers")` calls with `revalidateTag` where safe.
-- Profile which pages are called frequently enough to benefit from caching.
+| Excluded | Reason |
+|---|---|
+| `getBranchesOverview` | Live stats (today's bookings, active staff) — must be fresh every request |
+| `getBranchWithFullDetail` | Owner edit page; includes live staff list |
+| All booking list queries | Live operational data; wrong to cache |
+| Dispatch, schedule, ETA, location | High-frequency live data |
+| Manager/CRM service list (inhouse) | Role-dependent; not safe to cache globally |
+| Notification, payroll, reconciliation | Never appropriate to cache |
 
-### DB Index
-Apply the `bookings(branch_id, customer_id)` covering index (see `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`):
-```sql
-CREATE INDEX IF NOT EXISTS idx_bookings_branch_customer
-  ON bookings (branch_id, customer_id)
-  WHERE customer_id IS NOT NULL;
-```
+## Stale Data Windows
 
-### Stable Data Caching
-- `unstable_cache` or Next.js 16 `"use cache"` for branches list, services list — read-heavy, rarely changes.
+| Data | Max stale window | Trigger for fresh data |
+|---|---|---|
+| Public branches | 3600s (1h) or until `invalidateTag("public-branches")` | Any branch create/update/toggle |
+| Booking rules | 3600s or until `invalidateTag("branch-booking-rules:{id}")` | Save booking rules action |
+| Public services | 300s (5min) or until `invalidateTag("branch-services:{id}")` | Add/remove/toggle/price/visibility service action |
 
-## Known Issues / Watch Points
-- The `branchCustomerIds()` two-step query fetches ALL bookings for a branch (no date filter) to get distinct customer IDs. For a high-volume branch, this could return tens of thousands of rows. The missing covering index mitigates the I/O cost; longer term, consider a `DISTINCT customer_id` RPC or materialized view.
-- `getCustomersPage()` with both `branchId` scoping AND `search` combines `.in("id", ids)` + `.or("phone.ilike...,full_name.ilike...")`. This is correct (AND semantics), but the `ids` array can be large for a busy branch — Supabase/PostgREST translates `.in()` to `WHERE id = ANY(...)` which is efficient with the existing `idx_customers_preferred_staff` index on `customers(id)` (the PK is always indexed).
-- Worktree does not have `.env.local` — copy from `E:/cradlehub/.env.local` before running `pnpm build` in the worktree. (The `.env.local` was copied as a build-time workaround and is gitignored.)
+These windows are acceptable: booking rules and branch settings change rarely (owner-initiated), not continuously.
+
+## Next Phase Options
+
+### Phase 4 — Offline / Poor Connectivity Resilience
+- Service Worker strategy for the staff portal and booking wizard
+- Background sync for failed booking submissions
+- Optimistic UI for status updates
+
+### Phase 3B — Revalidation Follow-up (if needed)
+If manual testing shows stale data issues:
+- Consider reducing TTL for branch services (currently 300s)
+- Consider adding `invalidateTag(cacheTags.branchServices(branchId))` to any other place that modifies `branch_services`
+
+## Known Watch Points
+- `resources-actions.ts` — manages `branch_resources` (not services). Currently revalidates `/owner/branches` and `/owner/branches/${branchId}` but does NOT call `invalidateTag(cacheTags.branchServices)` because branch resources are not cached. This is correct — branch resources are not part of the cached service list.
+- `_getPublicBranchesUncached` is exported as a private symbol (prefixed `_`). It is the raw `unstable_cache` result. Public callers should use `getPublicBranchesCached` (React.cache wrapped).
+- The `getBranchServicesPublicCached` cached function only caches `publicOnly: true`. If CRM/manager service selection ever switches to using this function instead of the uncached `getBranchServices`, recheck the query — it must remain public-only.

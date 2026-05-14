@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { createBranchSchema, updateBranchSchema } from "@/lib/validations/branch";
 import { revalidatePath } from "next/cache";
+import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -74,6 +75,7 @@ export async function createBranchAction(rawInput: unknown) {
     .single();
 
   if (error) return { success: false, error: error.message };
+  invalidateTag(cacheTags.publicBranches);
   revalidatePath("/owner/branches");
   return { success: true, branchId: data.id };
 }
@@ -102,6 +104,7 @@ export async function updateBranchAction(rawInput: unknown) {
     .eq("id", branchId);
 
   if (error) return { success: false, error: error.message };
+  invalidateTag(cacheTags.publicBranches);
   revalidatePath("/owner/branches");
   return { success: true };
 }
@@ -146,6 +149,7 @@ export async function toggleBranchActiveAction(branchId: string, isActive: boole
   if (error) return { success: false, error: error.message };
 
   const { revalidatePath } = await import("next/cache");
+  invalidateTag(cacheTags.publicBranches);
   revalidatePath("/owner/branches");
   revalidatePath("/owner");
   return { success: true };
@@ -166,6 +170,7 @@ export async function removeBranchServiceAction(branchId: string, serviceId: str
   if (error) return { success: false, error: error.message };
 
   const { revalidatePath } = await import("next/cache");
+  invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
   revalidatePath("/owner/services");
   return { success: true };
@@ -195,6 +200,7 @@ export async function addBranchServiceAction(
   if (error) return { success: false, error: error.message };
 
   const { revalidatePath } = await import("next/cache");
+  invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
   revalidatePath("/owner/services");
   return { success: true };
@@ -219,6 +225,7 @@ export async function updateBranchServiceEligibilityAction(
   if (error) return { success: false, error: error.message };
 
   const { revalidatePath } = await import("next/cache");
+  invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath(`/owner/branches/${branchId}`);
   return { success: true };
 }
@@ -243,6 +250,7 @@ export async function updateBranchServicePriceAction(
   if (error) return { success: false, error: error.message };
 
   const { revalidatePath } = await import("next/cache");
+  invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
   return { success: true };
 }
@@ -267,6 +275,8 @@ export async function updateBranchServiceVisibilityAction(
   if (error) return { success: false, error: error.message };
 
   const { revalidatePath } = await import("next/cache");
+  // Visibility change affects the public booking wizard's service list.
+  invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath(`/owner/branches/${branchId}`);
   return { success: true };
 }

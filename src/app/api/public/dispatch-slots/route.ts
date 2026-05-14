@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { getBranchBookingRulesOrDefaultCached } from "@/lib/queries/branch-booking-rules";
 
 const paramsSchema = z.object({
   branchId: z.guid("Invalid branch ID"),
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       .eq("booking_date", parsed.data.date)
       .eq("delivery_type", "home_service")
       .in("status", ["pending", "confirmed", "in_progress"]),
-    getBranchBookingRulesOrDefault(parsed.data.branchId),
+    getBranchBookingRulesOrDefaultCached(parsed.data.branchId),
   ]);
 
   if (error) {

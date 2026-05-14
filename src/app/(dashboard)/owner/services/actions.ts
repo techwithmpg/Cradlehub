@@ -11,6 +11,7 @@ import {
   setBranchServiceSchema,
 } from "@/lib/validations/service";
 import { revalidatePath } from "next/cache";
+import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -134,6 +135,7 @@ export async function setBranchServiceAction(rawInput: unknown) {
       { onConflict: "branch_id,service_id" }
     );
   if (error) return { success: false, error: error.message };
+  invalidateTag(cacheTags.branchServices(d.branchId));
   revalidatePath("/owner/services");
   return { success: true };
 }

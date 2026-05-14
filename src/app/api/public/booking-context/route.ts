@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllBranches, getBranchServices } from "@/lib/queries/branches";
-import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { getAllBranches, getBranchServices, getBranchServicesPublicCached } from "@/lib/queries/branches";
+import { getBranchBookingRulesOrDefaultCached } from "@/lib/queries/branch-booking-rules";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -195,9 +195,13 @@ export async function GET(request: NextRequest) {
       : branches[0]!.id;
 
   const [rawBranchServices, rawStaff, bookingRules] = await Promise.all([
-    getBranchServices(selectedBranchId, { publicOnly }),
+    // Use the cached public variant when publicOnly=true (all public booking requests).
+    // Fall back to uncached for inhouse context (staff-facing, may include non-public services).
+    publicOnly
+      ? getBranchServicesPublicCached(selectedBranchId)
+      : getBranchServices(selectedBranchId, { publicOnly: false }),
     getPublicStaffByBranch(selectedBranchId),
-    getBranchBookingRulesOrDefault(selectedBranchId),
+    getBranchBookingRulesOrDefaultCached(selectedBranchId),
   ]);
 
   const branchServices = (rawBranchServices as BranchServiceRow[])

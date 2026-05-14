@@ -1,6 +1,7 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import type { BookingType } from "@/types";
 import type { Database } from "@/types/supabase";
@@ -119,6 +120,16 @@ export async function getBranchBookingRulesOrDefault(
   return rules ?? getDefaultBranchBookingRules(branchId);
 }
 
+// Cross-request cached variant — busted by revalidateTag(cacheTags.branchBookingRules(branchId)).
+// Uses the same admin-client query path as getBranchBookingRules; safe to cache globally.
+export function getBranchBookingRulesOrDefaultCached(branchId: string) {
+  return unstable_cache(
+    () => getBranchBookingRulesOrDefault(branchId),
+    ["branch-booking-rules", branchId],
+    { tags: [cacheTags.branchBookingRules(branchId)], revalidate: 3600 }
+  )();
+}
+
 async function canManageBranchRules(branchId: string): Promise<boolean> {
   const supabase = await createClient();
   const {
@@ -194,8 +205,10 @@ export async function updateBranchBookingRules(
     };
   }
 
+  invalidateTag(cacheTags.branchBookingRules(input.branchId));
   revalidatePath(`/owner/branches/${input.branchId}`);
   revalidatePath("/owner/branches");
+  // Keep /book path revalidation so the booking wizard's route-level cache clears.
   revalidatePath("/book");
 
   return { success: true, rules: mapRowToRules(data) };

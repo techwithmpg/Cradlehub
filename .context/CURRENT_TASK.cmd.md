@@ -1,42 +1,39 @@
-# CURRENT TASK: PERF-PHASE2B-001 — Query Pagination + Index Planning
+# CURRENT TASK: PERF-PHASE3-001 — Selective Revalidation and Cache Tags
 
 ## Status
 Completed on 2026-05-15.
 
 ## Completed Scope
 
-### A — Shared pagination utility
-- `src/lib/queries/pagination.ts` created with `PaginationParams`, `PaginatedResult<T>`, `normalizePagination()`, `toPaginatedResult()`.
+### Cache infrastructure
+- `src/lib/cache/cache-tags.ts` — tag constants + `invalidateTag()` wrapper for Next.js 16's `revalidateTag(tag, profile)` API.
 
-### B — CRM customer paginated search
-- `getCustomersPage()` added to `src/lib/queries/customers.ts` — combines branch scoping + ILIKE search (with `%_` escaping) + server-side pagination.
-- `crm/customers/page.tsx` updated: `q` search param, HTML search form, paginated results, search-aware Prev/Next links.
+### Cached queries (3 domains)
+1. **Public branches** (`getPublicBranchesCached`) — upgraded from React.cache (per-request dedup only) to `React.cache(unstable_cache(...))`. Cross-request 1h TTL. Tag: `public-branches`.
+2. **Branch booking rules** (`getBranchBookingRulesOrDefaultCached`) — new `unstable_cache` wrapper around the existing admin-client query. 1h TTL. Tag: `branch-booking-rules:{branchId}`.
+3. **Branch services — public view** (`getBranchServicesPublicCached`) — new function using `createAdminClient()` inside `unstable_cache`. 5min TTL. Tag: `branch-services:{branchId}`.
 
-### C — Booking list pagination
-- **No changes needed.** All booking list queries are already scoped to `branch_id + booking_date` (one day's data). Naturally bounded; `.limit(500)` safety caps from Phase 2 are sufficient.
+### Hot paths using cached queries
+- `/api/public/booking-context` — uses `getBranchServicesPublicCached` + `getBranchBookingRulesOrDefaultCached` for the public booking flow (publicOnly=true). Inhouse mode (publicOnly=false) keeps uncached path.
+- `/api/public/dispatch-slots` — uses `getBranchBookingRulesOrDefaultCached`.
 
-### D — Staff list pagination
-- **No changes needed.** `StaffManagementWorkspace` handles filtering client-side on safety-capped (500/200) results. Server-side pagination would require UI redesign. Deferred.
-
-### E — Index recommendations
-- `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md` created with full audit of existing indexes and gap analysis.
-- Key gap identified: `bookings(branch_id, customer_id)` index missing — needed for `branchCustomerIds()` two-step query on every CRM page load.
-
-### F — Remaining unbounded queries
-- All list queries audited. `public-site.ts` section/asset lists are unbounded but are small CMS tables — acceptable.
-- All other lists are either date-scoped, branch-scoped, or have `.limit()` safety caps from Phase 2.
-
-### Pre-existing type errors fixed (unrelated to Phase 2B scope)
-- `dev/page.tsx`: NODE_ENV narrowing after `notFound()` guard — fixed by extracting `nodeEnv` variable.
-- `logger.ts` + action files: `LogContext` index signature incompatible with `error: unknown` — fixed by widening `LogContext` to `Record<string, unknown>`.
+### Tag invalidation wired to all mutations
+- Branch create/update/toggle → `invalidateTag(cacheTags.publicBranches)`
+- Branch service add/remove/eligibility/price/visibility → `invalidateTag(cacheTags.branchServices(branchId))`
+- Booking rules save → `invalidateTag(cacheTags.branchBookingRules(branchId))`
+- `setBranchServiceAction` in services/actions.ts → `invalidateTag(cacheTags.branchServices(d.branchId))`
 
 ## Verification
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
-- `pnpm build`: ✅ Passing, 79+ app routes compiled
+- `pnpm build`: ✅ Passing, 79+ routes
 
 ## Next Phase
-**Phase 3 — Selective Revalidation and Cache Tags**
-- Replace broad `revalidatePath("/crm/customers")` calls with `revalidateTag` where safe.
-- Adopt `unstable_cache` or Next.js 16 `"use cache"` for stable public data (branches, services) once behavior is confirmed.
-- Apply `bookings(branch_id, customer_id)` index migration (see `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`).
+**Phase 4 — Offline / Poor Connectivity Resilience**
+OR
+**Phase 3B — Revalidation Follow-up** if cache behavior turns out to be unstable.
+
+### Pre-Phase 4 checklist
+- Manually verify: change booking rules → confirm manager settings + public booking wizard show updated rules.
+- Manually verify: toggle branch service visibility → confirm public booking wizard service list updates.
+- Apply the `bookings(branch_id, customer_id)` index from `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md` when ready.
