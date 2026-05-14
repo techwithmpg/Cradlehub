@@ -1,5 +1,5 @@
 ﻿import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { getAllBranches } from "@/lib/queries/branches";
@@ -126,10 +126,14 @@ const CATEGORIES: DevCategory[] = [
 ];
 
 export default async function DevPanelPage() {
+  const nodeEnv = process.env.NODE_ENV as string;
+  if (nodeEnv === "production") {
+    notFound();
+  }
   const { user, me } = await requireDevAccess();
   const branches = await getAllBranches();
 
-  const devMode = process.env.NODE_ENV !== "production" && process.env.DEV_ALLOW_ALL_MODULES === "true";
+  const devMode = nodeEnv !== "production" && process.env.DEV_ALLOW_ALL_MODULES === "true";
 
   return (
     <div>
@@ -195,10 +199,10 @@ export default async function DevPanelPage() {
           style={{
             padding: "6px 12px",
             borderRadius: 6,
-            backgroundColor: process.env.NODE_ENV !== "production" ? "var(--cs-success-bg)" : "var(--cs-surface)",
+            backgroundColor: nodeEnv !== "production" ? "var(--cs-success-bg)" : "var(--cs-surface)",
             border: "1px solid var(--cs-border)",
             fontSize: "0.8125rem",
-            color: process.env.NODE_ENV !== "production" ? "var(--cs-success)" : "var(--cs-text)",
+            color: nodeEnv !== "production" ? "var(--cs-success)" : "var(--cs-text)",
           }}
         >
           NODE_ENV: {process.env.NODE_ENV ?? "undefined"}

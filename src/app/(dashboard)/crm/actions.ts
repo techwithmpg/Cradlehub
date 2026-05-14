@@ -23,39 +23,43 @@ async function requireCrmAccess() {
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
-    return supabase;
+    return { supabase, branchId: null as string | null };
   }
 
   const { data: me } = await supabase
     .from("staff")
-    .select("system_role")
+    .select("system_role, branch_id")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
 
   const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
   if (!me || !allowedRoles.includes(me.system_role)) return null;
-  return supabase;
+
+  return {
+    supabase,
+    branchId: me.system_role === "owner" ? null : me.branch_id,
+  };
 }
 
 // ── Customer list (paginated) ──────────────────────────────────────────────
 export async function getCustomerListAction(page = 1) {
-  const supabase = await requireCrmAccess();
-  if (!supabase) return { error: "Unauthorized" };
-  return getAllCustomers(page, 20);
+  const ctx = await requireCrmAccess();
+  if (!ctx) return { error: "Unauthorized" };
+  return getAllCustomers(page, 20, ctx.branchId);
 }
 
 // ── Search by name or phone ───────────────────────────────────────────────
 export async function searchCustomersAction(query: string) {
-  const supabase = await requireCrmAccess();
-  if (!supabase) return { error: "Unauthorized" };
-  return searchCustomers(query);
+  const ctx = await requireCrmAccess();
+  if (!ctx) return { error: "Unauthorized" };
+  return searchCustomers(query, ctx.branchId);
 }
 
 // ── Full customer profile + booking history ────────────────────────────────
 export async function getCustomerProfileAction(customerId: string) {
-  const supabase = await requireCrmAccess();
-  if (!supabase) return { error: "Unauthorized" };
+  const ctx = await requireCrmAccess();
+  if (!ctx) return { error: "Unauthorized" };
 
   const [customer, bookings] = await Promise.all([
     getCustomerById(customerId),
@@ -75,12 +79,12 @@ export async function updateCustomerAction(rawInput: unknown) {
     };
   }
 
-  const supabase = await requireCrmAccess();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const ctx = await requireCrmAccess();
+  if (!ctx) return { success: false, error: "Unauthorized" };
 
   const { customerId, ...updates } = parsed.data;
 
-  const { error } = await supabase
+  const { error } = await ctx.supabase
     .from("customers")
     .update({
       ...(updates.fullName            !== undefined && { full_name:             updates.fullName }),
@@ -112,8 +116,8 @@ export async function createCustomerAction(rawInput: unknown) {
     };
   }
 
-  const supabase = await requireCrmAccess();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const ctx = await requireCrmAccess();
+  if (!ctx) return { success: false, error: "Unauthorized" };
 
   const admin = createAdminClient();
   const { fullName, phone, email, notes } = parsed.data;
@@ -149,14 +153,14 @@ export async function createCustomerAction(rawInput: unknown) {
 
 // ── Repeat customers (2+ bookings) ────────────────────────────────────────
 export async function getRepeatCustomersAction(page = 1) {
-  const supabase = await requireCrmAccess();
-  if (!supabase) return { error: "Unauthorized" };
-  return getRepeatCustomers(2, page, 20);
+  const ctx = await requireCrmAccess();
+  if (!ctx) return { error: "Unauthorized" };
+  return getRepeatCustomers(2, page, 20, ctx.branchId);
 }
 
 // ── Lapsed customers (no visit in 30+ days) ───────────────────────────────
 export async function getLapsedCustomersAction() {
-  const supabase = await requireCrmAccess();
-  if (!supabase) return { error: "Unauthorized" };
-  return getLapsedCustomers(30, 50);
+  const ctx = await requireCrmAccess();
+  if (!ctx) return { error: "Unauthorized" };
+  return getLapsedCustomers(30, 50, ctx.branchId);
 }

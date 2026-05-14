@@ -1,4 +1,5 @@
-﻿import { PageHeader } from "@/components/features/dashboard/page-header";
+﻿import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/features/dashboard/page-header";
 import Link from "next/link";
 
 const AVAILABLE_TOOLS = [
@@ -20,6 +21,9 @@ const COMING_SOON = [
 ];
 
 export default function ManagerOperationsPage() {
+  if (process.env.NODE_ENV === "production") {
+    redirect("/manager");
+  }
   return (
     <div>
       <PageHeader

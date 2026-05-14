@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
-import { getPublicBranches } from "@/lib/queries/branches";
+import { getPublicBranchesCached } from "@/lib/queries/branches";
 import {
   BUSINESS_NAME,
   BUSINESS_TAGLINE,
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
-  const branches = await getPublicBranches();
+  const branches = await getPublicBranchesCached();
   const primaryPhone = branches[0]?.phone
     ? { label: branches[0].phone, href: `tel:${branches[0].phone.replace(/\s/g, "")}` }
     : undefined;

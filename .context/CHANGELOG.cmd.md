@@ -432,3 +432,122 @@
 - `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
 - `pnpm build`: Passing, 80 app routes.
 - `/book` smoke test: Existing localhost dev server at port 3000 returned `200 OK`.
+
+---
+
+### 2026-05-15 — Claude Code (Phase 0 Stabilization — Batch 2)
+
+**Task:** SECURITY-STAB-002 — Phase 0 security stabilization batch 2 (9 blockers)
+
+**Files Changed:**
+- `src/proxy.ts` — Removed unconditional userId+role log on every request; replaced with dev-only `console.debug`; also removed userId from the "no active staff record" path log.
+- `src/app/(dashboard)/owner/staff/actions.ts` — Replaced full raw-input `console.log` and full Zod-issues `console.error` in `updateStaffAction` with dev-only `console.debug` using safe boolean metadata only. No PII or payload logged in production.
+- `src/app/(dashboard)/owner/marketing/actions.ts` — Added `createClient`/`isDevAuthBypassEnabled` imports, `requireOwner()` helper, and owner auth guard to all four exported actions (saveMarketingSectionAction, createMarketingAssetAction, updateMarketingAssetAction, disableMarketingAssetAction). [Batch 1 — completed prior step]
+- `src/lib/dev-bypass.ts` — Production guard already present (NODE_ENV !== "production"); no change required.
+- `src/lib/logger.ts` — Created structured logger with `logError` and `logWarn`; stacks only in development; always emits JSON to stderr.
+- `src/lib/actions/driver-actions.ts` — Replaced 2 silent `catch {}` blocks with `logError` calls (getBranchBookingDriverIds, getAvailableBranchDrivers).
+- `src/lib/actions/eta-actions.ts` — Replaced 1 silent `catch {}` with `logError` (getNextBookingForStaff).
+- `src/lib/actions/live-ops-actions.ts` — Replaced 1 silent `catch {}` with `logError` (getActiveTripsForOpsMap).
+- `src/lib/actions/location-actions.ts` — Replaced 2 silent `catch {}` with `logError` (getLatestStaffLocationForBooking, getLatestLocationsForActiveHomeServiceTrips).
+- `src/app/(dashboard)/dev/page.tsx` — Added `notFound()` guard in production; dev panel route now returns 404 in production.
+- `src/app/(dashboard)/manager/operations/page.tsx` — Added `redirect("/manager")` in production; Coming Soon tiles are hidden from real managers in production.
+- `src/app/(dashboard)/manager/bookings/actions.ts` — Added `.eq("branch_id", me.branch_id)` to the pre-confirmation booking fetch in `updateBookingStatusAction`; prevents cross-branch room-assignment probe.
+- `next.config.ts` — Added baseline security headers (X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy, Permissions-Policy) for all routes.
+- `.env.example` — Created with all 14 env vars found in `src/`; danger dev-bypass vars clearly marked.
+
+**Verification:**
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing with only the 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- `pnpm build`: Passing, 80+ app routes compiled successfully.
+
+---
+
+### 2026-05-15 — Claude Code (Phase 1 Performance Quick Wins)
+
+**Task:** PERF-PHASE1-001 — Phase 1 performance quick wins
+
+**Files Changed:**
+- `src/app/(dashboard)/layout.tsx` — Removed redundant `force-dynamic` export; layout is already dynamic because `createClient()` calls `cookies()` from next/headers. Now uses `getLayoutStaffContext()` from the new cached helper instead of inline auth+staff DB calls.
+- `src/lib/queries/staff-context.ts` — Created. React `cache()`-wrapped helper for the dashboard layout's auth + staff fetch. Deduplicates within a single request render tree. Sets up the pattern for Phase 2 broader deduplication.
+- `src/lib/queries/branches.ts` — Added `getPublicBranchesCached` (React `cache()` wrapper around `getPublicBranches`). Deduplicates branch fetches within a request when multiple components in the public layout render tree call it.
+- `src/app/(public)/layout.tsx` — Switched from `getPublicBranches` to `getPublicBranchesCached`.
+- `src/app/(dashboard)/manager/bookings/loading.tsx` — Created. Filter bar + booking row skeletons.
+- `src/app/(dashboard)/manager/schedule/loading.tsx` — Created. Date nav + timeline grid skeleton.
+- `src/app/(dashboard)/manager/settings/loading.tsx` — Created. Settings form section skeletons.
+- `src/app/(dashboard)/crm/loading.tsx` — Created. Stats strip + two-column content skeleton.
+- `src/app/(dashboard)/crm/bookings/loading.tsx` — Created. Search/filter bar + booking row skeletons.
+- `src/app/(dashboard)/owner/staff/loading.tsx` — Created. Search bar + staff card grid skeleton.
+- `src/app/(dashboard)/staff-portal/loading.tsx` — Created. Greeting + stats + appointment card skeletons.
+- `src/app/(dashboard)/staff-portal/schedule/loading.tsx` — Created. Week nav + day columns + appointment block skeletons.
+- `src/app/(dashboard)/manager/error.tsx` — Created. Manager workspace error boundary (client component with Try again reset).
+- `src/app/(dashboard)/crm/error.tsx` — Created. CRM workspace error boundary.
+- `src/app/(dashboard)/owner/error.tsx` — Created. Owner workspace error boundary.
+- `src/app/(dashboard)/staff-portal/error.tsx` — Created. Staff portal error boundary.
+
+**What was intentionally NOT done in this phase:**
+- No service worker / offline mode (Phase 3)
+- No tag-based revalidation migration (Phase 2)
+- No new DB indexes (Phase 2)
+- No booking engine changes
+- Dynamic import for Dispatch workspace: dispatch is currently mock data UI; not a priority.
+- Cross-request cache for branches: React cache() deduplicates within a request; `unstable_cache` / ISR considered but deferred pending Next.js 16 behavioral verification.
+- Target H (local refresh): no obvious safe wins found without deeper investigation.
+
+**Verification:**
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing with only 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- `pnpm build`: Passing, 80+ app routes compiled successfully.
+
+---
+
+### 2026-05-15 — Claude Code (Phase 2 Database Request Optimization)
+
+**Task:** PERF-PHASE2-001 — Phase 2 database request optimization
+
+**Files Created:**
+- `src/lib/queries/crm-context.ts` — Shared `getCrmContext()` helper for CRM page server components. Returns `{ role, branchId }` with owner getting `branchId: null` (cross-branch) and CRM/CSR roles getting their own `branch_id`.
+
+**Files Changed:**
+- `src/lib/queries/customers.ts` — Added `branchCustomerIds()` private helper. Added optional `branchId?: string | null` parameter to `searchCustomers`, `getAllCustomers`, `getRepeatCustomers`, `getLapsedCustomers`, `getCrmStats`. When provided, each function first fetches distinct customer IDs from `bookings` for that branch, then filters customers via `.in("id", ids)`. Owners pass `null` and get unfiltered results. Also added a comment on `lookupCustomerByPhone` explaining it is intentionally not branch-scoped.
+- `src/app/(dashboard)/crm/actions.ts` — `requireCrmAccess()` now returns `{ supabase, branchId: string | null } | null` (was `supabase | null`). Now fetches `branch_id` from staff record. Owner role maps to `branchId: null`. Updated all callers to destructure `ctx` and pass `ctx.branchId` to query functions.
+- `src/app/(dashboard)/crm/customers/page.tsx` — Replaced local `getCsrContext()` + direct supabase calls with imported `getCrmContext()`. Passes `branchId` to `getAllCustomers(page, 25, branchId)`.
+- `src/app/(dashboard)/crm/repeats/page.tsx` — Added `getCrmContext()` import and call. Passes `branchId` to `getRepeatCustomers(2, page, 25, branchId)`. (Also adds a missing auth check — this page had no auth before.)
+- `src/app/(dashboard)/crm/lapsed/page.tsx` — Added `getCrmContext()` import and call. Passes `branchId` to `getLapsedCustomers(30, 50, branchId)`. (Also adds a missing auth check — this page had no auth before.)
+- `src/app/api/customers/search/route.ts` — Now fetches `branch_id` from the staff record in addition to `system_role`. Derives `branchId` (null for owners, `me.branch_id` for others) and passes to `searchCustomers(q, branchId)`.
+- `src/lib/queries/staff.ts` — Added `.limit(500)` to both primary and fallback queries in `getAllStaff()`. Added `.limit(200)` to both queries in `getPendingStaff()`. Safety caps for the owner's cross-branch staff lists.
+- `src/lib/queries/bookings.ts` — Added `.limit(50)` to `getBookingsByCustomer()` (customer profile booking history). Added `.limit(500)` safety cap to `getAllBookings()` (owner day view) and `getAllBookingsOwner()` (owner cross-branch booking list).
+
+**What was intentionally NOT done in this phase:**
+- `select("*")` wildcard replacement in branches and staff queries: The staff queries use a backward-compat fallback pattern that would be fragile to refactor. The branches table is small and `select("*")` is fine there. Deferred.
+- Selective `revalidateTag` migration: Requires tagging all cached data and is a cross-cutting concern. The existing `revalidatePath` is correct. Deferred to Phase 3 if profiling shows stale-cache issues.
+- DB index recommendations: No profiling data available. Adding indexes without evidence would be speculative. Deferred.
+- `unstable_cache` / Next.js 16 `"use cache"` directive: Behavior in Next.js 16.2.4 was not verified. Deferred.
+
+**Verification:**
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing with only 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
+- `pnpm build`: Passing, 80+ app routes compiled successfully.
+
+---
+
+### 2026-05-15 — Claude (PERF-PHASE2B-001 — Query Pagination + Index Planning)
+
+**Task:** Phase 2B — Shared pagination utility, CRM customer paginated search, index audit.
+
+**Files Changed:**
+- `src/lib/queries/pagination.ts` (NEW) — Shared pagination helpers: `PaginationParams`, `PaginatedResult<T>`, `normalizePagination()`, `toPaginatedResult()`. Normalizes page/pageSize with safe bounds; wraps Supabase count responses.
+- `src/lib/queries/customers.ts` — Added `CustomerPageRow` exported type and `getCustomersPage()` function combining branch scoping + ILIKE search (with `%_` escaping) + server-side pagination via `.range(from, to)` with `count: "exact"`.
+- `src/app/(dashboard)/crm/customers/page.tsx` — Switched from `getAllCustomers` to `getCustomersPage`. Added `q` search param support. Added plain `<form method="GET">` search bar (no client state). Quick action cards hidden during active search. Pagination Prev/Next links now preserve `q` param via `encodeURIComponent`. EmptyState shows search-specific messaging.
+- `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md` (NEW) — Full audit of existing indexes from `20260429000002_indexes.sql`, identified `bookings(branch_id, customer_id)` as the key missing index for `branchCustomerIds()`, documented all bounded/unbounded queries.
+- `src/app/(dashboard)/dev/page.tsx` — Fixed pre-existing TS2367 errors (NODE_ENV type narrowing after `notFound()` guard). Extracted `nodeEnv` variable before the guard.
+- `src/lib/logger.ts` — Fixed pre-existing TS2345 errors by widening `LogContext` from `Record<string, string | number | boolean | null | undefined>` to `Record<string, unknown>` so `error: unknown` in catch blocks passes without casts.
+
+**Scope deliberately NOT changed:**
+- Booking list pages (manager/CRM/owner): already date+branch scoped, naturally bounded — no pagination needed.
+- Staff list pages: `StaffManagementWorkspace` uses client-side filtering on safety-capped (500/200) server results. Pagination would require UI redesign. Deferred.
+- `public-site.ts` list queries: CMS tables with owner-defined content — small by design, no limit needed.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
+- `pnpm build`: ✅ Passing, 79+ app routes compiled successfully

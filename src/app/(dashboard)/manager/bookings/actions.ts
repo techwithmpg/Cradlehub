@@ -75,6 +75,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
       .from("bookings")
       .select("branch_id, booking_date, start_time, end_time, type, delivery_type, resource_id")
       .eq("id", parsed.data.bookingId)
+      .eq("branch_id", me.branch_id)
       .single();
 
     if (booking && booking.delivery_type !== "home_service" && !booking.resource_id) {

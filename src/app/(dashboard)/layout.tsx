@@ -1,44 +1,20 @@
-export const dynamic = "force-dynamic";
-
-import { redirect }     from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { Sidebar }      from "@/components/features/dashboard/sidebar";
-import { Header }       from "@/components/features/dashboard/header";
+import { redirect } from "next/navigation";
+import { Sidebar }  from "@/components/features/dashboard/sidebar";
+import { Header }   from "@/components/features/dashboard/header";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { getLayoutStaffContext } from "@/lib/queries/staff-context";
+
+// force-dynamic is NOT set here — the layout is already dynamic because
+// createClient() calls cookies() from next/headers, which inherently opts
+// this segment into dynamic rendering on every request.
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const ctx = await getLayoutStaffContext();
+  if (!ctx) redirect("/login");
 
-  type LayoutStaff = {
-    full_name:   string;
-    system_role: string;
-    branch_id:   string;
-    branches:    { name: string } | { name: string }[] | null;
-  };
+  const { me } = ctx;
 
-  // Select only columns guaranteed to exist in every production deployment.
-  // avatar_url is NOT selected here — it requires the staff_avatars migration to be applied first.
-  const { data: meRaw, error: meError } = await supabase
-    .from("staff")
-    .select("full_name, system_role, branch_id, branches(name)")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (meError) {
-    console.error("[layout] staff lookup error", {
-      userId: user.id,
-      message: meError.message,
-      code: meError.code,
-    });
-  }
-
-  const me = meRaw as LayoutStaff | null;
-
-  // Dev bypass: if no staff record but dev mode is on, use a mock staff profile
-  // so developers can test dashboard pages without creating a full staff record.
+  // Dev bypass: if no staff record but dev mode is on, use a mock staff profile.
   const resolvedMe = me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
 
   if (!resolvedMe) redirect("/login");

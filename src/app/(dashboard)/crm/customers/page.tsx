@@ -1,50 +1,13 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { CustomerSegmentBadge } from "@/components/features/crm/customer-segment-badge";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
-import { createClient } from "@/lib/supabase/server";
-import { getAllCustomers } from "@/lib/queries/customers";
+import { getCustomersPage } from "@/lib/queries/customers";
+import type { CustomerPageRow } from "@/lib/queries/customers";
+import { getCrmContext } from "@/lib/queries/crm-context";
 import { formatDate } from "@/lib/utils";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 
-async function getCsrContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("branch_id, system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
-
-  if (!me && isDevAuthBypassEnabled()) {
-    return { role: "owner" };
-  }
-
-  if (!me || !allowedRoles.includes(me.system_role)) {
-    redirect("/login");
-  }
-
-  return { role: me.system_role };
-}
-
-type CustomerListItem = {
-  id: string;
-  full_name: string;
-  phone: string;
-  email: string | null;
-  total_bookings: number;
-  last_booking_date: string | null;
-  first_booking_date: string | null;
-  preferred_staff_id: string | null;
-  notes: string | null;
-  staff?: { id: string; full_name: string } | { id: string; full_name: string }[] | null;
-};
+type CustomerListItem = CustomerPageRow;
 
 function firstRelation<T>(relation: T | T[] | null | undefined): T | null {
   if (!relation) return null;
@@ -73,16 +36,18 @@ function daysSince(dateStr: string | null): number | null {
 export default async function CrmCustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
-  await getCsrContext();
+  const { branchId } = await getCrmContext();
   const resolvedSearchParams = await searchParams;
   const pageParam = Number(resolvedSearchParams.page ?? "1");
   const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+  const search = resolvedSearchParams.q?.trim() || undefined;
 
-  const { customers, total } = await getAllCustomers(page, 25);
-  const rows = customers as unknown as CustomerListItem[];
-  const totalPages = Math.max(1, Math.ceil(total / 25));
+  const result = await getCustomersPage({ branchId, search, page, pageSize: 25 });
+  const rows = result.data as CustomerListItem[];
+  const total = result.total;
+  const totalPages = result.pageCount;
 
   return (
     <div>
@@ -108,8 +73,62 @@ export default async function CrmCustomersPage({
         }
       />
 
-      {/* Quick action cards */}
-      <div
+      {/* Search bar */}
+      <form
+        method="GET"
+        action="/crm/customers"
+        style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}
+      >
+        <input
+          name="q"
+          type="search"
+          defaultValue={search ?? ""}
+          placeholder="Search by name or phone…"
+          style={{
+            flex: 1,
+            padding: "7px 12px",
+            borderRadius: 7,
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-surface)",
+            color: "var(--cs-text)",
+            fontSize: "0.875rem",
+          }}
+        />
+        <button
+          type="submit"
+          style={{
+            padding: "7px 14px",
+            borderRadius: 7,
+            border: "1px solid var(--cs-border)",
+            backgroundColor: "var(--cs-sand-mist)",
+            color: "var(--cs-sand)",
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Search
+        </button>
+        {search && (
+          <Link
+            href="/crm/customers"
+            style={{
+              padding: "7px 12px",
+              borderRadius: 7,
+              border: "1px solid var(--cs-border)",
+              backgroundColor: "var(--cs-surface)",
+              color: "var(--cs-text-muted)",
+              fontSize: "0.875rem",
+              textDecoration: "none",
+            }}
+          >
+            Clear
+          </Link>
+        )}
+      </form>
+
+      {/* Quick action cards — hidden when searching */}
+      {!search && <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
@@ -186,12 +205,12 @@ export default async function CrmCustomersPage({
             </div>
           </div>
         </Link>
-      </div>
+      </div>}
 
       {rows.length === 0 ? (
         <EmptyState
-          title="No customer records yet"
-          description="Customers will appear here automatically after bookings are created."
+          title={search ? "No customers match your search" : "No customer records yet"}
+          description={search ? `No results for "${search}". Try a different name or phone number.` : "Customers will appear here automatically after bookings are created."}
           icon="🌿"
         />
       ) : (
@@ -366,7 +385,7 @@ export default async function CrmCustomersPage({
             >
               {page > 1 && (
                 <Link
-                  href={`/crm/customers?page=${page - 1}`}
+                  href={`/crm/customers?page=${page - 1}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
                   style={{
                     padding: "5px 12px",
                     borderRadius: 6,
@@ -391,7 +410,7 @@ export default async function CrmCustomersPage({
               </span>
               {page < totalPages && (
                 <Link
-                  href={`/crm/customers?page=${page + 1}`}
+                  href={`/crm/customers?page=${page + 1}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
                   style={{
                     padding: "5px 12px",
                     borderRadius: 6,

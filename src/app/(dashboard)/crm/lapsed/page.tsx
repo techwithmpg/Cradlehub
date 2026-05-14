@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { CustomerSegmentBadge } from "@/components/features/crm/customer-segment-badge";
 import { getLapsedCustomers } from "@/lib/queries/customers";
+import { getCrmContext } from "@/lib/queries/crm-context";
 import { formatDate } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
 
@@ -24,7 +25,8 @@ const TAB_ITEMS = [
 ];
 
 export default async function LapsedPage() {
-  const customers = (await getLapsedCustomers(30, 50)) as LapsedCustomerItem[];
+  const { branchId } = await getCrmContext();
+  const customers = (await getLapsedCustomers(30, 50, branchId)) as LapsedCustomerItem[];
 
   return (
     <div>

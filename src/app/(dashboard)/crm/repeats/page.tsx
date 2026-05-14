@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { CustomerSegmentBadge } from "@/components/features/crm/customer-segment-badge";
 import { getRepeatCustomers } from "@/lib/queries/customers";
+import { getCrmContext } from "@/lib/queries/crm-context";
 import { formatDate } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
 
@@ -22,11 +23,12 @@ export default async function RepeatsPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
+  const { branchId } = await getCrmContext();
   const resolvedSearchParams = await searchParams;
   const pageParam = Number(resolvedSearchParams.page ?? "1");
   const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
 
-  const { customers, total } = await getRepeatCustomers(2, page, 25);
+  const { customers, total } = await getRepeatCustomers(2, page, 25, branchId);
   const rows = customers as RepeatCustomerItem[];
   const totalPages = Math.max(1, Math.ceil(total / 25));
 

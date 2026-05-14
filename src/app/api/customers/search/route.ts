@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("system_role")
+    .select("system_role, branch_id")
     .eq("auth_user_id", user.id)
     .single();
 
@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ customers: [] });
   }
 
-  const customers = await searchCustomers(q);
+  const branchId = me.system_role === "owner" ? null : me.branch_id;
+  const customers = await searchCustomers(q, branchId);
   return NextResponse.json({ customers });
 }

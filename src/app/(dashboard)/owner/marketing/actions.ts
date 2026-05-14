@@ -1,11 +1,32 @@
 "use server";
 
+import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
   createPublicSiteAsset,
   disablePublicSiteAsset,
   updatePublicSiteAsset,
   updatePublicSiteSection,
 } from "@/lib/queries/public-site";
+
+async function requireOwner() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return supabase;
+  }
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("system_role")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (me?.system_role !== "owner") return null;
+  return supabase;
+}
 
 export type MarketingActionState = {
   success?: boolean;
@@ -51,6 +72,7 @@ export async function saveMarketingSectionAction(
   formData: FormData
 ): Promise<MarketingActionState> {
   void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
   const sectionKey = text(formData, "sectionKey");
   const result = await updatePublicSiteSection({
     sectionKey,
@@ -78,6 +100,7 @@ export async function createMarketingAssetAction(
   formData: FormData
 ): Promise<MarketingActionState> {
   void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
   const result = await createPublicSiteAsset({
     sectionKey: text(formData, "sectionKey"),
     title: text(formData, "title"),
@@ -101,6 +124,7 @@ export async function updateMarketingAssetAction(
   formData: FormData
 ): Promise<MarketingActionState> {
   void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
   const result = await updatePublicSiteAsset({
     id: text(formData, "id"),
     sectionKey: text(formData, "sectionKey"),
@@ -125,6 +149,7 @@ export async function disableMarketingAssetAction(
   formData: FormData
 ): Promise<MarketingActionState> {
   void prevState;
+  if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
   const result = await disablePublicSiteAsset({
     id: text(formData, "id"),
   });

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 function isMissingServiceVisibilityError(message: string): boolean {
@@ -24,6 +25,9 @@ export async function getAllBranches() {
 // ── Public-facing branches (ordered for display) ───────────────────────────
 // Returns active branches sorted by sort_order then name.
 // Use this for all public site components instead of hardcoded arrays.
+// getPublicBranchesCached deduplicates calls within a single request render tree.
+export const getPublicBranchesCached = cache(getPublicBranches);
+
 export async function getPublicBranches() {
   const supabase = await createClient();
   const { data, error } = await supabase

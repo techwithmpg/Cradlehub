@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import type { LiveEtaData } from "@/lib/bookings/ops-warnings";
+import { logError } from "@/lib/logger";
 
 export type ActiveTripData = {
   id: string;
@@ -150,7 +151,8 @@ export async function getActiveTripsForOpsMap(): Promise<ActiveTripData[]> {
         live_eta: liveEta,
       };
     });
-  } catch {
+  } catch (error) {
+    logError("Failed to fetch active trips for ops map", { error, action: "ops.activeTrips" });
     return [];
   }
 }

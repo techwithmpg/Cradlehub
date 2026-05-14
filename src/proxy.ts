@@ -106,12 +106,14 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!staffRecord) {
-    console.log("[proxy] no active staff record", { pathname, userId: user.id });
+    console.log("[proxy] no active staff record", { pathname });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   const systemRole = staffRecord.system_role;
-  console.log("[proxy]", { pathname, userId: user.id, systemRole });
+  if (process.env.NODE_ENV === "development") {
+    console.debug("[proxy] workspace route", { pathname, systemRole });
+  }
 
   // Owner can access all workspaces for oversight/testing.
   if (systemRole === "owner") {

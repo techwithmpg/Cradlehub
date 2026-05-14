@@ -81,7 +81,8 @@ export async function getAllStaff() {
     .from("staff")
     .select("*, branches ( id, name )")
     .order("tier")
-    .order("full_name");
+    .order("full_name")
+    .limit(500);
 
   if (!primary.error) {
     return (primary.data ?? []).map((row) => injectStaffDefaults(row));
@@ -92,7 +93,8 @@ export async function getAllStaff() {
       .from("staff")
       .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
       .order("tier")
-      .order("full_name");
+      .order("full_name")
+      .limit(500);
 
     if (fallback.error) throw new Error(fallback.error.message);
     return (fallback.data ?? []).map((row) => injectStaffDefaults(row));
@@ -231,7 +233,8 @@ export async function getPendingStaff() {
     .from("staff")
     .select("*, branches ( id, name )")
     .eq("is_active", false)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(200);
 
   if (!primary.error) {
     return (primary.data ?? []).map((row) => injectStaffDefaults(row));
@@ -242,7 +245,8 @@ export async function getPendingStaff() {
       .from("staff")
       .select(`${STAFF_COLUMNS_LEGACY}, branches ( id, name )`)
       .eq("is_active", false)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(200);
 
     if (fallback.error) throw new Error(fallback.error.message);
     return (fallback.data ?? []).map((row) => injectStaffDefaults(row));

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -176,7 +177,8 @@ export async function getBranchBookingDriverIds(
       map[row.id] = (row as { id: string; driver_id?: string | null }).driver_id ?? null;
     }
     return map;
-  } catch {
+  } catch (error) {
+    logError("Failed to fetch booking driver IDs", { error, action: "booking.getDriverIds", branchId, date });
     return {};
   }
 }
@@ -196,7 +198,8 @@ export async function getAvailableBranchDrivers(
       .or("system_role.eq.driver,staff_type.eq.driver")
       .order("full_name");
     return (data ?? []).map((s) => ({ id: s.id, full_name: s.full_name }));
-  } catch {
+  } catch (error) {
+    logError("Failed to fetch available drivers", { error, action: "driver.getAvailable", branchId });
     return [];
   }
 }

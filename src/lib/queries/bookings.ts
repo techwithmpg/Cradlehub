@@ -415,7 +415,8 @@ export async function getAllBookings(filters?: {
       if (filters?.staffId) q = q.eq("staff_id", filters.staffId);
       const result = await q
         .order("booking_date", { ascending: false })
-        .order("start_time");
+        .order("start_time")
+        .limit(500);
       return result as QueryResult<BookingFullRow>;
     }
   );
@@ -450,7 +451,8 @@ export async function getBookingsByCustomer(customerId: string) {
         .from("bookings")
         .select(select)
         .eq("customer_id", customerId)
-        .order("booking_date", { ascending: false });
+        .order("booking_date", { ascending: false })
+        .limit(50);
       return result as QueryResult<BookingFullRow>;
     }
   );
@@ -617,7 +619,8 @@ export async function getAllBookingsOwner(filters?: {
 
   const { data, error } = await q
     .order("booking_date", { ascending: false })
-    .order("start_time");
+    .order("start_time")
+    .limit(500);
   if (error) throw new Error(error.message);
   return data ?? [];
 }

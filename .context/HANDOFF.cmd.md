@@ -1,47 +1,74 @@
-# HANDOFF — BOOKING-WIZARD-UX-10.2 Public Booking Wizard Optimization
+# HANDOFF — PERF-PHASE2B-001 Phase 2B Query Pagination + Index Planning
 
 ## Date
-2026-05-14
+2026-05-15
 
 ## What Changed
-- `/book` still renders `BookingWizard` directly and its home-service location step uses `PlacesAutocomplete` from `src/components/public/places-autocomplete.tsx`.
-- `PlacesAutocomplete` loads Google Maps JS without `libraries=places`, then calls `google.maps.importLibrary("places")` and instantiates `PlaceAutocompleteElement`.
-- The selected place payload includes formatted address, place ID, lat/lng, address components, map URL, and `source: "google_places"`.
-- `GoogleMapsProvider` no longer requests the legacy Places library and now standardizes on `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`.
 
-## Service Selection
-- `BookingServicePicker` in `src/components/public/booking-service-picker.tsx` groups services by category.
-- `src/components/public/booking-wizard.tsx` keeps the existing selected-services state and passes it into the picker.
-- Mobile shows horizontal category chips.
-- Desktop shows a compact category rail and one service list.
-- Only the active category is expanded; the full catalog is no longer shown at once.
-- Multi-service state, total duration, total price, and existing submission payload are preserved.
+### A — Shared pagination utility
+**New file:** `src/lib/queries/pagination.ts`
 
-## Staff Eligibility
-- New helper: `src/lib/staff/service-providers.ts`.
-- `src/app/api/public/booking-context/route.ts` returns:
-  - service category metadata
-  - filtered service-provider staff
-  - per-staff service IDs
-  - per-service mapping presence
-- `src/lib/engine/availability.ts` now strips non-service staff from availability and auto-assignment results.
-- Drivers and utility staff are hard-excluded by system role.
-- CSR/front-desk/admin/manager-only staff are excluded unless they are explicitly modeled as service staff by `staff_type`.
-- If `staff_services` mappings exist for a selected service, specific providers must be mapped to that service.
-- For multi-service bookings, selected specific staff must satisfy all mapped selected services.
+Exports:
+- `PaginationParams` — `{ page?: number; pageSize?: number }`
+- `PaginatedResult<T>` — `{ data: T[]; page: number; pageSize: number; total: number; pageCount: number }`
+- `normalizePagination(params, defaults?)` — clamps page ≥ 1, pageSize within [1, maxPageSize], returns `{ page, pageSize, from, to }` for Supabase `.range(from, to)`
+- `toPaginatedResult(args)` — wraps Supabase `{ data, count }` into `PaginatedResult`
 
-## Preserved
-- No payment changes.
-- No tracking, live map, driver tracking, payroll, auth, middleware, RLS, or booking-engine rewrite.
-- No database migration and no new packages.
-- In-spa and home-service payload shape remains backward-compatible.
+### B — CRM customer paginated search
+**Modified:** `src/lib/queries/customers.ts`
+- Added `CustomerPageRow` exported type (previously was a local type in the page component)
+- Added `getCustomersPage({ branchId?, search?, page?, pageSize? })` — branch scoping + ILIKE search (`%_` chars escaped) + server-side pagination with `count: "exact"`
+
+**Modified:** `src/app/(dashboard)/crm/customers/page.tsx`
+- Imports `getCustomersPage` + `CustomerPageRow` (dropped `getAllCustomers`)
+- Accepts `?q=` search param alongside `?page=`
+- Plain `<form method="GET" action="/crm/customers">` search bar — no client state needed
+- Quick action cards hidden during active search
+- `Prev`/`Next` pagination links preserve `q` param: `?page=N&q=${encodeURIComponent(search)}`
+- `EmptyState` shows search-specific title/description when `search` is set
+
+### C/D — Booking and staff list pages
+**No changes.** Booking list pages (`/manager/bookings`, `/crm/bookings`, `/owner/bookings`) are already scoped to one day + one branch — naturally bounded. Staff pages use client-side filtering on safety-capped (500/200) results. Both documented in `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`.
+
+### E — Index gap identified
+**New file:** `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`
+
+Key finding: `bookings(branch_id, customer_id)` index is missing. The `branchCustomerIds()` helper (called on every CRM page load that is branch-scoped) does:
+```sql
+SELECT customer_id FROM bookings WHERE branch_id = $1 AND customer_id IS NOT NULL
+```
+The existing `idx_bookings_branch_date` covers `(branch_id, booking_date)` but does NOT include `customer_id` — heap access is required. Recommended migration in the doc.
+
+### F — Pre-existing type errors fixed
+**Modified:** `src/app/(dashboard)/dev/page.tsx`
+- After `if (process.env.NODE_ENV === "production") { notFound() }`, TypeScript narrows `NODE_ENV` to `"development" | "test"`. Subsequent comparisons to `"production"` triggered TS2367. Fixed by extracting `const nodeEnv = process.env.NODE_ENV as string` before the guard.
+
+**Modified:** `src/lib/logger.ts`
+- `LogContext` was `Record<string, string | number | boolean | null | undefined>`. Action files pass `{ error: unknown, ...context }` to `logError`. TypeScript TS2345 because `unknown` doesn't satisfy the index signature. Fixed by widening `LogContext` to `Record<string, unknown>`.
 
 ## Verification
-- `pnpm type-check`: Passing.
-- `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
-- `pnpm build`: Passing.
-- `/book` smoke test: existing localhost server on port 3000 returned `200 OK`.
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
+- `pnpm build`: ✅ Passing, 79+ app routes compiled
 
-## Notes
-- Browser console verification for Google Places warnings was not possible from this toolset. Source search confirms no active legacy Places Autocomplete usage under `src`.
-- A temporary dev-server launch on port 3012 could not start because another Next dev server was already running for this repo on port 3000; the existing server was used for the `/book` smoke test.
+## What's Next — Phase 3 (suggested)
+
+### Selective Cache Invalidation
+- Replace broad `revalidatePath("/crm/customers")` calls with `revalidateTag` where safe.
+- Profile which pages are called frequently enough to benefit from caching.
+
+### DB Index
+Apply the `bookings(branch_id, customer_id)` covering index (see `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`):
+```sql
+CREATE INDEX IF NOT EXISTS idx_bookings_branch_customer
+  ON bookings (branch_id, customer_id)
+  WHERE customer_id IS NOT NULL;
+```
+
+### Stable Data Caching
+- `unstable_cache` or Next.js 16 `"use cache"` for branches list, services list — read-heavy, rarely changes.
+
+## Known Issues / Watch Points
+- The `branchCustomerIds()` two-step query fetches ALL bookings for a branch (no date filter) to get distinct customer IDs. For a high-volume branch, this could return tens of thousands of rows. The missing covering index mitigates the I/O cost; longer term, consider a `DISTINCT customer_id` RPC or materialized view.
+- `getCustomersPage()` with both `branchId` scoping AND `search` combines `.in("id", ids)` + `.or("phone.ilike...,full_name.ilike...")`. This is correct (AND semantics), but the `ids` array can be large for a busy branch — Supabase/PostgREST translates `.in()` to `WHERE id = ANY(...)` which is efficient with the existing `idx_customers_preferred_staff` index on `customers(id)` (the PK is always indexed).
+- Worktree does not have `.env.local` — copy from `E:/cradlehub/.env.local` before running `pnpm build` in the worktree. (The `.env.local` was copied as a build-time workaround and is gitignored.)

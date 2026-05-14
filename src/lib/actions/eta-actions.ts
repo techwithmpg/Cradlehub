@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { estimateTravelTime, isGoogleMapsEnabled } from "@/lib/maps/google-maps";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import type { LiveEtaData } from "@/lib/bookings/ops-warnings";
+import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 
 const ALLOWED_ROLES = [
@@ -182,7 +183,8 @@ export async function getNextBookingForStaff(
       .limit(1)
       .maybeSingle();
     return data ?? null;
-  } catch {
+  } catch (error) {
+    logError("Failed to get next booking for staff", { error, action: "booking.nextForStaff" });
     return null;
   }
 }

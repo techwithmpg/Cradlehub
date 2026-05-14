@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -132,7 +133,8 @@ export async function getLatestStaffLocationForBooking(
       .maybeSingle();
     if (!data) return null;
     return { lat: Number(data.lat), lng: Number(data.lng), recorded_at: data.recorded_at };
-  } catch {
+  } catch (error) {
+    logError("Failed to get latest staff location", { error, action: "location.latest", bookingId });
     return null;
   }
 }
@@ -182,7 +184,8 @@ export async function getLatestLocationsForActiveHomeServiceTrips(
       }
     }
     return result;
-  } catch {
+  } catch (error) {
+    logError("Failed to get locations for active trips", { error, action: "location.activeTrips", branchId, date });
     return {};
   }
 }
