@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { WorkflowTask } from "./types";
+import { logError } from "@/lib/logger";
 
 const PRIORITY_RANK: Record<string, number> = {
   critical: 4,
@@ -20,7 +21,7 @@ export async function getOpenWorkflowTasksAction(limit = 10): Promise<WorkflowTa
     .limit(Math.max(limit * 4, limit));
 
   if (error) {
-    console.error("[workflow_tasks] getOpenWorkflowTasks", error.message);
+    logError("workflow_task.query_failed", { action: "getOpenWorkflowTasks", error });
     return [];
   }
 

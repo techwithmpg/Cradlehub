@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, MoreHorizontal } from "lucide-react";
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { canCancelBooking, canChangeBookingStatus } from "@/lib/permissions";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 
 type BookingTransitionStatus = "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
 
@@ -66,6 +67,7 @@ export function BookingActionMenu({
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const { isOffline } = useNetworkStatus();
 
   const permittedActions = (TRANSITIONS[currentStatus] ?? []).filter((action) => {
     if (!userRole) return true;
@@ -90,12 +92,17 @@ export function BookingActionMenu({
   }
 
   function handleAction(status: BookingTransitionStatus) {
+    if (isOffline) {
+      setFeedback("You're offline — check your connection and try again.");
+      closeFeedbackAfterDelay();
+      return;
+    }
     setOpen(false);
     startTransition(async () => {
       const callAction = statusAction ?? updateBookingStatusAction;
       const result = await callAction({ bookingId, status });
       if (!result.success) {
-        setFeedback(result.error ?? "Failed to update booking");
+        setFeedback(result.error ?? "Failed to update. Check your connection and try again.");
         closeFeedbackAfterDelay();
         return;
       }
@@ -114,7 +121,7 @@ export function BookingActionMenu({
     }
   }
 
-  const triggerStyle = getTriggerButtonStyle(triggerVariant, fullWidth, isPending || !hasActions);
+  const triggerStyle = getTriggerButtonStyle(triggerVariant, fullWidth, isPending || !hasActions || isOffline);
   const menuLabel = triggerVariant === "icon" ? triggerAriaLabel ?? "Open booking actions" : triggerAriaLabel;
 
   return (
@@ -142,7 +149,7 @@ export function BookingActionMenu({
       <button
         type="button"
         onClick={handleTriggerClick}
-        disabled={isPending || !hasActions}
+        disabled={isPending || !hasActions || isOffline}
         style={triggerStyle}
         aria-haspopup={directAction ? undefined : "menu"}
         aria-expanded={directAction ? undefined : open}

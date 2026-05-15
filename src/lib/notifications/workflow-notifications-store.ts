@@ -8,6 +8,7 @@ import {
   OPEN_NOTIFICATION_STATUSES,
   validateSignalHref,
 } from "./workflow-dedupe";
+import { logError } from "@/lib/logger";
 
 function notificationPayload(input: CreateNotificationInput, dedupeKey: string) {
   return {
@@ -46,7 +47,7 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
 
   if (existing.data) {
     const { error } = await admin.from("workspace_notifications").update(payload).eq("id", existing.data.id);
-    if (error) console.error("[notifications] update failed", error.message);
+    if (error) logError("notification.update_failed", { type: input.type, error });
     return;
   }
 
@@ -56,7 +57,7 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
     await admin.from("workspace_notifications").update(payload).eq("dedupe_key", dedupeKey);
     return;
   }
-  console.error("[notifications] insert failed", { type: input.type, error: error.message });
+  logError("notification.insert_failed", { type: input.type, error });
 }
 
 export async function markNotificationResolved(input: MarkNotificationResolvedInput): Promise<void> {
@@ -76,5 +77,5 @@ export async function markNotificationResolved(input: MarkNotificationResolvedIn
   if (input.targetRole) query = query.eq("target_role", input.targetRole);
 
   const { error } = await query;
-  if (error) console.error("[notifications] resolve failed", error.message);
+  if (error) logError("notification.resolve_failed", { error });
 }

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { WorkspaceNotification } from "./types";
+import { logError } from "@/lib/logger";
 
 const PRIORITY_RANK: Record<string, number> = {
   critical: 4,
@@ -23,7 +24,7 @@ export async function getWorkspaceNotificationsAction(
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
-    console.error("[notifications] getWorkspaceNotifications", error.message);
+    logError("notification.query_failed", { action: "getWorkspaceNotifications", error });
     return [];
   }
   return (data ?? []) as WorkspaceNotification[];
@@ -41,7 +42,7 @@ export async function getActionRequiredNotificationsAction(
     .order("created_at", { ascending: false })
     .limit(Math.max(limit * 4, limit));
   if (error) {
-    console.error("[notifications] getActionRequired", error.message);
+    logError("notification.query_failed", { action: "getActionRequired", error });
     return [];
   }
   return ((data ?? []) as WorkspaceNotification[])
@@ -67,7 +68,7 @@ export async function getRecentNotificationsAction(
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
-    console.error("[notifications] getRecentNotifications", error.message);
+    logError("notification.query_failed", { action: "getRecentNotifications", error });
     return [];
   }
   return (data ?? []) as WorkspaceNotification[];
@@ -94,7 +95,7 @@ export async function getNotificationPopoverAction(
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
-    console.error("[notifications] getNotificationPopover", error.message);
+    logError("notification.query_failed", { action: "getNotificationPopover", error });
     return [];
   }
   return (data ?? []) as WorkspaceNotification[];

@@ -6,6 +6,7 @@ import { getAllBranches } from "@/lib/queries/branches";
 import { emitWorkflowEvent } from "@/lib/notifications/workflow-signals";
 import { mapPreferredRoleToStaffType } from "@/lib/staff/onboarding-roles";
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
+import { logError, logBusinessEvent } from "@/lib/logger";
 
 export type OnboardingFormState = {
   success?: boolean;
@@ -155,7 +156,11 @@ export async function submitStaffOnboardingAction(
 
   if (requestInsert.error) {
     // Non-fatal: staff row and auth user exist; request row is supplementary
-    console.error("Failed to create onboarding request row", requestInsert.error.message);
+    logError("staff.onboarding.request_row_failed", {
+      staffId,
+      branchId,
+      error: requestInsert.error,
+    });
   }
 
   // Emit one role-aware workflow signal for the new application.
@@ -170,6 +175,14 @@ export async function submitStaffOnboardingAction(
       requestedServiceIds: serviceIds,
     });
   }
+
+  logBusinessEvent("staff.onboarding.submitted", {
+    staffId,
+    branchId,
+    preferredRole,
+    serviceCount: serviceIds.length,
+    requestId: requestInsert.data?.id ?? null,
+  });
 
   return { success: true };
 }
@@ -279,6 +292,16 @@ export async function approveOnboardingAction(input: {
     actorStaffId: me.id,
   });
 
+  logBusinessEvent("staff.onboarding.approved", {
+    requestId: input.requestId,
+    staffId: input.staffId,
+    branchId: input.branchId,
+    actorId: me.id,
+    workspace: me.system_role,
+    systemRole: input.systemRole,
+    tier: input.tier,
+  });
+
   return { success: true };
 }
 
@@ -341,6 +364,15 @@ export async function rejectOnboardingAction(input: {
     applicantStaffId: request.staff_id ?? input.staffId,
     applicantName: request.full_name,
     actorStaffId: me.id,
+    rejectionReason: input.rejectionReason ?? null,
+  });
+
+  logBusinessEvent("staff.onboarding.rejected", {
+    requestId: input.requestId,
+    staffId: input.staffId,
+    branchId: request.requested_branch_id,
+    actorId: me.id,
+    workspace: me.system_role,
     rejectionReason: input.rejectionReason ?? null,
   });
 

@@ -52,7 +52,7 @@ export function ServiceCard({ service, onToggle, onDeleted }: Props) {
     startTransition(async () => {
       const result = await deleteServiceAction({ serviceId: service.id });
       if (!result.ok) {
-        console.error("[DELETE_SERVICE_FAILED]", result.message);
+        if (process.env.NODE_ENV === "development") console.error("[DELETE_SERVICE_FAILED]", result.message);
         alert("Could not delete service. Please try again.");
         return;
       }

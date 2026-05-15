@@ -22,17 +22,14 @@ import { checkHomeServiceDispatchConflict } from "@/lib/bookings/dispatch-confli
 import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
+import { logError, logBusinessEvent } from "@/lib/logger";
 
 export type CreateOnlineBookingResult =
   | { ok: true; bookingId: string }
   | { ok: false; code: string; message: string };
 
 function logBookingError(context: Record<string, unknown>, error: unknown) {
-  console.error("[ONLINE_BOOKING_CREATE_FAILED]", {
-    ...context,
-    error: error instanceof Error ? error.message : String(error),
-    stack: error instanceof Error ? error.stack : undefined,
-  });
+  logError("booking.online.failed", { action: "booking.online.create", ...context, error });
 }
 
 function toAddressComponentsJson(
@@ -214,6 +211,14 @@ export async function createOnlineBookingAction(
       }),
     ]);
 
+    logBusinessEvent("booking.online.submitted", {
+      branchId: d.branchId,
+      bookingId: booking.id,
+      customerId: resolvedCustomerId,
+      staffId: resolvedStaffId,
+      serviceId: d.serviceId,
+      bookingType: d.type,
+    });
     return { ok: true, bookingId: booking.id };
   } catch (err) {
     if (err instanceof SlotUnavailableError) {
@@ -548,6 +553,17 @@ export async function createOnlineBookingMultiAction(
 
     await Promise.all(notificationJobs);
 
+    logBusinessEvent("booking.online.submitted", {
+      branchId: d.branchId,
+      bookingIds: insertedIds,
+      bookingId: insertedIds[0],
+      customerId: resolvedCustomerId,
+      staffId: resolvedStaffId,
+      serviceIds: d.serviceIds,
+      bookingType: d.type,
+      deliveryType,
+      serviceCount: insertedIds.length,
+    });
     return { ok: true, bookingId: insertedIds[0]! };
   } catch (err) {
     if (err instanceof SlotUnavailableError) {

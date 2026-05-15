@@ -2,6 +2,7 @@ import "server-only";
 
 import type { CreateNotificationInput, NotificationWorkspace } from "./types";
 import { createOrUpdateNotification, markNotificationResolved } from "./workflow-signals";
+import { logError } from "@/lib/logger";
 
 // Fire-and-forget: logs errors but never throws so a notification failure
 // never rolls back the caller's main operation.
@@ -9,7 +10,7 @@ export async function createNotification(input: CreateNotificationInput): Promis
   try {
     await createOrUpdateNotification(input);
   } catch (err) {
-    console.error("[notifications] unexpected error", err);
+    logError("notification.create_failed", { type: input.type, error: err });
   }
 }
 
@@ -31,6 +32,6 @@ export async function resolveNotificationsForEntity(
   try {
     await markNotificationResolved({ entityType, entityId, targetWorkspace, type });
   } catch (err) {
-    console.error("[notifications] resolve unexpected error", err);
+    logError("notification.resolve_failed", { entityType, entityId, error: err });
   }
 }

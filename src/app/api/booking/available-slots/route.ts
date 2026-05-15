@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAvailableSlotsSchema } from "@/lib/validations/booking";
 import { getAvailableSlots, getAvailableSlotsMulti } from "@/lib/engine/availability";
+import { logError } from "@/lib/logger";
 
 const uuid = z.guid("Invalid ID");
 const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
       const slots = await getAvailableSlotsMulti(parsed.data);
       return NextResponse.json({ slots });
     } catch (error) {
-      console.error("[available-slots/multi] Error:", error);
+      logError("slots.query_failed", { path: "multi", error });
       const message = error instanceof Error ? error.message : "Failed to fetch available slots";
       return NextResponse.json({ error: message }, { status: 500 });
     }
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
     const slots = await getAvailableSlots(parsed.data);
     return NextResponse.json({ slots });
   } catch (error) {
-    console.error("[available-slots] Error:", error);
+    logError("slots.query_failed", { path: "single", error });
     const message = error instanceof Error ? error.message : "Failed to fetch available slots";
     return NextResponse.json({ error: message }, { status: 500 });
   }

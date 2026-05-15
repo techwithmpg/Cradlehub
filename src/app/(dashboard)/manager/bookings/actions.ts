@@ -12,6 +12,7 @@ import type { Database } from "@/types/supabase";
 import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
+import { logError, logBusinessEvent } from "@/lib/logger";
 
 // ── Auth helper ────────────────────────────────────────────────────────────
 async function getOperationsContext() {
@@ -111,7 +112,25 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     .eq("id", parsed.data.bookingId)
     .eq("branch_id", me.branch_id); // RLS-equivalent guard
 
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    logError("booking.status.change_failed", {
+      action: "booking.status.update",
+      bookingId: parsed.data.bookingId,
+      nextStatus: parsed.data.status,
+      actorId: me.id,
+      workspace: me.system_role,
+      error,
+    });
+    return { success: false, error: error.message };
+  }
+
+  logBusinessEvent("booking.status.changed", {
+    bookingId: parsed.data.bookingId,
+    branchId: me.branch_id,
+    actorId: me.id,
+    workspace: me.system_role,
+    nextStatus: parsed.data.status,
+  });
 
   // Notify the assigned therapist on cancel or customer_arrived
   if (bookingBefore?.staff_id) {

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { revalidatePath } from "next/cache";
+import { logBusinessEvent } from "@/lib/logger";
 import {
   SchedulingRulesUpsertSchema,
   ApproveSuggestionSchema,
@@ -66,6 +67,7 @@ export async function upsertSchedulingRulesAction(rawInput: unknown) {
 
   revalidatePath("/manager/settings");
   revalidatePath("/manager");
+  logBusinessEvent("scheduling.rules_updated", { branchId, actorId: ctx.me.id, workspace: ctx.me.system_role });
   return { success: true };
 }
 
@@ -187,6 +189,12 @@ export async function approveSuggestionAction(rawInput: unknown) {
   revalidatePath("/manager");
   revalidatePath("/manager/scheduling");
   revalidatePath("/staff-portal/schedule");
+  logBusinessEvent("scheduling.suggestion_approved", {
+    suggestionId: parsed.data.suggestion_id,
+    branchId: ctx.me.branch_id,
+    actorId: ctx.me.id,
+    workspace: ctx.me.system_role,
+  });
   return { success: true };
 }
 
@@ -225,5 +233,11 @@ export async function rejectSuggestionAction(rawInput: unknown) {
 
   revalidatePath("/manager");
   revalidatePath("/manager/scheduling");
+  logBusinessEvent("scheduling.suggestion_rejected", {
+    suggestionId: parsed.data.suggestion_id,
+    branchId: ctx.me.branch_id,
+    actorId: ctx.me.id,
+    workspace: ctx.me.system_role,
+  });
   return { success: true };
 }

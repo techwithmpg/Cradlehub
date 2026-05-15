@@ -10,6 +10,7 @@ import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { SlotUnavailableError } from "@/types/errors";
 import { revalidatePath } from "next/cache";
+import { logError, logBusinessEvent } from "@/lib/logger";
 
 export async function createWalkinBookingAction(rawInput: unknown) {
   const parsed = createWalkinBookingSchema.safeParse(rawInput);
@@ -152,6 +153,14 @@ export async function createWalkinBookingAction(rawInput: unknown) {
 
     if (bookErr || !booking) throw new Error("Failed to create booking");
 
+    logBusinessEvent("booking.walkin.created", {
+      branchId,
+      bookingId: booking.id,
+      serviceId: d.serviceId,
+      staffId: d.staffId,
+      bookingType: d.type,
+    });
+
     revalidatePath("/manager");
     revalidatePath("/manager/bookings");
 
@@ -160,7 +169,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     if (err instanceof SlotUnavailableError) {
       return { success: false, error: err.message };
     }
-    console.error("[createWalkin] Error:", err);
+    logError("booking.walkin.failed", { action: "booking.walkin.create", error: err });
     return { success: false, error: "Something went wrong. Please try again." };
   }
 }

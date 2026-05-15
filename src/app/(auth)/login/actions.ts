@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDefaultDashboardPath } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { logError } from "@/lib/logger";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -63,12 +64,9 @@ export async function loginAction(
     .maybeSingle();
 
   if (staffError) {
-    console.error("Staff lookup failed during login", {
+    logError("auth.staff_lookup_failed", {
       userId: user.id,
-      email: user.email,
-      message: staffError.message,
-      code: staffError.code,
-      details: staffError.details,
+      error: staffError,
     });
 
     await supabase.auth.signOut();

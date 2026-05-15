@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 import { Car, MapPin, Play, CheckCircle2, ClipboardCheck, UserX } from "lucide-react";
 import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
 import {
@@ -69,6 +70,7 @@ type BookingProgressActionsProps = {
 export function BookingProgressActions({ booking }: BookingProgressActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const { isOffline } = useNetworkStatus();
   const currentStatus = booking.booking_progress_status;
   const nextStatus = getNextBookingProgressStatus({
     bookingType: (booking.delivery_type ?? "in_spa") as "home_service" | "in_spa",
@@ -77,11 +79,11 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
   const isTerminal = isBookingProgressTerminal(currentStatus);
 
   function handleAdvance(status: BookingProgressStatus) {
-    if (isPending) return;
+    if (isPending || isOffline) return;
     startTransition(async () => {
       const result = await updateBookingProgressAction({ bookingId: booking.id, nextStatus: status });
       if (!result.ok) {
-        alert(result.message);
+        alert(result.message + (isOffline ? " Check your connection and try again." : ""));
       } else {
         router.refresh();
       }
@@ -166,7 +168,7 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
         {nextStatus && !isTerminal && (
           <button
             onClick={() => handleAdvance(nextStatus)}
-            disabled={isPending}
+            disabled={isPending || isOffline}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -177,8 +179,8 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
               fontWeight: 600,
               borderRadius: "var(--cs-r-md)",
               border: "none",
-              cursor: isPending ? "not-allowed" : "pointer",
-              opacity: isPending ? 0.6 : 1,
+              cursor: isPending || isOffline ? "not-allowed" : "pointer",
+              opacity: isPending || isOffline ? 0.6 : 1,
               backgroundColor: "var(--cs-staff-accent)",
               color: "#fff",
               transition: "all var(--cs-duration) var(--cs-ease)",
@@ -196,7 +198,7 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
           (currentStatus === "not_started" || currentStatus === "checked_in") && (
             <button
               onClick={() => handleAdvance("no_show")}
-              disabled={isPending}
+              disabled={isPending || isOffline}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -207,8 +209,8 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
                 fontWeight: 600,
                 borderRadius: "var(--cs-r-md)",
                 border: "1px solid var(--cs-border-strong)",
-                cursor: isPending ? "not-allowed" : "pointer",
-                opacity: isPending ? 0.6 : 1,
+                cursor: isPending || isOffline ? "not-allowed" : "pointer",
+                opacity: isPending || isOffline ? 0.6 : 1,
                 backgroundColor: "var(--cs-surface)",
                 color: "var(--cs-text-muted)",
                 transition: "all var(--cs-duration) var(--cs-ease)",

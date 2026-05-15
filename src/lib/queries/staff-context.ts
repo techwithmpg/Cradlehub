@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { logError } from "@/lib/logger";
 
 export type LayoutStaffContext = {
   user: { id: string };
@@ -29,10 +30,7 @@ export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext 
     .maybeSingle();
 
   if (error) {
-    console.error("[staff-context] staff lookup error", {
-      message: error.message,
-      code: error.code,
-    });
+    logError("staff_context.lookup_failed", { error });
   }
 
   return { user: { id: user.id }, me: me ?? null };

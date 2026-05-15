@@ -13,6 +13,7 @@ import {
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 
 import { revalidatePath } from "next/cache";
+import { logError, logBusinessEvent } from "@/lib/logger";
 
 // ── Resolve authenticated staff record ────────────────────────────────────
 async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
@@ -32,10 +33,9 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
     .maybeSingle();
 
   if (meError) {
-    console.error("[staff-portal] staff lookup error", {
+    logError("staff_portal.staff_lookup_failed", {
       userId: user.id,
-      message: meError.message,
-      code: meError.code,
+      error: meError,
     });
   }
 
@@ -316,6 +316,14 @@ export async function updateBookingProgressAction({
   });
 
   if (rpcError) {
+    logError("staff_progress.update_failed", {
+      bookingId,
+      actorId: me.id,
+      branchId: booking.branch_id,
+      currentStatus,
+      nextStatus,
+      error: rpcError,
+    });
     return {
       ok: false,
       code: "DATABASE_ERROR",
@@ -341,6 +349,16 @@ export async function updateBookingProgressAction({
       timestamp,
     };
   }
+
+  logBusinessEvent("staff_progress.updated", {
+    bookingId,
+    branchId: booking.branch_id,
+    actorId: me.id,
+    workspace: me.system_role,
+    previousStatus: currentStatus,
+    nextStatus,
+    bookingType,
+  });
 
   return {
     ok: true,

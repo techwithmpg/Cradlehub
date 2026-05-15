@@ -3,6 +3,7 @@ import "server-only";
 import { createOrUpdateNotification, markNotificationResolved } from "./workflow-notifications-store";
 import { createOrUpdateWorkflowTask, resolveWorkflowTask } from "./workflow-task-store";
 import { buildNotificationDedupeKey } from "./workflow-dedupe";
+import { logError } from "@/lib/logger";
 
 export {
   buildNotificationDedupeKey,
@@ -145,6 +146,6 @@ export async function emitWorkflowEvent(event: WorkflowSignalEvent): Promise<voi
     }
     await emitStaffOnboardingReviewed(event);
   } catch (error) {
-    console.error("[workflow-signals] emit failed", error);
+    logError("workflow_signal.emit_failed", { eventType: event.eventType, error });
   }
 }

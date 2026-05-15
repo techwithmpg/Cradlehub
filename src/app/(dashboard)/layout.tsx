@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Sidebar }  from "@/components/features/dashboard/sidebar";
 import { Header }   from "@/components/features/dashboard/header";
+import { OfflineBanner } from "@/components/shared/offline-banner";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 
@@ -25,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       height:     "100vh",
       background: "var(--cs-bg)",
     }}>
+      <OfflineBanner />
       <Sidebar
         role={resolvedMe.system_role}
         fullName={resolvedMe.full_name}

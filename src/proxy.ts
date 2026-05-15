@@ -3,6 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { logError } from "@/lib/logger";
 
 /** Maps system_role → default dashboard workspace prefix */
 function resolveWorkspace(systemRole: string): string {
@@ -77,7 +78,6 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    console.log("[proxy] no user session", { pathname });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -96,17 +96,11 @@ export async function proxy(request: NextRequest) {
     .maybeSingle();
 
   if (staffError) {
-    console.error("[proxy] staff lookup error", {
-      pathname,
-      userId: user.id,
-      message: staffError.message,
-      code: staffError.code,
-    });
+    logError("proxy.staff_lookup_failed", { pathname, userId: user.id, error: staffError });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   if (!staffRecord) {
-    console.log("[proxy] no active staff record", { pathname });
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -140,7 +134,6 @@ export async function proxy(request: NextRequest) {
 
   // Redirect to the right workspace if they're at the wrong one
   if (correctWorkspace && !pathname.startsWith(correctWorkspace)) {
-    console.log("[proxy] wrong workspace redirect", { pathname, systemRole, correctWorkspace });
     return NextResponse.redirect(new URL(correctWorkspace, request.url));
   }
 

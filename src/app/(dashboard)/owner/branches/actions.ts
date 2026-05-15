@@ -5,6 +5,7 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { createBranchSchema, updateBranchSchema } from "@/lib/validations/branch";
 import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
+import { logBusinessEvent } from "@/lib/logger";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -77,6 +78,7 @@ export async function createBranchAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   invalidateTag(cacheTags.publicBranches);
   revalidatePath("/owner/branches");
+  logBusinessEvent("branch.created", { branchId: data.id });
   return { success: true, branchId: data.id };
 }
 
@@ -106,6 +108,7 @@ export async function updateBranchAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   invalidateTag(cacheTags.publicBranches);
   revalidatePath("/owner/branches");
+  logBusinessEvent("branch.updated", { branchId });
   return { success: true };
 }
 
@@ -152,6 +155,7 @@ export async function toggleBranchActiveAction(branchId: string, isActive: boole
   invalidateTag(cacheTags.publicBranches);
   revalidatePath("/owner/branches");
   revalidatePath("/owner");
+  logBusinessEvent("branch.toggled", { branchId, isActive });
   return { success: true };
 }
 
@@ -173,6 +177,7 @@ export async function removeBranchServiceAction(branchId: string, serviceId: str
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
   revalidatePath("/owner/services");
+  logBusinessEvent("branch_service.removed", { branchId, serviceId });
   return { success: true };
 }
 
@@ -203,6 +208,7 @@ export async function addBranchServiceAction(
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
   revalidatePath("/owner/services");
+  logBusinessEvent("branch_service.added", { branchId, serviceId });
   return { success: true };
 }
 
@@ -227,6 +233,7 @@ export async function updateBranchServiceEligibilityAction(
   const { revalidatePath } = await import("next/cache");
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath(`/owner/branches/${branchId}`);
+  logBusinessEvent("branch_service.eligibility_updated", { branchId, serviceId, availableInSpa, availableHomeService });
   return { success: true };
 }
 
@@ -252,6 +259,7 @@ export async function updateBranchServicePriceAction(
   const { revalidatePath } = await import("next/cache");
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
+  logBusinessEvent("branch_service.price_updated", { branchId, serviceId });
   return { success: true };
 }
 
@@ -278,6 +286,7 @@ export async function updateBranchServiceVisibilityAction(
   // Visibility change affects the public booking wizard's service list.
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath(`/owner/branches/${branchId}`);
+  logBusinessEvent("branch_service.visibility_updated", { branchId, serviceId, visibility });
   return { success: true };
 }
 

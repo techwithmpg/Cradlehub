@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
+import { OfflineBanner } from "@/components/shared/offline-banner";
 import { getPublicBranchesCached } from "@/lib/queries/branches";
 import {
   BUSINESS_NAME,
@@ -51,6 +52,7 @@ export default async function PublicLayout({ children }: { children: React.React
 
   return (
     <div className="sp-public">
+      <OfflineBanner />
       <SiteHeader primaryPhone={primaryPhone} />
       <main>{children}</main>
       <SiteFooter branches={branches} />

@@ -27,7 +27,7 @@ export function ServiceStatusToggle({ serviceId, serviceName, isActive, onToggle
       if (!result.ok) {
         // Revert on failure
         setChecked(!next);
-        console.error("[TOGGLE_SERVICE_FAILED]", result.message);
+        if (process.env.NODE_ENV === "development") console.error("[TOGGLE_SERVICE_FAILED]", result.message);
         return;
       }
 

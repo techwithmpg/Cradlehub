@@ -11,7 +11,10 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    if (process.env.NODE_ENV === "development") {
+      console.error(error);
+    }
+    // error.digest correlates with the Next.js server-side error log in production
   }, [error]);
 
   return (

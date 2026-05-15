@@ -19,6 +19,7 @@ import { geocodeAddress, buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps
 import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
+import { logError, logBusinessEvent } from "@/lib/logger";
 
 type CreateInhouseBookingResult =
   | { ok: true; bookingId: string }
@@ -60,11 +61,7 @@ function computeEndTimeLocal(startTime: string, totalMinutes: number): string | 
 }
 
 function logBookingError(context: Record<string, unknown>, error: unknown) {
-  console.error("[CRM_BOOKING_CREATE_FAILED]", {
-    ...context,
-    error: error instanceof Error ? error.message : String(error),
-    stack: error instanceof Error ? error.stack : undefined,
-  });
+  logError("booking.crm.failed", { action: "booking.crm.create", ...context, error });
 }
 
 export async function createInhouseBookingMultiAction(
@@ -533,6 +530,20 @@ export async function createInhouseBookingMultiAction(
     }
 
     await Promise.all(notificationJobs);
+
+    logBusinessEvent("booking.crm.created", {
+      branchId: resolvedBranchId,
+      bookingIds: insertedIds,
+      bookingId: insertedIds[0],
+      customerId: resolvedCustomerId,
+      staffId: resolvedStaffId,
+      serviceIds: d.serviceIds,
+      bookingType: d.type,
+      deliveryType,
+      actorId: staff?.id ?? "dev-bypass",
+      workspace: staff?.system_role ?? "dev",
+      serviceCount: insertedIds.length,
+    });
 
     revalidatePath("/crm");
     revalidatePath("/crm/bookings/new");

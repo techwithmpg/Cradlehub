@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 import Image from "next/image";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -259,6 +260,7 @@ export function BookingWizard({
   initialCustomer?: InitialCustomer | null;
 } = {}) {
   const [step, setStep] = useState(1);
+  const { isOffline } = useNetworkStatus();
 
   // Data
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -560,6 +562,10 @@ export function BookingWizard({
 
   const handleSubmit = useCallback(async () => {
     if (!selectedBranch || selectedServices.length === 0 || !selectedDate || !selectedSlot) return;
+    if (isOffline) {
+      setFormError("You're offline. Check your connection and try again.");
+      return;
+    }
     if (!isVisitTypeEnabled(visitType, bookingRules)) {
       const option = VISIT_TYPE_OPTIONS[visitType];
       const message = `${option.label} is not available for this branch. Please choose another visit type.`;
@@ -645,10 +651,17 @@ export function BookingWizard({
       setSuccess({ bookingId: result.bookingId });
       setStep(successStep);
     } else {
-      toast.error("Booking failed", { description: result.message });
-      setFormError(result.message);
+      const isNetworkError =
+        result.message.toLowerCase().includes("fetch") ||
+        result.message.toLowerCase().includes("network") ||
+        result.message.toLowerCase().includes("failed to");
+      const description = isNetworkError
+        ? "Check your connection and try again."
+        : result.message;
+      toast.error("Booking failed", { description });
+      setFormError(description);
     }
-  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaffForBooking, form, mode, isHomeService, successStep]);
+  }, [selectedBranch, selectedServices, selectedDate, selectedSlot, visitType, bookingRules, selectedStaffForBooking, form, mode, isHomeService, successStep, isOffline]);
 
   const preciseHomeServiceLocationSelected = isPreciseHomeServiceLocation(form);
   const preciseLocationRequired = mode === "public" && isHomeService;
@@ -942,10 +955,10 @@ export function BookingWizard({
                 ) : (
                   <button
                     onClick={handleSubmit}
-                    disabled={!canProceed || submitting}
+                    disabled={!canProceed || submitting || isOffline}
                     className={[
                       "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
-                      canProceed
+                      canProceed && !isOffline
                         ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
                         : "bg-[#EDE4D3] text-[#9AA89A]",
                     ].join(" ")}

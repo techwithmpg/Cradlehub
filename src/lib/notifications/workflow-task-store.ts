@@ -8,6 +8,7 @@ import {
   taskDedupeKey,
   validateSignalHref,
 } from "./workflow-dedupe";
+import { logError } from "@/lib/logger";
 
 function taskPayload(input: CreateWorkflowTaskInput, dedupeKey: string) {
   return {
@@ -47,7 +48,7 @@ export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput)
       .from("workflow_tasks")
       .update(payload)
       .eq("id", existing.data.id);
-    if (error) console.error("[workflow_tasks] update failed", error.message);
+    if (error) logError("workflow_task.update_failed", { taskType: input.taskType, error });
     return;
   }
 
@@ -57,7 +58,7 @@ export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput)
     await admin.from("workflow_tasks").update(payload).eq("dedupe_key", dedupeKey);
     return;
   }
-  console.error("[workflow_tasks] insert failed", { taskType: input.taskType, error: error.message });
+  logError("workflow_task.insert_failed", { taskType: input.taskType, error });
 }
 
 export async function resolveWorkflowTask(input: ResolveWorkflowTaskInput): Promise<void> {
@@ -71,5 +72,5 @@ export async function resolveWorkflowTask(input: ResolveWorkflowTaskInput): Prom
     })
     .eq("dedupe_key", taskDedupeKey(input))
     .in("status", [...OPEN_TASK_STATUSES]);
-  if (error) console.error("[workflow_tasks] resolve failed", error.message);
+  if (error) logError("workflow_task.resolve_failed", { error });
 }
