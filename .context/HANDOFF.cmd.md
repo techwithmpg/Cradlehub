@@ -1,86 +1,104 @@
-# HANDOFF — PERF-PHASE3-001 Phase 3 Selective Revalidation and Cache Tags
+# HANDOFF — PERF-PHASE4-001 Offline / Poor Connectivity Resilience
 
 ## Date
 2026-05-15
 
 ## What Changed
 
-### Cache tag infrastructure
-**New file:** `src/lib/cache/cache-tags.ts`
+### Network status hook
+**New file:** `src/hooks/use-network-status.ts`
 
+Uses `useSyncExternalStore` (React 18) — the idiomatic API for subscribing to browser external stores:
 ```ts
-export const cacheTags = {
-  publicBranches: "public-branches",
-  branchBookingRules: (branchId: string) => `branch-booking-rules:${branchId}`,
-  branchServices: (branchId: string) => `branch-services:${branchId}`,
-};
-
-// Wrapper: Next.js 16 revalidateTag() requires second profile arg.
-// Pass {} (empty CacheLifeConfig) — works for both unstable_cache and "use cache" entries.
-export function invalidateTag(tag: string): void {
-  revalidateTag(tag, {});
-}
+const isOnline = useSyncExternalStore(
+  subscribeToNetwork,       // subscribe fn: attaches online/offline listeners
+  () => navigator.onLine,  // client snapshot
+  () => true               // server snapshot (assume online, no hydration mismatch)
+);
 ```
+`wasOffline` and `lastChangedAt` are tracked separately via `useEffect` + event callbacks (not synchronous setState, passes the `react-hooks/set-state-in-effect` lint rule).
 
-### Domain 1 — Public branches
-**Modified:** `src/lib/queries/branches.ts`
-- `getPublicBranchesCached` upgraded from `cache(getPublicBranches)` (per-request React dedup only) to `cache(unstable_cache(...))` (cross-request data cache + per-request dedup).
-- The `unstable_cache` wrapper uses `createAdminClient()` internally — no cookie dependency, safe for cross-request caching.
-- Tag: `public-branches`, TTL: 3600s.
-- **New:** `getBranchServicesPublicCached(branchId)` — `unstable_cache` with `createAdminClient()`, queries `branch_services` with `is_active=true AND booking_visibility='public'`. Tag: `branch-services:{branchId}`, TTL: 300s.
+### Offline banner
+**New file:** `src/components/shared/offline-banner.tsx`
 
-### Domain 2 — Branch booking rules
-**Modified:** `src/lib/queries/branch-booking-rules.ts`
-- **New:** `getBranchBookingRulesOrDefaultCached(branchId)` — wraps existing function with `unstable_cache`. The underlying query already uses `createAdminClient()`. Tag: `branch-booking-rules:{branchId}`, TTL: 3600s.
-- `updateBranchBookingRules` (the mutation) now calls `invalidateTag(cacheTags.branchBookingRules(branchId))` before the existing `revalidatePath` calls.
+Fixed-position, `z-index: 9999`. No CSS modules or Tailwind — uses inline styles for guaranteed stacking. Two states:
+- **Offline:** charcoal `#1C1917` bg, amber text, `WifiOff` icon, `aria-live="assertive"`
+- **Back online:** green `#14532D` bg, `aria-live="polite"`
+- **Idle (never disconnected):** renders nothing
 
-### Hot paths updated
-- `src/app/api/public/booking-context/route.ts` — Uses `getBranchServicesPublicCached` when `publicOnly=true`, `getBranchBookingRulesOrDefaultCached` always. Inhouse mode keeps uncached `getBranchServices`.
-- `src/app/api/public/dispatch-slots/route.ts` — Uses `getBranchBookingRulesOrDefaultCached`.
+### Layout mounts
+- `src/app/(dashboard)/layout.tsx` — `<OfflineBanner />` first child of outer flex container.
+- `src/app/(public)/layout.tsx` — `<OfflineBanner />` before `<SiteHeader>`.
 
-### Mutations updated (tag invalidation added)
-- `src/app/(dashboard)/owner/branches/actions.ts` — All 8 mutations now call `invalidateTag` for either `publicBranches` (branch CRUD) or `branchServices(branchId)` (service toggles/prices/visibility).
-- `src/app/(dashboard)/owner/services/actions.ts` — `setBranchServiceAction` now calls `invalidateTag(cacheTags.branchServices(d.branchId))`.
+Both layouts are Server Components that render this Client Component child — App Router handles the boundary automatically.
+
+### Write-path protection
+
+#### `src/components/public/booking-wizard.tsx`
+- `useNetworkStatus()` destructures `isOffline`.
+- `handleSubmit` — early-return guard at the top:
+  ```ts
+  if (isOffline) {
+    setFormError("You're offline. Check your connection and try again.");
+    return;
+  }
+  ```
+- "Confirm Booking" button: `disabled={!canProceed || submitting || isOffline}`.
+- On server action failure: if message contains "fetch"/"network"/"failed to", shows "Check your connection and try again." instead of raw server message.
+- `isOffline` added to `handleSubmit` `useCallback` dependency array.
+- Covers both `mode="public"` (public booking wizard) and `mode="inhouse"` (CRM booking).
+
+#### `src/components/features/dashboard/booking-action-menu.tsx`
+- `useNetworkStatus()` destructures `isOffline`.
+- `handleAction` short-circuits before `startTransition`:
+  ```ts
+  if (isOffline) {
+    setFeedback("You're offline — check your connection and try again.");
+    closeFeedbackAfterDelay();
+    return;
+  }
+  ```
+- Trigger button: `disabled={isPending || !hasActions || isOffline}`.
+- `getTriggerButtonStyle` call: `isPending || !hasActions || isOffline`.
+- On action failure: error message = `result.error ?? "Failed to update. Check your connection and try again."`.
+- Used by: manager today page, bookings table, CRM control console, schedule timeline details panel.
+
+#### `src/components/features/staff-portal/booking-progress-actions.tsx`
+- `useNetworkStatus()` destructures `isOffline`.
+- `handleAdvance` early-returns when `isPending || isOffline`.
+- Advance button: `disabled={isPending || isOffline}`, cursor/opacity updated.
+- No-show button: `disabled={isPending || isOffline}`, cursor/opacity updated.
+
+### `public/sw.js` — Confirmed unchanged
+Self-unregisters on `activate`, deletes all caches, notifies clients. No changes made.
 
 ## Verification
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
-- `pnpm build`: ✅ Passing, 79+ routes
+- `pnpm build`: ✅ Passing, 79 routes
 
 ## What Was Intentionally NOT Changed
 
 | Excluded | Reason |
 |---|---|
-| `getBranchesOverview` | Live stats (today's bookings, active staff) — must be fresh every request |
-| `getBranchWithFullDetail` | Owner edit page; includes live staff list |
-| All booking list queries | Live operational data; wrong to cache |
-| Dispatch, schedule, ETA, location | High-frequency live data |
-| Manager/CRM service list (inhouse) | Role-dependent; not safe to cache globally |
-| Notification, payroll, reconciliation | Never appropriate to cache |
-
-## Stale Data Windows
-
-| Data | Max stale window | Trigger for fresh data |
-|---|---|---|
-| Public branches | 3600s (1h) or until `invalidateTag("public-branches")` | Any branch create/update/toggle |
-| Booking rules | 3600s or until `invalidateTag("branch-booking-rules:{id}")` | Save booking rules action |
-| Public services | 300s (5min) or until `invalidateTag("branch-services:{id}")` | Add/remove/toggle/price/visibility service action |
-
-These windows are acceptable: booking rules and branch settings change rarely (owner-initiated), not continuously.
+| `staff-weekly-hours-editor.tsx` | Owner-only, rare action, banner covers it |
+| `branch-services-panel.tsx` | Owner-only CRUD, banner covers it |
+| `reconciliation-form.tsx` | Internal finance tool, banner covers it |
+| `waitlist-queue.tsx` | Low-frequency, banner covers it |
+| `onboarding-form.tsx` | One-time use, banner covers it |
+| Service worker / background sync | `sw.js` intentionally self-unregisters; no persistent queue |
+| Optimistic UI with rollback | Not requested; actions are gated at the boundary |
 
 ## Next Phase Options
 
-### Phase 4 — Offline / Poor Connectivity Resilience
-- Service Worker strategy for the staff portal and booking wizard
-- Background sync for failed booking submissions
-- Optimistic UI for status updates
+### Phase 5 — Background Sync (if needed)
+- Workbox Background Sync for failed booking submissions.
+- Persistent optimistic state in staff portal with rollback on failure.
 
-### Phase 3B — Revalidation Follow-up (if needed)
-If manual testing shows stale data issues:
-- Consider reducing TTL for branch services (currently 300s)
-- Consider adding `invalidateTag(cacheTags.branchServices(branchId))` to any other place that modifies `branch_services`
+### Phase 3B — Revalidation follow-up (if cache stale data observed)
+- Reduce `branchServices` TTL below 300s.
+- Apply `bookings(branch_id, customer_id)` index from `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`.
 
 ## Known Watch Points
-- `resources-actions.ts` — manages `branch_resources` (not services). Currently revalidates `/owner/branches` and `/owner/branches/${branchId}` but does NOT call `invalidateTag(cacheTags.branchServices)` because branch resources are not cached. This is correct — branch resources are not part of the cached service list.
-- `_getPublicBranchesUncached` is exported as a private symbol (prefixed `_`). It is the raw `unstable_cache` result. Public callers should use `getPublicBranchesCached` (React.cache wrapped).
-- The `getBranchServicesPublicCached` cached function only caches `publicOnly: true`. If CRM/manager service selection ever switches to using this function instead of the uncached `getBranchServices`, recheck the query — it must remain public-only.
+- `useNetworkStatus` tracks device connectivity, not server reachability. If the server is down but Wi-Fi is connected, `isOffline` is `false` and actions will proceed to a server error — the retry-friendly copy on action failures handles this gracefully.
+- The `wasOffline` "back online" banner does not auto-dismiss. It stays visible until the user navigates away or refreshes. This is intentional — the user should be aware connectivity was restored so they know it's safe to retry.

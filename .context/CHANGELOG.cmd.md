@@ -591,3 +591,31 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
 - `pnpm build`: ✅ Passing, 79+ app routes compiled
+
+---
+
+### 2026-05-15 — Claude (PERF-PHASE4-001 — Offline / Poor Connectivity Resilience)
+
+**Task:** Phase 4 — Protect all write-path flows from silent failures when the device has no connectivity.
+
+**Files Created:**
+- `src/hooks/use-network-status.ts` — `useNetworkStatus()` hook using `useSyncExternalStore` (React 18) to subscribe to `navigator.onLine` / `online` / `offline` events. Returns `{ isOnline, isOffline, wasOffline, lastChangedAt }`. Server snapshot returns `true` (assume online). No hydration mismatch.
+- `src/components/shared/offline-banner.tsx` — `"use client"` fixed-position banner (`z-index: 9999`). Two states: offline (dark charcoal, `WifiOff` icon, `aria-live="assertive"`) and back-online (dark green, `aria-live="polite"`). Renders nothing when connectivity never changed.
+- `docs/audits/OFFLINE_RESILIENCE_PLAN.md` — Full implementation plan documenting each target, what was protected, what was intentionally excluded, and next steps.
+
+**Files Modified:**
+- `src/app/(dashboard)/layout.tsx` — Imports and renders `<OfflineBanner />` inside the outer flex container (renders before Sidebar + Header).
+- `src/app/(public)/layout.tsx` — Imports and renders `<OfflineBanner />` before `<SiteHeader>`.
+- `src/components/public/booking-wizard.tsx` — Added `useNetworkStatus()`. `handleSubmit` early-returns with "You're offline. Check your connection and try again." when `isOffline`. "Confirm Booking" button `disabled={!canProceed || submitting || isOffline}`. Network-error server responses show retry-friendly message.
+- `src/components/features/dashboard/booking-action-menu.tsx` — Added `useNetworkStatus()`. `handleAction` short-circuits when `isOffline`, sets inline feedback with retry message. Trigger button disabled when offline. Action failure copy includes "Check your connection and try again."
+- `src/components/features/staff-portal/booking-progress-actions.tsx` — Added `useNetworkStatus()`. `handleAdvance` early-returns when `isPending || isOffline`. Both action buttons (advance + no-show) disabled when offline. Cursor/opacity styles updated.
+
+**Components NOT changed (low priority, covered by banner):**
+- `staff-weekly-hours-editor.tsx`, `branch-services-panel.tsx`, `reconciliation-form.tsx`, `waitlist-queue.tsx`, `onboarding-form.tsx`
+
+**`public/sw.js`:** Confirmed self-unregistering — no changes made.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
+- `pnpm build`: ✅ Passing, 79 routes

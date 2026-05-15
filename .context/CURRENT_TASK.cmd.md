@@ -1,39 +1,43 @@
-# CURRENT TASK: PERF-PHASE3-001 — Selective Revalidation and Cache Tags
+# CURRENT TASK: PERF-PHASE4-001 — Offline / Poor Connectivity Resilience
 
 ## Status
 Completed on 2026-05-15.
 
 ## Completed Scope
 
-### Cache infrastructure
-- `src/lib/cache/cache-tags.ts` — tag constants + `invalidateTag()` wrapper for Next.js 16's `revalidateTag(tag, profile)` API.
+### Hook
+- `src/hooks/use-network-status.ts` — `useNetworkStatus()` hook using `useSyncExternalStore`. Tracks `navigator.onLine` + `online`/`offline` events. Returns `{ isOnline, isOffline, wasOffline, lastChangedAt }`. No hydration mismatch.
 
-### Cached queries (3 domains)
-1. **Public branches** (`getPublicBranchesCached`) — upgraded from React.cache (per-request dedup only) to `React.cache(unstable_cache(...))`. Cross-request 1h TTL. Tag: `public-branches`.
-2. **Branch booking rules** (`getBranchBookingRulesOrDefaultCached`) — new `unstable_cache` wrapper around the existing admin-client query. 1h TTL. Tag: `branch-booking-rules:{branchId}`.
-3. **Branch services — public view** (`getBranchServicesPublicCached`) — new function using `createAdminClient()` inside `unstable_cache`. 5min TTL. Tag: `branch-services:{branchId}`.
+### Banner
+- `src/components/shared/offline-banner.tsx` — Fixed-position `"use client"` banner. Offline state: dark charcoal + `WifiOff` icon + `aria-live="assertive"`. Back-online state: dark green + `aria-live="polite"`. Disappears while online and connectivity never changed.
 
-### Hot paths using cached queries
-- `/api/public/booking-context` — uses `getBranchServicesPublicCached` + `getBranchBookingRulesOrDefaultCached` for the public booking flow (publicOnly=true). Inhouse mode (publicOnly=false) keeps uncached path.
-- `/api/public/dispatch-slots` — uses `getBranchBookingRulesOrDefaultCached`.
+### Layout mounts
+- `src/app/(dashboard)/layout.tsx` — `<OfflineBanner />` rendered inside outer flex container.
+- `src/app/(public)/layout.tsx` — `<OfflineBanner />` rendered before `<SiteHeader>`.
 
-### Tag invalidation wired to all mutations
-- Branch create/update/toggle → `invalidateTag(cacheTags.publicBranches)`
-- Branch service add/remove/eligibility/price/visibility → `invalidateTag(cacheTags.branchServices(branchId))`
-- Booking rules save → `invalidateTag(cacheTags.branchBookingRules(branchId))`
-- `setBranchServiceAction` in services/actions.ts → `invalidateTag(cacheTags.branchServices(d.branchId))`
+### Protected write paths
+1. **Public booking wizard** (`booking-wizard.tsx`) — `handleSubmit` early-returns offline. "Confirm Booking" disabled when `isOffline`. Retry-friendly error on server failures.
+2. **CRM inhouse booking** — same `BookingWizard` component in `mode="inhouse"`, covered automatically.
+3. **Manager booking status update** (`booking-action-menu.tsx`) — `handleAction` short-circuits offline. Trigger button disabled. Feedback copy includes retry hint.
+4. **Staff portal progress actions** (`booking-progress-actions.tsx`) — `handleAdvance` early-returns offline. Both buttons disabled + styled when offline.
+
+### Docs
+- `docs/audits/OFFLINE_RESILIENCE_PLAN.md` — Full implementation plan, rationale, exclusions, next steps.
+
+### `public/sw.js`
+Confirmed self-unregistering — no changes.
 
 ## Verification
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
-- `pnpm build`: ✅ Passing, 79+ routes
+- `pnpm build`: ✅ Passing, 79 routes
 
-## Next Phase
-**Phase 4 — Offline / Poor Connectivity Resilience**
-OR
-**Phase 3B — Revalidation Follow-up** if cache behavior turns out to be unstable.
+## Next Phase Options
 
-### Pre-Phase 4 checklist
-- Manually verify: change booking rules → confirm manager settings + public booking wizard show updated rules.
-- Manually verify: toggle branch service visibility → confirm public booking wizard service list updates.
-- Apply the `bookings(branch_id, customer_id)` index from `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md` when ready.
+### Phase 5 — Background Sync (if needed)
+- Service Worker with Workbox Background Sync queue for failed booking submissions.
+- Persistent optimistic state in staff portal with rollback on error.
+
+### Phase 3B — Revalidation Follow-up (if cache behavior is unstable)
+- Reduce TTL for branch services if stale data is observed.
+- Apply the `bookings(branch_id, customer_id)` index from `docs/audits/QUERY_INDEX_RECOMMENDATIONS.md`.
