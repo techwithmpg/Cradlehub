@@ -5,6 +5,7 @@ import { getDriverTodayTrips } from "@/lib/actions/driver-actions";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { DriverTripList } from "@/components/features/driver/driver-trip-list";
 import { DriverMobileHome } from "@/components/features/driver/driver-mobile-home";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 async function requireDriverRecord() {
   const supabase = await createClient();
@@ -15,7 +16,7 @@ async function requireDriverRecord() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("id, full_name, branch_id, system_role")
+    .select("id, full_name, nickname, branch_id, system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -25,6 +26,7 @@ async function requireDriverRecord() {
       return {
         id: "00000000-0000-0000-0000-000000000000",
         full_name: "Dev Driver",
+        nickname: null,
         branch_id: "00000000-0000-0000-0000-000000000000",
         system_role: "driver",
       };
@@ -87,7 +89,11 @@ export default async function DriverPanelPage() {
       service_name: first(t.services)?.name ?? "Service",
       service_duration: first(t.services)?.duration_minutes ?? null,
       customer_name: first(t.customers)?.full_name ?? "Customer",
-      therapist_name: first((t.staff as unknown) as { id: string; full_name: string } | { id: string; full_name: string }[] | null)?.full_name ?? null,
+      therapist_name: first((t.staff as unknown) as { id: string; full_name: string; nickname?: string | null } | { id: string; full_name: string; nickname?: string | null }[] | null)
+        ? getStaffAdminName(
+            first((t.staff as unknown) as { id: string; full_name: string; nickname?: string | null } | { id: string; full_name: string; nickname?: string | null }[] | null)!
+          )
+        : null,
       hs_address: typeof hsAddr.full_address === "string" ? hsAddr.full_address : null,
       hs_city: typeof hsAddr.city === "string" ? hsAddr.city : null,
       hs_zone: typeof hsAddr.zone === "string" ? hsAddr.zone : null,
@@ -101,7 +107,7 @@ export default async function DriverPanelPage() {
       <div className="hidden md:block">
         <PageHeader
           title="Driver Panel"
-          description={`${me.full_name} · ${formatDate(new Date())}`}
+          description={`${getStaffAdminName(me)} · ${formatDate(new Date())}`}
           icon="🚗"
         />
 

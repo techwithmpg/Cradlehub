@@ -157,3 +157,5 @@
 | 2026-05-13 | Logged STAFF-ORG-001 staff organization/access model fix | Track full staff edit role/function separation, driver/utility/service role exposure, manager-safe RBAC, and conditional service capability behavior | Codex |
 | 2026-05-14 | Logged NOTIF-001 premium workflow signal foundation | Track deduped workflow task layer, staff onboarding routing cleanup, manager attention strip, and quiet bell grouping | Codex |
 | 2026-05-14 | Logged BOOKING-WIZARD-UX-10.2 public booking wizard optimization | Track modern Places-only active booking path, compact category service picker, and qualified service-provider staff filtering | Codex |
+| 2026-05-15 | Logged STAFF-NICKNAME-001 staff/therapist nicknames | Track optional `staff.nickname`, public nickname-first booking display, and internal full-name-plus-nickname manager/CRM/owner displays | Codex |
+| 2026-05-15 | Logged DISPATCH-LIVE-001 manager dispatch live data wiring | Remove production mock dispatch data and connect `/manager/dispatch` to real branch-scoped Supabase dispatch query data | Codex |

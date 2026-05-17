@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 export type DailyScheduleBooking = {
   id: string;
@@ -31,6 +32,33 @@ export type DailyScheduleStaffRow = {
   blocks: DailyScheduleBlock[];
 };
 
+type ScheduleStaffNameRow = {
+  id: string;
+  full_name: string;
+  nickname: string | null;
+};
+
+async function loadStaffNameMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  staffIds: string[]
+): Promise<Map<string, string>> {
+  if (staffIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("staff")
+    .select("id, full_name, nickname")
+    .in("id", staffIds);
+
+  if (error) return new Map();
+
+  return new Map(
+    ((data ?? []) as ScheduleStaffNameRow[]).map((staff) => [
+      staff.id,
+      getStaffAdminName(staff),
+    ])
+  );
+}
+
 export async function getDailySchedule(params: {
   branchId: string;
   date: string;
@@ -47,10 +75,14 @@ export async function getDailySchedule(params: {
   }
 
   const rows = data ?? [];
+  const staffIds = Array.from(
+    new Set(rows.map((row) => row.staff_id).filter((id): id is string => Boolean(id)))
+  );
+  const staffNameMap = await loadStaffNameMap(supabase, staffIds);
 
   return rows.map((r) => ({
     staff_id: r.staff_id,
-    staff_name: r.staff_name,
+    staff_name: staffNameMap.get(r.staff_id) ?? r.staff_name,
     staff_tier: r.staff_tier,
     work_start: r.work_start,
     work_end: r.work_end,

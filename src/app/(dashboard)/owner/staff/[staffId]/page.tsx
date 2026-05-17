@@ -4,6 +4,7 @@ import { getAllStaff } from "@/lib/queries/staff";
 import { getAllBranches } from "@/lib/queries/branches";
 import { getAllServices } from "@/lib/queries/services";
 import { getStaffServices } from "@/lib/queries/staff";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { Database } from "@/types/supabase";
 import { StaffEditForm } from "@/components/features/staff/staff-edit-form";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
@@ -47,7 +48,7 @@ export default async function StaffDetailPage({
   return (
     <div style={{ maxWidth: 760 }}>
       <PageHeader
-        title={staffMember.full_name}
+        title={getStaffAdminName(staffMember)}
         description={`${readBranchName(staffMember.branches)} · ${staffMember.system_role}`}
       />
       <StaffEditForm

@@ -6,6 +6,7 @@ import { StaffScheduleToolbar } from "./staff-schedule-toolbar";
 import { StaffScheduleList, type StaffScheduleItem } from "./staff-schedule-list";
 import { StaffScheduleDetailPanel } from "./staff-schedule-detail-panel";
 import { isScheduled } from "@/lib/utils/staff-schedule-summary";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { ScheduleFilter, ScheduleSort } from "./staff-schedule-toolbar";
 
 type Props = {
@@ -32,10 +33,11 @@ export function StaffSchedulePageClient({ items }: Props) {
     const q = search.trim().toLowerCase();
     if (q) {
       result = result.filter((item) => {
-        const name = item.staff.full_name.toLowerCase();
+        const name = getStaffAdminName(item.staff).toLowerCase();
+        const nickname = (item.staff.nickname ?? "").toLowerCase();
         const role = (item.staff.staff_type ?? "").toLowerCase();
         const tier = (item.staff.tier ?? "").toLowerCase();
-        return name.includes(q) || role.includes(q) || tier.includes(q);
+        return name.includes(q) || nickname.includes(q) || role.includes(q) || tier.includes(q);
       });
     }
 
@@ -64,13 +66,13 @@ export function StaffSchedulePageClient({ items }: Props) {
     // Sort
     result.sort((a, b) => {
       if (sort === "name") {
-        return a.staff.full_name.localeCompare(b.staff.full_name);
+        return getStaffAdminName(a.staff).localeCompare(getStaffAdminName(b.staff));
       }
       // tier
       const tierA = TIER_ORDER[a.staff.tier ?? ""] ?? 99;
       const tierB = TIER_ORDER[b.staff.tier ?? ""] ?? 99;
       if (tierA !== tierB) return tierA - tierB;
-      return a.staff.full_name.localeCompare(b.staff.full_name);
+      return getStaffAdminName(a.staff).localeCompare(getStaffAdminName(b.staff));
     });
 
     return result;

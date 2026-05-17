@@ -8,6 +8,7 @@ import { formatTime } from "@/lib/utils";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import { StaffMobileBottomNav } from "./staff-mobile-bottom-nav";
+import { getStaffDisplayName } from "@/lib/staff/display-name";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,8 @@ function TopBar({ staff }: { staff: StaffPortalStaff }) {
 // ── Greeting card ─────────────────────────────────────────────────────────────
 
 function GreetingCard({ staff, totalBookings }: { staff: StaffPortalStaff; totalBookings: number }) {
-  const firstName = staff.full_name.split(" ")[0] ?? staff.full_name;
+  const preferredName = getStaffDisplayName(staff);
+  const firstName = preferredName.split(" ")[0] ?? preferredName;
   const todayLabel = new Date().toLocaleDateString("en-PH", {
     weekday: "long",
     month: "long",

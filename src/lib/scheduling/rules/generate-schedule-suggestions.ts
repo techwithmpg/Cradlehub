@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getSchedulingRules } from "./get-scheduling-rules";
 import { evaluateScheduleHealth } from "./evaluate-schedule-health";
 import { suggestBreakBlock, suggestTravelBuffer, suggestRoomResetBuffer } from "./generate-routine-blocks";
+import { getStaffAdminName } from "@/lib/staff/display-name";
+import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import type { Json } from "@/types/supabase";
 import type {
   DailyCoverageSnapshot,
@@ -29,7 +31,7 @@ export async function generateScheduleSuggestions(
   const { data: staffRows } = await supabase
     .from("staff")
     .select(
-      `id, full_name, system_role, staff_type,
+      `id, full_name, nickname, system_role, staff_type,
        staff_schedules!inner(day_of_week, start_time, end_time, is_active)`,
     )
     .eq("branch_id", branchId)
@@ -47,12 +49,15 @@ export async function generateScheduleSuggestions(
   const { data: bookingRows } = await supabase
     .from("bookings")
     .select(
-      `id, staff_id, start_time, end_time, type, status,
+      `id, staff_id, start_time, end_time, type, status, hold_expires_at,
        services(name)`,
     )
     .eq("branch_id", branchId)
-    .eq("booking_date", date)
-    .not("status", "in", "(cancelled,no_show)");
+    .eq("booking_date", date);
+  const now = new Date();
+  const activeBookingRows = (bookingRows ?? []).filter((booking) =>
+    bookingBlocksAvailability(booking, now)
+  );
 
   // ── Load blocked times ────────────────────────────────────
   const staffIds = staffRows?.map((s) => s.id) ?? [];
@@ -79,7 +84,7 @@ export async function generateScheduleSuggestions(
     const shiftStart = override?.start_time ?? todaySchedule.start_time ?? null;
     const shiftEnd   = override?.end_time   ?? todaySchedule.end_time   ?? null;
 
-    const staffBookings = (bookingRows ?? []).filter((b) => b.staff_id === s.id);
+    const staffBookings = activeBookingRows.filter((b) => b.staff_id === s.id);
     const staffBlocks   = (blockedRows  ?? []).filter((b) => b.staff_id === s.id);
 
     const existingBlocks: TimeBlock[] = [
@@ -105,7 +110,7 @@ export async function generateScheduleSuggestions(
 
     scheduledStaff.push({
       staff_id:            s.id,
-      full_name:           s.full_name,
+      full_name:           getStaffAdminName(s),
       system_role:         s.system_role,
       staff_type:          s.staff_type ?? null,
       is_day_off:          isDayOff,
@@ -117,7 +122,7 @@ export async function generateScheduleSuggestions(
     });
   }
 
-  const bookings: BookingDayInfo[] = (bookingRows ?? []).map((b) => ({
+  const bookings: BookingDayInfo[] = activeBookingRows.map((b) => ({
     booking_id:   b.id,
     staff_id:     b.staff_id ?? null,
     start_time:   b.start_time ?? "",

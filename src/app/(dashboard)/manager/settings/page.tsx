@@ -1,12 +1,9 @@
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
-import { BranchBookingRulesForm } from "@/app/(dashboard)/owner/branches/[branchId]/branch-booking-rules-form";
-import { BranchServicesPanel } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
+import { ManagerSettingsWorkspace } from "@/components/features/manager-settings/manager-settings-workspace";
 import { getMyBranchBookingRulesAction } from "@/app/(dashboard)/owner/branches/actions";
 import { createClient } from "@/lib/supabase/server";
 import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
 import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
-import { SchedulingRulesForm } from "@/components/features/scheduling/scheduling-rules-form";
 import type { GlobalService, ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 
 async function getAllActiveServices(): Promise<GlobalService[]> {
@@ -33,33 +30,12 @@ export default async function ManagerSettingsPage() {
   const schedulingRules = await getSchedulingRules(branchId);
 
   return (
-    <div>
-      <PageHeader
-        title="Branch Settings"
-        description="Manage booking rules, service availability, and scheduling automation for your branch"
-      />
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "1.5rem",
-          alignItems: "start",
-        }}
-      >
-        <BranchBookingRulesForm rules={rules} />
-
-        <BranchServicesPanel
-          branchId={branchId}
-          services={services as ServiceLite[]}
-          allServices={allServices}
-          isOwner={false}
-        />
-      </div>
-
-      <div style={{ marginTop: "1.5rem" }}>
-        <SchedulingRulesForm rules={schedulingRules} />
-      </div>
-    </div>
+    <ManagerSettingsWorkspace
+      branchId={branchId}
+      bookingRules={rules}
+      services={services as ServiceLite[]}
+      allServices={allServices}
+      schedulingRules={schedulingRules}
+    />
   );
 }

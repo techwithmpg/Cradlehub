@@ -1,13 +1,18 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AvailabilitySlot } from "@/types";
 import { SlotUnavailableError } from "@/types/errors";
-import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
+import {
+  canActAsBookingServiceProvider,
+  staffTypeCanPerformService,
+  type ServiceCapabilityContext,
+} from "@/lib/staff/service-providers";
 import {
   filterPastSlotsForDate,
   rangesOverlap,
   timeToMinutes,
   toLocalYmd,
 } from "./slot-time";
+import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 
 type StaffProviderRow = {
   id: string;
@@ -22,6 +27,38 @@ type StaffServiceRow = {
   service_id: string;
 };
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+type CategoryRelation = { name: string | null } | { name: string | null }[] | null;
+
+type ServiceTiming = ServiceCapabilityContext & {
+  id: string;
+  durationMinutes: number;
+  bufferBefore: number;
+  bufferAfter: number;
+};
+
+type StaffScheduleRow = {
+  staff_id: string;
+  start_time: string;
+  end_time: string;
+};
+
+type ScheduleOverrideRow = {
+  staff_id: string;
+  start_time: string | null;
+  end_time: string | null;
+  is_day_off: boolean;
+};
+
+type BlockingBookingRow = {
+  staff_id: string;
+  start_time: string;
+  end_time: string;
+  status: string | null;
+  hold_expires_at: string | null;
+};
+
 function isMissingStaffProviderColumnError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -29,6 +66,177 @@ function isMissingStaffProviderColumnError(message: string): boolean {
     (lower.includes("does not exist") ||
       lower.includes("schema cache") ||
       lower.includes("could not find"))
+  );
+}
+
+function isMissingBranchServiceDurationColumnError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("custom_duration_minutes") &&
+    (lower.includes("does not exist") ||
+      lower.includes("schema cache") ||
+      lower.includes("could not find"))
+  );
+}
+
+function firstCategoryName(value: CategoryRelation | undefined): string | null {
+  if (!value) return null;
+  const category = Array.isArray(value) ? value[0] : value;
+  return category?.name ?? null;
+}
+
+function dayOfWeekFromYmd(date: string): number {
+  const [year = "0", month = "1", day = "1"] = date.split("-");
+  return new Date(Number(year), Number(month) - 1, Number(day)).getDay();
+}
+
+function uniqueSlotsByStaffAndTime(slots: AvailabilitySlot[]): AvailabilitySlot[] {
+  const seen = new Set<string>();
+  const out: AvailabilitySlot[] = [];
+
+  for (const slot of slots) {
+    const key = `${slot.staff_id}:${slot.slot_time}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(slot);
+  }
+
+  return out;
+}
+
+async function getServiceTimings(
+  supabase: AdminClient,
+  branchId: string,
+  serviceIds: string[]
+): Promise<Map<string, ServiceTiming>> {
+  if (serviceIds.length === 0) return new Map();
+
+  const { data: services, error } = await supabase
+    .from("services")
+    .select(
+      "id, name, duration_minutes, buffer_before, buffer_after, service_categories ( name )"
+    )
+    .in("id", serviceIds);
+
+  if (error) throw new Error(`Failed to fetch service timings: ${error.message}`);
+
+  let customDurations = new Map<string, number>();
+  const overrides = await supabase
+    .from("branch_services")
+    .select("service_id, custom_duration_minutes")
+    .eq("branch_id", branchId)
+    .in("service_id", serviceIds);
+
+  if (!overrides.error) {
+    customDurations = new Map(
+      ((overrides.data ?? []) as unknown as Array<{
+        service_id: string;
+        custom_duration_minutes?: number | null;
+      }>)
+        .filter((row) => typeof row.custom_duration_minutes === "number")
+        .map((row) => [row.service_id, row.custom_duration_minutes as number])
+    );
+  } else if (!isMissingBranchServiceDurationColumnError(overrides.error.message)) {
+    throw new Error(`Failed to fetch branch service durations: ${overrides.error.message}`);
+  }
+
+  return new Map(
+    ((services ?? []) as Array<{
+      id: string;
+      name: string;
+      duration_minutes: number;
+      buffer_before: number;
+      buffer_after: number;
+      service_categories?: CategoryRelation;
+    }>).map((service) => [
+      service.id,
+      {
+        id: service.id,
+        name: service.name,
+        categoryName: firstCategoryName(service.service_categories),
+        durationMinutes:
+          customDurations.get(service.id) ?? service.duration_minutes,
+        bufferBefore: service.buffer_before,
+        bufferAfter: service.buffer_after,
+      },
+    ])
+  );
+}
+
+function totalBlockMinutes(
+  serviceIds: string[],
+  serviceTimings: Map<string, ServiceTiming>
+): number {
+  return serviceIds.reduce((sum, serviceId) => {
+    const timing = serviceTimings.get(serviceId);
+    if (!timing) return sum;
+    return sum + timing.durationMinutes + timing.bufferBefore + timing.bufferAfter;
+  }, 0);
+}
+
+async function filterSlotsToWorkingWindows(params: {
+  supabase: AdminClient;
+  date: string;
+  slots: AvailabilitySlot[];
+  totalBlockMinutes: number;
+}): Promise<AvailabilitySlot[]> {
+  if (params.slots.length === 0) return params.slots;
+  if (params.totalBlockMinutes <= 0) return uniqueSlotsByStaffAndTime(params.slots);
+
+  const staffIds = Array.from(new Set(params.slots.map((slot) => slot.staff_id)));
+  const dayOfWeek = dayOfWeekFromYmd(params.date);
+
+  const [schedulesResult, overridesResult] = await Promise.all([
+    params.supabase
+      .from("staff_schedules")
+      .select("staff_id, start_time, end_time")
+      .in("staff_id", staffIds)
+      .eq("day_of_week", dayOfWeek)
+      .eq("is_active", true),
+    params.supabase
+      .from("schedule_overrides")
+      .select("staff_id, start_time, end_time, is_day_off")
+      .in("staff_id", staffIds)
+      .eq("override_date", params.date),
+  ]);
+
+  if (schedulesResult.error) {
+    throw new Error(`Staff schedule query failed: ${schedulesResult.error.message}`);
+  }
+  if (overridesResult.error) {
+    throw new Error(`Schedule override query failed: ${overridesResult.error.message}`);
+  }
+
+  const schedulesByStaff = new Map<string, StaffScheduleRow>();
+  for (const row of (schedulesResult.data ?? []) as StaffScheduleRow[]) {
+    const existing = schedulesByStaff.get(row.staff_id);
+    if (!existing || row.start_time < existing.start_time) {
+      schedulesByStaff.set(row.staff_id, row);
+    }
+  }
+
+  const overridesByStaff = new Map<string, ScheduleOverrideRow>();
+  for (const row of (overridesResult.data ?? []) as ScheduleOverrideRow[]) {
+    overridesByStaff.set(row.staff_id, row);
+  }
+
+  return uniqueSlotsByStaffAndTime(
+    params.slots.filter((slot) => {
+      const override = overridesByStaff.get(slot.staff_id);
+      if (override?.is_day_off) return false;
+
+      const startTime = override?.start_time ?? schedulesByStaff.get(slot.staff_id)?.start_time;
+      const endTime = override?.end_time ?? schedulesByStaff.get(slot.staff_id)?.end_time;
+
+      if (!startTime || !endTime) return false;
+
+      const slotStart = timeToMinutes(slot.slot_time);
+      const workStart = timeToMinutes(startTime);
+      const workEnd = timeToMinutes(endTime);
+      const slotEnd = slotStart + params.totalBlockMinutes;
+
+      return slotStart >= workStart && slotEnd <= workEnd;
+    })
   );
 }
 
@@ -87,6 +295,7 @@ async function filterSlotsForQualifiedProviders(params: {
   branchId: string;
   serviceIds: string[];
   slots: AvailabilitySlot[];
+  serviceTimings: Map<string, ServiceTiming>;
 }): Promise<AvailabilitySlot[]> {
   if (params.slots.length === 0 || params.serviceIds.length === 0) return params.slots;
 
@@ -104,8 +313,26 @@ async function filterSlotsForQualifiedProviders(params: {
   }
 
   const staffById = new Map(staffRows.map((member) => [member.id, member]));
+  const slotStaffIds = new Set(params.slots.map((slot) => slot.staff_id));
+  const scopedCapabilityRows = ((capabilityResult.data ?? []) as StaffServiceRow[]).filter(
+    (row) => {
+      const staff = staffById.get(row.staff_id);
+      if (!staff) return false;
+      if (!canActAsBookingServiceProvider(staff, true)) return false;
+
+      return staff.staff_type
+        ? staffTypeCanPerformService(staff.staff_type, params.serviceTimings.get(row.service_id))
+        : true;
+    }
+  );
   const { staffIdsByService, serviceIdsByStaff } = serviceCapabilitySets(
-    (capabilityResult.data ?? []) as StaffServiceRow[]
+    scopedCapabilityRows
+  );
+  const constrainedServiceIds = new Set(
+    params.serviceIds.filter((serviceId) => {
+      const mappedStaffIds = staffIdsByService.get(serviceId);
+      return !!mappedStaffIds && Array.from(mappedStaffIds).some((staffId) => slotStaffIds.has(staffId));
+    })
   );
 
   return params.slots.filter((slot) => {
@@ -123,7 +350,14 @@ async function filterSlotsForQualifiedProviders(params: {
 
     return params.serviceIds.every((serviceId) => {
       const qualifiedStaffIds = staffIdsByService.get(serviceId);
-      return !qualifiedStaffIds || qualifiedStaffIds.has(slot.staff_id);
+      if (constrainedServiceIds.has(serviceId)) {
+        return !!qualifiedStaffIds?.has(slot.staff_id);
+      }
+
+      const service = params.serviceTimings.get(serviceId);
+      return staff.staff_type
+        ? staffTypeCanPerformService(staff.staff_type, service)
+        : hasMatchingCapability;
     });
   });
 }
@@ -144,6 +378,10 @@ export async function getAvailableSlots(params: {
   if (params.date < today) return [];
 
   const supabase = createAdminClient();
+  const serviceTimings = await getServiceTimings(supabase, params.branchId, [
+    params.serviceId,
+  ]);
+  const blockMinutes = totalBlockMinutes([params.serviceId], serviceTimings);
 
   const rpcArgs = {
     p_branch_id:  params.branchId,
@@ -157,10 +395,18 @@ export async function getAvailableSlots(params: {
   if (error) throw new Error(`Availability query failed: ${error.message}`);
   let slots = (data ?? []) as AvailabilitySlot[];
 
+  slots = await filterSlotsToWorkingWindows({
+    supabase,
+    date: params.date,
+    slots,
+    totalBlockMinutes: blockMinutes,
+  });
+
   slots = await filterSlotsForQualifiedProviders({
     branchId: params.branchId,
     serviceIds: [params.serviceId],
     slots,
+    serviceTimings,
   });
 
   return filterPastSlotsForDate({
@@ -229,34 +475,29 @@ export async function getAvailableSlotsMulti(params: {
   }
 
   const supabase = createAdminClient();
+  const serviceTimings = await getServiceTimings(supabase, branchId, serviceIds);
+  const totalMinutes = totalBlockMinutes(serviceIds, serviceTimings);
 
   // 1. Total effective duration across all services
-  const { data: svcs, error: svcsErr } = await supabase
-    .from("services")
-    .select("id, duration_minutes, buffer_before, buffer_after")
-    .in("id", serviceIds);
-
-  if (svcsErr) throw new Error(`Failed to fetch services: ${svcsErr.message}`);
-
-  const totalMinutes = (svcs ?? []).reduce(
-    (sum, s) => sum + s.duration_minutes + s.buffer_before + s.buffer_after,
-    0
-  );
+  if (totalMinutes <= 0) return [];
 
   // 2. Get base slots using first service (provides correct slot intervals)
   const baseSlots = await getAvailableSlots({ branchId, serviceId: serviceIds[0]!, date });
   if (baseSlots.length === 0) return [];
 
   // 3. Fetch existing bookings for the day to validate full combined window
+  const staffIds = Array.from(new Set(baseSlots.map((slot) => slot.staff_id)));
   const { data: dayBookings } = await supabase
     .from("bookings")
-    .select("staff_id, start_time, end_time")
-    .eq("branch_id", branchId)
+    .select("staff_id, start_time, end_time, status, hold_expires_at")
     .eq("booking_date", date)
-    .neq("status", "cancelled");
+    .in("staff_id", staffIds);
 
   const bookingsByStaff = new Map<string, Array<{ start: number; end: number }>>();
-  for (const b of dayBookings ?? []) {
+  const now = new Date();
+  for (const b of (dayBookings ?? []) as BlockingBookingRow[]) {
+    if (!bookingBlocksAvailability(b, now)) continue;
+
     if (!bookingsByStaff.has(b.staff_id)) bookingsByStaff.set(b.staff_id, []);
     bookingsByStaff.get(b.staff_id)!.push({
       start: timeToMinutes(b.start_time),
@@ -278,10 +519,18 @@ export async function getAvailableSlotsMulti(params: {
     return { ...slot, available: !hasConflict };
   });
 
+  const workingSlots = await filterSlotsToWorkingWindows({
+    supabase,
+    date,
+    slots: combinedSlots,
+    totalBlockMinutes: totalMinutes,
+  });
+
   return filterSlotsForQualifiedProviders({
     branchId,
     serviceIds,
-    slots: combinedSlots,
+    slots: workingSlots,
+    serviceTimings,
   });
 }
 

@@ -9,6 +9,7 @@ import { StatCard } from "@/components/features/dashboard/stat-card";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { getCustomerProfileAction } from "@/app/(dashboard)/crm/actions";
 import { getAllStaff } from "@/lib/queries/staff";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
 
@@ -20,7 +21,7 @@ type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
 
 type OneOrMany<T> = T | T[] | null;
 
-type StaffRelation = OneOrMany<Pick<StaffRow, "id" | "full_name" | "tier">>;
+type StaffRelation = OneOrMany<Pick<StaffRow, "id" | "full_name" | "nickname" | "tier">>;
 type BranchRelation = OneOrMany<Pick<BranchRow, "id" | "name">>;
 type ServiceRelation = OneOrMany<Pick<ServiceRow, "id" | "name">>;
 
@@ -146,11 +147,13 @@ export default async function CustomerProfilePage({
   }, 0);
 
   const preferredStaff = allStaff.find((staffMember) => staffMember.id === customer.preferred_staff_id);
+  const preferredStaffName = preferredStaff ? getStaffAdminName(preferredStaff) : "No preference";
   const staffOptions = allStaff
     .filter((staffMember) => staffMember.is_active)
     .map((staffMember) => ({
       id: staffMember.id,
       full_name: staffMember.full_name,
+      nickname: staffMember.nickname,
       tier: staffMember.tier,
     }));
 
@@ -217,7 +220,7 @@ export default async function CustomerProfilePage({
         />
         <StatCard
           label="Preferred Staff"
-          value={preferredStaff?.full_name ?? "No preference"}
+          value={preferredStaffName}
         />
         <StatCard
           label="Top Service"
@@ -287,6 +290,7 @@ export default async function CustomerProfilePage({
               {bookings.map((booking, i) => {
                 const service = firstRelation(booking.services);
                 const staffMember = firstRelation(booking.staff);
+                const staffName = staffMember ? getStaffAdminName(staffMember) : "Unassigned";
                 const branch = firstRelation(booking.branches);
                 const pricePaid = readPricePaid(booking.metadata);
 
@@ -324,7 +328,7 @@ export default async function CustomerProfilePage({
                         {service?.name ?? "—"}
                       </div>
                       <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                        {staffMember?.full_name ?? "Unassigned"}
+                        {staffName}
                         {branch?.name && <span style={{ marginLeft: 6 }}>&middot; {branch.name}</span>}
                       </div>
                     </div>
@@ -376,7 +380,7 @@ export default async function CustomerProfilePage({
                 label: "Since",
                 value: customer.first_booking_date ? formatDate(customer.first_booking_date) : "—",
               },
-              { label: "Prefers", value: preferredStaff?.full_name ?? "No preference" },
+              { label: "Prefers", value: preferredStaffName },
             ].map((row, i, arr) => (
               <div
                 key={row.label}

@@ -55,6 +55,11 @@ function optionalString(formValue: FormDataEntryValue | null): string | undefine
   return value.length > 0 ? value : undefined;
 }
 
+function nullableOptionalString(formValue: FormDataEntryValue | null): string | null {
+  const value = String(formValue ?? "").trim();
+  return value.length > 0 ? value : null;
+}
+
 function isTier(value: string): value is Tier {
   return value === "senior" || value === "mid" || value === "junior" || value === "head" || value === "n/a";
 }
@@ -100,6 +105,7 @@ export function StaffEditForm({
       const result = await updateStaffAction({
         staffId: staffMember.id,
         fullName: String(formData.get("fullName") ?? "").trim(),
+        nickname: nullableOptionalString(formData.get("nickname")),
         phone: optionalString(formData.get("phone")),
         tier: tierValue,
         systemRole: roleValue,
@@ -180,6 +186,13 @@ export function StaffEditForm({
           )}
 
           <EditField label="Full name" name="fullName" defaultValue={staffMember.full_name} />
+          <EditField
+            label="Nickname"
+            name="nickname"
+            defaultValue={staffMember.nickname ?? ""}
+            placeholder="Example: Mia, Joy, Ate Rose"
+            helperText="Optional. This is the name clients may recognize during booking."
+          />
           <EditField label="Phone" name="phone" defaultValue={staffMember.phone ?? ""} />
 
           <SelectField
@@ -320,10 +333,14 @@ function EditField({
   label,
   name,
   defaultValue,
+  placeholder,
+  helperText,
 }: {
   label: string;
   name: string;
   defaultValue: string;
+  placeholder?: string;
+  helperText?: string;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -332,6 +349,7 @@ function EditField({
         id={name}
         name={name}
         defaultValue={defaultValue}
+        placeholder={placeholder}
         style={{
           height: 36,
           borderRadius: 6,
@@ -343,6 +361,9 @@ function EditField({
           width: "100%",
         }}
       />
+      {helperText ? (
+        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>{helperText}</p>
+      ) : null}
     </div>
   );
 }

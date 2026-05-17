@@ -31,6 +31,7 @@ type BlockedTime = {
 type StaffMember = {
   id: string;
   full_name: string;
+  nickname?: string | null;
   tier: string | null;
   staff_type: string | null;
   is_head: boolean | null;

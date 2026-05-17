@@ -3,6 +3,7 @@ import type { BookingProgressStatus } from "@/lib/bookings/progress";
 export type StaffPortalStaff = {
   id: string;
   full_name: string;
+  nickname: string | null;
   tier: string | null;
   system_role: string;
   staff_type: string | null;

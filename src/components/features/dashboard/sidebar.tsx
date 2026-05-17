@@ -8,6 +8,7 @@ import {
   UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
   Menu, X, TrendingUp, BookOpen, Clock, UserCheck, Activity,
   ChevronRight, Truck, Wrench, Monitor,
+  MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
 } from "lucide-react";
 import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole } from "./nav-config";
 import { isCsr } from "@/lib/permissions";
@@ -17,6 +18,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?
   LayoutDashboard, CalendarDays, Building2, Users, Sparkles,
   UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
   TrendingUp, BookOpen, Clock, UserCheck, Activity, Truck, Wrench, Monitor,
+  MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
 };
 
 const WORKSPACE_META: Record<string, {

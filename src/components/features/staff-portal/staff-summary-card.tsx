@@ -4,6 +4,7 @@ import { Activity } from "lucide-react";
 import type { StaffPortalStaff } from "./types";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { getStaffDisplayName, getStaffKnownAsLabel } from "@/lib/staff/display-name";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -26,7 +27,9 @@ type StaffSummaryCardProps = {
 };
 
 export function StaffSummaryCard({ staff, totalAppointments, nextAppointmentTime }: StaffSummaryCardProps) {
-  const firstName = staff.full_name.split(" ")[0];
+  const preferredName = getStaffDisplayName(staff);
+  const firstName = preferredName.split(" ")[0] ?? preferredName;
+  const knownAs = getStaffKnownAsLabel(staff);
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Staff";
   const tier = tierLabel(staff.tier);
   const todayLabel = new Date().toLocaleDateString("en-PH", {
@@ -58,6 +61,7 @@ export function StaffSummaryCard({ staff, totalAppointments, nextAppointmentTime
         </div>
         <div style={{ fontSize: 12.5, color: "var(--cs-text-muted)", marginTop: 2, lineHeight: 1.4 }}>
           {todayLabel}
+          {knownAs && <span style={{ marginLeft: 5 }}>&middot; {knownAs}</span>}
           <span style={{ marginLeft: 5 }}>&middot; {roleLabel}</span>
           {tier && <span style={{ marginLeft: 5 }}>&middot; {tier}</span>}
           <span style={{ marginLeft: 5 }}>&middot; {totalAppointments} appointment{totalAppointments !== 1 ? "s" : ""} today</span>

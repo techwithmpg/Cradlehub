@@ -2,11 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
 
 type StaffRow = Database["public"]["Tables"]["staff"]["Row"];
-type BranchStaffLegacy = Pick<
+type BranchStaffCore = Pick<
   StaffRow,
   "id" | "full_name" | "tier" | "system_role" | "phone" | "is_active" | "branch_id"
 >;
-type BranchStaff = BranchStaffLegacy &
+type BranchStaffLegacy = BranchStaffCore & Partial<Pick<StaffRow, "nickname">>;
+type BranchStaff = BranchStaffCore &
+  Pick<StaffRow, "nickname"> &
   Pick<StaffRow, "staff_type" | "is_head">;
 
 function isMissingStaffOrgColumnsError(message: string): boolean {
@@ -16,8 +18,11 @@ function isMissingStaffOrgColumnsError(message: string): boolean {
     m.includes('column "staff_type" does not exist') ||
     m.includes('column staff.is_head does not exist') ||
     m.includes('column "is_head" does not exist') ||
+    m.includes('column staff.nickname does not exist') ||
+    m.includes('column "nickname" does not exist') ||
     m.includes("could not find the 'is_head' column") ||
-    m.includes("could not find the 'staff_type' column")
+    m.includes("could not find the 'staff_type' column") ||
+    m.includes("could not find the 'nickname' column")
   );
 }
 
@@ -26,6 +31,7 @@ function normalizeBranchStaff(
 ): BranchStaff {
   return {
     ...row,
+    nickname: row.nickname ?? null,
     staff_type: row.staff_type ?? "therapist",
     is_head: row.is_head ?? false,
   };
@@ -35,7 +41,7 @@ export async function getStaffByBranch(branchId: string) {
   const supabase = await createClient();
   const primary = await supabase
     .from("staff")
-    .select("id, full_name, tier, system_role, staff_type, is_head, phone, is_active, branch_id")
+    .select("id, full_name, nickname, tier, system_role, staff_type, is_head, phone, is_active, branch_id")
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
@@ -70,6 +76,7 @@ const STAFF_COLUMNS_LEGACY =
 function injectStaffDefaults(row: Record<string, unknown>): Record<string, unknown> {
   return {
     ...row,
+    nickname: (row.nickname as string | null | undefined) ?? null,
     staff_type: (row.staff_type as string) ?? "therapist",
     is_head: (row.is_head as boolean) ?? false,
   };
@@ -254,5 +261,3 @@ export async function getPendingStaff() {
 
   throw new Error(primary.error.message);
 }
-
-

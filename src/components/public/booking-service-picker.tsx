@@ -106,7 +106,7 @@ export function BookingServicePicker({
         </div>
         <div className="flex flex-col gap-2.5">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-[74px] rounded-xl" />
+            <Skeleton key={i} className="h-[94px] rounded-xl" />
           ))}
         </div>
       </div>
@@ -228,14 +228,15 @@ export function BookingServicePicker({
                   key={service.id}
                   type="button"
                   onClick={() => onToggle(service)}
-                  className={`grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
+                  aria-pressed={isSelected}
+                  className={`grid grid-cols-[1fr_auto] items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
                     isSelected
                       ? "border-[#C8A96B] bg-[#FFFAF0] shadow-[0_4px_14px_rgba(200,169,107,0.14)]"
                       : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/60"
                   }`}
                 >
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <p className="text-[13px] font-semibold leading-5 md:text-[14px]" style={{ color: "#163A2B" }}>
                         {service.name}
                       </p>
@@ -244,13 +245,31 @@ export function BookingServicePicker({
                       </span>
                     </div>
                     {service.description && (
-                      <p className="mt-0.5 line-clamp-1 text-[12px]" style={{ color: "#6B7A6F" }}>
+                      <p className="mt-1 line-clamp-2 text-[12px] leading-[1.4]" style={{ color: "#6B7A6F" }}>
                         {service.description}
                       </p>
                     )}
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {service.availableInSpa !== false && (
+                        <span
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+                          style={{ background: "#EFF7F2", color: "#2E6E4E" }}
+                        >
+                          In-spa
+                        </span>
+                      )}
+                      {service.availableHomeService && (
+                        <span
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+                          style={{ background: "#EEF2FF", color: "#3557B7" }}
+                        >
+                          Home service
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 pt-0.5">
                     <span className="text-[13px] font-semibold" style={{ color: "#C8A96B" }}>
                       {formatCurrency(service.price)}
                     </span>

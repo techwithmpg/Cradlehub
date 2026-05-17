@@ -104,10 +104,10 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `BOOKING-WIZARD-UX-10.2`  |
-| **Completion**      | `Public booking wizard service picker and staff eligibility optimized`        |
+| **Sprint**          | `DISPATCH-LIVE-001`  |
+| **Completion**      | `Manager dispatch now reads real branch-scoped Supabase dispatch data instead of mock data`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-05-14` |
+| **Last Updated**    | `2026-05-15` |
 | **Blockers**        | `No build/type blockers; lint has 2 pre-existing warnings in staff onboarding form`      |
 
 ---
@@ -171,3 +171,19 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Active `/book` source path uses the modern Places API (New) widget via `google.maps.importLibrary("places")` and `PlaceAutocompleteElement`; no legacy Places Autocomplete usage remains under `src`.
 - Public staff selection now filters to real service-provider staff and respects selected service eligibility mappings; drivers, utility, and non-service staff are hidden from specific provider selection.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; `/book` returned `200 OK` from the existing local dev server.
+
+## Latest Agent Update (2026-05-15)
+
+- Completed `STAFF-NICKNAME-001`: added nullable `staff.nickname` via migration and updated local Supabase types.
+- Owner/manager staff edit forms and staff onboarding now capture optional nicknames without requiring them.
+- Public booking and tracking display nickname first for customer recognition; internal manager/CRM/owner/dispatch surfaces show full name plus nickname.
+- Staff search now includes nickname in staff management and related schedule/booking filtering.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; lint still reports the two pre-existing onboarding-form warnings.
+
+## Latest Agent Update (2026-05-15)
+
+- Completed `DISPATCH-LIVE-001`: `/manager/dispatch` now validates the selected date and loads real branch-scoped dispatch data through `getDispatchData()`.
+- Active dispatch tabs now render live items, stats, alerts, locations, ETA/location snapshots, and completed/cancelled records instead of mock arrays.
+- Removed production dispatch mock data and fake map components, including the unused duplicate prototype dispatch folder.
+- Assignment and notification controls are disabled with clear copy until a real selector/action UI is intentionally connected.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; lint still reports the two pre-existing onboarding-form warnings.

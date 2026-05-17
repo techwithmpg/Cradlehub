@@ -184,6 +184,7 @@ export type Database = {
           driver_id: string | null
           end_time: string
           home_service_tracking_status: string
+          hold_expires_at: string | null
           id: string
           metadata: Json
           no_show_at: string | null
@@ -216,6 +217,7 @@ export type Database = {
           driver_id?: string | null
           end_time: string
           home_service_tracking_status?: string
+          hold_expires_at?: string | null
           id?: string
           metadata?: Json
           no_show_at?: string | null
@@ -248,6 +250,7 @@ export type Database = {
           driver_id?: string | null
           end_time?: string
           home_service_tracking_status?: string
+          hold_expires_at?: string | null
           id?: string
           metadata?: Json
           no_show_at?: string | null
@@ -1356,6 +1359,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_head: boolean
+          nickname: string | null
           phone: string | null
           staff_type: string
           system_role: string
@@ -1372,6 +1376,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_head?: boolean
+          nickname?: string | null
           phone?: string | null
           staff_type?: string
           system_role?: string
@@ -1388,6 +1393,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_head?: boolean
+          nickname?: string | null
           phone?: string | null
           staff_type?: string
           system_role?: string

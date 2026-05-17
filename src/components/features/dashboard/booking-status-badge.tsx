@@ -5,6 +5,9 @@ const STATUS: Record<string, { bg: string; color: string; label: string; dot: st
   cancelled:   { bg: "var(--cs-neutral-bg)", color: "var(--cs-neutral-text)", label: "Cancelled",   dot: "var(--cs-neutral)"      },
   no_show:     { bg: "var(--cs-warning-bg)", color: "var(--cs-warning-text)", label: "No Show",     dot: "var(--cs-warning)"      },
   pending:     { bg: "var(--cs-sand-mist)",  color: "var(--cs-sand-dark)",    label: "Pending",     dot: "var(--cs-sand)"         },
+  pending_payment: { bg: "var(--cs-warning-bg)", color: "var(--cs-warning-text)", label: "Pending Payment", dot: "var(--cs-warning)" },
+  pending_crm_confirmation: { bg: "var(--cs-warning-bg)", color: "var(--cs-warning-text)", label: "Pending CRM", dot: "var(--cs-warning)" },
+  expired:     { bg: "var(--cs-neutral-bg)", color: "var(--cs-neutral-text)", label: "Expired",     dot: "var(--cs-neutral)"      },
 };
 
 export function BookingStatusBadge({ status }: { status: string }) {

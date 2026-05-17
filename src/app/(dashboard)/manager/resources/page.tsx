@@ -2,6 +2,7 @@ import { redirect }     from "next/navigation";
 import { PageHeader }   from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { DatePickerForm } from "./date-picker-form";
 
 const ALLOWED_ROLES = ["owner", "manager", "crm", "csr_head"];
@@ -113,7 +114,7 @@ export default async function ResourcesPage({
         id, start_time, end_time, status, type, resource_id,
         customers ( full_name ),
         services  ( name ),
-        staff!staff_id ( full_name )
+        staff!staff_id ( full_name, nickname )
       `)
       .eq("branch_id", branchId)
       .eq("booking_date", selectedDate)
@@ -132,7 +133,7 @@ export default async function ResourcesPage({
     resource_id: string | null;
     customers: { full_name: string } | { full_name: string }[] | null;
     services:  { name: string }      | { name: string }[]      | null;
-    staff:     { full_name: string } | { full_name: string }[] | null;
+    staff:     { full_name: string; nickname?: string | null } | { full_name: string; nickname?: string | null }[] | null;
   }>;
 
   function firstRel<T>(v: T | T[] | null): T | null {
@@ -153,7 +154,7 @@ export default async function ResourcesPage({
       type:          b.type,
       customer_name: firstRel(b.customers)?.full_name ?? null,
       service_name:  firstRel(b.services)?.name       ?? null,
-      staff_name:    firstRel(b.staff)?.full_name      ?? null,
+      staff_name:    firstRel(b.staff) ? getStaffAdminName(firstRel(b.staff)!) : null,
     });
   }
 

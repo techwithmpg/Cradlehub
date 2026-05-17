@@ -7,11 +7,11 @@ import { ONBOARDING_ROLE_OPTIONS, getOnboardingRoleLabel } from "@/lib/staff/onb
 // ── Types ─────────────────────────────────────────────────────────────────
 type Branch = { id: string; name: string };
 
-type ServiceOption = { id: string; name: string; categoryName: string };
 
 type WizardData = {
   accessCode: string;
   fullName: string;
+  nickname: string;
   email: string;
   phone: string;
   address: string;
@@ -30,7 +30,7 @@ type WizardData = {
 
 const INITIAL_DATA: WizardData = {
   accessCode: "",
-  fullName: "", email: "", phone: "", address: "",
+  fullName: "", nickname: "", email: "", phone: "", address: "",
   profilePicture: null, profilePreviewUrl: null,
   preferredBranchId: "", preferredRole: "", serviceIds: [],
   emergencyContactName: "", emergencyContactPhone: "", experienceNotes: "",
@@ -269,6 +269,14 @@ function Step2Profile({ data, onChange, errors }: {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+        <label htmlFor="nickname" style={labelStyle}>Nickname</label>
+        <input id="nickname" style={inputStyle} value={data.nickname} onChange={(e) => onChange("nickname", e.target.value)} placeholder="Example: Mia, Joy, Ate Rose" />
+        <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+          Optional. This is the name clients may recognize during booking.
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
         <label htmlFor="email" style={labelStyle}>Email address *</label>
         <input id="email" type="email" style={inputStyle} value={data.email} onChange={(e) => onChange("email", e.target.value)} placeholder="maria@example.com" />
         <FieldError msg={errors.email} />
@@ -361,9 +369,8 @@ function Step3Role({ data, onChange, branches, errors }: {
   );
 }
 
-function Step4Services({ data, onChange }: {
+function Step4Services({ data }: {
   data: WizardData;
-  onChange: (k: keyof WizardData, v: unknown) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -566,6 +573,7 @@ function Step6Review({ data, onChange, serverError, isPending, onSubmit }: {
 
       <div style={{ display: "flex", flexDirection: "column" }}>
         <ReviewRow label="Full name"             value={data.fullName} />
+        <ReviewRow label="Nickname"              value={data.nickname} />
         <ReviewRow label="Email"                 value={data.email} />
         <ReviewRow label="Phone"                 value={data.phone} />
         <ReviewRow label="Address"               value={data.address} />
@@ -718,6 +726,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
     const fd = new FormData();
     fd.append("accessCode",           data.accessCode);
     fd.append("fullName",             data.fullName);
+    fd.append("nickname",             data.nickname);
     fd.append("email",                data.email);
     fd.append("phone",                data.phone);
     fd.append("address",              data.address);
@@ -797,7 +806,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
         {step === 0 && <Step1Access  data={data} onChange={update} errors={errors} />}
         {step === 1 && <Step2Profile data={data} onChange={update} errors={errors} />}
         {step === 2 && <Step3Role    data={data} onChange={update} branches={branches} errors={errors} />}
-        {step === 3 && <Step4Services data={data} onChange={update} />}
+        {step === 3 && <Step4Services data={data} />}
         {step === 4 && <Step4Emergency data={data} onChange={update} />}
         {step === 5 && <Step5Account data={data} onChange={update} errors={errors} />}
         {step === 6 && (

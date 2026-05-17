@@ -7,6 +7,7 @@ import { getLatestLocationsForActiveHomeServiceTrips } from "@/lib/actions/locat
 import { getOrCreateCustomerTrackingLinkAction, getActiveTrackingTokensForBookings } from "@/lib/actions/tracking-link-actions";
 import { refreshHomeServiceEtaAction } from "@/lib/actions/eta-actions";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { ControlConsolePage } from "@/components/features/control-console/control-console-page";
 import { updateBookingPaymentAction, updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 
@@ -95,7 +96,7 @@ export default async function CrmControlPage() {
       customer_name: first(b.customers)?.full_name ?? null,
       service_name: first(b.services)?.name ?? null,
       service_duration: first(b.services)?.duration_minutes ?? null,
-      staff_name: first(b.staff)?.full_name ?? null,
+      staff_name: first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
       resource_name: first((b as { branch_resources?: { name: string } | { name: string }[] | null }).branch_resources)?.name ?? null,
       booking_progress_status: (b as { booking_progress_status?: string }).booking_progress_status,
       hs_zone: typeof hsAddr?.zone === "string" ? hsAddr.zone : null,

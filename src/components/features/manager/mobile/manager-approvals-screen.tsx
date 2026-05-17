@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { TodayBooking } from "@/components/features/manager-today/manager-today-utils";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
+import { getStaffInternalName } from "@/components/features/staff/staff-management-utils";
 import {
   readRelation,
   getUrgencyScore,
@@ -69,7 +70,7 @@ export function ManagerApprovalsScreen({ bookings, pendingStaff }: Props) {
         {pendingStaff.length > 0 && (
           <ApprovalCard
             title="New Staff Approval"
-            description={`${pendingStaff[0]?.full_name ?? "Someone"} is awaiting activation`}
+            description={`${pendingStaff[0] ? getStaffInternalName(pendingStaff[0]) : "Someone"} is awaiting activation`}
             count={pendingStaff.length}
             priority="high"
             actions={[

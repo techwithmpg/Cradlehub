@@ -45,6 +45,7 @@ export function getDevBypassLayoutStaff(): {
 export function getDevBypassStaffRecord(): {
   id: string;
   full_name: string;
+  nickname: string | null;
   tier: string;
   system_role: string;
   staff_type: string;
@@ -53,6 +54,7 @@ export function getDevBypassStaffRecord(): {
   return {
     id: "00000000-0000-0000-0000-000000000000",
     full_name: process.env.DEV_BYPASS_USER_NAME ?? "Dev User",
+    nickname: null,
     tier: "senior",
     system_role: "staff",
     staff_type: "therapist",

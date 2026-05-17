@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
-import type { DispatchStatus, DispatchAlert } from "@/components/features/dispatch/types";
+import { getStaffAdminName } from "@/lib/staff/display-name";
+import type { DispatchStatus, DispatchAlert } from "@/features/dispatch/types";
 
 // ── Shared real data types ─────────────────────────────────────────────────────
 
@@ -180,13 +181,14 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
          travel_started_at, arrived_at,
          session_started_at, completed_at,
          services ( name ),
-         therapist:staff!staff_id ( id, full_name ),
+         therapist:staff!staff_id ( id, full_name, nickname ),
          customers ( full_name )`
       )
       .eq("branch_id", args.branchId)
       .eq("booking_date", args.date)
       .or("type.eq.home_service,delivery_type.eq.home_service")
-      .order("start_time", { ascending: true });
+      .order("start_time", { ascending: true })
+      .limit(50);
 
     if (args.role === "driver" && args.staffId) {
       query = query.eq("driver_id", args.staffId);
@@ -194,7 +196,16 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       query = query.eq("staff_id", args.staffId);
     }
 
-    const { data: rawBookings } = await query;
+    const { data: rawBookings, error: bookingsError } = await query;
+    if (bookingsError) {
+      console.error("[dispatch] getDispatchData bookings query failed", {
+        branchId: args.branchId,
+        date: args.date,
+        error: bookingsError.message,
+      });
+      return empty;
+    }
+
     if (!rawBookings || rawBookings.length === 0) return empty;
 
     const bookingIds = rawBookings.map((b) => b.id);
@@ -209,8 +220,8 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
 
     const [driversRes, snapshotsRes] = await Promise.all([
       driverIds.length > 0
-        ? supabase.from("staff").select("id, full_name").in("id", driverIds)
-        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+        ? supabase.from("staff").select("id, full_name, nickname").in("id", driverIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string; nickname: string | null }[] }),
       supabase
         .from("staff_location_snapshots")
         .select("booking_id, lat, lng, recorded_at")
@@ -220,7 +231,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
 
     const driverNameMap: Record<string, string> = {};
     for (const d of driversRes.data ?? []) {
-      driverNameMap[d.id] = d.full_name;
+      driverNameMap[d.id] = getStaffAdminName(d);
     }
 
     const locationMap: Record<string, { lat: number; lng: number; recorded_at: string }> = {};
@@ -259,7 +270,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       const dispatchStatus = computeDispatchStatus(bookingStatus, progressStatus, driverId);
 
       const therapist = first(
-        (b as { therapist?: OneOrMany<{ id: string; full_name: string }> }).therapist
+        (b as { therapist?: OneOrMany<{ id: string; full_name: string; nickname?: string | null }> }).therapist
       );
       const service = first(
         (b as { services?: OneOrMany<{ name: string }> }).services
@@ -292,7 +303,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         driverId,
         driverName: driverId ? (driverNameMap[driverId] ?? null) : null,
         therapistId: staffIdVal,
-        therapistName: therapist?.full_name ?? null,
+        therapistName: therapist ? getStaffAdminName(therapist) : null,
         dispatchStatus,
         bookingStatus,
         bookingProgressStatus: progressStatus ?? "not_started",
@@ -313,7 +324,12 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       alerts: computeAlerts(items),
       today: args.date,
     };
-  } catch {
+  } catch (error) {
+    console.error("[dispatch] getDispatchData failed", {
+      branchId: args.branchId,
+      date: args.date,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return empty;
   }
 }

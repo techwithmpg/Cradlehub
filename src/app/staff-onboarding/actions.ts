@@ -14,6 +14,12 @@ export type OnboardingFormState = {
   fieldErrors?: Record<string, string>;
 };
 
+function normalizeOptionalString(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export async function submitStaffOnboardingAction(
   _prev: OnboardingFormState,
   formData: FormData
@@ -32,6 +38,7 @@ export async function submitStaffOnboardingAction(
 
   // Collect fields
   const fullName = String(formData.get("fullName") ?? "").trim();
+  const nickname = normalizeOptionalString(formData.get("nickname"));
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();
   const preferredBranchId = String(formData.get("preferredBranchId") ?? "").trim() || null;
@@ -76,7 +83,7 @@ export async function submitStaffOnboardingAction(
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: fullName },
+    user_metadata: { full_name: fullName, nickname },
   });
 
   if (authErr) {
@@ -95,6 +102,7 @@ export async function submitStaffOnboardingAction(
     .insert({
       auth_user_id: authUserId,
       full_name: fullName,
+      nickname,
       phone,
       branch_id: branchId,
       system_role: "staff",
@@ -151,6 +159,7 @@ export async function submitStaffOnboardingAction(
     metadata: {
       requested_service_ids: serviceIds.length > 0 ? serviceIds : [],
       profile_notes: experienceNotes,
+      nickname,
     },
   }).select("id").single();
 
@@ -245,6 +254,11 @@ export async function approveOnboardingAction(input: {
   }
 
   const admin = createAdminClient();
+  const requestMetadata = request.metadata as { nickname?: string | null } | null;
+  const nickname =
+    typeof requestMetadata?.nickname === "string" && requestMetadata.nickname.trim().length > 0
+      ? requestMetadata.nickname.trim()
+      : null;
 
   // Update staff record
   const { error: staffErr } = await admin
@@ -255,6 +269,7 @@ export async function approveOnboardingAction(input: {
       system_role: input.systemRole,
       staff_type: mapPreferredRoleToStaffType(request?.preferred_role ?? ""),
       tier: input.tier,
+      ...(nickname ? { nickname } : {}),
     })
     .eq("id", input.staffId);
 

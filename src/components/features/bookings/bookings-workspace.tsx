@@ -20,10 +20,12 @@ export type WorkspaceBookingRow = {
   metadata?:          Record<string, unknown> | null;
   payment_method:     string;
   payment_status:     string;
+  payment_reference?: string | null;
   amount_paid:        number;
+  hold_expires_at?:   string | null;
   branches?:          OneOrMany<{ id?: string; name: string }>;
   services?:          OneOrMany<{ id?: string; name: string; duration_minutes?: number }>;
-  staff?:             OneOrMany<{ id?: string; full_name: string; tier?: string }>;
+  staff?:             OneOrMany<{ id?: string; full_name: string; nickname?: string | null; tier?: string }>;
   customers?:         OneOrMany<{ id?: string; full_name: string; phone?: string | null; email?: string | null }>;
   branch_resources?:  OneOrMany<{ name: string }>;
 };
@@ -35,19 +37,21 @@ type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type BookingsWorkspaceProps = {
-  workspaceContext: WorkspaceContext;
-  viewerRole:       string;
-  branchName?:      string;
-  branches?:        Branch[];        // owner cross-branch filter list
-  date:             string;
-  statusFilter?:    string;
-  typeFilter?:      string;
-  branchFilter?:    string;          // owner: selected branch id
-  search?:          string;
-  bookings:         WorkspaceBookingRow[];
-  cashSummary?:     DailyCashSummaryData | null;
-  statusAction?:    ActionFn;
-  paymentAction?:   ActionFn;
+  workspaceContext:    WorkspaceContext;
+  viewerRole:          string;
+  branchName?:         string;
+  branches?:           Branch[];        // owner cross-branch filter list
+  date:                string;
+  statusFilter?:       string;
+  typeFilter?:         string;
+  branchFilter?:       string;          // owner: selected branch id
+  search?:             string;
+  bookings:            WorkspaceBookingRow[];
+  cashSummary?:        DailyCashSummaryData | null;
+  statusAction?:       ActionFn;
+  paymentAction?:      ActionFn;
+  initialSelectedId?:  string;
+  confirmPaymentAction?: ActionFn;
 };
 
 // ── Subtitles ──────────────────────────────────────────────────────────────────
@@ -135,6 +139,8 @@ export function BookingsWorkspace({
   cashSummary,
   statusAction,
   paymentAction,
+  initialSelectedId,
+  confirmPaymentAction,
 }: BookingsWorkspaceProps) {
   const basePath   = `/${workspaceContext === "owner" ? "owner" : workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
   const kpi        = computeKpi(bookings, cashSummary);
@@ -255,6 +261,8 @@ export function BookingsWorkspace({
         search={search}
         statusAction={statusAction}
         paymentAction={paymentAction}
+        initialSelectedId={initialSelectedId}
+        confirmPaymentAction={confirmPaymentAction}
       />
     </div>
   );

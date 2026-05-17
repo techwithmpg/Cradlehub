@@ -11,6 +11,7 @@ import { getOpenWorkflowTasksAction } from "@/lib/notifications/workflow-queries
 import { ScheduleHealthPanel } from "@/components/features/scheduling/schedule-health-panel";
 import { SuggestionsReviewPanel } from "@/components/features/scheduling/suggestions-review-panel";
 import { createClient } from "@/lib/supabase/server";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type { ScheduleHealthCheck, ScheduleSuggestion } from "@/lib/scheduling/types";
 
@@ -48,14 +49,18 @@ async function getTodayHealthAndSuggestions(branchId: string, date: string) {
 
   // Hydrate staff names in a second pass to avoid FK ambiguity
   const staffIds = [...new Set((rawSuggestions ?? []).map((s) => s.staff_id).filter(Boolean))] as string[];
-  const staffMap: Map<string, { full_name: string; system_role: string }> = new Map();
+  const staffMap: Map<string, { full_name: string; nickname: string | null; system_role: string }> = new Map();
   if (staffIds.length > 0) {
     const { data: staffRows } = await supabase
       .from("staff")
-      .select("id, full_name, system_role")
+      .select("id, full_name, nickname, system_role")
       .in("id", staffIds);
     for (const sr of staffRows ?? []) {
-      staffMap.set(sr.id, { full_name: sr.full_name, system_role: sr.system_role });
+      staffMap.set(sr.id, {
+        full_name: getStaffAdminName(sr),
+        nickname: sr.nickname,
+        system_role: sr.system_role,
+      });
     }
   }
 
@@ -91,6 +96,7 @@ export default async function ManagerTodayPage() {
     staffRaw.map((s) => ({
       id: s.id,
       full_name: s.full_name,
+      nickname: s.nickname,
       tier: s.tier ?? null,
       staff_type: s.staff_type ?? null,
     })),
@@ -133,7 +139,7 @@ export default async function ManagerTodayPage() {
             date={today}
           />
           <SuggestionsReviewPanel
-            suggestions={schedulingData.suggestions as unknown as (ScheduleSuggestion & { staff?: { full_name: string; system_role: string } | null })[]}
+            suggestions={schedulingData.suggestions as unknown as (ScheduleSuggestion & { staff?: { full_name: string; nickname?: string | null; system_role: string } | null })[]}
             managerStaffId={managerStaffId ?? ""}
           />
         </div>

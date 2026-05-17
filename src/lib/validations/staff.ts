@@ -4,10 +4,19 @@ import { STAFF_TYPES } from "@/constants/staff";
 // z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
+const optionalNickname = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  },
+  z.string().max(80, "Nickname must be 80 characters or fewer").nullable().optional()
+);
 
 export const createStaffSchema = z.object({
   branchId:   uuid,
   fullName:   z.string().min(2, "Name required").max(100),
+  nickname:   optionalNickname,
   phone:      z.string().min(7).max(20).optional(),
   tier:       z.enum(["senior", "mid", "junior", "head", "n/a"]),
   systemRole: z.enum(["manager", "crm", "csr", "csr_head", "csr_staff", "staff", "driver"]),
@@ -21,6 +30,7 @@ export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 export const updateStaffSchema = z.object({
   staffId:    uuid,
   fullName:   z.string().min(2).max(100).optional(),
+  nickname:   optionalNickname,
   phone:      z.string().min(7).max(20).optional(),
   tier:       z.enum(["senior", "mid", "junior", "head", "n/a"]).optional(),
   systemRole: z.enum(["manager", "crm", "csr", "csr_head", "csr_staff", "staff", "driver"]).optional(),

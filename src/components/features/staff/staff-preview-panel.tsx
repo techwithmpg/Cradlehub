@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StaffRoleBadge, StaffStatusBadge } from "./staff-badges";
+import { getStaffNickname } from "@/lib/staff/display-name";
 import {
   formatStaffDate,
   getStaffDisplayMeta,
@@ -53,6 +54,7 @@ export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = 
 
   const status = getStaffStatus(staff);
   const meta = getStaffDisplayMeta(staff);
+  const nickname = getStaffNickname(staff);
   const branchName = readBranchName(staff.branches);
   const displayName = status === "invited" ? "Invite link generated" : staff.full_name;
   const displayPosition = status === "invited" ? "Pending invitation" : meta.subtitle;
@@ -108,6 +110,7 @@ export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = 
 
         <dl className="mt-5 space-y-2.5">
           <DetailRow Icon={Building2} label="Branch" value={branchName} />
+          <DetailRow Icon={UserCheck} label="Known As" value={nickname ?? "—"} />
           <DetailRow Icon={ShieldCheck} label="Workspace Access" value={meta.badgeLabel} />
           <DetailRow Icon={UserCog} label="Staff Function" value={meta.staffTypeLabel} />
           <DetailRow Icon={UserCheck} label="Head / Supervisor" value={staff.is_head ? "Yes" : "No"} />

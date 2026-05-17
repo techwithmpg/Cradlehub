@@ -7,6 +7,10 @@ import {
 } from "@/lib/notifications/queries";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { NotificationBellDropdown } from "./notification-bell-dropdown";
+import { BookingNotificationSound } from "./booking-notification-sound";
+
+// Roles that handle booking payments and should hear actionable-booking sounds.
+const SOUND_ROLES = new Set(["crm", "manager", "csr", "csr_head", "csr_staff", "owner"]);
 
 const WORKSPACE_HREF: Record<string, string> = {
   owner: "/owner/notifications",
@@ -102,6 +106,7 @@ export function NotificationBell({ role }: { role: string }) {
 
   return (
     <div data-notification-bell style={{ position: "relative", flexShrink: 0 }}>
+      {SOUND_ROLES.has(role) && <BookingNotificationSound />}
       <button
         type="button"
         onClick={toggleOpen}

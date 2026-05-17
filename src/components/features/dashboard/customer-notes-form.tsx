@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { updateCustomerAction } from "@/app/(dashboard)/crm/actions";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
-type StaffOption = { id: string; full_name: string; tier: string };
+type StaffOption = { id: string; full_name: string; nickname?: string | null; tier: string };
 
 type Props = {
   customerId: string;
@@ -159,7 +160,7 @@ export function CustomerNotesForm({
             <option value="">No preference</option>
             {staff.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.full_name} ({m.tier})
+                {getStaffAdminName(m)} ({m.tier})
               </option>
             ))}
           </select>

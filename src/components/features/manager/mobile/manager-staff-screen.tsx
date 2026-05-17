@@ -8,6 +8,7 @@ import {
   getStaffStatus,
   getStaffStatusLabel,
   getStaffDisplayMeta,
+  getStaffInternalName,
   getInitials,
 } from "@/components/features/staff/staff-management-utils";
 import type { StaffSegment } from "./types";
@@ -153,6 +154,7 @@ function StaffCard({ member }: { member: StaffMember }) {
   const meta = getStaffDisplayMeta(member);
   const status = getStaffStatus(member);
   const statusLabel = getStaffStatusLabel(status);
+  const displayName = getStaffInternalName(member);
 
   return (
     <Link
@@ -184,11 +186,11 @@ function StaffCard({ member }: { member: StaffMember }) {
           fontWeight: 700,
         }}
       >
-        {getInitials(member.full_name)}
+        {getInitials(displayName)}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: "var(--cs-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {member.full_name}
+          {displayName}
         </div>
         <div style={{ fontSize: 12, color: "var(--cs-text-muted)", marginTop: 2 }}>
           {meta.staffTypeLabel}

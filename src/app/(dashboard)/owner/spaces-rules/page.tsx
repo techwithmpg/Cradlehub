@@ -4,6 +4,7 @@ import { getAllBranches } from "@/lib/queries/branches";
 import { getBranchWithFullDetail } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createClient } from "@/lib/supabase/server";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 async function getOwnerContext() {
   const supabase = await createClient();
@@ -84,7 +85,7 @@ export default async function OwnerSpacesRulesPage({
             `id, start_time, end_time, status, type, resource_id, staff_id, service_id,
             customers ( full_name ),
             services ( name ),
-            staff!staff_id ( full_name )`
+            staff!staff_id ( full_name, nickname )`
           )
           .eq("branch_id", selectedBranchId)
           .eq("booking_date", today)
@@ -103,8 +104,8 @@ export default async function OwnerSpacesRulesPage({
       | { name: string }[]
       | null;
     const staff = row.staff as
-      | { full_name: string }
-      | { full_name: string }[]
+      | { full_name: string; nickname?: string | null }
+      | { full_name: string; nickname?: string | null }[]
       | null;
 
     const first = <T,>(v: T | T[] | null): T | null => {
@@ -123,7 +124,7 @@ export default async function OwnerSpacesRulesPage({
       service_id: row.service_id ? String(row.service_id) : null,
       customer_name: first(customers)?.full_name ?? null,
       service_name: first(services)?.name ?? null,
-      staff_name: first(staff)?.full_name ?? null,
+      staff_name: first(staff) ? getStaffAdminName(first(staff)!) : null,
     };
   });
 

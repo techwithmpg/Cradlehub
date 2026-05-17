@@ -48,7 +48,7 @@ export async function getCustomerById(customerId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("customers")
-    .select("*, staff ( id, full_name, tier )")
+    .select("*, staff ( id, full_name, nickname, tier )")
     .eq("id", customerId)
     .single();
   if (error) throw new Error(error.message);
@@ -73,7 +73,7 @@ export async function getAllCustomers(
   const q = supabase
     .from("customers")
     .select(
-      "id, full_name, phone, email, total_bookings, last_booking_date, first_booking_date, preferred_staff_id, notes, staff!preferred_staff_id ( id, full_name )",
+      "id, full_name, phone, email, total_bookings, last_booking_date, first_booking_date, preferred_staff_id, notes, staff!preferred_staff_id ( id, full_name, nickname )",
       { count: "exact" }
     )
     .order("last_booking_date", { ascending: false, nullsFirst: false })

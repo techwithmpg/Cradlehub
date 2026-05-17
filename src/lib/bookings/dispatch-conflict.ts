@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isGoogleMapsEnabled, estimateTravelTime } from "@/lib/maps/google-maps";
+import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 
 // Maximum driving minutes between two zones before a single-driver overlap is
 // considered a hard conflict. Keep centralized so it can be tuned later.
@@ -64,6 +65,15 @@ type HomeServiceAddress = {
   lng?: number | null;
 };
 
+type HomeServiceBookingRow = {
+  id: string;
+  start_time: string;
+  end_time: string;
+  metadata: Record<string, unknown> | null;
+  status: string | null;
+  hold_expires_at: string | null;
+};
+
 export type DispatchConflictResult =
   | { conflict: "hard"; message: string }
   | { conflict: "warning"; message: string; needs_location_review: boolean }
@@ -102,13 +112,15 @@ export async function checkHomeServiceDispatchConflict({
 
   const { data: existing } = await admin
     .from("bookings")
-    .select("id, start_time, end_time, metadata")
+    .select("id, start_time, end_time, metadata, status, hold_expires_at")
     .eq("branch_id", branchId)
     .eq("booking_date", bookingDate)
-    .eq("delivery_type", "home_service")
-    .not("status", "in", '("cancelled","no_show")');
+    .eq("delivery_type", "home_service");
 
-  const rows = (existing ?? []).filter((r) => r.id !== excludeBookingId);
+  const now = new Date();
+  const rows = ((existing ?? []) as HomeServiceBookingRow[]).filter(
+    (r) => r.id !== excludeBookingId && bookingBlocksAvailability(r, now)
+  );
 
   const overlapping = rows.filter((r) =>
     timesOverlap(startTime, endTime, r.start_time, r.end_time)

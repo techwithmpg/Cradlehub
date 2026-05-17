@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 function readPricePaid(metadata: unknown): number {
   if (!metadata || typeof metadata !== "object") return 0;
@@ -78,7 +79,7 @@ export async function getBookingsPerTherapist(fromDate: string, toDate: string, 
   const supabase = await createClient();
   let q = supabase
     .from("bookings")
-    .select("staff_id, status, metadata, staff!staff_id ( id, full_name, tier, branch_id )")
+    .select("staff_id, status, metadata, staff!staff_id ( id, full_name, nickname, tier, branch_id )")
     .gte("booking_date", fromDate)
     .lte("booking_date", toDate);
   if (branchId) q = q.eq("branch_id", branchId);
@@ -98,7 +99,7 @@ export async function getBookingsPerTherapist(fromDate: string, toDate: string, 
     if (!acc[sid]) {
       acc[sid] = {
         staffId: sid,
-        name: (staff as { full_name?: string } | null)?.full_name ?? sid,
+        name: staff ? getStaffAdminName(staff as { full_name?: string | null; nickname?: string | null }) : sid,
         tier: (staff as { tier?: string } | null)?.tier ?? "-",
         total: 0,
         completed: 0,

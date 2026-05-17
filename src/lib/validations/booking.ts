@@ -115,6 +115,10 @@ export const createInhouseBookingMultiSchema = z.object({
   homeServiceFormattedAddress: z.string().max(500).optional(),
   homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
   homeServiceMapUrl:           z.string().url().max(1000).optional(),
+  // Payment capture — required for CRM in-house bookings
+  paymentMethod:    z.enum(["cash", "gcash", "maya", "card", "other"], { message: "Please select a payment method." }),
+  paymentReference: z.string().max(100).optional(),
+  paymentNote:      z.string().max(500).optional(),
 });
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 
@@ -237,6 +241,16 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   pay_on_site: "Pay on Site",
   other:       "Other",
 };
+
+// ── CRM confirm pending-payment booking ───────────────────────────────────
+export const confirmBookingPaymentSchema = z.object({
+  bookingId:        uuid,
+  paymentMethod:    z.enum(["cash", "gcash", "maya", "card", "other"]),
+  paymentReference: z.string().max(100).optional(),
+  amountPaid:       z.number().min(0).optional(),
+  note:             z.string().max(500).optional(),
+});
+export type ConfirmBookingPaymentInput = z.infer<typeof confirmBookingPaymentSchema>;
 
 // ── Update booking payment ────────────────────────────────────────────────
 export const updateBookingPaymentSchema = z.object({

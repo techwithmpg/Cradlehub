@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronRight,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 
 type Props = {
@@ -123,6 +124,7 @@ export function ManagerMoreScreen({ branchName }: Props) {
       >
         <MenuItem icon={Bell} label="Notifications" href="/manager/notifications" />
         <MenuItem icon={Building2} label="Spaces & Rooms" href="/manager/spaces-rules" />
+        <MenuItem icon={Sparkles} label="Services" href="/manager/services" />
         <MenuItem icon={Settings} label="Settings" href="/manager/settings" />
         <MenuItem icon={User} label="Branch Info" href="/manager/settings" />
         <MenuItem icon={HelpCircle} label="Help" href="/contact" />

@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getMyProfileAction } from "../actions";
 import { StaffProfilePhotoUploader } from "@/components/features/staff-portal/staff-profile-photo-uploader";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
+import { getStaffNickname } from "@/lib/staff/display-name";
 
 export default async function StaffProfilePage() {
   const result = await getMyProfileAction();
@@ -16,6 +17,7 @@ export default async function StaffProfilePage() {
 
   const { staff } = result;
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Staff";
+  const nickname = getStaffNickname(staff);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -41,6 +43,11 @@ export default async function StaffProfilePage() {
             <div>
               <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Full Name</label>
               <div className="mt-1 text-sm font-medium text-text">{staff.full_name}</div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Nickname</label>
+              <div className="mt-1 text-sm font-medium text-text">{nickname ?? "Not set"}</div>
             </div>
 
             <div>

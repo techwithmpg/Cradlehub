@@ -1,4 +1,5 @@
 import { STAFF_TYPE_LABELS, SYSTEM_ROLE_LABELS } from "@/constants/staff";
+import { getStaffAdminName, getStaffKnownAsLabel } from "@/lib/staff/display-name";
 import type { Database } from "@/types/supabase";
 
 type StaffRow = Database["public"]["Tables"]["staff"]["Row"];
@@ -198,6 +199,7 @@ export function getStaffDisplayMeta(member: StaffMember): StaffDisplayMeta {
     !hasTierInTitle;
   const tierLabel = shouldShowTier ? rawTierLabel : null;
   const subtitleParts = [
+    getStaffKnownAsLabel(member),
     staffTypeLabel,
     member.is_head ? "Head / Supervisor" : null,
     tierLabel,
@@ -228,6 +230,10 @@ export function getStaffDisplayPosition(member: StaffMember): string {
 
 export function getStaffDisplaySubtitle(member: StaffMember): string {
   return getStaffDisplayMeta(member).subtitle;
+}
+
+export function getStaffInternalName(member: StaffMember): string {
+  return getStaffAdminName(member);
 }
 
 export function getInitials(name: string): string {
@@ -287,6 +293,7 @@ export function staffMatchesFilters(member: StaffMember, filters: StaffFilters):
   const meta = getStaffDisplayMeta(member);
   const searchableText = [
     member.full_name,
+    member.nickname,
     member.phone,
     member.email,
     readBranchName(member.branches),

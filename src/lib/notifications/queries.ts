@@ -134,6 +134,22 @@ export async function resolveNotificationAction(id: string): Promise<void> {
     .eq("id", id);
 }
 
+// ── Sound trigger: IDs of unread booking notifications requiring action ─────────
+// Used by BookingNotificationSound to detect new arrivals without fetching full rows.
+export async function getUnreadBookingNotificationIdsAction(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workspace_notifications")
+    .select("id")
+    .eq("status", "unread")
+    .eq("requires_action", true)
+    .eq("entity_type", "booking")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) return [];
+  return (data ?? []).map((r) => r.id);
+}
+
 // ── Owner reads: still use the signed-in client so RLS protects direct calls. ──
 
 export async function getOwnerAllNotificationsAction(

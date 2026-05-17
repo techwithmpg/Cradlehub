@@ -5,6 +5,7 @@ import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-b
 import { getOwnerDashboardAction, getOwnerBookingsAction } from "./bookings/actions";
 import { getAllBranches } from "@/lib/queries/branches";
 import { getAllStaff } from "@/lib/queries/staff";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatCurrency, formatTime } from "@/lib/utils";
 type BranchStat = { name: string; revenue: number; total: number; completed: number };
 
@@ -23,7 +24,7 @@ export default async function OwnerOverviewPage() {
     id: string; start_time: string; status: string; type: string;
     customers?: { full_name?: string } | null;
     services?: { name?: string } | null;
-    staff?: { full_name?: string } | null;
+    staff?: { full_name?: string; nickname?: string | null } | null;
     branches?: { name?: string } | null;
   }>;
   const activeStaff = staff.filter((s) => s.is_active).length;
@@ -126,7 +127,7 @@ export default async function OwnerOverviewPage() {
                       {b.customers?.full_name ?? "—"}
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                      {b.services?.name} · {b.staff?.full_name} · {b.branches?.name}
+                      {b.services?.name} · {b.staff ? getStaffAdminName(b.staff) : "Unassigned"} · {b.branches?.name}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>

@@ -24,6 +24,7 @@ import {
   type StaffAvailability,
 } from "@/components/features/manager-today/manager-today-utils";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { WalkinDialog } from "@/components/features/manager-today/walkin-dialog";
 
@@ -374,7 +375,7 @@ function BookingFlowCard({ booking }: { booking: TodayBooking }) {
         </div>
         <div style={{ fontSize: 11, color: "var(--cs-text-muted)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
           {service?.name ?? "Service"}
-          {staffMember && <span>· {staffMember.full_name}</span>}
+          {staffMember && <span>· {getStaffAdminName(staffMember)}</span>}
         </div>
         <div style={{ marginTop: 3 }}>
           <BookingStatusBadge status={booking.status} />

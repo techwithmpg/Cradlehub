@@ -24,6 +24,12 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function readRequestNickname(metadata: OnboardingRequest["metadata"]): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const nickname = (metadata as { nickname?: unknown }).nickname;
+  return typeof nickname === "string" && nickname.trim().length > 0 ? nickname.trim() : null;
+}
+
 function RequestCard({
   request,
   branches,
@@ -57,6 +63,7 @@ function RequestCard({
 
   const defaultBranchId = request.requested_branch_id ?? reviewerBranchId ?? branches[0]?.id ?? "";
   const isApplicantTherapist = isTherapistRole(request.preferred_role ?? "");
+  const nickname = readRequestNickname(request.metadata);
 
   const [selectedBranchId, setSelectedBranchId] = useState(defaultBranchId);
   
@@ -136,7 +143,7 @@ function RequestCard({
             {request.full_name}
           </div>
           <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-            {request.email} · {request.phone ?? "—"}
+            {request.email} · {nickname ? `Known as ${nickname} · ` : ""}{request.phone ?? "—"}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
@@ -189,6 +196,7 @@ function RequestCard({
           >
             {[
               { label: "Preferred role", value: getOnboardingRoleLabel(request.preferred_role ?? "") },
+              { label: "Nickname", value: nickname ?? "—" },
               { label: "Requested branch", value: branches.find(b => b.id === request.requested_branch_id)?.name ?? request.requested_branch_id ?? "No preference" },
               { label: "Services requested", value: requestedServiceIds.length > 0 ? `${requestedServiceIds.length} service(s)` : "None — will use legacy fallback" },
               { label: "Address", value: request.address ?? "—" },

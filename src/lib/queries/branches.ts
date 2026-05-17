@@ -4,14 +4,162 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cacheTags } from "@/lib/cache/cache-tags";
 
-function isMissingServiceVisibilityError(message: string): boolean {
+function isMissingBranchServiceColumnError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
-    lower.includes("booking_visibility") &&
+    (lower.includes("visibility") ||
+      lower.includes("booking_visibility") ||
+      lower.includes("public_title") ||
+      lower.includes("public_description") ||
+      lower.includes("custom_duration_minutes") ||
+      lower.includes("custom_image_url") ||
+      lower.includes("is_featured") ||
+      lower.includes("sort_order") ||
+      lower.includes("customer_tier_required") ||
+      lower.includes("requires_senior_staff") ||
+      lower.includes("requires_special_setup") ||
+      lower.includes("setup_notes") ||
+      lower.includes("available_in_spa") ||
+      lower.includes("available_home_service")) &&
     (lower.includes("does not exist") ||
       lower.includes("schema cache") ||
       lower.includes("could not find"))
   );
+}
+
+const branchServicesManagementSelect = `
+  id,
+  branch_id,
+  service_id,
+  custom_price,
+  is_active,
+  available_in_spa,
+  available_home_service,
+  visibility,
+  customer_tier_required,
+  requires_senior_staff,
+  requires_special_setup,
+  setup_notes,
+  sort_order,
+  public_title,
+  public_description,
+  custom_duration_minutes,
+  custom_image_url,
+  is_featured,
+  services (
+    id,
+    name,
+    description,
+    duration_minutes,
+    price,
+    buffer_before,
+    buffer_after,
+    service_categories ( id, name, display_order )
+  )
+`;
+
+const branchServicesPublicModernSelect = `
+  id,
+  branch_id,
+  service_id,
+  custom_price,
+  is_active,
+  available_in_spa,
+  available_home_service,
+  visibility,
+  sort_order,
+  public_title,
+  public_description,
+  custom_duration_minutes,
+  custom_image_url,
+  is_featured,
+  services (
+    id,
+    name,
+    description,
+    duration_minutes,
+    price,
+    buffer_before,
+    buffer_after,
+    service_categories ( id, name, display_order )
+  )
+`;
+
+const branchServicesLegacySelect = `
+  id,
+  branch_id,
+  service_id,
+  custom_price,
+  is_active,
+  available_in_spa,
+  available_home_service,
+  booking_visibility,
+  services (
+    id,
+    name,
+    description,
+    duration_minutes,
+    price,
+    buffer_before,
+    buffer_after,
+    service_categories ( id, name, display_order )
+  )
+`;
+
+const branchServicesMinimalSelect = `
+  id,
+  branch_id,
+  service_id,
+  custom_price,
+  is_active,
+  services (
+    id,
+    name,
+    description,
+    duration_minutes,
+    price,
+    buffer_before,
+    buffer_after,
+    service_categories ( id, name, display_order )
+  )
+`;
+
+function normalizeBranchServiceVisibility(rows: unknown[]) {
+  return rows.map((row) => {
+    const record = row as Record<string, unknown>;
+    const visibility =
+      typeof record.visibility === "string" ? record.visibility : null;
+    const bookingVisibility =
+      typeof record.booking_visibility === "string"
+        ? record.booking_visibility
+        : visibility ?? "public";
+
+    return {
+      ...record,
+      ...(visibility ? { visibility } : {}),
+      booking_visibility: bookingVisibility,
+      available_in_spa:
+        typeof record.available_in_spa === "boolean"
+          ? record.available_in_spa
+          : true,
+      available_home_service:
+        typeof record.available_home_service === "boolean"
+          ? record.available_home_service
+          : false,
+    };
+  });
+}
+
+function isPublicBranchService(row: unknown): boolean {
+  const record = row as Record<string, unknown>;
+  const visibility =
+    typeof record.visibility === "string"
+      ? record.visibility
+      : typeof record.booking_visibility === "string"
+        ? record.booking_visibility
+        : "public";
+
+  return visibility === "public";
 }
 
 export async function getAllBranches() {
@@ -74,36 +222,92 @@ export async function getBranchServices(
 ) {
   const supabase = await createClient();
 
-  const baseQuery = () =>
-    supabase
-      .from("branch_services")
-      .select(`
-        *,
-        services (
-          id, name, description, duration_minutes, price,
-          buffer_before, buffer_after,
-          service_categories ( id, name, display_order )
-        )
-      `)
-      .eq("branch_id", branchId)
-      .eq("is_active", true);
+  const modern = await supabase
+    .from("branch_services")
+    .select(branchServicesPublicModernSelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
 
-  let query = baseQuery();
-
-  if (options?.publicOnly) {
-    query = query.eq("booking_visibility", "public");
+  if (!modern.error) {
+    const rows = normalizeBranchServiceVisibility(modern.data ?? []);
+    return options?.publicOnly ? rows.filter(isPublicBranchService) : rows;
   }
 
-  const { data, error } = await query.order("id");
-
-  if (error && options?.publicOnly && isMissingServiceVisibilityError(error.message)) {
-    const fallback = await baseQuery().order("id");
-    if (fallback.error) throw new Error(fallback.error.message);
-    return fallback.data ?? [];
+  if (!isMissingBranchServiceColumnError(modern.error.message)) {
+    throw new Error(modern.error.message);
   }
 
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  const legacy = await supabase
+    .from("branch_services")
+    .select(branchServicesLegacySelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("id", { ascending: true });
+
+  if (!legacy.error) {
+    const rows = normalizeBranchServiceVisibility(legacy.data ?? []);
+    return options?.publicOnly ? rows.filter(isPublicBranchService) : rows;
+  }
+
+  if (!isMissingBranchServiceColumnError(legacy.error.message)) {
+    throw new Error(legacy.error.message);
+  }
+
+  const minimal = await supabase
+    .from("branch_services")
+    .select(branchServicesMinimalSelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("id", { ascending: true });
+
+  if (minimal.error) throw new Error(minimal.error.message);
+
+  const rows = normalizeBranchServiceVisibility(minimal.data ?? []);
+  return options?.publicOnly ? rows.filter(isPublicBranchService) : rows;
+}
+
+export async function getBranchServicesForManagement(branchId: string) {
+  const supabase = await createClient();
+
+  const modern = await supabase
+    .from("branch_services")
+    .select(branchServicesManagementSelect)
+    .eq("branch_id", branchId)
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (!modern.error) {
+    return normalizeBranchServiceVisibility(modern.data ?? []);
+  }
+
+  if (!isMissingBranchServiceColumnError(modern.error.message)) {
+    throw new Error(modern.error.message);
+  }
+
+  const legacy = await supabase
+    .from("branch_services")
+    .select(branchServicesLegacySelect)
+    .eq("branch_id", branchId)
+    .order("id", { ascending: true });
+
+  if (!legacy.error) {
+    return normalizeBranchServiceVisibility(legacy.data ?? []);
+  }
+
+  if (!isMissingBranchServiceColumnError(legacy.error.message)) {
+    throw new Error(legacy.error.message);
+  }
+
+  const minimal = await supabase
+    .from("branch_services")
+    .select(branchServicesMinimalSelect)
+    .eq("branch_id", branchId)
+    .order("id", { ascending: true });
+
+  if (minimal.error) throw new Error(minimal.error.message);
+  return normalizeBranchServiceVisibility(minimal.data ?? []);
 }
 
 // ── Branch with full detail (owner branch edit/detail page) ───────────────
@@ -120,23 +324,11 @@ export async function getBranchWithFullDetail(branchId: string) {
       .eq("id", branchId)
       .single(),
 
-    supabase
-      .from("branch_services")
-      .select(`
-        id, is_active, custom_price, available_in_spa, available_home_service, booking_visibility,
-        services (
-          id, name, description,
-          duration_minutes, price,
-          buffer_before, buffer_after,
-          service_categories ( id, name, display_order )
-        )
-      `)
-      .eq("branch_id", branchId)
-      .order("is_active", { ascending: false }),
+    getBranchServicesForManagement(branchId),
 
     supabase
       .from("staff")
-      .select("id, full_name, tier, system_role, phone, is_active")
+      .select("id, full_name, nickname, tier, system_role, phone, is_active")
       .eq("branch_id", branchId)
       .order("tier")
       .order("full_name"),
@@ -153,7 +345,7 @@ export async function getBranchWithFullDetail(branchId: string) {
 
   return {
     branch:    branchResult.data,
-    services:  servicesResult.data  ?? [],
+    services:  servicesResult ?? [],
     staff:     staffResult.data     ?? [],
     resources: resourcesResult.data ?? [],
   };

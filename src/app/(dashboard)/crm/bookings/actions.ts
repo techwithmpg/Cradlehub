@@ -1,0 +1,224 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
+import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
+import { revalidatePath } from "next/cache";
+import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
+import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
+import type { Database } from "@/types/supabase";
+
+async function getCrmActionsContext() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  if (isDevAuthBypassEnabled()) {
+    return { supabase, me: { id: "dev", branch_id: "dev", system_role: "crm" } };
+  }
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("id, branch_id, system_role")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
+  if (!me || !me.branch_id || !allowedRoles.includes(me.system_role)) return null;
+  return { supabase, me };
+}
+
+const CONFIRMABLE_STATUSES = new Set(["pending_payment", "pending_crm_confirmation", "pending"]);
+
+export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ success: boolean; error?: string }> {
+  const parsed = confirmBookingPaymentSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const ctx = await getCrmActionsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+  const { supabase, me } = ctx;
+
+  const { bookingId, paymentMethod, paymentReference, amountPaid, note } = parsed.data;
+
+  // Load booking — try with hold_expires_at first, fall back if column absent
+  type BookingRow = {
+    id: string;
+    branch_id: string;
+    status: string;
+    hold_expires_at: string | null;
+    staff_id: string | null;
+    booking_date: string;
+    start_time: string;
+    end_time: string | null;
+    delivery_type: string | null;
+    type: string;
+    payment_method: string | null;
+    payment_status: string | null;
+    amount_paid: number | null;
+    payment_reference: string | null;
+  };
+
+  let booking: BookingRow | null = null;
+
+  const { data: fullBooking, error: fetchErr } = await supabase
+    .from("bookings")
+    .select(
+      "id, branch_id, status, hold_expires_at, staff_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+    )
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (!fetchErr) {
+    booking = fullBooking as BookingRow | null;
+  } else if (fetchErr.code === "42703") {
+    // hold_expires_at not yet present — retry without it
+    const { data: fallback } = await supabase
+      .from("bookings")
+      .select(
+        "id, branch_id, status, staff_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+      )
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (fallback) booking = { ...(fallback as Omit<BookingRow, "hold_expires_at">), hold_expires_at: null };
+  }
+
+  if (!booking) return { success: false, error: "Booking not found" };
+
+  // Branch guard (owner bypasses)
+  if (me.system_role !== "owner" && me.branch_id !== "dev" && booking.branch_id !== me.branch_id) {
+    return { success: false, error: "Booking not found" };
+  }
+
+  // Status check
+  if (!CONFIRMABLE_STATUSES.has(booking.status)) {
+    return { success: false, error: `Booking cannot be confirmed from status "${booking.status}"` };
+  }
+
+  // Expired hold → check for staff conflicts before allowing confirmation
+  const now = new Date();
+  const holdActive =
+    booking.hold_expires_at !== null &&
+    Number.isFinite(new Date(booking.hold_expires_at).getTime()) &&
+    new Date(booking.hold_expires_at).getTime() > now.getTime();
+
+  if (!holdActive && booking.staff_id) {
+    const { data: candidates } = await supabase
+      .from("bookings")
+      .select("id, status, hold_expires_at, start_time, end_time")
+      .eq("staff_id", booking.staff_id)
+      .eq("booking_date", booking.booking_date)
+      .neq("id", bookingId);
+
+    if (candidates && candidates.length > 0) {
+      const bStart = new Date(`${booking.booking_date}T${booking.start_time}`).getTime();
+      const bEnd = booking.end_time
+        ? new Date(`${booking.booking_date}T${booking.end_time}`).getTime()
+        : bStart + 60 * 60 * 1000;
+
+      const hasConflict = candidates.some((c) => {
+        if (!bookingBlocksAvailability(c, now)) return false;
+        const cStart = new Date(`${booking.booking_date}T${c.start_time}`).getTime();
+        const cEnd = c.end_time
+          ? new Date(`${booking.booking_date}T${c.end_time}`).getTime()
+          : cStart + 60 * 60 * 1000;
+        return cStart < bEnd && cEnd > bStart;
+      });
+
+      if (hasConflict) {
+        return {
+          success: false,
+          error: "This time slot is no longer available. Please reschedule the booking before confirming.",
+        };
+      }
+    }
+  }
+
+  // Payment audit log
+  await supabase.from("booking_payment_logs").insert({
+    booking_id:            bookingId,
+    changed_by:            me.id === "dev" ? null : me.id,
+    old_payment_method:    booking.payment_method ?? null,
+    old_payment_status:    booking.payment_status ?? null,
+    old_amount_paid:       booking.amount_paid ?? null,
+    old_payment_reference: booking.payment_reference ?? null,
+    new_payment_method:    paymentMethod,
+    new_payment_status:    "paid",
+    new_amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
+    new_payment_reference: paymentReference ?? null,
+    reason:                note?.trim() || "CRM payment confirmation",
+  });
+
+  type BookingUpdate = Database["public"]["Tables"]["bookings"]["Update"];
+
+  // Confirm booking + clear hold
+  const updatePayload: BookingUpdate = {
+    status:            "confirmed",
+    payment_method:    paymentMethod,
+    payment_status:    "paid",
+    payment_reference: paymentReference ?? null,
+    amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
+    hold_expires_at:   null,
+  };
+
+  const { error: updateErr } = await supabase
+    .from("bookings")
+    .update(updatePayload)
+    .eq("id", bookingId)
+    .eq("branch_id", booking.branch_id);
+
+  if (updateErr) {
+    if (updateErr.code === "42703") {
+      // Retry without hold_expires_at (column not yet present)
+      const payloadNoHold: BookingUpdate = {
+        status:            "confirmed",
+        payment_method:    paymentMethod,
+        payment_status:    "paid",
+        payment_reference: paymentReference ?? null,
+        amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
+      };
+      const { error: fallbackErr } = await supabase
+        .from("bookings")
+        .update(payloadNoHold)
+        .eq("id", bookingId)
+        .eq("branch_id", booking.branch_id);
+      if (fallbackErr) return { success: false, error: fallbackErr.message };
+    } else {
+      return { success: false, error: updateErr.message };
+    }
+  }
+
+  // Notify assigned staff (only after confirmed — Phase 5 requirement)
+  if (booking.staff_id) {
+    const isHS = booking.delivery_type === "home_service" || booking.type === "home_service";
+    await createNotification({
+      branchId:         booking.branch_id,
+      targetWorkspace:  "staff",
+      recipientStaffId: booking.staff_id,
+      type:             isHS ? "home_service_assigned" : "booking_assigned",
+      title:            isHS ? "Home Service booking confirmed" : "Booking confirmed and assigned",
+      body:             `Your booking on ${booking.booking_date} at ${booking.start_time} has been confirmed.`,
+      entityType:       "booking",
+      entityId:         bookingId,
+      actionHref:       getNotificationTargetPath({
+        workspace:  "staff-portal",
+        entityType: "booking",
+        entityId:   bookingId,
+      }),
+      priority:       isHS ? "high" : "normal",
+      requiresAction: isHS,
+    });
+  }
+
+  // Resolve CRM payment_pending notification
+  await resolveNotificationsForEntity("booking", bookingId, "crm", "payment_pending");
+
+  revalidatePath("/crm");
+  revalidatePath("/crm/bookings");
+  revalidatePath("/manager");
+  revalidatePath("/manager/bookings");
+  return { success: true };
+}

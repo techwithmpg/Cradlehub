@@ -135,7 +135,7 @@ export async function listPendingSuggestionsAction(date?: string) {
 
   let query = ctx.supabase
     .from("schedule_suggestions")
-    .select("*, staff:staff_id(full_name, system_role)")
+    .select("*, staff:staff_id(full_name, nickname, system_role)")
     .eq("branch_id", ctx.me.branch_id)
     .eq("status", "pending")
     .order("priority", { ascending: false })

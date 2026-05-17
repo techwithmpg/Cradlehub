@@ -4,6 +4,7 @@ import { getStaffByBranchWithBranches, getPendingStaffByBranch, getStaffServices
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getAllServices } from "@/lib/queries/services";
 import { getBranchById } from "@/lib/queries/branches";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { StaffEditForm } from "@/components/features/staff/staff-edit-form";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type { Database } from "@/types/supabase";
@@ -40,7 +41,7 @@ export default async function ManagerStaffDetailPage({
   return (
     <div style={{ maxWidth: 760 }}>
       <PageHeader
-        title={staffMember.full_name}
+        title={getStaffAdminName(staffMember)}
         description={`${branch?.name ?? "Unknown branch"} · ${staffMember.system_role}`}
       />
       <StaffEditForm

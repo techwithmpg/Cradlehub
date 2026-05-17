@@ -4,6 +4,7 @@ import { getBranchDetailAction } from "@/app/(dashboard)/owner/branches/actions"
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createClient } from "@/lib/supabase/server";
 import { ensureBranchSetupWarningNotifications } from "@/lib/notifications/setup-warnings";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { BranchEditForm } from "./branch-edit-form";
 import { BranchBookingRulesForm } from "./branch-booking-rules-form";
 import { BranchResourcesManager } from "./branch-resources-manager";
@@ -15,7 +16,7 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 type StaffLite = Pick<
   Database["public"]["Tables"]["staff"]["Row"],
-  "id" | "full_name" | "tier" | "system_role" | "phone" | "is_active"
+  "id" | "full_name" | "nickname" | "tier" | "system_role" | "phone" | "is_active"
 >;
 type ServiceLite = {
   id: string;
@@ -122,7 +123,7 @@ export default async function BranchDetailPage({
                   >
                     <div>
                       <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
-                        {s.full_name}
+                        {getStaffAdminName(s)}
                       </div>
                       <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", textTransform: "capitalize" }}>
                         {s.tier} · {s.system_role.replace(/_/g, " ")}

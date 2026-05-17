@@ -1,25 +1,10 @@
 import Link from "next/link";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
-import {
-  getNotificationTargetPath,
-  getWorkspacePathPrefix,
-} from "@/lib/notifications/notification-targets";
+import { resolveNotificationHref } from "@/lib/notifications/notification-targets";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 
 function hrefForNotification(notification: WorkspaceNotification): string {
-  if (notification.action_href) return notification.action_href;
-  const workspace =
-    notification.target_workspace === "staff"
-      ? "staff-portal"
-      : notification.target_workspace;
-  const prefix = getWorkspacePathPrefix(
-    workspace as "owner" | "manager" | "crm" | "staff-portal" | "driver" | "utility"
-  );
-  return getNotificationTargetPath({
-    workspace: workspace as "owner" | "manager" | "crm" | "staff-portal" | "driver" | "utility",
-    entityType: notification.entity_type,
-    entityId: notification.entity_id,
-  }) || prefix;
+  return resolveNotificationHref(notification) ?? "/crm/notifications";
 }
 
 export async function ActionRequiredList({ limit = 5 }: { limit?: number }) {

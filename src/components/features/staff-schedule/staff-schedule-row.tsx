@@ -2,6 +2,7 @@
 
 import { summarizeWeeklyHours } from "@/lib/utils/staff-schedule-summary";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { Settings2 } from "lucide-react";
 
 type Schedule = {
@@ -32,6 +33,7 @@ type BlockedTime = {
 type StaffMember = {
   id: string;
   full_name: string;
+  nickname?: string | null;
   tier: string | null;
   staff_type: string | null;
   is_head: boolean | null;
@@ -50,6 +52,7 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
   const summary = summarizeWeeklyHours(schedules);
   const isScheduled = schedules.some((s) => s.is_active);
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? staff.staff_type ?? "Staff";
+  const displayName = getStaffAdminName(staff);
 
   return (
     <div
@@ -94,7 +97,7 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
             flexShrink: 0,
           }}
         >
-          {staff.full_name.charAt(0)}
+          {displayName.charAt(0)}
         </div>
         <div style={{ minWidth: 0 }}>
           <div
@@ -107,7 +110,7 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
               textOverflow: "ellipsis",
             }}
           >
-            {staff.full_name}
+            {displayName}
           </div>
         </div>
       </div>

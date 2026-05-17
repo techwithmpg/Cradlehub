@@ -419,20 +419,28 @@ export async function createInhouseBookingMultiAction(
         ...(hsAddressData && { dispatch: dispatchData }),
       };
 
+      const servicePrice = overrideByServiceId.get(service.id)?.custom_price ?? service.price;
+      const amountPaid = Number(servicePrice);
+
       const { data: booking, error: bookingError } = await admin
         .from("bookings")
         .insert({
-          branch_id: resolvedBranchId,
-          service_id: serviceId,
-          staff_id: resolvedStaffId,
-          resource_id: resolvedResourceId,
-          customer_id: resolvedCustomerId,
+          branch_id:    resolvedBranchId,
+          service_id:   serviceId,
+          staff_id:     resolvedStaffId,
+          resource_id:  resolvedResourceId,
+          customer_id:  resolvedCustomerId,
           booking_date: d.date,
-          start_time: currentStart,
-          end_time: endTime,
-          type: d.type,
+          start_time:   currentStart,
+          end_time:     endTime,
+          type:         d.type,
           delivery_type: deliveryType,
-          status: "confirmed",
+          status:       "confirmed",
+          payment_method:    d.paymentMethod,
+          payment_status:    "paid",
+          payment_reference: d.paymentReference ?? null,
+          amount_paid:       amountPaid,
+          hold_expires_at:   null,
           travel_buffer_mins:
             deliveryType === "home_service"
               ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
@@ -462,37 +470,47 @@ export async function createInhouseBookingMultiAction(
       }
 
       insertedIds.push(booking.id);
+
+      // Append-only payment audit log per booking row
+      await admin
+        .from("booking_payment_logs")
+        .insert({
+          booking_id:            booking.id,
+          changed_by:            staff?.id ?? null,
+          old_payment_method:    null,
+          old_payment_status:    null,
+          old_amount_paid:       null,
+          old_payment_reference: null,
+          new_payment_method:    d.paymentMethod,
+          new_payment_status:    "paid",
+          new_amount_paid:       amountPaid,
+          new_payment_reference: d.paymentReference ?? null,
+          reason:                d.paymentNote?.trim() || "CRM in-house booking — payment recorded at creation",
+        })
+        .then(({ error: logErr }) => {
+          if (logErr) console.error("[CRM_BOOKING] payment_log insert failed", logErr.message);
+        });
+
       currentStart = endTime;
     }
 
     const isHomeService = deliveryType === "home_service";
     const notificationJobs: Promise<void>[] = [
       createNotification({
-        branchId: resolvedBranchId,
-        targetWorkspace: "staff",
+        branchId:         resolvedBranchId,
+        targetWorkspace:  "staff",
         recipientStaffId: resolvedStaffId,
-        type: isHomeService ? "home_service_assigned" : "booking_assigned",
-        title: isHomeService ? "Home Service booking assigned" : "New booking assigned",
-        body: `You have a ${isHomeService ? "Home Service" : "new"} booking on ${d.date} at ${d.startTime}.`,
-        entityType: "booking",
-        entityId: insertedIds[0],
-        actionHref: "/staff-portal",
-        priority: isHomeService ? "high" : "normal",
-        requiresAction: isHomeService,
-        metadata: insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
+        type:             isHomeService ? "home_service_assigned" : "booking_assigned",
+        title:            isHomeService ? "Home Service booking confirmed" : "New confirmed booking",
+        body:             `You have a confirmed ${isHomeService ? "Home Service" : ""} booking on ${d.date} at ${d.startTime}.`,
+        entityType:       "booking",
+        entityId:         insertedIds[0],
+        actionHref:       "/staff-portal/schedule",
+        priority:         isHomeService ? "high" : "normal",
+        requiresAction:   isHomeService,
+        metadata:         insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
       }),
-      createNotification({
-        branchId: resolvedBranchId,
-        targetWorkspace: "crm",
-        type: "payment_pending",
-        title: "Payment needs follow-up",
-        body: "A manual booking payment is unpaid or pending confirmation.",
-        entityType: "booking",
-        entityId: insertedIds[0],
-        actionHref: "/crm/bookings",
-        priority: "normal",
-        requiresAction: true,
-      }),
+      // No CRM payment_pending notification for in-house bookings — payment is already recorded.
     ];
 
     if (isHomeService && dispatchData.needs_location_review === true) {
@@ -546,6 +564,7 @@ export async function createInhouseBookingMultiAction(
     });
 
     revalidatePath("/crm");
+    revalidatePath("/crm/bookings");
     revalidatePath("/crm/bookings/new");
     revalidatePath("/manager");
     revalidatePath("/manager/bookings");

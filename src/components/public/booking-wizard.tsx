@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import Image from "next/image";
+import Link from "next/link";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -75,11 +76,16 @@ type Slot = {
 type StaffOption = {
   staff_id: string;
   staff_name: string;
+  staff_full_name?: string | null;
+  staff_nickname?: string | null;
   staff_tier: string;
   staff_type?: string;
 };
 
 type StaffLookup = {
+  name: string | null;
+  fullName: string | null;
+  nickname: string | null;
   staffType: string | null;
   serviceIds: string[];
   isServiceProvider: boolean;
@@ -101,6 +107,9 @@ type BookingContextService = {
 
 type BookingContextStaff = {
   id: string;
+  name?: string | null;
+  fullName?: string | null;
+  nickname?: string | null;
   staffType?: string | null;
   serviceIds?: string[];
 };
@@ -236,11 +245,14 @@ function staffAtSlot(
       continue;
     }
     seen.add(s.staff_id);
+    const displayName = lookup?.name ?? s.staff_name;
     out.push({
       staff_id: s.staff_id,
-      staff_name: s.staff_name,
+      staff_name: displayName,
+      staff_full_name: lookup?.fullName ?? s.staff_name,
+      staff_nickname: lookup?.nickname ?? null,
       staff_tier: s.staff_tier,
-      staff_type: lookup.staffType ?? undefined,
+      staff_type: lookup?.staffType ?? undefined,
     });
   }
   out.sort((a, b) => {
@@ -283,6 +295,7 @@ export function BookingWizard({
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ bookingId: string } | null>(null);
+  const [availabilityMessage, setAvailabilityMessage] = useState("");
 
   // Selections
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
@@ -315,6 +328,10 @@ export function BookingWizard({
     hsFormattedAddress: "",
     hsAddressComponents: [] as GoogleAddressComponent[],
     hsMapUrl: "",
+    // CRM in-house payment capture (inhouse mode only)
+    paymentMethod: "",
+    paymentReference: "",
+    paymentNote: "",
   });
   const [formError, setFormError] = useState("");
   const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
@@ -449,6 +466,9 @@ export function BookingWizard({
         const nextStaffLookup = new Map<string, StaffLookup>();
         for (const member of staffList) {
           nextStaffLookup.set(member.id, {
+            name: member.name ?? member.fullName ?? null,
+            fullName: member.fullName ?? member.name ?? null,
+            nickname: member.nickname ?? null,
             staffType: member.staffType ?? null,
             serviceIds: member.serviceIds ?? [],
             isServiceProvider: true,
@@ -492,14 +512,22 @@ export function BookingWizard({
 
   // Fetch slots when branch + services + date are all selected
   useEffect(() => {
-    if (!selectedBranch || selectedServices.length === 0 || !selectedDate) return;
+    if (!selectedBranch || selectedServices.length === 0 || !selectedDate) {
+      return;
+    }
     const id = setTimeout(() => setLoadingSlots(true), 0);
     const dateStr = toLocalYmd(selectedDate);
     const serviceIds = selectedServices.map((s) => s.id).join(",");
     fetch(
       `/api/booking/available-slots?branchId=${selectedBranch.id}&serviceIds=${serviceIds}&date=${dateStr}`
     )
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) {
+          throw new Error(data.error ?? "Unable to load branch services.");
+        }
+        return data;
+      })
       .then((data) => {
         const all = (data.slots ?? []) as Slot[];
         const visitTypeSlots = filterSlotsByVisitType(
@@ -509,9 +537,15 @@ export function BookingWizard({
         );
         setRawSlots(visitTypeSlots);
         setSlots(normalizePublicSlots(visitTypeSlots));
+        setAvailabilityMessage(data.reason?.message ?? "");
         setLoadingSlots(false);
       })
-      .catch(() => setLoadingSlots(false));
+      .catch(() => {
+        setRawSlots([]);
+        setSlots([]);
+        setAvailabilityMessage("Unable to load branch availability. Please try again.");
+        setLoadingSlots(false);
+      });
     return () => clearTimeout(id);
   }, [selectedBranch, selectedServices, selectedDate, visitType, bookingRules]);
 
@@ -523,8 +557,11 @@ export function BookingWizard({
         : [...prev, svc];
     });
     // Downstream state depends on service selection
+    setRawSlots([]);
+    setSlots([]);
     setSelectedSlot(null);
     setSelectedStaff("auto");
+    setAvailabilityMessage("");
   }, []);
 
   const handleVisitTypeSelect = useCallback((nextVisitType: VisitType) => {
@@ -542,6 +579,7 @@ export function BookingWizard({
     setSlots([]);
     setSelectedSlot(null);
     setSelectedStaff("auto");
+    setAvailabilityMessage("");
     setExistingHsBookings([]);
     setHsDriverCapacity(1);
   }, [bookingRules, mode]);
@@ -634,7 +672,10 @@ export function BookingWizard({
       mode === "inhouse"
         ? await createInhouseBookingMultiAction({
             ...payload,
-            type: getBookingTypeForVisitType(visitType, "inhouse"),
+            type:             getBookingTypeForVisitType(visitType, "inhouse"),
+            paymentMethod:    form.paymentMethod as "cash" | "gcash" | "maya" | "card" | "other",
+            paymentReference: form.paymentReference.trim() || undefined,
+            paymentNote:      form.paymentNote.trim() || undefined,
           })
         : await createOnlineBookingMultiAction({
             ...payload,
@@ -643,10 +684,10 @@ export function BookingWizard({
 
     setSubmitting(false);
     if (result.ok) {
-      toast.success(mode === "inhouse" ? "Booking saved" : "Booking confirmed!", {
+      toast.success(mode === "inhouse" ? "Booking saved" : "Booking request received", {
         description: mode === "inhouse"
           ? "Appointment saved to the CRM workspace."
-          : "We look forward to welcoming you at Cradle.",
+          : "Our CRM team will contact you shortly to confirm payment and finalize your appointment.",
       });
       setSuccess({ bookingId: result.bookingId });
       setStep(successStep);
@@ -688,7 +729,12 @@ export function BookingWizard({
     : currentStepName === "location" ? locationValid
     : currentStepName === "date_time" ? !!selectedSlot
     : currentStepName === "therapist" ? true
-    : currentStepName === "details"  ? form.fullName.trim().length >= 2 && form.phone.trim().length >= 7 && hsAddressFilled
+    : currentStepName === "details"  ? (
+        form.fullName.trim().length >= 2 &&
+        form.phone.trim().length >= 7 &&
+        hsAddressFilled &&
+        (mode !== "inhouse" || form.paymentMethod.trim().length > 0)
+      )
     : false;
   const canClickContinue = currentStepName === "location" || canProceed;
   const mobileProgressIndex = getMobileProgressIndex(currentStepName);
@@ -839,8 +885,11 @@ export function BookingWizard({
                   setSelectedBranch(b);
                   setBookingRules(null);
                   setSelectedServices([]);
+                  setRawSlots([]);
+                  setSlots([]);
                   setSelectedSlot(null);
                   setSelectedStaff("auto");
+                  setAvailabilityMessage("");
                 }}
               />
             )}
@@ -885,11 +934,16 @@ export function BookingWizard({
                 selectedDate={selectedDate}
                 onSelectDate={(d) => {
                   setSelectedDate(d);
+                  setRawSlots([]);
+                  setSlots([]);
                   setSelectedSlot(null);
                   setSelectedStaff("auto");
+                  setAvailabilityMessage("");
                 }}
                 slots={displaySlots}
                 loading={loadingSlots}
+                serviceCount={selectedServices.length}
+                availabilityMessage={availabilityMessage}
                 selectedSlot={selectedSlot}
                 onSelectSlot={(s) => {
                   setSelectedSlot(s);
@@ -966,11 +1020,11 @@ export function BookingWizard({
                     {submitting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Confirming...
+                        {mode === "inhouse" ? "Saving..." : "Confirming..."}
                       </>
                     ) : (
                       <>
-                        Confirm Booking
+                        {mode === "inhouse" ? "Confirm & Record Payment" : "Confirm Booking"}
                         <Check className="h-4 w-4" />
                       </>
                     )}
@@ -1347,6 +1401,8 @@ function StepDateTime({
   onSelectDate,
   slots,
   loading,
+  serviceCount,
+  availabilityMessage,
   selectedSlot,
   onSelectSlot,
   dispatchStatuses,
@@ -1358,6 +1414,8 @@ function StepDateTime({
   onSelectDate: (d: Date | undefined) => void;
   slots: Slot[];
   loading: boolean;
+  serviceCount: number;
+  availabilityMessage: string;
   selectedSlot: Slot | null;
   onSelectSlot: (s: Slot) => void;
   dispatchStatuses: Map<string, SlotDispatchStatus>;
@@ -1375,6 +1433,11 @@ function StepDateTime({
     !!selectedDate && toLocalYmd(selectedDate) === toLocalYmd(new Date());
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
   const availability = getVisitTypeAvailability(visitType, bookingRules);
+  const emptyMessage =
+    availabilityMessage ||
+    (slots.length > 0
+      ? "No available times for this date. Try another day."
+      : "No available staff for this service at this branch.");
 
   return (
     <div>
@@ -1415,20 +1478,34 @@ function StepDateTime({
           <p className="text-[12px] mb-3" style={{ color: "#6B7A6F" }}>
             {visitOption.label}: {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
           </p>
-          {!selectedDate ? (
+          {serviceCount === 0 ? (
             <div
               className="flex items-center justify-center h-48 rounded-xl border border-dashed"
               style={{ borderColor: "#EDE4D3", background: "#FCFAF5" }}
             >
               <p className="text-[13px]" style={{ color: "#9AA89A" }}>
-                Select a date to see available times
+                Choose a service to see available times.
+              </p>
+            </div>
+          ) : !selectedDate ? (
+            <div
+              className="flex items-center justify-center h-48 rounded-xl border border-dashed"
+              style={{ borderColor: "#EDE4D3", background: "#FCFAF5" }}
+            >
+              <p className="text-[13px]" style={{ color: "#9AA89A" }}>
+                Choose a date to see available times.
               </p>
             </div>
           ) : loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {Array.from({ length: 9 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 rounded-lg" />
-              ))}
+            <div>
+              <p className="mb-3 text-[13px]" style={{ color: "#6B7A6F" }}>
+                Checking available times...
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 rounded-lg" />
+                ))}
+              </div>
             </div>
           ) : availableSlots.length === 0 ? (
             <div
@@ -1438,7 +1515,7 @@ function StepDateTime({
               <p className="text-[13px]" style={{ color: "#6B7A6F" }}>
                 {isTodaySelected
                   ? "No more available slots today. Please choose another date."
-                  : `No available ${visitOption.label.toLowerCase()} slots for this date`}
+                  : emptyMessage}
               </p>
             </div>
           ) : (
@@ -1489,6 +1566,16 @@ function StepDateTime({
 
 // ── Step 5: Therapist ─────────────────────────────────────────────────────────
 
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((n) => n[0] ?? "")
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 function StepTherapist({
   availableStaff,
   selected,
@@ -1513,7 +1600,9 @@ function StepTherapist({
       <div className="flex flex-col gap-3">
         {/* Auto-assign option */}
         <button
+          type="button"
           onClick={() => onSelect("auto")}
+          aria-pressed={selected === "auto"}
           className={`flex items-center gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
             selected === "auto"
               ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
@@ -1550,54 +1639,58 @@ function StepTherapist({
           )}
         </button>
 
-        {/* Individual therapist options */}
+        {/* Individual therapist options — 2-column grid on sm+ */}
         {availableStaff.length > 0 && (
           <>
             <p className="text-[11px] font-semibold uppercase tracking-wide pt-2" style={{ color: "#9AA89A" }}>
               Or choose a specific provider
             </p>
-            {availableStaff.map((staff) => (
-              <button
-                key={staff.staff_id}
-                onClick={() => onSelect(staff.staff_id)}
-                className={`flex items-center gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
-                  selected === staff.staff_id
-                    ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-                    : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
-                }`}
-              >
-                <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
-                    selected === staff.staff_id
-                      ? "bg-[#163A2B] text-[#C8A96B]"
-                      : "bg-[#163A2B]/5 text-[#163A2B]"
-                  }`}
-                >
-                  <User className="h-6 w-6" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
-                      {staff.staff_name}
-                    </p>
-                    <span
-                      className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                      style={{ background: "#F0ECE5", color: "#6B7A6F" }}
+            <div className="grid sm:grid-cols-2 gap-3">
+              {availableStaff.map((staff) => {
+                const providerLabel = STAFF_TYPE_LABELS[(staff.staff_type ?? "") as StaffType] ?? "Therapist";
+                const initials = getInitials(staff.staff_name);
+                const isCardSelected = selected === staff.staff_id;
+
+                return (
+                  <button
+                    key={staff.staff_id}
+                    type="button"
+                    onClick={() => onSelect(staff.staff_id)}
+                    aria-pressed={isCardSelected}
+                    className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all duration-200 ${
+                      isCardSelected
+                        ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+                        : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+                    }`}
+                  >
+                    {/* Initials avatar */}
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${
+                        isCardSelected
+                          ? "bg-[#163A2B] text-[#C8A96B]"
+                          : "bg-[#163A2B]/10 text-[#163A2B]"
+                      }`}
+                      aria-hidden="true"
                     >
-                      {STAFF_TYPE_LABELS[(staff.staff_type ?? "") as StaffType] ?? "Therapist"}
-                    </span>
-                  </div>
-                  <p className="text-[12px] mt-1" style={{ color: "#9AA89A" }}>
-                    Available at your selected time
-                  </p>
-                </div>
-                {selected === staff.staff_id && (
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#163A2B] shrink-0">
-                    <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
-                  </div>
-                )}
-              </button>
-            ))}
+                      {initials || <User className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold leading-5" style={{ color: "#163A2B" }}>
+                        {staff.staff_name}
+                      </p>
+                      <p className="text-[12px] mt-0.5" style={{ color: "#9AA89A" }}>
+                        {providerLabel}
+                      </p>
+                    </div>
+                    {isCardSelected && (
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#163A2B]">
+                        <Check className="h-3 w-3 text-[#C8A96B]" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </>
         )}
         {availableStaff.length === 0 && (
@@ -1869,6 +1962,10 @@ type DetailsForm = {
   hsFormattedAddress: string;
   hsAddressComponents: GoogleAddressComponent[];
   hsMapUrl: string;
+  // CRM in-house payment capture
+  paymentMethod: string;
+  paymentReference: string;
+  paymentNote: string;
 };
 
 const HS_ZONE_OPTIONS: { value: string; label: string }[] = [
@@ -1966,6 +2063,76 @@ function StepDetails({
             className={`${INPUT_CLS} resize-none`}
           />
         </div>
+
+        {/* CRM In-House Payment Capture */}
+        {mode === "inhouse" && (
+          <div
+            className="flex flex-col gap-4 rounded-2xl p-5 border"
+            style={{ background: "#F0FDF4", borderColor: "#86EFAC" }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-4 w-4" style={{ color: "#16A34A" }} />
+              <p className="text-[13px] font-semibold" style={{ color: "#15803D" }}>
+                Payment
+              </p>
+              <span
+                className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                style={{ background: "#DCFCE7", color: "#15803D" }}
+              >
+                Required
+              </span>
+            </div>
+            <p className="text-[12px] -mt-2" style={{ color: "#166534" }}>
+              Record the customer&apos;s payment before finalizing this in-house booking.
+            </p>
+
+            <div>
+              <label className={`${LABEL_CLS}`} style={{ color: "#166534" }}>
+                Payment method *
+              </label>
+              <select
+                value={form.paymentMethod}
+                onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
+                className={INPUT_CLS}
+              >
+                <option value="" disabled>Select payment method…</option>
+                <option value="cash">Cash</option>
+                <option value="gcash">GCash</option>
+                <option value="maya">Maya</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className={`${LABEL_CLS}`} style={{ color: "#166534" }}>
+                Reference / receipt no.{" "}
+                <span className="normal-case font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={form.paymentReference}
+                onChange={(e) => onChange({ ...form, paymentReference: e.target.value })}
+                placeholder="e.g. GCash ref #, receipt number"
+                className={INPUT_CLS}
+              />
+            </div>
+
+            <div>
+              <label className={`${LABEL_CLS}`} style={{ color: "#166534" }}>
+                Payment note{" "}
+                <span className="normal-case font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={form.paymentNote}
+                onChange={(e) => onChange({ ...form, paymentNote: e.target.value })}
+                placeholder="Internal note about this payment…"
+                rows={2}
+                className={`${INPUT_CLS} resize-none`}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Home Service Address */}
         {isHomeService && (
@@ -2097,13 +2264,27 @@ function StepSuccess({
         className="text-2xl sm:text-3xl font-medium mb-3"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
-        {mode === "inhouse" ? "Booking Saved" : "Booking Received"}
+        {mode === "inhouse" ? "Booking Saved" : "Booking request received ✨"}
       </h2>
       <p className="text-[15px] max-w-md mx-auto mb-6" style={{ color: "#6B7A6F" }}>
         {mode === "inhouse"
           ? "The appointment has been saved and confirmed in the CRM workspace."
-          : "Thank you for choosing Cradle Massage & Wellness Spa. Your appointment request has been received and our team will contact you shortly to confirm."}
+          : "Thanks for booking with CradleHub. Our CRM team will contact you shortly to confirm your payment and finalize your appointment."}
       </p>
+
+      {mode === "public" && (
+        <div
+          className="mx-auto mb-6 max-w-md rounded-xl px-5 py-4 text-left"
+          style={{ background: "#FCFAF5", border: "1px solid #EDE4D3" }}
+        >
+          <p className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#C8A96B" }}>
+            Next step
+          </p>
+          <p className="mt-1 text-[13px] leading-6" style={{ color: "#3F4F44" }}>
+            Wait for our CRM confirmation. We are temporarily holding your selected time while we process your request, so please keep your phone nearby.
+          </p>
+        </div>
+      )}
 
       {/* Service list recap */}
       {services.length > 0 && (
@@ -2137,8 +2318,25 @@ function StepSuccess({
       <p className="text-[12px]" style={{ color: "#9AA89A" }}>
         {mode === "inhouse"
           ? "You can view or adjust this booking anytime from the bookings workspace."
-          : "A confirmation has been sent to our front desk. If you need to make any changes, please call us directly."}
+          : "Your request is with our CRM team. If you need to make any changes, please call us directly."}
       </p>
+
+      {mode === "public" && (
+        <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link
+            href="/"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#EDE4D3] bg-white px-5 text-[13px] font-semibold text-[#163A2B] transition-colors hover:border-[#C8A96B]"
+          >
+            Back to home
+          </Link>
+          <Link
+            href="/book"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#163A2B] px-5 text-[13px] font-semibold text-[#FCFAF5] transition-opacity hover:opacity-90"
+          >
+            Book another service
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

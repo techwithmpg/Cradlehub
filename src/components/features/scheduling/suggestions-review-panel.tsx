@@ -6,7 +6,7 @@ import { explainSuggestion } from "@/lib/scheduling/rules/explain-suggestion";
 import type { ScheduleSuggestion, SuggestionPriority } from "@/lib/scheduling/types";
 
 interface SuggestionWithStaff extends ScheduleSuggestion {
-  staff?: { full_name: string; system_role: string } | null;
+  staff?: { full_name: string; nickname?: string | null; system_role: string } | null;
 }
 
 interface Props {

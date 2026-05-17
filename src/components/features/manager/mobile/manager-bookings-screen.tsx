@@ -8,6 +8,7 @@ import {
   getUrgencyScore,
   type TodayBooking,
 } from "@/components/features/manager-today/manager-today-utils";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import type { StatusFilter } from "./types";
 
@@ -39,9 +40,12 @@ export function ManagerBookingsScreen({ bookings, userRole }: Props) {
       rows = rows.filter((b) => {
         const customer = readRelation(b.customers);
         const service = readRelation(b.services);
+        const staffMember = readRelation(b.staff);
+        const staffName = staffMember ? getStaffAdminName(staffMember) : "";
         return (
           (customer?.full_name.toLowerCase().includes(q) ?? false) ||
-          (service?.name.toLowerCase().includes(q) ?? false)
+          (service?.name.toLowerCase().includes(q) ?? false) ||
+          staffName.toLowerCase().includes(q)
         );
       });
     }
@@ -230,7 +234,7 @@ function BookingCard({ booking }: { booking: TodayBooking; userRole: string }) {
         </span>
         {staffMember && (
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <User size={12} /> {staffMember.full_name}
+            <User size={12} /> {getStaffAdminName(staffMember)}
           </span>
         )}
         {booking.branch_resources?.name ? (

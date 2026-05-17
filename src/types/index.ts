@@ -8,11 +8,14 @@ export type {
 
 export const BOOKING_STATUSES = [
   "pending",
+  "pending_payment",
+  "pending_crm_confirmation",
   "confirmed",
   "in_progress",
   "completed",
   "cancelled",
   "no_show",
+  "expired",
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 

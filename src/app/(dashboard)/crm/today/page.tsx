@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { createClient } from "@/lib/supabase/server";
 import { getTodaysSchedule, getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
 import { CrmBookingQueuePanel } from "@/components/features/crm/today/crm-booking-queue-panel";
@@ -14,7 +15,7 @@ import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/a
 type Relation<T> = T | T[] | null;
 type CustomerRel = { full_name: string; phone: string | null };
 type ServiceRel  = { name: string; duration_minutes: number };
-type StaffRel    = { full_name: string };
+type StaffRel    = { full_name: string; nickname?: string | null };
 type ResourceRel = { name: string };
 
 type BookingRow = {
@@ -105,7 +106,7 @@ export default async function CrmTodayPage() {
       customer_name:    first(b.customers)?.full_name ?? null,
       service_name:     first(b.services)?.name ?? null,
       service_duration: first(b.services)?.duration_minutes ?? null,
-      staff_name:       first(b.staff)?.full_name ?? null,
+      staff_name:       first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
       resource_name:    first(b.branch_resources)?.name ?? null,
       hs_zone:               typeof hsAddr?.zone === "string" ? hsAddr.zone : null,
       hs_address:            typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
@@ -198,7 +199,7 @@ export default async function CrmTodayPage() {
                     {first(nextAppt.customers)?.full_name ?? "—"}
                   </div>
                   <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-                    {first(nextAppt.services)?.name ?? "Service"} · {first(nextAppt.staff)?.full_name ?? "Unassigned"}
+                    {first(nextAppt.services)?.name ?? "Service"} · {first(nextAppt.staff) ? getStaffAdminName(first(nextAppt.staff)!) : "Unassigned"}
                   </div>
                 </div>
                 <span

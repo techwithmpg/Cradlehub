@@ -1,4 +1,5 @@
 import type { BookingRowWithResource } from "@/lib/queries/booking-resources";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 export type TodayBooking = BookingRowWithResource<{
   id: string;
@@ -10,7 +11,10 @@ export type TodayBooking = BookingRowWithResource<{
   travel_buffer_mins: number | null;
   resource_id: string | null;
   services: { name: string; duration_minutes?: number } | { name: string; duration_minutes?: number }[] | null;
-  staff: { id: string; full_name: string } | { id: string; full_name: string }[] | null;
+  staff:
+    | { id: string; full_name: string; nickname?: string | null }
+    | { id: string; full_name: string; nickname?: string | null }[]
+    | null;
   customers: { full_name: string } | { full_name: string }[] | null;
 }>;
 
@@ -33,6 +37,7 @@ export type TodayAlert = {
 export type StaffAvailability = {
   id: string;
   full_name: string;
+  nickname?: string | null;
   tier: string | null;
   staff_type: string | null;
   status: "available" | "in_service" | "off_duty";
@@ -211,7 +216,7 @@ function computeOverlapCount(bookings: TodayBooking[]): number {
 }
 
 export function computeStaffAvailability(
-  staff: { id: string; full_name: string; tier: string | null; staff_type: string | null }[],
+  staff: { id: string; full_name: string; nickname?: string | null; tier: string | null; staff_type: string | null }[],
   bookings: TodayBooking[],
   nowMins: number
 ): StaffAvailability[] {
@@ -235,7 +240,8 @@ export function computeStaffAvailability(
       const svc = readRelation(current.services);
       return {
         id: s.id,
-        full_name: s.full_name,
+        full_name: getStaffAdminName(s),
+        nickname: s.nickname ?? null,
         tier: s.tier,
         staff_type: s.staff_type,
         status: "in_service" as const,
@@ -252,7 +258,8 @@ export function computeStaffAvailability(
 
     return {
       id: s.id,
-      full_name: s.full_name,
+      full_name: getStaffAdminName(s),
+      nickname: s.nickname ?? null,
       tier: s.tier,
       staff_type: s.staff_type,
       status: hasBookingToday ? ("available" as const) : ("off_duty" as const),

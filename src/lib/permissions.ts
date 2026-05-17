@@ -200,6 +200,7 @@ export const CSR_BLOCKED_PREFIXES = [
   "/manager/staff",
   "/manager/operations",
   "/manager/reports",
+  "/manager/services",
   "/manager/settings",
 ];
 

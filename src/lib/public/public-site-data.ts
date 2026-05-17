@@ -59,8 +59,10 @@ export const businessInfo = {
 
 /** @deprecated Operational phone numbers now come from the branches table via getPublicBranches(). Keep only as a temporary fallback. */
 export const publicPhones: PublicPhone[] = [
-  { label: "0917 707 7070", href: "tel:+639177077070" },
-  { label: "0909 008 7815", href: "tel:+639090087815" },
+  { label: "0917 300 9173", href: "tel:+639173009173" },
+  { label: "0963 620 4376", href: "tel:+639636204376" },
+  { label: "461-7426",      href: "tel:+63344617426" },
+  { label: "213-3552",      href: "tel:+63342133552" },
 ];
 
 /** @deprecated Operational branch data now comes from the branches table via getPublicBranches(). Keep only as a temporary fallback. */

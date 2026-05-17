@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { LiveEtaData } from "@/lib/bookings/ops-warnings";
 import { logError } from "@/lib/logger";
 
@@ -63,7 +64,7 @@ export async function getActiveTripsForOpsMap(): Promise<ActiveTripData[]> {
         `id, booking_date, start_time, end_time, type, delivery_type,
          status, booking_progress_status, metadata, driver_id,
          services ( name ),
-         therapist:staff!staff_id ( full_name ),
+         therapist:staff!staff_id ( full_name, nickname ),
          customers ( full_name )`
       )
       .eq("branch_id", branchId)
@@ -91,8 +92,8 @@ export async function getActiveTripsForOpsMap(): Promise<ActiveTripData[]> {
         .in("booking_id", bookingIds)
         .order("recorded_at", { ascending: false }),
       driverIds.length > 0
-        ? supabase.from("staff").select("id, full_name").in("id", driverIds)
-        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+        ? supabase.from("staff").select("id, full_name, nickname").in("id", driverIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string; nickname: string | null }[] }),
     ]);
 
     // Latest snapshot per booking_id
@@ -109,7 +110,7 @@ export async function getActiveTripsForOpsMap(): Promise<ActiveTripData[]> {
 
     const driverNameMap: Record<string, string> = {};
     for (const d of driversRes.data ?? []) {
-      driverNameMap[d.id] = d.full_name;
+      driverNameMap[d.id] = getStaffAdminName(d);
     }
 
     return rawBookings.map((b) => {
@@ -140,7 +141,11 @@ export async function getActiveTripsForOpsMap(): Promise<ActiveTripData[]> {
         service_name:
           first((b as { services?: OneOrMany<{ name: string }> }).services)?.name ?? null,
         therapist_name:
-          first((b as { therapist?: OneOrMany<{ full_name: string }> }).therapist)?.full_name ?? null,
+          first((b as { therapist?: OneOrMany<{ full_name: string; nickname?: string | null }> }).therapist)
+            ? getStaffAdminName(
+                first((b as { therapist?: OneOrMany<{ full_name: string; nickname?: string | null }> }).therapist)!
+              )
+            : null,
         driver_id: driverId,
         driver_name: driverId ? (driverNameMap[driverId] ?? null) : null,
         hs_address:

@@ -23,11 +23,11 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Select only columns guaranteed to exist in every production deployment.
+  // Select only core columns needed for the portal shell.
   // staff_type, avatar_url, avatar_path require later migrations — they default to null.
   const { data: me, error: meError } = await supabase
     .from("staff")
-    .select("id, full_name, tier, system_role, branch_id")
+    .select("id, full_name, nickname, tier, system_role, branch_id")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();

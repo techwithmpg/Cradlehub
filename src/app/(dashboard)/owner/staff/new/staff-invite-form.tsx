@@ -43,6 +43,11 @@ function resolveStaffType(value: string): StaffType | "" {
   return isStaffType(value) ? value : "";
 }
 
+function optionalString(value: FormDataEntryValue | null): string | null {
+  const trimmed = String(value ?? "").trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function InviteStaffForm({
   branches,
   services,
@@ -71,6 +76,7 @@ export function InviteStaffForm({
       const result = await createStaffAction({
         branchId: String(formData.get("branchId") ?? ""),
         fullName: String(formData.get("fullName") ?? ""),
+        nickname: optionalString(formData.get("nickname")),
         email: String(formData.get("email") ?? ""),
         phone: String(formData.get("phone") ?? "") || undefined,
         tier: tierValue,
@@ -133,6 +139,14 @@ export function InviteStaffForm({
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           <Label htmlFor="fullName">Full name *</Label>
           <Input id="fullName" name="fullName" placeholder="Maria Santos" required />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <Label htmlFor="nickname">Nickname</Label>
+          <Input id="nickname" name="nickname" placeholder="Example: Mia, Joy, Ate Rose" />
+          <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: 0 }}>
+            Optional. This is the name clients may recognize during booking.
+          </p>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>

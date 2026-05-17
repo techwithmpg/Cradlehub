@@ -2,6 +2,7 @@
 
 import { BookingStatusBadge } from "./booking-status-badge";
 import { BookingActionMenu } from "./booking-action-menu";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 const STATUS_BG: Record<string, string> = {
   confirmed: "#EFF6FF",
@@ -29,6 +30,7 @@ type Relation<T> = T | T[] | null;
 type BookingStaff = {
   id: string;
   full_name: string;
+  nickname?: string | null;
   tier?: string;
 };
 
@@ -59,6 +61,7 @@ export type TimelineBooking = {
 export type TimelineStaffMember = {
   id: string;
   full_name: string;
+  nickname?: string | null;
   tier: string;
 };
 
@@ -136,7 +139,7 @@ export function ScheduleTimeline({ bookings, staff, date }: ScheduleTimelineProp
             }}
           >
             <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>
-              {member.full_name}
+              {getStaffAdminName(member)}
             </div>
             <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>{member.tier}</div>
           </div>

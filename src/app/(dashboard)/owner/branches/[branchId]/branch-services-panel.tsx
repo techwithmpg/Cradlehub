@@ -11,16 +11,38 @@ import {
 
 export type ServiceLite = {
   id: string;
+  branch_id?: string;
+  service_id?: string;
   is_active: boolean;
   custom_price: number | null;
-  available_in_spa: boolean;
-  available_home_service: boolean;
-  booking_visibility: string;
+  available_in_spa?: boolean | null;
+  available_home_service?: boolean | null;
+  booking_visibility?: string | null;
+  visibility?: string | null;
+  public_title?: string | null;
+  public_description?: string | null;
+  custom_duration_minutes?: number | null;
+  custom_image_url?: string | null;
+  is_featured?: boolean | null;
+  sort_order?: number | null;
   services: {
     id: string;
     name: string;
+    description?: string | null;
     duration_minutes: number;
     price: number;
+    service_categories?:
+      | {
+          id: string;
+          name: string;
+          display_order: number | null;
+        }
+      | Array<{
+          id: string;
+          name: string;
+          display_order: number | null;
+        }>
+      | null;
   } | null;
 };
 
@@ -35,13 +57,29 @@ const VISIBILITY_LABELS: Record<string, string> = {
   public:   "Public",
   csr_only: "CSR Only",
   vip:      "VIP",
+  private:  "Private",
+  hidden:   "Hidden",
 };
 
 const VISIBILITY_COLORS: Record<string, { bg: string; color: string; border: string }> = {
   public:   { bg: "#ECFDF5", color: "#065F46", border: "#059669" },
   csr_only: { bg: "#EFF6FF", color: "#1E40AF", border: "#3B82F6" },
   vip:      { bg: "#FDF4FF", color: "#6B21A8", border: "#A855F7" },
+  private:  { bg: "#EFF6FF", color: "#1E40AF", border: "#3B82F6" },
+  hidden:   { bg: "#F3F4F6", color: "#374151", border: "#9CA3AF" },
 };
+
+function getServiceName(service: ServiceLite) {
+  return service.public_title?.trim() || service.services?.name || "Unknown service";
+}
+
+function getServiceDuration(service: ServiceLite) {
+  return service.custom_duration_minutes ?? service.services?.duration_minutes ?? 0;
+}
+
+function getServiceVisibility(service: ServiceLite) {
+  return service.visibility ?? service.booking_visibility ?? "public";
+}
 
 function EligibilityToggle({
   branchId,
@@ -111,7 +149,12 @@ function VisibilitySelect({
       disabled={isPending}
       title="Booking visibility"
       onChange={(e) => {
-        const next = e.target.value as "public" | "csr_only" | "vip";
+        const next = e.target.value as
+          | "public"
+          | "private"
+          | "hidden"
+          | "csr_only"
+          | "vip";
         startTransition(async () => {
           await updateBranchServiceVisibilityAction(branchId, serviceId, next);
         });
@@ -129,6 +172,8 @@ function VisibilitySelect({
       }}
     >
       <option value="public">Public</option>
+      <option value="private">Private</option>
+      <option value="hidden">Hidden</option>
       <option value="csr_only">CSR Only</option>
       <option value="vip">VIP</option>
     </select>
@@ -347,7 +392,7 @@ export function BranchServicesPanel({
 }) {
   const activeServices = services.filter((s) => s.is_active);
   const activeServiceIds = new Set(
-    activeServices.map((s) => s.services?.id).filter(Boolean)
+    activeServices.map((s) => s.service_id ?? s.services?.id).filter(Boolean)
   );
   const availableToAdd = allServices.filter((s) => !activeServiceIds.has(s.id));
 
@@ -399,24 +444,25 @@ export function BranchServicesPanel({
                 <div
                   style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}
                 >
-                  {svc.services?.name ?? "Unknown service"}
+                  {getServiceName(svc)}
+                  {svc.is_featured ? " · Featured" : ""}
                 </div>
                 {svc.services && (
-                  <RemoveButton branchId={branchId} serviceId={svc.services.id} />
+                  <RemoveButton branchId={branchId} serviceId={svc.service_id ?? svc.services.id} />
                 )}
               </div>
 
               {/* Bottom row: meta + controls */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                  {svc.services?.duration_minutes ?? 0} min
+                  {getServiceDuration(svc)} min
                 </span>
 
                 {/* Price */}
                 {svc.services && isOwner ? (
                   <PriceCell
                     branchId={branchId}
-                    serviceId={svc.services.id}
+                    serviceId={svc.service_id ?? svc.services.id}
                     customPrice={svc.custom_price}
                     basePrice={svc.services.price}
                   />
@@ -432,18 +478,18 @@ export function BranchServicesPanel({
                   <>
                     <EligibilityToggle
                       branchId={branchId}
-                      serviceId={svc.services.id}
+                      serviceId={svc.service_id ?? svc.services.id}
                       label="In-Spa"
-                      value={svc.available_in_spa}
-                      otherValue={svc.available_home_service}
+                      value={svc.available_in_spa ?? true}
+                      otherValue={svc.available_home_service ?? false}
                       field="spa"
                     />
                     <EligibilityToggle
                       branchId={branchId}
-                      serviceId={svc.services.id}
+                      serviceId={svc.service_id ?? svc.services.id}
                       label="Home"
-                      value={svc.available_home_service}
-                      otherValue={svc.available_in_spa}
+                      value={svc.available_home_service ?? false}
+                      otherValue={svc.available_in_spa ?? true}
                       field="home"
                     />
                   </>
@@ -453,24 +499,24 @@ export function BranchServicesPanel({
                 {svc.services && isOwner && (
                   <VisibilitySelect
                     branchId={branchId}
-                    serviceId={svc.services.id}
-                    value={svc.booking_visibility || "public"}
+                    serviceId={svc.service_id ?? svc.services.id}
+                    value={getServiceVisibility(svc)}
                   />
                 )}
 
                 {/* Visibility badge (non-owner, non-public) */}
-                {!isOwner && svc.booking_visibility && svc.booking_visibility !== "public" && (
+                {!isOwner && getServiceVisibility(svc) !== "public" && (
                   <span
                     style={{
                       fontSize: "0.6875rem",
                       fontWeight: 600,
                       padding: "2px 6px",
                       borderRadius: 4,
-                      ...(VISIBILITY_COLORS[svc.booking_visibility] ?? VISIBILITY_COLORS["public"]!),
-                      border: `1px solid ${(VISIBILITY_COLORS[svc.booking_visibility] ?? VISIBILITY_COLORS["public"]!).border}`,
+                      ...(VISIBILITY_COLORS[getServiceVisibility(svc)] ?? VISIBILITY_COLORS["public"]!),
+                      border: `1px solid ${(VISIBILITY_COLORS[getServiceVisibility(svc)] ?? VISIBILITY_COLORS["public"]!).border}`,
                     }}
                   >
-                    {VISIBILITY_LABELS[svc.booking_visibility] ?? svc.booking_visibility}
+                    {VISIBILITY_LABELS[getServiceVisibility(svc)] ?? getServiceVisibility(svc)}
                   </span>
                 )}
               </div>

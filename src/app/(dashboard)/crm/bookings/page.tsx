@@ -5,6 +5,7 @@ import { getTodaysSchedule, getDailyPaymentSummary } from "@/lib/queries/booking
 import { BookingsWorkspace } from "@/components/features/bookings/bookings-workspace";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { confirmBookingPaymentAction } from "./actions";
 
 async function getCrmContext() {
   const supabase = await createClient();
@@ -37,12 +38,25 @@ async function getCrmContext() {
 export default async function CrmBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; status?: string; type?: string; highlight?: string; search?: string }>;
+  searchParams: Promise<{ date?: string; status?: string; type?: string; highlight?: string; search?: string; bookingId?: string }>;
 }) {
   const { branchId, branchName, role } = await getCrmContext();
   const params = await searchParams;
   const today  = new Date().toISOString().split("T")[0]!;
-  const date   = params.date ?? today;
+
+  // When navigating from a notification link, resolve the booking's date
+  const bookingId = params.bookingId;
+  let date = params.date ?? today;
+
+  if (bookingId && !params.date) {
+    const supabase = await createClient();
+    const { data: ref } = await supabase
+      .from("bookings")
+      .select("booking_date")
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (ref?.booking_date) date = ref.booking_date;
+  }
 
   const [rawBookings, cashSummary] = await Promise.all([
     getTodaysSchedule(branchId, date),
@@ -65,6 +79,8 @@ export default async function CrmBookingsPage({
       bookings={bookings}
       cashSummary={cashSummary}
       paymentAction={updateBookingPaymentAction}
+      initialSelectedId={bookingId}
+      confirmPaymentAction={confirmBookingPaymentAction}
     />
   );
 }

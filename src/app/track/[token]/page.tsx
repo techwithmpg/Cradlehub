@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getStaffDisplayName } from "@/lib/staff/display-name";
 import { TrackingPageClient } from "@/components/features/tracking/tracking-page-client";
 import type { Metadata } from "next";
 
@@ -84,9 +85,9 @@ export default async function TrackingPage({ params }: Props) {
   // ── 3. Fetch supporting data in parallel ──────────────────────────────────
   const [serviceRes, therapistRes, driverRes, locationRes] = await Promise.all([
     supabase.from("services").select("name").eq("id", booking.service_id).maybeSingle(),
-    supabase.from("staff").select("full_name").eq("id", booking.staff_id).maybeSingle(),
+    supabase.from("staff").select("full_name, nickname").eq("id", booking.staff_id).maybeSingle(),
     booking.driver_id
-      ? supabase.from("staff").select("full_name").eq("id", booking.driver_id).maybeSingle()
+      ? supabase.from("staff").select("full_name, nickname").eq("id", booking.driver_id).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase
       .from("staff_location_snapshots")
@@ -127,8 +128,8 @@ export default async function TrackingPage({ params }: Props) {
 
   const progressStatus = (booking.booking_progress_status ?? "not_started") as string;
   const serviceName = serviceRes.data?.name ?? "Wellness Service";
-  const therapistName = therapistRes.data?.full_name ?? null;
-  const driverName = driverRes.data?.full_name ?? null;
+  const therapistName = therapistRes.data ? getStaffDisplayName(therapistRes.data) : null;
+  const driverName = driverRes.data ? getStaffDisplayName(driverRes.data) : null;
 
   const initialLocation = locationRes.data
     ? {

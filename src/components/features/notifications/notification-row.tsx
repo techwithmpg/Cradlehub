@@ -7,10 +7,7 @@ import {
   markNotificationReadAction,
   dismissNotificationAction,
 } from "@/lib/notifications/queries";
-import {
-  getNotificationTargetPath,
-  getWorkspacePathPrefix,
-} from "@/lib/notifications/notification-targets";
+import { resolveNotificationHref } from "@/lib/notifications/notification-targets";
 
 const PRIORITY_DOT: Record<string, string> = {
   critical: "#DC2626",
@@ -57,29 +54,6 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function computeHref(n: WorkspaceNotification): string | null {
-  if (!n.action_href) return null;
-  const ws = n.target_workspace as
-    | "owner"
-    | "manager"
-    | "crm"
-    | "staff-portal"
-    | "driver"
-    | "utility"
-    | undefined;
-  if (ws) {
-    const prefix = getWorkspacePathPrefix(ws);
-    if (!n.action_href.startsWith(prefix)) {
-      return getNotificationTargetPath({
-        workspace: ws,
-        entityType: n.entity_type,
-        entityId: n.entity_id,
-      });
-    }
-  }
-  return n.action_href;
-}
-
 function truncate(str: string, max: number): string {
   if (str.length <= max) return str;
   return str.slice(0, max).trimEnd() + "…";
@@ -94,7 +68,7 @@ type Props = {
 export function NotificationRow({ notification: n, onMarkRead, onDismiss }: Props) {
   const [, startTransition] = useTransition();
   const isUnread = n.status === "unread";
-  const href = computeHref(n);
+  const href = resolveNotificationHref(n);
   const icon = TYPE_ICON[n.type] ?? "🔔";
 
   function handleMarkRead(e?: React.MouseEvent) {

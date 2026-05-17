@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { PaymentStatusBadge } from "@/components/features/dashboard/payment-status-badge";
@@ -8,6 +9,7 @@ import { PaymentMethodBadge } from "@/components/features/dashboard/payment-meth
 import { BookingActionMenu } from "@/components/features/dashboard/booking-action-menu";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatTime, formatCurrency } from "@/lib/utils";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 
@@ -50,6 +52,8 @@ type BookingsTableProps = {
   search?: string;
   statusAction?: ActionFn;
   paymentAction?: ActionFn;
+  initialSelectedId?: string;
+  confirmPaymentAction?: ActionFn;
 };
 
 export function BookingsTable({
@@ -58,22 +62,31 @@ export function BookingsTable({
   search,
   statusAction,
   paymentAction,
+  initialSelectedId,
+  confirmPaymentAction,
 }: BookingsTableProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState<number>(DEFAULT_ROWS_PER_PAGE);
-
   const filtered = search
     ? bookings.filter((booking) => {
         const customer = readFirst(booking.customers);
+        const staff = readFirst(booking.staff);
+        const staffName = staff ? getStaffAdminName(staff) : "";
         const term = search.toLowerCase();
         return (
           booking.id.toLowerCase().includes(term) ||
           (customer?.full_name ?? "").toLowerCase().includes(term) ||
-          (customer?.phone ?? "").includes(term)
+          (customer?.phone ?? "").includes(term) ||
+          staffName.toLowerCase().includes(term)
         );
       })
     : bookings;
+
+  const [selectedId, setSelectedId] = useState<string | null>(() => initialSelectedId ?? null);
+  const [pageIndex, setPageIndex] = useState(() => {
+    if (!initialSelectedId) return 0;
+    const idx = filtered.findIndex((b) => b.id === initialSelectedId);
+    return idx >= 0 ? Math.floor(idx / DEFAULT_ROWS_PER_PAGE) : 0;
+  });
+  const [rowsPerPage, setRowsPerPage] = useState<number>(DEFAULT_ROWS_PER_PAGE);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
@@ -178,6 +191,7 @@ export function BookingsTable({
                 const service = readFirst(booking.services);
                 const staff = readFirst(booking.staff);
                 const resource = readFirst(booking.branch_resources);
+                const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
                 const price = readPricePaid(booking.metadata);
                 const isSelected = booking.id === selected?.id;
                 const shortId = booking.id.slice(0, 8).toUpperCase();
@@ -226,9 +240,9 @@ export function BookingsTable({
                       <div
                         className="bw-truncate"
                         style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", marginTop: 1 }}
-                        title={[staff?.full_name ?? "Unassigned", resource?.name].filter(Boolean).join(" · ")}
+                        title={[staffName, resource?.name].filter(Boolean).join(" · ")}
                       >
-                        {staff?.full_name ?? "Unassigned"}
+                        {staffName}
                         {resource && <> · {resource.name}</>}
                       </div>
                     </td>
@@ -323,6 +337,7 @@ export function BookingsTable({
               onClose={() => setSelectedId(NO_SELECTION)}
               statusAction={statusAction}
               paymentAction={paymentAction}
+              confirmPaymentAction={confirmPaymentAction}
             />
           ) : (
             <div style={{
@@ -350,16 +365,19 @@ function BookingDetailsPanel({
   onClose,
   statusAction,
   paymentAction,
+  confirmPaymentAction,
 }: {
   booking: WorkspaceBookingRow;
   viewerRole: string;
   onClose: () => void;
   statusAction?: ActionFn;
   paymentAction?: ActionFn;
+  confirmPaymentAction?: ActionFn;
 }) {
   const customer = readFirst(booking.customers);
   const service = readFirst(booking.services);
   const staff = readFirst(booking.staff);
+  const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
   const branch = readFirst(booking.branches);
   const resource = readFirst(booking.branch_resources);
   const price = readPricePaid(booking.metadata);
@@ -419,7 +437,7 @@ function BookingDetailsPanel({
           <PanelRow label="Time" value={formatTime(booking.start_time)} />
           <PanelRow label="Service" value={service?.name ?? "—"} />
           {durationMinutes != null && <PanelRow label="Duration" value={`${durationMinutes} min`} />}
-          <PanelRow label="Staff" value={staff?.full_name ?? "Unassigned"} />
+          <PanelRow label="Staff" value={staffName} />
           {resource && <PanelRow label="Room/Bed" value={resource.name} />}
           {branch && <PanelRow label="Branch" value={branch.name} />}
           {booking.travel_buffer_mins != null && booking.travel_buffer_mins > 0 && (
@@ -445,6 +463,10 @@ function BookingDetailsPanel({
               {notes}
             </p>
           </PanelSection>
+        )}
+
+        {(booking.status === "pending_payment" || booking.status === "pending_crm_confirmation") && (
+          <PaymentConfirmationPanel booking={booking} confirmPaymentAction={confirmPaymentAction} />
         )}
 
         <PanelSection label="Actions">
@@ -499,6 +521,157 @@ function BookingDetailsPanel({
     </div>
   );
 }
+
+const CONFIRM_PAYMENT_METHODS = [
+  { value: "cash",  label: "Cash" },
+  { value: "gcash", label: "GCash" },
+  { value: "maya",  label: "Maya" },
+  { value: "card",  label: "Card" },
+  { value: "other", label: "Other" },
+] as const;
+
+function PaymentConfirmationPanel({
+  booking,
+  confirmPaymentAction,
+}: {
+  booking: WorkspaceBookingRow;
+  confirmPaymentAction?: ActionFn;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [note, setNote] = useState("");
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const now = new Date();
+  const holdExpired =
+    !booking.hold_expires_at ||
+    new Date(booking.hold_expires_at).getTime() <= now.getTime();
+
+  const holdExpiresLabel = (() => {
+    if (!booking.hold_expires_at) return null;
+    const exp = new Date(booking.hold_expires_at);
+    if (exp.getTime() <= now.getTime()) return "Hold expired";
+    return `Hold active until ${exp.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}`;
+  })();
+
+  function handleConfirm() {
+    if (!confirmPaymentAction) return;
+    setFeedback(null);
+    startTransition(async () => {
+      const result = await confirmPaymentAction({
+        bookingId:        booking.id,
+        paymentMethod,
+        paymentReference: paymentReference.trim() || undefined,
+        note:             note.trim() || undefined,
+      });
+      if (result.success) {
+        setFeedback({ ok: true, message: "Payment confirmed. Booking is now active." });
+        router.refresh();
+      } else {
+        setFeedback({ ok: false, message: result.error ?? "Failed to confirm payment." });
+      }
+    });
+  }
+
+  return (
+    <div style={{
+      borderRadius: 8,
+      border: `1.5px solid ${holdExpired ? "#FCA5A5" : "#86EFAC"}`,
+      background: holdExpired ? "#FFF5F5" : "#F0FDF4",
+      padding: "0.875rem",
+    }}>
+      <div style={{ fontSize: "0.625rem", fontWeight: 700, color: holdExpired ? "#DC2626" : "#16A34A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.625rem" }}>
+        Payment Confirmation
+      </div>
+
+      {holdExpiresLabel && (
+        <div style={{ fontSize: "0.75rem", color: holdExpired ? "#DC2626" : "#16A34A", marginBottom: "0.625rem", fontWeight: 500 }}>
+          {holdExpiresLabel}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          Payment method
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            disabled={isPending}
+            style={confirmInputStyle}
+          >
+            {CONFIRM_PAYMENT_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          Reference / receipt no. <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+          <input
+            type="text"
+            value={paymentReference}
+            onChange={(e) => setPaymentReference(e.target.value)}
+            placeholder="e.g. GCash ref #"
+            disabled={isPending}
+            style={confirmInputStyle}
+          />
+        </label>
+
+        <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          Note <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="Internal note…"
+            disabled={isPending}
+            style={{ ...confirmInputStyle, height: "auto", resize: "vertical", paddingTop: "0.375rem", paddingBottom: "0.375rem" }}
+          />
+        </label>
+
+        {feedback && (
+          <div style={{ fontSize: "0.75rem", color: feedback.ok ? "#16A34A" : "#DC2626", fontWeight: 500 }}>
+            {feedback.message}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={isPending || !confirmPaymentAction || feedback?.ok === true}
+          style={{
+            height: 38,
+            borderRadius: 7,
+            border: "none",
+            backgroundColor: isPending ? "var(--cs-text-muted)" : "#16A34A",
+            color: "#fff",
+            fontSize: "0.8125rem",
+            fontWeight: 700,
+            cursor: isPending || !confirmPaymentAction || feedback?.ok === true ? "not-allowed" : "pointer",
+            opacity: isPending || !confirmPaymentAction ? 0.7 : 1,
+            transition: "background-color 0.15s",
+          }}
+        >
+          {isPending ? "Confirming…" : "Confirm payment & finalize booking"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const confirmInputStyle: React.CSSProperties = {
+  height: 34,
+  borderRadius: 6,
+  border: "1px solid var(--cs-border)",
+  padding: "0 0.625rem",
+  fontSize: "0.8125rem",
+  backgroundColor: "var(--cs-surface)",
+  color: "var(--cs-text)",
+  width: "100%",
+  boxSizing: "border-box",
+};
 
 function PanelSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (

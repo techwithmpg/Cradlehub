@@ -13,6 +13,7 @@ import { StaffDayOverridesEditor } from "./staff-day-overrides-editor";
 import { StaffBlockTimeEditor } from "./staff-block-time-editor";
 import { summarizeWeeklyHours } from "@/lib/utils/staff-schedule-summary";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -44,6 +45,7 @@ type BlockedTime = {
 type StaffMember = {
   id: string;
   full_name: string;
+  nickname?: string | null;
   tier: string | null;
   staff_type: string | null;
   is_head: boolean | null;
@@ -73,6 +75,7 @@ export function StaffScheduleDetailPanel({
 
   const summary = summarizeWeeklyHours(schedules);
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? staff.staff_type ?? "Staff";
+  const displayName = getStaffAdminName(staff);
 
   function tabStyle(active: boolean): React.CSSProperties {
     return {
@@ -98,7 +101,7 @@ export function StaffScheduleDetailPanel({
               color: "var(--cs-text)",
             }}
           >
-            {staff.full_name}
+            {displayName}
           </SheetTitle>
           <SheetDescription style={{ color: "var(--cs-text-muted)", fontSize: "0.8125rem" }}>
             {roleLabel}
@@ -184,7 +187,7 @@ export function StaffScheduleDetailPanel({
           {tab === "override" && (
             <StaffDayOverridesEditor
               staffId={staff.id}
-              staffName={staff.full_name}
+              staffName={displayName}
               existingOverrides={overrides}
             />
           )}
