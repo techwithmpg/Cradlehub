@@ -57,16 +57,12 @@ const VISIBILITY_LABELS: Record<string, string> = {
   public:   "Public",
   csr_only: "CSR Only",
   vip:      "VIP",
-  private:  "Private",
-  hidden:   "Hidden",
 };
 
 const VISIBILITY_COLORS: Record<string, { bg: string; color: string; border: string }> = {
   public:   { bg: "#ECFDF5", color: "#065F46", border: "#059669" },
   csr_only: { bg: "#EFF6FF", color: "#1E40AF", border: "#3B82F6" },
   vip:      { bg: "#FDF4FF", color: "#6B21A8", border: "#A855F7" },
-  private:  { bg: "#EFF6FF", color: "#1E40AF", border: "#3B82F6" },
-  hidden:   { bg: "#F3F4F6", color: "#374151", border: "#9CA3AF" },
 };
 
 function getServiceName(service: ServiceLite) {
@@ -149,12 +145,7 @@ function VisibilitySelect({
       disabled={isPending}
       title="Booking visibility"
       onChange={(e) => {
-        const next = e.target.value as
-          | "public"
-          | "private"
-          | "hidden"
-          | "csr_only"
-          | "vip";
+        const next = e.target.value as "public" | "csr_only" | "vip";
         startTransition(async () => {
           await updateBranchServiceVisibilityAction(branchId, serviceId, next);
         });
@@ -172,8 +163,6 @@ function VisibilitySelect({
       }}
     >
       <option value="public">Public</option>
-      <option value="private">Private</option>
-      <option value="hidden">Hidden</option>
       <option value="csr_only">CSR Only</option>
       <option value="vip">VIP</option>
     </select>
