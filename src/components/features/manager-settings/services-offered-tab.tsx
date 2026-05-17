@@ -44,8 +44,6 @@ type ServiceFilter =
   | "in_spa"
   | "home_service"
   | "public"
-  | "private"
-  | "hidden"
   | "csr_only"
   | "vip";
 
@@ -58,19 +56,13 @@ type BranchServiceActionResult =
   | { success: true }
   | { success: false; error?: string };
 
-type BranchServiceVisibility =
-  | "public"
-  | "private"
-  | "hidden"
-  | "csr_only"
-  | "vip";
+type BranchServiceVisibility = "public" | "csr_only" | "vip";
 
 function isActiveService(service: ServiceLite): service is ActiveBranchService {
   return service.is_active && service.services !== null;
 }
 
 function toBranchServiceVisibility(value: string): BranchServiceVisibility {
-  if (value === "private" || value === "hidden") return value;
   if (value === "csr_only" || value === "vip") return value;
   return "public";
 }
@@ -100,18 +92,11 @@ function getServiceCategory(service: ActiveBranchService) {
 
 function getVisibilityOptions(service: ActiveBranchService) {
   const value = getServiceVisibility(service);
-  const options: Array<{ value: BranchServiceVisibility; label: string }> =
-    service.visibility !== null && service.visibility !== undefined
-      ? [
-          { value: "public", label: "Public" },
-          { value: "private", label: "Private" },
-          { value: "hidden", label: "Hidden" },
-        ]
-      : [
-          { value: "public", label: "Public" },
-          { value: "csr_only", label: "CSR only" },
-          { value: "vip", label: "VIP" },
-        ];
+  const options: Array<{ value: BranchServiceVisibility; label: string }> = [
+    { value: "public", label: "Public" },
+    { value: "csr_only", label: "CSR only" },
+    { value: "vip", label: "VIP" },
+  ];
 
   if (!options.some((option) => option.value === value)) {
     options.push({
@@ -319,8 +304,6 @@ export function ServicesOfferedTab({
                 <option value="in_spa">In-spa</option>
                 <option value="home_service">Home service</option>
                 <option value="public">Public</option>
-                <option value="private">Private</option>
-                <option value="hidden">Hidden</option>
                 <option value="csr_only">CSR only</option>
                 <option value="vip">VIP</option>
               </select>
