@@ -10,6 +10,7 @@ import {
   readBranchName,
   getInitials,
 } from "./staff-management-utils";
+import { StaffServiceEditorSheet } from "./staff-service-editor-sheet";
 import type { StaffMember } from "./staff-management-utils";
 import type { Database } from "@/types/supabase";
 
@@ -21,60 +22,55 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MANAGER_ROLE_OPTIONS = [
-  { value: "crm", label: "CRM" },
+  { value: "crm",      label: "CRM" },
   { value: "csr_head", label: "CSR Head" },
-  { value: "csr_staff", label: "CSR Staff" },
-  { value: "csr", label: "CSR (legacy)" },
-  { value: "staff", label: "Staff" },
-  { value: "driver", label: "Driver" },
+  { value: "csr_staff",label: "CSR Staff" },
+  { value: "csr",      label: "CSR (legacy)" },
+  { value: "staff",    label: "Staff" },
+  { value: "driver",   label: "Driver" },
 ] as const;
 
 const SENSITIVE_SYSTEM_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "super_admin",
-  "platform_admin",
-  "branch_manager",
+  "owner", "manager", "assistant_manager", "store_manager",
+  "super_admin", "platform_admin", "branch_manager",
 ]);
 
-const SERVICE_CAPABLE_STAFF_TYPES = new Set([
-  "therapist",
-  "nail_tech",
-  "aesthetician",
-  "salon_head",
+const SERVICE_CAPABLE_TYPES = new Set([
+  "therapist", "nail_tech", "aesthetician", "salon_head",
 ]);
 
-const STATUS_BADGE_STYLES: Record<string, { bg: string; color: string; border: string }> = {
+const STATUS_STYLE: Record<string, { bg: string; color: string; border: string }> = {
   active:   { bg: "#F0FDF4", color: "#15803D", border: "#BBF7D0" },
   awaiting: { bg: "#FFFBEB", color: "#92400E", border: "#FDE68A" },
   invited:  { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" },
   inactive: { bg: "#F9FAFB", color: "#6B7280", border: "#E5E7EB" },
 };
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+const PREVIEW_CHIP_MAX = 6;
+
+// ── Draft types ───────────────────────────────────────────────────────────────
 
 type Draft = {
-  fullName: string;
-  nickname: string;
-  phone: string;
+  fullName:   string;
+  nickname:   string;
+  phone:      string;
   systemRole: string;
-  staffType: string;
-  isHead: boolean;
-  tier: string;
+  staffType:  string;
+  isHead:     boolean;
+  tier:       string;
+  isActive:   boolean;
   serviceIds: string[];
 };
 
-type SaveResult = { success: boolean; error?: string };
+type ActionResult = { success: boolean; error?: string };
 
-// ── Draft persistence ─────────────────────────────────────────────────────────
+// ── Draft helpers ─────────────────────────────────────────────────────────────
 
-function draftStorageKey(staffId: string) {
+function draftKey(staffId: string) {
   return `manager-staff-edit-draft:${staffId}`;
 }
 
-function makeDraftFromMember(member: StaffMember, serviceIds: string[]): Draft {
+function fromMember(member: StaffMember, serviceIds: string[]): Draft {
   return {
     fullName:   member.full_name,
     nickname:   member.nickname ?? "",
@@ -83,28 +79,45 @@ function makeDraftFromMember(member: StaffMember, serviceIds: string[]): Draft {
     staffType:  member.staff_type ?? "therapist",
     isHead:     member.is_head ?? false,
     tier:       member.tier ?? "n/a",
+    isActive:   member.is_active,
     serviceIds: [...serviceIds],
   };
 }
 
-function draftsAreEqual(a: Draft, b: Draft): boolean {
+function draftsEqual(a: Draft, b: Draft): boolean {
   return (
-    a.fullName === b.fullName &&
-    a.nickname === b.nickname &&
-    a.phone === b.phone &&
+    a.fullName   === b.fullName   &&
+    a.nickname   === b.nickname   &&
+    a.phone      === b.phone      &&
     a.systemRole === b.systemRole &&
-    a.staffType === b.staffType &&
-    a.isHead === b.isHead &&
-    a.tier === b.tier &&
-    a.serviceIds.length === b.serviceIds.length &&
+    a.staffType  === b.staffType  &&
+    a.isHead     === b.isHead     &&
+    a.tier       === b.tier       &&
+    a.isActive   === b.isActive   &&
     [...a.serviceIds].sort().join(",") === [...b.serviceIds].sort().join(",")
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Shared primitive styles ───────────────────────────────────────────────────
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  height: 34,
+  borderRadius: 6,
+  border: "1px solid var(--cs-border)",
+  padding: "0 0.5rem",
+  fontSize: "0.875rem",
+  backgroundColor: "var(--cs-surface)",
+  color: "var(--cs-text)",
+  boxSizing: "border-box",
+};
+
+const selectStyle: React.CSSProperties = { ...inputStyle, cursor: "pointer" };
+
+// ── Status badge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const style = STATUS_BADGE_STYLES[status] ?? STATUS_BADGE_STYLES.inactive!;
+  const s = STATUS_STYLE[status] ?? STATUS_STYLE.inactive!;
   return (
     <span
       style={{
@@ -114,15 +127,17 @@ function StatusBadge({ status }: { status: string }) {
         borderRadius: 999,
         fontSize: "0.75rem",
         fontWeight: 600,
-        backgroundColor: style.bg,
-        color: style.color,
-        border: `1px solid ${style.border}`,
+        backgroundColor: s.bg,
+        color: s.color,
+        border: `1px solid ${s.border}`,
       }}
     >
       {getStaffStatusLabel(status as "active" | "awaiting" | "invited" | "inactive")}
     </span>
   );
 }
+
+// ── Page header ───────────────────────────────────────────────────────────────
 
 function PageHeader({
   staffMember,
@@ -141,16 +156,16 @@ function PageHeader({
       <button
         onClick={onBack}
         style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.375rem",
-          fontSize: "0.8125rem",
-          color: "var(--cs-text-muted)",
           background: "none",
           border: "none",
           cursor: "pointer",
+          fontSize: "0.8125rem",
+          color: "var(--cs-text-muted)",
           padding: "0.25rem 0",
           marginBottom: "0.75rem",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.375rem",
         }}
       >
         ← Back to staff list
@@ -159,16 +174,17 @@ function PageHeader({
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
         {/* Avatar */}
         <div
+          aria-hidden
           style={{
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             borderRadius: "50%",
             backgroundColor: "var(--cs-sand)",
             color: "#fff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "0.875rem",
+            fontSize: "0.9375rem",
             fontWeight: 700,
             flexShrink: 0,
           }}
@@ -193,20 +209,26 @@ function PageHeader({
             {isDirty && (
               <span
                 style={{
-                  fontSize: "0.75rem",
+                  fontSize: "0.6875rem",
+                  fontWeight: 600,
                   color: "#92400E",
                   backgroundColor: "#FFFBEB",
                   border: "1px solid #FDE68A",
                   borderRadius: 999,
-                  padding: "0.125rem 0.5rem",
-                  fontWeight: 500,
+                  padding: "0.1rem 0.5rem",
                 }}
               >
                 Unsaved changes
               </span>
             )}
           </div>
-          <p style={{ margin: "0.125rem 0 0", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+          <p
+            style={{
+              margin: "0.125rem 0 0",
+              fontSize: "0.8125rem",
+              color: "var(--cs-text-muted)",
+            }}
+          >
             {branchName} · {staffMember.system_role}
           </p>
         </div>
@@ -215,15 +237,18 @@ function PageHeader({
   );
 }
 
+// ── Draft restore banner ──────────────────────────────────────────────────────
+
 function DraftRestoreBanner({
-  onKeep,
+  onRestore,
   onDiscard,
 }: {
-  onKeep: () => void;
+  onRestore: () => void;
   onDiscard: () => void;
 }) {
   return (
     <div
+      role="alert"
       style={{
         display: "flex",
         alignItems: "center",
@@ -236,12 +261,12 @@ function DraftRestoreBanner({
         flexWrap: "wrap",
       }}
     >
-      <span style={{ flex: 1, fontSize: "0.875rem", color: "#1E40AF" }}>
+      <span style={{ flex: 1, fontSize: "0.875rem", color: "#1E40AF", minWidth: 180 }}>
         You have unsaved changes from a previous session.
       </span>
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <button
-          onClick={onKeep}
+          onClick={onRestore}
           style={{
             fontSize: "0.8125rem",
             fontWeight: 600,
@@ -274,17 +299,20 @@ function DraftRestoreBanner({
   );
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+// ── Field label ───────────────────────────────────────────────────────────────
+
+function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
   return (
     <label
+      htmlFor={htmlFor}
       style={{
         display: "block",
-        fontSize: "0.75rem",
-        fontWeight: 600,
+        fontSize: "0.6875rem",
+        fontWeight: 700,
         color: "var(--cs-text-muted)",
         textTransform: "uppercase",
-        letterSpacing: "0.04em",
-        marginBottom: "0.3rem",
+        letterSpacing: "0.05em",
+        marginBottom: "0.25rem",
       }}
     >
       {children}
@@ -292,37 +320,21 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: 34,
-  borderRadius: 6,
-  border: "1px solid var(--cs-border)",
-  padding: "0 0.5rem",
-  fontSize: "0.875rem",
-  backgroundColor: "var(--cs-surface)",
-  color: "var(--cs-text)",
-  boxSizing: "border-box",
-};
-
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-  cursor: "pointer",
-};
+// ── Staff information card ────────────────────────────────────────────────────
 
 function StaffInformationCard({
   draft,
-  staffMember,
   isProtected,
   onChange,
 }: {
   draft: Draft;
-  staffMember: StaffMember;
   isProtected: boolean;
   onChange: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
 }) {
   if (isProtected) {
     return (
       <div
+        role="alert"
         style={{
           padding: "0.75rem",
           backgroundColor: "#FEF2F2",
@@ -333,24 +345,25 @@ function StaffInformationCard({
           marginBottom: "1rem",
         }}
       >
-        This account has elevated access. Editing it requires owner approval.
+        This account has elevated privileges. Editing requires owner approval.
       </div>
     );
   }
 
   return (
-    <div
+    <section
+      aria-label="Staff information"
       style={{
         backgroundColor: "var(--cs-surface)",
         border: "1px solid var(--cs-border)",
         borderRadius: 10,
-        padding: "1.25rem",
-        marginBottom: "1rem",
+        padding: "1.125rem",
+        marginBottom: "0.875rem",
       }}
     >
       <p
         style={{
-          margin: "0 0 1rem",
+          margin: "0 0 0.875rem",
           fontSize: "0.6875rem",
           fontWeight: 700,
           color: "var(--cs-text-muted)",
@@ -361,19 +374,12 @@ function StaffInformationCard({
         Staff Information
       </p>
 
-      {/* 2-col grid for compact layout */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "0.75rem",
-        }}
-        className="staff-info-grid"
-      >
-        {/* Full Name — spans 2 cols */}
+      <div className="staff-info-grid">
+        {/* Full name — spans all columns */}
         <div style={{ gridColumn: "1 / -1" }}>
-          <FieldLabel>Full name</FieldLabel>
+          <FieldLabel htmlFor="si-fullName">Full name</FieldLabel>
           <input
+            id="si-fullName"
             style={inputStyle}
             value={draft.fullName}
             onChange={(e) => onChange("fullName", e.target.value)}
@@ -383,8 +389,9 @@ function StaffInformationCard({
 
         {/* Nickname */}
         <div>
-          <FieldLabel>Nickname</FieldLabel>
+          <FieldLabel htmlFor="si-nickname">Nickname</FieldLabel>
           <input
+            id="si-nickname"
             style={inputStyle}
             value={draft.nickname}
             onChange={(e) => onChange("nickname", e.target.value)}
@@ -394,8 +401,9 @@ function StaffInformationCard({
 
         {/* Phone */}
         <div>
-          <FieldLabel>Phone</FieldLabel>
+          <FieldLabel htmlFor="si-phone">Phone</FieldLabel>
           <input
+            id="si-phone"
             style={inputStyle}
             value={draft.phone}
             onChange={(e) => onChange("phone", e.target.value)}
@@ -405,40 +413,39 @@ function StaffInformationCard({
 
         {/* System role */}
         <div>
-          <FieldLabel>System role</FieldLabel>
+          <FieldLabel htmlFor="si-role">System role</FieldLabel>
           <select
+            id="si-role"
             style={selectStyle}
             value={draft.systemRole}
             onChange={(e) => onChange("systemRole", e.target.value)}
           >
             {MANAGER_ROLE_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
+              <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
         </div>
 
         {/* Job function */}
         <div>
-          <FieldLabel>Job function</FieldLabel>
+          <FieldLabel htmlFor="si-type">Job function</FieldLabel>
           <select
+            id="si-type"
             style={selectStyle}
             value={draft.staffType}
             onChange={(e) => onChange("staffType", e.target.value)}
           >
             {STAFF_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {STAFF_TYPE_LABELS[t]}
-              </option>
+              <option key={t} value={t}>{STAFF_TYPE_LABELS[t]}</option>
             ))}
           </select>
         </div>
 
         {/* Tier */}
         <div>
-          <FieldLabel>Tier</FieldLabel>
+          <FieldLabel htmlFor="si-tier">Tier</FieldLabel>
           <select
+            id="si-tier"
             style={selectStyle}
             value={draft.tier}
             onChange={(e) => onChange("tier", e.target.value)}
@@ -451,9 +458,10 @@ function StaffInformationCard({
           </select>
         </div>
 
-        {/* Is head checkbox */}
+        {/* Department head toggle */}
         <div style={{ display: "flex", alignItems: "center" }}>
           <label
+            htmlFor="si-isHead"
             style={{
               display: "flex",
               alignItems: "center",
@@ -461,10 +469,11 @@ function StaffInformationCard({
               fontSize: "0.875rem",
               color: "var(--cs-text)",
               cursor: "pointer",
-              marginTop: "1.1rem",
+              marginTop: "1.125rem",
             }}
           >
             <input
+              id="si-isHead"
               type="checkbox"
               checked={draft.isHead}
               onChange={(e) => onChange("isHead", e.target.checked)}
@@ -472,350 +481,272 @@ function StaffInformationCard({
             Department head
           </label>
         </div>
-      </div>
 
-      {staffMember.email && (
-        <p
-          style={{
-            margin: "0.75rem 0 0",
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
-          }}
-        >
-          Email: {staffMember.email}
-        </p>
-      )}
-    </div>
+        {/* Active toggle */}
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <label
+            htmlFor="si-isActive"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontSize: "0.875rem",
+              color: "var(--cs-text)",
+              cursor: "pointer",
+              marginTop: "1.125rem",
+            }}
+          >
+            <input
+              id="si-isActive"
+              type="checkbox"
+              checked={draft.isActive}
+              onChange={(e) => onChange("isActive", e.target.checked)}
+            />
+            Active staff member
+          </label>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function ServiceCapabilityPicker({
+// ── Service capabilities summary card ────────────────────────────────────────
+
+function ServiceSummaryCard({
   services,
   selectedIds,
   staffType,
-  onToggle,
+  onEditServices,
 }: {
   services: ServiceRow[];
   selectedIds: string[];
   staffType: string;
-  onToggle: (id: string) => void;
+  onEditServices: () => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
-
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-
-  const categories = useMemo(() => {
-    const cats = new Set<string>();
-    for (const s of services) {
-      cats.add(s.service_categories?.name ?? "Uncategorized");
-    }
-    return Array.from(cats).sort();
+  const serviceMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of services) m.set(s.id, s.name);
+    return m;
   }, [services]);
 
-  const filteredServices = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return services.filter((s) => {
-      const cat = s.service_categories?.name ?? "Uncategorized";
-      if (activeCategory && cat !== activeCategory) return false;
-      if (showSelectedOnly && !selectedSet.has(s.id)) return false;
-      if (q && !s.name.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [services, activeCategory, showSelectedOnly, search, selectedSet]);
+  const count = selectedIds.length;
+  const preview = selectedIds.slice(0, PREVIEW_CHIP_MAX);
+  const overflow = count - PREVIEW_CHIP_MAX;
+  const isServiceCapable = SERVICE_CAPABLE_TYPES.has(staffType);
 
-  const groupedFiltered = useMemo(() => {
-    return filteredServices.reduce<Record<string, ServiceRow[]>>((acc, s) => {
-      const cat = s.service_categories?.name ?? "Uncategorized";
-      const list = acc[cat] ?? [];
-      list.push(s);
-      acc[cat] = list;
-      return acc;
-    }, {});
-  }, [filteredServices]);
-
-  const isServiceCapable = SERVICE_CAPABLE_STAFF_TYPES.has(staffType);
+  const helperText = count > 0
+    ? "Staff will be matched to bookings for their assigned services."
+    : isServiceCapable
+    ? "No services assigned — staff will use legacy scheduling until at least one service is set."
+    : "Service capabilities are optional for this job function.";
 
   return (
-    <div
+    <section
+      aria-label="Service capabilities"
       style={{
         backgroundColor: "var(--cs-surface)",
         border: "1px solid var(--cs-border)",
         borderRadius: 10,
-        padding: "1.25rem",
+        padding: "1.125rem",
       }}
     >
-      {/* Header */}
+      {/* Header row */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
+          gap: "0.75rem",
           marginBottom: "0.75rem",
           flexWrap: "wrap",
-          gap: "0.5rem",
         }}
       >
-        <p
+        <div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.6875rem",
+              fontWeight: 700,
+              color: "var(--cs-text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Service Capabilities
+          </p>
+          <p
+            style={{
+              margin: "0.25rem 0 0",
+              fontSize: "0.9375rem",
+              fontWeight: 700,
+              color: count > 0 ? "var(--cs-text)" : "var(--cs-text-muted)",
+            }}
+          >
+            {count > 0 ? `${count} service${count !== 1 ? "s" : ""} assigned` : "No services assigned"}
+          </p>
+        </div>
+        <button
+          onClick={onEditServices}
           style={{
-            margin: 0,
-            fontSize: "0.6875rem",
-            fontWeight: 700,
-            color: "var(--cs-text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-          }}
-        >
-          Service Capabilities
-          {selectedIds.length > 0 && (
-            <span
-              style={{
-                marginLeft: "0.5rem",
-                backgroundColor: "var(--cs-sand)",
-                color: "#fff",
-                borderRadius: 999,
-                padding: "0.1rem 0.45rem",
-                fontSize: "0.7rem",
-                fontWeight: 700,
-              }}
-            >
-              {selectedIds.length}
-            </span>
-          )}
-        </p>
-
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.375rem",
             fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
+            fontWeight: 600,
+            color: "var(--cs-sand)",
+            background: "none",
+            border: "1px solid var(--cs-sand)",
+            borderRadius: 7,
+            padding: "0.35rem 0.875rem",
             cursor: "pointer",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          <input
-            type="checkbox"
-            checked={showSelectedOnly}
-            onChange={(e) => setShowSelectedOnly(e.target.checked)}
-          />
-          Selected only
-        </label>
+          Edit services
+        </button>
       </div>
 
-      {!isServiceCapable && (
-        <p
+      {/* Helper text */}
+      {count === 0 && isServiceCapable && (
+        <div
+          role="alert"
           style={{
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
-            margin: "0 0 0.75rem",
-            padding: "0.5rem 0.75rem",
-            backgroundColor: "var(--cs-bg)",
-            borderRadius: 6,
-            border: "1px solid var(--cs-border)",
-          }}
-        >
-          Service capabilities are optional for this job function. Assign them only if this staff member performs spa services.
-        </p>
-      )}
-
-      {selectedIds.length === 0 && isServiceCapable && (
-        <p
-          style={{
-            fontSize: "0.8125rem",
-            color: "#92400E",
-            margin: "0 0 0.75rem",
             padding: "0.5rem 0.75rem",
             backgroundColor: "#FFFBEB",
-            borderRadius: 6,
             border: "1px solid #FDE68A",
-          }}
-        >
-          No services assigned — staff will use legacy scheduling until at least one service is set.
-        </p>
-      )}
-
-      {/* Search */}
-      <input
-        style={{ ...inputStyle, marginBottom: "0.75rem" }}
-        placeholder="Search services…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-
-      {/* Category chips */}
-      {categories.length > 1 && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.375rem",
+            borderRadius: 6,
+            fontSize: "0.8125rem",
+            color: "#92400E",
             marginBottom: "0.75rem",
           }}
         >
-          <button
-            onClick={() => setActiveCategory(null)}
-            style={{
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              padding: "0.2rem 0.6rem",
-              borderRadius: 999,
-              border: `1px solid ${activeCategory === null ? "var(--cs-sand)" : "var(--cs-border)"}`,
-              backgroundColor: activeCategory === null ? "var(--cs-sand)" : "transparent",
-              color: activeCategory === null ? "#fff" : "var(--cs-text-muted)",
-              cursor: "pointer",
-            }}
-          >
-            All
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 500,
-                padding: "0.2rem 0.6rem",
-                borderRadius: 999,
-                border: `1px solid ${activeCategory === cat ? "var(--cs-sand)" : "var(--cs-border)"}`,
-                backgroundColor: activeCategory === cat ? "var(--cs-sand)" : "transparent",
-                color: activeCategory === cat ? "#fff" : "var(--cs-text-muted)",
-                cursor: "pointer",
-              }}
-            >
-              {cat}
-            </button>
-          ))}
+          {helperText}
         </div>
       )}
 
-      {/* Quick actions */}
-      {services.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom: "0.875rem",
-          }}
-        >
-          <button
-            onClick={() => {
-              const visible = filteredServices.map((s) => s.id);
-              for (const id of visible) {
-                if (!selectedSet.has(id)) onToggle(id);
-              }
-            }}
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--cs-text-muted)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              textDecoration: "underline",
-            }}
-          >
-            Select visible
-          </button>
-          <span style={{ color: "var(--cs-border)" }}>·</span>
-          <button
-            onClick={() => {
-              const visible = filteredServices.map((s) => s.id);
-              for (const id of visible) {
-                if (selectedSet.has(id)) onToggle(id);
-              }
-            }}
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--cs-text-muted)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              textDecoration: "underline",
-            }}
-          >
-            Deselect visible
-          </button>
-          <span style={{ color: "var(--cs-border)" }}>·</span>
-          <button
-            onClick={() => {
-              for (const id of [...selectedIds]) onToggle(id);
-            }}
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--cs-text-muted)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              textDecoration: "underline",
-            }}
-          >
-            Clear all
-          </button>
-        </div>
-      )}
-
-      {/* Service chips by category */}
-      {Object.keys(groupedFiltered).length === 0 ? (
-        <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", margin: 0 }}>
-          No services match your filter.
+      {count === 0 && !isServiceCapable && (
+        <p style={{ margin: "0 0 0.75rem", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+          {helperText}
         </p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {Object.entries(groupedFiltered).map(([cat, catServices]) => (
-            <div key={cat}>
-              <p
+      )}
+
+      {/* Preview chips */}
+      {count > 0 && (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", marginBottom: "0.625rem" }}>
+            {preview.map((id) => (
+              <span
+                key={id}
                 style={{
-                  margin: "0 0 0.375rem",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  color: "var(--cs-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
+                  fontSize: "0.8125rem",
+                  padding: "0.2rem 0.625rem",
+                  borderRadius: 999,
+                  border: "1px solid var(--cs-sand)",
+                  backgroundColor: "var(--cs-sand)",
+                  color: "#fff",
+                  fontWeight: 500,
                 }}
               >
-                {cat}
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-                {catServices.map((s) => {
-                  const isSelected = selectedSet.has(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => onToggle(s.id)}
-                      style={{
-                        fontSize: "0.8125rem",
-                        padding: "0.25rem 0.75rem",
-                        borderRadius: 999,
-                        border: `1px solid ${isSelected ? "var(--cs-sand)" : "var(--cs-border)"}`,
-                        backgroundColor: isSelected ? "var(--cs-sand)" : "var(--cs-surface)",
-                        color: isSelected ? "#fff" : "var(--cs-text)",
-                        cursor: "pointer",
-                        fontWeight: isSelected ? 600 : 400,
-                        transition: "background-color 0.1s, color 0.1s",
-                      }}
-                    >
-                      {s.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+                {serviceMap.get(id) ?? id}
+              </span>
+            ))}
+            {overflow > 0 && (
+              <button
+                onClick={onEditServices}
+                style={{
+                  fontSize: "0.8125rem",
+                  padding: "0.2rem 0.625rem",
+                  borderRadius: 999,
+                  border: "1px solid var(--cs-border)",
+                  backgroundColor: "transparent",
+                  color: "var(--cs-text-muted)",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                +{overflow} more
+              </button>
+            )}
+          </div>
+          <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+            Assigning more services increases this staff member&apos;s availability in booking.
+          </p>
+        </>
       )}
+    </section>
+  );
+}
+
+// ── Summary row ───────────────────────────────────────────────────────────────
+
+function SummaryRow({
+  label,
+  value,
+  changed,
+}: {
+  label: string;
+  value: string;
+  changed?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+      <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", flexShrink: 0 }}>
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: "0.8125rem",
+          color: changed ? "#92400E" : "var(--cs-text)",
+          fontWeight: changed ? 600 : 400,
+          textAlign: "right",
+        }}
+      >
+        {value}{changed ? " *" : ""}
+      </span>
     </div>
   );
 }
 
-function SummaryPanel({
+// ── Action button ─────────────────────────────────────────────────────────────
+
+function ActionBtn({
+  children,
+  onClick,
+  disabled,
+  variant,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant: "primary" | "outline" | "ghost";
+}) {
+  const styles: React.CSSProperties = {
+    width: "100%",
+    padding: "0.5rem 1rem",
+    borderRadius: 7,
+    fontSize: "0.875rem",
+    fontWeight: 600,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.55 : 1,
+    ...(variant === "primary"
+      ? { backgroundColor: "var(--cs-sand)", color: "#fff", border: "none" }
+      : variant === "outline"
+      ? { backgroundColor: "transparent", color: "var(--cs-sand)", border: "1px solid var(--cs-sand)" }
+      : { backgroundColor: "transparent", color: "var(--cs-text-muted)", border: "1px solid var(--cs-border)" }),
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} style={styles}>
+      {children}
+    </button>
+  );
+}
+
+// ── Approval summary panel ────────────────────────────────────────────────────
+
+function ApprovalSummaryPanel({
   staffMember,
   branch,
   draft,
   savedDraft,
+  services,
   isDirty,
   isPending,
   result,
@@ -827,9 +758,10 @@ function SummaryPanel({
   branch: BranchRow | null;
   draft: Draft;
   savedDraft: Draft;
+  services: ServiceRow[];
   isDirty: boolean;
   isPending: boolean;
-  result: SaveResult | null;
+  result: ActionResult | null;
   onSave: () => void;
   onApproveAndActivate: () => void;
   onDiscard: () => void;
@@ -837,8 +769,8 @@ function SummaryPanel({
   const status = getStaffStatus(staffMember);
   const canApprove = status === "awaiting" || status === "inactive";
   const isProtected = SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
-
   const branchName = branch?.name ?? readBranchName(staffMember.branches);
+  const isServiceCapable = SERVICE_CAPABLE_TYPES.has(draft.staffType);
 
   const roleLabel =
     MANAGER_ROLE_OPTIONS.find((r) => r.value === draft.systemRole)?.label ?? draft.systemRole;
@@ -846,13 +778,23 @@ function SummaryPanel({
   const staffTypeLabel =
     STAFF_TYPE_LABELS[draft.staffType as keyof typeof STAFF_TYPE_LABELS] ?? draft.staffType;
 
+  const serviceMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of services) m.set(s.id, s.name);
+    return m;
+  }, [services]);
+
+  const previewIds = draft.serviceIds.slice(0, PREVIEW_CHIP_MAX);
+  const overflow = draft.serviceIds.length - PREVIEW_CHIP_MAX;
+
   return (
-    <div
+    <aside
+      aria-label="Approval summary"
       style={{
         backgroundColor: "var(--cs-surface)",
         border: "1px solid var(--cs-border)",
         borderRadius: 10,
-        padding: "1.25rem",
+        padding: "1.125rem",
         position: "sticky",
         top: "1.5rem",
       }}
@@ -889,6 +831,11 @@ function SummaryPanel({
           changed={draft.tier !== savedDraft.tier}
         />
         <SummaryRow
+          label="Status"
+          value={draft.isActive ? "Active" : "Inactive"}
+          changed={draft.isActive !== savedDraft.isActive}
+        />
+        <SummaryRow
           label="Services"
           value={
             draft.serviceIds.length > 0
@@ -900,33 +847,112 @@ function SummaryPanel({
             [...savedDraft.serviceIds].sort().join(",")
           }
         />
-        {draft.isHead && <SummaryRow label="" value="Department head" />}
+        {draft.isHead && <SummaryRow label="" value="Department head ✓" />}
       </div>
 
-      {/* Warnings */}
-      {canApprove && !isProtected && (
+      {/* Service preview */}
+      {draft.serviceIds.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.875rem" }}>
+          {previewIds.map((id) => (
+            <span
+              key={id}
+              style={{
+                fontSize: "0.75rem",
+                padding: "0.15rem 0.5rem",
+                borderRadius: 999,
+                border: "1px solid var(--cs-sand)",
+                color: "var(--cs-sand)",
+                fontWeight: 500,
+              }}
+            >
+              {serviceMap.get(id) ?? id}
+            </span>
+          ))}
+          {overflow > 0 && (
+            <span
+              style={{
+                fontSize: "0.75rem",
+                padding: "0.15rem 0.5rem",
+                borderRadius: 999,
+                border: "1px solid var(--cs-border)",
+                color: "var(--cs-text-muted)",
+              }}
+            >
+              +{overflow}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Service messaging */}
+      {draft.serviceIds.length > 0 ? (
         <div
           style={{
-            padding: "0.625rem 0.75rem",
+            padding: "0.5rem 0.75rem",
+            backgroundColor: "#F0FDF4",
+            border: "1px solid #BBF7D0",
+            borderRadius: 6,
+            fontSize: "0.8125rem",
+            color: "#15803D",
+            marginBottom: "0.875rem",
+          }}
+        >
+          This staff member is available for booking matching based on their assigned services.
+        </div>
+      ) : isServiceCapable ? (
+        <div
+          role="alert"
+          style={{
+            padding: "0.5rem 0.75rem",
             backgroundColor: "#FFFBEB",
             border: "1px solid #FDE68A",
             borderRadius: 6,
             fontSize: "0.8125rem",
             color: "#92400E",
-            marginBottom: "1rem",
+            marginBottom: "0.875rem",
+          }}
+        >
+          No services selected. This staff member will not appear in service-specific booking matching.
+        </div>
+      ) : null}
+
+      {/* Approve warning */}
+      {canApprove && !isProtected && (
+        <div
+          style={{
+            padding: "0.5rem 0.75rem",
+            backgroundColor: "#FFFBEB",
+            border: "1px solid #FDE68A",
+            borderRadius: 6,
+            fontSize: "0.8125rem",
+            color: "#92400E",
+            marginBottom: "0.875rem",
           }}
         >
           {status === "awaiting"
-            ? "This staff member is awaiting approval to become active."
-            : "This staff member is currently inactive."}
+            ? "Awaiting approval — use Approve & Activate to make this staff member active."
+            : "Staff member is currently inactive."}
         </div>
       )}
+
+      {/* Internal tier note */}
+      <p
+        style={{
+          margin: "0 0 0.875rem",
+          fontSize: "0.75rem",
+          color: "var(--cs-text-muted)",
+          fontStyle: "italic",
+        }}
+      >
+        Tier is for internal use only and is never shown to customers.
+      </p>
 
       {/* Action result */}
       {result && (
         <div
+          role="status"
           style={{
-            padding: "0.625rem 0.75rem",
+            padding: "0.5rem 0.75rem",
             backgroundColor: result.success ? "#F0FDF4" : "#FEF2F2",
             border: `1px solid ${result.success ? "#BBF7D0" : "#FECACA"}`,
             borderRadius: 6,
@@ -935,7 +961,7 @@ function SummaryPanel({
             marginBottom: "0.75rem",
           }}
         >
-          {result.success ? "Changes saved." : result.error ?? "Something went wrong."}
+          {result.success ? "Changes saved successfully." : result.error ?? "Something went wrong."}
         </div>
       )}
 
@@ -943,111 +969,33 @@ function SummaryPanel({
       {!isProtected && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {canApprove && (
-            <ActionButton
+            <ActionBtn
+              variant="primary"
               onClick={onApproveAndActivate}
               disabled={isPending}
-              primary
             >
               {isPending ? "Saving…" : "Approve & Activate"}
-            </ActionButton>
+            </ActionBtn>
           )}
-          <ActionButton
+          <ActionBtn
+            variant={canApprove ? "outline" : "primary"}
             onClick={onSave}
             disabled={isPending || !isDirty}
           >
             {isPending ? "Saving…" : "Save Changes"}
-          </ActionButton>
+          </ActionBtn>
           {isDirty && (
-            <ActionButton onClick={onDiscard} disabled={isPending} muted>
+            <ActionBtn variant="ghost" onClick={onDiscard} disabled={isPending}>
               Discard Changes
-            </ActionButton>
+            </ActionBtn>
           )}
         </div>
       )}
-    </div>
+    </aside>
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  changed,
-}: {
-  label: string;
-  value: string;
-  changed?: boolean;
-}) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
-      {label && (
-        <span
-          style={{
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
-            flexShrink: 0,
-          }}
-        >
-          {label}
-        </span>
-      )}
-      <span
-        style={{
-          fontSize: "0.8125rem",
-          color: changed ? "#92400E" : "var(--cs-text)",
-          fontWeight: changed ? 600 : 400,
-          textAlign: "right",
-        }}
-      >
-        {value}
-        {changed && " *"}
-      </span>
-    </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  disabled,
-  primary,
-  muted,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  primary?: boolean;
-  muted?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        width: "100%",
-        padding: "0.5rem 1rem",
-        borderRadius: 7,
-        fontSize: "0.875rem",
-        fontWeight: 600,
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
-        border: primary
-          ? "none"
-          : muted
-          ? "1px solid var(--cs-border)"
-          : "1px solid var(--cs-sand)",
-        backgroundColor: primary
-          ? "var(--cs-sand)"
-          : "transparent",
-        color: primary ? "#fff" : muted ? "var(--cs-text-muted)" : "var(--cs-sand)",
-        transition: "opacity 0.1s",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Main orchestrator ─────────────────────────────────────────────────────────
 
 export function StaffApprovalWorkspace({
   staffMember,
@@ -1064,55 +1012,60 @@ export function StaffApprovalWorkspace({
   const [isPending, startTransition] = useTransition();
 
   const canonical = useMemo(
-    () => makeDraftFromMember(staffMember, staffServiceIds),
+    () => fromMember(staffMember, staffServiceIds),
+    // Stable on mount — staffMember.id won't change within a page load
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [staffMember.id]
   );
 
-  const [draft, setDraft] = useState<Draft>(canonical);
-  const [savedDraft, setSavedDraft] = useState<Draft>(canonical);
-  const storageKey = draftStorageKey(staffMember.id);
+  const storageKey = draftKey(staffMember.id);
 
-  const [showRestoreBanner, setShowRestoreBanner] = useState(() => {
+  // ── State (lazy-initialized from localStorage to avoid setState-in-effect) ──
+
+  const [draft, setDraft] = useState<Draft>(() => {
+    if (typeof window === "undefined") return canonical;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return canonical;
+      const parsed = JSON.parse(raw) as Draft;
+      return !draftsEqual(parsed, canonical) ? parsed : canonical;
+    } catch {
+      return canonical;
+    }
+  });
+
+  const [showRestoreBanner, setShowRestoreBanner] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
       const raw = localStorage.getItem(storageKey);
       if (!raw) return false;
       const parsed = JSON.parse(raw) as Draft;
-      return !draftsAreEqual(parsed, canonical);
+      return !draftsEqual(parsed, canonical);
     } catch {
       return false;
     }
   });
 
-  const [storedDraft, setStoredDraft] = useState<Draft | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as Draft;
-      return !draftsAreEqual(parsed, canonical) ? parsed : null;
-    } catch {
-      return null;
-    }
-  });
+  const [savedDraft, setSavedDraft] = useState<Draft>(canonical);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [result, setResult] = useState<ActionResult | null>(null);
 
-  const [result, setResult] = useState<SaveResult | null>(null);
+  const isDirty = !draftsEqual(draft, savedDraft);
 
-  // Save draft to localStorage on every change
+  // Persist draft to localStorage whenever it changes
   useEffect(() => {
-    if (draftsAreEqual(draft, canonical)) {
+    if (draftsEqual(draft, canonical)) {
       localStorage.removeItem(storageKey);
     } else {
       try {
         localStorage.setItem(storageKey, JSON.stringify(draft));
       } catch {
-        // Storage full — ignore
+        // Storage quota exceeded — ignore
       }
     }
   }, [draft, canonical, storageKey]);
 
-  const isDirty = !draftsAreEqual(draft, savedDraft);
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleChange = useCallback(<K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -1121,27 +1074,24 @@ export function StaffApprovalWorkspace({
 
   const handleToggleService = useCallback((id: string) => {
     setDraft((prev) => {
-      const set = new Set(prev.serviceIds);
-      if (set.has(id)) set.delete(id);
-      else set.add(id);
-      return { ...prev, serviceIds: Array.from(set) };
+      const s = new Set(prev.serviceIds);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return { ...prev, serviceIds: Array.from(s) };
     });
     setResult(null);
   }, []);
 
   const handleRestoreDraft = useCallback(() => {
-    if (storedDraft) {
-      setDraft(storedDraft);
-    }
     setShowRestoreBanner(false);
-    setStoredDraft(null);
-  }, [storedDraft]);
+    // draft is already the stored version (initialized from localStorage)
+  }, []);
 
   const handleDiscardStoredDraft = useCallback(() => {
     localStorage.removeItem(storageKey);
+    setDraft(canonical);
     setShowRestoreBanner(false);
-    setStoredDraft(null);
-  }, [storageKey]);
+    setResult(null);
+  }, [canonical, storageKey]);
 
   const handleDiscard = useCallback(() => {
     setDraft(savedDraft);
@@ -1150,7 +1100,7 @@ export function StaffApprovalWorkspace({
   }, [savedDraft, storageKey]);
 
   const buildPayload = useCallback(
-    (isActive: boolean) => ({
+    (overrideIsActive: boolean) => ({
       staffId:    staffMember.id,
       fullName:   draft.fullName.trim(),
       nickname:   draft.nickname.trim() || null,
@@ -1160,7 +1110,7 @@ export function StaffApprovalWorkspace({
       staffType:  draft.staffType,
       isHead:     draft.isHead,
       branchId:   staffMember.branch_id ?? undefined,
-      isActive,
+      isActive:   overrideIsActive,
       serviceIds: draft.serviceIds.length > 0 ? draft.serviceIds : undefined,
     }),
     [draft, staffMember]
@@ -1168,22 +1118,22 @@ export function StaffApprovalWorkspace({
 
   const handleSave = useCallback(() => {
     startTransition(async () => {
-      const res = await updateStaffAction(buildPayload(staffMember.is_active));
+      const res = await updateStaffAction(buildPayload(draft.isActive));
       setResult({ success: res.success, error: res.error });
       if (res.success) {
-        setSavedDraft(draft);
+        setSavedDraft({ ...draft });
         localStorage.removeItem(storageKey);
         router.refresh();
       }
     });
-  }, [buildPayload, draft, router, staffMember.is_active, storageKey]);
+  }, [buildPayload, draft, router, storageKey]);
 
   const handleApproveAndActivate = useCallback(() => {
     startTransition(async () => {
       const res = await updateStaffAction(buildPayload(true));
       setResult({ success: res.success, error: res.error });
       if (res.success) {
-        setSavedDraft(draft);
+        setSavedDraft({ ...draft, isActive: true });
         localStorage.removeItem(storageKey);
         router.refresh();
       }
@@ -1191,6 +1141,8 @@ export function StaffApprovalWorkspace({
   }, [buildPayload, draft, router, storageKey]);
 
   const isProtected = SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div>
@@ -1202,43 +1154,36 @@ export function StaffApprovalWorkspace({
 
       {showRestoreBanner && (
         <DraftRestoreBanner
-          onKeep={handleRestoreDraft}
+          onRestore={handleRestoreDraft}
           onDiscard={handleDiscardStoredDraft}
         />
       )}
 
-      {/* Two-column layout: left (form) + right (summary panel) */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: "1rem",
-        }}
-        className="staff-approval-grid"
-      >
+      {/* Two-column responsive grid */}
+      <div className="staff-approval-grid">
         {/* Left column */}
         <div>
           <StaffInformationCard
             draft={draft}
-            staffMember={staffMember}
             isProtected={isProtected}
             onChange={handleChange}
           />
-          <ServiceCapabilityPicker
+          <ServiceSummaryCard
             services={services}
             selectedIds={draft.serviceIds}
             staffType={draft.staffType}
-            onToggle={handleToggleService}
+            onEditServices={() => setIsSheetOpen(true)}
           />
         </div>
 
-        {/* Right column: summary panel */}
+        {/* Right column */}
         <div>
-          <SummaryPanel
+          <ApprovalSummaryPanel
             staffMember={staffMember}
             branch={branch}
             draft={draft}
             savedDraft={savedDraft}
+            services={services}
             isDirty={isDirty}
             isPending={isPending}
             result={result}
@@ -1249,16 +1194,45 @@ export function StaffApprovalWorkspace({
         </div>
       </div>
 
-      {/* Responsive grid styles */}
+      {/* Service editor sheet */}
+      <StaffServiceEditorSheet
+        open={isSheetOpen}
+        services={services}
+        selectedIds={draft.serviceIds}
+        onToggle={handleToggleService}
+        onClose={() => setIsSheetOpen(false)}
+      />
+
+      {/* Responsive layout styles */}
       <style>{`
+        .staff-approval-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 1rem;
+        }
         @media (min-width: 768px) {
           .staff-approval-grid {
-            grid-template-columns: 1fr 320px !important;
+            grid-template-columns: 1fr 300px;
           }
         }
-        @media (max-width: 480px) {
+        @media (min-width: 1024px) {
+          .staff-approval-grid {
+            grid-template-columns: 1fr 320px;
+          }
+        }
+        .staff-info-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+        }
+        @media (min-width: 480px) {
           .staff-info-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+        @media (min-width: 900px) {
+          .staff-info-grid {
+            grid-template-columns: 1fr 1fr 1fr;
           }
         }
       `}</style>

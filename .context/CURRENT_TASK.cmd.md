@@ -1,4 +1,28 @@
-# CURRENT TASK: PERF-PHASE4-001 — Offline / Poor Connectivity Resilience
+# CURRENT TASK: UI-STAFF-EDIT-001 — Manager Staff Approval Page Redesign
+
+## Status
+Completed on 2026-05-18.
+
+## Summary
+Replaced the monolithic `StaffEditForm` (checkbox-heavy, crowded) with a focused two-component design:
+1. `StaffApprovalWorkspace` — orchestrator with inline sub-components (header, info card, service summary card, summary panel)
+2. `StaffServiceEditorSheet` — Sheet-based service picker with collapsible category rows, search, quick actions, and pagination per category
+
+The main page shows a compact service capability summary (count + up to 6 preview chips + "Edit services" button). Heavy service selection only appears when the manager explicitly opens the sheet.
+
+## Files Changed
+- `src/components/features/staff/staff-approval-workspace.tsx` — Full rewrite
+- `src/components/features/staff/staff-service-editor-sheet.tsx` — New file
+- `src/app/(dashboard)/manager/staff/[staffId]/page.tsx` — Updated to use workspace
+
+## Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 80 routes
+
+---
+
+# Previous Task: PERF-PHASE4-001 — Offline / Poor Connectivity Resilience
 
 ## Status
 Completed on 2026-05-15.

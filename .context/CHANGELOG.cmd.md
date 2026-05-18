@@ -619,3 +619,25 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
 - `pnpm build`: ✅ Passing, 79 routes
+
+---
+
+### 2026-05-18 — Claude (UI-STAFF-EDIT-001)
+
+**Task:** Manager Staff Approval Page — compact redesign with Sheet-based service picker
+
+**Problem solved:** The previous staff edit page rendered all service chips at once (CradleHub has 50–100+ services across categories). This caused visual overload and made the page feel like a raw admin form.
+
+**Solution:** Two-phase UX — main page shows a summary, detailed editing opens in a Sheet.
+
+**Files Created:**
+- `src/components/features/staff/staff-service-editor-sheet.tsx` — Sheet-based service capability editor. Collapsible category rows (accordion, one open at a time). Each category shows "N selected / M total". Expanded rows: selected chips first, then unselected, max 8 per category with "Show more". Search mode: bypass accordion, show all matching grouped. Filter chips: "All services" / "Selected (N)". Quick actions per category: Select all, Clear. `aria-pressed` on service chips for accessibility.
+- (rewrite) `src/components/features/staff/staff-approval-workspace.tsx` — Orchestrator + focused sub-components in one file: `PageHeader` (back link, avatar, name, status badge, dirty indicator), `DraftRestoreBanner` (localStorage restore offer), `StaffInformationCard` (3-col compact grid: name spans full width, others pair up), `ServiceSummaryCard` (count + up to 6 preview chips + "+X more" + "Edit services" button), `ApprovalSummaryPanel` (sticky right: branch/role/job/tier/status/services rows with change markers, service message green/orange, internal tier note, Approve & Activate / Save / Discard actions). Draft includes `isActive`. Lazy `useState` initializers read localStorage without `setState-in-effect`.
+
+**Files Modified:**
+- `src/app/(dashboard)/manager/staff/[staffId]/page.tsx` — maxWidth 760→1100, removed PageHeader+StaffEditForm, uses StaffApprovalWorkspace
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 80 routes
