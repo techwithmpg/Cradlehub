@@ -1,11 +1,9 @@
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getStaffByBranchWithBranches, getPendingStaffByBranch, getStaffServices } from "@/lib/queries/staff";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getAllServices } from "@/lib/queries/services";
 import { getBranchById } from "@/lib/queries/branches";
-import { getStaffAdminName } from "@/lib/staff/display-name";
-import { StaffEditForm } from "@/components/features/staff/staff-edit-form";
+import { StaffApprovalWorkspace } from "@/components/features/staff/staff-approval-workspace";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type { Database } from "@/types/supabase";
 
@@ -36,20 +34,14 @@ export default async function ManagerStaffDetailPage({
   }
 
   const staffServiceIds = await getStaffServices(staffId);
-  const typedServices = services as ServiceRow[];
 
   return (
-    <div style={{ maxWidth: 760 }}>
-      <PageHeader
-        title={getStaffAdminName(staffMember)}
-        description={`${branch?.name ?? "Unknown branch"} · ${staffMember.system_role}`}
-      />
-      <StaffEditForm
+    <div style={{ maxWidth: 1100 }}>
+      <StaffApprovalWorkspace
         staffMember={staffMember}
-        branches={branch ? [branch] : []}
-        services={typedServices}
+        branch={branch ?? null}
+        services={services as ServiceRow[]}
         staffServiceIds={staffServiceIds}
-        workspaceContext="manager"
       />
     </div>
   );
