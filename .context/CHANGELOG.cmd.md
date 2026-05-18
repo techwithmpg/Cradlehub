@@ -644,6 +644,33 @@
 
 ---
 
+### 2026-05-18 — Claude (BOOKING-PROVIDER-001 — Smart Provider Selection)
+
+**Task:** Improve booking wizard provider selection so staff are filtered by service, shown as a premium photo grid, and auto-assigned when only one qualified provider is available.
+
+**Problem solved:** The provider step always showed a 2-column initials-avatar grid regardless of how many (or few) providers were qualified. Services with only one qualified provider forced customers to make a trivial "choice." No photos were shown even though staff have `avatar_url` on record.
+
+**Logic (3-case):**
+1. **0 providers**: "Any available provider" card + dashed fallback note.
+2. **1 provider**: Auto-assigned. Booking card shows provider name, photo, "Available and assigned for you." Customer can tap "Use any available provider instead" (sets `"prefer-auto"` sentinel) to opt out.
+3. **2+ providers**: "Any available provider" (Recommended) card on top, then 4-column (2-column mobile) photo grid below. First provider gets a "Recommended" ribbon.
+
+**State model (no useEffect):**
+- `selectedStaff: "auto" | "prefer-auto" | staffId` — three semantic values
+- `selectedStaffForBooking` useMemo resolves: `"prefer-auto"` → `"auto"`, specific id → validate still available, default `"auto"` + single provider → provider id
+- No `setState` inside effects; no cascading renders.
+
+**Files Modified:**
+- `src/app/api/public/booking-context/route.ts` — Added `nickname` and `avatar_url` to primary select string and response mapping; extended `isMissingStaffOrgColumnsError` guard; added `nickname: null` / `avatar_url: null` to legacy fallback map.
+- `src/components/public/booking-wizard.tsx` — `BookingContextStaff`, `StaffLookup`, `StaffOption` types updated with `avatarUrl`; `staffAtSlot()` prefers `nickname` over `name` as display; lookup build populates `avatarUrl`; `selectedStaffForBooking` handles 3-case auto-select logic; removed unused `STAFF_TYPE_LABELS` / `StaffType` imports; new `ProviderPhotoCard` component (photo/initials, recommended ribbon, selection ring); `StepTherapist` redesigned with 3 distinct cases; booking summary label updated to "Any available provider".
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 80 routes
+
+---
+
 ### 2026-05-18 — Claude (UI-WARNING-FRAMEWORK-001 — System-Wide Actionable Warning Framework)
 
 **Task:** Create a reusable warning system so every warning in CradleHub is clickable and answers: what is wrong / why it matters / where to fix it / what happens on click.

@@ -11,7 +11,6 @@ import {
   type BookingWizardService,
 } from "@/components/public/booking-service-picker";
 import { SPA_IMAGES } from "@/constants/spa-images";
-import { STAFF_TYPE_LABELS, type StaffType } from "@/constants/staff";
 import {
   Check,
   ChevronLeft,
@@ -78,6 +77,7 @@ type StaffOption = {
   staff_name: string;
   staff_full_name?: string | null;
   staff_nickname?: string | null;
+  staff_avatar_url?: string | null;
   staff_tier: string;
   staff_type?: string;
 };
@@ -86,6 +86,7 @@ type StaffLookup = {
   name: string | null;
   fullName: string | null;
   nickname: string | null;
+  avatarUrl: string | null;
   staffType: string | null;
   serviceIds: string[];
   isServiceProvider: boolean;
@@ -110,6 +111,7 @@ type BookingContextStaff = {
   name?: string | null;
   fullName?: string | null;
   nickname?: string | null;
+  avatarUrl?: string | null;
   staffType?: string | null;
   serviceIds?: string[];
 };
@@ -245,12 +247,13 @@ function staffAtSlot(
       continue;
     }
     seen.add(s.staff_id);
-    const displayName = lookup?.name ?? s.staff_name;
+    const displayName = lookup?.nickname ?? lookup?.name ?? s.staff_name;
     out.push({
       staff_id: s.staff_id,
       staff_name: displayName,
       staff_full_name: lookup?.fullName ?? s.staff_name,
       staff_nickname: lookup?.nickname ?? null,
+      staff_avatar_url: lookup?.avatarUrl ?? null,
       staff_tier: s.staff_tier,
       staff_type: lookup?.staffType ?? undefined,
     });
@@ -389,11 +392,24 @@ export function BookingWizard({
     [rawSlots, selectedSlot, selectedServiceIds, serviceIdsWithStaffMappings, staffLookup]
   );
   const selectedStaffForBooking = useMemo(
-    () =>
-      selectedStaff === "auto" ||
-      availableStaffAtSlot.some((staff) => staff.staff_id === selectedStaff)
-        ? selectedStaff
-        : "auto",
+    () => {
+      // "prefer-auto" — user explicitly clicked "Use any available provider instead"
+      // when only one provider was available. Honour their choice even though one
+      // specific provider exists.
+      if (selectedStaff === "prefer-auto") return "auto";
+      // Specific provider chosen — validate they are still available at this slot.
+      if (selectedStaff !== "auto") {
+        return availableStaffAtSlot.some((s) => s.staff_id === selectedStaff)
+          ? selectedStaff
+          : "auto";
+      }
+      // Default "auto" (no explicit selection yet) — if there is exactly one
+      // qualified provider, wire them in so the booking is assigned to them.
+      if (availableStaffAtSlot.length === 1) {
+        return availableStaffAtSlot[0]!.staff_id;
+      }
+      return "auto";
+    },
     [availableStaffAtSlot, selectedStaff]
   );
 
@@ -469,6 +485,7 @@ export function BookingWizard({
             name: member.name ?? member.fullName ?? null,
             fullName: member.fullName ?? member.name ?? null,
             nickname: member.nickname ?? null,
+            avatarUrl: member.avatarUrl ?? null,
             staffType: member.staffType ?? null,
             serviceIds: member.serviceIds ?? [],
             isServiceProvider: true,
@@ -1117,7 +1134,7 @@ function BookingSummary({
 }) {
   const staffLabel =
     selectedStaff === "auto"
-      ? "Auto-assign"
+      ? "Any available provider"
       : availableStaff.find((s) => s.staff_id === selectedStaff)?.staff_name;
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
   const availability = getVisitTypeAvailability(visitType, bookingRules);
@@ -1576,6 +1593,87 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
+// Premium provider photo card — used in the multi-provider 4-column grid.
+function ProviderPhotoCard({
+  staff,
+  isSelected,
+  isRecommended,
+  onSelect,
+}: {
+  staff: StaffOption;
+  isSelected: boolean;
+  isRecommended: boolean;
+  onSelect: () => void;
+}) {
+  const displayName = staff.staff_nickname ?? staff.staff_name;
+  const initials = getInitials(staff.staff_name);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={isSelected}
+      className={`relative flex flex-col items-center text-center rounded-2xl border pt-6 pb-4 px-3 transition-all duration-200 ${
+        isSelected
+          ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+          : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+      }`}
+    >
+      {/* Recommended ribbon */}
+      {isRecommended && (
+        <div
+          className="absolute top-0 left-0 rounded-tl-2xl rounded-br-xl text-[9px] font-semibold uppercase tracking-wide px-2.5 py-1"
+          style={{ background: "#163A2B", color: "#C8A96B" }}
+        >
+          Recommended
+        </div>
+      )}
+
+      {/* Selection indicator */}
+      <div
+        className={`absolute top-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${
+          isSelected ? "border-[#163A2B] bg-[#163A2B]" : "border-[#EDE4D3]"
+        }`}
+      >
+        {isSelected && <Check className="h-2.5 w-2.5 text-[#C8A96B]" />}
+      </div>
+
+      {/* Photo / initials avatar */}
+      <div className="relative mb-3 h-16 w-16 shrink-0 overflow-hidden rounded-full">
+        {staff.staff_avatar_url ? (
+          <Image
+            src={staff.staff_avatar_url}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="64px"
+          />
+        ) : (
+          <div
+            className={`flex h-full w-full items-center justify-center text-[16px] font-semibold ${
+              isSelected ? "bg-[#163A2B] text-[#C8A96B]" : "bg-[#163A2B]/10 text-[#163A2B]"
+            }`}
+            aria-hidden="true"
+          >
+            {initials || <User className="h-5 w-5" />}
+          </div>
+        )}
+      </div>
+
+      {/* Name */}
+      <p className="w-full truncate text-[13px] font-semibold leading-5" style={{ color: "#163A2B" }}>
+        {displayName}
+      </p>
+
+      {/* Availability dot */}
+      <div className="mt-1 flex items-center gap-1">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+        <span className="text-[11px]" style={{ color: "#6B7A6F" }}>Available</span>
+      </div>
+    </button>
+  );
+}
+
 function StepTherapist({
   availableStaff,
   selected,
@@ -1585,6 +1683,114 @@ function StepTherapist({
   selected: "auto" | string;
   onSelect: (choice: "auto" | string) => void;
 }) {
+  const isSingle = availableStaff.length === 1;
+  const isMultiple = availableStaff.length > 1;
+
+  // ── Case 2: Exactly one qualified provider — auto-assigned ─────────────
+  if (isSingle) {
+    const provider = availableStaff[0]!;
+    const displayName = provider.staff_nickname ?? provider.staff_name;
+    const initials = getInitials(provider.staff_name);
+    const isAuto = selected === "auto";
+
+    return (
+      <div>
+        <h2
+          className="text-2xl font-medium mb-2"
+          style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        >
+          Provider assigned
+        </h2>
+        <p className="text-[14px] mb-6" style={{ color: "#6B7A6F" }}>
+          We&apos;ve matched you with the only available qualified provider for this service and time.
+        </p>
+
+        {isAuto ? (
+          /* User switched to "any available" — show the any-available card selected */
+          <div>
+            <button
+              type="button"
+              onClick={() => onSelect("auto")}
+              aria-pressed={true}
+              className="flex w-full items-center gap-4 p-5 rounded-xl border text-left border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] shrink-0">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
+                  Any available provider
+                </p>
+                <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
+                  We&apos;ll assign the best qualified staff.
+                </p>
+              </div>
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#163A2B] shrink-0">
+                <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelect(provider.staff_id)}
+              className="mt-3 text-[12px] font-semibold underline underline-offset-2"
+              style={{ color: "#163A2B" }}
+            >
+              Switch back to {displayName}
+            </button>
+          </div>
+        ) : (
+          /* Auto-assigned provider card */
+          <div>
+            <div className="flex items-center gap-4 p-5 rounded-xl border border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]">
+              {/* Photo / initials */}
+              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl">
+                {provider.staff_avatar_url ? (
+                  <Image
+                    src={provider.staff_avatar_url}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                  />
+                ) : (
+                  <div
+                    className="flex h-full w-full items-center justify-center rounded-xl bg-[#163A2B] text-[14px] font-semibold text-[#C8A96B]"
+                    aria-hidden="true"
+                  >
+                    {initials || <User className="h-5 w-5" />}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px] font-semibold" style={{ color: "#163A2B" }}>
+                  {displayName}
+                </p>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+                  <p className="text-[12px]" style={{ color: "#6B7A6F" }}>
+                    Available and assigned for you
+                  </p>
+                </div>
+              </div>
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#163A2B]">
+                <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSelect("prefer-auto")}
+              className="mt-3 text-[12px] font-semibold underline underline-offset-2"
+              style={{ color: "#6B7A6F" }}
+            >
+              Use any available provider instead
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Case 1 (multiple) + Case 3 (zero) ─────────────────────────────────
   return (
     <div>
       <h2
@@ -1593,12 +1799,12 @@ function StepTherapist({
       >
         Choose your provider
       </h2>
-      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
-        Keep auto-assign for the fastest booking or choose a qualified provider.
+      <p className="text-[14px] mb-6" style={{ color: "#6B7A6F" }}>
+        Select a specific provider or continue with any available provider.
       </p>
 
-      <div className="flex flex-col gap-3">
-        {/* Auto-assign option */}
+      <div className="flex flex-col gap-4">
+        {/* Any available provider card */}
         <button
           type="button"
           onClick={() => onSelect("auto")}
@@ -1629,7 +1835,7 @@ function StepTherapist({
               </span>
             </div>
             <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
-              Recommended for fastest booking. We&apos;ll assign the best qualified staff.
+              We&apos;ll assign the best qualified staff based on availability and service.
             </p>
           </div>
           {selected === "auto" && (
@@ -1639,61 +1845,37 @@ function StepTherapist({
           )}
         </button>
 
-        {/* Individual therapist options — 2-column grid on sm+ */}
-        {availableStaff.length > 0 && (
+        {/* Multi-provider photo grid */}
+        {isMultiple && (
           <>
-            <p className="text-[11px] font-semibold uppercase tracking-wide pt-2" style={{ color: "#9AA89A" }}>
-              Or choose a specific provider
-            </p>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {availableStaff.map((staff) => {
-                const providerLabel = STAFF_TYPE_LABELS[(staff.staff_type ?? "") as StaffType] ?? "Therapist";
-                const initials = getInitials(staff.staff_name);
-                const isCardSelected = selected === staff.staff_id;
-
-                return (
-                  <button
-                    key={staff.staff_id}
-                    type="button"
-                    onClick={() => onSelect(staff.staff_id)}
-                    aria-pressed={isCardSelected}
-                    className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all duration-200 ${
-                      isCardSelected
-                        ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-                        : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
-                    }`}
-                  >
-                    {/* Initials avatar */}
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${
-                        isCardSelected
-                          ? "bg-[#163A2B] text-[#C8A96B]"
-                          : "bg-[#163A2B]/10 text-[#163A2B]"
-                      }`}
-                      aria-hidden="true"
-                    >
-                      {initials || <User className="h-4 w-4" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold leading-5" style={{ color: "#163A2B" }}>
-                        {staff.staff_name}
-                      </p>
-                      <p className="text-[12px] mt-0.5" style={{ color: "#9AA89A" }}>
-                        {providerLabel}
-                      </p>
-                    </div>
-                    {isCardSelected && (
-                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#163A2B]">
-                        <Check className="h-3 w-3 text-[#C8A96B]" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between pt-1">
+              <p
+                className="text-[11px] font-semibold uppercase tracking-wide"
+                style={{ color: "#9AA89A" }}
+              >
+                Available providers for this time
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+                <span className="text-[11px]" style={{ color: "#6B7A6F" }}>Available</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {availableStaff.map((staff, index) => (
+                <ProviderPhotoCard
+                  key={staff.staff_id}
+                  staff={staff}
+                  isSelected={selected === staff.staff_id}
+                  isRecommended={index === 0}
+                  onSelect={() => onSelect(staff.staff_id)}
+                />
+              ))}
             </div>
           </>
         )}
-        {availableStaff.length === 0 && (
+
+        {/* Case 3: No specific providers available */}
+        {!isMultiple && (
           <div
             className="rounded-xl border border-dashed px-4 py-5 text-[13px] leading-6"
             style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}

@@ -1,26 +1,23 @@
-# CURRENT TASK: UI-WARNING-FRAMEWORK-001 — System-Wide Actionable Warning Framework
+# CURRENT TASK: BOOKING-PROVIDER-001 — Smart Provider Selection in Public Booking Wizard
 
 ## Status
 Completed on 2026-05-18.
 
 ## Summary
-Created a reusable warning system so every warning in CradleHub answers: what is wrong, why it matters, where to fix it, and what happens on click. All warnings are now clickable cards with a unified action dispatch model.
+Three-case smart provider selection in the public (and inhouse) booking wizard:
+- **0 providers**: existing fallback message ("Any available provider, our team will assign…")
+- **1 provider**: auto-assigned silently — booking card shows the provider with "Use any available provider instead" escape hatch
+- **2+ providers**: premium 4-column photo grid on desktop (2-column on mobile) with "Any available provider" as recommended option
 
 ## Architecture
-- `ActionableWarning` type with discriminated `WarningActionType`: `scroll | focus | navigate | open-panel | modal | custom`
-- Each target type resolves to a concrete behaviour in the click handler (DOM scroll, DOM focus, router.push, or parent onAction callback)
-- `warningTargets` factory object covers every known warning context in the app (staff, scheduling, branches, services, bookings, dispatch, notifications, settings)
-- Severity palette matches all existing inline warning divs (danger/warning/success/info)
-
-## Files Created
-- `src/types/warnings.ts` — `WarningSeverity`, `WarningActionType`, `ActionableWarningTarget`, `ActionableWarning` types
-- `src/lib/warnings/scroll-to-target.ts` — `scrollToElement`, `focusElement`, `buildHref` DOM helpers
-- `src/lib/warnings/action-targets.ts` — `warningTargets` factory covering all known CradleHub contexts
-- `src/components/shared/actionable-warning.tsx` — `ActionableWarning` card component with severity theming and action dispatch
-- `src/components/shared/actionable-warning-list.tsx` — `ActionableWarningList` vertical stack component
+- **No useEffect**: auto-selection is derived purely in the `selectedStaffForBooking` useMemo — no cascading renders
+- **`"prefer-auto"` sentinel**: distinguishes "user explicitly chose any-available" (must respect) from `"auto"` (default with no choice yet, triggers auto-select when 1 provider)
+- **Nickname-first display**: `staffAtSlot()` now prefers `lookup.nickname` over `lookup.name` for display, matching public-facing card style
+- **Avatar support**: `avatar_url` and `nickname` propagated from API → `StaffLookup` → `StaffOption` → photo card
 
 ## Files Modified
-- `src/components/features/staff/staff-approval-workspace.tsx` — Replaced all 7 inline warning divs with `ActionableWarning` / framework; added `id="approval-actions"` for scroll targeting; wired `onAction` for service-editor panel
+- `src/app/api/public/booking-context/route.ts` — Added `nickname` and `avatar_url` to staff select, response map, and fallback guard
+- `src/components/public/booking-wizard.tsx` — Types updated; `staffAtSlot` prefers nickname; `selectedStaffForBooking` handles 3-case auto-select; `ProviderPhotoCard` component added; `StepTherapist` redesigned with 3 cases; summary label "Auto-assign" → "Any available provider"
 
 ## Verification
 - `pnpm type-check`: ✅ Passing (0 errors)

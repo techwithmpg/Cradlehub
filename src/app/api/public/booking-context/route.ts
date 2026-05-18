@@ -51,6 +51,8 @@ type StaffRow = {
   staff_type: string | null;
   system_role: string | null;
   is_head: boolean | null;
+  nickname: string | null;
+  avatar_url: string | null;
 };
 
 type LegacyStaffRow = Pick<
@@ -81,7 +83,13 @@ function isMissingStaffOrgColumnsError(message: string): boolean {
     m.includes('column staff.is_head does not exist') ||
     m.includes('column "is_head" does not exist') ||
     m.includes("could not find the 'is_head' column") ||
-    m.includes("could not find the 'staff_type' column")
+    m.includes("could not find the 'staff_type' column") ||
+    m.includes('column staff.nickname does not exist') ||
+    m.includes('column "nickname" does not exist') ||
+    m.includes("could not find the 'nickname' column") ||
+    m.includes('column staff.avatar_url does not exist') ||
+    m.includes('column "avatar_url" does not exist') ||
+    m.includes("could not find the 'avatar_url' column")
   );
 }
 
@@ -89,7 +97,7 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
   const supabase = createAdminClient();
   const primary = await supabase
     .from("staff")
-    .select("id, full_name, tier, is_active, staff_type, system_role, is_head")
+    .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url")
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
@@ -114,6 +122,8 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
       ...member,
       staff_type: null,
       is_head: false,
+      nickname: null,
+      avatar_url: null,
     })) as StaffRow[];
   }
 
@@ -251,10 +261,12 @@ export async function GET(request: NextRequest) {
     .map((member) => ({
       id: member.id,
       name: member.full_name,
+      nickname: member.nickname,
       tier: member.tier,
       staffType: member.staff_type,
       isHead: member.is_head,
       serviceIds: serviceIdsByStaff.get(member.id) ?? [],
+      avatarUrl: member.avatar_url,
     }));
 
   return NextResponse.json({
