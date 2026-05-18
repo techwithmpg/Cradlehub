@@ -58,6 +58,29 @@ export async function upsertSchedulingRulesAction(rawInput: unknown) {
 
   const branchId = ctx.me.branch_id;
 
+  if (!branchId) {
+    return {
+      success: false,
+      error:
+        "Your manager account is not assigned to a valid branch. Ask the owner to assign you to a branch before saving scheduling rules.",
+    };
+  }
+
+  // Confirm the branch exists before attempting the FK-constrained upsert.
+  const { data: branch } = await ctx.supabase
+    .from("branches")
+    .select("id")
+    .eq("id", branchId)
+    .maybeSingle();
+
+  if (!branch) {
+    return {
+      success: false,
+      error:
+        "The branch assigned to your account does not exist. Ask the owner to assign you to an active branch.",
+    };
+  }
+
   const { error } = await ctx.supabase.from("scheduling_rules").upsert(
     { branch_id: branchId, ...parsed.data },
     { onConflict: "branch_id" },

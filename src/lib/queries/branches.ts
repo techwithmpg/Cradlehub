@@ -413,7 +413,9 @@ export function getBranchServicesPublicCached(branchId: string) {
   return unstable_cache(
     async () => {
       const supabase = createAdminClient();
-      const { data, error } = await supabase
+
+      // Primary: DB-level filter on booking_visibility (post-migration schema).
+      const primary = await supabase
         .from("branch_services")
         .select(`
           *,
@@ -427,8 +429,28 @@ export function getBranchServicesPublicCached(branchId: string) {
         .eq("is_active", true)
         .eq("booking_visibility", "public")
         .order("id");
-      if (error) throw new Error(error.message);
-      return data ?? [];
+
+      if (!primary.error) return primary.data ?? [];
+
+      // booking_visibility column may not exist yet in this Supabase instance.
+      if (!isMissingBranchServiceColumnError(primary.error.message)) {
+        throw new Error(primary.error.message);
+      }
+
+      // Fallback: select without visibility filter, then check in-memory.
+      const fallback = await supabase
+        .from("branch_services")
+        .select(branchServicesMinimalSelect)
+        .eq("branch_id", branchId)
+        .eq("is_active", true)
+        .order("id");
+
+      if (fallback.error) throw new Error(fallback.error.message);
+      // normalizeBranchServiceVisibility defaults missing column to "public",
+      // so isPublicBranchService returns true for all rows here.
+      return normalizeBranchServiceVisibility(fallback.data ?? []).filter(
+        isPublicBranchService
+      );
     },
     ["branch-services", branchId],
     { tags: [cacheTags.branchServices(branchId)], revalidate: 300 }
