@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { resolveSuperAdminContext, resolveDevBypassBranchId } from "@/lib/auth/super-admin";
 
 /**
  * Shared manager branch resolver.
@@ -12,6 +13,10 @@ export async function getManagerBranchId(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Super-admin: resolve real branch without requiring a staff record.
+  const superAdmin = await resolveSuperAdminContext(user.id);
+  if (superAdmin) return superAdmin.branch_id;
+
   const { data: me } = await supabase
     .from("staff")
     .select("branch_id")
@@ -20,8 +25,10 @@ export async function getManagerBranchId(): Promise<string> {
     .maybeSingle();
 
   if (!me && isDevAuthBypassEnabled()) {
-    const mock = getDevBypassLayoutStaff();
-    return mock.branch_id;
+    // Dev bypass: resolve first real branch instead of using a fake UUID.
+    const branchId = await resolveDevBypassBranchId();
+    if (!branchId) redirect("/login");
+    return branchId;
   }
 
   if (!me?.branch_id) redirect("/login");
@@ -39,6 +46,15 @@ export async function getManagerContext(): Promise<{
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Super-admin: resolve real branch and name without requiring a staff record.
+  const superAdmin = await resolveSuperAdminContext(user.id);
+  if (superAdmin) {
+    return {
+      branchId: superAdmin.branch_id,
+      branchName: superAdmin.branches?.name ?? "Your Branch",
+    };
+  }
+
   const { data: me } = await supabase
     .from("staff")
     .select("branch_id, branches(name)")
@@ -47,11 +63,10 @@ export async function getManagerContext(): Promise<{
     .maybeSingle();
 
   if (!me && isDevAuthBypassEnabled()) {
-    const mock = getDevBypassLayoutStaff();
-    return {
-      branchId: mock.branch_id,
-      branchName: mock.branches.name,
-    };
+    // Dev bypass: resolve first real branch.
+    const branchId = await resolveDevBypassBranchId();
+    if (!branchId) redirect("/login");
+    return { branchId, branchName: "Dev Branch" };
   }
 
   if (!me?.branch_id) redirect("/login");

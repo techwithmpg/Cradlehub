@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 
 const CRM_ROLES = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
 
@@ -10,6 +11,12 @@ export async function getCrmContext() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // Super-admin: grant owner-level CRM access.
+  const superAdmin = await resolveSuperAdminContext(user.id);
+  if (superAdmin) {
+    return { role: "owner" as string, branchId: null as string | null };
+  }
 
   if (isDevAuthBypassEnabled()) {
     return { role: "owner" as string, branchId: null as string | null };

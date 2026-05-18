@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { logError } from "@/lib/logger";
+import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 
 export type LayoutStaffContext = {
   user: { id: string };
@@ -21,6 +22,20 @@ export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
+  // Super-admin: grant owner-level layout access with a real branch.
+  const superAdmin = await resolveSuperAdminContext(user.id);
+  if (superAdmin) {
+    return {
+      user: { id: user.id },
+      me: {
+        full_name: superAdmin.full_name,
+        system_role: "owner",
+        branch_id: superAdmin.branch_id,
+        branches: superAdmin.branches,
+      },
+    };
+  }
 
   const { data: me, error } = await supabase
     .from("staff")

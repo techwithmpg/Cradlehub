@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { isSuperAdmin, resolveSuperAdminContext } from "@/lib/auth/super-admin";
 import { createBranchSchema, updateBranchSchema } from "@/lib/validations/branch";
 import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
@@ -12,7 +13,8 @@ async function requireOwner() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  if (isDevAuthBypassEnabled()) {
+  // Super-admin and dev bypass both get owner-level access.
+  if (isSuperAdmin(user.id) || isDevAuthBypassEnabled()) {
     return supabase;
   }
 
@@ -295,6 +297,18 @@ export async function getMyBranchBookingRulesAction() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
+
+  // Super-admin: resolve a real branch and grant access.
+  const superAdmin = await resolveSuperAdminContext(user.id);
+  if (superAdmin) {
+    const { getBranchBookingRulesOrDefault } = await import("@/lib/queries/branch-booking-rules");
+    const { getBranchWithFullDetail } = await import("@/lib/queries/branches");
+    const [rules, detail] = await Promise.all([
+      getBranchBookingRulesOrDefault(superAdmin.branch_id),
+      getBranchWithFullDetail(superAdmin.branch_id),
+    ]);
+    return { branchId: superAdmin.branch_id, rules, services: detail.services };
+  }
 
   const { data: me } = await supabase
     .from("staff")

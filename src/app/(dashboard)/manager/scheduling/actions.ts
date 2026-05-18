@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { resolveSuperAdminContext, resolveDevBypassBranchId } from "@/lib/auth/super-admin";
 import { revalidatePath } from "next/cache";
 import { logBusinessEvent } from "@/lib/logger";
 import {
@@ -28,10 +29,17 @@ async function requireManager() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Super-admin: owner-level access with a real branch, no staff record required.
+  const superAdmin = await resolveSuperAdminContext(user.id);
+  if (superAdmin) return { supabase, me: superAdmin };
+
   if (isDevAuthBypassEnabled()) {
+    // Dev bypass: resolve first real active branch instead of fake UUID.
+    const branchId = await resolveDevBypassBranchId();
+    if (!branchId) return null;
     return {
       supabase,
-      me: { id: "dev", branch_id: "00000000-0000-0000-0000-000000000000", system_role: "manager" },
+      me: { id: "dev", branch_id: branchId, system_role: "manager", full_name: "Dev User", branches: null },
     };
   }
 
