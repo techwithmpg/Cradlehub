@@ -11,6 +11,9 @@ import {
   getInitials,
 } from "./staff-management-utils";
 import { StaffServiceEditorSheet } from "./staff-service-editor-sheet";
+import { ActionableWarning } from "@/components/shared/actionable-warning";
+import { warningTargets } from "@/lib/warnings/action-targets";
+import type { ActionableWarning as ActionableWarningType } from "@/types/warnings";
 import type { StaffMember } from "./staff-management-utils";
 import type { Database } from "@/types/supabase";
 
@@ -333,19 +336,17 @@ function StaffInformationCard({
 }) {
   if (isProtected) {
     return (
-      <div
-        role="alert"
-        style={{
-          padding: "0.75rem",
-          backgroundColor: "#FEF2F2",
-          border: "1px solid #FECACA",
-          borderRadius: 8,
-          fontSize: "0.875rem",
-          color: "#991B1B",
-          marginBottom: "1rem",
-        }}
-      >
-        This account has elevated privileges. Editing requires owner approval.
+      <div style={{ marginBottom: "1rem" }}>
+        <ActionableWarning
+          warning={{
+            id: "protected-account",
+            severity: "danger",
+            title: "Elevated access — editing restricted",
+            description: "This account has owner or manager-level access and cannot be edited from the manager workspace.",
+            impact: "Contact the account owner to make changes to this profile.",
+            target: warningTargets.custom("protected-contact-owner"),
+          }}
+        />
       </div>
     );
   }
@@ -534,11 +535,9 @@ function ServiceSummaryCard({
   const overflow = count - PREVIEW_CHIP_MAX;
   const isServiceCapable = SERVICE_CAPABLE_TYPES.has(staffType);
 
-  const helperText = count > 0
-    ? "Staff will be matched to bookings for their assigned services."
-    : isServiceCapable
-    ? "No services assigned — staff will use legacy scheduling until at least one service is set."
-    : "Service capabilities are optional for this job function.";
+  function handleWarningAction(w: ActionableWarningType) {
+    if (w.target.panelId === "service-editor") onEditServices();
+  }
 
   return (
     <section
@@ -606,26 +605,35 @@ function ServiceSummaryCard({
 
       {/* Helper text */}
       {count === 0 && isServiceCapable && (
-        <div
-          role="alert"
-          style={{
-            padding: "0.5rem 0.75rem",
-            backgroundColor: "#FFFBEB",
-            border: "1px solid #FDE68A",
-            borderRadius: 6,
-            fontSize: "0.8125rem",
-            color: "#92400E",
-            marginBottom: "0.75rem",
-          }}
-        >
-          {helperText}
+        <div style={{ marginBottom: "0.75rem" }}>
+          <ActionableWarning
+            warning={{
+              id: "summary-no-services",
+              severity: "warning",
+              title: "No services assigned",
+              description: "Staff will use legacy scheduling until at least one service is set.",
+              impact: "This staff member will not appear in service-specific booking matching.",
+              actionLabel: "Edit services",
+              target: warningTargets.staffServiceEditor(),
+            }}
+            onAction={handleWarningAction}
+          />
         </div>
       )}
 
       {count === 0 && !isServiceCapable && (
-        <p style={{ margin: "0 0 0.75rem", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-          {helperText}
-        </p>
+        <div style={{ marginBottom: "0.75rem" }}>
+          <ActionableWarning
+            warning={{
+              id: "summary-optional-services",
+              severity: "info",
+              title: "Service capabilities are optional for this job function",
+              description: "Assign services only if this staff member performs spa services.",
+              target: warningTargets.staffServiceEditor(),
+            }}
+            onAction={handleWarningAction}
+          />
+        </div>
       )}
 
       {/* Preview chips */}
@@ -753,6 +761,7 @@ function ApprovalSummaryPanel({
   onSave,
   onApproveAndActivate,
   onDiscard,
+  onAction,
 }: {
   staffMember: StaffMember;
   branch: BranchRow | null;
@@ -765,6 +774,7 @@ function ApprovalSummaryPanel({
   onSave: () => void;
   onApproveAndActivate: () => void;
   onDiscard: () => void;
+  onAction: (warning: ActionableWarningType) => void;
 }) {
   const status = getStaffStatus(staffMember);
   const canApprove = status === "awaiting" || status === "inactive";
@@ -884,90 +894,80 @@ function ApprovalSummaryPanel({
         </div>
       )}
 
-      {/* Service messaging */}
-      {draft.serviceIds.length > 0 ? (
-        <div
-          style={{
-            padding: "0.5rem 0.75rem",
-            backgroundColor: "#F0FDF4",
-            border: "1px solid #BBF7D0",
-            borderRadius: 6,
-            fontSize: "0.8125rem",
-            color: "#15803D",
-            marginBottom: "0.875rem",
-          }}
-        >
-          This staff member is available for booking matching based on their assigned services.
-        </div>
-      ) : isServiceCapable ? (
-        <div
-          role="alert"
-          style={{
-            padding: "0.5rem 0.75rem",
-            backgroundColor: "#FFFBEB",
-            border: "1px solid #FDE68A",
-            borderRadius: 6,
-            fontSize: "0.8125rem",
-            color: "#92400E",
-            marginBottom: "0.875rem",
-          }}
-        >
-          No services selected. This staff member will not appear in service-specific booking matching.
-        </div>
-      ) : null}
+      {/* Service + approval warnings — all actionable */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.875rem" }}>
+        {draft.serviceIds.length > 0 ? (
+          <ActionableWarning
+            warning={{
+              id: "panel-has-services",
+              severity: "success",
+              title: "Available for booking",
+              description: "Assigned services will be used for provider matching during booking.",
+              actionLabel: "Edit services",
+              target: warningTargets.staffServiceEditor(),
+            }}
+            onAction={onAction}
+            compact
+          />
+        ) : isServiceCapable ? (
+          <ActionableWarning
+            warning={{
+              id: "panel-no-services",
+              severity: "warning",
+              title: "No services selected",
+              description: "This staff member will not appear in service-specific booking matching.",
+              impact: "Assign at least one service to enable proper booking matching.",
+              actionLabel: "Edit services",
+              target: warningTargets.staffServiceEditor(),
+            }}
+            onAction={onAction}
+          />
+        ) : null}
 
-      {/* Approve warning */}
-      {canApprove && !isProtected && (
-        <div
-          style={{
-            padding: "0.5rem 0.75rem",
-            backgroundColor: "#FFFBEB",
-            border: "1px solid #FDE68A",
-            borderRadius: 6,
-            fontSize: "0.8125rem",
-            color: "#92400E",
-            marginBottom: "0.875rem",
-          }}
-        >
-          {status === "awaiting"
-            ? "Awaiting approval — use Approve & Activate to make this staff member active."
-            : "Staff member is currently inactive."}
-        </div>
-      )}
+        {canApprove && !isProtected && (
+          <ActionableWarning
+            warning={{
+              id: "panel-needs-approval",
+              severity: "warning",
+              title: status === "awaiting" ? "Awaiting approval" : "Staff member is inactive",
+              description: status === "awaiting"
+                ? "Use Approve & Activate below to make this staff member active."
+                : "This staff member is not currently active.",
+              target: warningTargets.scrollTo("approval-actions"),
+            }}
+          />
+        )}
 
-      {/* Internal tier note */}
-      <p
-        style={{
-          margin: "0 0 0.875rem",
-          fontSize: "0.75rem",
-          color: "var(--cs-text-muted)",
-          fontStyle: "italic",
-        }}
-      >
-        Tier is for internal use only and is never shown to customers.
-      </p>
+        <ActionableWarning
+          warning={{
+            id: "panel-tier-note",
+            severity: "info",
+            title: "Tier is internal — never shown to customers",
+            target: warningTargets.custom(),
+          }}
+          compact
+        />
+      </div>
 
       {/* Action result */}
       {result && (
-        <div
-          role="status"
-          style={{
-            padding: "0.5rem 0.75rem",
-            backgroundColor: result.success ? "#F0FDF4" : "#FEF2F2",
-            border: `1px solid ${result.success ? "#BBF7D0" : "#FECACA"}`,
-            borderRadius: 6,
-            fontSize: "0.8125rem",
-            color: result.success ? "#15803D" : "#991B1B",
-            marginBottom: "0.75rem",
-          }}
-        >
-          {result.success ? "Changes saved successfully." : result.error ?? "Something went wrong."}
+        <div style={{ marginBottom: "0.75rem" }}>
+          <ActionableWarning
+            warning={{
+              id: "save-result",
+              severity: result.success ? "success" : "danger",
+              title: result.success ? "Changes saved successfully." : (result.error ?? "Something went wrong."),
+              target: warningTargets.custom(),
+            }}
+            onAction={onAction}
+            compact
+          />
         </div>
       )}
 
       {/* Actions */}
       {!isProtected && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <div id="approval-actions" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {canApprove && (
             <ActionBtn
               variant="primary"
@@ -1190,6 +1190,9 @@ export function StaffApprovalWorkspace({
             onSave={handleSave}
             onApproveAndActivate={handleApproveAndActivate}
             onDiscard={handleDiscard}
+            onAction={(w) => {
+              if (w.target.panelId === "service-editor") setIsSheetOpen(true);
+            }}
           />
         </div>
       </div>

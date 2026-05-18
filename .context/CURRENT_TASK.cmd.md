@@ -1,4 +1,35 @@
-# CURRENT TASK: UI-STAFF-EDIT-001 — Manager Staff Approval Page Redesign
+# CURRENT TASK: UI-WARNING-FRAMEWORK-001 — System-Wide Actionable Warning Framework
+
+## Status
+Completed on 2026-05-18.
+
+## Summary
+Created a reusable warning system so every warning in CradleHub answers: what is wrong, why it matters, where to fix it, and what happens on click. All warnings are now clickable cards with a unified action dispatch model.
+
+## Architecture
+- `ActionableWarning` type with discriminated `WarningActionType`: `scroll | focus | navigate | open-panel | modal | custom`
+- Each target type resolves to a concrete behaviour in the click handler (DOM scroll, DOM focus, router.push, or parent onAction callback)
+- `warningTargets` factory object covers every known warning context in the app (staff, scheduling, branches, services, bookings, dispatch, notifications, settings)
+- Severity palette matches all existing inline warning divs (danger/warning/success/info)
+
+## Files Created
+- `src/types/warnings.ts` — `WarningSeverity`, `WarningActionType`, `ActionableWarningTarget`, `ActionableWarning` types
+- `src/lib/warnings/scroll-to-target.ts` — `scrollToElement`, `focusElement`, `buildHref` DOM helpers
+- `src/lib/warnings/action-targets.ts` — `warningTargets` factory covering all known CradleHub contexts
+- `src/components/shared/actionable-warning.tsx` — `ActionableWarning` card component with severity theming and action dispatch
+- `src/components/shared/actionable-warning-list.tsx` — `ActionableWarningList` vertical stack component
+
+## Files Modified
+- `src/components/features/staff/staff-approval-workspace.tsx` — Replaced all 7 inline warning divs with `ActionableWarning` / framework; added `id="approval-actions"` for scroll targeting; wired `onAction` for service-editor panel
+
+## Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 80 routes
+
+---
+
+# Previous Task: UI-STAFF-EDIT-001 — Manager Staff Approval Page Redesign
 
 ## Status
 Completed on 2026-05-18.

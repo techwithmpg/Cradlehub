@@ -641,3 +641,32 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing, 80 routes
+
+---
+
+### 2026-05-18 — Claude (UI-WARNING-FRAMEWORK-001 — System-Wide Actionable Warning Framework)
+
+**Task:** Create a reusable warning system so every warning in CradleHub is clickable and answers: what is wrong / why it matters / where to fix it / what happens on click.
+
+**Problem solved:** Ad-hoc inline warning divs scattered across the app were non-interactive, had inconsistent styling, and gave no guidance on how to fix the issue. Managers had to navigate manually after seeing a warning.
+
+**Architecture:**
+- Type-discriminated `WarningActionType` drives a unified click handler: `scroll` → DOM smooth-scroll, `focus` → DOM focus+scroll, `navigate` → `router.push`, `open-panel`/`modal`/`custom` → `onAction(warning)` callback.
+- Severity palette (danger/warning/success/info) matches all existing inline divs exactly — visual parity guaranteed.
+- `warningTargets` factory pattern: pre-built targets for every known context (staff, scheduling, branches, services, bookings, dispatch, notifications, settings). Import only what you need; tree-shaking removes the rest.
+- `compact` mode: collapses icon + description + impact to just title + action button for dense list contexts.
+
+**Files Created:**
+- `src/types/warnings.ts` — Core types: `WarningSeverity`, `WarningActionType`, `ActionableWarningTarget` (discriminated union of 6 types), `ActionableWarning`
+- `src/lib/warnings/scroll-to-target.ts` — DOM helpers: `scrollToElement(id)`, `focusElement(id)`, `buildHref(href, tab?, query?)` (SSR-safe with `typeof window === "undefined"` guards)
+- `src/lib/warnings/action-targets.ts` — `warningTargets` const object: 25+ factory functions covering all known CradleHub contexts (staff workspace, scheduling, branches, services, bookings, dispatch, notifications, settings, generic scroll/focus/custom)
+- `src/components/shared/actionable-warning.tsx` — `ActionableWarning` card component. Severity-themed. Lucide icon wrapped in `<span>` (type-safe). `→` chevron on navigate targets. `aria-label` on action button, `role="alert|status"` on container.
+- `src/components/shared/actionable-warning-list.tsx` — `ActionableWarningList` vertical stack. Renders nothing when empty.
+
+**Files Modified:**
+- `src/components/features/staff/staff-approval-workspace.tsx` — Reference integration: replaced 7 inline warning divs with `ActionableWarning` (protected-account danger, zero-services warning, missing-services info in ServiceSummaryCard; awaiting-approval, services warning/success, draft-saved success, save-result in ApprovalSummaryPanel). Added `id="approval-actions"` for scroll target. Added `onAction` prop to `ApprovalSummaryPanel` and wired `panelId === "service-editor"` → `setIsSheetOpen(true)`.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 80 routes
