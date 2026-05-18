@@ -26,6 +26,10 @@ import {
   CalendarDays,
   Loader2,
   Sparkles,
+  ShieldCheck,
+  LockKeyhole,
+  BadgeCheck,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
@@ -116,11 +120,6 @@ type BookingContextStaff = {
   serviceIds?: string[];
 };
 
-type BookingContextServiceEligibility = {
-  serviceId: string;
-  hasStaffMappings: boolean;
-};
-
 type InitialCustomer = {
   fullName: string;
   phone: string;
@@ -192,25 +191,16 @@ function toLocalYmd(date: Date): string {
 
 function staffCanPerformSelectedServices(
   lookup: StaffLookup | undefined,
-  selectedServiceIds: string[],
-  serviceIdsWithStaffMappings: Set<string>
+  selectedServiceIds: string[]
 ): boolean {
   // The availability API already filters the returned slot rows to service-capable
-  // providers. The booking-context lookup is only enrichment for display.
+  // providers. The booking-context lookup is only enrichment for display and may
+  // not contain a complete staff_services map for every capable therapist.
   if (!lookup) return true;
   if (!lookup.isServiceProvider) return false;
   if (selectedServiceIds.length === 0) return false;
 
-  const constrainedServiceIds = selectedServiceIds.filter((serviceId) =>
-    serviceIdsWithStaffMappings.has(serviceId)
-  );
-
-  if (constrainedServiceIds.length === 0) return true;
-  if (lookup.serviceIds.length === 0) return true;
-
-  return constrainedServiceIds.every((serviceId) =>
-    lookup.serviceIds.includes(serviceId)
-  );
+  return true;
 }
 
 // Collapse multiple per-staff rows to one entry per slot_time.
@@ -238,8 +228,7 @@ function staffAtSlot(
   rawSlots: Slot[],
   slotTime: string,
   staffLookup: Map<string, StaffLookup>,
-  selectedServiceIds: string[],
-  serviceIdsWithStaffMappings: Set<string>
+  selectedServiceIds: string[]
 ): StaffOption[] {
   const seen = new Set<string>();
   const out: StaffOption[] = [];
@@ -248,7 +237,7 @@ function staffAtSlot(
     if (!s.slot_time.startsWith(slotTime.substring(0, 5))) continue;
     if (seen.has(s.staff_id)) continue;
     const lookup = staffLookup.get(s.staff_id);
-    if (!staffCanPerformSelectedServices(lookup, selectedServiceIds, serviceIdsWithStaffMappings)) {
+    if (!staffCanPerformSelectedServices(lookup, selectedServiceIds)) {
       continue;
     }
     seen.add(s.staff_id);
@@ -291,9 +280,6 @@ export function BookingWizard({
     null
   );
   const [staffLookup, setStaffLookup] = useState<Map<string, StaffLookup>>(new Map());
-  const [serviceIdsWithStaffMappings, setServiceIdsWithStaffMappings] = useState<Set<string>>(
-    new Set()
-  );
   const [existingHsBookings, setExistingHsBookings] = useState<ExistingHsBooking[]>([]);
   const [hsDriverCapacity, setHsDriverCapacity] = useState(1);
 
@@ -371,6 +357,7 @@ export function BookingWizard({
   const isHomeService = visitType === "home_service";
   const steps = useMemo(() => getSteps(isHomeService), [isHomeService]);
   const currentStepName = useMemo(() => getStepName(step, isHomeService), [step, isHomeService]);
+  const isTherapistStep = currentStepName === "therapist";
   const successStep = isHomeService ? 8 : 7;
 
   // Services filtered by visit type eligibility
@@ -390,28 +377,18 @@ export function BookingWizard({
             rawSlots,
             selectedSlot.slot_time,
             staffLookup,
-            selectedServiceIds,
-            serviceIdsWithStaffMappings
+            selectedServiceIds
           )
         : [],
-    [rawSlots, selectedSlot, selectedServiceIds, serviceIdsWithStaffMappings, staffLookup]
+    [rawSlots, selectedSlot, selectedServiceIds, staffLookup]
   );
   const selectedStaffForBooking = useMemo(
     () => {
-      // "prefer-auto" — user explicitly clicked "Use any available provider instead"
-      // when only one provider was available. Honour their choice even though one
-      // specific provider exists.
-      if (selectedStaff === "prefer-auto") return "auto";
       // Specific provider chosen — validate they are still available at this slot.
       if (selectedStaff !== "auto") {
         return availableStaffAtSlot.some((s) => s.staff_id === selectedStaff)
           ? selectedStaff
           : "auto";
-      }
-      // Default "auto" (no explicit selection yet) — if there is exactly one
-      // qualified provider, wire them in so the booking is assigned to them.
-      if (availableStaffAtSlot.length === 1) {
-        return availableStaffAtSlot[0]!.staff_id;
       }
       return "auto";
     },
@@ -496,22 +473,13 @@ export function BookingWizard({
             isServiceProvider: true,
           });
         }
-        const serviceEligibility = (data.serviceEligibility ?? []) as BookingContextServiceEligibility[];
         setStaffLookup(nextStaffLookup);
-        setServiceIdsWithStaffMappings(
-          new Set(
-            serviceEligibility
-              .filter((entry) => entry.hasStaffMappings)
-              .map((entry) => entry.serviceId)
-          )
-        );
         setBookingRules((data.bookingRules ?? null) as BranchBookingRules | null);
         setLoadingServices(false);
       })
       .catch(() => {
         setBookingRules(null);
         setStaffLookup(new Map());
-        setServiceIdsWithStaffMappings(new Set());
         setLoadingServices(false);
       });
     return () => clearTimeout(id);
@@ -812,7 +780,15 @@ export function BookingWizard({
         </div>
       )}
 
-      <div className={mode === "public" ? "mx-auto max-w-5xl px-4 pb-32 pt-7 md:px-6 md:py-10 lg:py-14" : "mx-auto max-w-6xl py-2"}>
+      <div
+        className={
+          mode === "public"
+            ? isTherapistStep
+              ? "mx-auto max-w-7xl px-4 pb-32 pt-7 md:px-8 md:py-10 lg:py-12"
+              : "mx-auto max-w-5xl px-4 pb-32 pt-7 md:px-6 md:py-10 lg:py-14"
+            : "mx-auto max-w-6xl py-2"
+        }
+      >
         {mode === "public" && currentStepName !== "success" && (
           <div className="mb-5 text-center md:hidden">
             <h1 className="text-[19px] font-semibold text-[#10261D]">
@@ -978,6 +954,7 @@ export function BookingWizard({
             {currentStepName === "therapist" && (
               <StepTherapist
                 availableStaff={availableStaffAtSlot}
+                selectedSlot={selectedSlot}
                 selected={selectedStaffForBooking}
                 onSelect={setSelectedStaff}
               />
@@ -1000,7 +977,9 @@ export function BookingWizard({
               <div
                 className={
                   mode === "public"
-                    ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#EDE4D3] bg-[#FBF6EC]/95 px-4 py-3 shadow-[0_-8px_22px_rgba(16,38,29,0.12)] backdrop-blur md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
+                    ? isTherapistStep
+                      ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#EDE4D3] bg-[#FBF6EC]/95 px-4 py-3 shadow-[0_-8px_22px_rgba(16,38,29,0.12)] backdrop-blur md:relative md:mt-8 md:border-t md:bg-transparent md:px-0 md:pt-6 md:shadow-none md:backdrop-blur-0"
+                      : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#EDE4D3] bg-[#FBF6EC]/95 px-4 py-3 shadow-[0_-8px_22px_rgba(16,38,29,0.12)] backdrop-blur md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
                     : "flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]"
                 }
                 style={{ paddingBottom: mode === "public" ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined }}
@@ -1020,9 +999,13 @@ export function BookingWizard({
                     disabled={!canClickContinue}
                     className={[
                       "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
-                      canClickContinue
-                        ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
-                        : "bg-[#EDE4D3] text-[#9AA89A]",
+                      isTherapistStep
+                        ? canClickContinue
+                          ? "bg-[#063D2D] text-[#FCFAF5] md:absolute md:left-1/2 md:min-w-[280px] md:-translate-x-1/2"
+                          : "bg-[#EDE4D3] text-[#9AA89A] md:absolute md:left-1/2 md:min-w-[280px] md:-translate-x-1/2"
+                        : canClickContinue
+                          ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
+                          : "bg-[#EDE4D3] text-[#9AA89A]",
                     ].join(" ")}
                   >
                     Continue
@@ -1070,6 +1053,7 @@ export function BookingWizard({
                 availableStaff={availableStaffAtSlot}
                 visitType={visitType}
                 bookingRules={bookingRules}
+                variant={isTherapistStep ? "therapist" : "default"}
               />
             </div>
           )}
@@ -1112,6 +1096,32 @@ function SummaryRow({
   );
 }
 
+function TherapistSummaryItem({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: React.ElementType;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-4 border-b border-[#EDE4D3]/75 py-4 last:border-b-0">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F4F0E8]">
+        <Icon className="h-[18px] w-[18px] text-[#163A2B]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#8A968C" }}>
+          {label}
+        </p>
+        <div className="mt-1 text-[14px] font-semibold leading-5" style={{ color: "#10261D" }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Booking summary sidebar ────────────────────────────────────────────────────
 
 function BookingSummary({
@@ -1125,6 +1135,7 @@ function BookingSummary({
   availableStaff,
   visitType,
   bookingRules,
+  variant = "default",
 }: {
   branch: Branch | null;
   services: Service[];
@@ -1136,6 +1147,7 @@ function BookingSummary({
   availableStaff: StaffOption[];
   visitType: VisitType;
   bookingRules: BranchBookingRules | null;
+  variant?: "default" | "therapist";
 }) {
   const staffLabel =
     selectedStaff === "auto"
@@ -1143,6 +1155,95 @@ function BookingSummary({
       : availableStaff.find((s) => s.staff_id === selectedStaff)?.staff_name;
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
   const availability = getVisitTypeAvailability(visitType, bookingRules);
+  const dateTimeLabel =
+    selectedDate && selectedSlot
+      ? `${selectedDate.toLocaleDateString("en-PH", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })} at ${formatTime(selectedSlot.slot_time)}`
+      : undefined;
+
+  if (variant === "therapist") {
+    return (
+      <div className="sticky top-24">
+        <div className="rounded-[20px] border border-[#EDE4D3] bg-white p-6 shadow-[0_18px_45px_rgba(16,38,29,0.08)]">
+          <h3
+            className="text-[21px] font-medium"
+            style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+          >
+            Booking Summary
+          </h3>
+
+          <div className="mt-5">
+            <TherapistSummaryItem icon={Building} label="Branch">
+              {branch?.name ?? <span className="font-medium text-[#9AA89A]">Not selected</span>}
+            </TherapistSummaryItem>
+            <TherapistSummaryItem icon={visitType === "home_service" ? Home : User} label="Visit Type">
+              <p>{visitOption.label}</p>
+              <p className="mt-1 text-[12px] font-medium" style={{ color: "#6B7A6F" }}>
+                {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
+              </p>
+            </TherapistSummaryItem>
+            <TherapistSummaryItem icon={Sparkles} label={services.length === 1 ? "Service" : "Services"}>
+              {services.length === 0 ? (
+                <span className="font-medium text-[#9AA89A]">Not selected</span>
+              ) : (
+                <>
+                  {services.map((s) => (
+                    <p key={s.id}>{s.name}</p>
+                  ))}
+                  <p className="mt-2 text-[12px] font-semibold" style={{ color: "#B68A3C" }}>
+                    {totalDuration} min · {formatCurrency(totalPrice)}
+                  </p>
+                </>
+              )}
+            </TherapistSummaryItem>
+            <TherapistSummaryItem icon={CalendarDays} label="Date & Time">
+              {dateTimeLabel ?? <span className="font-medium text-[#9AA89A]">Not selected</span>}
+            </TherapistSummaryItem>
+            <TherapistSummaryItem icon={User} label="Therapist">
+              {staffLabel ?? <span className="font-medium text-[#9AA89A]">Not selected</span>}
+            </TherapistSummaryItem>
+          </div>
+
+          <div className="mt-6 flex gap-4 rounded-xl border border-[#E9D7B8] bg-[#FCFAF5] p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#B68A3C] shadow-sm">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p
+                className="text-[14px] font-semibold"
+                style={{ fontFamily: "var(--sp-font-display)", color: "#7A4F16" }}
+              >
+                Your booking is safe with us
+              </p>
+              <p className="mt-2 text-[13px] leading-6" style={{ color: "#163A2B" }}>
+                We never share your personal information with third parties.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px]" style={{ color: "#6B7A6F" }}>
+          <span className="inline-flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-[#B68A3C]" />
+            Secure booking
+          </span>
+          <span className="text-[#C8A96B]">•</span>
+          <span className="inline-flex items-center gap-1.5">
+            <LockKeyhole className="h-3.5 w-3.5 text-[#B68A3C]" />
+            No hidden fees
+          </span>
+          <span className="text-[#C8A96B]">•</span>
+          <span className="inline-flex items-center gap-1.5">
+            <BadgeCheck className="h-3.5 w-3.5 text-[#B68A3C]" />
+            100% secure
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1200,15 +1301,7 @@ function BookingSummary({
         <SummaryRow
           icon={CalendarDays}
           label="Date & Time"
-          value={
-            selectedDate && selectedSlot
-              ? `${selectedDate.toLocaleDateString("en-PH", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })} at ${formatTime(selectedSlot.slot_time)}`
-              : undefined
-          }
+          value={dateTimeLabel}
           placeholder="Not selected"
         />
         <SummaryRow
@@ -1598,7 +1691,6 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-// Premium provider photo card — used in the multi-provider 4-column grid.
 function ProviderPhotoCard({
   staff,
   isSelected,
@@ -1610,54 +1702,50 @@ function ProviderPhotoCard({
   isRecommended: boolean;
   onSelect: () => void;
 }) {
-  const displayName = staff.staff_nickname ?? staff.staff_name;
-  const initials = getInitials(staff.staff_name);
+  const displayName = staff.staff_nickname || staff.staff_full_name || staff.staff_name;
+  const initials = getInitials(displayName);
 
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={isSelected}
-      className={`relative flex flex-col items-center text-center rounded-2xl border pt-6 pb-4 px-3 transition-all duration-200 ${
+      aria-label={`Select ${displayName}`}
+      className={`group relative flex min-h-[210px] flex-col items-center overflow-hidden rounded-[14px] border px-3 pb-4 pt-4 text-center transition-all duration-200 sm:min-h-[238px] sm:pt-5 ${
         isSelected
-          ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-          : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+          ? "border-[#C8A96B] bg-[#FCFAF5] shadow-[0_18px_34px_rgba(16,38,29,0.13)]"
+          : "border-[#EDE4D3] bg-white shadow-[0_10px_24px_rgba(16,38,29,0.06)] hover:border-[#C8A96B]/70 hover:shadow-[0_16px_30px_rgba(16,38,29,0.1)]"
       }`}
     >
-      {/* Recommended ribbon */}
       {isRecommended && (
         <div
-          className="absolute top-0 left-0 rounded-tl-2xl rounded-br-xl text-[9px] font-semibold uppercase tracking-wide px-2.5 py-1"
-          style={{ background: "#163A2B", color: "#C8A96B" }}
+          className="absolute left-[-36px] top-5 z-10 w-32 -rotate-45 py-1 text-center text-[8px] font-bold uppercase tracking-wide"
+          style={{ background: "#C8A96B", color: "#FCFAF5" }}
         >
           Recommended
         </div>
       )}
 
-      {/* Selection indicator */}
       <div
-        className={`absolute top-2.5 right-2.5 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${
-          isSelected ? "border-[#163A2B] bg-[#163A2B]" : "border-[#EDE4D3]"
+        className={`absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-colors ${
+          isSelected ? "border-[#163A2B] bg-[#163A2B]" : "border-[#CFC7BC] bg-white"
         }`}
       >
-        {isSelected && <Check className="h-2.5 w-2.5 text-[#C8A96B]" />}
+        {isSelected && <Check className="h-3.5 w-3.5 text-[#C8A96B]" />}
       </div>
 
-      {/* Photo / initials avatar */}
-      <div className="relative mb-3 h-16 w-16 shrink-0 overflow-hidden rounded-full">
+      <div className="relative mx-auto mb-3 h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-white shadow-[0_10px_24px_rgba(16,38,29,0.16)] sm:h-28 sm:w-28">
         {staff.staff_avatar_url ? (
           <Image
             src={staff.staff_avatar_url}
-            alt=""
+            alt={displayName}
             fill
             className="object-cover"
-            sizes="64px"
+            sizes="112px"
           />
         ) : (
           <div
-            className={`flex h-full w-full items-center justify-center text-[16px] font-semibold ${
-              isSelected ? "bg-[#163A2B] text-[#C8A96B]" : "bg-[#163A2B]/10 text-[#163A2B]"
-            }`}
+            className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_35%_25%,#FAE6BE_0%,#C8A96B_36%,#163A2B_100%)] text-[24px] font-semibold text-[#FCFAF5]"
             aria-hidden="true"
           >
             {initials || <User className="h-5 w-5" />}
@@ -1665,15 +1753,66 @@ function ProviderPhotoCard({
         )}
       </div>
 
-      {/* Name */}
-      <p className="w-full truncate text-[13px] font-semibold leading-5" style={{ color: "#163A2B" }}>
+      <p
+        className="w-full truncate text-[16px] font-medium leading-6 sm:text-[20px]"
+        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+      >
         {displayName}
       </p>
 
-      {/* Availability dot */}
-      <div className="mt-1 flex items-center gap-1">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
-        <span className="text-[11px]" style={{ color: "#6B7A6F" }}>Available</span>
+      <div className="mt-1.5 flex items-center gap-2 sm:mt-2">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-[#35A563]" />
+        <span className="text-[13px]" style={{ color: "#6B7A6F" }}>
+          Available
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function AnyProviderChoiceCard({
+  isSelected,
+  onSelect,
+}: {
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={isSelected}
+      className={`relative flex w-full items-center gap-4 overflow-hidden rounded-[14px] border p-4 text-left transition-all duration-200 sm:gap-6 sm:p-5 sm:px-6 ${
+        isSelected
+          ? "border-[#C8A96B] bg-[#FCFAF5] shadow-[0_16px_34px_rgba(200,169,107,0.18)]"
+          : "border-[#E4D4B8] bg-white hover:border-[#C8A96B]/75 hover:shadow-[0_14px_30px_rgba(16,38,29,0.08)]"
+      }`}
+    >
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[radial-gradient(circle_at_35%_25%,#2D674E_0%,#163A2B_68%,#10261D_100%)] text-[#C8A96B] shadow-[0_12px_24px_rgba(16,38,29,0.22)] sm:h-20 sm:w-20">
+        <Sparkles className="h-6 w-6 sm:h-7 sm:w-7" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[16px] font-semibold leading-5" style={{ color: "#10261D" }}>
+            Any available provider
+          </p>
+          <span
+            className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+            style={{ background: "#F5E8D1", color: "#9E6C17" }}
+          >
+            Recommended
+          </span>
+        </div>
+        <p className="mt-2 max-w-xl text-[13px] leading-5 sm:text-[14px] sm:leading-6" style={{ color: "#6B7A6F" }}>
+          We&apos;ll assign the best qualified staff based on availability and service.
+        </p>
+      </div>
+      <div
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+          isSelected ? "bg-[#163A2B]" : "border border-[#D6CEC2] bg-white"
+        }`}
+      >
+        {isSelected && <Check className="h-4 w-4 text-[#C8A96B]" />}
       </div>
     </button>
   );
@@ -1681,214 +1820,75 @@ function ProviderPhotoCard({
 
 function StepTherapist({
   availableStaff,
+  selectedSlot,
   selected,
   onSelect,
 }: {
   availableStaff: StaffOption[];
+  selectedSlot: Slot | null;
   selected: "auto" | string;
   onSelect: (choice: "auto" | string) => void;
 }) {
-  const isSingle = availableStaff.length === 1;
-  const isMultiple = availableStaff.length > 1;
+  const hasProviders = availableStaff.length > 0;
+  const slotLabel = selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time";
 
-  // ── Case 2: Exactly one qualified provider — auto-assigned ─────────────
-  if (isSingle) {
-    const provider = availableStaff[0]!;
-    const displayName = provider.staff_nickname ?? provider.staff_name;
-    const initials = getInitials(provider.staff_name);
-    const isAuto = selected === "auto";
-
-    return (
-      <div>
-        <h2
-          className="text-2xl font-medium mb-2"
-          style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-        >
-          Provider assigned
-        </h2>
-        <p className="text-[14px] mb-6" style={{ color: "#6B7A6F" }}>
-          We&apos;ve matched you with the only available qualified provider for this service and time.
-        </p>
-
-        {isAuto ? (
-          /* User switched to "any available" — show the any-available card selected */
-          <div>
-            <button
-              type="button"
-              onClick={() => onSelect("auto")}
-              aria-pressed={true}
-              className="flex w-full items-center gap-4 p-5 rounded-xl border text-left border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] shrink-0">
-                <Sparkles className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
-                  Any available provider
-                </p>
-                <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
-                  We&apos;ll assign the best qualified staff.
-                </p>
-              </div>
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#163A2B] shrink-0">
-                <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => onSelect(provider.staff_id)}
-              className="mt-3 text-[12px] font-semibold underline underline-offset-2"
-              style={{ color: "#163A2B" }}
-            >
-              Switch back to {displayName}
-            </button>
-          </div>
-        ) : (
-          /* Auto-assigned provider card */
-          <div>
-            <div className="flex items-center gap-4 p-5 rounded-xl border border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]">
-              {/* Photo / initials */}
-              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl">
-                {provider.staff_avatar_url ? (
-                  <Image
-                    src={provider.staff_avatar_url}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="48px"
-                  />
-                ) : (
-                  <div
-                    className="flex h-full w-full items-center justify-center rounded-xl bg-[#163A2B] text-[14px] font-semibold text-[#C8A96B]"
-                    aria-hidden="true"
-                  >
-                    {initials || <User className="h-5 w-5" />}
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] font-semibold" style={{ color: "#163A2B" }}>
-                  {displayName}
-                </p>
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
-                  <p className="text-[12px]" style={{ color: "#6B7A6F" }}>
-                    Available and assigned for you
-                  </p>
-                </div>
-              </div>
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#163A2B]">
-                <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onSelect("prefer-auto")}
-              className="mt-3 text-[12px] font-semibold underline underline-offset-2"
-              style={{ color: "#6B7A6F" }}
-            >
-              Use any available provider instead
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Case 1 (multiple) + Case 3 (zero) ─────────────────────────────────
   return (
-    <div>
+    <div className="space-y-5 sm:space-y-7">
       <h2
-        className="text-2xl font-medium mb-2"
+        className="text-[30px] font-medium leading-tight md:text-[34px]"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
         Choose your provider
       </h2>
-      <p className="text-[14px] mb-6" style={{ color: "#6B7A6F" }}>
+      <p className="-mt-4 text-[15px] leading-6" style={{ color: "#6B7A6F" }}>
         Select a specific provider or continue with any available provider.
       </p>
 
-      <div className="flex flex-col gap-4">
-        {/* Any available provider card */}
-        <button
-          type="button"
-          onClick={() => onSelect("auto")}
-          aria-pressed={selected === "auto"}
-          className={`flex items-center gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
-            selected === "auto"
-              ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-              : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
-          }`}
-        >
-          <div
-            className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
-              selected === "auto" ? "bg-[#163A2B] text-[#C8A96B]" : "bg-[#163A2B]/5 text-[#163A2B]"
-            }`}
-          >
-            <Sparkles className="h-6 w-6" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
-                Any available provider
-              </p>
-              <span
-                className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ background: "#163A2B", color: "#C8A96B" }}
-              >
-                Recommended
-              </span>
-            </div>
-            <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
-              We&apos;ll assign the best qualified staff based on availability and service.
-            </p>
-          </div>
-          {selected === "auto" && (
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#163A2B] shrink-0">
-              <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
+      <AnyProviderChoiceCard isSelected={selected === "auto"} onSelect={() => onSelect("auto")} />
+
+      <div className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[15px] font-semibold" style={{ color: "#10261D" }}>
+            Available providers for this time
+          </p>
+          {hasProviders && (
+            <div className="flex items-center gap-2 text-[13px]" style={{ color: "#6B7A6F" }}>
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[#35A563]" />
+              Available at {slotLabel}
             </div>
           )}
-        </button>
+        </div>
 
-        {/* Multi-provider photo grid */}
-        {isMultiple && (
-          <>
-            <div className="flex items-center justify-between pt-1">
-              <p
-                className="text-[11px] font-semibold uppercase tracking-wide"
-                style={{ color: "#9AA89A" }}
-              >
-                Available providers for this time
-              </p>
-              <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
-                <span className="text-[11px]" style={{ color: "#6B7A6F" }}>Available</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {availableStaff.map((staff, index) => (
-                <ProviderPhotoCard
-                  key={staff.staff_id}
-                  staff={staff}
-                  isSelected={selected === staff.staff_id}
-                  isRecommended={index === 0}
-                  onSelect={() => onSelect(staff.staff_id)}
-                />
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Case 3: No specific providers available */}
-        {!isMultiple && (
+        {hasProviders ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {availableStaff.map((staff, index) => (
+              <ProviderPhotoCard
+                key={staff.staff_id}
+                staff={staff}
+                isSelected={selected === staff.staff_id}
+                isRecommended={index === 0}
+                onSelect={() => onSelect(staff.staff_id)}
+              />
+            ))}
+          </div>
+        ) : (
           <div
-            className="rounded-xl border border-dashed px-4 py-5 text-[13px] leading-6"
+            className="rounded-xl border border-dashed px-5 py-6 text-[14px] leading-7"
             style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}
           >
             No specific provider is available for this time. You can continue with Any Available and
             our team will assign the best qualified staff.
           </div>
         )}
+      </div>
+
+      <div className="flex items-start gap-3 rounded-xl border border-[#EDE4D3] bg-white/70 px-4 py-3 text-[13px] leading-6 shadow-[0_8px_18px_rgba(16,38,29,0.04)]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F5E8D1] text-[#B68A3C]">
+          <Info className="h-4 w-4" />
+        </span>
+        <span style={{ color: "#6B7A6F" }}>
+          All providers are certified professionals. You can review more details after selecting.
+        </span>
       </div>
     </div>
   );
