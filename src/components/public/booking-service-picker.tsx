@@ -8,6 +8,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import type { VisitType } from "@/lib/bookings/visit-type-availability";
 
+type ServiceGridDensity = "featured" | "standard" | "compact";
+
+function getServiceGridDensity(count: number): ServiceGridDensity {
+  if (count <= 2) return "featured";
+  if (count <= 6) return "standard";
+  return "compact";
+}
+
 export type BookingWizardService = {
   id: string;
   name: string;
@@ -116,13 +124,36 @@ function ServiceImageCard({
   service,
   categoryImage,
   isSelected,
+  density,
   onToggle,
 }: {
   service: BookingWizardService;
   categoryImage: string;
   isSelected: boolean;
+  density: ServiceGridDensity;
   onToggle: () => void;
 }) {
+  const isCompact = density === "compact";
+
+  const cardStyle =
+    isCompact
+      ? { height: "170px" }
+      : { aspectRatio: "4/5" };
+
+  const indicatorSize = isCompact
+    ? "h-6 w-6"
+    : "h-7 w-7";
+
+  const iconSize = isCompact
+    ? "h-3 w-3"
+    : "h-3.5 w-3.5";
+
+  const panelPadding = isCompact ? "p-2" : "p-3";
+  const nameSize = isCompact ? "text-[12px]" : "text-[13px]";
+  const metaSize = isCompact ? "text-[10px]" : "text-[11px]";
+  const priceSize = isCompact ? "text-[11px]" : "text-[13px]";
+  const nameclamp = isCompact ? "line-clamp-1" : "line-clamp-2";
+
   return (
     <button
       type="button"
@@ -133,9 +164,8 @@ function ServiceImageCard({
           ? "ring-2 ring-[#C8A96B] ring-offset-2 shadow-[0_6px_20px_rgba(200,169,107,0.25)]"
           : "ring-1 ring-[#EDE4D3] hover:ring-[#C8A96B]/60 hover:shadow-md"
       }`}
-      style={{ aspectRatio: "4/5" }}
+      style={cardStyle}
     >
-      {/* Background image */}
       <Image
         src={categoryImage}
         alt=""
@@ -144,12 +174,11 @@ function ServiceImageCard({
         sizes="(max-width: 768px) 50vw, 30vw"
       />
 
-      {/* Gradient overlay — stronger at the bottom for text legibility */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
 
       {/* Selection indicator — top-right */}
       <div
-        className={`absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+        className={`absolute right-2 top-2 flex items-center justify-center rounded-full border-2 transition-all duration-200 ${indicatorSize} ${
           isSelected
             ? "border-[#C8A96B] bg-[#C8A96B]"
             : "border-white/50 bg-black/30"
@@ -157,20 +186,20 @@ function ServiceImageCard({
         aria-hidden="true"
       >
         {isSelected ? (
-          <Check className="h-3.5 w-3.5 text-[#163A2B]" />
+          <Check className={`${iconSize} text-[#163A2B]`} />
         ) : (
-          <Plus className="h-3.5 w-3.5 text-white/90" />
+          <Plus className={`${iconSize} text-white/90`} />
         )}
       </div>
 
       {/* Service info — pinned to bottom */}
-      <div className="absolute inset-x-0 bottom-0 p-3">
-        <p className="line-clamp-2 text-[13px] font-semibold leading-[1.35] text-white">
+      <div className={`absolute inset-x-0 bottom-0 ${panelPadding}`}>
+        <p className={`${nameclamp} ${nameSize} font-semibold leading-[1.35] text-white`}>
           {service.name}
         </p>
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="text-[11px] text-white/70">{service.durationMinutes} min</span>
-          <span className="text-[13px] font-bold text-[#C8A96B]">
+        <div className="mt-1 flex items-center justify-between gap-1">
+          <span className={`${metaSize} text-white/70`}>{service.durationMinutes} min</span>
+          <span className={`${priceSize} font-bold text-[#C8A96B]`}>
             {formatCurrency(service.price)}
           </span>
         </div>
@@ -206,7 +235,7 @@ export function BookingServicePicker({
             <Skeleton key={i} className="h-11 rounded-full" />
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/5" }} />
           ))}
@@ -231,6 +260,14 @@ export function BookingServicePicker({
   }
 
   const categoryImage = activeCategory ? getCategoryImage(activeCategory.name) : SPA_IMAGES.booking;
+  const density = getServiceGridDensity(activeCategory?.services.length ?? 0);
+
+  const gridClassName =
+    density === "featured"
+      ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
+      : density === "standard"
+        ? "grid grid-cols-2 gap-3 md:grid-cols-3"
+        : "grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4";
 
   return (
     <div>
@@ -324,16 +361,19 @@ export function BookingServicePicker({
             No services in this category yet.
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {activeCategory.services.map((service) => (
-              <ServiceImageCard
-                key={service.id}
-                service={service}
-                categoryImage={categoryImage}
-                isSelected={selectedIds.has(service.id)}
-                onToggle={() => onToggle(service)}
-              />
-            ))}
+          <div className={density === "featured" ? "max-w-[620px]" : undefined}>
+            <div className={gridClassName}>
+              {activeCategory.services.map((service) => (
+                <ServiceImageCard
+                  key={service.id}
+                  service={service}
+                  categoryImage={categoryImage}
+                  isSelected={selectedIds.has(service.id)}
+                  density={density}
+                  onToggle={() => onToggle(service)}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
