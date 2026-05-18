@@ -75,21 +75,13 @@ function firstCategory(value: CategoryRelation | undefined): CategoryRow | null 
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function isMissingStaffOrgColumnsError(message: string): boolean {
+function isMissingStaffColumnError(message: string, columns: string[]): boolean {
   const m = message.toLowerCase();
-  return (
-    m.includes('column staff.staff_type does not exist') ||
-    m.includes('column "staff_type" does not exist') ||
-    m.includes('column staff.is_head does not exist') ||
-    m.includes('column "is_head" does not exist') ||
-    m.includes("could not find the 'is_head' column") ||
-    m.includes("could not find the 'staff_type' column") ||
-    m.includes('column staff.nickname does not exist') ||
-    m.includes('column "nickname" does not exist') ||
-    m.includes("could not find the 'nickname' column") ||
-    m.includes('column staff.avatar_url does not exist') ||
-    m.includes('column "avatar_url" does not exist') ||
-    m.includes("could not find the 'avatar_url' column")
+  return columns.some(
+    (column) =>
+      m.includes(`column staff.${column} does not exist`) ||
+      m.includes(`column "${column}" does not exist`) ||
+      m.includes(`could not find the '${column}' column`)
   );
 }
 
@@ -107,7 +99,50 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
     return (primary.data ?? []) as StaffRow[];
   }
 
-  if (isMissingStaffOrgColumnsError(primary.error.message)) {
+  if (isMissingStaffColumnError(primary.error.message, ["avatar_url"])) {
+    const fallback = await supabase
+      .from("staff")
+      .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("tier")
+      .order("full_name");
+
+    if (!fallback.error) {
+      return ((fallback.data ?? []) as Omit<StaffRow, "avatar_url">[]).map((member) => ({
+        ...member,
+        avatar_url: null,
+      })) as StaffRow[];
+    }
+
+    if (!isMissingStaffColumnError(fallback.error.message, ["nickname", "staff_type", "is_head"])) {
+      throw new Error(fallback.error.message);
+    }
+  }
+
+  if (isMissingStaffColumnError(primary.error.message, ["nickname", "avatar_url"])) {
+    const fallback = await supabase
+      .from("staff")
+      .select("id, full_name, tier, is_active, staff_type, system_role, is_head")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("tier")
+      .order("full_name");
+
+    if (!fallback.error) {
+      return ((fallback.data ?? []) as Omit<StaffRow, "nickname" | "avatar_url">[]).map((member) => ({
+        ...member,
+        nickname: null,
+        avatar_url: null,
+      })) as StaffRow[];
+    }
+
+    if (!isMissingStaffColumnError(fallback.error.message, ["staff_type", "is_head"])) {
+      throw new Error(fallback.error.message);
+    }
+  }
+
+  if (isMissingStaffColumnError(primary.error.message, ["staff_type", "is_head", "nickname", "avatar_url"])) {
     const fallback = await supabase
       .from("staff")
       .select("id, full_name, tier, is_active, system_role")

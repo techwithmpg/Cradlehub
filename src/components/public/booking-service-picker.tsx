@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import { Check, Plus } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { SPA_IMAGES } from "@/constants/spa-images";
 import type { VisitType } from "@/lib/bookings/visit-type-availability";
 
 export type BookingWizardService = {
@@ -77,6 +79,108 @@ function groupServicesByCategory(services: BookingWizardService[]): ServiceCateg
     });
 }
 
+// ── Category → image mapping ──────────────────────────────────────────────────
+// Uses keyword matching on the category name so no per-service data is hardcoded.
+// Falls back to a generic spa image when the category name has no match.
+
+const CATEGORY_IMAGE_KEYWORDS: Array<[string, string]> = [
+  ["couples",       SPA_IMAGES.couples],
+  ["duo",           SPA_IMAGES.couples],
+  ["hot stone",     SPA_IMAGES.hotStone],
+  ["stone",         SPA_IMAGES.hotStone],
+  ["deep tissue",   SPA_IMAGES.deepTissue],
+  ["deep",          SPA_IMAGES.deepTissue],
+  ["aromatherapy",  SPA_IMAGES.aromatherapy],
+  ["aroma",         SPA_IMAGES.aromatherapy],
+  ["reflexology",   SPA_IMAGES.reflexology],
+  ["foot",          SPA_IMAGES.reflexology],
+  ["nail",          SPA_IMAGES.about],
+  ["facial",        SPA_IMAGES.aboutSecondary],
+  ["skin",          SPA_IMAGES.aboutSecondary],
+  ["massage",       SPA_IMAGES.swedish],
+  ["body",          SPA_IMAGES.swedish],
+  ["wellness",      SPA_IMAGES.booking],
+];
+
+function getCategoryImage(categoryName: string): string {
+  const lower = categoryName.toLowerCase();
+  for (const [keyword, img] of CATEGORY_IMAGE_KEYWORDS) {
+    if (lower.includes(keyword)) return img;
+  }
+  return SPA_IMAGES.booking;
+}
+
+// ── Service image card ────────────────────────────────────────────────────────
+
+function ServiceImageCard({
+  service,
+  categoryImage,
+  isSelected,
+  onToggle,
+}: {
+  service: BookingWizardService;
+  categoryImage: string;
+  isSelected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={isSelected}
+      className={`group relative overflow-hidden rounded-2xl transition-all duration-200 ${
+        isSelected
+          ? "ring-2 ring-[#C8A96B] ring-offset-2 shadow-[0_6px_20px_rgba(200,169,107,0.25)]"
+          : "ring-1 ring-[#EDE4D3] hover:ring-[#C8A96B]/60 hover:shadow-md"
+      }`}
+      style={{ aspectRatio: "4/5" }}
+    >
+      {/* Background image */}
+      <Image
+        src={categoryImage}
+        alt=""
+        fill
+        className="object-cover transition-transform duration-500 group-hover:scale-105"
+        sizes="(max-width: 768px) 50vw, 30vw"
+      />
+
+      {/* Gradient overlay — stronger at the bottom for text legibility */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
+
+      {/* Selection indicator — top-right */}
+      <div
+        className={`absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+          isSelected
+            ? "border-[#C8A96B] bg-[#C8A96B]"
+            : "border-white/50 bg-black/30"
+        }`}
+        aria-hidden="true"
+      >
+        {isSelected ? (
+          <Check className="h-3.5 w-3.5 text-[#163A2B]" />
+        ) : (
+          <Plus className="h-3.5 w-3.5 text-white/90" />
+        )}
+      </div>
+
+      {/* Service info — pinned to bottom */}
+      <div className="absolute inset-x-0 bottom-0 p-3">
+        <p className="line-clamp-2 text-[13px] font-semibold leading-[1.35] text-white">
+          {service.name}
+        </p>
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <span className="text-[11px] text-white/70">{service.durationMinutes} min</span>
+          <span className="text-[13px] font-bold text-[#C8A96B]">
+            {formatCurrency(service.price)}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function BookingServicePicker({
   services,
   loading,
@@ -93,20 +197,18 @@ export function BookingServicePicker({
     categories[0] ??
     null;
   const selectedIds = new Set(selected.map((service) => service.id));
-  const selectedPreview = selected.slice(0, 2).map((service) => service.name).join(", ");
-  const hiddenSelectedCount = Math.max(0, selected.length - 2);
 
   if (loading) {
     return (
-      <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+      <div className="grid gap-4 md:grid-cols-[190px_minmax(0,1fr)]">
         <div className="hidden gap-2 md:flex md:flex-col">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-11 rounded-full" />
           ))}
         </div>
-        <div className="flex flex-col gap-2.5">
+        <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-[94px] rounded-xl" />
+            <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/5" }} />
           ))}
         </div>
       </div>
@@ -128,6 +230,8 @@ export function BookingServicePicker({
     );
   }
 
+  const categoryImage = activeCategory ? getCategoryImage(activeCategory.name) : SPA_IMAGES.booking;
+
   return (
     <div>
       <h2
@@ -140,34 +244,31 @@ export function BookingServicePicker({
         Choose one or more services for your visit.
       </p>
 
-      <div
-        className="mb-4 rounded-xl border px-4 py-3 md:flex md:items-center md:justify-between md:gap-4"
-        style={{ background: "#FCFAF5", borderColor: "#EDE4D3" }}
-      >
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA89A" }}>
-            {selected.length > 0
-              ? `${selected.length} ${selected.length === 1 ? "service" : "services"} selected`
-              : "No services selected"}
-          </p>
-          <p className="mt-0.5 truncate text-[13px] font-medium" style={{ color: selected.length > 0 ? "#163A2B" : "#6B7A6F" }}>
-            {selected.length > 0
-              ? `${selectedPreview}${hiddenSelectedCount > 0 ? ` +${hiddenSelectedCount} more` : ""}`
-              : "Choose a treatment to begin."}
-          </p>
-        </div>
-        {selected.length > 0 && (
-          <div className="mt-3 flex items-center justify-between gap-4 md:mt-0 md:shrink-0 md:justify-end">
-            <span className="text-[12px] font-semibold" style={{ color: "#6B7A6F" }}>
-              {totalDuration} min
-            </span>
-            <span className="text-[18px] font-semibold" style={{ color: "#C8A96B" }}>
-              {formatCurrency(totalPrice)}
-            </span>
+      {/* Selection summary strip */}
+      {selected.length > 0 && (
+        <div
+          className="mb-4 flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
+          style={{ background: "#F0FDF4", borderColor: "#BBF7D0" }}
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#15803D" }}>
+              {selected.length} {selected.length === 1 ? "service" : "services"} selected
+            </p>
+            <p className="mt-0.5 truncate text-[13px] font-medium" style={{ color: "#163A2B" }}>
+              {selected.map((s) => s.name).slice(0, 2).join(", ")}
+              {selected.length > 2 && ` +${selected.length - 2} more`}
+            </p>
           </div>
-        )}
-      </div>
+          <div className="shrink-0 text-right">
+            <p className="text-[11px] font-medium" style={{ color: "#6B7A6F" }}>{totalDuration} min</p>
+            <p className="text-[15px] font-bold" style={{ color: "#C8A96B" }}>
+              {formatCurrency(totalPrice)}
+            </p>
+          </div>
+        </div>
+      )}
 
+      {/* Mobile: horizontal category scroll */}
       <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 md:hidden">
         {categories.map((category) => {
           const isActive = category.id === activeCategory?.id;
@@ -188,7 +289,9 @@ export function BookingServicePicker({
         })}
       </div>
 
+      {/* Desktop: sidebar + image grid */}
       <div className="grid gap-4 md:grid-cols-[190px_minmax(0,1fr)]">
+        {/* Category sidebar — desktop only */}
         <div className="hidden md:flex md:flex-col md:gap-2">
           {categories.map((category) => {
             const isActive = category.id === activeCategory?.id;
@@ -212,83 +315,27 @@ export function BookingServicePicker({
           })}
         </div>
 
-        <div className="flex flex-col gap-2.5">
-          {!activeCategory ? (
-            <div
-              className="rounded-xl border border-dashed px-4 py-8 text-center"
-              style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}
-            >
-              No services in this category yet.
-            </div>
-          ) : (
-            activeCategory.services.map((service) => {
-              const isSelected = selectedIds.has(service.id);
-              return (
-                <button
-                  key={service.id}
-                  type="button"
-                  onClick={() => onToggle(service)}
-                  aria-pressed={isSelected}
-                  className={`grid grid-cols-[1fr_auto] items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
-                    isSelected
-                      ? "border-[#C8A96B] bg-[#FFFAF0] shadow-[0_4px_14px_rgba(200,169,107,0.14)]"
-                      : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/60"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <p className="text-[13px] font-semibold leading-5 md:text-[14px]" style={{ color: "#163A2B" }}>
-                        {service.name}
-                      </p>
-                      <span className="text-[11px] font-medium" style={{ color: "#9AA89A" }}>
-                        {service.durationMinutes} min
-                      </span>
-                    </div>
-                    {service.description && (
-                      <p className="mt-1 line-clamp-2 text-[12px] leading-[1.4]" style={{ color: "#6B7A6F" }}>
-                        {service.description}
-                      </p>
-                    )}
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {service.availableInSpa !== false && (
-                        <span
-                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                          style={{ background: "#EFF7F2", color: "#2E6E4E" }}
-                        >
-                          In-spa
-                        </span>
-                      )}
-                      {service.availableHomeService && (
-                        <span
-                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                          style={{ background: "#EEF2FF", color: "#3557B7" }}
-                        >
-                          Home service
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-0.5">
-                    <span className="text-[13px] font-semibold" style={{ color: "#C8A96B" }}>
-                      {formatCurrency(service.price)}
-                    </span>
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
-                        isSelected
-                          ? "border-[#163A2B] bg-[#163A2B] text-[#C8A96B]"
-                          : "border-[#D8CCBA] bg-white text-[#9AA89A]"
-                      }`}
-                      aria-hidden="true"
-                    >
-                      {isSelected ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                    </span>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
+        {/* Service image grid */}
+        {!activeCategory ? (
+          <div
+            className="rounded-2xl border border-dashed px-4 py-8 text-center"
+            style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}
+          >
+            No services in this category yet.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {activeCategory.services.map((service) => (
+              <ServiceImageCard
+                key={service.id}
+                service={service}
+                categoryImage={categoryImage}
+                isSelected={selectedIds.has(service.id)}
+                onToggle={() => onToggle(service)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

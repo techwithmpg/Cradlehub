@@ -1,4 +1,27 @@
-# CURRENT TASK: BOOKING-PROVIDER-001 — Smart Provider Selection in Public Booking Wizard
+# CURRENT TASK: BOOKING-SERVICES-001 — Premium Image-Card Services Step
+
+## Status
+Completed on 2026-05-18.
+
+## Summary
+Rewrote `BookingServicePicker` to render each service as a portrait (4/5 aspect ratio) image card instead of a horizontal text row:
+- `ServiceImageCard` — `next/image fill` background, dark-to-light gradient overlay, selection ring + +/✓ indicator top-right, name/duration/price pinned to bottom
+- `getCategoryImage()` — keyword matching on category name → `SPA_IMAGES` (no per-service image column)
+- `CATEGORY_IMAGE_KEYWORDS` — ordered list: couples → hotStone → deepTissue → aromatherapy → reflexology → nail → facial → massage → wellness → fallback
+- Loading skeleton: `grid grid-cols-2` with `aspect-ratio: 4/5` matching new card layout
+- All business logic (grouping, category sidebar, mobile scroll, toggle, selection summary, totals) unchanged
+
+## Files Modified
+- `src/components/public/booking-service-picker.tsx` — full card-layer rewrite; logic untouched
+
+## Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 80 routes
+
+---
+
+# Previous Task: BOOKING-PROVIDER-001 — Smart Provider Selection in Public Booking Wizard
 
 ## Status
 Completed on 2026-05-18.

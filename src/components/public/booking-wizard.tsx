@@ -194,14 +194,19 @@ function staffCanPerformSelectedServices(
   lookup: StaffLookup | undefined,
   selectedServiceIds: string[],
   serviceIdsWithStaffMappings: Set<string>
-): lookup is StaffLookup {
-  if (!lookup?.isServiceProvider || selectedServiceIds.length === 0) return false;
+): boolean {
+  // The availability API already filters the returned slot rows to service-capable
+  // providers. The booking-context lookup is only enrichment for display.
+  if (!lookup) return true;
+  if (!lookup.isServiceProvider) return false;
+  if (selectedServiceIds.length === 0) return false;
 
   const constrainedServiceIds = selectedServiceIds.filter((serviceId) =>
     serviceIdsWithStaffMappings.has(serviceId)
   );
 
   if (constrainedServiceIds.length === 0) return true;
+  if (lookup.serviceIds.length === 0) return true;
 
   return constrainedServiceIds.every((serviceId) =>
     lookup.serviceIds.includes(serviceId)

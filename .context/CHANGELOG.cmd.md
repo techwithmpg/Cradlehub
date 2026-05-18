@@ -697,3 +697,33 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing, 80 routes
+
+---
+
+### 2026-05-18 — Claude (BOOKING-SERVICES-001 — Premium Image-Card Services Step)
+
+**Task:** Replace the text-card service list in the public booking wizard with portrait image cards grouped by category.
+
+**Problem solved:** The services step rendered each service as a flat horizontal text row — functional but low-premium. The new design uses 4/5-aspect-ratio portrait photo cards with spa imagery, dark gradient overlays, and a +/✓ selection indicator — consistent with the ProviderPhotoCard aesthetic from BOOKING-PROVIDER-001.
+
+**Design:**
+- **Card**: `button` with `aspectRatio: "4/5"`, `next/image fill`, `object-cover`, `group-hover:scale-105`
+- **Gradient**: `from-black/80 via-black/20 to-black/10` (bottom-heavy for text legibility)
+- **Selection ring**: golden (`ring-[#C8A96B]`) when selected, neutral when not; +/✓ indicator top-right
+- **Text panel** pinned to bottom: service name (line-clamp-2), duration faded left, price in gold right
+- **Images**: category-name keyword mapping to `SPA_IMAGES` constants (no per-service DB column)
+
+**Architecture:**
+- `CATEGORY_IMAGE_KEYWORDS` array — ordered keyword list maps category name substrings to `SPA_IMAGES` paths
+- `getCategoryImage(categoryName)` — pure function, first-match wins, falls back to `SPA_IMAGES.booking`
+- `ServiceImageCard` — self-contained sub-component, receives pre-resolved `categoryImage`
+- All grouping, category sidebar, selection toggle, totals, visit-type filtering: unchanged
+- Loading skeleton updated to `grid grid-cols-2` with `aspect-ratio: 4/5` skeletons
+
+**Files Modified:**
+- `src/components/public/booking-service-picker.tsx` — full rewrite of card rendering; logic layer untouched
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 80 routes

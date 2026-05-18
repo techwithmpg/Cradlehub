@@ -95,11 +95,7 @@ RETURNS TABLE (
   slot_time  TIME,
   available  BOOLEAN
 )
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
+AS $get_available_slots$
 DECLARE
   v_buffer_before       INT;
   v_duration_minutes    INT;
@@ -263,9 +259,13 @@ BEGIN
   FROM slot_grid sg
   ORDER BY sg.v_staff_name, sg.v_slot_time;
 END;
-$$;
+$get_available_slots$
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public;
 
-COMMENT ON FUNCTION get_available_slots IS
+COMMENT ON FUNCTION get_available_slots(UUID, UUID, UUID, DATE) IS
   'Availability engine with pending-payment hold support. Confirmed/in-progress/pending rows block; active pending-payment holds block until hold_expires_at; expired holds do not block.';
 
 -- =============================================================================
@@ -284,10 +284,7 @@ CREATE OR REPLACE FUNCTION create_online_booking(
   p_notes        TEXT     DEFAULT NULL
 )
 RETURNS UUID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+AS $create_online_booking$
 DECLARE
   v_customer_id     UUID;
   v_end_time        TIME;
@@ -358,7 +355,10 @@ BEGIN
 
   RETURN v_booking_id;
 END;
-$$;
+$create_online_booking$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public;
 
-COMMENT ON FUNCTION create_online_booking IS
+COMMENT ON FUNCTION create_online_booking(UUID, UUID, UUID, DATE, TIME, TEXT, TEXT, TEXT, TEXT) IS
   'Atomic public booking creation. Creates a pending_payment booking with payment_status=pending and a two-hour hold_expires_at, then relies on CRM confirmation in the later workflow.';
