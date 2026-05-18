@@ -13,6 +13,7 @@ import {
 import { SPA_IMAGES } from "@/constants/spa-images";
 import {
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   MapPin,
@@ -957,6 +958,9 @@ export function BookingWizard({
                 selectedSlot={selectedSlot}
                 selected={selectedStaffForBooking}
                 onSelect={setSelectedStaff}
+                selectedServices={selectedServices}
+                totalDuration={totalDuration}
+                totalPrice={totalPrice}
               />
             )}
             {currentStepName === "details" && (
@@ -1711,7 +1715,7 @@ function ProviderPhotoCard({
       onClick={onSelect}
       aria-pressed={isSelected}
       aria-label={`Select ${displayName}`}
-      className={`group relative flex min-h-[210px] flex-col items-center overflow-hidden rounded-[14px] border px-3 pb-4 pt-4 text-center transition-all duration-200 sm:min-h-[238px] sm:pt-5 ${
+      className={`group relative flex min-h-[180px] flex-col items-center overflow-hidden rounded-[14px] border px-2.5 pb-3 pt-3 text-center transition-all duration-200 sm:min-h-[220px] sm:px-3 sm:pb-4 sm:pt-4 ${
         isSelected
           ? "border-[#C8A96B] bg-[#FCFAF5] shadow-[0_18px_34px_rgba(16,38,29,0.13)]"
           : "border-[#EDE4D3] bg-white shadow-[0_10px_24px_rgba(16,38,29,0.06)] hover:border-[#C8A96B]/70 hover:shadow-[0_16px_30px_rgba(16,38,29,0.1)]"
@@ -1734,14 +1738,14 @@ function ProviderPhotoCard({
         {isSelected && <Check className="h-3.5 w-3.5 text-[#C8A96B]" />}
       </div>
 
-      <div className="relative mx-auto mb-3 h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-white shadow-[0_10px_24px_rgba(16,38,29,0.16)] sm:h-28 sm:w-28">
+      <div className="relative mx-auto mb-2 h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-white shadow-[0_10px_24px_rgba(16,38,29,0.16)] sm:mb-3 sm:h-24 sm:w-24">
         {staff.staff_avatar_url ? (
           <Image
             src={staff.staff_avatar_url}
             alt={displayName}
             fill
             className="object-cover"
-            sizes="112px"
+            sizes="(max-width: 640px) 64px, 96px"
           />
         ) : (
           <div
@@ -1754,15 +1758,15 @@ function ProviderPhotoCard({
       </div>
 
       <p
-        className="w-full truncate text-[16px] font-medium leading-6 sm:text-[20px]"
+        className="w-full truncate text-[13px] font-medium leading-5 sm:text-[16px] sm:leading-6"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
         {displayName}
       </p>
 
-      <div className="mt-1.5 flex items-center gap-2 sm:mt-2">
-        <span className="h-2 w-2 shrink-0 rounded-full bg-[#35A563]" />
-        <span className="text-[13px]" style={{ color: "#6B7A6F" }}>
+      <div className="mt-1 flex items-center gap-1.5 sm:mt-1.5 sm:gap-2">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#35A563] sm:h-2 sm:w-2" />
+        <span className="text-[11px] sm:text-[13px]" style={{ color: "#6B7A6F" }}>
           Available
         </span>
       </div>
@@ -1823,36 +1827,63 @@ function StepTherapist({
   selectedSlot,
   selected,
   onSelect,
+  selectedServices,
+  totalDuration,
+  totalPrice,
 }: {
   availableStaff: StaffOption[];
   selectedSlot: Slot | null;
   selected: "auto" | string;
   onSelect: (choice: "auto" | string) => void;
+  selectedServices: Service[];
+  totalDuration: number;
+  totalPrice: number;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const hasProviders = availableStaff.length > 0;
   const slotLabel = selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time";
+  const VISIBLE_LIMIT = 4;
+  const visibleStaff = showAll ? availableStaff : availableStaff.slice(0, VISIBLE_LIMIT);
+  const hasMore = availableStaff.length > VISIBLE_LIMIT;
 
   return (
-    <div className="space-y-5 sm:space-y-7">
-      <h2
-        className="text-[30px] font-medium leading-tight md:text-[34px]"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
-      >
-        Choose your provider
-      </h2>
-      <p className="-mt-4 text-[15px] leading-6" style={{ color: "#6B7A6F" }}>
-        Select a specific provider or continue with any available provider.
-      </p>
+    <div className="space-y-4 sm:space-y-6">
+      <div>
+        <h2
+          className="text-[26px] font-medium leading-tight sm:text-[30px] md:text-[34px]"
+          style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        >
+          Select therapist
+        </h2>
+        <p className="mt-1.5 text-[14px] leading-6 sm:text-[15px]" style={{ color: "#6B7A6F" }}>
+          Choose your preferred therapist or let us assign the best one.
+        </p>
+      </div>
+
+      {/* Mobile-only selected services strip */}
+      {selectedServices.length > 0 && (
+        <div
+          className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3 md:hidden"
+          style={{ background: "#F9F5ED", borderColor: "#E3D7C5" }}
+        >
+          <p className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#6B4F2A" }}>
+            {selectedServices.length} {selectedServices.length === 1 ? "service" : "services"} · {totalDuration} min
+          </p>
+          <p className="text-[14px] font-bold" style={{ color: "#C8A96B" }}>
+            {formatCurrency(totalPrice)}
+          </p>
+        </div>
+      )}
 
       <AnyProviderChoiceCard isSelected={selected === "auto"} onSelect={() => onSelect("auto")} />
 
-      <div className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[15px] font-semibold" style={{ color: "#10261D" }}>
-            Available providers for this time
+      <div className="space-y-3">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[14px] font-semibold sm:text-[15px]" style={{ color: "#10261D" }}>
+            Available therapists
           </p>
           {hasProviders && (
-            <div className="flex items-center gap-2 text-[13px]" style={{ color: "#6B7A6F" }}>
+            <div className="flex items-center gap-2 text-[12px] sm:text-[13px]" style={{ color: "#6B7A6F" }}>
               <span className="h-2 w-2 shrink-0 rounded-full bg-[#35A563]" />
               Available at {slotLabel}
             </div>
@@ -1860,16 +1891,29 @@ function StepTherapist({
         </div>
 
         {hasProviders ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {availableStaff.map((staff, index) => (
-              <ProviderPhotoCard
-                key={staff.staff_id}
-                staff={staff}
-                isSelected={selected === staff.staff_id}
-                isRecommended={index === 0}
-                onSelect={() => onSelect(staff.staff_id)}
-              />
-            ))}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+              {visibleStaff.map((staff, index) => (
+                <ProviderPhotoCard
+                  key={staff.staff_id}
+                  staff={staff}
+                  isSelected={selected === staff.staff_id}
+                  isRecommended={index === 0}
+                  onSelect={() => onSelect(staff.staff_id)}
+                />
+              ))}
+            </div>
+            {hasMore && !showAll && (
+              <button
+                type="button"
+                onClick={() => setShowAll(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#EDE4D3] bg-white py-3 text-[13px] font-semibold shadow-sm transition-colors hover:border-[#C8A96B]/60"
+                style={{ color: "#163A2B" }}
+              >
+                See more therapists
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            )}
           </div>
         ) : (
           <div
