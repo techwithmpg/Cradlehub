@@ -1714,59 +1714,70 @@ function ProviderPhotoCard({
       type="button"
       onClick={onSelect}
       aria-pressed={isSelected}
-      aria-label={`Select ${displayName}`}
-      className={`group relative flex min-h-[180px] flex-col items-center overflow-hidden rounded-[14px] border px-2.5 pb-3 pt-3 text-center transition-all duration-200 sm:min-h-[220px] sm:px-3 sm:pb-4 sm:pt-4 ${
+      aria-label={`Select ${displayName}, available provider`}
+      className={`group relative flex flex-col items-center overflow-hidden rounded-xl border p-2 text-center transition-all duration-200 active:scale-[0.97] sm:min-h-[200px] sm:rounded-[14px] sm:px-3 sm:pb-4 sm:pt-3 ${
         isSelected
-          ? "border-[#C8A96B] bg-[#FCFAF5] shadow-[0_18px_34px_rgba(16,38,29,0.13)]"
-          : "border-[#EDE4D3] bg-white shadow-[0_10px_24px_rgba(16,38,29,0.06)] hover:border-[#C8A96B]/70 hover:shadow-[0_16px_30px_rgba(16,38,29,0.1)]"
+          ? "border-[#C8A96B] bg-[#FCFAF5] shadow-[0_4px_14px_rgba(200,169,107,0.22)]"
+          : "border-[#EDE4D3] bg-white shadow-sm hover:border-[#C8A96B]/70 hover:shadow-md"
       }`}
     >
+      {/* Mobile: tiny corner badge */}
+      {isRecommended && (
+        <span className="absolute left-1 top-1 z-10 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-amber-700 sm:hidden">
+          Top
+        </span>
+      )}
+      {/* Desktop: diagonal ribbon */}
       {isRecommended && (
         <div
-          className="absolute left-[-36px] top-5 z-10 w-32 -rotate-45 py-1 text-center text-[8px] font-bold uppercase tracking-wide"
+          className="absolute left-[-36px] top-5 z-10 hidden w-32 -rotate-45 py-1 text-center text-[8px] font-bold uppercase tracking-wide sm:block"
           style={{ background: "#C8A96B", color: "#FCFAF5" }}
         >
           Recommended
         </div>
       )}
 
+      {/* Check indicator — scales down on mobile */}
       <div
-        className={`absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-colors ${
+        className={`absolute right-1.5 top-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full border transition-colors sm:right-3 sm:top-3 sm:h-7 sm:w-7 sm:border-2 ${
           isSelected ? "border-[#163A2B] bg-[#163A2B]" : "border-[#CFC7BC] bg-white"
         }`}
       >
-        {isSelected && <Check className="h-3.5 w-3.5 text-[#C8A96B]" />}
+        {isSelected && <Check className="h-2.5 w-2.5 text-[#C8A96B] sm:h-3.5 sm:w-3.5" />}
       </div>
 
-      <div className="relative mx-auto mb-2 h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-white shadow-[0_10px_24px_rgba(16,38,29,0.16)] sm:mb-3 sm:h-24 sm:w-24">
+      {/* Avatar — compact on mobile, larger on sm+ */}
+      <div className="relative mx-auto mb-1.5 h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white shadow-sm sm:mb-3 sm:h-20 sm:w-20 sm:border-2 sm:shadow-[0_10px_24px_rgba(16,38,29,0.16)]">
         {staff.staff_avatar_url ? (
           <Image
             src={staff.staff_avatar_url}
             alt={displayName}
             fill
             className="object-cover"
-            sizes="(max-width: 640px) 64px, 96px"
+            sizes="(max-width: 640px) 40px, 80px"
           />
         ) : (
           <div
-            className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_35%_25%,#FAE6BE_0%,#C8A96B_36%,#163A2B_100%)] text-[24px] font-semibold text-[#FCFAF5]"
+            className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_35%_25%,#FAE6BE_0%,#C8A96B_36%,#163A2B_100%)] text-[13px] font-semibold text-[#FCFAF5] sm:text-[24px]"
             aria-hidden="true"
           >
-            {initials || <User className="h-5 w-5" />}
+            {initials || <User className="h-3.5 w-3.5 sm:h-5 sm:w-5" />}
           </div>
         )}
       </div>
 
+      {/* Name */}
       <p
-        className="w-full truncate text-[13px] font-medium leading-5 sm:text-[16px] sm:leading-6"
+        className="w-full line-clamp-1 text-[10px] font-semibold leading-tight sm:text-[14px] sm:leading-5"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
       >
         {displayName}
       </p>
 
-      <div className="mt-1 flex items-center gap-1.5 sm:mt-1.5 sm:gap-2">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#35A563] sm:h-2 sm:w-2" />
-        <span className="text-[11px] sm:text-[13px]" style={{ color: "#6B7A6F" }}>
+      {/* Availability */}
+      <div className="mt-0.5 flex items-center gap-1 sm:mt-1.5 sm:gap-1.5">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#35A563]" />
+        <span className="text-[9px] sm:text-[12px]" style={{ color: "#6B7A6F" }}>
           Available
         </span>
       </div>
@@ -1786,37 +1797,37 @@ function AnyProviderChoiceCard({
       type="button"
       onClick={onSelect}
       aria-pressed={isSelected}
-      className={`relative flex w-full items-center gap-4 overflow-hidden rounded-[14px] border p-4 text-left transition-all duration-200 sm:gap-6 sm:p-5 sm:px-6 ${
+      className={`relative flex w-full items-center gap-3 overflow-hidden rounded-[14px] border p-3 text-left transition-all duration-200 sm:gap-6 sm:p-5 sm:px-6 ${
         isSelected
-          ? "border-[#C8A96B] bg-[#FCFAF5] shadow-[0_16px_34px_rgba(200,169,107,0.18)]"
-          : "border-[#E4D4B8] bg-white hover:border-[#C8A96B]/75 hover:shadow-[0_14px_30px_rgba(16,38,29,0.08)]"
+          ? "border-[#C8A96B] bg-[#FCFAF5] shadow-[0_8px_20px_rgba(200,169,107,0.18)]"
+          : "border-[#E4D4B8] bg-white hover:border-[#C8A96B]/75 hover:shadow-md"
       }`}
     >
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[radial-gradient(circle_at_35%_25%,#2D674E_0%,#163A2B_68%,#10261D_100%)] text-[#C8A96B] shadow-[0_12px_24px_rgba(16,38,29,0.22)] sm:h-20 sm:w-20">
-        <Sparkles className="h-6 w-6 sm:h-7 sm:w-7" />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[radial-gradient(circle_at_35%_25%,#2D674E_0%,#163A2B_68%,#10261D_100%)] text-[#C8A96B] shadow-[0_6px_16px_rgba(16,38,29,0.22)] sm:h-16 sm:w-16">
+        <Sparkles className="h-5 w-5 sm:h-7 sm:w-7" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[16px] font-semibold leading-5" style={{ color: "#10261D" }}>
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <p className="text-[14px] font-semibold leading-5 sm:text-[16px]" style={{ color: "#10261D" }}>
             Any available provider
           </p>
           <span
-            className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+            className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide sm:px-2.5 sm:py-1 sm:text-[10px]"
             style={{ background: "#F5E8D1", color: "#9E6C17" }}
           >
             Recommended
           </span>
         </div>
-        <p className="mt-2 max-w-xl text-[13px] leading-5 sm:text-[14px] sm:leading-6" style={{ color: "#6B7A6F" }}>
+        <p className="mt-1 max-w-xl text-[11px] leading-4 sm:mt-2 sm:text-[13px] sm:leading-5" style={{ color: "#6B7A6F" }}>
           We&apos;ll assign the best qualified staff based on availability and service.
         </p>
       </div>
       <div
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors sm:h-7 sm:w-7 ${
           isSelected ? "bg-[#163A2B]" : "border border-[#D6CEC2] bg-white"
         }`}
       >
-        {isSelected && <Check className="h-4 w-4 text-[#C8A96B]" />}
+        {isSelected && <Check className="h-3 w-3 text-[#C8A96B] sm:h-4 sm:w-4" />}
       </div>
     </button>
   );
@@ -1842,7 +1853,7 @@ function StepTherapist({
   const [showAll, setShowAll] = useState(false);
   const hasProviders = availableStaff.length > 0;
   const slotLabel = selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time";
-  const VISIBLE_LIMIT = 4;
+  const VISIBLE_LIMIT = 6;
   const visibleStaff = showAll ? availableStaff : availableStaff.slice(0, VISIBLE_LIMIT);
   const hasMore = availableStaff.length > VISIBLE_LIMIT;
 
@@ -1892,7 +1903,7 @@ function StepTherapist({
 
         {hasProviders ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
               {visibleStaff.map((staff, index) => (
                 <ProviderPhotoCard
                   key={staff.staff_id}
