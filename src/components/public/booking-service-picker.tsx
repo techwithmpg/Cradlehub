@@ -88,26 +88,24 @@ function groupServicesByCategory(services: BookingWizardService[]): ServiceCateg
 }
 
 // ── Category → image mapping ──────────────────────────────────────────────────
-// Uses keyword matching on the category name so no per-service data is hardcoded.
-// Falls back to a generic spa image when the category name has no match.
 
 const CATEGORY_IMAGE_KEYWORDS: Array<[string, string]> = [
-  ["couples",       SPA_IMAGES.couples],
-  ["duo",           SPA_IMAGES.couples],
-  ["hot stone",     SPA_IMAGES.hotStone],
-  ["stone",         SPA_IMAGES.hotStone],
-  ["deep tissue",   SPA_IMAGES.deepTissue],
-  ["deep",          SPA_IMAGES.deepTissue],
-  ["aromatherapy",  SPA_IMAGES.aromatherapy],
-  ["aroma",         SPA_IMAGES.aromatherapy],
-  ["reflexology",   SPA_IMAGES.reflexology],
-  ["foot",          SPA_IMAGES.reflexology],
-  ["nail",          SPA_IMAGES.about],
-  ["facial",        SPA_IMAGES.aboutSecondary],
-  ["skin",          SPA_IMAGES.aboutSecondary],
-  ["massage",       SPA_IMAGES.swedish],
-  ["body",          SPA_IMAGES.swedish],
-  ["wellness",      SPA_IMAGES.booking],
+  ["couples",      SPA_IMAGES.couples],
+  ["duo",          SPA_IMAGES.couples],
+  ["hot stone",    SPA_IMAGES.hotStone],
+  ["stone",        SPA_IMAGES.hotStone],
+  ["deep tissue",  SPA_IMAGES.deepTissue],
+  ["deep",         SPA_IMAGES.deepTissue],
+  ["aromatherapy", SPA_IMAGES.aromatherapy],
+  ["aroma",        SPA_IMAGES.aromatherapy],
+  ["reflexology",  SPA_IMAGES.reflexology],
+  ["foot",         SPA_IMAGES.reflexology],
+  ["nail",         SPA_IMAGES.about],
+  ["facial",       SPA_IMAGES.aboutSecondary],
+  ["skin",         SPA_IMAGES.aboutSecondary],
+  ["massage",      SPA_IMAGES.swedish],
+  ["body",         SPA_IMAGES.swedish],
+  ["wellness",     SPA_IMAGES.booking],
 ];
 
 function getCategoryImage(categoryName: string): string {
@@ -118,33 +116,95 @@ function getCategoryImage(categoryName: string): string {
   return SPA_IMAGES.booking;
 }
 
-// ── Service image card ────────────────────────────────────────────────────────
+// ── Mobile service card: image-top + white text area below ────────────────────
 
-function ServiceImageCard({
+function MobileServiceCard({
   service,
   categoryImage,
   isSelected,
-  density,
   onToggle,
 }: {
   service: BookingWizardService;
   categoryImage: string;
   isSelected: boolean;
-  density: ServiceGridDensity;
   onToggle: () => void;
 }) {
-  const isCompact = density === "compact";
-  // Mobile: always compact fixed height. Desktop: aspect-ratio for featured/standard.
-  const heightClass = isCompact
-    ? "h-[170px]"
-    : "h-[170px] md:h-auto md:aspect-[4/5]";
+  const priceLabel = formatCurrency(service.price);
+  const durationLabel = `${service.durationMinutes} min`;
 
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={isSelected}
-      className={`group relative overflow-hidden rounded-2xl transition-all duration-200 ${heightClass} ${
+      aria-label={`Select ${service.name}, ${durationLabel}, ${priceLabel}`}
+      className={`relative w-full min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 active:scale-[0.98] ${
+        isSelected
+          ? "border-[#163A2B] ring-1 ring-[#163A2B]"
+          : "border-[#E3D7C5]"
+      }`}
+    >
+      {/* Image */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden">
+        <Image
+          src={categoryImage}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="(max-width: 390px) 50vw, (max-width: 520px) 33vw, 25vw"
+        />
+        {/* Selection indicator */}
+        <div
+          className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white shadow-sm transition-all duration-200 ${
+            isSelected ? "bg-[#163A2B]" : "bg-black/20"
+          }`}
+          aria-hidden="true"
+        >
+          {isSelected && <Check className="h-3 w-3 text-white" />}
+        </div>
+      </div>
+
+      {/* Text content */}
+      <div className="min-w-0 p-2">
+        <p
+          className="min-w-0 line-clamp-2 text-[12px] font-semibold leading-tight"
+          style={{ color: "#163A2B" }}
+        >
+          {service.name}
+        </p>
+        <div className="mt-1 flex min-w-0 items-center justify-between gap-1">
+          <span className="truncate text-[11px]" style={{ color: "#6B7A6F" }}>
+            {durationLabel}
+          </span>
+          <span className="shrink-0 text-[11px] font-semibold" style={{ color: "#C8A96B" }}>
+            {priceLabel}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ── Desktop service card: full-bleed image with gradient overlay ───────────────
+
+function ServiceImageCard({
+  service,
+  categoryImage,
+  isSelected,
+  onToggle,
+}: {
+  service: BookingWizardService;
+  categoryImage: string;
+  isSelected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={isSelected}
+      aria-label={`Select ${service.name}, ${service.durationMinutes} min, ${formatCurrency(service.price)}`}
+      className={`group relative aspect-[4/5] overflow-hidden rounded-2xl transition-all duration-200 ${
         isSelected
           ? "ring-2 ring-[#C8A96B] ring-offset-2 shadow-[0_6px_20px_rgba(200,169,107,0.25)]"
           : "ring-1 ring-[#EDE4D3] hover:ring-[#C8A96B]/60 hover:shadow-md"
@@ -155,14 +215,14 @@ function ServiceImageCard({
         alt=""
         fill
         className="object-cover transition-transform duration-500 group-hover:scale-105"
-        sizes="(max-width: 768px) 50vw, 30vw"
+        sizes="(max-width: 1024px) 33vw, 25vw"
       />
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
 
-      {/* Selection indicator — top-right */}
+      {/* Selection indicator */}
       <div
-        className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all duration-200 md:h-7 md:w-7 ${
+        className={`absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all duration-200 ${
           isSelected
             ? "border-[#C8A96B] bg-[#C8A96B]"
             : "border-white/50 bg-black/30"
@@ -176,14 +236,14 @@ function ServiceImageCard({
         )}
       </div>
 
-      {/* Service info — pinned to bottom */}
-      <div className="absolute inset-x-0 bottom-0 p-2 md:p-3">
-        <p className="line-clamp-2 text-[12px] font-semibold leading-[1.35] text-white md:text-[13px]">
+      {/* Service info */}
+      <div className="absolute inset-x-0 bottom-0 p-3">
+        <p className="line-clamp-2 text-[13px] font-semibold leading-[1.35] text-white">
           {service.name}
         </p>
         <div className="mt-1 flex items-center justify-between gap-1">
-          <span className="text-[10px] text-white/70 md:text-[11px]">{service.durationMinutes} min</span>
-          <span className="text-[11px] font-bold text-[#C8A96B] md:text-[13px]">
+          <span className="text-[11px] text-white/70">{service.durationMinutes} min</span>
+          <span className="text-[13px] font-bold text-[#C8A96B]">
             {formatCurrency(service.price)}
           </span>
         </div>
@@ -213,16 +273,32 @@ export function BookingServicePicker({
 
   if (loading) {
     return (
-      <div className="grid gap-4 md:grid-cols-[190px_minmax(0,1fr)]">
-        <div className="hidden gap-2 md:flex md:flex-col">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-11 rounded-full" />
-          ))}
+      <div>
+        {/* Mobile loading skeleton */}
+        <div className="block md:hidden">
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-24 shrink-0 rounded-full" />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/3" }} />
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/5" }} />
-          ))}
+        {/* Desktop loading skeleton */}
+        <div className="hidden md:grid md:grid-cols-[190px_minmax(0,1fr)] md:gap-4">
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-11 rounded-full" />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/5" }} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -246,7 +322,7 @@ export function BookingServicePicker({
   const categoryImage = activeCategory ? getCategoryImage(activeCategory.name) : SPA_IMAGES.booking;
   const density = getServiceGridDensity(activeCategory?.services.length ?? 0);
 
-  const gridClassName =
+  const desktopGridClassName =
     density === "featured"
       ? "grid grid-cols-2 gap-3"
       : density === "standard"
@@ -289,54 +365,32 @@ export function BookingServicePicker({
         </div>
       )}
 
-      {/* Mobile: horizontal category scroll */}
-      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 md:hidden">
-        {categories.map((category) => {
-          const isActive = category.id === activeCategory?.id;
-          return (
-            <button
-              key={category.id}
-              type="button"
-              onClick={() => setPreferredCategoryId(category.id)}
-              className={`shrink-0 rounded-full border px-3.5 py-2 text-[12px] font-semibold transition-colors ${
-                isActive
-                  ? "border-[#163A2B] bg-[#163A2B] text-[#FDF8EE]"
-                  : "border-[#E3D7C5] bg-white text-[#6B4F2A]"
-              }`}
-            >
-              {category.name}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Desktop: sidebar + image grid */}
-      <div className="grid gap-4 md:grid-cols-[190px_minmax(0,1fr)]">
-        {/* Category sidebar — desktop only */}
-        <div className="hidden md:flex md:flex-col md:gap-2">
-          {categories.map((category) => {
-            const isActive = category.id === activeCategory?.id;
-            return (
-              <button
-                key={category.id}
-                type="button"
-                onClick={() => setPreferredCategoryId(category.id)}
-                className={`flex items-center justify-between rounded-full border px-4 py-2.5 text-left text-[12px] font-semibold transition-colors ${
-                  isActive
-                    ? "border-[#163A2B] bg-[#163A2B] text-[#FDF8EE]"
-                    : "border-[#EDE4D3] bg-white text-[#6B4F2A] hover:border-[#C8A96B]/60"
-                }`}
-              >
-                <span className="truncate">{category.name}</span>
-                <span className={isActive ? "text-[#C8A96B]" : "text-[#9AA89A]"}>
-                  {category.services.length}
-                </span>
-              </button>
-            );
-          })}
+      {/* ── Mobile layout ─────────────────────────────────────────────────────── */}
+      <div className="block md:hidden">
+        {/* Category chips — scrollable row, no page overflow */}
+        <div className="w-full max-w-full overflow-hidden">
+          <div className="-mx-1 mb-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1">
+            {categories.map((category) => {
+              const isActive = category.id === activeCategory?.id;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setPreferredCategoryId(category.id)}
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12px] font-semibold transition-colors ${
+                    isActive
+                      ? "border-[#163A2B] bg-[#163A2B] text-[#FDF8EE]"
+                      : "border-[#E3D7C5] bg-white text-[#6B4F2A]"
+                  }`}
+                >
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Service image grid */}
+        {/* Mobile service grid: 2 → 3 → 4 columns */}
         {!activeCategory ? (
           <div
             className="rounded-2xl border border-dashed px-4 py-8 text-center"
@@ -345,21 +399,73 @@ export function BookingServicePicker({
             No services in this category yet.
           </div>
         ) : (
-          <div className={density === "featured" ? "max-w-[620px]" : undefined}>
-            <div className={gridClassName}>
+          <div className="w-full max-w-full overflow-hidden">
+            <div className="grid w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
               {activeCategory.services.map((service) => (
-                <ServiceImageCard
+                <MobileServiceCard
                   key={service.id}
                   service={service}
                   categoryImage={categoryImage}
                   isSelected={selectedIds.has(service.id)}
-                  density={density}
                   onToggle={() => onToggle(service)}
                 />
               ))}
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Desktop layout ─────────────────────────────────────────────────────── */}
+      <div className="hidden md:block">
+        <div className="grid gap-4 md:grid-cols-[190px_minmax(0,1fr)]">
+          {/* Category sidebar */}
+          <div className="flex flex-col gap-2">
+            {categories.map((category) => {
+              const isActive = category.id === activeCategory?.id;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setPreferredCategoryId(category.id)}
+                  className={`flex items-center justify-between rounded-full border px-4 py-2.5 text-left text-[12px] font-semibold transition-colors ${
+                    isActive
+                      ? "border-[#163A2B] bg-[#163A2B] text-[#FDF8EE]"
+                      : "border-[#EDE4D3] bg-white text-[#6B4F2A] hover:border-[#C8A96B]/60"
+                  }`}
+                >
+                  <span className="truncate">{category.name}</span>
+                  <span className={isActive ? "text-[#C8A96B]" : "text-[#9AA89A]"}>
+                    {category.services.length}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Desktop image grid */}
+          {!activeCategory ? (
+            <div
+              className="rounded-2xl border border-dashed px-4 py-8 text-center"
+              style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}
+            >
+              No services in this category yet.
+            </div>
+          ) : (
+            <div className={density === "featured" ? "max-w-[620px]" : undefined}>
+              <div className={desktopGridClassName}>
+                {activeCategory.services.map((service) => (
+                  <ServiceImageCard
+                    key={service.id}
+                    service={service}
+                    categoryImage={categoryImage}
+                    isSelected={selectedIds.has(service.id)}
+                    onToggle={() => onToggle(service)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
