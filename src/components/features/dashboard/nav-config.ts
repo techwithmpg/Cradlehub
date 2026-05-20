@@ -53,7 +53,8 @@ const CRM_NAV_GROUPS: NavGroup[] = [
   {
     label: "Main Operations",
     items: [
-      { label: "Control",      href: "/crm/control",          icon: "Monitor" },
+      { label: "Today",        href: "/crm/today",             icon: "LayoutDashboard" },
+      { label: "Control",      href: "/crm/control",           icon: "Monitor" },
       { label: "Live Map",     href: "/crm/live-operations",   icon: "MapPin" },
       { label: "Dispatch",     href: "/crm/dispatch",          icon: "Truck" },
       { label: "Bookings",     href: "/crm/bookings",          icon: "ClipboardList" },
@@ -96,6 +97,7 @@ const CSR_HEAD_NAV_GROUPS: NavGroup[] = [
   {
     label: "Main Operations",
     items: [
+      { label: "Today",        href: "/crm/today",             icon: "LayoutDashboard" },
       { label: "Control",      href: "/crm/control",           icon: "Monitor" },
       { label: "Live Map",     href: "/crm/live-operations",   icon: "MapPin" },
       { label: "Bookings",     href: "/crm/bookings",          icon: "ClipboardList" },
@@ -135,7 +137,8 @@ const CSR_STAFF_NAV_GROUPS: NavGroup[] = [
   {
     label: "Main Operations",
     items: [
-      { label: "Control",  href: "/crm/control",   icon: "Monitor" },
+      { label: "Today",    href: "/crm/today",           icon: "LayoutDashboard" },
+      { label: "Control",  href: "/crm/control",         icon: "Monitor" },
       { label: "Live Map", href: "/crm/live-operations", icon: "MapPin" },
       { label: "Bookings", href: "/crm/bookings",   icon: "ClipboardList" },
       { label: "Schedule", href: "/crm/schedule",   icon: "CalendarDays" },
