@@ -160,3 +160,4 @@
 | 2026-05-15 | Logged STAFF-NICKNAME-001 staff/therapist nicknames | Track optional `staff.nickname`, public nickname-first booking display, and internal full-name-plus-nickname manager/CRM/owner displays | Codex |
 | 2026-05-15 | Logged DISPATCH-LIVE-001 manager dispatch live data wiring | Remove production mock dispatch data and connect `/manager/dispatch` to real branch-scoped Supabase dispatch query data | Codex |
 | 2026-05-20 | Logged BOOKING-MOBILE-SERVICE-GRID-001 mobile service grid patch | Keep public booking service cards compact on mobile, preserve desktop, and verify no page-level horizontal overflow | Codex |
+| 2026-05-20 | Logged BOOKING-HOME-SERVICES-001 public home-service availability fix | Align public booking service reads with admin branch-service Home/Public settings and preserve branch custom price/duration | Codex |

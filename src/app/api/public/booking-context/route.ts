@@ -22,7 +22,7 @@ type BranchRow = Pick<
 
 type ServiceRow = Pick<
   Database["public"]["Tables"]["services"]["Row"],
-  "id" | "name" | "description" | "duration_minutes" | "price"
+  "id" | "name" | "description" | "is_active" | "duration_minutes" | "price"
 > & {
   service_categories?: CategoryRelation;
 };
@@ -40,6 +40,7 @@ type BranchServiceRow = Pick<
   Database["public"]["Tables"]["branch_services"]["Row"],
   "id" | "custom_price" | "is_active" | "available_in_spa" | "available_home_service"
 > & {
+  custom_duration_minutes?: number | null;
   services: ServiceRelation;
 };
 
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
     .filter((record) => record.is_active)
     .map((record) => {
       const service = firstService(record.services);
-      if (!service) return null;
+      if (!service?.is_active) return null;
       const category = firstCategory(service.service_categories);
 
       return {
@@ -148,7 +149,7 @@ export async function GET(request: NextRequest) {
         serviceId: service.id,
         name: service.name,
         description: service.description,
-        durationMinutes: service.duration_minutes,
+        durationMinutes: record.custom_duration_minutes ?? service.duration_minutes,
         price: Number(record.custom_price ?? service.price),
         categoryId: category?.id ?? null,
         categoryName: category?.name ?? "Wellness",

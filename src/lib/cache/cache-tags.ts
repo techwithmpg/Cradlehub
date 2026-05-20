@@ -7,8 +7,8 @@ export const cacheTags = {
 } as const;
 
 // Next.js 16 revalidateTag requires a second profile argument (for the "use cache" system).
-// We pass an empty CacheLifeConfig ({}) which means: no additional expiry constraint.
-// This correctly invalidates both unstable_cache and "use cache" entries sharing the tag.
+// Service/settings writes must be visible on the next public booking request, so expire
+// matching entries immediately instead of serving a stale response while revalidating.
 export function invalidateTag(tag: string): void {
-  nextRevalidateTag(tag, {});
+  nextRevalidateTag(tag, { expire: 0 });
 }

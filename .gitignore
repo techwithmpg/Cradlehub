@@ -24,6 +24,7 @@
 .DS_Store
 *.pem
 .tmp/
+.codex-artifacts/
 
 # debug
 npm-debug.log*

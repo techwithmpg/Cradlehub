@@ -54,6 +54,16 @@ async function requireOwnerOrBranchManager(branchId: string) {
   return null;
 }
 
+function isMissingBranchServiceVisibilityColumnError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    (lower.includes("visibility") || lower.includes("booking_visibility")) &&
+    (lower.includes("does not exist") ||
+      lower.includes("schema cache") ||
+      lower.includes("could not find"))
+  );
+}
+
 export async function createBranchAction(rawInput: unknown) {
   const parsed = createBranchSchema.safeParse(rawInput);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -276,11 +286,22 @@ export async function updateBranchServiceVisibilityAction(
   const supabase = await requireOwner();
   if (!supabase) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase
+  const modernUpdate = { visibility };
+  const modern = await supabase
     .from("branch_services")
-    .update({ booking_visibility: visibility })
+    .update(modernUpdate)
     .eq("branch_id", branchId)
     .eq("service_id", serviceId);
+
+  let error = modern.error;
+  if (error && isMissingBranchServiceVisibilityColumnError(error.message)) {
+    const legacy = await supabase
+      .from("branch_services")
+      .update({ booking_visibility: visibility })
+      .eq("branch_id", branchId)
+      .eq("service_id", serviceId);
+    error = legacy.error;
+  }
 
   if (error) return { success: false, error: error.message };
 

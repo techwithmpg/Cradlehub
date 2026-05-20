@@ -494,9 +494,20 @@ export type Database = {
           branch_id: string
           created_at: string
           custom_price: number | null
+          custom_duration_minutes: number | null
+          custom_image_url: string | null
+          customer_tier_required: string | null
           id: string
+          is_featured: boolean
           is_active: boolean
+          public_description: string | null
+          public_title: string | null
+          requires_senior_staff: boolean
+          requires_special_setup: boolean
           service_id: string
+          setup_notes: string | null
+          sort_order: number
+          visibility: string
         }
         Insert: {
           available_home_service?: boolean
@@ -505,9 +516,20 @@ export type Database = {
           branch_id: string
           created_at?: string
           custom_price?: number | null
+          custom_duration_minutes?: number | null
+          custom_image_url?: string | null
+          customer_tier_required?: string | null
           id?: string
+          is_featured?: boolean
           is_active?: boolean
+          public_description?: string | null
+          public_title?: string | null
+          requires_senior_staff?: boolean
+          requires_special_setup?: boolean
           service_id: string
+          setup_notes?: string | null
+          sort_order?: number
+          visibility?: string
         }
         Update: {
           available_home_service?: boolean
@@ -516,9 +538,20 @@ export type Database = {
           branch_id?: string
           created_at?: string
           custom_price?: number | null
+          custom_duration_minutes?: number | null
+          custom_image_url?: string | null
+          customer_tier_required?: string | null
           id?: string
+          is_featured?: boolean
           is_active?: boolean
+          public_description?: string | null
+          public_title?: string | null
+          requires_senior_staff?: boolean
+          requires_special_setup?: boolean
           service_id?: string
+          setup_notes?: string | null
+          sort_order?: number
+          visibility?: string
         }
         Relationships: [
           {

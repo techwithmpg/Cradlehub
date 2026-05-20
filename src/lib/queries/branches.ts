@@ -50,6 +50,7 @@ const branchServicesManagementSelect = `
     id,
     name,
     description,
+    is_active,
     duration_minutes,
     price,
     buffer_before,
@@ -77,6 +78,7 @@ const branchServicesPublicModernSelect = `
     id,
     name,
     description,
+    is_active,
     duration_minutes,
     price,
     buffer_before,
@@ -98,6 +100,7 @@ const branchServicesLegacySelect = `
     id,
     name,
     description,
+    is_active,
     duration_minutes,
     price,
     buffer_before,
@@ -116,6 +119,7 @@ const branchServicesMinimalSelect = `
     id,
     name,
     description,
+    is_active,
     duration_minutes,
     price,
     buffer_before,
@@ -124,9 +128,18 @@ const branchServicesMinimalSelect = `
   )
 `;
 
-function normalizeBranchServiceVisibility(rows: unknown[]) {
+type NormalizedBranchServiceVisibility<T> = T & {
+  booking_visibility: string;
+  available_in_spa: boolean;
+  available_home_service: boolean;
+  visibility?: string;
+};
+
+function normalizeBranchServiceVisibility<T extends Record<string, unknown>>(
+  rows: T[]
+): Array<NormalizedBranchServiceVisibility<T>> {
   return rows.map((row) => {
-    const record = row as Record<string, unknown>;
+    const record = row;
     const visibility =
       typeof record.visibility === "string" ? record.visibility : null;
     const bookingVisibility =
@@ -146,7 +159,7 @@ function normalizeBranchServiceVisibility(rows: unknown[]) {
         typeof record.available_home_service === "boolean"
           ? record.available_home_service
           : false,
-    };
+    } satisfies NormalizedBranchServiceVisibility<T>;
   });
 }
 
@@ -414,30 +427,46 @@ export function getBranchServicesPublicCached(branchId: string) {
     async () => {
       const supabase = createAdminClient();
 
-      // Primary: DB-level filter on booking_visibility (post-migration schema).
-      const primary = await supabase
+      // Primary: current branch-services shape used by the admin service table.
+      // Some deployed databases use `visibility`; older migrations used
+      // `booking_visibility`, so filter in memory after normalization.
+      const modern = await supabase
         .from("branch_services")
-        .select(`
-          *,
-          services (
-            id, name, description, duration_minutes, price,
-            buffer_before, buffer_after,
-            service_categories ( id, name, display_order )
-          )
-        `)
+        .select(branchServicesPublicModernSelect)
         .eq("branch_id", branchId)
         .eq("is_active", true)
-        .eq("booking_visibility", "public")
-        .order("id");
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true });
 
-      if (!primary.error) return primary.data ?? [];
-
-      // booking_visibility column may not exist yet in this Supabase instance.
-      if (!isMissingBranchServiceColumnError(primary.error.message)) {
-        throw new Error(primary.error.message);
+      if (!modern.error) {
+        return normalizeBranchServiceVisibility(modern.data ?? []).filter(
+          isPublicBranchService
+        );
       }
 
-      // Fallback: select without visibility filter, then check in-memory.
+      if (!isMissingBranchServiceColumnError(modern.error.message)) {
+        throw new Error(modern.error.message);
+      }
+
+      const legacy = await supabase
+        .from("branch_services")
+        .select(branchServicesLegacySelect)
+        .eq("branch_id", branchId)
+        .eq("is_active", true)
+        .order("id", { ascending: true });
+
+      if (!legacy.error) {
+        return normalizeBranchServiceVisibility(legacy.data ?? []).filter(
+          isPublicBranchService
+        );
+      }
+
+      if (!isMissingBranchServiceColumnError(legacy.error.message)) {
+        throw new Error(legacy.error.message);
+      }
+
+      // Last-resort legacy fallback for databases before visibility and
+      // visit-type eligibility columns existed.
       const fallback = await supabase
         .from("branch_services")
         .select(branchServicesMinimalSelect)
@@ -446,8 +475,6 @@ export function getBranchServicesPublicCached(branchId: string) {
         .order("id");
 
       if (fallback.error) throw new Error(fallback.error.message);
-      // normalizeBranchServiceVisibility defaults missing column to "public",
-      // so isPublicBranchService returns true for all rows here.
       return normalizeBranchServiceVisibility(fallback.data ?? []).filter(
         isPublicBranchService
       );

@@ -1,44 +1,51 @@
-# HANDOFF — BOOKING-MOBILE-SERVICE-GRID-001
+# HANDOFF - BOOKING-HOME-SERVICES-001
 
 ## Date
 2026-05-20
 
 ## What Changed
 
-### Mobile service picker
-**File:** `src/components/public/booking-service-picker.tsx`
+### Public booking branch-service query
+**File:** `src/lib/queries/branches.ts`
 
-- Mobile service cards now explicitly use `w-full min-w-0 max-w-full overflow-hidden` so they cannot behave like fixed-width carousel cards.
-- Mobile card images remain image-top cards but use `aspect-[4/3]`, `h-full w-full object-cover`, and responsive `next/image` sizes:
-  `(max-width: 390px) 50vw, (max-width: 520px) 33vw, 25vw`.
-- Mobile card content remains compact: service name, duration, price, and compact selected state only.
-- Selection indicators remain small (`h-5 w-5`) and do not crowd 3/4-column cells.
-- Category chips remain horizontally scrollable inside their own `overflow-x-auto` row, with parent `overflow-hidden` wrappers.
-- Loading skeletons now mirror the same bounded mobile grid/chip row behavior.
-- Desktop service cards and category sidebar were preserved.
+- `getBranchServicesPublicCached()` now starts with the current branch-service row shape used by admin service management.
+- The public query now preserves `available_in_spa`, `available_home_service`, `visibility`, branch sort order, public text metadata, branch custom price, and branch custom duration.
+- The query filters public visibility after normalizing `visibility` and legacy `booking_visibility`, so current and older schema shapes remain supported.
+- The public API drops rows whose embedded base service is inactive, keeping branch and base service enablement aligned.
+- The last-resort minimal fallback remains only for older databases that do not have the service eligibility columns.
 
-### Booking wizard shell
-**File:** `src/components/public/booking-wizard.tsx`
+### Public booking API mapping
+**File:** `src/app/api/public/booking-context/route.ts`
 
-- Public booking wrapper now includes `w-full max-w-full overflow-x-hidden`.
-- Public inner containers now stay constrained on mobile and restore desktop max-width behavior at `md`.
-- The content grid and main column now include `min-w-0`.
-- Navigation, booking state, service filtering, provider/date/details logic, and the floating circular widget were not changed.
+- Service duration now uses `branch_services.custom_duration_minutes` when present, then falls back to the base service duration.
+- Existing branch custom price behavior was preserved.
+
+### Admin visibility and cache invalidation
+**Files:** `src/app/(dashboard)/owner/branches/actions.ts`, `src/lib/cache/cache-tags.ts`
+
+- Visibility updates now write to `branch_services.visibility` first, with a fallback to legacy `booking_visibility`.
+- Service/settings cache tag invalidation now uses `{ expire: 0 }` so the next public booking request sees updated branch-service settings instead of serving stale cache.
+
+### Local types
+**File:** `src/types/supabase.ts`
+
+- Local `branch_services` generated type shape now includes the live metadata columns used by admin and public booking queries.
+
+### Verification hygiene
+**Files:** `eslint.config.mjs`, `.gitignore`
+
+- `.codex-artifacts/**` is ignored by ESLint so temporary browser/debug artifacts are not scanned as application source.
+- `.codex-artifacts/` is ignored by Git so local verification artifacts do not remain as untracked noise.
 
 ## Verification
 
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing.
 - `pnpm build`: Passing, 80 app routes.
-- Browser smoke test on `/book`:
-  - 360px: document overflow `0`, mobile service grid template has 2 columns.
-  - 390px: document overflow `0`, mobile service grid template has 3 columns.
-  - 430px: document overflow `0`, mobile service grid template has 3 columns.
-  - 520px: document overflow `0`, mobile service grid template has 4 columns.
-  - 768px and desktop: desktop layout active, document overflow `0`.
-  - Category chips overflow only within their own row.
+- Public API smoke for branch `c1000000-0000-0000-0000-000000000001`: 6 services with `availableHomeService=true`, 3 with `availableHomeService=false`.
+- Public `/book` smoke: HTTP 200 OK.
 
 ## Notes
 
-- The active live Swedish Massage category currently has two service cards, so the visual row contains two cards, but browser measurements confirmed the 3/4-column grid templates at the requested breakpoints.
-- Screenshot artifact saved at `.codex-artifacts/booking-service-mobile-390.png`.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are still absent; current project docs live under `docs/`.
+- No UI redesign, booking step order, provider/date/payment/confirmation behavior, floating widget, hardcoded services, or dummy service data was introduced.

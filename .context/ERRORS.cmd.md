@@ -113,3 +113,14 @@ _No errors logged yet._
   - Resolution: corrected the argument shape to `pnpm dev --port 3012`.
 - Starting a second dev server on port 3012 was blocked because an existing Next dev server was already running for `E:\cradlehub` on port 3000.
   - Resolution: did not stop the existing server; used `http://localhost:3000/book` for a smoke test, which returned `200 OK`.
+
+## 2026-05-20 - BOOKING-HOME-SERVICES-001 findings
+
+- Public booking home-service availability was blocked by branch-service schema drift:
+  - Admin service management read current `branch_services.visibility` and `available_home_service`.
+  - Public booking first tried to filter on legacy `booking_visibility`, then fell back to a minimal select that omitted `available_home_service`.
+  - Resolution: public booking now reads the current branch-service shape first, normalizes current/legacy visibility fields, and preserves visit-type eligibility flags.
+- Next.js 16 `revalidateTag(tag, {})` did not express the immediate-expiry behavior needed after service setting updates.
+  - Resolution: branch-service invalidation now calls `revalidateTag(tag, { expire: 0 })`.
+- A rerun of `pnpm lint` scanned a temporary Chrome profile under `.codex-artifacts/chrome-home-services` and failed on bundled extension JavaScript.
+  - Resolution: added `.codex-artifacts/**` to ESLint global ignores and `.codex-artifacts/` to `.gitignore`, matching the existing generated-output ignore pattern.

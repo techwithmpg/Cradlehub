@@ -195,3 +195,12 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Category chips remain horizontally scrollable only inside their own row, and the public booking shell now clips accidental horizontal overflow.
 - Booking data loading, category filtering, selected service logic, provider/date/details flow, desktop layout, and the floating circular widget were preserved.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; browser smoke checks covered 360px, 390px, 430px, 520px, 768px, and desktop widths with no document-level horizontal overflow.
+
+## Latest Agent Update (2026-05-20)
+
+- Completed `BOOKING-HOME-SERVICES-001`: public booking home-service services now read the same branch-service source of truth used by admin service management.
+- Public booking now preserves branch-scoped `available_home_service`, `available_in_spa`, `visibility`, custom price, and custom duration fields, while dropping inactive base services.
+- Visibility updates write to the current `branch_services.visibility` column with legacy fallback, and branch-service cache invalidation expires immediately.
+- ESLint and Git now ignore `.codex-artifacts/**` so temporary verification artifacts are not scanned or listed as source files.
+- No booking UI, step order, provider/date/payment/confirmation behavior, floating widget, hardcoded services, or dummy data was changed.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; API smoke confirmed 6 Home-eligible public services and 3 non-Home services for the Cradle branch.

@@ -644,6 +644,33 @@
 
 ---
 
+### 2026-05-20 - Codex (BOOKING-HOME-SERVICES-001 - Public Home Service Availability)
+
+**Task:** Fixed public booking home-service availability mismatch.
+
+**Files Changed:**
+- `src/lib/queries/branches.ts` - corrected the public booking branch-service query to read the same Home/Public branch-service source of truth used by admin service management, while preserving legacy fallbacks.
+- `src/app/api/public/booking-context/route.ts` - preserved branch-specific custom duration in public booking service payloads.
+- `src/app/(dashboard)/owner/branches/actions.ts` - updated service visibility writes to use current `visibility` first, with a legacy `booking_visibility` fallback.
+- `src/lib/cache/cache-tags.ts` - changed branch-service cache invalidation to expire immediately after service setting changes.
+- `src/types/supabase.ts` - synced local `branch_services` metadata fields with the live schema used by booking/admin queries.
+- `eslint.config.mjs`, `.gitignore` - ignored Codex artifact output so temporary verification files do not get linted or shown as untracked source.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - updated project context and handoff notes.
+
+**Notes:**
+- Public booking now shows Home-enabled Public services for the selected branch.
+- In-spa filtering, active-service filtering, branch scope, public visibility, branch price, branch duration, provider/date/payment/confirmation flow, and UI layout were preserved.
+- No dummy services or hardcoded service names were added.
+
+**Verification:**
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing.
+- `pnpm build`: Passing, 80 routes.
+- Public API smoke confirmed 6 Home-eligible public services and 3 non-Home services for the Cradle branch.
+- Public `/book` smoke returned HTTP 200 OK.
+
+---
+
 ### 2026-05-20 — Codex (BOOKING-MOBILE-SERVICE-GRID-001 — Mobile Booking Service Grid Patch)
 
 **Task:** Patch the public booking wizard service selection UI so mobile service cards remain in a compact responsive grid with no page-level horizontal overflow.
