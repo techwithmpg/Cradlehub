@@ -138,7 +138,7 @@ function MobileServiceCard({
       onClick={onToggle}
       aria-pressed={isSelected}
       aria-label={`Select ${service.name}, ${durationLabel}, ${priceLabel}`}
-      className={`relative w-full min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 active:scale-[0.98] ${
+      className={`relative w-full min-w-0 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.98] ${
         isSelected
           ? "border-[#163A2B] ring-1 ring-[#163A2B]"
           : "border-[#E3D7C5]"
@@ -148,15 +148,17 @@ function MobileServiceCard({
       <div className="relative aspect-[4/3] w-full overflow-hidden">
         <Image
           src={categoryImage}
-          alt=""
+          alt={`${service.name} service`}
           fill
-          className="object-cover"
+          className="h-full w-full object-cover"
           sizes="(max-width: 390px) 50vw, (max-width: 520px) 33vw, 25vw"
         />
         {/* Selection indicator */}
         <div
-          className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white shadow-sm transition-all duration-200 ${
-            isSelected ? "bg-[#163A2B]" : "bg-black/20"
+          className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full shadow-sm transition ${
+            isSelected
+              ? "bg-[#163A2B] text-white"
+              : "border border-white/80 bg-black/10 backdrop-blur"
           }`}
           aria-hidden="true"
         >
@@ -212,7 +214,7 @@ function ServiceImageCard({
     >
       <Image
         src={categoryImage}
-        alt=""
+        alt={`${service.name} service`}
         fill
         className="object-cover transition-transform duration-500 group-hover:scale-105"
         sizes="(max-width: 1024px) 33vw, 25vw"
@@ -275,16 +277,20 @@ export function BookingServicePicker({
     return (
       <div>
         {/* Mobile loading skeleton */}
-        <div className="block md:hidden">
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-9 w-24 shrink-0 rounded-full" />
-            ))}
+        <div className="block w-full max-w-full overflow-hidden md:hidden">
+          <div className="w-full max-w-full overflow-hidden">
+            <div className="mb-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-9 w-24 shrink-0 rounded-full" />
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
-            {Array.from({ length: 9 }).map((_, i) => (
-              <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/3" }} />
-            ))}
+          <div className="w-full max-w-full overflow-hidden">
+            <div className="grid w-full max-w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/3" }} />
+              ))}
+            </div>
           </div>
         </div>
         {/* Desktop loading skeleton */}
@@ -330,7 +336,7 @@ export function BookingServicePicker({
         : "grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4";
 
   return (
-    <div>
+    <div className="w-full max-w-full overflow-hidden md:overflow-visible">
       <h2
         className="mb-2 text-[18px] font-semibold md:text-2xl md:font-medium"
         style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
@@ -366,10 +372,10 @@ export function BookingServicePicker({
       )}
 
       {/* ── Mobile layout ─────────────────────────────────────────────────────── */}
-      <div className="block md:hidden">
+      <div className="block w-full max-w-full overflow-hidden md:hidden">
         {/* Category chips — scrollable row, no page overflow */}
         <div className="w-full max-w-full overflow-hidden">
-          <div className="-mx-1 mb-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1">
+          <div className="mb-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
             {categories.map((category) => {
               const isActive = category.id === activeCategory?.id;
               return (
@@ -377,7 +383,7 @@ export function BookingServicePicker({
                   key={category.id}
                   type="button"
                   onClick={() => setPreferredCategoryId(category.id)}
-                  className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-2 text-[12px] font-semibold transition-colors ${
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
                     isActive
                       ? "border-[#163A2B] bg-[#163A2B] text-[#FDF8EE]"
                       : "border-[#E3D7C5] bg-white text-[#6B4F2A]"
@@ -400,7 +406,7 @@ export function BookingServicePicker({
           </div>
         ) : (
           <div className="w-full max-w-full overflow-hidden">
-            <div className="grid w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
+            <div className="grid w-full max-w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
               {activeCategory.services.map((service) => (
                 <MobileServiceCard
                   key={service.id}

@@ -644,6 +644,29 @@
 
 ---
 
+### 2026-05-20 — Codex (BOOKING-MOBILE-SERVICE-GRID-001 — Mobile Booking Service Grid Patch)
+
+**Task:** Patch the public booking wizard service selection UI so mobile service cards remain in a compact responsive grid with no page-level horizontal overflow.
+
+**Files Changed:**
+- `src/components/public/booking-service-picker.tsx`
+  - Added stricter mobile card/grid containment (`w-full`, `min-w-0`, `max-w-full`, `overflow-hidden`).
+  - Kept the compact image-top mobile card with `aspect-[4/3]`, responsive `next/image` sizes, and meaningful service alt text.
+  - Constrained mobile category chip and loading skeleton rows so only the chip row scrolls horizontally.
+  - Preserved live service data, category filtering, selected service state, and desktop card layout.
+- `src/components/public/booking-wizard.tsx`
+  - Added public mobile `w-full max-w-full overflow-x-hidden` wrappers.
+  - Added `min-w-0` to the wizard content grid/main column to avoid layout-induced horizontal scroll.
+  - Preserved booking flow logic, sticky/fixed action controls, desktop layout, and the floating circular widget.
+
+**Verification:**
+- `pnpm type-check`: Passing.
+- `pnpm lint`: Passing.
+- `pnpm build`: Passing, 80 routes.
+- Browser smoke test on `/book`: 360px -> 2-column grid, 390px/430px -> 3-column grid, 520px -> 4-column grid, 768px/desktop -> desktop layout, all with document-level horizontal overflow `0`.
+
+---
+
 ### 2026-05-18 — Claude (BOOKING-PROVIDER-001 — Smart Provider Selection)
 
 **Task:** Improve booking wizard provider selection so staff are filtered by service, shown as a premium photo grid, and auto-assigned when only one qualified provider is available.

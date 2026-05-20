@@ -745,7 +745,10 @@ export function BookingWizard({
   }, [currentStepName, locationValid, preciseLocationRequired]);
 
   return (
-    <div className={mode === "public" ? "min-h-screen pt-14 md:pt-0" : ""} style={{ background: mode === "public" ? "#F7F3EB" : "transparent" }}>
+    <div
+      className={mode === "public" ? "min-h-screen w-full max-w-full overflow-x-hidden pt-14 md:pt-0" : ""}
+      style={{ background: mode === "public" ? "#F7F3EB" : "transparent" }}
+    >
       {mode === "public" && (
         <div className="relative hidden overflow-hidden pt-28 pb-12 md:block lg:pt-32 lg:pb-16">
           <div className="absolute inset-0">
@@ -785,8 +788,8 @@ export function BookingWizard({
         className={
           mode === "public"
             ? isTherapistStep
-              ? "mx-auto max-w-7xl px-4 pb-32 pt-7 md:px-8 md:py-10 lg:py-12"
-              : "mx-auto max-w-5xl px-4 pb-32 pt-7 md:px-6 md:py-10 lg:py-14"
+              ? "mx-auto w-full max-w-full overflow-x-hidden px-4 pb-32 pt-7 md:max-w-7xl md:px-8 md:py-10 md:overflow-visible lg:py-12"
+              : "mx-auto w-full max-w-full overflow-x-hidden px-4 pb-32 pt-7 md:max-w-5xl md:px-6 md:py-10 md:overflow-visible lg:py-14"
             : "mx-auto max-w-6xl py-2"
         }
       >
@@ -872,9 +875,9 @@ export function BookingWizard({
         )}
 
         {/* Content */}
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid min-w-0 gap-8 lg:grid-cols-3">
           {/* Main */}
-          <div className="lg:col-span-2">
+          <div className="min-w-0 lg:col-span-2">
             {currentStepName === "branch" && (
               <StepBranches
                 branches={branches}

@@ -159,3 +159,4 @@
 | 2026-05-14 | Logged BOOKING-WIZARD-UX-10.2 public booking wizard optimization | Track modern Places-only active booking path, compact category service picker, and qualified service-provider staff filtering | Codex |
 | 2026-05-15 | Logged STAFF-NICKNAME-001 staff/therapist nicknames | Track optional `staff.nickname`, public nickname-first booking display, and internal full-name-plus-nickname manager/CRM/owner displays | Codex |
 | 2026-05-15 | Logged DISPATCH-LIVE-001 manager dispatch live data wiring | Remove production mock dispatch data and connect `/manager/dispatch` to real branch-scoped Supabase dispatch query data | Codex |
+| 2026-05-20 | Logged BOOKING-MOBILE-SERVICE-GRID-001 mobile service grid patch | Keep public booking service cards compact on mobile, preserve desktop, and verify no page-level horizontal overflow | Codex |

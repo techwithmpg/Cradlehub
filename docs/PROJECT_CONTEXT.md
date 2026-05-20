@@ -187,3 +187,11 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Removed production dispatch mock data and fake map components, including the unused duplicate prototype dispatch folder.
 - Assignment and notification controls are disabled with clear copy until a real selector/action UI is intentionally connected.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; lint still reports the two pre-existing onboarding-form warnings.
+
+## Latest Agent Update (2026-05-20)
+
+- Completed `BOOKING-MOBILE-SERVICE-GRID-001`: patched the public booking wizard service selection step for compact mobile card grids.
+- Mobile service cards now stay inside bounded 2/3/4-column responsive grids with compact image, name, duration, price, and selected state.
+- Category chips remain horizontally scrollable only inside their own row, and the public booking shell now clips accidental horizontal overflow.
+- Booking data loading, category filtering, selected service logic, provider/date/details flow, desktop layout, and the floating circular widget were preserved.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; browser smoke checks covered 360px, 390px, 430px, 520px, 768px, and desktop widths with no document-level horizontal overflow.
