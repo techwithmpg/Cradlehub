@@ -1,87 +1,72 @@
-# HANDOFF — CRM-OPS-002A
+# HANDOFF — CRM-OPS-002B
 
 ## Date
 2026-05-21
 
 ## What Changed
 
-### Audit Document
-**File:** `docs/phase-2-shift-aware-availability-audit.md`
+### Nav Restructure
+**File:** `src/components/features/dashboard/nav-config.ts`
 
-Full technical audit covering:
-- Schedule foundation (`staff_schedules`, `schedule_overrides`, `blocked_times`)
-- Availability engine (`get_available_slots` RPC, `getAvailableSlots()` TypeScript chain)
-- CRM availability and schedule pages (what they actually show vs what CRM expects)
-- Dispatch readiness (`getAvailableBranchDrivers` and its gaps)
-- Staff capability mapping (`staff_services`, `staffTypeCanPerformService`)
-- Missing tables and schema constraints
-- Phase 2B–2D implementation plan
+- CRM / CSR-Head Main Operations: "Availability" now points to `/crm/availability` (live view)
+- CRM / CSR-Head Staff & Internal Work: added "Schedule Setup" → `/crm/staff-availability`
+- CSR-Staff has no Availability or Schedule Setup items (unchanged)
+
+### Schedule Setup Page Rename
+**File:** `src/app/(dashboard)/crm/staff-availability/page.tsx`
+- Page title changed from "Staff Availability" to "Schedule Setup"
+- Route unchanged (`/crm/staff-availability`)
+
+### Live Availability Query
+**File:** `src/lib/queries/crm-availability.ts`
+
+New function `getCrmAvailabilitySnapshot({ branchId, date, now? })`:
+- Calls `getDailySchedule()` + `getStaffByBranch()` in parallel
+- Builds `scheduleStatus` (`scheduled | off_today | no_schedule`) from override + schedule data
+- Builds `liveStatus` (`available_now | busy_now | off_today | no_schedule`) from active bookings
+- Derives `is_driver` and `is_service_provider` per staff
+- Returns typed `CrmAvailabilitySnapshot` with `staff[]` + `summary` counts
+- No schema changes, no RPC changes — safe Phase 2B only
+
+### Live Availability Page
+**File:** `src/app/(dashboard)/crm/availability/page.tsx`
+- Server component at `/crm/availability`
+- Uses `getManagerBranchId()` for branch resolution
+- Renders `CrmAvailabilitySummary` (6 stat cards) + `CrmAvailabilityClient` (tabbed board)
+
+### Availability Components
+**Directory:** `src/components/features/crm/availability/`
+- `crm-availability-summary.tsx` — 6 StatCards: Scheduled, Available, Busy, Off, No Schedule, Drivers Ready
+- `crm-availability-board.tsx` — grid rows: staff name/type | status dot | shift window | active booking
+- `crm-availability-client.tsx` — client tab bar: All Staff / Service Providers / Drivers / Schedule Issues
 
 ---
 
-## Critical Findings
+## Build / Verification
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing, 84 app routes (was 83)
 
-### 1 — `staff_schedules` cannot support opening + closing shifts
-UNIQUE constraint `(staff_id, day_of_week)` allows only **one row per staff per weekday**.  
-Adding `shift_type` and changing the constraint to `(staff_id, day_of_week, shift_type)` is required.  
-⚠️ This also requires updating the `get_available_slots` RPC — risk to public booking engine.
-
-### 2 — "Availability" nav item is mislabeled
-`/crm/staff-availability` renders `StaffSchedulePageClient` — a schedule setup editor.  
-The nav label should be "Schedule Setup", not "Availability".  
-A real live availability page at `/crm/availability` must be created.
-
-### 3 — No staff check-in system
-There is no `staff_attendance` or `staff_checkins` table.  
-`bookings.checked_in_at` exists but records **customer** check-in for a booking, not staff reporting for shift.  
-`schedule_health_checks.checked_in_staff_count` column exists but is always NULL (nothing populates it yet).
-
-### 4 — Driver readiness not schedule-aware
-`getAvailableBranchDrivers()` returns all active drivers regardless of schedule, day-off, or active trips.  
-CRM cannot surface "Driver ready vs unavailable today" without fixing this.
-
----
-
-## Phase 2B Plan (Next Step)
-
-**Safe — no schema changes, no engine changes:**
-
-1. Rename "Availability" nav label → "Schedule Setup" in `nav-config.ts` for all CRM roles
-2. Create new `/crm/availability` page using existing data:
-   - Summary cards: Scheduled Today, Off Today, Busy Now, Available Now, Drivers Ready
-   - Live Board: staff grid with shift window + current booking status
-   - Schedule Issues: staff with no schedule set for today
-   - Driver Readiness: driver-type staff only
-
-Data sources (all existing):
-- `getDailySchedule()` → who's working, their bookings, their blocks
-- `getStaffByBranch()` → full staff list for the branch
-- `bookings` with `status IN ('in_progress', 'confirmed')` → who is busy right now
-
-**Phase 2C — schema change (separate prompt, higher risk):**
-- Add `shift_type` to `staff_schedules` + update UNIQUE constraint
-- Update `get_available_slots` RPC to handle multiple schedule rows per staff
-
-**Phase 2D — new table (separate migration review):**
-- `staff_shift_checkins` table
-- Staff check-in/check-out server action
-- Wire check-in state into live availability query
+## Git
+- Commit: `6efd4fc` on `main`
+- Files changed: 7 (5 created, 2 modified)
 
 ---
 
 ## Do Not Touch
 - `get_available_slots` RPC
 - `getAvailableSlots()` in `src/lib/engine/availability.ts`
-- `staff_schedules` UNIQUE constraint (until Phase 2C prompt)
-- Public booking wizard
+- `staff_schedules` UNIQUE constraint
 
 ---
 
-## Build / Verification
-- `pnpm type-check`: ✅ Passing
-- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing, 83 app routes
+## Phase 2C Plan (Next — separate prompt, higher risk)
+- Add `shift_type` column to `staff_schedules`
+- Change UNIQUE constraint from `(staff_id, day_of_week)` to `(staff_id, day_of_week, shift_type)`
+- Update `get_available_slots` RPC to handle multiple schedule rows per staff per day
+- Risk: touches core booking engine — needs migration review
 
-## Git
-- Branch: `main` — no branch or worktree created
-- Audit only — no code, schema, or RLS changes
+## Phase 2D Plan (separate migration)
+- Add `staff_shift_checkins` table
+- Staff check-in/check-out server action
+- Wire check-in state into `getCrmAvailabilitySnapshot()` to surface physical presence
