@@ -43,7 +43,7 @@ type BranchServiceRow = Pick<
   services: ServiceRelation;
 };
 
-type StaffRow = {
+type StaffWithServicesRow = {
   id: string;
   full_name: string;
   tier: string;
@@ -53,17 +53,8 @@ type StaffRow = {
   is_head: boolean | null;
   nickname: string | null;
   avatar_url: string | null;
+  staff_services: { service_id: string }[] | null;
 };
-
-type LegacyStaffRow = Pick<
-  Database["public"]["Tables"]["staff"]["Row"],
-  "id" | "full_name" | "tier" | "is_active" | "system_role"
->;
-
-type StaffServiceRow = Pick<
-  Database["public"]["Tables"]["staff_services"]["Row"],
-  "staff_id" | "service_id"
->;
 
 function firstService(value: ServiceRelation): ServiceRow | null {
   if (!value) return null;
@@ -75,123 +66,17 @@ function firstCategory(value: CategoryRelation | undefined): CategoryRow | null 
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function isMissingStaffColumnError(message: string, columns: string[]): boolean {
-  const m = message.toLowerCase();
-  return columns.some(
-    (column) =>
-      m.includes(`column staff.${column} does not exist`) ||
-      m.includes(`column "${column}" does not exist`) ||
-      m.includes(`could not find the '${column}' column`)
-  );
-}
-
-async function getPublicStaffByBranch(branchId: string): Promise<StaffRow[]> {
+async function getPublicStaffByBranch(branchId: string): Promise<StaffWithServicesRow[]> {
   const supabase = createAdminClient();
-  const primary = await supabase
+  const { data, error } = await supabase
     .from("staff")
-    .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url")
+    .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url, staff_services(service_id)")
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
     .order("full_name");
-
-  if (!primary.error) {
-    return (primary.data ?? []) as StaffRow[];
-  }
-
-  if (isMissingStaffColumnError(primary.error.message, ["avatar_url"])) {
-    const fallback = await supabase
-      .from("staff")
-      .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname")
-      .eq("branch_id", branchId)
-      .eq("is_active", true)
-      .order("tier")
-      .order("full_name");
-
-    if (!fallback.error) {
-      return ((fallback.data ?? []) as Omit<StaffRow, "avatar_url">[]).map((member) => ({
-        ...member,
-        avatar_url: null,
-      })) as StaffRow[];
-    }
-
-    if (!isMissingStaffColumnError(fallback.error.message, ["nickname", "staff_type", "is_head"])) {
-      throw new Error(fallback.error.message);
-    }
-  }
-
-  if (isMissingStaffColumnError(primary.error.message, ["nickname", "avatar_url"])) {
-    const fallback = await supabase
-      .from("staff")
-      .select("id, full_name, tier, is_active, staff_type, system_role, is_head")
-      .eq("branch_id", branchId)
-      .eq("is_active", true)
-      .order("tier")
-      .order("full_name");
-
-    if (!fallback.error) {
-      return ((fallback.data ?? []) as Omit<StaffRow, "nickname" | "avatar_url">[]).map((member) => ({
-        ...member,
-        nickname: null,
-        avatar_url: null,
-      })) as StaffRow[];
-    }
-
-    if (!isMissingStaffColumnError(fallback.error.message, ["staff_type", "is_head"])) {
-      throw new Error(fallback.error.message);
-    }
-  }
-
-  if (isMissingStaffColumnError(primary.error.message, ["staff_type", "is_head", "nickname", "avatar_url"])) {
-    const fallback = await supabase
-      .from("staff")
-      .select("id, full_name, tier, is_active, system_role")
-      .eq("branch_id", branchId)
-      .eq("is_active", true)
-      .order("tier")
-      .order("full_name");
-
-    if (fallback.error) throw new Error(fallback.error.message);
-
-    return ((fallback.data ?? []) as LegacyStaffRow[]).map((member) => ({
-      ...member,
-      staff_type: null,
-      is_head: false,
-      nickname: null,
-      avatar_url: null,
-    })) as StaffRow[];
-  }
-
-  throw new Error(primary.error.message);
-}
-
-async function getStaffServiceRows(
-  staffIds: string[],
-  serviceIds: string[]
-): Promise<StaffServiceRow[]> {
-  if (staffIds.length === 0 || serviceIds.length === 0) return [];
-
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("staff_services")
-    .select("staff_id, service_id")
-    .in("staff_id", staffIds)
-    .in("service_id", serviceIds);
-
   if (error) throw new Error(error.message);
-  return (data ?? []) as StaffServiceRow[];
-}
-
-function groupServiceIdsByStaff(rows: StaffServiceRow[]): Map<string, string[]> {
-  const serviceIdsByStaff = new Map<string, string[]>();
-
-  for (const row of rows) {
-    const current = serviceIdsByStaff.get(row.staff_id) ?? [];
-    current.push(row.service_id);
-    serviceIdsByStaff.set(row.staff_id, current);
-  }
-
-  return serviceIdsByStaff;
+  return (data ?? []) as unknown as StaffWithServicesRow[];
 }
 
 async function canUseInhouseContext(): Promise<boolean> {
@@ -215,8 +100,12 @@ async function canUseInhouseContext(): Promise<boolean> {
 export async function GET(request: NextRequest) {
   const requestedBranchId = request.nextUrl.searchParams.get("branchId");
   const mode = request.nextUrl.searchParams.get("mode"); // "public" | "inhouse" | null
-  const publicOnly = mode === "inhouse" ? !(await canUseInhouseContext()) : true;
-  const rawBranches = (await getAllBranches()) as BranchRow[];
+
+  // Auth check and branch list are independent — resolve them in parallel.
+  const [publicOnly, rawBranches] = await Promise.all([
+    mode === "inhouse" ? canUseInhouseContext().then((ok) => !ok) : Promise.resolve(true),
+    getAllBranches() as Promise<BranchRow[]>,
+  ]);
 
   const branches = rawBranches.map((branch) => ({
     id: branch.id,
@@ -240,8 +129,6 @@ export async function GET(request: NextRequest) {
       : branches[0]!.id;
 
   const [rawBranchServices, rawStaff, bookingRules] = await Promise.all([
-    // Use the cached public variant when publicOnly=true (all public booking requests).
-    // Fall back to uncached for inhouse context (staff-facing, may include non-public services).
     publicOnly
       ? getBranchServicesPublicCached(selectedBranchId)
       : getBranchServices(selectedBranchId, { publicOnly: false }),
@@ -277,16 +164,21 @@ export async function GET(request: NextRequest) {
     });
 
   const serviceIds = branchServices.map((service) => service.serviceId);
-  const staffServiceRows = await getStaffServiceRows(
-    (rawStaff as StaffRow[]).map((member) => member.id),
-    serviceIds
+
+  // Build per-staff service maps from the embedded staff_services join — no extra round-trip.
+  const serviceIdsByStaff = new Map<string, string[]>(
+    rawStaff.map((member) => [
+      member.id,
+      (member.staff_services ?? []).map((ss) => ss.service_id),
+    ])
   );
-  const serviceIdsByStaff = groupServiceIdsByStaff(staffServiceRows);
   const serviceIdsWithStaffMappings = new Set(
-    staffServiceRows.map((row) => row.service_id)
+    rawStaff.flatMap((member) =>
+      (member.staff_services ?? []).map((ss) => ss.service_id)
+    )
   );
 
-  const staff = (rawStaff as StaffRow[])
+  const staff = rawStaff
     .filter((member) =>
       canActAsBookingServiceProvider(
         member,

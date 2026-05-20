@@ -37,13 +37,17 @@ export function NotificationBell({ role }: { role: string }) {
     getUnreadCountAction().then(setCount).catch(() => {});
   }, []);
 
-  // Refresh badge count periodically when closed
+  // Refresh badge count periodically when closed; pause while the tab is hidden.
   useEffect(() => {
     if (open) return;
-    const id = setInterval(() => {
-      getUnreadCountAction().then(setCount).catch(() => {});
-    }, 30_000);
-    return () => clearInterval(id);
+    const poll = () => { getUnreadCountAction().then(setCount).catch(() => {}); };
+    let id: ReturnType<typeof setInterval> | undefined;
+    const start = () => { id = setInterval(poll, 60_000); };
+    const stop  = () => { if (id !== undefined) { clearInterval(id); id = undefined; } };
+    const handleVisibility = () => { if (document.hidden) { stop(); } else { poll(); start(); } };
+    start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => { stop(); document.removeEventListener("visibilitychange", handleVisibility); };
   }, [open]);
 
   const toggleOpen = useCallback(async () => {

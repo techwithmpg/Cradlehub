@@ -5,7 +5,7 @@ import { getUnreadBookingNotificationIdsAction } from "@/lib/notifications/queri
 
 const PLAYED_KEY    = "cradlehub_sound_played_ids";
 const ENABLED_KEY   = "cradlehub_notification_sound_enabled";
-const POLL_INTERVAL = 30_000;
+const POLL_INTERVAL = 60_000;
 
 function readPlayedIds(): Set<string> {
   try {
@@ -92,16 +92,16 @@ export function BookingNotificationSound() {
     }).catch(() => {});
   }, []);
 
-  // Poll every 30s for IDs not yet played; chime once if any are new.
+  // Poll every 60s for IDs not yet played; chime once if any are new.
+  // Polling pauses while the tab is hidden to avoid unnecessary backend reads.
   useEffect(() => {
-    const timer = setInterval(async () => {
+    const poll = async () => {
       if (!isEnabled()) return;
       try {
         const ids    = await getUnreadBookingNotificationIdsAction();
         const played = readPlayedIds();
         const newIds = ids.filter((id) => !played.has(id));
         if (newIds.length === 0) return;
-
         if (readyRef.current && ctxRef.current) {
           playChime(ctxRef.current);
           newIds.forEach((id) => played.add(id));
@@ -109,8 +109,14 @@ export function BookingNotificationSound() {
         }
         // If AudioContext not yet unlocked, leave IDs unmarked so we retry next poll.
       } catch {}
-    }, POLL_INTERVAL);
-    return () => clearInterval(timer);
+    };
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const start = () => { timer = setInterval(poll, POLL_INTERVAL); };
+    const stop  = () => { if (timer !== undefined) { clearInterval(timer); timer = undefined; } };
+    const handleVisibility = () => { if (document.hidden) { stop(); } else { poll(); start(); } };
+    start();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => { stop(); document.removeEventListener("visibilitychange", handleVisibility); };
   }, []);
 
   return null;
