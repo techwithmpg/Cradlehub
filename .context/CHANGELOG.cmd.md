@@ -913,3 +913,25 @@
 **Notes:** Worked directly on `main`; no branch/worktree created. All 15 required CRM pages already existed — no placeholder pages needed. No scheduling/dispatch business logic changed. No new packages installed. No database or RLS changes.
 
 **Build Status:** ✅ Passing — 83 app routes
+
+---
+
+### 2026-05-21 — Claude Code
+
+**Task:** CRM-OPS-002A — Audited shift-aware schedule and availability foundation
+
+**Files Created:**
+- `docs/phase-2-shift-aware-availability-audit.md` — Technical audit covering schedule model, availability engine, CRM pages, dispatch readiness, staff capability mapping, and Phase 2B–2D implementation plan
+
+**Key Findings:**
+- `staff_schedules` UNIQUE `(staff_id, day_of_week)` blocks opening+closing shift support
+- `/crm/staff-availability` is a Schedule Setup editor mislabeled as "Availability"
+- No staff check-in/check-out table exists
+- `getAvailableBranchDrivers()` is not schedule-aware
+- Real `/crm/availability` live view can be built from existing data (no new tables needed for Phase 2B)
+
+**Roadmap Items Completed:** Phase 2A audit — shift-aware availability foundation
+
+**Notes:** Audit only. No new tables, no migrations, no engine changes, no UI rewrites. All findings documented in audit doc.
+
+**Build Status:** ✅ Passing — 83 app routes (no code changed)

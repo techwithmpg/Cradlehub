@@ -1,55 +1,81 @@
-# HANDOFF — CRM-OPS-001
+# HANDOFF — CRM-OPS-002A
 
 ## Date
 2026-05-21
 
 ## What Changed
 
-### CRM Landing Route
-**File:** `src/app/(dashboard)/crm/page.tsx`
+### Audit Document
+**File:** `docs/phase-2-shift-aware-availability-audit.md`
 
-Changed the CRM root redirect from `/crm/today` → `/crm/control`. CRM users now land directly in the main operations console instead of the "Today" summary page.
+Full technical audit covering:
+- Schedule foundation (`staff_schedules`, `schedule_overrides`, `blocked_times`)
+- Availability engine (`get_available_slots` RPC, `getAvailableSlots()` TypeScript chain)
+- CRM availability and schedule pages (what they actually show vs what CRM expects)
+- Dispatch readiness (`getAvailableBranchDrivers` and its gaps)
+- Staff capability mapping (`staff_services`, `staffTypeCanPerformService`)
+- Missing tables and schema constraints
+- Phase 2B–2D implementation plan
 
-### Grouped CRM Navigation
-**File:** `src/components/features/dashboard/nav-config.ts`
+---
 
-- Added `NavGroup` type: `{ label: string; items: NavItem[] }`.
-- Updated `WorkspaceNav`: `items` is now optional (`items?: NavItem[]`), new optional `groups?: NavGroup[]` field added.
-- Replaced the flat `CRM_NAV_ITEMS`, `CSR_HEAD_NAV_ITEMS`, `CSR_STAFF_NAV_ITEMS` arrays with grouped variants (`CRM_NAV_GROUPS`, `CSR_HEAD_NAV_GROUPS`, `CSR_STAFF_NAV_GROUPS`).
-- Owner, Manager, Staff, Driver, Utility remain flat (backward-compatible; no changes to their nav).
+## Critical Findings
 
-**CRM groups (5 categories):**
-1. **Main Operations** — Control, Live Map, Dispatch, Bookings, Schedule, Availability
-2. **Customer Management** — Customers, Repeats, Lapsed, Waitlist
-3. **Service & Resource Setup** — Services, Spaces
-4. **Staff & Internal Work** — Staff Applications, Notifications
-5. **Finance / End-of-day** — Reconciliation
+### 1 — `staff_schedules` cannot support opening + closing shifts
+UNIQUE constraint `(staff_id, day_of_week)` allows only **one row per staff per weekday**.  
+Adding `shift_type` and changing the constraint to `(staff_id, day_of_week, shift_type)` is required.  
+⚠️ This also requires updating the `get_available_slots` RPC — risk to public booking engine.
 
-Route mappings (existing routes used, new display labels):
-- "Live Map" → `/crm/live-operations`
-- "Availability" → `/crm/staff-availability`
-- "Spaces" → `/crm/spaces-rules`
+### 2 — "Availability" nav item is mislabeled
+`/crm/staff-availability` renders `StaffSchedulePageClient` — a schedule setup editor.  
+The nav label should be "Schedule Setup", not "Availability".  
+A real live availability page at `/crm/availability` must be created.
 
-### Sidebar Grouped Rendering
-**File:** `src/components/features/dashboard/sidebar.tsx`
+### 3 — No staff check-in system
+There is no `staff_attendance` or `staff_checkins` table.  
+`bookings.checked_in_at` exists but records **customer** check-in for a booking, not staff reporting for shift.  
+`schedule_health_checks.checked_in_staff_count` column exists but is always NULL (nothing populates it yet).
 
-- Extracted a `NavLink` helper component (handles icon, active state, accent bar, chevron).
-- `SidebarContent` now checks for `nav.groups`: if present, renders category labels + items per group; otherwise falls back to flat `nav.items`.
-- Added `CalendarClock` to lucide imports and `ICON_MAP` (was referenced in existing nav config but never rendered).
-- Mobile hamburger + overlay still work for CRM routes; all grouped labels and links are scrollable on mobile.
+### 4 — Driver readiness not schedule-aware
+`getAvailableBranchDrivers()` returns all active drivers regardless of schedule, day-off, or active trips.  
+CRM cannot surface "Driver ready vs unavailable today" without fixing this.
 
-## What Still Needs Phase 2
+---
 
-- **Live data wiring** for: Repeats, Lapsed, Waitlist, Reconciliation (currently functional placeholder pages)
-- **Dispatch business logic** — auto-driver assignment, live ETA push
-- **Availability real-time view** — checked-in/busy/off-duty staff status
-- **Scheduling engine** — shift requests, branch support, auto-schedule
-- **CRM-specific RLS policies** — currently relying on `manager`-level policies for some routes
+## Phase 2B Plan (Next Step)
 
-## Files That Matter
-- `src/components/features/dashboard/nav-config.ts` — CRM grouped nav config
-- `src/components/features/dashboard/sidebar.tsx` — grouped rendering
-- `src/app/(dashboard)/crm/page.tsx` — landing redirect
+**Safe — no schema changes, no engine changes:**
+
+1. Rename "Availability" nav label → "Schedule Setup" in `nav-config.ts` for all CRM roles
+2. Create new `/crm/availability` page using existing data:
+   - Summary cards: Scheduled Today, Off Today, Busy Now, Available Now, Drivers Ready
+   - Live Board: staff grid with shift window + current booking status
+   - Schedule Issues: staff with no schedule set for today
+   - Driver Readiness: driver-type staff only
+
+Data sources (all existing):
+- `getDailySchedule()` → who's working, their bookings, their blocks
+- `getStaffByBranch()` → full staff list for the branch
+- `bookings` with `status IN ('in_progress', 'confirmed')` → who is busy right now
+
+**Phase 2C — schema change (separate prompt, higher risk):**
+- Add `shift_type` to `staff_schedules` + update UNIQUE constraint
+- Update `get_available_slots` RPC to handle multiple schedule rows per staff
+
+**Phase 2D — new table (separate migration review):**
+- `staff_shift_checkins` table
+- Staff check-in/check-out server action
+- Wire check-in state into live availability query
+
+---
+
+## Do Not Touch
+- `get_available_slots` RPC
+- `getAvailableSlots()` in `src/lib/engine/availability.ts`
+- `staff_schedules` UNIQUE constraint (until Phase 2C prompt)
+- Public booking wizard
+
+---
 
 ## Build / Verification
 - `pnpm type-check`: ✅ Passing
@@ -58,3 +84,4 @@ Route mappings (existing routes used, new display labels):
 
 ## Git
 - Branch: `main` — no branch or worktree created
+- Audit only — no code, schema, or RLS changes

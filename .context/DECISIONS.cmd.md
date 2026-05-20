@@ -98,3 +98,32 @@ CRM nav items use existing route paths (`/crm/live-operations`, `/crm/staff-avai
 **Rationale:**
 - `/crm/control` is the main action-oriented operations center — the natural landing page for front-desk staff starting a shift.
 - `/crm/today` remains accessible via the previous bookmark or direct navigation; it's not removed.
+
+### DEC-PHASE2-001: Schedule and Availability are separate concepts
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+Phase 2 treats Schedule and Availability as distinct concepts:
+- **Schedule** = planned staff work pattern (shift times, day-off, opening/closing assignment)
+- **Availability** = live operational truth (who can be assigned right now)
+
+**Rationale:**
+Audit confirmed the current system conflates both under one table/page, which produces a page labeled "Availability" that actually shows schedule setup. Separating them enables both a proper schedule management workflow and a real-time CRM operations view.
+
+### DEC-PHASE2-002: Phase 2B builds Live Availability from existing data only
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+Phase 2B creates the `/crm/availability` live view using existing tables only (`getDailySchedule`, `bookings`, `staff`). No new schema is introduced in Phase 2B.
+
+**Rationale:**
+The audit found enough existing data to produce a meaningful live availability view without schema changes. Keeping Phase 2B schema-free reduces risk and lets CRM staff get value immediately. Schema changes (shift_type, check-in) are deferred to Phase 2C/2D with dedicated migration prompts.
+
+### DEC-PHASE2-003: opening/closing shift schema change deferred to Phase 2C
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+Adding `shift_type` to `staff_schedules` and changing the UNIQUE constraint is deferred to Phase 2C. Phase 2C also requires updating `get_available_slots` RPC.
+
+**Rationale:**
+The RPC is the heart of the public booking engine. Any change must be backward-compatible (default `shift_type = 'single'` must behave identically to today). Rushing this risks breaking the booking wizard.
