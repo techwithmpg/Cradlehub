@@ -59,7 +59,7 @@ const CRM_NAV_GROUPS: NavGroup[] = [
       { label: "Dispatch",     href: "/crm/dispatch",          icon: "Truck" },
       { label: "Bookings",     href: "/crm/bookings",          icon: "ClipboardList" },
       { label: "Schedule",     href: "/crm/schedule",          icon: "CalendarDays" },
-      { label: "Availability", href: "/crm/staff-availability", icon: "UserCheck" },
+      { label: "Availability", href: "/crm/availability",       icon: "UserCheck" },
     ],
   },
   {
@@ -81,8 +81,9 @@ const CRM_NAV_GROUPS: NavGroup[] = [
   {
     label: "Staff & Internal Work",
     items: [
-      { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
-      { label: "Notifications",      href: "/crm/notifications",       icon: "Bell" },
+      { label: "Schedule Setup",     href: "/crm/staff-availability",  icon: "CalendarClock" },
+      { label: "Staff Applications", href: "/crm/staff-applications",  icon: "ClipboardCheck" },
+      { label: "Notifications",      href: "/crm/notifications",        icon: "Bell" },
     ],
   },
   {
@@ -102,7 +103,7 @@ const CSR_HEAD_NAV_GROUPS: NavGroup[] = [
       { label: "Live Map",     href: "/crm/live-operations",   icon: "MapPin" },
       { label: "Bookings",     href: "/crm/bookings",          icon: "ClipboardList" },
       { label: "Schedule",     href: "/crm/schedule",          icon: "CalendarDays" },
-      { label: "Availability", href: "/crm/staff-availability", icon: "UserCheck" },
+      { label: "Availability", href: "/crm/availability",       icon: "UserCheck" },
     ],
   },
   {
@@ -121,8 +122,9 @@ const CSR_HEAD_NAV_GROUPS: NavGroup[] = [
   {
     label: "Staff & Internal Work",
     items: [
-      { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
-      { label: "Notifications",      href: "/crm/notifications",       icon: "Bell" },
+      { label: "Schedule Setup",     href: "/crm/staff-availability",  icon: "CalendarClock" },
+      { label: "Staff Applications", href: "/crm/staff-applications",  icon: "ClipboardCheck" },
+      { label: "Notifications",      href: "/crm/notifications",        icon: "Bell" },
     ],
   },
   {

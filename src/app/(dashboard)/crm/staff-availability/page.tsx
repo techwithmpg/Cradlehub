@@ -28,7 +28,7 @@ export default async function CrmStaffAvailabilityPage() {
   return (
     <section className="space-y-5">
       <PageHeader
-        title="Staff Availability"
+        title="Schedule Setup"
         description="Set weekly working hours, day overrides, and blocked time for each staff member. These settings control when staff appear as bookable in the scheduling engine."
       />
 
