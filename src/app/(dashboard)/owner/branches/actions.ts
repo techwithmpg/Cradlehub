@@ -48,7 +48,7 @@ async function requireOwnerOrBranchManager(branchId: string) {
   if (!me) return null;
   if (me.system_role === "owner") return supabase;
   if (
-    ["manager", "assistant_manager", "store_manager"].includes(me.system_role) &&
+    ["manager", "assistant_manager", "store_manager", "crm", "csr_head"].includes(me.system_role) &&
     me.branch_id === branchId
   ) return supabase;
   return null;
@@ -189,6 +189,8 @@ export async function removeBranchServiceAction(branchId: string, serviceId: str
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
   revalidatePath("/owner/services");
+  revalidatePath("/manager/services");
+  revalidatePath("/crm/services");
   logBusinessEvent("branch_service.removed", { branchId, serviceId });
   return { success: true };
 }
@@ -220,6 +222,8 @@ export async function addBranchServiceAction(
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath("/owner/branches");
   revalidatePath("/owner/services");
+  revalidatePath("/manager/services");
+  revalidatePath("/crm/services");
   logBusinessEvent("branch_service.added", { branchId, serviceId });
   return { success: true };
 }
@@ -245,6 +249,8 @@ export async function updateBranchServiceEligibilityAction(
   const { revalidatePath } = await import("next/cache");
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath(`/owner/branches/${branchId}`);
+  revalidatePath("/manager/services");
+  revalidatePath("/crm/services");
   logBusinessEvent("branch_service.eligibility_updated", { branchId, serviceId, availableInSpa, availableHomeService });
   return { success: true };
 }

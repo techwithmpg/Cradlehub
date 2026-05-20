@@ -1,51 +1,64 @@
-# HANDOFF - BOOKING-HOME-SERVICES-001
+# HANDOFF — STAFF-MOTION-001
 
 ## Date
 2026-05-20
 
 ## What Changed
 
-### Public booking branch-service query
-**File:** `src/lib/queries/branches.ts`
+### Motion component library (all new)
+**Folder:** `src/components/shared/motion/`
 
-- `getBranchServicesPublicCached()` now starts with the current branch-service row shape used by admin service management.
-- The public query now preserves `available_in_spa`, `available_home_service`, `visibility`, branch sort order, public text metadata, branch custom price, and branch custom duration.
-- The query filters public visibility after normalizing `visibility` and legacy `booking_visibility`, so current and older schema shapes remain supported.
-- The public API drops rows whose embedded base service is inactive, keeping branch and base service enablement aligned.
-- The last-resort minimal fallback remains only for older databases that do not have the service eligibility columns.
+Five small client components added:
 
-### Public booking API mapping
-**File:** `src/app/api/public/booking-context/route.ts`
+| File | Purpose |
+|---|---|
+| `premium-action-overlay.tsx` | Full-screen cream/blur overlay shown while a staff action awaits server response |
+| `premium-success-toast.tsx` | Fixed bottom-centre slide-up toast (success / warning / error variants) |
+| `premium-inline-spinner.tsx` | 13px white circular spinner for use inside green primary buttons |
+| `live-pulse-indicator.tsx` | Pulsing dot + label for active travel or session states |
+| `motion-status-dot.tsx` | Animated stepper dot: done=green, active=gold-pulse, pending=muted, warning=amber |
 
-- Service duration now uses `branch_services.custom_duration_minutes` when present, then falls back to the base service duration.
-- Existing branch custom price behavior was preserved.
+### BookingProgressActions patch
+**File:** `src/components/features/staff-portal/booking-progress-actions.tsx`
 
-### Admin visibility and cache invalidation
-**Files:** `src/app/(dashboard)/owner/branches/actions.ts`, `src/lib/cache/cache-tags.ts`
+- Added `actionFeedback` state (`idle | loading | success | error`) and `getProgressFeedback()` helper mapping each `BookingProgressStatus` to contextual loading/success copy.
+- `handleAdvance()` now:
+  1. Sets `type: "loading"` → overlay opens.
+  2. Awaits server action.
+  3. On success: sets `type: "success"` → toast opens → `router.refresh()` → clears after 3 s.
+  4. On error: sets `type: "error"` → toast opens (replaces previous `alert()`) → clears after 4 s.
+- Primary button: shows `<PremiumInlineSpinner />` + "Updating…" when pending; icon + label otherwise. Added `active:scale-[0.98]` press effect.
+- No-show button: same press effect; muted-tone inline spinner when pending.
+- Compact stepper dots replaced with `<MotionStatusDot>` (same visual size, now animates).
+- `<LivePulseIndicator>` rendered alongside `<TrackingTimer>` for `travel_started` (green) and `session_started` (gold).
 
-- Visibility updates now write to `branch_services.visibility` first, with a fallback to legacy `booking_visibility`.
-- Service/settings cache tag invalidation now uses `{ expire: 0 }` so the next public booking request sees updated branch-service settings instead of serving stale cache.
+### CSS keyframes
+**File:** `src/app/globals.css` (append-only, bottom of file)
 
-### Local types
-**File:** `src/types/supabase.ts`
+- `cradle-premium-pulse` — used by `MotionStatusDot` active ring and `LivePulseIndicator` ring.
+- `cradle-soft-slide-up` — used by `PremiumSuccessToast` entrance (includes `translateX(-50%)` to stay centred over `left:50%`).
+- `cradle-check-pop` — used by the icon in `PremiumSuccessToast`.
+- `cradle-card-glow` — ambient glow, not yet wired up; available for future use.
 
-- Local `branch_services` generated type shape now includes the live metadata columns used by admin and public booking queries.
-
-### Verification hygiene
-**Files:** `eslint.config.mjs`, `.gitignore`
-
-- `.codex-artifacts/**` is ignored by ESLint so temporary browser/debug artifacts are not scanned as application source.
-- `.codex-artifacts/` is ignored by Git so local verification artifacts do not remain as untracked noise.
+## What Was NOT Changed
+- `src/lib/bookings/progress.ts` — lifecycle state machine untouched.
+- `src/app/(dashboard)/staff-portal/actions.ts` — server actions untouched.
+- All booking cards, layout components, and portal pages — untouched.
+- No DB schema changes. No new npm packages.
 
 ## Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 80 app routes
 
-- `pnpm type-check`: Passing.
-- `pnpm lint`: Passing.
-- `pnpm build`: Passing, 80 app routes.
-- Public API smoke for branch `c1000000-0000-0000-0000-000000000001`: 6 services with `availableHomeService=true`, 3 with `availableHomeService=false`.
-- Public `/book` smoke: HTTP 200 OK.
-
-## Notes
-
-- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are still absent; current project docs live under `docs/`.
-- No UI redesign, booking step order, provider/date/payment/confirmation behavior, floating widget, hardcoded services, or dummy service data was introduced.
+## Manual Test Checklist
+1. Open `/staff-portal` → find a home-service booking.
+2. Click **Start Travel** → button shows spinner, overlay appears, success toast shows, status updates.
+3. Click **Mark Arrived** → same feedback.
+4. Verify `LivePulseIndicator` (green) appears next to timer in `travel_started` state.
+5. Click **Start Session** → verify gold `LivePulseIndicator` appears.
+6. Click **Complete** → success toast confirms.
+7. Find an in-spa booking → **Check In** → **Start Session** → **Complete** — all with overlay + toast.
+8. Test **Mark No Show** — amber warning toast should appear (not an alert dialog).
+9. Simulate a network error → error toast appears (no browser alert).
+10. Confirm no layout shift or visual redesign anywhere on the portal.

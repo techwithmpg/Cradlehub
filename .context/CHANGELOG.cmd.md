@@ -777,3 +777,31 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing, 80 routes
+
+---
+
+### 2026-05-20 — Claude (STAFF-MOTION-001 — Premium Micro-Animations for Staff Portal Booking Progress Actions)
+
+**Task:** Add tiny premium interaction feedback to the existing staff portal booking progress actions without changing the booking lifecycle, business logic, or UI layout.
+
+**Files Created:**
+- `src/components/shared/motion/premium-action-overlay.tsx` — reusable full-screen cream translucent overlay with forest-green spinner and short action title/description; shown while a server action is in-flight.
+- `src/components/shared/motion/premium-success-toast.tsx` — fixed bottom-center slide-up toast for success (green), warning (amber, used for no-show), and error (red) feedback; auto-dismissed by parent via setTimeout.
+- `src/components/shared/motion/premium-inline-spinner.tsx` — 13px circular spinner with white borders for use inside the green primary action button.
+- `src/components/shared/motion/live-pulse-indicator.tsx` — small animated pulse dot + label; used when booking is in `travel_started` (green) or `session_started` (gold) states.
+- `src/components/shared/motion/motion-status-dot.tsx` — animated status dot replacing the plain colored span in the compact stepper: done=green, active=gold pulse, pending=muted, warning=amber.
+
+**Files Modified:**
+- `src/components/features/staff-portal/booking-progress-actions.tsx` — added `actionFeedback` state, `getProgressFeedback()` helper, `PremiumActionOverlay` during server action, `PremiumSuccessToast`/error toast replacing `alert()`, inline spinner in buttons, `active:scale-[0.98]` press effect, `MotionStatusDot` in stepper, `LivePulseIndicator` next to timers for active travel/session states.
+- `src/app/globals.css` — appended four named keyframes: `cradle-premium-pulse` (pulse ring for active dots), `cradle-soft-slide-up` (toast entrance), `cradle-check-pop` (icon pop-in), `cradle-card-glow` (ambient glow, available for future use).
+
+**Notes:**
+- No booking lifecycle logic was changed. `progress.ts` and `actions.ts` are untouched.
+- No UI redesign: card layouts, desktop/mobile split, and booking card structure unchanged.
+- No new npm packages installed. Animations use Tailwind `animate-spin` and custom CSS keyframes only.
+- Existing staff portal flow (home-service and in-spa lifecycles, no-show) remains intact.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 80 app routes

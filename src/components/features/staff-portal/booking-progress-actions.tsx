@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { Car, MapPin, Play, CheckCircle2, ClipboardCheck, UserX } from "lucide-react";
@@ -13,6 +13,11 @@ import {
 } from "@/lib/bookings/progress";
 import type { StaffPortalBooking } from "./types";
 import { TrackingTimer, TimestampLabel } from "./tracking-timer";
+import { PremiumActionOverlay } from "@/components/shared/motion/premium-action-overlay";
+import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-toast";
+import { PremiumInlineSpinner } from "@/components/shared/motion/premium-inline-spinner";
+import { LivePulseIndicator } from "@/components/shared/motion/live-pulse-indicator";
+import { MotionStatusDot } from "@/components/shared/motion/motion-status-dot";
 
 const ACTION_CONFIG: Record<
   BookingProgressStatus,
@@ -55,6 +60,76 @@ const ACTION_CONFIG: Record<
   },
 };
 
+type ActionFeedback = {
+  type: "idle" | "loading" | "success" | "error";
+  title: string;
+  description?: string;
+  variant?: "success" | "warning" | "error";
+};
+
+type ProgressFeedback = {
+  loadingTitle: string;
+  loadingDescription: string;
+  successTitle: string;
+  successDescription: string;
+  variant?: "success" | "warning" | "error";
+};
+
+function getProgressFeedback(status: BookingProgressStatus): ProgressFeedback {
+  switch (status) {
+    case "travel_started":
+      return {
+        loadingTitle: "Starting travel...",
+        loadingDescription: "We're notifying the customer and front desk.",
+        successTitle: "Travel started",
+        successDescription: "Customer and front desk have been notified.",
+      };
+    case "arrived":
+      return {
+        loadingTitle: "Confirming arrival...",
+        loadingDescription: "We're updating the booking timeline.",
+        successTitle: "Arrival confirmed",
+        successDescription: "The booking timeline has been updated.",
+      };
+    case "checked_in":
+      return {
+        loadingTitle: "Checking in...",
+        loadingDescription: "We're updating the in-spa booking status.",
+        successTitle: "Checked in",
+        successDescription: "The guest has been marked as checked in.",
+      };
+    case "session_started":
+      return {
+        loadingTitle: "Starting session...",
+        loadingDescription: "We're syncing the service timeline.",
+        successTitle: "Session started",
+        successDescription: "The service is now in progress.",
+      };
+    case "completed":
+      return {
+        loadingTitle: "Completing session...",
+        loadingDescription: "We're finalizing the service record.",
+        successTitle: "Session completed",
+        successDescription: "The service record has been finalized.",
+      };
+    case "no_show":
+      return {
+        loadingTitle: "Marking no-show...",
+        loadingDescription: "We're updating the booking record.",
+        successTitle: "No-show marked",
+        successDescription: "The booking has been updated.",
+        variant: "warning",
+      };
+    default:
+      return {
+        loadingTitle: "Updating status...",
+        loadingDescription: "Please wait while we sync this booking.",
+        successTitle: "Status updated",
+        successDescription: "The booking has been updated.",
+      };
+  }
+}
+
 function getStepperStages(bookingType: string): BookingProgressStatus[] {
   if (bookingType === "home_service") {
     return ["not_started", "travel_started", "arrived", "session_started", "completed"];
@@ -71,6 +146,11 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const { isOffline } = useNetworkStatus();
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback>({
+    type: "idle",
+    title: "",
+  });
+
   const currentStatus = booking.booking_progress_status;
   const nextStatus = getNextBookingProgressStatus({
     bookingType: (booking.delivery_type ?? "in_spa") as "home_service" | "in_spa",
@@ -80,12 +160,34 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
 
   function handleAdvance(status: BookingProgressStatus) {
     if (isPending || isOffline) return;
+    const feedback = getProgressFeedback(status);
+    setActionFeedback({
+      type: "loading",
+      title: feedback.loadingTitle,
+      description: feedback.loadingDescription,
+    });
     startTransition(async () => {
-      const result = await updateBookingProgressAction({ bookingId: booking.id, nextStatus: status });
+      const result = await updateBookingProgressAction({
+        bookingId: booking.id,
+        nextStatus: status,
+      });
       if (!result.ok) {
-        alert(result.message + (isOffline ? " Check your connection and try again." : ""));
+        setActionFeedback({
+          type: "error",
+          title: "Update failed",
+          description: result.message + (isOffline ? " Check your connection and try again." : ""),
+          variant: "error",
+        });
+        setTimeout(() => setActionFeedback({ type: "idle", title: "" }), 4000);
       } else {
+        setActionFeedback({
+          type: "success",
+          title: feedback.successTitle,
+          description: feedback.successDescription,
+          variant: feedback.variant ?? "success",
+        });
         router.refresh();
+        setTimeout(() => setActionFeedback({ type: "idle", title: "" }), 3000);
       }
     });
   }
@@ -95,6 +197,21 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+      {/* Premium loading overlay */}
+      <PremiumActionOverlay
+        open={actionFeedback.type === "loading"}
+        title={actionFeedback.title}
+        description={actionFeedback.description}
+      />
+
+      {/* Success / error toast */}
+      <PremiumSuccessToast
+        open={actionFeedback.type === "success" || actionFeedback.type === "error"}
+        title={actionFeedback.title}
+        description={actionFeedback.description}
+        variant={actionFeedback.variant}
+      />
+
       {/* Compact stepper */}
       <div
         style={{
@@ -110,21 +227,16 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
           const stageIndex = i + 1;
           const isDone = currentIndex >= stageIndex || isTerminal;
           const isCurrent = currentIndex === stageIndex && !isTerminal;
+          const dotState = isDone
+            ? "done"
+            : isCurrent
+            ? "active"
+            : currentStatus === "no_show"
+            ? "warning"
+            : "pending";
           return (
             <div key={stage} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  backgroundColor: isDone
-                    ? "var(--cs-success)"
-                    : isCurrent
-                    ? "var(--cs-staff-accent)"
-                    : "var(--cs-border-strong)",
-                  display: "inline-block",
-                }}
-              />
+              <MotionStatusDot state={dotState} />
               <span
                 style={{
                   fontWeight: isCurrent ? 600 : 400,
@@ -145,7 +257,10 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
 
       {/* Status-specific info */}
       {currentStatus === "travel_started" && booking.travel_started_at && (
-        <TrackingTimer startTimestamp={booking.travel_started_at} label="Travel active" />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <LivePulseIndicator label="Travel active" />
+          <TrackingTimer startTimestamp={booking.travel_started_at} label="Travel active" />
+        </div>
       )}
       {currentStatus === "checked_in" && booking.checked_in_at && (
         <TimestampLabel timestamp={booking.checked_in_at} label="Checked in" />
@@ -154,7 +269,10 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
         <TimestampLabel timestamp={booking.arrived_at} label="Arrived" />
       )}
       {currentStatus === "session_started" && booking.session_started_at && (
-        <TrackingTimer startTimestamp={booking.session_started_at} label="Session active" />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <LivePulseIndicator label="Session active" tone="gold" />
+          <TrackingTimer startTimestamp={booking.session_started_at} label="Session active" />
+        </div>
       )}
       {currentStatus === "completed" && booking.session_completed_at && (
         <TimestampLabel timestamp={booking.session_completed_at} label="Completed" />
@@ -169,6 +287,7 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
           <button
             onClick={() => handleAdvance(nextStatus)}
             disabled={isPending || isOffline}
+            className="active:scale-[0.98]"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -183,13 +302,23 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
               opacity: isPending || isOffline ? 0.6 : 1,
               backgroundColor: "var(--cs-staff-accent)",
               color: "#fff",
-              transition: "all var(--cs-duration) var(--cs-ease)",
+              transition:
+                "transform var(--cs-duration) var(--cs-ease), opacity var(--cs-duration) var(--cs-ease)",
               minHeight: 40,
               width: "100%",
             }}
           >
-            {ACTION_CONFIG[nextStatus].icon}
-            {isPending ? "Updating…" : ACTION_CONFIG[nextStatus].label}
+            {isPending ? (
+              <>
+                <PremiumInlineSpinner />
+                Updating…
+              </>
+            ) : (
+              <>
+                {ACTION_CONFIG[nextStatus].icon}
+                {ACTION_CONFIG[nextStatus].label}
+              </>
+            )}
           </button>
         )}
 
@@ -199,6 +328,7 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
             <button
               onClick={() => handleAdvance("no_show")}
               disabled={isPending || isOffline}
+              className="active:scale-[0.98]"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -213,13 +343,33 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
                 opacity: isPending || isOffline ? 0.6 : 1,
                 backgroundColor: "var(--cs-surface)",
                 color: "var(--cs-text-muted)",
-                transition: "all var(--cs-duration) var(--cs-ease)",
+                transition:
+                  "transform var(--cs-duration) var(--cs-ease), opacity var(--cs-duration) var(--cs-ease)",
                 minHeight: 40,
                 width: "100%",
               }}
             >
-              <UserX size={14} />
-              {isPending ? "Updating…" : "Mark No Show"}
+              {isPending ? (
+                <>
+                  <span
+                    className="animate-spin shrink-0"
+                    style={{
+                      display: "inline-block",
+                      width: 13,
+                      height: 13,
+                      borderRadius: "50%",
+                      border: "2px solid rgba(156,136,120,0.25)",
+                      borderTopColor: "var(--cs-text-muted)",
+                    }}
+                  />
+                  Updating…
+                </>
+              ) : (
+                <>
+                  <UserX size={14} />
+                  Mark No Show
+                </>
+              )}
             </button>
           )}
       </div>
@@ -229,8 +379,14 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: currentStatus === "no_show" ? "var(--cs-warning-text)" : "var(--cs-success-text)",
-            backgroundColor: currentStatus === "no_show" ? "var(--cs-warning-bg)" : "var(--cs-success-bg)",
+            color:
+              currentStatus === "no_show"
+                ? "var(--cs-warning-text)"
+                : "var(--cs-success-text)",
+            backgroundColor:
+              currentStatus === "no_show"
+                ? "var(--cs-warning-bg)"
+                : "var(--cs-success-bg)",
             padding: "6px 12px",
             borderRadius: "var(--cs-r-sm)",
             display: "inline-flex",
