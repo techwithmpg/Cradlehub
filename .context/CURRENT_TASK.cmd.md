@@ -1,31 +1,32 @@
-# CURRENT TASK: MANAGER-STAFF-AVAILABILITY-001
+# CURRENT TASK: SCHEDULE-ADJUSTMENT-001
 
 ## Status
 Completed on 2026-05-20.
 
 ## Description
-Created a production-ready manager page at `/manager/staff-availability` for setting weekly working hours, day overrides, day off, and blocked time per staff member. The booking engine already respects the underlying tables — this page gives the manager full visibility and control.
+Added manual individual staff schedule adjustment control to the existing manager/CRM schedule workflow.
 
 ## Files Created
-- `src/app/(dashboard)/manager/staff-availability/page.tsx`
+- `src/lib/actions/staff-schedule-adjustments.ts`
+- `src/components/features/schedule/manual-staff-schedule-adjustment.tsx`
 
 ## Files Modified
-- `src/lib/queries/staff.ts` — added `StaffAvailabilityItem` type and `getStaffWithAvailability(branchId)` (parallel fetch with 90-day window, schema fallback)
-- `src/components/features/staff-schedule/staff-weekly-hours-editor.tsx` — added `onSave?` prop
-- `src/components/features/staff-schedule/staff-day-overrides-editor.tsx` — added `onSave?` prop
-- `src/components/features/staff-schedule/staff-block-time-editor.tsx` — added `onSave?` prop
-- `src/components/features/staff-schedule/staff-schedule-detail-panel.tsx` — added `onSave?` and threaded down
-- `src/components/features/staff-schedule/staff-schedule-page-client.tsx` — wired PremiumSuccessToast
-- `src/components/features/dashboard/nav-config.ts` — added "Availability" to manager nav
-- `src/app/(dashboard)/manager/staff/actions.ts` — revalidatePath for new route in all 4 actions
+- `src/components/features/schedule/schedule-workspace.tsx`
+- `src/components/features/schedule/schedule-board-panel.tsx`
+- `src/components/features/schedule/schedule-staff-mode.tsx`
+- `src/lib/queries/schedule.ts`
+- `src/lib/permissions.ts`
+- `.context/CHANGELOG.cmd.md`
+- `.context/HANDOFF.cmd.md`
+- `.context/ERRORS.cmd.md`
+- `docs/PROJECT_CONTEXT.md`
 
 ## Verification
-- `pnpm type-check`: ✅ Passing (0 errors)
-- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing, 82 app routes
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing
+- `pnpm build`: Passing, 83 app routes
 
 ## Notes
-- Route at `/manager/staff-availability` avoids conflict with `/manager/staff/[staffId]` dynamic segment.
-- All staff visible (active + inactive) for full availability setup before go-live.
-- Booking engine untouched — engine already reads `staff_schedules`, `schedule_overrides`, `blocked_times`.
-- No new npm packages. No DB changes.
+- The control appears inside schedule staff mode rather than creating a new scheduling page.
+- Shared server action enforces authenticated user, role permission, branch scope, and target staff branch membership.
+- Existing availability engine already respects `schedule_overrides`, `blocked_times`, `staff_schedules`, and bookings, so no engine rewrite was needed.

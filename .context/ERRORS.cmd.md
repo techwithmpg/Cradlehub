@@ -124,3 +124,12 @@ _No errors logged yet._
   - Resolution: branch-service invalidation now calls `revalidateTag(tag, { expire: 0 })`.
 - A rerun of `pnpm lint` scanned a temporary Chrome profile under `.codex-artifacts/chrome-home-services` and failed on bundled extension JavaScript.
   - Resolution: added `.codex-artifacts/**` to ESLint global ignores and `.codex-artifacts/` to `.gitignore`, matching the existing generated-output ignore pattern.
+
+## 2026-05-20 - SCHEDULE-ADJUSTMENT-001 execution notes
+
+- Root `ROADMAP.md` and `PROJECT_CONTEXT.md` requested by the prompt are absent in this repo.
+  - Resolution: followed the repo's existing convention from prior error notes and read `docs/ROADMAP.md` and `docs/PROJECT_CONTEXT.md`.
+- `pnpm type-check` initially failed inside the sandbox because TypeScript could not write `tsconfig.tsbuildinfo` (`EPERM`).
+  - Resolution: reran `pnpm type-check` with approved permissions; it passed.
+- The first post-change `pnpm build` attempt hit generated `.next` chunk load errors after earlier sandbox/permission-interrupted builds.
+  - Resolution: verified `E:\cradlehub\.next`, deleted only that generated build output, reran the production build from a clean `.next`, and it passed.

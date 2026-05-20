@@ -143,6 +143,11 @@ export function canViewSchedule(role: string): boolean {
   return BOOKING_OPERATIONS.includes(role);
 }
 
+/** Can manually adjust one staff member's availability */
+export function canAdjustStaffSchedule(role: string): boolean {
+  return MANAGERS.includes(role) || role === "crm" || isCsrHead(role);
+}
+
 /** Can manage services (owner/manager only) */
 export function canManageServices(role: string): boolean {
   return MANAGERS.includes(role);

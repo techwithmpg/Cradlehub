@@ -5,16 +5,20 @@ import { ChevronLeft, ChevronRight, Clock, Coffee, Car, Ban, CalendarDays } from
 import { ScheduleStaffProfileCard } from "./schedule-staff-profile-card";
 import { ScheduleStaffSummaryCards } from "./schedule-staff-summary-cards";
 import { ScheduleStaffDayList } from "./schedule-staff-day-list";
+import { ManualStaffScheduleAdjustment } from "./manual-staff-schedule-adjustment";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
 type ScheduleStaffModeProps = {
+  branchId: string;
+  date: string;
   staffRows: DailyScheduleStaffRow[];
   branchResources: ResourceRow[];
   selectedBookingId: string | null;
   onBookingClick: (bookingId: string) => void;
+  onScheduleAdjusted?: (feedback: { title: string; description?: string; variant?: "success" | "error" }) => void;
 };
 
 function timeToMinutes(time: string): number {
@@ -32,10 +36,13 @@ function formatMinutes(mins: number): string {
 }
 
 export function ScheduleStaffMode({
+  branchId,
+  date,
   staffRows,
   branchResources,
   selectedBookingId,
   onBookingClick,
+  onScheduleAdjusted,
 }: ScheduleStaffModeProps) {
   const [selectedStaffIndex, setSelectedStaffIndex] = useState(0);
 
@@ -199,6 +206,14 @@ export function ScheduleStaffMode({
         <ScheduleStaffProfileCard staff={selectedStaff} branchResources={branchResources} />
         <ScheduleStaffSummaryCards staff={selectedStaff} />
       </div>
+
+      <ManualStaffScheduleAdjustment
+        key={`${selectedStaff.staff_id}-${date}`}
+        branchId={branchId}
+        date={date}
+        staff={selectedStaff}
+        onAdjusted={onScheduleAdjusted}
+      />
 
       {/* Today's Schedule */}
       <div>

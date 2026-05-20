@@ -855,3 +855,32 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 82 app routes
+
+---
+
+### 2026-05-20 — Codex (SCHEDULE-ADJUSTMENT-001 — Manual Staff Schedule Adjustment)
+
+**Task:** Added a compact manual staff schedule adjustment control to the existing Manager/CRM schedule workflow.
+
+**Files Created:**
+- `src/lib/actions/staff-schedule-adjustments.ts` — shared `adjustStaffScheduleAction` with RBAC, branch scope, date override/block CRUD, and schedule/bookings/booking-page revalidation.
+- `src/components/features/schedule/manual-staff-schedule-adjustment.tsx` — compact staff-mode adjustment UI for custom hours, day off, block time, clear override, and remove block.
+
+**Files Changed:**
+- `src/components/features/schedule/schedule-workspace.tsx` — added schedule-adjustment toast feedback and refresh after successful adjustments.
+- `src/components/features/schedule/schedule-board-panel.tsx` — threaded adjustment feedback into staff view mode.
+- `src/components/features/schedule/schedule-staff-mode.tsx` — added the manual adjustment section below the selected staff summary.
+- `src/lib/queries/schedule.ts` — enriched daily schedule rows with current date override and real blocked-time IDs for safe removal.
+- `src/lib/permissions.ts` — added `canAdjustStaffSchedule()` for owner/manager/assistant manager/store manager/CRM/CSR head schedule edits.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `docs/PROJECT_CONTEXT.md` — updated agent context.
+
+**Notes:**
+- Manager/CRM can now adjust one staff member's availability from `/manager/schedule` and `/crm/schedule` staff mode.
+- Weekly schedules remain intact; custom hours/day off are date-specific overrides.
+- Booking availability and assignment continue to use the existing availability engine, which already prioritizes overrides/blocks before weekly schedules.
+- No database schema changes, new packages, UI redesign, or scheduling engine rewrite.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing
+- `pnpm build`: ✅ Passing, 83 app routes

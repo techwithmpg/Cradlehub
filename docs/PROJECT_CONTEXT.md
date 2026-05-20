@@ -204,3 +204,12 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - ESLint and Git now ignore `.codex-artifacts/**` so temporary verification artifacts are not scanned or listed as source files.
 - No booking UI, step order, provider/date/payment/confirmation behavior, floating widget, hardcoded services, or dummy data was changed.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; API smoke confirmed 6 Home-eligible public services and 3 non-Home services for the Cradle branch.
+
+## Latest Agent Update (2026-05-20)
+
+- Completed `SCHEDULE-ADJUSTMENT-001`: added manual individual staff availability adjustments inside the existing `/manager/schedule` and `/crm/schedule` Staff view.
+- Added shared `adjustStaffScheduleAction` with RBAC, branch-scope checks, target-staff branch validation, date override upsert/delete, blocked-time insert/delete, and route revalidation.
+- Added a compact Manual Adjustment section for custom hours, day off, blocked time, clearing overrides, and removing blocks without redesigning the schedule page.
+- Daily schedule rows now expose the current date override and real blocked-time IDs so remove actions are precise.
+- Existing booking availability/assignment engine was left intact because it already respects `schedule_overrides`, `blocked_times`, weekly `staff_schedules`, and bookings.
+- Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; build renders 83 app routes.

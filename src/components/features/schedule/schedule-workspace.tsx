@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { ScheduleToolbar } from "./schedule-toolbar";
 import { ScheduleKpiCards } from "./schedule-kpi-cards";
 import { ScheduleBoardPanel } from "./schedule-board-panel";
 import { ScheduleDetailsPanel } from "./schedule-details-panel";
 import { ScheduleAlertsPanel } from "./schedule-alerts-panel";
 import { ScheduleBookingHoverCard, type BookingHoverPreview } from "./schedule-booking-hover-card";
+import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-toast";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { ScheduleViewMode } from "./schedule-mode-switcher";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
@@ -110,6 +112,7 @@ export function ScheduleWorkspace({
   statusAction,
   paymentAction,
 }: ScheduleWorkspaceProps) {
+  const router = useRouter();
   const [staffSearch, setStaffSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -117,6 +120,11 @@ export function ScheduleWorkspace({
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ScheduleViewMode>("day");
   const [hoveredPreview, setHoveredPreview] = useState<BookingHoverPreview | null>(null);
+  const [adjustmentToast, setAdjustmentToast] = useState<{
+    title: string;
+    description?: string;
+    variant: "success" | "error";
+  } | null>(null);
 
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -211,6 +219,21 @@ export function ScheduleWorkspace({
     }
   }, [hoveredPreview]);
 
+  const handleScheduleAdjusted = useCallback(
+    (feedback: { title: string; description?: string; variant?: "success" | "error" }) => {
+      setAdjustmentToast({
+        title: feedback.title,
+        description: feedback.description,
+        variant: feedback.variant ?? "success",
+      });
+      window.setTimeout(() => setAdjustmentToast(null), 3500);
+      if ((feedback.variant ?? "success") === "success") {
+        router.refresh();
+      }
+    },
+    [router]
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Header */}
@@ -259,6 +282,7 @@ export function ScheduleWorkspace({
           onViewModeChange={setViewMode}
           onHoverEnter={handleHoverEnter}
           onHoverLeave={handleHoverLeave}
+          onScheduleAdjusted={handleScheduleAdjusted}
         />
 
         {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
@@ -292,6 +316,13 @@ export function ScheduleWorkspace({
           onMouseLeave={handleHoverCardMouseLeave}
         />
       )}
+
+      <PremiumSuccessToast
+        open={adjustmentToast !== null}
+        title={adjustmentToast?.title ?? ""}
+        description={adjustmentToast?.description}
+        variant={adjustmentToast?.variant}
+      />
     </div>
   );
 }

@@ -1,64 +1,79 @@
-# HANDOFF — MANAGER-STAFF-AVAILABILITY-001
+# HANDOFF — SCHEDULE-ADJUSTMENT-001
 
 ## Date
 2026-05-20
 
 ## What Changed
 
-### New page: Manager Staff Availability
-**Route:** `/manager/staff-availability`
-**File:** `src/app/(dashboard)/manager/staff-availability/page.tsx`
+### Shared Manual Adjustment Action
+**File:** `src/lib/actions/staff-schedule-adjustments.ts`
 
-Server component. Gets manager's `branchId` via `getManagerBranchId()`, fetches staff + availability data via `getStaffWithAvailability(branchId)`, renders `PageHeader` + `StaffSchedulePageClient`. Shows an `Alert` on data-load failure (no crash).
+Added `adjustStaffScheduleAction(input)` with support for:
+- `working_hours` — upserts a date-specific `schedule_overrides` row with custom hours.
+- `day_off` — upserts a date-specific day-off override.
+- `blocked_time` — inserts a `blocked_times` row.
+- `remove_override` — deletes the staff/date override.
+- `remove_block` — deletes one blocked-time row after validating staff/date ownership.
 
-### New query: `getStaffWithAvailability`
-**File:** `src/lib/queries/staff.ts`
+The action verifies:
+- Authenticated active staff actor.
+- Role via `canAdjustStaffSchedule()` (`owner`, manager variants, `crm`, `csr_head`).
+- Non-owner branch scope.
+- Target staff belongs to the submitted branch.
 
-Exports `StaffAvailabilityItem` type and `getStaffWithAvailability(branchId)` function. Features:
-- Fetches **all staff** (active + inactive) for a branch
-- Parallel fetch of `staff_schedules`, `schedule_overrides`, `blocked_times` via `Promise.all`
-- Overrides and blocked times scoped to **today → today + 90 days**
-- Graceful fallback if DB migration for `staff_type`/`is_head`/`nickname` not yet applied
+After success it revalidates:
+`/manager/schedule`, `/crm/schedule`, `/manager/bookings`, `/crm/bookings`, `/manager`, `/crm`, `/manager/staff-availability`, `/crm/staff-availability`, `/staff-portal`, `/staff-portal/schedule`, and `/book`.
 
-### Premium feedback wiring
-- `StaffWeeklyHoursEditor`, `StaffDayOverridesEditor`, `StaffBlockTimeEditor` — each gained optional `onSave?: () => void` prop called after successful server action
-- `StaffScheduleDetailPanel` — accepts `onSave?` and passes it to the active editor tab
-- `StaffSchedulePageClient` — `handleSave` callback (useCallback) sets staff name + triggers `PremiumSuccessToast` for 3.5 s when any editor saves
+### Schedule UI Integration
+**File:** `src/components/features/schedule/manual-staff-schedule-adjustment.tsx`
 
-### Nav update
-Added to `MANAGER_NAV_ITEMS` (after "Staff"):
-```ts
-{ label: "Availability", href: "/manager/staff-availability", icon: "CalendarClock" }
-```
+Added compact control inside the existing schedule staff-mode flow. It supports:
+- Custom hours
+- Off today
+- Block time
+- Clear override
+- Remove block
 
-### Server action revalidation
-`src/app/(dashboard)/manager/staff/actions.ts` — all 4 actions now call:
-```ts
-revalidatePath("/manager/staff-availability");
-```
-in addition to the existing `revalidatePath("/manager/staff")`.
+It uses the existing motion spinner/toast components and does not redesign the schedule page.
+
+### Staff Mode Wiring
+**Files:**
+- `src/components/features/schedule/schedule-workspace.tsx`
+- `src/components/features/schedule/schedule-board-panel.tsx`
+- `src/components/features/schedule/schedule-staff-mode.tsx`
+
+The schedule workspace now shows success/error toast feedback and refreshes route data after successful manual adjustments. Staff mode renders the manual adjustment section below the selected staff profile/summary.
+
+### Daily Schedule Data
+**File:** `src/lib/queries/schedule.ts`
+
+Daily schedule rows now include:
+- `current_override` for the selected staff/date.
+- `blocks[].id` from `blocked_times`, so remove-block targets the real row.
+
+The existing `get_daily_schedule` RPC remains untouched.
+
+### Permissions
+**File:** `src/lib/permissions.ts`
+
+Added `canAdjustStaffSchedule()` to centralize manual schedule adjustment authorization.
 
 ## What Was NOT Changed
-- Booking engine (`src/lib/engine/availability.ts`) — untouched
-- Booking lifecycle logic (`src/lib/bookings/progress.ts`) — untouched
-- Staff portal, CRM, owner workspace — untouched (except nav-config already updated in CRM-NAV-001)
-- No DB schema changes. No new npm packages.
-- Editor components keep their existing inline banner feedback alongside the new toast
+- No new schedule page.
+- No database schema changes.
+- No new packages.
+- No booking engine rewrite.
+- Existing weekly schedule editors and `/manager/staff-availability`/`/crm/staff-availability` remain intact.
 
 ## Verification
-- `pnpm type-check`: ✅ Passing (0 errors)
-- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing, 82 app routes
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing
+- `pnpm build`: Passing, 83 app routes
 
-## Manual Test Checklist
-1. Log in as a manager → sidebar shows **"Availability"** nav item below "Staff"
-2. Click **Availability** → page loads, shows all branch staff in a table
-3. Search by name → list filters correctly
-4. Filter by "Not scheduled" → shows only unscheduled staff
-5. Click **Manage** on a staff row → detail panel slides in from the right
-6. **Weekly Hours tab**: click "Set" on a day → set hours → click Save → inline "Schedule saved" banner appears + bottom toast "Saved — Availability updated for [name]."
-7. **Day Overrides tab**: add an override → toast fires; delete override → toast fires
-8. **Block Time tab**: add a block → toast fires; delete a block → toast fires
-9. Close the panel → page refreshes data via `router.refresh()`
-10. Filter by "Scheduled" → staff with any active schedule day appears
-11. Verify booking wizard still respects availability (book a slot outside a staff member's hours — they should not appear)
+## Manual Test Focus
+1. Open `/manager/schedule`, switch to Staff view, choose a staff member.
+2. Set Off today and confirm booking/provider availability no longer offers that staff/date.
+3. Clear override and confirm normal weekly schedule returns.
+4. Add a 2 PM-3 PM block and confirm that slot is unavailable while later slots can remain available.
+5. Repeat from `/crm/schedule` with branch-scoped CRM/CSR head account.
+6. Confirm cross-branch edits fail server-side.
