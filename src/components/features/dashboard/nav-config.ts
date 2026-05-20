@@ -4,10 +4,16 @@ export type NavItem = {
   icon: string; // Lucide icon name
 };
 
+export type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
 export type WorkspaceNav = {
   role: string;
   label: string;
-  items: NavItem[];
+  items?: NavItem[];
+  groups?: NavGroup[];
 };
 
 const OWNER_NAV_ITEMS: NavItem[] = [
@@ -41,50 +47,119 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Settings", href: "/manager/settings", icon: "Settings" },
 ];
 
-const CRM_NAV_ITEMS: NavItem[] = [
-  { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
-  { label: "Control", href: "/crm/control", icon: "Monitor" },
-  { label: "Live Map", href: "/crm/live-operations", icon: "MapPin" },
-  { label: "Dispatch", href: "/crm/dispatch", icon: "Truck" },
-  { label: "Customers", href: "/crm/customers", icon: "Users" },
-  { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
-  { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
-  { label: "Availability", href: "/crm/staff-availability", icon: "CalendarClock" },
-  { label: "Services", href: "/crm/services", icon: "Sparkles" },
-  { label: "Spaces", href: "/crm/spaces-rules", icon: "Building2" },
-  { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
-  { label: "Repeats", href: "/crm/repeats", icon: "Heart" },
-  { label: "Lapsed", href: "/crm/lapsed", icon: "ClockAlert" },
-  { label: "Waitlist", href: "/crm/waitlist", icon: "UserPlus" },
-  { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
-  { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
+// ── CRM / front-desk grouped navigation ──────────────────────────────────────
+
+const CRM_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Main Operations",
+    items: [
+      { label: "Control",      href: "/crm/control",          icon: "Monitor" },
+      { label: "Live Map",     href: "/crm/live-operations",   icon: "MapPin" },
+      { label: "Dispatch",     href: "/crm/dispatch",          icon: "Truck" },
+      { label: "Bookings",     href: "/crm/bookings",          icon: "ClipboardList" },
+      { label: "Schedule",     href: "/crm/schedule",          icon: "CalendarDays" },
+      { label: "Availability", href: "/crm/staff-availability", icon: "UserCheck" },
+    ],
+  },
+  {
+    label: "Customer Management",
+    items: [
+      { label: "Customers", href: "/crm/customers", icon: "Users" },
+      { label: "Repeats",   href: "/crm/repeats",   icon: "Heart" },
+      { label: "Lapsed",    href: "/crm/lapsed",    icon: "ClockAlert" },
+      { label: "Waitlist",  href: "/crm/waitlist",  icon: "UserPlus" },
+    ],
+  },
+  {
+    label: "Service & Resource Setup",
+    items: [
+      { label: "Services", href: "/crm/services",    icon: "Sparkles" },
+      { label: "Spaces",   href: "/crm/spaces-rules", icon: "Building2" },
+    ],
+  },
+  {
+    label: "Staff & Internal Work",
+    items: [
+      { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
+      { label: "Notifications",      href: "/crm/notifications",       icon: "Bell" },
+    ],
+  },
+  {
+    label: "Finance / End-of-day",
+    items: [
+      { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
+    ],
+  },
 ];
 
-const CSR_HEAD_NAV_ITEMS: NavItem[] = [
-  { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
-  { label: "Control", href: "/crm/control", icon: "Monitor" },
-  { label: "Live Map", href: "/crm/live-operations", icon: "MapPin" },
-  { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
-  { label: "Customers", href: "/crm/customers", icon: "Users" },
-  { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
-  { label: "Availability", href: "/crm/staff-availability", icon: "CalendarClock" },
-  { label: "Services", href: "/crm/services", icon: "Sparkles" },
-  { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
-  { label: "Waitlist", href: "/crm/waitlist", icon: "UserPlus" },
-  { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
-  { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
+const CSR_HEAD_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Main Operations",
+    items: [
+      { label: "Control",      href: "/crm/control",           icon: "Monitor" },
+      { label: "Live Map",     href: "/crm/live-operations",   icon: "MapPin" },
+      { label: "Bookings",     href: "/crm/bookings",          icon: "ClipboardList" },
+      { label: "Schedule",     href: "/crm/schedule",          icon: "CalendarDays" },
+      { label: "Availability", href: "/crm/staff-availability", icon: "UserCheck" },
+    ],
+  },
+  {
+    label: "Customer Management",
+    items: [
+      { label: "Customers", href: "/crm/customers", icon: "Users" },
+      { label: "Waitlist",  href: "/crm/waitlist",  icon: "UserPlus" },
+    ],
+  },
+  {
+    label: "Service & Resource Setup",
+    items: [
+      { label: "Services", href: "/crm/services", icon: "Sparkles" },
+    ],
+  },
+  {
+    label: "Staff & Internal Work",
+    items: [
+      { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
+      { label: "Notifications",      href: "/crm/notifications",       icon: "Bell" },
+    ],
+  },
+  {
+    label: "Finance / End-of-day",
+    items: [
+      { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
+    ],
+  },
 ];
 
-const CSR_STAFF_NAV_ITEMS: NavItem[] = [
-  { label: "Today", href: "/crm/today", icon: "LayoutDashboard" },
-  { label: "Control", href: "/crm/control", icon: "Monitor" },
-  { label: "Live Map", href: "/crm/live-operations", icon: "MapPin" },
-  { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
-  { label: "Customers", href: "/crm/customers", icon: "Users" },
-  { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
-  { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
-  { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
-  { label: "Notifications", href: "/crm/notifications", icon: "Bell" },
+const CSR_STAFF_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Main Operations",
+    items: [
+      { label: "Control",  href: "/crm/control",   icon: "Monitor" },
+      { label: "Live Map", href: "/crm/live-operations", icon: "MapPin" },
+      { label: "Bookings", href: "/crm/bookings",   icon: "ClipboardList" },
+      { label: "Schedule", href: "/crm/schedule",   icon: "CalendarDays" },
+    ],
+  },
+  {
+    label: "Customer Management",
+    items: [
+      { label: "Customers", href: "/crm/customers", icon: "Users" },
+    ],
+  },
+  {
+    label: "Staff & Internal Work",
+    items: [
+      { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
+      { label: "Notifications",      href: "/crm/notifications",       icon: "Bell" },
+    ],
+  },
+  {
+    label: "Finance / End-of-day",
+    items: [
+      { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
+    ],
+  },
 ];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
@@ -120,17 +195,17 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
   crm: {
     role: "crm",
     label: "CRM",
-    items: CRM_NAV_ITEMS,
+    groups: CRM_NAV_GROUPS,
   },
   csr_head: {
     role: "csr_head",
     label: "CSR Head",
-    items: CSR_HEAD_NAV_ITEMS,
+    groups: CSR_HEAD_NAV_GROUPS,
   },
   csr_staff: {
     role: "csr_staff",
     label: "CSR Staff",
-    items: CSR_STAFF_NAV_ITEMS,
+    groups: CSR_STAFF_NAV_GROUPS,
   },
   staff: {
     role: "staff",

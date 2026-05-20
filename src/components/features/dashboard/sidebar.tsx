@@ -4,18 +4,18 @@ import Link            from "next/link";
 import { usePathname } from "next/navigation";
 import { useState }    from "react";
 import {
-  LayoutDashboard, CalendarDays, Building2, Users, Sparkles,
+  LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
   UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
   Menu, X, TrendingUp, BookOpen, Clock, UserCheck, Activity,
   ChevronRight, Truck, Wrench, Monitor,
   MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
 } from "lucide-react";
-import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole } from "./nav-config";
+import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole, type NavGroup, type NavItem } from "./nav-config";
 import { isCsr } from "@/lib/permissions";
 import { BrandLogo } from "@/components/shared/brand-logo";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
-  LayoutDashboard, CalendarDays, Building2, Users, Sparkles,
+  LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
   UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
   TrendingUp, BookOpen, Clock, UserCheck, Activity, Truck, Wrench, Monitor,
   MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
@@ -94,6 +94,59 @@ const WORKSPACE_META: Record<string, {
 };
 
 import { UserAvatar } from "@/components/shared/user-avatar";
+
+type NavLinkProps = {
+  item:     NavItem;
+  pathname: string;
+  accent:   string;
+  onNav?:   () => void;
+};
+
+function NavLink({ item, pathname, accent, onNav }: NavLinkProps) {
+  const Icon          = ICON_MAP[item.icon];
+  const isRootSection = ["/manager", "/owner", "/crm", "/staff-portal", "/driver", "/utility", "/dev"].includes(item.href);
+  const isActive      = isRootSection
+    ? pathname === item.href
+    : pathname === item.href || pathname.startsWith(item.href + "/");
+  return (
+    <Link
+      href={item.href}
+      onClick={onNav}
+      style={{
+        display:         "flex",
+        alignItems:      "center",
+        gap:             9,
+        padding:         "8px 10px",
+        borderRadius:    "var(--cs-r-sm)",
+        marginBottom:    2,
+        fontSize:        13,
+        fontWeight:      isActive ? 500 : 400,
+        color:           isActive ? "var(--cs-text-inverse)" : "var(--cs-sidebar-text)",
+        backgroundColor: isActive ? "var(--cs-sidebar-active)" : "transparent",
+        textDecoration:  "none",
+        transition:      "background-color var(--cs-duration) var(--cs-ease), color var(--cs-duration) var(--cs-ease)",
+        position:        "relative",
+      }}
+    >
+      {isActive && (
+        <div style={{
+          position:     "absolute",
+          left:         0,
+          top:          "25%",
+          bottom:       "25%",
+          width:        2.5,
+          borderRadius: 2,
+          background:   accent,
+        }} />
+      )}
+      {Icon && <Icon size={15} strokeWidth={isActive ? 2.25 : 1.75} />}
+      <span style={{ flex: 1 }}>{item.label}</span>
+      {isActive && (
+        <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--cs-sidebar-muted)", flexShrink: 0 }} />
+      )}
+    </Link>
+  );
+}
 
 type SidebarProps = {
   role:        string;
@@ -223,78 +276,31 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
         </div>
       </div>
 
-      {/* Nav section label */}
-      <div style={{
-        padding:       "2px 16px 6px",
-        fontSize:      9.5,
-        fontWeight:    600,
-        letterSpacing: "0.1em",
-        textTransform: "uppercase",
-        color:         "var(--cs-sidebar-muted)",
-      }}>
-        Navigation
-      </div>
-
-      {/* Nav items */}
-      <nav style={{ flex: 1, padding: "0 8px" }}>
-        {nav.items.map(item => {
-          const Icon          = ICON_MAP[item.icon];
-          const isRootSection = ["/manager", "/owner", "/crm", "/staff-portal", "/driver", "/utility", "/dev"].includes(item.href);
-          const isActive      = isRootSection
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNav}
-              style={{
-                display:         "flex",
-                alignItems:      "center",
-                gap:             9,
-                padding:         "8px 10px",
-                borderRadius:    "var(--cs-r-sm)",
-                marginBottom:    2,
-                fontSize:        13,
-                fontWeight:      isActive ? 500 : 400,
-                color:           isActive ? "var(--cs-text-inverse)" : "var(--cs-sidebar-text)",
-                backgroundColor: isActive ? "var(--cs-sidebar-active)" : "transparent",
-                textDecoration:  "none",
-                transition:      "background-color var(--cs-duration) var(--cs-ease), color var(--cs-duration) var(--cs-ease)",
-                position:        "relative",
-              }}
-            >
-              {isActive && (
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: "0 8px", overflowY: "auto" }}>
+        {nav.groups
+          ? nav.groups.map((group: NavGroup) => (
+              <div key={group.label} style={{ marginBottom: 4 }}>
                 <div style={{
-                  position:     "absolute",
-                  left:         0,
-                  top:          "25%",
-                  bottom:       "25%",
-                  width:        2.5,
-                  borderRadius: 2,
-                  background:   meta.accent,
-                }} />
-              )}
-
-              {Icon && (
-                <Icon
-                  size={15}
-                  strokeWidth={isActive ? 2.25 : 1.75}
-                />
-              )}
-
-              <span style={{ flex: 1 }}>{item.label}</span>
-
-              {isActive && (
-                <ChevronRight
-                  size={12}
-                  strokeWidth={2}
-                  style={{ color: "var(--cs-sidebar-muted)", flexShrink: 0 }}
-                />
-              )}
-            </Link>
-          );
-        })}
+                  padding:       "8px 8px 4px",
+                  fontSize:      9.5,
+                  fontWeight:    600,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color:         "var(--cs-sidebar-muted)",
+                  whiteSpace:    "nowrap",
+                }}>
+                  {group.label}
+                </div>
+                {group.items.map((item: NavItem) => (
+                  <NavLink key={item.href} item={item} pathname={pathname} accent={meta.accent} onNav={onNav} />
+                ))}
+              </div>
+            ))
+          : (nav.items ?? []).map((item: NavItem) => (
+              <NavLink key={item.href} item={item} pathname={pathname} accent={meta.accent} onNav={onNav} />
+            ))
+        }
       </nav>
 
       {/* Bottom – user */}

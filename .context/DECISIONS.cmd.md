@@ -66,3 +66,35 @@
 - Prevents one operational event from creating multiple urgent notifications.
 - Keeps work discovery inside the relevant workspace/module instead of pushing users toward a notification page.
 - Preserves existing notification UI and RLS while giving future booking, dispatch, payment, and room-assignment workflows a safer central entry point.
+
+### DEC-CRM-001: Use existing route paths in CRM nav (not spec-suggested aliases)
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+CRM nav items use existing route paths (`/crm/live-operations`, `/crm/staff-availability`, `/crm/spaces-rules`) with new display labels ("Live Map", "Availability", "Spaces") rather than creating `/crm/live-map`, `/crm/availability`, `/crm/spaces` redirect pages.
+
+**Rationale:**
+- All required pages already exist; no need for redirect indirection.
+- Fewer files, less routing complexity, same result for users.
+- Active route highlighting works correctly against existing routes.
+
+### DEC-CRM-002: Keep owner/manager/staff nav flat, group only CRM roles
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+`WorkspaceNav` supports both `items` (flat) and `groups` (categorized). Only `crm`, `csr_head`, and `csr_staff` use grouped nav. All other workspaces remain flat.
+
+**Rationale:**
+- CRM has 15 items across 5 operational domains — grouping is essential for usability.
+- Owner/Manager/Staff have fewer, homogeneous items where grouping adds no value.
+- Backward-compatible: no changes to owner, manager, or staff sidebar behavior.
+
+### DEC-CRM-003: /crm root redirects to /crm/control (not /crm/today)
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+`/crm` now redirects to `/crm/control` (the live operations console) instead of `/crm/today`.
+
+**Rationale:**
+- `/crm/control` is the main action-oriented operations center — the natural landing page for front-desk staff starting a shift.
+- `/crm/today` remains accessible via the previous bookmark or direct navigation; it's not removed.

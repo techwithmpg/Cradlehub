@@ -1,32 +1,26 @@
-# CURRENT TASK: SCHEDULE-ADJUSTMENT-001
+# CURRENT TASK: CRM-OPS-001
 
 ## Status
-Completed on 2026-05-20.
+DONE — Completed on 2026-05-21.
+
+## Task ID
+CRM-OPS-001
 
 ## Description
-Added manual individual staff schedule adjustment control to the existing manager/CRM schedule workflow.
+Exposed complete categorized CRM operations navbar and fixed CRM landing route.
 
-## Files Created
-- `src/lib/actions/staff-schedule-adjustments.ts`
-- `src/components/features/schedule/manual-staff-schedule-adjustment.tsx`
+## Agent
+Claude Code
 
-## Files Modified
-- `src/components/features/schedule/schedule-workspace.tsx`
-- `src/components/features/schedule/schedule-board-panel.tsx`
-- `src/components/features/schedule/schedule-staff-mode.tsx`
-- `src/lib/queries/schedule.ts`
-- `src/lib/permissions.ts`
-- `.context/CHANGELOG.cmd.md`
-- `.context/HANDOFF.cmd.md`
-- `.context/ERRORS.cmd.md`
-- `docs/PROJECT_CONTEXT.md`
+## Branch
+main
+
+## Files Changed
+- `src/components/features/dashboard/nav-config.ts` — Added NavGroup type; replaced flat CRM/CSR nav items with grouped sections (5 categories × 3 CRM roles)
+- `src/components/features/dashboard/sidebar.tsx` — Added NavLink helper, grouped nav rendering, CalendarClock icon
+- `src/app/(dashboard)/crm/page.tsx` — Changed redirect from /crm/today to /crm/control
 
 ## Verification
-- `pnpm type-check`: Passing
-- `pnpm lint`: Passing
-- `pnpm build`: Passing, 83 app routes
-
-## Notes
-- The control appears inside schedule staff mode rather than creating a new scheduling page.
-- Shared server action enforces authenticated user, role permission, branch scope, and target staff branch membership.
-- Existing availability engine already respects `schedule_overrides`, `blocked_times`, `staff_schedules`, and bookings, so no engine rewrite was needed.
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 83 app routes

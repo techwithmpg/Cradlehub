@@ -1,79 +1,60 @@
-# HANDOFF — SCHEDULE-ADJUSTMENT-001
+# HANDOFF — CRM-OPS-001
 
 ## Date
-2026-05-20
+2026-05-21
 
 ## What Changed
 
-### Shared Manual Adjustment Action
-**File:** `src/lib/actions/staff-schedule-adjustments.ts`
+### CRM Landing Route
+**File:** `src/app/(dashboard)/crm/page.tsx`
 
-Added `adjustStaffScheduleAction(input)` with support for:
-- `working_hours` — upserts a date-specific `schedule_overrides` row with custom hours.
-- `day_off` — upserts a date-specific day-off override.
-- `blocked_time` — inserts a `blocked_times` row.
-- `remove_override` — deletes the staff/date override.
-- `remove_block` — deletes one blocked-time row after validating staff/date ownership.
+Changed the CRM root redirect from `/crm/today` → `/crm/control`. CRM users now land directly in the main operations console instead of the "Today" summary page.
 
-The action verifies:
-- Authenticated active staff actor.
-- Role via `canAdjustStaffSchedule()` (`owner`, manager variants, `crm`, `csr_head`).
-- Non-owner branch scope.
-- Target staff belongs to the submitted branch.
+### Grouped CRM Navigation
+**File:** `src/components/features/dashboard/nav-config.ts`
 
-After success it revalidates:
-`/manager/schedule`, `/crm/schedule`, `/manager/bookings`, `/crm/bookings`, `/manager`, `/crm`, `/manager/staff-availability`, `/crm/staff-availability`, `/staff-portal`, `/staff-portal/schedule`, and `/book`.
+- Added `NavGroup` type: `{ label: string; items: NavItem[] }`.
+- Updated `WorkspaceNav`: `items` is now optional (`items?: NavItem[]`), new optional `groups?: NavGroup[]` field added.
+- Replaced the flat `CRM_NAV_ITEMS`, `CSR_HEAD_NAV_ITEMS`, `CSR_STAFF_NAV_ITEMS` arrays with grouped variants (`CRM_NAV_GROUPS`, `CSR_HEAD_NAV_GROUPS`, `CSR_STAFF_NAV_GROUPS`).
+- Owner, Manager, Staff, Driver, Utility remain flat (backward-compatible; no changes to their nav).
 
-### Schedule UI Integration
-**File:** `src/components/features/schedule/manual-staff-schedule-adjustment.tsx`
+**CRM groups (5 categories):**
+1. **Main Operations** — Control, Live Map, Dispatch, Bookings, Schedule, Availability
+2. **Customer Management** — Customers, Repeats, Lapsed, Waitlist
+3. **Service & Resource Setup** — Services, Spaces
+4. **Staff & Internal Work** — Staff Applications, Notifications
+5. **Finance / End-of-day** — Reconciliation
 
-Added compact control inside the existing schedule staff-mode flow. It supports:
-- Custom hours
-- Off today
-- Block time
-- Clear override
-- Remove block
+Route mappings (existing routes used, new display labels):
+- "Live Map" → `/crm/live-operations`
+- "Availability" → `/crm/staff-availability`
+- "Spaces" → `/crm/spaces-rules`
 
-It uses the existing motion spinner/toast components and does not redesign the schedule page.
+### Sidebar Grouped Rendering
+**File:** `src/components/features/dashboard/sidebar.tsx`
 
-### Staff Mode Wiring
-**Files:**
-- `src/components/features/schedule/schedule-workspace.tsx`
-- `src/components/features/schedule/schedule-board-panel.tsx`
-- `src/components/features/schedule/schedule-staff-mode.tsx`
+- Extracted a `NavLink` helper component (handles icon, active state, accent bar, chevron).
+- `SidebarContent` now checks for `nav.groups`: if present, renders category labels + items per group; otherwise falls back to flat `nav.items`.
+- Added `CalendarClock` to lucide imports and `ICON_MAP` (was referenced in existing nav config but never rendered).
+- Mobile hamburger + overlay still work for CRM routes; all grouped labels and links are scrollable on mobile.
 
-The schedule workspace now shows success/error toast feedback and refreshes route data after successful manual adjustments. Staff mode renders the manual adjustment section below the selected staff profile/summary.
+## What Still Needs Phase 2
 
-### Daily Schedule Data
-**File:** `src/lib/queries/schedule.ts`
+- **Live data wiring** for: Repeats, Lapsed, Waitlist, Reconciliation (currently functional placeholder pages)
+- **Dispatch business logic** — auto-driver assignment, live ETA push
+- **Availability real-time view** — checked-in/busy/off-duty staff status
+- **Scheduling engine** — shift requests, branch support, auto-schedule
+- **CRM-specific RLS policies** — currently relying on `manager`-level policies for some routes
 
-Daily schedule rows now include:
-- `current_override` for the selected staff/date.
-- `blocks[].id` from `blocked_times`, so remove-block targets the real row.
+## Files That Matter
+- `src/components/features/dashboard/nav-config.ts` — CRM grouped nav config
+- `src/components/features/dashboard/sidebar.tsx` — grouped rendering
+- `src/app/(dashboard)/crm/page.tsx` — landing redirect
 
-The existing `get_daily_schedule` RPC remains untouched.
+## Build / Verification
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 83 app routes
 
-### Permissions
-**File:** `src/lib/permissions.ts`
-
-Added `canAdjustStaffSchedule()` to centralize manual schedule adjustment authorization.
-
-## What Was NOT Changed
-- No new schedule page.
-- No database schema changes.
-- No new packages.
-- No booking engine rewrite.
-- Existing weekly schedule editors and `/manager/staff-availability`/`/crm/staff-availability` remain intact.
-
-## Verification
-- `pnpm type-check`: Passing
-- `pnpm lint`: Passing
-- `pnpm build`: Passing, 83 app routes
-
-## Manual Test Focus
-1. Open `/manager/schedule`, switch to Staff view, choose a staff member.
-2. Set Off today and confirm booking/provider availability no longer offers that staff/date.
-3. Clear override and confirm normal weekly schedule returns.
-4. Add a 2 PM-3 PM block and confirm that slot is unavailable while later slots can remain available.
-5. Repeat from `/crm/schedule` with branch-scoped CRM/CSR head account.
-6. Confirm cross-branch edits fail server-side.
+## Git
+- Branch: `main` — no branch or worktree created

@@ -884,3 +884,32 @@
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 83 app routes
+
+---
+
+### 2026-05-21 — Claude Code
+
+**Task:** CRM-OPS-001 — Exposed categorized CRM operations navbar and fixed CRM landing route
+
+**Files Changed:**
+- `src/components/features/dashboard/nav-config.ts` — Added `NavGroup` type; replaced flat `CRM_NAV_ITEMS`, `CSR_HEAD_NAV_ITEMS`, `CSR_STAFF_NAV_ITEMS` with grouped nav configs using 5 operational categories
+- `src/components/features/dashboard/sidebar.tsx` — Extracted `NavLink` helper, added grouped nav rendering (renders category labels + items when `nav.groups` is set; falls back to flat `nav.items` for owner/manager/staff — no breaking changes), added `CalendarClock` to icon map
+- `src/app/(dashboard)/crm/page.tsx` — Changed CRM landing redirect from `/crm/today` to `/crm/control`
+
+**CRM Nav Categories Added:**
+1. Main Operations — Control, Live Map, Dispatch, Bookings, Schedule, Availability
+2. Customer Management — Customers, Repeats, Lapsed, Waitlist
+3. Service & Resource Setup — Services, Spaces
+4. Staff & Internal Work — Staff Applications, Notifications
+5. Finance / End-of-day — Reconciliation
+
+**Design Decisions:**
+- Used existing route paths (`/crm/live-operations`, `/crm/staff-availability`, `/crm/spaces-rules`) with cleaner display labels to avoid unnecessary redirect pages
+- Grouped nav only applies to CRM roles; owner/manager/staff remain flat (backward compatible)
+- `NavGroup` type added to `WorkspaceNav`; `items` made optional so the type supports both flat and grouped configs
+
+**Roadmap Items Completed:** Phase 1 CRM operations navigation stabilization
+
+**Notes:** Worked directly on `main`; no branch/worktree created. All 15 required CRM pages already existed — no placeholder pages needed. No scheduling/dispatch business logic changed. No new packages installed. No database or RLS changes.
+
+**Build Status:** ✅ Passing — 83 app routes
