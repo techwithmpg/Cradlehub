@@ -256,3 +256,84 @@ export async function updateStaffAction(rawInput: unknown) {
   revalidatePath(`/manager/staff/${staffId}`);
   return { success: true };
 }
+
+// ── Invite-link onboarding: staff claims a pre-created record ─────────────
+// Called from /onboard/[staffId] — visitor has no auth session yet.
+// Creates a Supabase auth user and links it to the existing staff record.
+export async function onboardStaffAction(input: {
+  staffId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const admin = createAdminClient();
+
+  // Verify the staff record is unclaimed and not yet active
+  const { data: staff, error: fetchErr } = await admin
+    .from("staff")
+    .select("id, auth_user_id, is_active")
+    .eq("id", input.staffId)
+    .maybeSingle();
+
+  if (fetchErr || !staff) {
+    return { success: false, error: "Invalid invite link. Please contact your administrator." };
+  }
+  if (staff.auth_user_id) {
+    return { success: false, error: "This invite has already been claimed." };
+  }
+  if (staff.is_active) {
+    return { success: false, error: "This invite link is no longer valid." };
+  }
+
+  // Basic validation
+  const fullName = input.fullName.trim();
+  const email = input.email.trim().toLowerCase();
+  const phone = input.phone.trim();
+  if (!fullName) return { success: false, error: "Full name is required." };
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { success: false, error: "A valid email address is required." };
+  }
+  if (input.password.length < 6) {
+    return { success: false, error: "Password must be at least 6 characters." };
+  }
+
+  // Create Supabase auth user
+  const { data: authUser, error: authErr } = await admin.auth.admin.createUser({
+    email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
+  });
+
+  if (authErr) {
+    if (
+      authErr.message.toLowerCase().includes("already registered") ||
+      authErr.message.toLowerCase().includes("already been registered")
+    ) {
+      return {
+        success: false,
+        error: "An account with this email already exists. Please use a different email.",
+      };
+    }
+    return { success: false, error: `Could not create account: ${authErr.message}` };
+  }
+
+  // Link auth user to the pre-created staff record
+  const { error: updateErr } = await admin
+    .from("staff")
+    .update({
+      auth_user_id: authUser.user.id,
+      full_name: fullName,
+      phone: phone || null,
+    })
+    .eq("id", input.staffId);
+
+  if (updateErr) {
+    // Rollback: remove the auth user we just created to keep the invite claimable
+    await admin.auth.admin.deleteUser(authUser.user.id);
+    return { success: false, error: `Failed to link your account: ${updateErr.message}` };
+  }
+
+  return { success: true };
+}

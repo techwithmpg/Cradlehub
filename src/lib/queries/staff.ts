@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
 type StaffRow = Database["public"]["Tables"]["staff"]["Row"];
@@ -419,4 +420,43 @@ export async function getStaffWithAvailability(branchId: string): Promise<StaffA
   }));
 
   return buildAvailabilityItems(supabase, staffList, today, future);
+}
+
+// ── Staff record for invite-claim onboarding (/onboard/[staffId]) ─────────
+// Fetches a pre-created staff record so the invited person can claim it.
+// Uses admin client because the visitor has no auth session yet.
+export type StaffForOnboard = {
+  id: string;
+  full_name: string;
+  auth_user_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  branches: { name: string } | null;
+};
+
+export async function getStaffForOnboard(staffId: string): Promise<StaffForOnboard | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("staff")
+    .select("id, full_name, auth_user_id, is_active, created_at, branches(name)")
+    .eq("id", staffId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[getStaffForOnboard] query failed", { staffId, error: error.message });
+    return null;
+  }
+
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    full_name: data.full_name,
+    auth_user_id: data.auth_user_id ?? null,
+    is_active: data.is_active,
+    created_at: data.created_at,
+    branches: Array.isArray(data.branches)
+      ? (data.branches[0] as { name: string } | undefined) ?? null
+      : (data.branches as { name: string } | null),
+  };
 }
