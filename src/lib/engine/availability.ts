@@ -59,6 +59,8 @@ type BlockingBookingRow = {
   hold_expires_at: string | null;
 };
 
+const AVAILABILITY_RPC_ROW_LIMIT = 10000;
+
 function isMissingStaffProviderColumnError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -274,6 +276,23 @@ async function getActiveStaffProviderRows(branchId: string): Promise<StaffProvid
   );
 }
 
+async function fetchAvailableSlotsFromRpc(
+  supabase: AdminClient,
+  rpcArgs: {
+    p_branch_id: string;
+    p_service_id: string;
+    p_staff_id?: string;
+    p_date: string;
+  }
+): Promise<AvailabilitySlot[]> {
+  const { data, error } = await supabase
+    .rpc("get_available_slots", rpcArgs)
+    .range(0, AVAILABILITY_RPC_ROW_LIMIT - 1);
+
+  if (error) throw new Error(`Availability query failed: ${error.message}`);
+  return (data ?? []) as AvailabilitySlot[];
+}
+
 function serviceCapabilitySets(rows: StaffServiceRow[]) {
   const staffIdsByService = new Map<string, Set<string>>();
   const serviceIdsByStaff = new Map<string, Set<string>>();
@@ -386,14 +405,32 @@ export async function getAvailableSlots(params: {
   const rpcArgs = {
     p_branch_id:  params.branchId,
     p_service_id: params.serviceId,
-    p_staff_id:   (params.staffId ?? null) as unknown as string,
     p_date:       params.date,
   };
 
-  const { data, error } = await supabase.rpc("get_available_slots", rpcArgs);
+  let slots: AvailabilitySlot[];
+  if (params.staffId) {
+    slots = await fetchAvailableSlotsFromRpc(supabase, {
+      ...rpcArgs,
+      p_staff_id: params.staffId,
+    });
+  } else {
+    const staffRows = await getActiveStaffProviderRows(params.branchId);
+    const candidateStaffIds = staffRows
+      .filter((member) => canActAsBookingServiceProvider(member, true))
+      .map((member) => member.id);
 
-  if (error) throw new Error(`Availability query failed: ${error.message}`);
-  let slots = (data ?? []) as AvailabilitySlot[];
+    const slotGroups = await Promise.all(
+      candidateStaffIds.map((staffId) =>
+        fetchAvailableSlotsFromRpc(supabase, {
+          ...rpcArgs,
+          p_staff_id: staffId,
+        })
+      )
+    );
+
+    slots = slotGroups.flat();
+  }
 
   slots = await filterSlotsToWorkingWindows({
     supabase,

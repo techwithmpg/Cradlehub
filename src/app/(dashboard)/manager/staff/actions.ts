@@ -50,6 +50,7 @@ export async function setStaffScheduleAction(rawInput: unknown) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/staff-availability");
   return { success: true };
 }
 
@@ -100,6 +101,7 @@ export async function createBlockedTimeAction(rawInput: unknown) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/staff-availability");
   return { success: true };
 }
 
@@ -126,6 +128,7 @@ export async function deleteBlockedTimeAction(blockedTimeId: string) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/staff-availability");
   return { success: true };
 }
 
@@ -151,5 +154,6 @@ export async function deleteScheduleOverrideAction(overrideId: string) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/staff-availability");
   return { success: true };
 }

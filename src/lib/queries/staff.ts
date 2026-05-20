@@ -261,3 +261,162 @@ export async function getPendingStaff() {
 
   throw new Error(primary.error.message);
 }
+
+// ── All branch staff with schedules, overrides, and blocked times ─────────
+// Used by the manager Staff Availability setup page.
+// Fetches overrides and blocked times scoped to the next 90 days.
+export type StaffAvailabilityItem = {
+  staff: {
+    id: string;
+    full_name: string;
+    nickname: string | null;
+    tier: string | null;
+    staff_type: string | null;
+    is_head: boolean | null;
+    is_active: boolean;
+  };
+  schedules: Array<{
+    id: string;
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    is_active: boolean;
+  }>;
+  overrides: Array<{
+    id: string;
+    override_date: string;
+    is_day_off: boolean;
+    start_time: string | null;
+    end_time: string | null;
+    reason: string | null;
+  }>;
+  blockedTimes: Array<{
+    id: string;
+    block_date: string;
+    start_time: string;
+    end_time: string;
+    reason: string;
+  }>;
+};
+
+async function buildAvailabilityItems(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  staffList: StaffAvailabilityItem["staff"][],
+  today: string,
+  future: string
+): Promise<StaffAvailabilityItem[]> {
+  if (staffList.length === 0) return [];
+  const staffIds = staffList.map((s) => s.id);
+
+  const [schedulesResult, overridesResult, blockedResult] = await Promise.all([
+    supabase
+      .from("staff_schedules")
+      .select("id, staff_id, day_of_week, start_time, end_time, is_active")
+      .in("staff_id", staffIds),
+    supabase
+      .from("schedule_overrides")
+      .select("id, staff_id, override_date, is_day_off, start_time, end_time, reason")
+      .in("staff_id", staffIds)
+      .gte("override_date", today)
+      .lte("override_date", future)
+      .order("override_date"),
+    supabase
+      .from("blocked_times")
+      .select("id, staff_id, block_date, start_time, end_time, reason")
+      .in("staff_id", staffIds)
+      .gte("block_date", today)
+      .lte("block_date", future)
+      .order("block_date")
+      .order("start_time"),
+  ]);
+
+  const schedules = schedulesResult.data ?? [];
+  const overrides = overridesResult.data ?? [];
+  const blocked = blockedResult.data ?? [];
+
+  return staffList.map((member) => ({
+    staff: member,
+    schedules: schedules
+      .filter((s) => s.staff_id === member.id)
+      .map((s) => ({
+        id: s.id,
+        day_of_week: s.day_of_week,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        is_active: s.is_active,
+      })),
+    overrides: overrides
+      .filter((o) => o.staff_id === member.id)
+      .map((o) => ({
+        id: o.id,
+        override_date: o.override_date,
+        is_day_off: o.is_day_off,
+        start_time: o.start_time ?? null,
+        end_time: o.end_time ?? null,
+        reason: o.reason ?? null,
+      })),
+    blockedTimes: blocked
+      .filter((b) => b.staff_id === member.id)
+      .map((b) => ({
+        id: b.id,
+        block_date: b.block_date,
+        start_time: b.start_time,
+        end_time: b.end_time,
+        reason: b.reason ?? "other",
+      })),
+  }));
+}
+
+export async function getStaffWithAvailability(branchId: string): Promise<StaffAvailabilityItem[]> {
+  const supabase = await createClient();
+  const today = new Date().toISOString().split("T")[0]!;
+  const future = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
+
+  // Fetch all staff for the branch (active + inactive for full visibility)
+  const staffResult = await supabase
+    .from("staff")
+    .select("id, full_name, nickname, tier, system_role, staff_type, is_head, is_active")
+    .eq("branch_id", branchId)
+    .order("tier")
+    .order("full_name");
+
+  if (staffResult.error) {
+    // Graceful fallback: retry without newer org columns if migration not applied
+    if (isMissingStaffOrgColumnsError(staffResult.error.message)) {
+      const fallback = await supabase
+        .from("staff")
+        .select("id, full_name, tier, system_role, is_active")
+        .eq("branch_id", branchId)
+        .order("tier")
+        .order("full_name");
+      if (fallback.error) throw new Error(fallback.error.message);
+      return buildAvailabilityItems(
+        supabase,
+        (fallback.data ?? []).map((r) => ({
+          id: r.id,
+          full_name: r.full_name,
+          nickname: null,
+          tier: r.tier ?? null,
+          staff_type: "therapist",
+          is_head: false,
+          is_active: r.is_active,
+        })),
+        today,
+        future
+      );
+    }
+    throw new Error(staffResult.error.message);
+  }
+
+  const staffList = (staffResult.data ?? []).map((r) => ({
+    id: r.id,
+    full_name: r.full_name,
+    nickname: (r.nickname as string | null | undefined) ?? null,
+    tier: r.tier ?? null,
+    staff_type: (r.staff_type as string | null | undefined) ?? "therapist",
+    is_head: (r.is_head as boolean | null | undefined) ?? false,
+    is_active: r.is_active,
+  }));
+
+  return buildAvailabilityItems(supabase, staffList, today, future);
+}

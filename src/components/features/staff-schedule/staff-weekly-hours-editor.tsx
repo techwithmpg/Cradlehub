@@ -16,13 +16,14 @@ type Schedule = {
 type Props = {
   staffId: string;
   existingSchedules: Schedule[];
+  onSave?: () => void;
 };
 
 function shortTime(value: string): string {
   return value.slice(0, 5);
 }
 
-export function StaffWeeklyHoursEditor({ staffId, existingSchedules }: Props) {
+export function StaffWeeklyHoursEditor({ staffId, existingSchedules, onSave }: Props) {
   const [schedules, setSchedules] = useState<Schedule[]>(existingSchedules);
   const [editDay, setEditDay] = useState<number | null>(null);
   const [startTime, setStartTime] = useState("09:00");
@@ -65,6 +66,7 @@ export function StaffWeeklyHoursEditor({ staffId, existingSchedules }: Props) {
       });
       setEditDay(null);
       showFeedback("Schedule saved");
+      onSave?.();
     });
   }
 

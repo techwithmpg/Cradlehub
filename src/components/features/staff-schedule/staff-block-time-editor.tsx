@@ -27,13 +27,14 @@ type BlockReason = "break" | "leave" | "training" | "other";
 type Props = {
   staffId: string;
   existingBlockedTimes: BlockedTime[];
+  onSave?: () => void;
 };
 
 function shortTime(value: string): string {
   return value.slice(0, 5);
 }
 
-export function StaffBlockTimeEditor({ staffId, existingBlockedTimes }: Props) {
+export function StaffBlockTimeEditor({ staffId, existingBlockedTimes, onSave }: Props) {
   const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>(existingBlockedTimes);
   const [blockDate, setBlockDate] = useState("");
   const [blockStart, setBlockStart] = useState("12:00");
@@ -76,6 +77,7 @@ export function StaffBlockTimeEditor({ staffId, existingBlockedTimes }: Props) {
       );
       setBlockDate("");
       showFeedback("Blocked time saved");
+      onSave?.();
     });
   }
 

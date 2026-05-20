@@ -805,3 +805,53 @@
 - `pnpm type-check`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 80 app routes
+
+---
+
+### 2026-05-20 — Claude (CRM-NAV-001 — CRM Services Access + Nav Fixes)
+
+**Task:** CRM and CSR Head roles were missing the Services page in their workspace. Fixed role guards, created the CRM services route, expanded branch-action authorization, and corrected a duplicate nav item.
+
+**Files Created:**
+- `src/app/(dashboard)/crm/services/page.tsx` — CRM-scoped services page using same `ServicesOfferedTab` component as manager, but with `CRM_SERVICE_ROLES` set (owner, manager, assistant_manager, store_manager, crm, csr_head); redirects to `/crm` on unauthorized.
+
+**Files Modified:**
+- `src/app/(dashboard)/owner/branches/actions.ts` — `requireOwnerOrBranchManager()` now includes `crm` and `csr_head` roles; added `revalidatePath("/manager/services")` and `revalidatePath("/crm/services")` to `removeBranchServiceAction`, `addBranchServiceAction`, and `updateBranchServiceEligibilityAction`.
+- `src/components/features/dashboard/nav-config.ts` — added `{ label: "Services", href: "/crm/services", icon: "Sparkles" }` to `CRM_NAV_ITEMS` and `CSR_HEAD_NAV_ITEMS`; removed duplicate "My Schedule" from `STAFF_NAV_ITEMS`.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 81 app routes
+
+---
+
+### 2026-05-20 — Claude (MANAGER-STAFF-AVAILABILITY-001 — Manager Staff Availability Setup Page)
+
+**Task:** Create a production-ready manager page for setting weekly working hours, day overrides, day off, and blocked time per staff member. The booking engine already respects `staff_schedules`, `schedule_overrides`, and `blocked_times` — this page exposes management of those tables to the manager.
+
+**Route:** `/manager/staff-availability`
+
+**Files Created:**
+- `src/app/(dashboard)/manager/staff-availability/page.tsx` — Server component. Uses `getManagerBranchId()` for auth, `getStaffWithAvailability(branchId)` for data, renders `PageHeader` + `StaffSchedulePageClient`. Shows `Alert` on load error.
+
+**Files Modified:**
+- `src/lib/queries/staff.ts` — added `StaffAvailabilityItem` type, `buildAvailabilityItems()` helper (parallel fetch of schedules/overrides/blocked_times for all branch staff), and `getStaffWithAvailability(branchId)` export. Includes graceful fallback for older DB schemas missing `staff_type`/`is_head`/`nickname` columns. Fetches overrides and blocked times scoped to next 90 days.
+- `src/components/features/staff-schedule/staff-weekly-hours-editor.tsx` — added optional `onSave?: () => void` prop; called after successful schedule save.
+- `src/components/features/staff-schedule/staff-day-overrides-editor.tsx` — added optional `onSave?: () => void` prop; called after successful override save.
+- `src/components/features/staff-schedule/staff-block-time-editor.tsx` — added optional `onSave?: () => void` prop; called after successful blocked-time save.
+- `src/components/features/staff-schedule/staff-schedule-detail-panel.tsx` — added `onSave?: () => void` prop; threaded down to each editor tab.
+- `src/components/features/staff-schedule/staff-schedule-page-client.tsx` — wired `PremiumSuccessToast` (from existing motion library) to fire when any editor tab saves; toast shows staff member's name and auto-dismisses after 3.5 s. Added `useCallback` for `handleSave`.
+- `src/components/features/dashboard/nav-config.ts` — added `{ label: "Availability", href: "/manager/staff-availability", icon: "CalendarClock" }` to `MANAGER_NAV_ITEMS` (after "Staff").
+- `src/app/(dashboard)/manager/staff/actions.ts` — all four server actions (`setStaffScheduleAction`, `createScheduleOverrideAction`, `deleteBlockedTimeAction`, `deleteScheduleOverrideAction`) now also call `revalidatePath("/manager/staff-availability")`.
+
+**Design decisions:**
+- Route at `/manager/staff-availability` (not `/manager/staff/schedule`) to avoid route conflict with `/manager/staff/[staffId]` dynamic segment.
+- All staff in branch visible (active and inactive) so manager can set availability before re-activating staff.
+- Editors keep existing inline inline-banner feedback for immediate response; `PremiumSuccessToast` adds a global confirmation at the page level.
+- No DB schema changes. No new npm packages. Booking lifecycle logic untouched.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 82 app routes

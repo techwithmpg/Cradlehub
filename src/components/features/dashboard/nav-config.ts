@@ -34,6 +34,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Schedule", href: "/manager/schedule", icon: "CalendarDays" },
   { label: "Bookings", href: "/manager/bookings", icon: "ClipboardList" },
   { label: "Staff", href: "/manager/staff", icon: "Users" },
+  { label: "Availability", href: "/manager/staff-availability", icon: "CalendarClock" },
   { label: "Spaces & Rules", href: "/manager/spaces-rules", icon: "Building2" },
   { label: "Services", href: "/manager/services", icon: "Sparkles" },
   { label: "Operations", href: "/manager/operations", icon: "Wrench" },

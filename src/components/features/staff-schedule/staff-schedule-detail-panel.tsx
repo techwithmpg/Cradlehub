@@ -59,6 +59,7 @@ type Props = {
   blockedTimes: BlockedTime[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSave?: () => void;
 };
 
 export function StaffScheduleDetailPanel({
@@ -68,6 +69,7 @@ export function StaffScheduleDetailPanel({
   blockedTimes,
   open,
   onOpenChange,
+  onSave,
 }: Props) {
   const [tab, setTab] = useState<"weekly" | "override" | "block">("weekly");
 
@@ -182,17 +184,26 @@ export function StaffScheduleDetailPanel({
           </div>
 
           {tab === "weekly" && (
-            <StaffWeeklyHoursEditor staffId={staff.id} existingSchedules={schedules} />
+            <StaffWeeklyHoursEditor
+              staffId={staff.id}
+              existingSchedules={schedules}
+              onSave={onSave}
+            />
           )}
           {tab === "override" && (
             <StaffDayOverridesEditor
               staffId={staff.id}
               staffName={displayName}
               existingOverrides={overrides}
+              onSave={onSave}
             />
           )}
           {tab === "block" && (
-            <StaffBlockTimeEditor staffId={staff.id} existingBlockedTimes={blockedTimes} />
+            <StaffBlockTimeEditor
+              staffId={staff.id}
+              existingBlockedTimes={blockedTimes}
+              onSave={onSave}
+            />
           )}
         </div>
       </SheetContent>

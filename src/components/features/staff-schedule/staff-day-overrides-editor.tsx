@@ -20,6 +20,7 @@ type Props = {
   staffId: string;
   staffName: string;
   existingOverrides: ScheduleOverride[];
+  onSave?: () => void;
 };
 
 function shortTime(value: string | null): string {
@@ -27,7 +28,7 @@ function shortTime(value: string | null): string {
   return value.slice(0, 5);
 }
 
-export function StaffDayOverridesEditor({ staffId, staffName, existingOverrides }: Props) {
+export function StaffDayOverridesEditor({ staffId, staffName, existingOverrides, onSave }: Props) {
   const [overrides, setOverrides] = useState<ScheduleOverride[]>(existingOverrides);
   const [overrideDate, setOverrideDate] = useState("");
   const [overrideIsDayOff, setOverrideIsDayOff] = useState(false);
@@ -70,6 +71,7 @@ export function StaffDayOverridesEditor({ staffId, staffName, existingOverrides 
       );
       setOverrideDate("");
       showFeedback("Override saved");
+      onSave?.();
     });
   }
 

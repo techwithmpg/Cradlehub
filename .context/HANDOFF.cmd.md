@@ -1,64 +1,64 @@
-# HANDOFF — STAFF-MOTION-001
+# HANDOFF — MANAGER-STAFF-AVAILABILITY-001
 
 ## Date
 2026-05-20
 
 ## What Changed
 
-### Motion component library (all new)
-**Folder:** `src/components/shared/motion/`
+### New page: Manager Staff Availability
+**Route:** `/manager/staff-availability`
+**File:** `src/app/(dashboard)/manager/staff-availability/page.tsx`
 
-Five small client components added:
+Server component. Gets manager's `branchId` via `getManagerBranchId()`, fetches staff + availability data via `getStaffWithAvailability(branchId)`, renders `PageHeader` + `StaffSchedulePageClient`. Shows an `Alert` on data-load failure (no crash).
 
-| File | Purpose |
-|---|---|
-| `premium-action-overlay.tsx` | Full-screen cream/blur overlay shown while a staff action awaits server response |
-| `premium-success-toast.tsx` | Fixed bottom-centre slide-up toast (success / warning / error variants) |
-| `premium-inline-spinner.tsx` | 13px white circular spinner for use inside green primary buttons |
-| `live-pulse-indicator.tsx` | Pulsing dot + label for active travel or session states |
-| `motion-status-dot.tsx` | Animated stepper dot: done=green, active=gold-pulse, pending=muted, warning=amber |
+### New query: `getStaffWithAvailability`
+**File:** `src/lib/queries/staff.ts`
 
-### BookingProgressActions patch
-**File:** `src/components/features/staff-portal/booking-progress-actions.tsx`
+Exports `StaffAvailabilityItem` type and `getStaffWithAvailability(branchId)` function. Features:
+- Fetches **all staff** (active + inactive) for a branch
+- Parallel fetch of `staff_schedules`, `schedule_overrides`, `blocked_times` via `Promise.all`
+- Overrides and blocked times scoped to **today → today + 90 days**
+- Graceful fallback if DB migration for `staff_type`/`is_head`/`nickname` not yet applied
 
-- Added `actionFeedback` state (`idle | loading | success | error`) and `getProgressFeedback()` helper mapping each `BookingProgressStatus` to contextual loading/success copy.
-- `handleAdvance()` now:
-  1. Sets `type: "loading"` → overlay opens.
-  2. Awaits server action.
-  3. On success: sets `type: "success"` → toast opens → `router.refresh()` → clears after 3 s.
-  4. On error: sets `type: "error"` → toast opens (replaces previous `alert()`) → clears after 4 s.
-- Primary button: shows `<PremiumInlineSpinner />` + "Updating…" when pending; icon + label otherwise. Added `active:scale-[0.98]` press effect.
-- No-show button: same press effect; muted-tone inline spinner when pending.
-- Compact stepper dots replaced with `<MotionStatusDot>` (same visual size, now animates).
-- `<LivePulseIndicator>` rendered alongside `<TrackingTimer>` for `travel_started` (green) and `session_started` (gold).
+### Premium feedback wiring
+- `StaffWeeklyHoursEditor`, `StaffDayOverridesEditor`, `StaffBlockTimeEditor` — each gained optional `onSave?: () => void` prop called after successful server action
+- `StaffScheduleDetailPanel` — accepts `onSave?` and passes it to the active editor tab
+- `StaffSchedulePageClient` — `handleSave` callback (useCallback) sets staff name + triggers `PremiumSuccessToast` for 3.5 s when any editor saves
 
-### CSS keyframes
-**File:** `src/app/globals.css` (append-only, bottom of file)
+### Nav update
+Added to `MANAGER_NAV_ITEMS` (after "Staff"):
+```ts
+{ label: "Availability", href: "/manager/staff-availability", icon: "CalendarClock" }
+```
 
-- `cradle-premium-pulse` — used by `MotionStatusDot` active ring and `LivePulseIndicator` ring.
-- `cradle-soft-slide-up` — used by `PremiumSuccessToast` entrance (includes `translateX(-50%)` to stay centred over `left:50%`).
-- `cradle-check-pop` — used by the icon in `PremiumSuccessToast`.
-- `cradle-card-glow` — ambient glow, not yet wired up; available for future use.
+### Server action revalidation
+`src/app/(dashboard)/manager/staff/actions.ts` — all 4 actions now call:
+```ts
+revalidatePath("/manager/staff-availability");
+```
+in addition to the existing `revalidatePath("/manager/staff")`.
 
 ## What Was NOT Changed
-- `src/lib/bookings/progress.ts` — lifecycle state machine untouched.
-- `src/app/(dashboard)/staff-portal/actions.ts` — server actions untouched.
-- All booking cards, layout components, and portal pages — untouched.
+- Booking engine (`src/lib/engine/availability.ts`) — untouched
+- Booking lifecycle logic (`src/lib/bookings/progress.ts`) — untouched
+- Staff portal, CRM, owner workspace — untouched (except nav-config already updated in CRM-NAV-001)
 - No DB schema changes. No new npm packages.
+- Editor components keep their existing inline banner feedback alongside the new toast
 
 ## Verification
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
-- `pnpm build`: ✅ Passing, 80 app routes
+- `pnpm build`: ✅ Passing, 82 app routes
 
 ## Manual Test Checklist
-1. Open `/staff-portal` → find a home-service booking.
-2. Click **Start Travel** → button shows spinner, overlay appears, success toast shows, status updates.
-3. Click **Mark Arrived** → same feedback.
-4. Verify `LivePulseIndicator` (green) appears next to timer in `travel_started` state.
-5. Click **Start Session** → verify gold `LivePulseIndicator` appears.
-6. Click **Complete** → success toast confirms.
-7. Find an in-spa booking → **Check In** → **Start Session** → **Complete** — all with overlay + toast.
-8. Test **Mark No Show** — amber warning toast should appear (not an alert dialog).
-9. Simulate a network error → error toast appears (no browser alert).
-10. Confirm no layout shift or visual redesign anywhere on the portal.
+1. Log in as a manager → sidebar shows **"Availability"** nav item below "Staff"
+2. Click **Availability** → page loads, shows all branch staff in a table
+3. Search by name → list filters correctly
+4. Filter by "Not scheduled" → shows only unscheduled staff
+5. Click **Manage** on a staff row → detail panel slides in from the right
+6. **Weekly Hours tab**: click "Set" on a day → set hours → click Save → inline "Schedule saved" banner appears + bottom toast "Saved — Availability updated for [name]."
+7. **Day Overrides tab**: add an override → toast fires; delete override → toast fires
+8. **Block Time tab**: add a block → toast fires; delete a block → toast fires
+9. Close the panel → page refreshes data via `router.refresh()`
+10. Filter by "Scheduled" → staff with any active schedule day appears
+11. Verify booking wizard still respects availability (book a slot outside a staff member's hours — they should not appear)

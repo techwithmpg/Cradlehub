@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { StaffScheduleToolbar } from "./staff-schedule-toolbar";
 import { StaffScheduleList, type StaffScheduleItem } from "./staff-schedule-list";
 import { StaffScheduleDetailPanel } from "./staff-schedule-detail-panel";
+import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-toast";
 import { isScheduled } from "@/lib/utils/staff-schedule-summary";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { ScheduleFilter, ScheduleSort } from "./staff-schedule-toolbar";
@@ -25,6 +26,8 @@ export function StaffSchedulePageClient({ items }: Props) {
   const [filter, setFilter] = useState<ScheduleFilter>("all");
   const [sort, setSort] = useState<ScheduleSort>("name");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [savedStaffName, setSavedStaffName] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
 
   const filteredItems = useMemo(() => {
     let result = [...items];
@@ -83,6 +86,15 @@ export function StaffSchedulePageClient({ items }: Props) {
     [items, selectedStaffId]
   );
 
+  // Called by editors on successful save — shows a global success toast
+  const handleSave = useCallback(() => {
+    if (selectedItem) {
+      setSavedStaffName(getStaffAdminName(selectedItem.staff));
+    }
+    setShowToast(true);
+    window.setTimeout(() => setShowToast(false), 3500);
+  }, [selectedItem]);
+
   return (
     <div>
       <StaffScheduleToolbar
@@ -112,6 +124,18 @@ export function StaffSchedulePageClient({ items }: Props) {
             router.refresh();
           }
         }}
+        onSave={handleSave}
+      />
+
+      <PremiumSuccessToast
+        open={showToast}
+        title="Saved"
+        description={
+          savedStaffName
+            ? `Availability updated for ${savedStaffName}.`
+            : "Staff availability updated."
+        }
+        variant="success"
       />
     </div>
   );
