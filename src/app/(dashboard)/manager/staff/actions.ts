@@ -24,7 +24,10 @@ async function getManagerContext() {
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
-  if (!me || !["manager", "owner"].includes(me.system_role)) return null;
+  const SCHEDULE_EDIT_ROLES = new Set([
+    "owner", "manager", "assistant_manager", "store_manager", "crm", "csr_head",
+  ]);
+  if (!me || !SCHEDULE_EDIT_ROLES.has(me.system_role)) return null;
   return { supabase, me };
 }
 
@@ -51,6 +54,7 @@ export async function setStaffScheduleAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/staff-availability");
   return { success: true };
 }
 
@@ -78,6 +82,7 @@ export async function createScheduleOverrideAction(rawInput: unknown) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/crm/staff-availability");
   return { success: true };
 }
 
@@ -102,6 +107,7 @@ export async function createBlockedTimeAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/staff-availability");
   return { success: true };
 }
 
@@ -129,6 +135,7 @@ export async function deleteBlockedTimeAction(blockedTimeId: string) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/staff-availability");
   return { success: true };
 }
 
@@ -155,5 +162,6 @@ export async function deleteScheduleOverrideAction(overrideId: string) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/staff-availability");
   return { success: true };
 }
