@@ -6,7 +6,15 @@
       "Bash(pnpm build *)",
       "Bash(npx tsc *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(Get-ChildItem \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\manager\\\\services\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(git ls-remote *)",
+      "Bash(git fetch *)",
+      "Bash(git show *)",
+      "Bash(dir \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\crm\" /B /S)",
+      "Bash(dir \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\crm\\\\schedule\" /B /S)",
+      "PowerShell(git add \"src/app/\\(dashboard\\)/manager/staff/actions.ts\" \"src/components/features/dashboard/nav-config.ts\" \"src/app/\\(dashboard\\)/crm/staff-availability/\")"
     ]
   }
 }
