@@ -1,16 +1,20 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
-import { StatCard } from "@/components/features/dashboard/stat-card";
 import { createClient } from "@/lib/supabase/server";
-import { getTodaysSchedule, getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { getTodaysSchedule } from "@/lib/queries/bookings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
+import { getCrmTodaySnapshot } from "@/lib/queries/crm-today";
 import { CrmBookingQueuePanel } from "@/components/features/crm/today/crm-booking-queue-panel";
 import { TodayAttentionStrip } from "@/components/features/crm/today/today-attention-strip";
-import { TodayQuickActions } from "@/components/features/crm/today/today-quick-actions";
 import { TodaySideRail } from "@/components/features/crm/today/today-side-rail";
+import { TodayPriorityStrip } from "@/components/features/crm/today/today-priority-strip";
+import { TodayStaffReadiness } from "@/components/features/crm/today/today-staff-readiness";
+import { TodayDispatchSnapshot } from "@/components/features/crm/today/today-dispatch-snapshot";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
+
+// ── Local types ───────────────────────────────────────────────────────────────
 
 type Relation<T> = T | T[] | null;
 type CustomerRel = { full_name: string; phone: string | null };
@@ -44,6 +48,16 @@ function toMins(t: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
+function formatTime(t: string): string {
+  const [h, m] = t.split(":").map(Number);
+  const hr = h ?? 0;
+  const ampm = hr >= 12 ? "PM" : "AM";
+  const display = hr % 12 === 0 ? 12 : hr % 12;
+  return `${display}:${String(m ?? 0).padStart(2, "0")}${ampm}`;
+}
+
+// ── Auth helper ───────────────────────────────────────────────────────────────
+
 async function getCsrContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -73,19 +87,22 @@ async function getCsrContext() {
   };
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default async function CrmTodayPage() {
   const { branchId, branchName, role } = await getCsrContext();
   const today   = new Date().toISOString().split("T")[0]!;
   const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
 
-  const [rawBookings, paymentSummary, actionNotifications] = await Promise.all([
+  const [rawBookings, snapshot, actionNotifications] = await Promise.all([
     getTodaysSchedule(branchId, today),
-    getDailyPaymentSummary(branchId, today).catch(() => null),
+    getCrmTodaySnapshot({ branchId, date: today }),
     getActionRequiredNotificationsAction(3),
   ]);
 
   const bookings = rawBookings as BookingRow[];
 
+  // Build queue data for the interactive panel
   const queueData = bookings.map((b) => {
     const meta = (b as { metadata?: unknown }).metadata as Record<string, unknown> | null;
     const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
@@ -93,21 +110,21 @@ export default async function CrmTodayPage() {
     const priceRaw = meta?.price_paid;
     const pricePaid = typeof priceRaw === "number" && Number.isFinite(priceRaw) ? priceRaw : 0;
     return {
-      id:               b.id,
-      start_time:       b.start_time,
-      end_time:         b.end_time,
-      status:           b.status,
-      type:             b.type,
-      travel_buffer_mins: b.travel_buffer_mins,
-      payment_status:   b.payment_status,
-      payment_method:   b.payment_method,
-      amount_paid:      b.amount_paid,
-      price_paid:       pricePaid,
-      customer_name:    first(b.customers)?.full_name ?? null,
-      service_name:     first(b.services)?.name ?? null,
-      service_duration: first(b.services)?.duration_minutes ?? null,
-      staff_name:       first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
-      resource_name:    first(b.branch_resources)?.name ?? null,
+      id:                    b.id,
+      start_time:            b.start_time,
+      end_time:              b.end_time,
+      status:                b.status,
+      type:                  b.type,
+      travel_buffer_mins:    b.travel_buffer_mins,
+      payment_status:        b.payment_status,
+      payment_method:        b.payment_method,
+      amount_paid:           b.amount_paid,
+      price_paid:            pricePaid,
+      customer_name:         first(b.customers)?.full_name ?? null,
+      service_name:          first(b.services)?.name ?? null,
+      service_duration:      first(b.services)?.duration_minutes ?? null,
+      staff_name:            first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
+      resource_name:         first(b.branch_resources)?.name ?? null,
       hs_zone:               typeof hsAddr?.zone === "string" ? hsAddr.zone : null,
       hs_address:            typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
       hs_city:               typeof hsAddr?.city === "string" ? hsAddr.city : null,
@@ -117,19 +134,18 @@ export default async function CrmTodayPage() {
     };
   });
 
-  const upcoming = bookings.filter(
-    (b) => b.status === "confirmed" && toMins(b.start_time) > nowMins
-  );
-  const inProgress    = bookings.filter((b) => b.status === "in_progress");
-  const completed     = bookings.filter((b) => b.status === "completed");
-  const cancelledNS   = bookings.filter((b) => b.status === "cancelled" || b.status === "no_show");
+  const upcoming  = bookings.filter((b) => b.status === "confirmed" && toMins(b.start_time) > nowMins);
+  const inProgBks = bookings.filter((b) => b.status === "in_progress");
+  const completed = bookings.filter((b) => b.status === "completed");
+  const cancelled = bookings.filter((b) => b.status === "cancelled" || b.status === "no_show");
 
-  const nextAppt = [...upcoming].sort(
-    (a, b) => toMins(a.start_time) - toMins(b.start_time)
-  )[0];
+  const nextAppt = [...upcoming].sort((a, b) => toMins(a.start_time) - toMins(b.start_time))[0];
 
-  const activeToday = upcoming.length + inProgress.length;
-  const unpaidCount = paymentSummary?.unpaid_count ?? 0;
+  const roleLabel =
+    role === "csr_head" ? "CSR Head"
+    : role === "owner"   ? "Owner"
+    : role === "manager" ? "Manager"
+    : "CSR Staff";
 
   return (
     <div>
@@ -140,26 +156,19 @@ export default async function CrmTodayPage() {
         })} · Front-desk operations`}
       />
 
+      {/* Attention strip — shows only when there are action-required notifications */}
       <TodayAttentionStrip notifications={actionNotifications} />
 
-      <TodayQuickActions />
+      {/* Priority strip — 6 operational cards replacing stat cards + quick actions */}
+      <TodayPriorityStrip
+        bookingSummary={snapshot.bookingSummary}
+        staffReadiness={snapshot.staffReadiness}
+        dispatchStats={snapshot.dispatchStats}
+        payment={snapshot.payment}
+        urgentCount={actionNotifications.length}
+      />
 
-      {/* KPI Stats */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-          gap: "0.625rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <StatCard label="Active Today" value={activeToday} accent accentColor="var(--cs-sand)" />
-        <StatCard label="In Progress" value={inProgress.length} accentColor="var(--cs-info)" />
-        <StatCard label="Completed" value={completed.length} accentColor="var(--cs-success)" />
-        <StatCard label="Unpaid / Outstanding" value={unpaidCount} accentColor="var(--cs-error)" />
-      </div>
-
-      {/* Two-column layout */}
+      {/* Main two-column layout */}
       <div
         style={{
           display: "grid",
@@ -168,9 +177,10 @@ export default async function CrmTodayPage() {
           alignItems: "start",
         }}
       >
-        {/* Left: Booking Queue */}
+        {/* ── Left column: booking queue ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          {/* Next Appointment Banner */}
+
+          {/* Next appointment banner */}
           {nextAppt && (
             <div
               className="cs-card"
@@ -199,7 +209,9 @@ export default async function CrmTodayPage() {
                     {first(nextAppt.customers)?.full_name ?? "—"}
                   </div>
                   <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-                    {first(nextAppt.services)?.name ?? "Service"} · {first(nextAppt.staff) ? getStaffAdminName(first(nextAppt.staff)!) : "Unassigned"}
+                    {first(nextAppt.services)?.name ?? "Service"}
+                    {" · "}
+                    {first(nextAppt.staff) ? getStaffAdminName(first(nextAppt.staff)!) : "Unassigned"}
                   </div>
                 </div>
                 <span
@@ -215,23 +227,17 @@ export default async function CrmTodayPage() {
             </div>
           )}
 
-          {/* Interactive Queue with tabs */}
+          {/* Booking queue */}
           <div>
             <div
               style={{
-                display: "flex", alignItems: "center", gap: 8, marginBottom: "0.875rem",
+                fontSize: "0.9375rem", fontWeight: 600,
+                color: "var(--cs-text)", fontFamily: "var(--font-display)",
+                marginBottom: "0.875rem",
               }}
             >
-              <div
-                style={{
-                  fontSize: "0.9375rem", fontWeight: 600,
-                  color: "var(--cs-text)", fontFamily: "var(--font-display)",
-                }}
-              >
-                Today&apos;s Booking Queue
-              </div>
+              Today&apos;s Booking Queue
             </div>
-
             <CrmBookingQueuePanel
               bookings={queueData}
               nextApptId={nextAppt?.id}
@@ -240,17 +246,21 @@ export default async function CrmTodayPage() {
           </div>
         </div>
 
-        {/* Right column */}
-        <TodaySideRail
-          completed={completed.length}
-          inProgress={inProgress.length}
-          upcoming={upcoming.length}
-          cancelledNS={cancelledNS.length}
-          paymentSummary={paymentSummary}
-        />
+        {/* ── Right rail ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <TodayStaffReadiness summary={snapshot.staffReadiness} />
+          <TodayDispatchSnapshot stats={snapshot.dispatchStats} />
+          <TodaySideRail
+            completed={completed.length}
+            inProgress={inProgBks.length}
+            upcoming={upcoming.length}
+            cancelledNS={cancelled.length}
+            paymentSummary={snapshot.payment}
+          />
+        </div>
       </div>
 
-      {/* Role footer note */}
+      {/* Footer */}
       <div
         style={{
           marginTop: "1.5rem",
@@ -261,17 +271,8 @@ export default async function CrmTodayPage() {
           lineHeight: 1.5,
         }}
       >
-        Signed in as {role === "csr_head" ? "CSR Head" : role === "owner" ? "Owner" : role === "manager" ? "Manager" : "CSR Staff"}
-        {" "}· {branchName}
+        Signed in as {roleLabel} · {branchName}
       </div>
     </div>
   );
-}
-
-function formatTime(t: string): string {
-  const [h, m] = t.split(":").map(Number);
-  const hr = h ?? 0;
-  const ampm = hr >= 12 ? "PM" : "AM";
-  const display = hr % 12 === 0 ? 12 : hr % 12;
-  return `${display}:${String(m ?? 0).padStart(2, "0")}${ampm}`;
 }
