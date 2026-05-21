@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002C
+# CURRENT TASK: CRM-OPS-002E
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002D
+CRM-OPS-002E
 
 ## Description
-Add staff check-in/check-out tracking and wire it into CRM Live Availability
+Redesign Schedule Setup into universal group schedule UI with individual adjustments
 
 ## Agent
 Claude Code

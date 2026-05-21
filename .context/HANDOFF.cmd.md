@@ -203,3 +203,57 @@
 - Add `staff_shift_checkins` table
 - Staff check-in/check-out server action
 - Wire check-in state into `getCrmAvailabilitySnapshot()` to surface physical presence vs schedule-based presence
+
+---
+
+# HANDOFF — CRM-OPS-002E
+
+## Date
+2026-05-21
+
+## What Changed
+
+### Schedule Setup Workspace Redesign
+**File:** `src/app/(dashboard)/crm/staff-availability/page.tsx`
+- Full redesign of the Schedule Setup page into a tabbed universal-group-schedule workspace.
+- Page header now includes "Coverage Overview" and "Publish Schedules" placeholder action buttons.
+
+**File:** `src/components/features/staff-schedule/schedule-setup-workspace.tsx` (NEW)
+- Tabbed orchestrator with 4 tabs: General Rules, Individual Adjustments, Overrides, Coverage Issues.
+- General Rules tab: group card selector + universal rules panel + right rail + helper bar.
+- Individual Adjustments tab: renders existing `StaffSchedulePageClient` unchanged.
+- Overrides tab: renders `ScheduleOverridesView` showing day-off overrides and blocked times.
+- Coverage Issues tab: renders `ScheduleCoverageIssues` with real computed data.
+
+**File:** `src/components/features/staff-schedule/schedule-setup-helper-bar.tsx` (NEW)
+- Warm "How it works" explainer bar at the bottom of General Rules.
+
+**File:** `src/components/features/staff-schedule/schedule-overrides-view.tsx` (NEW)
+- Lists staff with upcoming day-off overrides and blocked times.
+- Info banner linking to Individual Adjustments for full editing.
+
+**Pre-existing untracked components now wired into the workspace:**
+- `schedule-group-cards.tsx` — 7 staff group cards with real computed counts.
+- `group-schedule-rules-panel.tsx` — Shift templates, weekly pattern matrix (preview-only), schedule summary, overlap window.
+- `schedule-setup-right-rail.tsx` — Group overview stats, coverage insight bars, quick actions.
+- `schedule-coverage-issues.tsx` — No-schedule / no-opening / on-leave issue cards.
+
+## Build / Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+## Git
+- Commit: TBD (pending) on `main`
+- Files changed: 8 (4 new components, 1 modified page, 4 pre-existing untracked components)
+
+## ⚠️ Important Notes for Next Agent
+
+1. **Universal schedule persistence is NOT implemented yet.** The weekly pattern matrix, shift templates, and group rules are UI-level previews only. The UI clearly states: "Universal schedule persistence will be wired in the next implementation step."
+2. **Existing individual schedule editing is fully preserved.** The "Individual Adjustments" tab renders the same `StaffSchedulePageClient` with toolbar, list, and detail panel editors.
+3. **No database schema changes were made.** All schedule data still flows through `staff_schedules`, `schedule_overrides`, and `blocked_times`.
+4. **Action buttons are placeholders.** "Coverage Overview" and "Publish Schedules" are disabled pending future implementation.
+5. **Quick Actions in the right rail are placeholders.** Copy schedule, apply to new staff, export, and view staff list are displayed but not wired.
+
+## Recommended Next Step
+- Phase 2F: Implement persistent universal group schedule tables (`group_schedules` or `staff_group_rules`) and wire the weekly pattern matrix + shift templates to save/load from the database.

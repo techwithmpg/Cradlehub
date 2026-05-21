@@ -154,3 +154,21 @@ For MVP, `shift_type` is stored as a TEXT column on `staff_schedules` (values: `
 - `get_daily_schedule` RPC aggregated with `GROUP BY sid` + `MIN`/`MAX` to return a single full-span row per staff.
 - Shift templates can be introduced later if scheduling becomes more complex (e.g., rotating rotations, copy-paste week).
 - `pnpm db:types` was NOT run (local Supabase unavailable) — `src/types/supabase.ts` was manually updated. Whoever applies the migration should run `pnpm db:types` afterward.
+
+### DEC-PHASE2-006: Schedule Setup uses a layered model with deferred universal persistence
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+Schedule Setup uses a layered mental model and UI architecture:
+1. **Universal group schedules** — default rules applied by `staff_type` group (UI shell ready, persistence deferred).
+2. **Individual adjustments** — staff-specific weekly schedules, shift types, overrides, blocked times (fully functional today).
+3. **Overrides** — date-specific exceptions (fully functional today).
+4. **Live Availability** — check-in + bookings + schedule result (fully functional today).
+
+Universal schedule persistence is deferred to Phase 2F. The UI clearly labels preview/default state and does not claim data is saved.
+
+**Rationale:**
+- Separates the UX redesign (this task) from the schema migration risk.
+- Existing `staff_schedules` table continues to serve all operational needs.
+- CRM/manager users get immediate visual clarity on the group-first scheduling model.
+- No risk to public booking engine, check-in system, or live availability.

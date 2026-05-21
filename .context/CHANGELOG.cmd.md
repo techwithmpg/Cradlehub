@@ -1021,3 +1021,34 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
+
+---
+
+### 2026-05-21 — Claude Code (CRM-OPS-002E — Schedule Setup Universal Group UI)
+
+**Task:** Redesign `/crm/staff-availability` into a professional Schedule Setup workspace with universal group schedules and individual adjustments.
+
+**Files Created:**
+- `src/components/features/staff-schedule/schedule-setup-workspace.tsx` — Main tabbed orchestrator (General Rules / Individual Adjustments / Overrides / Coverage Issues)
+- `src/components/features/staff-schedule/schedule-setup-helper-bar.tsx` — Bottom "How it works" helper bar
+- `src/components/features/staff-schedule/schedule-overrides-view.tsx` — Overrides tab content (day-off overrides + blocked times summaries)
+
+**Files Modified:**
+- `src/app/(dashboard)/crm/staff-availability/page.tsx` — Replaced inline explainer cards with `ScheduleSetupWorkspace`; added page actions (Coverage Overview / Publish Schedules placeholders)
+
+**Pre-existing untracked components brought into the workspace:**
+- `src/components/features/staff-schedule/schedule-group-cards.tsx` — Horizontal staff group cards with real computed counts
+- `src/components/features/staff-schedule/group-schedule-rules-panel.tsx` — Universal rules panel with shift templates, weekly pattern matrix, schedule summary, overlap window
+- `src/components/features/staff-schedule/schedule-setup-right-rail.tsx` — Group overview, coverage insight bars, quick actions
+- `src/components/features/staff-schedule/schedule-coverage-issues.tsx` — Coverage issues list (no schedule, no opening, on leave)
+
+**Design Decisions:**
+- Existing individual schedule editing (`StaffSchedulePageClient`) preserved under the "Individual Adjustments" tab.
+- No new database schema introduced — universal schedule persistence is UI-shell only with clear placeholder messaging.
+- Real computed staff counts used in group cards and right rail; no fake data.
+- Responsive: group cards scroll horizontally on mobile; right rail stacks below main content.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
