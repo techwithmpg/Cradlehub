@@ -11,6 +11,9 @@ import { PaymentActionMenu } from "@/components/features/dashboard/payment-actio
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatTime, formatCurrency } from "@/lib/utils";
+import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
+import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
+import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 
 type OneOrMany<T> = T | T[] | null;
@@ -469,6 +472,9 @@ function BookingDetailsPanel({
           <PaymentConfirmationPanel booking={booking} confirmPaymentAction={confirmPaymentAction} />
         )}
 
+        {/* Recommendations */}
+        <BookingRecommendationSection booking={booking} />
+
         <PanelSection label="Actions">
           <div style={{ display: "grid", gap: "0.5rem" }}>
             <button
@@ -517,6 +523,41 @@ function BookingDetailsPanel({
             />
           </div>
         </PanelSection>
+      </div>
+    </div>
+  );
+}
+
+function BookingRecommendationSection({
+  booking,
+}: {
+  booking: WorkspaceBookingRow;
+}) {
+  const isHomeService = Boolean(
+    booking.type === "home_service" ||
+    (booking.metadata && (booking.metadata.delivery_type === "home_service" || booking.metadata.type === "home_service"))
+  );
+  const staff = readFirst(booking.staff);
+  const needsTherapist = !staff;
+  const needsDriver = isHomeService;
+
+  if (!needsTherapist && !needsDriver) return null;
+
+  return (
+    <div>
+      <AssignmentRecommendationPanel
+        bookingId={booking.id}
+        fetchRecommendations={getAssignmentRecommendationsAction}
+        onAssignDriver={(driverId) => {
+          assignBookingDriverAction({ bookingId: booking.id, driverId });
+        }}
+        currentTherapistId={staff?.id ?? null}
+        currentDriverId={null}
+        showTherapists={needsTherapist}
+        showDrivers={needsDriver}
+      />
+      <div style={{ fontSize: 10, color: "var(--cs-text-muted)", marginTop: 6, textAlign: "center" }}>
+        Recommendation only. Use existing booking controls to confirm assignment.
       </div>
     </div>
   );

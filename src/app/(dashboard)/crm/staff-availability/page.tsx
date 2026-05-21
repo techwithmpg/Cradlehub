@@ -3,21 +3,32 @@ import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/sch
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
+import { getScheduleSetupOverview } from "@/lib/queries/staff-schedule-groups";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 
 async function getPageData(branchId: string): Promise<{
   items: StaffScheduleItem[];
+  groups: Awaited<ReturnType<typeof getScheduleSetupOverview>>["groups"];
+  rulesByGroup: Awaited<ReturnType<typeof getScheduleSetupOverview>>["rulesByGroup"];
   error: string | null;
 }> {
   try {
-    const items = await getStaffWithAvailability(branchId);
-    return { items: items as unknown as StaffScheduleItem[], error: null };
+    const [items, overview] = await Promise.all([
+      getStaffWithAvailability(branchId),
+      getScheduleSetupOverview(branchId),
+    ]);
+    return {
+      items: items as unknown as StaffScheduleItem[],
+      groups: overview.groups,
+      rulesByGroup: overview.rulesByGroup,
+      error: null,
+    };
   } catch (err) {
     console.error("[crm/staff-availability] load failed", {
       branchId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return { items: [], error: "Failed to load schedule setup data. Please refresh." };
+    return { items: [], groups: [], rulesByGroup: {}, error: "Failed to load schedule setup data. Please refresh." };
   }
 }
 
@@ -52,7 +63,7 @@ function PageActions() {
 
 export default async function CrmStaffAvailabilityPage() {
   const branchId = await getManagerBranchId();
-  const { items, error } = await getPageData(branchId);
+  const { items, groups, rulesByGroup, error } = await getPageData(branchId);
 
   return (
     <section className="space-y-5">
@@ -68,7 +79,7 @@ export default async function CrmStaffAvailabilityPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : (
-        <ScheduleSetupWorkspace items={items} />
+        <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} />
       )}
     </section>
   );

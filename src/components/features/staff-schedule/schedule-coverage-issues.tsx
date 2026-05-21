@@ -1,8 +1,9 @@
 import type { StaffScheduleItem } from "./staff-schedule-list";
+import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
-type Props = { items: StaffScheduleItem[] };
+type Props = { items: StaffScheduleItem[]; rulesByGroup?: Record<string, StaffGroupScheduleRule[]> };
 
-export function ScheduleCoverageIssues({ items }: Props) {
+export function ScheduleCoverageIssues({ items, rulesByGroup }: Props) {
   const today = new Date().toISOString().split("T")[0]!;
   const todayDow = new Date().getDay();
 
@@ -16,9 +17,28 @@ export function ScheduleCoverageIssues({ items }: Props) {
     i.overrides.some((o) => o.override_date === today && o.is_day_off)
   );
 
-  const totalIssues = noSchedule.length;
+  // Staff with no individual schedule AND no group rules
+  const noGroupOrIndividual = items.filter((i) => {
+    const hasIndividual = i.schedules.some((s) => s.is_active);
+    if (hasIndividual) return false;
+    const staffType = i.staff.staff_type ?? "";
+    const groupKey =
+      staffType === "therapist" ? "therapist"
+      : staffType === "driver" ? "driver"
+      : staffType === "csr" ? "csr"
+      : staffType === "utility" ? "utility"
+      : staffType === "managerial" ? "managerial"
+      : staffType === "nail_tech" || staffType === "salon_head" ? "nail_tech"
+      : staffType === "aesthetician" ? "aesthetician"
+      : "";
+    const groupRules = groupKey ? (rulesByGroup?.[groupKey] ?? []) : [];
+    const hasGroupRules = groupRules.some((r) => r.is_active && !r.is_day_off);
+    return !hasGroupRules;
+  });
 
-  if (totalIssues === 0 && noOpeningToday.length === 0) {
+  const totalIssues = noSchedule.length + noGroupOrIndividual.length;
+
+  if (totalIssues === 0 && noOpeningToday.length === 0 && onLeaveToday.length === 0) {
     return (
       <div
         style={{
@@ -49,6 +69,20 @@ export function ScheduleCoverageIssues({ items }: Props) {
         >
           {noSchedule.map((item) => (
             <IssueCard key={item.staff.id} item={item} tag="No schedule" tagColor="var(--cs-warning)" />
+          ))}
+        </IssueSection>
+      )}
+
+      {/* No group rules or individual schedule */}
+      {noGroupOrIndividual.length > 0 && (
+        <IssueSection
+          title={`No group rules or individual schedule (${noGroupOrIndividual.length})`}
+          description="These staff have no individual schedule and their staff group has no universal rules."
+          color="var(--cs-error)"
+          badge={noGroupOrIndividual.length}
+        >
+          {noGroupOrIndividual.map((item) => (
+            <IssueCard key={item.staff.id} item={item} tag="No rules" tagColor="var(--cs-error)" />
           ))}
         </IssueSection>
       )}

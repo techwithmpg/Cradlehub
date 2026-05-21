@@ -3,7 +3,9 @@
 import { summarizeWeeklyHours, SHIFT_LABELS } from "@/lib/utils/staff-schedule-summary";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { getStaffScheduleSource } from "@/lib/schedule/effective-schedule";
 import { Settings2 } from "lucide-react";
+import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
 type Schedule = {
   id: string;
@@ -46,6 +48,7 @@ type Props = {
   schedules: Schedule[];
   overrides: ScheduleOverride[];
   blockedTimes: BlockedTime[];
+  rulesByGroup?: Record<string, StaffGroupScheduleRule[]>;
   onManage: () => void;
 };
 
@@ -162,7 +165,28 @@ function CountBadge({ count }: { count: number }) {
   );
 }
 
-export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, onManage }: Props) {
+function SourceBadge({ sourceInfo }: { sourceInfo: { label: string; color: string; bg: string } }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 8px",
+        borderRadius: "var(--cs-r-pill)",
+        fontSize: 10,
+        fontWeight: 600,
+        background: sourceInfo.bg,
+        color: sourceInfo.color,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {sourceInfo.label}
+    </span>
+  );
+}
+
+export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, rulesByGroup, onManage }: Props) {
   const summary = summarizeWeeklyHours(schedules);
   const isScheduled = schedules.some((s) => s.is_active);
 
@@ -173,7 +197,21 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? staff.staff_type ?? "Staff";
   const displayName = getStaffAdminName(staff);
 
-  // Avatar color based on role
+  // Resolve group rules for this staff
+  const staffType = staff.staff_type ?? "";
+  const groupKey =
+    staffType === "therapist" ? "therapist"
+    : staffType === "driver" ? "driver"
+    : staffType === "csr" ? "csr"
+    : staffType === "utility" ? "utility"
+    : staffType === "managerial" ? "managerial"
+    : staffType === "nail_tech" || staffType === "salon_head" ? "nail_tech"
+    : staffType === "aesthetician" ? "aesthetician"
+    : "";
+  const groupRules = groupKey ? (rulesByGroup?.[groupKey] ?? []) : [];
+  const sourceInfo = getStaffScheduleSource({ staff, schedules, overrides, blockedTimes }, groupRules);
+
+  // Avatar color based on name
   const avatarColors = [
     { bg: "#E8DDD5", text: "#8A6347" },
     { bg: "#D5E8DD", text: "#4A7C59" },
@@ -241,11 +279,9 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
           >
             {displayName}
           </div>
-          {staff.nickname && (
-            <div style={{ fontSize: 11, color: "var(--cs-text-subtle)", marginTop: 1 }}>
-              {staff.nickname}
-            </div>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+            <SourceBadge sourceInfo={sourceInfo} />
+          </div>
         </div>
       </div>
 

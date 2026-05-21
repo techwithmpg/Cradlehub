@@ -1677,6 +1677,94 @@ export type Database = {
           },
         ]
       }
+      staff_schedule_groups: {
+        Row: {
+          id: string
+          branch_id: string
+          group_key: string
+          group_name: string
+          description: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          branch_id: string
+          group_key: string
+          group_name: string
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          branch_id?: string
+          group_key?: string
+          group_name?: string
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_schedule_groups_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_group_schedule_rules: {
+        Row: {
+          id: string
+          group_id: string
+          day_of_week: number
+          shift_type: string
+          start_time: string | null
+          end_time: string | null
+          is_day_off: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          day_of_week: number
+          shift_type?: string
+          start_time?: string | null
+          end_time?: string | null
+          is_day_off?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          day_of_week?: number
+          shift_type?: string
+          start_time?: string | null
+          end_time?: string | null
+          is_day_off?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_group_schedule_rules_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "staff_schedule_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_scheduling_preferences: {
         Row: {
           id: string

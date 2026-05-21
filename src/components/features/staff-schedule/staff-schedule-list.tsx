@@ -3,6 +3,7 @@
 import { StaffScheduleRow } from "./staff-schedule-row";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { Users } from "lucide-react";
+import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
 type Schedule = {
   id: string;
@@ -49,10 +50,11 @@ export type StaffScheduleItem = {
 
 type Props = {
   items: StaffScheduleItem[];
+  rulesByGroup?: Record<string, StaffGroupScheduleRule[]>;
   onManage: (staffId: string) => void;
 };
 
-export function StaffScheduleList({ items, onManage }: Props) {
+export function StaffScheduleList({ items, rulesByGroup, onManage }: Props) {
   if (items.length === 0) {
     return (
       <div
@@ -116,6 +118,7 @@ export function StaffScheduleList({ items, onManage }: Props) {
             schedules={item.schedules}
             overrides={item.overrides}
             blockedTimes={item.blockedTimes}
+            rulesByGroup={rulesByGroup}
             onManage={() => onManage(item.staff.id)}
           />
         ))}

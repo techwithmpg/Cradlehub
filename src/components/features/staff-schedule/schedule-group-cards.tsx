@@ -1,4 +1,5 @@
 import type { StaffScheduleItem } from "./staff-schedule-list";
+import type { StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
 
 // ── Group definitions ──────────────────────────────────────────────────────────
 
@@ -27,11 +28,12 @@ export function getGroupLabel(groupId: string): string {
 
 type Props = {
   items: StaffScheduleItem[];
+  groups: StaffScheduleGroup[];
   selectedGroup: string;
   onSelectGroup: (groupId: string) => void;
 };
 
-export function ScheduleGroupCards({ items, selectedGroup, onSelectGroup }: Props) {
+export function ScheduleGroupCards({ items, groups, selectedGroup, onSelectGroup }: Props) {
   return (
     <div
       style={{
@@ -47,6 +49,7 @@ export function ScheduleGroupCards({ items, selectedGroup, onSelectGroup }: Prop
           group.staffTypes.includes(i.staff.staff_type ?? "")
         ).length;
         const isActive = selectedGroup === group.id;
+        const hasGroupData = groups.some((g) => g.group_key === group.id);
 
         return (
           <button
@@ -55,7 +58,7 @@ export function ScheduleGroupCards({ items, selectedGroup, onSelectGroup }: Prop
             onClick={() => onSelectGroup(group.id)}
             style={{
               flexShrink: 0,
-              minWidth: 130,
+              minWidth: 140,
               padding: "11px 14px",
               borderRadius: "var(--cs-r-md)",
               border: isActive
@@ -76,8 +79,24 @@ export function ScheduleGroupCards({ items, selectedGroup, onSelectGroup }: Prop
             >
               {group.label}
             </div>
-            <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginTop: 2 }}>
-              {count} Staff
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>
+                {count} Staff
+              </span>
+              {!hasGroupData && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    padding: "1px 5px",
+                    background: "var(--cs-error-bg)",
+                    color: "var(--cs-error)",
+                    borderRadius: "var(--cs-r-pill)",
+                  }}
+                >
+                  No rules
+                </span>
+              )}
             </div>
           </button>
         );

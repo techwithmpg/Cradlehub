@@ -10,9 +10,11 @@ import { isScheduled } from "@/lib/utils/staff-schedule-summary";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { ScheduleFilter, ScheduleSort } from "./staff-schedule-toolbar";
 import { Users, CalendarCheck, CalendarX, AlertTriangle, ShieldAlert, UserX } from "lucide-react";
+import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
 type Props = {
   items: StaffScheduleItem[];
+  rulesByGroup?: Record<string, StaffGroupScheduleRule[]>;
 };
 
 const TIER_ORDER: Record<string, number> = {
@@ -85,7 +87,7 @@ function StatChip({
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function StaffSchedulePageClient({ items }: Props) {
+export function StaffSchedulePageClient({ items, rulesByGroup }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ScheduleFilter>("all");
@@ -227,6 +229,7 @@ export function StaffSchedulePageClient({ items }: Props) {
 
       <StaffScheduleList
         items={filteredItems}
+        rulesByGroup={rulesByGroup}
         onManage={(staffId) => setSelectedStaffId(staffId)}
       />
 

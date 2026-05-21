@@ -1119,3 +1119,49 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
+
+### 2026-05-21 — Claude Code (CRM-OPS-002I — Driver/Therapist Assignment Recommendation)
+
+**Task:** Add recommendation engine that helps CRM choose the best available staff for bookings.
+
+**Files Created:**
+- `src/lib/assignments/recommendation-engine.ts` — Pure scoring logic for therapist and driver candidates
+  - `scoreTherapistCandidates()` — scores service providers by check-in, conflicts, capability, schedule fit, workload
+  - `scoreDriverCandidates()` — scores drivers by check-in, active trips, schedule fit, workload
+  - Transparent scoring: +40 checked in, +30 no conflict, +20 same branch/service-capable, +15 inside shift, +10 light workload, -50 not checked in/conflict, -30 blocked/day off, -20 no schedule
+- `src/lib/queries/assignment-recommendations.ts` — Query layer that fetches all recommendation context in parallel
+  - Booking, service, staff list, staff_services, schedules, overrides, blocked times, check-ins, conflict bookings, preferences
+- `src/lib/actions/assignment-recommendations.ts` — Server actions
+  - `getAssignmentRecommendationsAction()` — full therapist + driver recommendations
+  - `getTherapistRecommendationsAction()` — therapist only
+  - `getDriverRecommendationsAction()` — driver only (home service only)
+  - Branch-scoped with owner cross-branch bypass
+- `src/components/features/assignments/assignment-recommendation-card.tsx` — Single candidate card
+  - Status badge (recommended/available/warning/unavailable), score, reasons, warnings, assign button
+- `src/components/features/assignments/assignment-recommendation-panel.tsx` — Expandable panel
+  - "Get Recommendations" button, best match + alternatives, loading/error states
+
+**Files Changed:**
+- `src/components/features/bookings/bookings-table.tsx`
+  - Added `BookingRecommendationSection` inside `BookingDetailsPanel`
+  - Shows therapist recommendations when staff is unassigned
+  - Shows driver recommendations for home-service bookings
+  - Wires existing `assignBookingDriverAction` for driver assign
+  - Shows "Recommendation only" note for therapist (no existing assign action in panel)
+- `src/components/features/dispatch/dispatch-workspace.tsx`
+  - Added driver recommendation panel inside expanded `DispatchItemRow` when `dispatchStatus === "awaiting_driver"`
+  - Wires existing `assignBookingDriverAction`
+
+**Design Decisions:**
+- Recommendation-only: no auto-assignment. CRM must still click existing assign/confirm controls.
+- Therapist assignment in booking panel is recommendation-only because no existing "assign therapist to booking" UI action exists in the detail panel (assignment happens during booking creation via seniority auto-assign or edit booking flow).
+- Driver assignment uses the existing `assignBookingDriverAction` server action.
+- Group schedule rules exist but are not integrated into the recommendation engine's schedule check yet (uses `staff_schedules` directly, same as availability engine).
+- `staff_scheduling_preferences` is queried but not yet used in scoring (graceful fallback if table absent).
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+**Commit:** `feat(assignments): add staff recommendation engine` on `main`

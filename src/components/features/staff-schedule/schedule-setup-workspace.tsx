@@ -10,14 +10,17 @@ import { ScheduleOverridesView } from "./schedule-overrides-view";
 import { ScheduleSetupHelperBar } from "./schedule-setup-helper-bar";
 import { StaffSchedulePageClient } from "./staff-schedule-page-client";
 import type { StaffScheduleItem } from "./staff-schedule-list";
+import type { StaffScheduleGroup, StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
 type TabValue = "general" | "individual" | "overrides" | "coverage";
 
 type Props = {
   items: StaffScheduleItem[];
+  groups: StaffScheduleGroup[];
+  rulesByGroup: Record<string, StaffGroupScheduleRule[]>;
 };
 
-export function ScheduleSetupWorkspace({ items }: Props) {
+export function ScheduleSetupWorkspace({ items, groups, rulesByGroup }: Props) {
   const [activeTab, setActiveTab] = useState<TabValue>("general");
   const [selectedGroup, setSelectedGroup] = useState<string>("therapist");
 
@@ -30,6 +33,14 @@ export function ScheduleSetupWorkspace({ items }: Props) {
   const groupLabel = useMemo(() => {
     return STAFF_GROUPS.find((g) => g.id === selectedGroup)?.label ?? selectedGroup;
   }, [selectedGroup]);
+
+  const selectedGroupData = useMemo(() => {
+    return groups.find((g) => g.group_key === selectedGroup);
+  }, [groups, selectedGroup]);
+
+  const selectedGroupRules = useMemo(() => {
+    return rulesByGroup[selectedGroup] ?? [];
+  }, [rulesByGroup, selectedGroup]);
 
   return (
     <div className="space-y-4">
@@ -71,19 +82,24 @@ export function ScheduleSetupWorkspace({ items }: Props) {
         <div className="flex flex-col gap-4">
           <ScheduleGroupCards
             items={items}
+            groups={groups}
             selectedGroup={selectedGroup}
             onSelectGroup={setSelectedGroup}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
             <GroupScheduleRulesPanel
+              key={selectedGroup}
               selectedGroup={selectedGroup}
+              groupData={selectedGroupData}
+              groupRules={selectedGroupRules}
               groupItems={groupItems}
             />
             <div className="flex flex-col gap-4">
               <ScheduleSetupRightRail
                 selectedGroup={selectedGroup}
                 groupItems={groupItems}
+                groupRules={selectedGroupRules}
               />
             </div>
           </div>
@@ -92,11 +108,13 @@ export function ScheduleSetupWorkspace({ items }: Props) {
         </div>
       )}
 
-      {activeTab === "individual" && <StaffSchedulePageClient items={items} />}
+      {activeTab === "individual" && (
+        <StaffSchedulePageClient items={items} rulesByGroup={rulesByGroup} />
+      )}
 
       {activeTab === "overrides" && <ScheduleOverridesView items={items} />}
 
-      {activeTab === "coverage" && <ScheduleCoverageIssues items={items} />}
+      {activeTab === "coverage" && <ScheduleCoverageIssues items={items} rulesByGroup={rulesByGroup} />}
     </div>
   );
 }

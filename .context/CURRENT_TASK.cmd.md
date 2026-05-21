@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002E-B
+# CURRENT TASK: CRM-OPS-002I
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002E-B
+CRM-OPS-002I
 
 ## Description
-Redesign Manage Individual Schedule modal/sheet with cleaner tabs, cards, status chips, and polished editors
+Add driver and therapist assignment recommendation engine
 
 ## Agent
 Claude Code

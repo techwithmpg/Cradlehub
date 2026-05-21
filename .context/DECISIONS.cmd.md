@@ -172,3 +172,16 @@ Universal schedule persistence is deferred to Phase 2F. The UI clearly labels pr
 - Existing `staff_schedules` table continues to serve all operational needs.
 - CRM/manager users get immediate visual clarity on the group-first scheduling model.
 - No risk to public booking engine, check-in system, or live availability.
+
+### DEC-PHASE2-007: Recommendation-first assignment (no auto-assign)
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+Phase 2I introduces a recommendation-first assignment model. The system scores and ranks therapist/driver candidates with transparent reasons, but CRM/Manager remains responsible for confirming assignment. Auto-assignment is deferred until recommendations are proven reliable in production.
+
+**Rationale:**
+- Prevents wrong-staff assignments that damage customer experience.
+- Gives operators full visibility into why a candidate is recommended (checked in, no conflicts, service-capable, etc.).
+- Existing auto-assign by seniority still runs during public/in-house booking creation when no staff is selected.
+- Recommendation engine uses real data: staff_schedules, check-ins, conflicts, overrides, blocked times, staff_services.
+- No changes to `get_available_slots` RPC or public booking wizard.

@@ -4,6 +4,9 @@ import { useState } from "react";
 import { AlertTriangle, Car, CheckCircle2, Clock, MapPin, User, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
+import { getDriverRecommendationsAction } from "@/lib/actions/assignment-recommendations";
+import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import type { DispatchStatus } from "@/features/dispatch/types";
 
@@ -182,6 +185,22 @@ function DispatchItemRow({
               <span>ETA {item.etaMinutes}m</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Recommendations for awaiting driver */}
+      {selected && item.dispatchStatus === "awaiting_driver" && (
+        <div className="mt-3">
+          <AssignmentRecommendationPanel
+            bookingId={item.id}
+            fetchRecommendations={getDriverRecommendationsAction}
+            onAssignDriver={(driverId) => {
+              assignBookingDriverAction({ bookingId: item.id, driverId });
+            }}
+            currentDriverId={item.driverId}
+            showTherapists={false}
+            showDrivers={true}
+          />
         </div>
       )}
     </button>

@@ -1,5 +1,6 @@
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import { STAFF_GROUPS } from "./schedule-group-cards";
+import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -39,9 +40,10 @@ function StatRow({
 type Props = {
   selectedGroup: string;
   groupItems: StaffScheduleItem[];
+  groupRules: StaffGroupScheduleRule[];
 };
 
-export function ScheduleSetupRightRail({ selectedGroup, groupItems }: Props) {
+export function ScheduleSetupRightRail({ selectedGroup, groupItems, groupRules }: Props) {
   const group = STAFF_GROUPS.find((g) => g.id === selectedGroup);
   const groupLabel = group?.label ?? selectedGroup;
 
@@ -78,6 +80,10 @@ export function ScheduleSetupRightRail({ selectedGroup, groupItems }: Props) {
     i.schedules.some((s) => s.day_of_week === todayDow && s.is_active)
   ).length;
 
+  // Group rules insight
+  const hasGroupRules = groupRules.some((r) => r.is_active && !r.is_day_off);
+  const groupRuleDays = groupRules.filter((r) => r.is_active && !r.is_day_off).length;
+
   const coverageBars = [
     { label: "Opening",   count: openingToday,   total: scheduledToday || total, color: "var(--cs-success)" },
     { label: "Closing",   count: closingToday,   total: scheduledToday || total, color: "var(--cs-info)" },
@@ -113,6 +119,20 @@ export function ScheduleSetupRightRail({ selectedGroup, groupItems }: Props) {
         ) : (
           <div style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>No staff in this group yet.</div>
         )}
+
+        {/* Group rules status */}
+        <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--cs-surface-warm)", borderRadius: "var(--cs-r-sm)", border: "1px solid var(--cs-border-soft)" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-text)", marginBottom: 3 }}>Group Rules</div>
+          {hasGroupRules ? (
+            <div style={{ fontSize: 11, color: "var(--cs-success)" }}>
+              {groupRuleDays} active rule{groupRuleDays !== 1 ? "s" : ""} configured
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>
+              No universal rules yet. Set the weekly pattern to create defaults.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Coverage Insight */}
