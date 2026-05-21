@@ -2,6 +2,7 @@
 
 import { StaffScheduleRow } from "./staff-schedule-row";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
+import { Users } from "lucide-react";
 
 type Schedule = {
   id: string;
@@ -54,10 +55,20 @@ type Props = {
 export function StaffScheduleList({ items, onManage }: Props) {
   if (items.length === 0) {
     return (
-      <EmptyState
-        title="No staff found"
-        description="Try adjusting your search or filters."
-      />
+      <div
+        className="cs-card"
+        style={{
+          padding: 0,
+          overflow: "hidden",
+          borderRadius: "var(--cs-r-lg)",
+        }}
+      >
+        <EmptyState
+          title="No staff found"
+          description="Try adjusting your search or filters."
+          icon={<Users size={20} />}
+        />
+      </div>
     );
   }
 
@@ -74,24 +85,24 @@ export function StaffScheduleList({ items, onManage }: Props) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1.75fr 1.25fr 1.5fr 0.6fr 0.6fr 0.5fr 80px",
+          gridTemplateColumns: "2fr 1.25fr 1.5fr 0.7fr 0.7fr 0.6fr 90px",
           alignItems: "center",
           gap: "0.75rem",
-          padding: "0.5rem 1rem",
-          backgroundColor: "var(--cs-bg)",
-          borderBottom: "1px solid var(--cs-border)",
+          padding: "0.625rem 1.25rem",
+          backgroundColor: "var(--cs-surface-warm)",
+          borderBottom: "1px solid var(--cs-border-soft)",
           fontSize: "0.6875rem",
           fontWeight: 600,
           color: "var(--cs-text-muted)",
           textTransform: "uppercase",
-          letterSpacing: "0.04em",
+          letterSpacing: "0.05em",
         }}
       >
         <div>Staff</div>
         <div>Role / Tier</div>
         <div>Weekly Hours</div>
-        <div>Overrides</div>
-        <div>Blocks</div>
+        <div style={{ textAlign: "center" }}>Overrides</div>
+        <div style={{ textAlign: "center" }}>Blocks</div>
         <div>Status</div>
         <div style={{ textAlign: "right" }}>Action</div>
       </div>

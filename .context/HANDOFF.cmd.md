@@ -257,3 +257,49 @@
 
 ## Recommended Next Step
 - Phase 2F: Implement persistent universal group schedule tables (`group_schedules` or `staff_group_rules`) and wire the weekly pattern matrix + shift templates to save/load from the database.
+
+---
+
+# HANDOFF — CRM-OPS-002E-A
+
+## Date
+2026-05-21
+
+## What Changed
+
+### Individual Adjustments Tab Polish
+**File:** `src/components/features/staff-schedule/staff-schedule-page-client.tsx`
+- Added 6-compact-stat strip at the top: Total Staff, Scheduled, Not Scheduled, With Overrides, With Blocks, Inactive.
+- Stats computed from the full unfiltered staff list.
+
+**File:** `src/components/features/staff-schedule/staff-schedule-toolbar.tsx`
+- Filter dropdown replaced with horizontal filter pills (All, Scheduled, Not Scheduled, Overrides, Blocks, Active, Inactive).
+- Search input upgraded with focus ring, rounded corners, and placeholder text.
+- Sort select styled with custom arrow icon.
+
+**File:** `src/components/features/staff-schedule/staff-schedule-list.tsx`
+- Table header now uses `var(--cs-surface-warm)` background for better separation.
+- Column proportions adjusted; override/block columns centered.
+
+**File:** `src/components/features/staff-schedule/staff-schedule-row.tsx`
+- Avatars now have deterministic soft colors based on staff name.
+- New `StatusChip` component: pill-shaped badges for Scheduled (green), Off (neutral), Inactive (red).
+- `CountBadge` for override/block counts — subtle but scannable.
+- `ShiftBadge` restyled as uppercase pill with tighter typography.
+- "Manage" button restyled as `cs-btn-secondary` for clearer affordance.
+
+## Build / Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+## Git
+- Commit: TBD (pending) on `main`
+
+## ⚠️ Important Notes for Next Agent
+1. **Existing sheet editor is untouched.** `StaffScheduleDetailPanel` with Weekly Hours / Day Overrides / Block Time editors remains fully functional.
+2. **All data is real.** Stat cards, filter counts, and badges are computed from the same `StaffScheduleItem[]` data source.
+3. **No schema changes.** This is a pure UI/UX polish pass.
+
+## Recommended Next Step
+- Phase 2F: Implement persistent universal group schedule tables.

@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002E
+# CURRENT TASK: CRM-OPS-002E-A
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002E
+CRM-OPS-002E-A
 
 ## Description
-Redesign Schedule Setup into universal group schedule UI with individual adjustments
+Polish Individual Adjustments tab — stat cards, filter pills, cleaner table, status chips, action buttons
 
 ## Agent
 Claude Code

@@ -50,9 +50,9 @@ type Props = {
 };
 
 const SHIFT_BADGE_COLORS: Record<string, { bg: string; color: string }> = {
-  opening: { bg: "rgba(74, 124, 89, 0.12)",  color: "#4A7C59" },
-  closing: { bg: "rgba(59, 130, 246, 0.12)", color: "#2563EB" },
-  single:  { bg: "rgba(107, 114, 128, 0.12)", color: "var(--cs-text-muted)" },
+  opening: { bg: "rgba(74, 124, 89, 0.12)", color: "#4A7C59" },
+  closing: { bg: "rgba(37, 99, 235, 0.12)", color: "#2563EB" },
+  single:  { bg: "rgba(166, 123, 91, 0.12)", color: "var(--cs-sand-dark)" },
 };
 
 function ShiftBadge({ type }: { type: string }) {
@@ -60,17 +60,104 @@ function ShiftBadge({ type }: { type: string }) {
   return (
     <span
       style={{
-        display:      "inline-block",
-        padding:      "1px 7px",
-        borderRadius: 10,
-        fontSize:     11,
-        fontWeight:   500,
-        background:   style.bg,
-        color:        style.color,
-        whiteSpace:   "nowrap",
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: "var(--cs-r-pill)",
+        fontSize: 10,
+        fontWeight: 600,
+        background: style.bg,
+        color: style.color,
+        whiteSpace: "nowrap",
+        textTransform: "uppercase",
+        letterSpacing: "0.03em",
       }}
     >
       {SHIFT_LABELS[type] ?? type}
+    </span>
+  );
+}
+
+function StatusChip({ staff, isScheduled }: { staff: StaffMember; isScheduled: boolean }) {
+  if (!staff.is_active) {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          padding: "3px 10px",
+          borderRadius: "var(--cs-r-pill)",
+          fontSize: 11,
+          fontWeight: 600,
+          background: "var(--cs-error-bg)",
+          color: "var(--cs-error)",
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cs-error)" }} />
+        Inactive
+      </span>
+    );
+  }
+
+  if (isScheduled) {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          padding: "3px 10px",
+          borderRadius: "var(--cs-r-pill)",
+          fontSize: 11,
+          fontWeight: 600,
+          background: "var(--cs-success-bg)",
+          color: "var(--cs-success)",
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cs-success)" }} />
+        Scheduled
+      </span>
+    );
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "3px 10px",
+        borderRadius: "var(--cs-r-pill)",
+        fontSize: 11,
+        fontWeight: 600,
+        background: "var(--cs-neutral-bg)",
+        color: "var(--cs-neutral)",
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cs-neutral)" }} />
+      Off
+    </span>
+  );
+}
+
+function CountBadge({ count }: { count: number }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: 20,
+        height: 20,
+        padding: "0 6px",
+        borderRadius: 10,
+        fontSize: 11,
+        fontWeight: 600,
+        background: count > 0 ? "var(--cs-sand-mist)" : "transparent",
+        color: count > 0 ? "var(--cs-sand-dark)" : "var(--cs-text-subtle)",
+      }}
+    >
+      {count}
     </span>
   );
 }
@@ -86,6 +173,16 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? staff.staff_type ?? "Staff";
   const displayName = getStaffAdminName(staff);
 
+  // Avatar color based on role
+  const avatarColors = [
+    { bg: "#E8DDD5", text: "#8A6347" },
+    { bg: "#D5E8DD", text: "#4A7C59" },
+    { bg: "#DDD5E8", text: "#6A4A8A" },
+    { bg: "#E8E8D5", text: "#8A7A5A" },
+    { bg: "#D5DDE8", text: "#5A6A8A" },
+  ];
+  const avatarColor = avatarColors[displayName.charCodeAt(0) % avatarColors.length]!;
+
   return (
     <div
       role="button"
@@ -96,11 +193,11 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
       }}
       style={{
         display: "grid",
-        gridTemplateColumns: "1.75fr 1.25fr 1.5fr 0.6fr 0.6fr 0.5fr 80px",
+        gridTemplateColumns: "2fr 1.25fr 1.5fr 0.7fr 0.7fr 0.6fr 90px",
         alignItems: "center",
         gap: "0.75rem",
-        padding: "0.625rem 1rem",
-        borderBottom: "1px solid var(--cs-border)",
+        padding: "0.625rem 1.25rem",
+        borderBottom: "1px solid var(--cs-border-soft)",
         cursor: "pointer",
         transition: "background-color 120ms ease",
         backgroundColor: "var(--cs-surface)",
@@ -116,16 +213,16 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
       <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0 }}>
         <div
           style={{
-            width: 32,
-            height: 32,
+            width: 34,
+            height: 34,
             borderRadius: "50%",
-            backgroundColor: "var(--cs-border)",
+            backgroundColor: avatarColor.bg,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontSize: "0.75rem",
             fontWeight: 600,
-            color: "var(--cs-text-muted)",
+            color: avatarColor.text,
             flexShrink: 0,
           }}
         >
@@ -144,6 +241,11 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
           >
             {displayName}
           </div>
+          {staff.nickname && (
+            <div style={{ fontSize: 11, color: "var(--cs-text-subtle)", marginTop: 1 }}>
+              {staff.nickname}
+            </div>
+          )}
         </div>
       </div>
 
@@ -151,19 +253,21 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
       <div
         style={{
           fontSize: "0.75rem",
-          color: "var(--cs-text-muted)",
+          color: "var(--cs-text-secondary)",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
       >
         {roleLabel}
-        {staff.is_head && " · Head"}
+        {staff.is_head && (
+          <span style={{ color: "var(--cs-sand)", fontWeight: 500 }}> · Head</span>
+        )}
         {staff.tier && ` · ${staff.tier}`}
       </div>
 
       {/* Weekly Hours Summary + Shift Badges */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
         <div
           style={{
             fontSize: "0.75rem",
@@ -177,7 +281,7 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
           {summary}
         </div>
         {activeShiftTypes.length > 0 && (
-          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {activeShiftTypes.map((st) => (
               <ShiftBadge key={st} type={st} />
             ))}
@@ -186,41 +290,18 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
       </div>
 
       {/* Overrides */}
-      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-        {overrides.length}{" "}
-        <span style={{ color: overrides.length > 0 ? "var(--cs-sand)" : "var(--cs-text-muted)" }}>
-          override{overrides.length !== 1 ? "s" : ""}
-        </span>
+      <div style={{ textAlign: "center" }}>
+        <CountBadge count={overrides.length} />
       </div>
 
       {/* Blocked Times */}
-      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-        {blockedTimes.length}{" "}
-        <span style={{ color: blockedTimes.length > 0 ? "var(--cs-sand)" : "var(--cs-text-muted)" }}>
-          block{blockedTimes.length !== 1 ? "s" : ""}
-        </span>
+      <div style={{ textAlign: "center" }}>
+        <CountBadge count={blockedTimes.length} />
       </div>
 
       {/* Status */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            backgroundColor: staff.is_active ? (isScheduled ? "#4A7C59" : "#BDBDBD") : "#DC2626",
-            flexShrink: 0,
-          }}
-        />
-        <span
-          style={{
-            fontSize: "0.6875rem",
-            fontWeight: 500,
-            color: staff.is_active ? (isScheduled ? "#4A7C59" : "var(--cs-text-muted)") : "#DC2626",
-          }}
-        >
-          {staff.is_active ? (isScheduled ? "Scheduled" : "Off") : "Inactive"}
-        </span>
+      <div>
+        <StatusChip staff={staff} isScheduled={isScheduled} />
       </div>
 
       {/* Action */}
@@ -231,10 +312,17 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
             e.stopPropagation();
             onManage();
           }}
-          className="cs-btn cs-btn-ghost cs-btn-sm"
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px" }}
+          className="cs-btn cs-btn-secondary cs-btn-sm"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "5px 10px",
+            fontSize: 11.5,
+            fontWeight: 500,
+          }}
         >
-          <Settings2 className="h-3.5 w-3.5" />
+          <Settings2 size={13} />
           Manage
         </button>
       </div>

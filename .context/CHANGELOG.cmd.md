@@ -1052,3 +1052,27 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
+
+---
+
+### 2026-05-21 — Claude Code (CRM-OPS-002E-A — Individual Adjustments UI Polish)
+
+**Task:** Redesign the Individual Adjustments tab inside Schedule Setup for better scannability, cleaner filters, status chips, and summary stats.
+
+**Files Modified:**
+- `src/components/features/staff-schedule/staff-schedule-page-client.tsx` — Added horizontal stat strip (Total Staff, Scheduled, Not Scheduled, With Overrides, With Blocks, Inactive) computed from real data.
+- `src/components/features/staff-schedule/staff-schedule-toolbar.tsx` — Replaced filter dropdown with filter pills/chips; improved search input focus ring; added custom select arrow; cleaner layout.
+- `src/components/features/staff-schedule/staff-schedule-list.tsx` — Polished table header with warm background; better column proportions; centered override/block columns.
+- `src/components/features/staff-schedule/staff-schedule-row.tsx` — Added colored avatars; `StatusChip` component (Scheduled/Off/Inactive as pill badges); `CountBadge` for overrides/blocks; `ShiftBadge` uses uppercase pill style; "Manage" button upgraded to `cs-btn-secondary`; hover states preserved.
+
+**Design Decisions:**
+- All stats are computed from real `items` prop — no fake data.
+- Existing `StaffScheduleDetailPanel` sheet editor is untouched.
+- Filter pills are clickable buttons with active/hover states matching CradleHub sand theme.
+- Status chips use existing `--cs-success`, `--cs-neutral`, `--cs-error` tokens.
+- Responsive: stat strip scrolls horizontally on mobile; filter pills wrap.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
