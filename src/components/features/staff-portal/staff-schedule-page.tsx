@@ -13,10 +13,7 @@ import {
 import type { StaffWeekDay, StaffWeekSummary, StaffWeekNavigation } from "@/lib/staff-portal/week";
 import { formatWeekRange, formatHours } from "@/lib/staff-portal/week";
 import type { StaffScheduleEvent } from "@/lib/staff-portal/schedule";
-import type { Database } from "@/types/supabase";
 import styles from "./staff-schedule-page.module.css";
-
-type BlockedTimeRow = Database["public"]["Tables"]["blocked_times"]["Row"];
 
 type FilterKey = "all" | "booked" | "blocked" | "day_off" | "on_duty";
 
@@ -369,7 +366,6 @@ type StaffSchedulePageProps = {
   days: StaffWeekDay[];
   summary: StaffWeekSummary;
   eventsByDate: Record<string, StaffScheduleEvent[]>;
-  rawBlocks: BlockedTimeRow[];
 };
 
 export function StaffSchedulePage({

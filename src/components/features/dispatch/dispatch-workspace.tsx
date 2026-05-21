@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Car, CheckCircle2, Clock, MapPin, User, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -102,6 +103,23 @@ function AlertBanner({ alerts }: { alerts: DispatchData["alerts"] }) {
   );
 }
 
+function DispatchRecommendationPanel({ item }: { item: RealDispatchItem }) {
+  const router = useRouter();
+  return (
+    <AssignmentRecommendationPanel
+      bookingId={item.id}
+      fetchRecommendations={getDriverRecommendationsAction}
+      onAssignDriver={async (driverId) => {
+        await assignBookingDriverAction({ bookingId: item.id, driverId });
+        router.refresh();
+      }}
+      currentDriverId={item.driverId}
+      showTherapists={false}
+      showDrivers={true}
+    />
+  );
+}
+
 function DispatchItemRow({
   item,
   selected,
@@ -184,16 +202,7 @@ function DispatchItemRow({
       {/* Recommendations for awaiting driver */}
       {selected && item.dispatchStatus === "awaiting_driver" && (
         <div className="mt-3">
-          <AssignmentRecommendationPanel
-            bookingId={item.id}
-            fetchRecommendations={getDriverRecommendationsAction}
-            onAssignDriver={(driverId) => {
-              assignBookingDriverAction({ bookingId: item.id, driverId });
-            }}
-            currentDriverId={item.driverId}
-            showTherapists={false}
-            showDrivers={true}
-          />
+          <DispatchRecommendationPanel item={item} />
         </div>
       )}
     </button>

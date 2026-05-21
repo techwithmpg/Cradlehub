@@ -183,33 +183,38 @@ export async function createOnlineBookingAction(
       };
     }
 
-    await Promise.all([
-      createNotification({
-        branchId: d.branchId,
-        targetWorkspace: "staff",
-        recipientStaffId: resolvedStaffId,
-        type: "booking_assigned",
-        title: "New booking assigned",
-        body: `You have a new booking on ${d.date} at ${d.startTime}.`,
-        entityType: "booking",
-        entityId: booking.id,
-        actionHref: "/staff-portal",
-        priority: "normal",
-        requiresAction: false,
-      }),
-      createNotification({
-        branchId: d.branchId,
-        targetWorkspace: "crm",
-        type: "payment_pending",
-        title: "Payment needs follow-up",
-        body: "A public booking payment is unpaid or pending confirmation.",
-        entityType: "booking",
-        entityId: booking.id,
-        actionHref: "/crm/bookings",
-        priority: "normal",
-        requiresAction: true,
-      }),
-    ]);
+    // Notifications are best-effort; do not fail the booking if they error
+    try {
+      await Promise.all([
+        createNotification({
+          branchId: d.branchId,
+          targetWorkspace: "staff",
+          recipientStaffId: resolvedStaffId,
+          type: "booking_assigned",
+          title: "New booking assigned",
+          body: `You have a new booking on ${d.date} at ${d.startTime}.`,
+          entityType: "booking",
+          entityId: booking.id,
+          actionHref: "/staff-portal",
+          priority: "normal",
+          requiresAction: false,
+        }),
+        createNotification({
+          branchId: d.branchId,
+          targetWorkspace: "crm",
+          type: "payment_pending",
+          title: "Payment needs follow-up",
+          body: "A public booking payment is unpaid or pending confirmation.",
+          entityType: "booking",
+          entityId: booking.id,
+          actionHref: "/crm/bookings",
+          priority: "normal",
+          requiresAction: true,
+        }),
+      ]);
+    } catch (notifyErr) {
+      logBookingError(logContext, notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr)));
+    }
 
     logBusinessEvent("booking.online.submitted", {
       branchId: d.branchId,
@@ -551,7 +556,12 @@ export async function createOnlineBookingMultiAction(
       );
     }
 
-    await Promise.all(notificationJobs);
+    // Notifications are best-effort; do not fail the booking if they error
+    try {
+      await Promise.all(notificationJobs);
+    } catch (notifyErr) {
+      logBookingError(logContext, notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr)));
+    }
 
     logBusinessEvent("booking.online.submitted", {
       branchId: d.branchId,

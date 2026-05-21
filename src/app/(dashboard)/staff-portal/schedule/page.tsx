@@ -46,7 +46,6 @@ export default async function SchedulePage({
       days={planner.days}
       summary={planner.summary}
       eventsByDate={eventsByDate}
-      rawBlocks={result.blocks}
     />
   );
 }

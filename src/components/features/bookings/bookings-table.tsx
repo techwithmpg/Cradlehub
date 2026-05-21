@@ -533,6 +533,7 @@ function BookingRecommendationSection({
 }: {
   booking: WorkspaceBookingRow;
 }) {
+  const router = useRouter();
   const isHomeService = Boolean(
     booking.type === "home_service" ||
     (booking.metadata && (booking.metadata.delivery_type === "home_service" || booking.metadata.type === "home_service"))
@@ -548,8 +549,9 @@ function BookingRecommendationSection({
       <AssignmentRecommendationPanel
         bookingId={booking.id}
         fetchRecommendations={getAssignmentRecommendationsAction}
-        onAssignDriver={(driverId) => {
-          assignBookingDriverAction({ bookingId: booking.id, driverId });
+        onAssignDriver={async (driverId) => {
+          await assignBookingDriverAction({ bookingId: booking.id, driverId });
+          router.refresh();
         }}
         currentTherapistId={staff?.id ?? null}
         currentDriverId={null}

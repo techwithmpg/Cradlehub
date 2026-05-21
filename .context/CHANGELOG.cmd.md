@@ -1272,3 +1272,35 @@
 - `pnpm build`: ✅ Passing, 84 app routes
 
 **Commit:** `refactor(ops): remove legacy schedule cleanup` on `main`
+
+### 2026-05-21 — Claude Code (CRM-OPS-002X-H — End-to-End Operations Smoke Test)
+
+**Task:** Verify the full operational workflow from public booking to CRM operations. Test and document results. Apply only small safe fixes.
+
+**Smoke Test Document:**
+- `docs/phase-2x-h-end-to-end-smoke-test.md` — Full report with executive summary, build verification, per-route results, gaps, bugs, fixes, and production readiness assessment.
+
+**Critical Bug Found & Fixed:**
+- `src/lib/actions/online-booking.ts` — Notification `Promise.all` after booking insert could throw, causing the catch block to return `{ ok: false }` even though the booking already existed in the database. User would see a failure message but the slot was actually taken.
+  - **Fix:** Wrapped notification `Promise.all` in a dedicated `try/catch` so notification failures are logged via `logBookingError` but never fail the already-committed booking.
+
+**Medium Bugs Found & Fixed:**
+- `src/components/features/bookings/bookings-table.tsx` — Driver assignment in `BookingRecommendationSection` was fire-and-forget (no `await`, no `router.refresh()`). UI stayed showing "No driver assigned" after clicking Assign.
+  - **Fix:** Added `async/await` + `router.refresh()` to `onAssignDriver` callback.
+- `src/components/features/dispatch/dispatch-workspace.tsx` — Same fire-and-forget driver assignment bug in `DispatchItemRow`.
+  - **Fix:** Extracted `DispatchRecommendationPanel` component with `async/await` + `router.refresh()`.
+
+**Minor Fix Applied:**
+- `src/components/features/staff-portal/staff-schedule-page.tsx` + `src/app/(dashboard)/staff-portal/schedule/page.tsx` — Removed unused `rawBlocks` prop and `BlockedTimeRow` type import.
+
+**Deferred Issues (documented in smoke test report):**
+1. Group schedule `shift_type` not reflected in CRM Live Availability check-in — staff with group rules but no individual schedule get `shift_type: "single"` for check-in, which may not match their group rule.
+2. Recommendation engine does not use `max_services_per_day` / `max_trips_per_day` from `staff_scheduling_preferences`.
+3. Driver ETA/travel distance not factored into driver recommendations.
+
+**Build Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+**Commit:** `fix(ops): resolve smoke test blockers` on `main`

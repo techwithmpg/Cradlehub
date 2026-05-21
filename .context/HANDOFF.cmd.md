@@ -3,22 +3,33 @@
 > Last updated: 2026-05-21
 
 ## Current Phase
-Phase 2X-G complete — Dead Code / Legacy Cleanup
+Phase 2X-H complete — End-to-End Operations Smoke Test
 
 ## What Just Happened
-- Deleted `src/components/features/schedule/staff-schedule-grid.tsx` (336 lines, unreferenced legacy schedule grid).
-- Deleted `src/components/features/dashboard/schedule-manager.tsx` (569 lines, unreferenced legacy schedule manager).
-- All other schedule components verified still in use — none deleted.
+- Full operational workflow verified: public booking → CRM schedule setup → live availability → CRM bookings → dispatch → staff portal.
+- Critical bug fixed: online booking notification failure no longer falsely reports booking failure.
+- Medium bugs fixed: driver assignment UI now refreshes correctly in both bookings panel and dispatch workspace.
+- Minor fix: removed unused `rawBlocks` prop from staff schedule page.
+- Smoke test report created at `docs/phase-2x-h-end-to-end-smoke-test.md`.
 
 ## Known Limitations
-1. **Group schedules not wired into availability RPC:** `get_available_slots` still reads individual `staff_schedules` only.
-2. **Recommendation engine uses `staff_schedules` directly:** Group rules exist but don't affect recommendations yet.
-3. **QUICK_ACTIONS placeholder still rendered:** User-visible "Coming later" list in schedule setup right rail.
+1. **Group schedule shift_type in Live Availability:** `getCrmAvailabilitySnapshot` populates `shifts[]` only from `staff_schedules` (individual). Staff with group rules but no individual schedule get `shift_type: "single"` for check-in, which may not match their group rule's `shift_type`.
+2. **Recommendation engine workload caps:** `max_services_per_day` / `max_trips_per_day` from `staff_scheduling_preferences` are fetched but not used in scoring.
+3. **Driver ETA scoring:** Geographic proximity / travel time is not factored into driver recommendations.
+
+## Production Readiness
+- Public booking: ✅ Ready
+- CRM schedule setup: ✅ Ready
+- Live availability: ⚠️ Mostly ready (group shift_type gap is minor)
+- CRM bookings: ✅ Ready
+- Dispatch: ✅ Ready
+- Staff portal: ✅ Ready
 
 ## Files to Know
-- `src/components/features/staff-schedule/schedule-setup-workspace.tsx` — Shared workspace (CRM + Manager)
-- `src/app/(dashboard)/crm/staff-availability/page.tsx` — CRM schedule setup
-- `src/app/(dashboard)/manager/staff-availability/page.tsx` — Manager schedule setup
+- `docs/phase-2x-h-end-to-end-smoke-test.md` — Smoke test report
+- `src/lib/actions/online-booking.ts` — Fixed notification best-effort pattern
+- `src/components/features/bookings/bookings-table.tsx` — Fixed driver assign refresh
+- `src/components/features/dispatch/dispatch-workspace.tsx` — Fixed driver assign refresh
 
 ## Build Status
 - `pnpm type-check`: ✅ Passing
@@ -26,4 +37,4 @@ Phase 2X-G complete — Dead Code / Legacy Cleanup
 - `pnpm build`: ✅ Passing, 84 app routes
 
 ## Recommended Next Step
-Phase 2X-H — End-to-End Operations Smoke Test
+Phase 2J — Staff Shift Requests
