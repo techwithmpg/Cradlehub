@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
 import { getDriverRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
+import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import type { DispatchStatus } from "@/features/dispatch/types";
 
@@ -39,14 +40,6 @@ function statusStyle(s: DispatchStatus): StatusStyle {
   }
 }
 
-function fmt12h(time24: string): string {
-  const [hStr, mStr] = time24.split(":");
-  const h = parseInt(hStr ?? "0", 10);
-  const m = parseInt(mStr ?? "0", 10);
-  const period = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
-}
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
@@ -143,7 +136,7 @@ function DispatchItemRow({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs text-[var(--cs-text-secondary)]">
-            {fmt12h(item.startTime)}
+            {formatTime12h(item.startTime)}
           </span>
           <Badge variant={style.variant} className={`text-xs ${style.className}`}>
             {statusLabel(item.dispatchStatus)}

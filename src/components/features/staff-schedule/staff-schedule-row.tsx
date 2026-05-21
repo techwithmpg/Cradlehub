@@ -1,9 +1,10 @@
 "use client";
 
-import { summarizeWeeklyHours, SHIFT_LABELS } from "@/lib/utils/staff-schedule-summary";
+import { summarizeWeeklyHours } from "@/lib/utils/staff-schedule-summary";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { getStaffScheduleSource } from "@/lib/schedule/effective-schedule";
+import { ShiftTypeBadge } from "@/components/shared/shift-type-badge";
 import { Settings2 } from "lucide-react";
 import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
@@ -51,34 +52,6 @@ type Props = {
   rulesByGroup?: Record<string, StaffGroupScheduleRule[]>;
   onManage: () => void;
 };
-
-const SHIFT_BADGE_COLORS: Record<string, { bg: string; color: string }> = {
-  opening: { bg: "rgba(74, 124, 89, 0.12)", color: "#4A7C59" },
-  closing: { bg: "rgba(37, 99, 235, 0.12)", color: "#2563EB" },
-  single:  { bg: "rgba(166, 123, 91, 0.12)", color: "var(--cs-sand-dark)" },
-};
-
-function ShiftBadge({ type }: { type: string }) {
-  const style = SHIFT_BADGE_COLORS[type] ?? SHIFT_BADGE_COLORS.single!;
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: "var(--cs-r-pill)",
-        fontSize: 10,
-        fontWeight: 600,
-        background: style.bg,
-        color: style.color,
-        whiteSpace: "nowrap",
-        textTransform: "uppercase",
-        letterSpacing: "0.03em",
-      }}
-    >
-      {SHIFT_LABELS[type] ?? type}
-    </span>
-  );
-}
 
 function StatusChip({ staff, isScheduled }: { staff: StaffMember; isScheduled: boolean }) {
   if (!staff.is_active) {
@@ -319,7 +292,7 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, ru
         {activeShiftTypes.length > 0 && (
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {activeShiftTypes.map((st) => (
-              <ShiftBadge key={st} type={st} />
+              <ShiftTypeBadge key={st} shiftType={st} />
             ))}
           </div>
         )}

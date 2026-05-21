@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002X-A
+# CURRENT TASK: CRM-OPS-002X-B
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002X-A
+CRM-OPS-002X-B
 
 ## Description
-Phase 2X-A — Operations Unification Audit
+Consolidate duplicated shared UI components for schedule, availability, and dispatch
 
 ## Agent
 Claude Code

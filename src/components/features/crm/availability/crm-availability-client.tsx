@@ -3,6 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CrmAvailabilityBoard } from "./crm-availability-board";
+import { ShiftTypeBadge } from "@/components/shared/shift-type-badge";
+import { PresenceStatusBadge } from "@/components/shared/presence-status-badge";
+import { AvailabilityStatusBadge } from "@/components/shared/availability-status-badge";
+import { formatTime12h } from "@/lib/utils/time-format";
 import { checkInStaffForShiftAction, checkOutStaffForShiftAction } from "@/lib/actions/staff-checkins";
 import type { CrmAvailabilitySnapshot, CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
 
@@ -15,17 +19,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "driver_readiness", label: "Driver Readiness" },
 ];
 
-function formatTime(t: string | null): string {
-  if (!t) return "—";
-  const parts = t.slice(0, 5).split(":");
-  if (parts.length < 2) return t;
-  const [h, m] = parts;
-  const hour = parseInt(h ?? "0", 10);
-  const ampm = hour >= 12 ? "pm" : "am";
-  const h12 = hour % 12 || 12;
-  return `${h12}:${m}${ampm}`;
-}
-
 /** Deterministic 12-hour time from ISO string — avoids locale-based hydration mismatch. */
 function formatAsOf(isoString: string): string {
   const d = new Date(isoString);
@@ -35,30 +28,6 @@ function formatAsOf(isoString: string): string {
   const h12 = h % 12 || 12;
   return `${h12}:${m} ${ampm}`;
 }
-
-const SHIFT_BADGE: Record<string, { label: string; bg: string; color: string }> = {
-  opening: { label: "Opening",  bg: "rgba(74,124,89,0.12)",  color: "#4A7C59" },
-  closing: { label: "Closing",  bg: "rgba(59,130,246,0.12)", color: "#2563EB" },
-  single:  { label: "Regular",  bg: "rgba(107,114,128,0.1)", color: "var(--cs-text-muted)" },
-};
-
-const STATUS_DOT: Record<string, string> = {
-  available_now:   "var(--cs-success)",
-  busy_now:        "var(--cs-info)",
-  not_checked_in:  "var(--cs-warning)",
-  checked_out:     "var(--cs-text-muted)",
-  off_today:       "var(--cs-text-muted)",
-  no_schedule:     "var(--cs-warning)",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  available_now:   "Available",
-  busy_now:        "Busy",
-  not_checked_in:  "Not checked in",
-  checked_out:     "Checked out",
-  off_today:       "Off",
-  no_schedule:     "No Schedule",
-};
 
 type Props = { snapshot: CrmAvailabilitySnapshot };
 
@@ -176,11 +145,8 @@ function StaffListView({
         <span>Active Booking</span>
       </div>
       {staff.map((s) => {
-        const dot = STATUS_DOT[s.liveStatus] ?? "var(--cs-text-muted)";
-        const label = STATUS_LABEL[s.liveStatus] ?? s.liveStatus;
         const primaryShift = s.shifts[0];
         const shiftType = primaryShift?.shift_type ?? "single";
-        const shiftCfg = SHIFT_BADGE[shiftType] ?? SHIFT_BADGE.single!;
         const primaryShiftTypeEnum = (primaryShift?.shift_type ?? "single") as "single" | "opening" | "closing";
 
         return (
@@ -198,24 +164,15 @@ function StaffListView({
                 {s.staff_type.replace("_", " ")}
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0, display: "inline-block" }} />
-              <span style={{ fontSize: 12, color: dot, fontWeight: 500 }}>{label}</span>
+            <div>
+              <AvailabilityStatusBadge status={s.liveStatus} />
             </div>
             <div>
               {s.work_start && s.work_end ? (
                 <div>
-                  <span
-                    style={{
-                      display: "inline-block", padding: "1px 7px",
-                      borderRadius: 10, fontSize: 10, fontWeight: 500,
-                      background: shiftCfg.bg, color: shiftCfg.color, marginBottom: 2,
-                    }}
-                  >
-                    {shiftCfg.label}
-                  </span>
-                  <div style={{ fontSize: 11, color: "var(--cs-text-subtle)" }}>
-                    {formatTime(s.work_start)} – {formatTime(s.work_end)}
+                  <ShiftTypeBadge shiftType={shiftType} />
+                  <div style={{ fontSize: 11, color: "var(--cs-text-subtle)", marginTop: 2 }}>
+                    {formatTime12h(s.work_start)} – {formatTime12h(s.work_end)}
                   </div>
                 </div>
               ) : (
@@ -224,7 +181,7 @@ function StaffListView({
             </div>
             {/* Presence + action */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <PresencePill presenceStatus={s.presenceStatus} />
+              <PresenceStatusBadge status={s.presenceStatus} />
               {s.presenceStatus === "not_checked_in" && (
                 <button
                   type="button"
@@ -288,28 +245,6 @@ function StaffListView({
         );
       })}
     </div>
-  );
-}
-
-function PresencePill({ presenceStatus }: { presenceStatus: CrmAvailabilityStaffRow["presenceStatus"] }) {
-  const cfg: Record<string, { label: string; color: string; bg: string }> = {
-    checked_in:     { label: "Checked in",    color: "#4A7C59", bg: "rgba(74,124,89,0.12)" },
-    not_checked_in: { label: "Not checked in", color: "#D97706", bg: "rgba(217,119,6,0.1)" },
-    checked_out:    { label: "Checked out",   color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)" },
-    off_today:      { label: "Off today",     color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)" },
-    no_schedule:    { label: "No schedule",   color: "#D97706", bg: "rgba(217,119,6,0.1)" },
-  };
-  const c = cfg[presenceStatus] ?? { label: presenceStatus, color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)" };
-  return (
-    <span
-      style={{
-        display: "inline-block", padding: "1px 7px",
-        borderRadius: 10, fontSize: 10, fontWeight: 500,
-        background: c.bg, color: c.color,
-      }}
-    >
-      {c.label}
-    </span>
   );
 }
 
@@ -383,16 +318,12 @@ function DriverReadinessView({
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem" }}>
         {drivers.map((s) => {
-          const isReady       = s.liveStatus === "available_now";
-          const isBusy        = s.liveStatus === "busy_now";
-          const isCheckedIn   = s.presenceStatus === "checked_in";
-          const notCheckedIn  = s.presenceStatus === "not_checked_in";
-          const isCheckedOut  = s.presenceStatus === "checked_out";
+          const isReady      = s.liveStatus === "available_now";
+          const isCheckedIn  = s.presenceStatus === "checked_in";
+          const notCheckedIn = s.presenceStatus === "not_checked_in";
           const primaryShiftTypeEnum = (s.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
 
           const borderColor = isReady ? "var(--cs-success)" : notCheckedIn ? "var(--cs-warning)" : "var(--cs-border-soft)";
-          const dotColor    = isReady ? "var(--cs-success)" : isBusy ? "var(--cs-info)" : notCheckedIn ? "var(--cs-warning)" : "var(--cs-text-muted)";
-          const statusLabel = isReady ? "Ready" : isBusy ? "On trip" : notCheckedIn ? "Not checked in" : isCheckedOut ? "Checked out" : "Off / No schedule";
 
           return (
             <div
@@ -407,12 +338,11 @@ function DriverReadinessView({
               <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginTop: 2 }}>Driver</div>
               {s.work_start && s.work_end && (
                 <div style={{ fontSize: 11, color: "var(--cs-text-subtle)", marginTop: 4 }}>
-                  {formatTime(s.work_start)} – {formatTime(s.work_end)}
+                  {formatTime12h(s.work_start)} – {formatTime12h(s.work_end)}
                 </div>
               )}
-              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: dotColor, fontWeight: 500 }}>{statusLabel}</span>
+              <div style={{ marginTop: 8 }}>
+                <AvailabilityStatusBadge status={s.liveStatus} />
               </div>
               {/* Check-in action for not-checked-in drivers */}
               {notCheckedIn && (

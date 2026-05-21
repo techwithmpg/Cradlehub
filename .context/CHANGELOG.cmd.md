@@ -1190,3 +1190,33 @@
 - No build needed (docs-only commit)
 
 **Commit:** `docs(ops): audit workflow unification gaps` on `main`
+
+---
+
+### 2026-05-21 — Claude Code (Phase 2X-B — Shared UI Component Consolidation)
+
+**Task:** CRM-OPS-002X-B — Consolidate duplicated shared UI components for schedule, availability, and dispatch.
+
+**Files Created:**
+- `src/lib/utils/time-format.ts` — `formatTime12h()` — null-safe 12h time formatter
+- `src/components/shared/shift-type-badge.tsx` — `ShiftTypeBadge` (opening/closing/single with CradleHub theme colors)
+- `src/components/shared/presence-status-badge.tsx` — `PresenceStatusBadge` (pill variant)
+- `src/components/shared/availability-status-badge.tsx` — `AvailabilityStatusBadge` (dot + label variant)
+
+**Files Updated (duplicates removed):**
+- `crm-availability-board.tsx` — removed `SHIFT_BADGE`, `ShiftBadge`, `PresenceBadge`, `formatTime` (4 local defs)
+- `crm-availability-client.tsx` — removed `SHIFT_BADGE`, `STATUS_DOT`, `STATUS_LABEL`, `PresencePill`, `formatTime` (5 local defs)
+- `staff-schedule-row.tsx` — removed `SHIFT_BADGE_COLORS` + local `ShiftBadge`
+- `group-schedule-rules-panel.tsx` — removed local `shortTime()`
+- `staff-schedule-summary.ts` — removed private `shortTime()`; now imports `formatTime12h`
+- `dispatch-workspace.tsx` — removed local `fmt12h()`
+- `dispatch-queries.ts` — removed local `fmt12h()` (UI formatting no longer in server query file)
+
+**No business logic changed. No schema changed. Public booking untouched.**
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, all routes compiled
+
+**Commit:** `refactor(ui): consolidate schedule and availability badges` on `main`

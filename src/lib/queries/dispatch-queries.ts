@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchStatus, DispatchAlert } from "@/features/dispatch/types";
 
 // ── Shared real data types ─────────────────────────────────────────────────────
@@ -76,14 +77,6 @@ function computeDispatchStatus(
   return "ready";
 }
 
-function fmt12h(time24: string): string {
-  const [hStr, mStr] = time24.split(":");
-  const h = parseInt(hStr ?? "0", 10);
-  const m = parseInt(mStr ?? "0", 10);
-  const period = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
-}
 
 function timeAgoLabel(bookingDate: string, startTime: string): string {
   const diffMin = Math.round(
@@ -105,7 +98,7 @@ function computeAlerts(items: RealDispatchItem[]): DispatchAlert[] {
       alerts.push({
         id: `no-driver-${item.id}`,
         title: "No Driver Assigned",
-        description: `${item.customerName} · ${item.serviceName} · ${fmt12h(item.startTime)}`,
+        description: `${item.customerName} · ${item.serviceName} · ${formatTime12h(item.startTime)}`,
         timeAgo: timeAgoLabel(item.bookingDate, item.startTime),
         severity: "warning",
         dispatchNumber: item.number,
@@ -132,7 +125,7 @@ function computeAlerts(items: RealDispatchItem[]): DispatchAlert[] {
       alerts.push({
         id: `delayed-${item.id}`,
         title: "Booking Running Late",
-        description: `${item.customerName} · appointment at ${fmt12h(item.startTime)} · ${Math.round(minutesPast)}m past`,
+        description: `${item.customerName} · appointment at ${formatTime12h(item.startTime)} · ${Math.round(minutesPast)}m past`,
         timeAgo: `${Math.round(minutesPast)}m overdue`,
         severity: "danger",
         dispatchNumber: item.number,

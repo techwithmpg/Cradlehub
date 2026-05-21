@@ -2,26 +2,11 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ShiftTypeBadge } from "@/components/shared/shift-type-badge";
+import { PresenceStatusBadge } from "@/components/shared/presence-status-badge";
+import { formatTime12h } from "@/lib/utils/time-format";
 import type { CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
 import { checkInStaffForShiftAction, checkOutStaffForShiftAction } from "@/lib/actions/staff-checkins";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const SHIFT_BADGE: Record<string, { label: string; bg: string; color: string }> = {
-  opening: { label: "Opening", bg: "rgba(74,124,89,0.12)",  color: "#4A7C59" },
-  closing: { label: "Closing", bg: "rgba(59,130,246,0.12)", color: "#2563EB" },
-  single:  { label: "Regular", bg: "rgba(107,114,128,0.1)", color: "var(--cs-text-muted)" },
-};
-
-function formatTime(t: string): string {
-  const parts = t.slice(0, 5).split(":");
-  if (parts.length < 2) return t;
-  const [h, m] = parts;
-  const hour = parseInt(h ?? "0", 10);
-  const ampm = hour >= 12 ? "pm" : "am";
-  const h12 = hour % 12 || 12;
-  return `${h12}:${m}${ampm}`;
-}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -43,43 +28,6 @@ function Initials({ name }: { name: string }) {
       }}
     >
       {initials}
-    </div>
-  );
-}
-
-function ShiftBadge({ shiftType }: { shiftType: string }) {
-  const cfg = SHIFT_BADGE[shiftType] ?? SHIFT_BADGE.single!;
-  return (
-    <span
-      style={{
-        display: "inline-block", padding: "1px 6px",
-        borderRadius: 10, fontSize: 10, fontWeight: 500,
-        background: cfg.bg, color: cfg.color,
-      }}
-    >
-      {cfg.label}
-    </span>
-  );
-}
-
-function PresenceBadge({ presenceStatus }: { presenceStatus: CrmAvailabilityStaffRow["presenceStatus"] }) {
-  const cfg: Record<string, { label: string; color: string }> = {
-    checked_in:     { label: "Checked in",     color: "var(--cs-success)" },
-    not_checked_in: { label: "Not checked in",  color: "var(--cs-warning)" },
-    checked_out:    { label: "Checked out",     color: "var(--cs-text-muted)" },
-    off_today:      { label: "Off today",       color: "var(--cs-text-muted)" },
-    no_schedule:    { label: "No schedule",     color: "var(--cs-warning)" },
-  };
-  const c = cfg[presenceStatus] ?? { label: presenceStatus, color: "var(--cs-text-muted)" };
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <span
-        style={{
-          width: 6, height: 6, borderRadius: "50%",
-          background: c.color, display: "inline-block", flexShrink: 0,
-        }}
-      />
-      <span style={{ fontSize: 10, color: c.color, fontWeight: 500 }}>{c.label}</span>
     </div>
   );
 }
@@ -210,8 +158,8 @@ function StaffCard({
       {staff.work_start && (
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
           {hasMultiShift
-            ? staff.shifts.map((s) => <ShiftBadge key={s.shift_type} shiftType={s.shift_type} />)
-            : <ShiftBadge shiftType={shiftType} />
+            ? staff.shifts.map((s) => <ShiftTypeBadge key={s.shift_type} shiftType={s.shift_type} />)
+            : <ShiftTypeBadge shiftType={shiftType} />
           }
         </div>
       )}
@@ -219,12 +167,12 @@ function StaffCard({
       {/* Shift window */}
       {staff.work_start && staff.work_end && (
         <div style={{ fontSize: 10, color: "var(--cs-text-subtle)" }}>
-          {formatTime(staff.work_start)} – {formatTime(staff.work_end)}
+          {formatTime12h(staff.work_start)} – {formatTime12h(staff.work_end)}
         </div>
       )}
 
       {/* Presence badge */}
-      <PresenceBadge presenceStatus={staff.presenceStatus} />
+      <PresenceStatusBadge status={staff.presenceStatus} />
 
       {/* Active booking */}
       {staff.liveStatus === "busy_now" && staff.active_booking && (

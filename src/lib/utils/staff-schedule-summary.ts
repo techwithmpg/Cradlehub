@@ -1,3 +1,5 @@
+import { formatTime12h } from "./time-format";
+
 export type ShiftType = "single" | "opening" | "closing";
 
 type Schedule = {
@@ -7,13 +9,6 @@ type Schedule = {
   is_active: boolean;
   shift_type?: string;
 };
-
-function shortTime(value: string): string {
-  const [h, m] = value.split(":").map(Number);
-  const period = (h ?? 0) >= 12 ? "PM" : "AM";
-  const displayHour = (h ?? 0) > 12 ? (h ?? 0) - 12 : (h ?? 0) === 0 ? 12 : (h ?? 0);
-  return `${displayHour}:${String(m ?? 0).padStart(2, "0")} ${period}`;
-}
 
 function sameTime(a: string, b: string): boolean {
   return a.slice(0, 5) === b.slice(0, 5);
@@ -57,7 +52,7 @@ export function summarizeWeeklyHours(schedules: Schedule[]): string {
         sameTime(s.end_time, first.end_time)
     );
     if (allSame) {
-      return `${shortTime(first.start_time)} – ${shortTime(first.end_time)} daily`;
+      return `${formatTime12h(first.start_time)} – ${formatTime12h(first.end_time)} daily`;
     }
   }
 
@@ -71,7 +66,7 @@ export function summarizeWeeklyHours(schedules: Schedule[]): string {
       (s) => sameTime(s.start_time, wd.start_time) && sameTime(s.end_time, wd.end_time)
     );
     if (allWeekdaysSame) {
-      return `Weekdays · ${shortTime(wd.start_time)} – ${shortTime(wd.end_time)}`;
+      return `Weekdays · ${formatTime12h(wd.start_time)} – ${formatTime12h(wd.end_time)}`;
     }
   }
 
@@ -82,7 +77,7 @@ export function summarizeWeeklyHours(schedules: Schedule[]): string {
       (s) => sameTime(s.start_time, we.start_time) && sameTime(s.end_time, we.end_time)
     );
     if (allWeekendsSame) {
-      return `Weekends · ${shortTime(we.start_time)} – ${shortTime(we.end_time)}`;
+      return `Weekends · ${formatTime12h(we.start_time)} – ${formatTime12h(we.end_time)}`;
     }
   }
 
@@ -95,7 +90,7 @@ export function summarizeWeeklyHours(schedules: Schedule[]): string {
         sameTime(s.end_time, first.end_time)
     );
     if (allActiveSame) {
-      return `${shortTime(first.start_time)} – ${shortTime(first.end_time)} (${activeDays} days)`;
+      return `${formatTime12h(first.start_time)} – ${formatTime12h(first.end_time)} (${activeDays} days)`;
     }
   }
 

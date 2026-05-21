@@ -3,10 +3,25 @@
 > Last updated: 2026-05-21
 
 ## Current Phase
-Phase 2X-A complete — Operations Unification Audit
+Phase 2X-B complete — Shared UI Component Consolidation
 
-## What Just Happened
-Conducted full read-only audit of the operations workflow. Produced `docs/phase-2x-operations-unification-audit.md`.
+## What Just Happened (2X-B)
+Consolidated duplicated UI components and time-format helpers identified in the Phase 2X-A audit.
+
+**Created:**
+- `src/lib/utils/time-format.ts` — `formatTime12h(time: string | null | undefined): string`
+- `src/components/shared/shift-type-badge.tsx` — `ShiftTypeBadge` (opening/closing/single)
+- `src/components/shared/presence-status-badge.tsx` — `PresenceStatusBadge`
+- `src/components/shared/availability-status-badge.tsx` — `AvailabilityStatusBadge` (dot + label)
+
+**Updated (duplicates removed):**
+- `crm-availability-board.tsx` — removed `SHIFT_BADGE`, `ShiftBadge`, `PresenceBadge`, `formatTime`
+- `crm-availability-client.tsx` — removed `SHIFT_BADGE`, `STATUS_DOT`, `STATUS_LABEL`, `PresencePill`, `formatTime`
+- `staff-schedule-row.tsx` — removed `SHIFT_BADGE_COLORS`, local `ShiftBadge`
+- `group-schedule-rules-panel.tsx` — removed local `shortTime()`
+- `staff-schedule-summary.ts` — removed private `shortTime()`, uses `formatTime12h`
+- `dispatch-workspace.tsx` — removed local `fmt12h()`, uses `formatTime12h`
+- `dispatch-queries.ts` — removed local `fmt12h()` (UI formatting helper was misplaced in a query file)
 
 Key findings:
 1. **CRITICAL:** `staff_group_schedule_rules` (Phase 2H) is ignored by ALL operational systems — booking engine, recommendation engine, daily schedule RPC, CRM availability. Group rule configuration has zero effect on bookings today.
@@ -16,12 +31,11 @@ Key findings:
 5. **LOW:** Double booking fetch in `buildDriverRecommendationContext`. N+1 staff-ID queries in recommendation context builder.
 
 ## Recommended Next Step
-Phase 2X-B — Shared UI Component Consolidation:
-- `src/components/shared/shift-type-badge.tsx`
-- `src/components/shared/presence-status-badge.tsx`
-- `src/lib/utils/time-format.ts` (canonical `fmt12h`)
-
-Then 2X-C, 2X-D, 2X-E in order (see audit doc for full plan).
+Phase 2X-C — Backend Schedule/Availability Utility Consolidation:
+- Extract shared `getSchedulePageContext()` helper for `/crm/schedule`, `/manager/schedule`, `/owner/schedule`
+- Fix double booking fetch in `buildDriverRecommendationContext`
+- Consolidate N+1 `getActiveBranchStaffIds` calls in recommendation context builder
+- Then 2X-D (public booking group rules review) and 2X-E (wire group rules to operational systems)
 
 ## Files to Know
 - `docs/phase-2x-operations-unification-audit.md` — Full audit findings + remediation plan

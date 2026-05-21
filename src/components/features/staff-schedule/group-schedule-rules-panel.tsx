@@ -7,6 +7,7 @@ import {
   upsertStaffGroupScheduleRuleAction,
   deleteStaffGroupScheduleRuleAction,
 } from "@/lib/actions/staff-schedule-groups";
+import { formatTime12h } from "@/lib/utils/time-format";
 import type { StaffScheduleGroup, StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 import { Save, RotateCcw } from "lucide-react";
 
@@ -44,14 +45,6 @@ const SHIFT_STYLE: Record<string, { dot: string; badge: string; bg: string }> = 
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function shortTime(value: string | null): string {
-  if (!value) return "—";
-  const [h, m] = value.split(":").map(Number);
-  const period = (h ?? 0) >= 12 ? "PM" : "AM";
-  const displayHour = (h ?? 0) > 12 ? (h ?? 0) - 12 : (h ?? 0) === 0 ? 12 : (h ?? 0);
-  return `${displayHour}:${String(m ?? 0).padStart(2, "0")} ${period}`;
-}
 
 function formatDuration(start: string | null, end: string | null): string {
   if (!start || !end) return "—";
@@ -451,7 +444,7 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules, 
                   {tpl.type}
                 </span>
                 <span style={{ fontSize: 12, color: "var(--cs-text-muted)", whiteSpace: "nowrap" }}>
-                  {shortTime(tpl.startTime)} – {shortTime(tpl.endTime)}
+                  {formatTime12h(tpl.startTime)} – {formatTime12h(tpl.endTime)}
                 </span>
                 <span style={{ fontSize: 11, color: "var(--cs-text-subtle)", whiteSpace: "nowrap" }}>
                   🕐 {formatDuration(tpl.startTime, tpl.endTime)}
