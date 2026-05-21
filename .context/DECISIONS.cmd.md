@@ -120,10 +120,24 @@ Phase 2B creates the `/crm/availability` live view using existing tables only (`
 The audit found enough existing data to produce a meaningful live availability view without schema changes. Keeping Phase 2B schema-free reduces risk and lets CRM staff get value immediately. Schema changes (shift_type, check-in) are deferred to Phase 2C/2D with dedicated migration prompts.
 
 ### DEC-PHASE2-003: opening/closing shift schema change deferred to Phase 2C
-**Status:** ACCEPTED — 2026-05-21
+**Status:** SUPERSEDED by DEC-PHASE2-004 — implemented in Phase 2C (2026-05-21)
 
 **Decision:**
 Adding `shift_type` to `staff_schedules` and changing the UNIQUE constraint is deferred to Phase 2C. Phase 2C also requires updating `get_available_slots` RPC.
 
 **Rationale:**
 The RPC is the heart of the public booking engine. Any change must be backward-compatible (default `shift_type = 'single'` must behave identically to today). Rushing this risks breaking the booking wizard.
+
+### DEC-PHASE2-004: shift_type stored directly on staff_schedules (not shift_templates)
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+For MVP, `shift_type` is stored as a TEXT column on `staff_schedules` (values: `single`, `opening`, `closing`; default `single`) rather than introducing a `shift_templates` table. The UNIQUE constraint was changed from `(staff_id, day_of_week)` to `(staff_id, day_of_week, shift_type)` to allow one opening and one closing row per staff per weekday.
+
+**Rationale:**
+- Smallest possible schema change that unlocks opening/closing split shifts.
+- All existing single-shift schedules remain intact (default `'single'` is backward-compatible).
+- `get_available_slots` RPC deduplicated with `SELECT DISTINCT` to handle overlap slots when opening and closing windows share times.
+- `get_daily_schedule` RPC aggregated with `GROUP BY sid` + `MIN`/`MAX` to return a single full-span row per staff.
+- Shift templates can be introduced later if scheduling becomes more complex (e.g., rotating rotations, copy-paste week).
+- `pnpm db:types` was NOT run (local Supabase unavailable) — `src/types/supabase.ts` was manually updated. Whoever applies the migration should run `pnpm db:types` afterward.

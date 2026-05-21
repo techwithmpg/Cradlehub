@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002B
+# CURRENT TASK: CRM-OPS-002C
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002B
+CRM-OPS-002C
 
 ## Description
-Create CRM live availability page and rename existing availability setup page
+Add shift_type to staff schedules and redesign schedule/availability UI clarity
 
 ## Agent
 Claude Code

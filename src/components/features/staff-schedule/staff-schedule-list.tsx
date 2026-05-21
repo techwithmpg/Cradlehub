@@ -9,6 +9,7 @@ type Schedule = {
   start_time: string;
   end_time: string;
   is_active: boolean;
+  shift_type?: string;
 };
 
 type ScheduleOverride = {

@@ -47,8 +47,9 @@ export async function setStaffScheduleAction(rawInput: unknown) {
         start_time:  parsed.data.startTime,
         end_time:    parsed.data.endTime,
         is_active:   parsed.data.isActive,
+        shift_type:  parsed.data.shiftType,
       },
-      { onConflict: "staff_id,day_of_week" }
+      { onConflict: "staff_id,day_of_week,shift_type" }
     );
 
   if (error) return { success: false, error: error.message };

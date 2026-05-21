@@ -935,3 +935,64 @@
 **Notes:** Audit only. No new tables, no migrations, no engine changes, no UI rewrites. All findings documented in audit doc.
 
 **Build Status:** ✅ Passing — 83 app routes (no code changed)
+
+---
+
+### 2026-05-21 — Claude Code (CRM-OPS-002B — CRM Live Availability Dashboard)
+
+**Task:** Create the `/crm/availability` live availability dashboard from existing data (no schema changes).
+
+**Files Created:**
+- `src/lib/queries/crm-availability.ts` — `getCrmAvailabilitySnapshot()` combining `getDailySchedule` + `getStaffByBranch`; builds `liveStatus`, `scheduleStatus`, `is_driver`, summary counts
+- `src/app/(dashboard)/crm/availability/page.tsx` — Server component at `/crm/availability`
+- `src/components/features/crm/availability/crm-availability-summary.tsx` — 6 stat cards (Scheduled / Available / Busy / Off / No Schedule / Drivers Ready)
+- `src/components/features/crm/availability/crm-availability-board.tsx` — Staff availability grid rows
+- `src/components/features/crm/availability/crm-availability-client.tsx` — Tabbed client: All Staff / Service Providers / Drivers / Schedule Issues
+
+**Files Modified:**
+- `src/components/features/dashboard/nav-config.ts` — CRM "Availability" → `/crm/availability`; added "Schedule Setup" → `/crm/staff-availability`
+- `src/app/(dashboard)/crm/staff-availability/page.tsx` — Title changed "Staff Availability" → "Schedule Setup"
+
+**Build Status:** ✅ Passing — 84 app routes | **Commit:** `6efd4fc` on main
+
+---
+
+### 2026-05-21 — Claude Code (CRM-OPS-002C — Shift-Aware Schedules + UI Redesign)
+
+**Task:** Add `shift_type` to staff schedules, update booking engine RPCs, and redesign Schedule Setup + Live Availability UIs.
+
+**Files Created:**
+- `supabase/migrations/20260522000004_add_shift_type_to_staff_schedules.sql`
+  - Adds `shift_type TEXT NOT NULL DEFAULT 'single'` with CHECK (`single | opening | closing`)
+  - Replaces UNIQUE `(staff_id, day_of_week)` with `(staff_id, day_of_week, shift_type)`
+  - Rewrites `get_available_slots` with `SELECT DISTINCT` in `working_hours` CTE + final SELECT
+  - Rewrites `get_daily_schedule` with `GROUP BY sid` + `MIN`/`MAX` aggregation
+
+**Files Modified:**
+- `src/types/supabase.ts` — Added `shift_type` to `staff_schedules` Row/Insert/Update (manual edit; `pnpm db:types` not run)
+- `src/lib/validations/staff.ts` — `setScheduleSchema` includes `shiftType` enum field (default `'single'`)
+- `src/app/(dashboard)/manager/staff/actions.ts` — Upsert includes `shift_type`; `onConflict` updated
+- `src/lib/queries/staff.ts` — `StaffAvailabilityItem.schedules` typed with `shift_type`; queries include column
+- `src/lib/utils/staff-schedule-summary.ts` — Added `ShiftType`, `SHIFT_LABELS`, `getPrimaryShiftForDay`; `summarizeWeeklyHours` handles multi-shift days
+- `src/components/features/staff-schedule/staff-schedule-list.tsx` — Local `Schedule` type with `shift_type?`
+- `src/components/features/staff-schedule/staff-schedule-row.tsx` — `ShiftBadge` component + `SHIFT_BADGE_COLORS`
+- `src/components/features/staff-schedule/staff-weekly-hours-editor.tsx` — Day detection prefers `shift_type === 'single'` row
+- `src/components/features/dashboard/schedule-manager.tsx` — Local `Schedule` type with `shift_type?`
+- `src/lib/queries/crm-availability.ts` — Added `StaffShiftEntry`, `shifts[]`, `needsAttention`; third parallel query
+- `src/components/features/crm/availability/crm-availability-summary.tsx` — Added Needs Attention card
+- `src/components/features/crm/availability/crm-availability-board.tsx` — Full 4-column redesign per mockup
+- `src/components/features/crm/availability/crm-availability-client.tsx` — New tabs: Live Board / Staff List / Schedule Issues / Driver Readiness
+- `src/app/(dashboard)/crm/availability/page.tsx` — Updated description + schedule-based disclaimer banner
+- `src/app/(dashboard)/crm/staff-availability/page.tsx` — Full redesign with ExplainerCards + ShiftPill legend
+- `.context/CURRENT_TASK.cmd.md` — Marked DONE
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+**Notes:**
+- `pnpm db:types` was NOT run — local Supabase unavailable. `src/types/supabase.ts` manually updated.
+- Run `pnpm db:types` after applying the migration to a live DB.
+- Existing single-shift schedules fully preserved (`shift_type = 'single'` default).
+- Opening/closing split shifts are supported by engine and UI but not yet exposed in the weekly hours editor UI for creation.

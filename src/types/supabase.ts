@@ -1576,6 +1576,7 @@ export type Database = {
           end_time: string
           id: string
           is_active: boolean
+          shift_type: string
           staff_id: string
           start_time: string
         }
@@ -1585,6 +1586,7 @@ export type Database = {
           end_time: string
           id?: string
           is_active?: boolean
+          shift_type?: string
           staff_id: string
           start_time: string
         }
@@ -1594,6 +1596,7 @@ export type Database = {
           end_time?: string
           id?: string
           is_active?: boolean
+          shift_type?: string
           staff_id?: string
           start_time?: string
         }

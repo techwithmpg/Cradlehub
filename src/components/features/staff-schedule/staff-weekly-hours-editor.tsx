@@ -11,6 +11,7 @@ type Schedule = {
   start_time: string;
   end_time: string;
   is_active: boolean;
+  shift_type?: string;
 };
 
 type Props = {
@@ -102,7 +103,9 @@ export function StaffWeeklyHoursEditor({ staffId, existingSchedules, onSave }: P
       )}
 
       {DAY_NAMES.map((day, idx) => {
-        const existing = schedules.find((row) => row.day_of_week === idx && row.is_active);
+        // For multi-shift days show the 'single' entry (opening/closing managed elsewhere).
+        const daySchedules = schedules.filter((row) => row.day_of_week === idx && row.is_active);
+        const existing = daySchedules.find((r) => r.shift_type === "single") ?? daySchedules[0];
         const isEditing = editDay === idx;
 
         return (

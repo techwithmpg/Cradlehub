@@ -1,12 +1,11 @@
 "use client";
 
-import type { CrmAvailabilityStaffRow, LiveStatus } from "@/lib/queries/crm-availability";
+import type { CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
 
-const STATUS_CONFIG: Record<LiveStatus, { label: string; color: string; dot: string }> = {
-  available_now: { label: "Available",  color: "var(--cs-success)",     dot: "var(--cs-success)" },
-  busy_now:      { label: "Busy",        color: "var(--cs-info)",        dot: "var(--cs-info)" },
-  off_today:     { label: "Off",         color: "var(--cs-text-muted)",  dot: "var(--cs-text-muted)" },
-  no_schedule:   { label: "No Schedule", color: "var(--cs-warning)",     dot: "var(--cs-warning)" },
+const SHIFT_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  opening: { label: "Opening shift", bg: "rgba(74,124,89,0.12)",  color: "#4A7C59" },
+  closing: { label: "Closing shift",  bg: "rgba(59,130,246,0.12)", color: "#2563EB" },
+  single:  { label: "Regular shift",  bg: "rgba(107,114,128,0.1)", color: "var(--cs-text-muted)" },
 };
 
 function formatTime(t: string): string {
@@ -19,112 +18,237 @@ function formatTime(t: string): string {
   return `${h12}:${m}${ampm}`;
 }
 
-type RowProps = { staff: CrmAvailabilityStaffRow };
+function Initials({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  return (
+    <div
+      style={{
+        width: 34, height: 34, borderRadius: "50%",
+        background: "var(--cs-border)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 12, fontWeight: 600, color: "var(--cs-text-muted)",
+        flexShrink: 0,
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
 
-function StaffRow({ staff }: RowProps) {
-  const cfg = STATUS_CONFIG[staff.liveStatus];
+function ShiftBadge({ shiftType }: { shiftType: string }) {
+  const cfg = SHIFT_BADGE[shiftType] ?? SHIFT_BADGE.single!;
+  return (
+    <span
+      style={{
+        display: "inline-block", padding: "1px 7px",
+        borderRadius: 10, fontSize: 10, fontWeight: 500,
+        background: cfg.bg, color: cfg.color,
+      }}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+function StaffCard({ staff }: { staff: CrmAvailabilityStaffRow }) {
+  const primaryShift = staff.shifts[0];
+  const shiftType = primaryShift?.shift_type ?? "single";
+  const hasMultiShift = staff.shifts.length > 1;
 
   return (
     <div
       style={{
-        display:       "grid",
-        gridTemplateColumns: "1fr 90px 140px 1fr",
-        alignItems:    "center",
-        gap:           12,
-        padding:       "10px 14px",
-        borderBottom:  "1px solid var(--cs-border-soft)",
-        fontSize:      13,
+        background: "var(--cs-surface)",
+        border: "1px solid var(--cs-border-soft)",
+        borderRadius: "var(--cs-r-md)",
+        padding: "12px 14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
       }}
     >
-      {/* Name + type */}
-      <div>
-        <div style={{ fontWeight: 500, color: "var(--cs-text)" }}>{staff.staff_name}</div>
-        <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginTop: 1, textTransform: "capitalize" }}>
-          {staff.staff_type.replace("_", " ")}
+      {/* Header: avatar + name */}
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <Initials name={staff.staff_name} />
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 13, fontWeight: 500, color: "var(--cs-text)",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}
+          >
+            {staff.staff_name}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--cs-text-muted)", textTransform: "capitalize" }}>
+            {(staff.staff_type || staff.system_role).replace("_", " ")}
+          </div>
         </div>
       </div>
 
-      {/* Status */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <div style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.dot, flexShrink: 0 }} />
-        <span style={{ color: cfg.color, fontWeight: 500, fontSize: 12 }}>{cfg.label}</span>
+      {/* Shift badge */}
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {hasMultiShift ? (
+          staff.shifts.map((s) => <ShiftBadge key={s.shift_type} shiftType={s.shift_type} />)
+        ) : (
+          <ShiftBadge shiftType={shiftType} />
+        )}
       </div>
 
       {/* Shift window */}
-      <div style={{ color: "var(--cs-text-subtle)", fontSize: 12 }}>
-        {staff.work_start && staff.work_end
-          ? `${formatTime(staff.work_start)} – ${formatTime(staff.work_end)}`
-          : <span style={{ color: "var(--cs-text-muted)" }}>—</span>}
-      </div>
+      {staff.work_start && staff.work_end && (
+        <div style={{ fontSize: 11, color: "var(--cs-text-subtle)" }}>
+          {formatTime(staff.work_start)} – {formatTime(staff.work_end)}
+        </div>
+      )}
 
-      {/* Active booking */}
-      <div style={{ fontSize: 12 }}>
-        {staff.active_booking ? (
-          <div>
-            <span style={{ color: "var(--cs-text)" }}>{staff.active_booking.service}</span>
-            <span style={{ color: "var(--cs-text-muted)", marginLeft: 6 }}>
-              {staff.active_booking.customer}
+      {/* Status indicator */}
+      <div style={{ fontSize: 11 }}>
+        {staff.liveStatus === "busy_now" && staff.active_booking ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--cs-info)", display: "inline-block", flexShrink: 0 }} />
+            <span style={{ color: "var(--cs-text-muted)" }}>
+              {staff.active_booking.service}
             </span>
           </div>
         ) : staff.liveStatus === "available_now" ? (
-          <span style={{ color: "var(--cs-success)", fontSize: 11 }}>Free</span>
-        ) : null}
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--cs-success)", display: "inline-block", flexShrink: 0 }} />
+            <span style={{ color: "var(--cs-text-muted)" }}>No booking</span>
+          </div>
+        ) : staff.liveStatus === "off_today" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--cs-text-muted)", display: "inline-block", flexShrink: 0 }} />
+            <span style={{ color: "var(--cs-text-muted)" }}>Day off today</span>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--cs-warning)", display: "inline-block", flexShrink: 0 }} />
+            <span style={{ color: "var(--cs-warning)" }}>No weekly schedule set</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-type Props = {
-  staff: CrmAvailabilityStaffRow[];
-  filter?: "all" | "service" | "driver" | "issues";
+type ColumnDef = {
+  key: string;
+  title: string;
+  subtitle: string;
+  filter: (s: CrmAvailabilityStaffRow) => boolean;
+  countColor: string;
 };
 
-export function CrmAvailabilityBoard({ staff, filter = "all" }: Props) {
-  let rows = staff;
+const COLUMNS: ColumnDef[] = [
+  {
+    key: "available",
+    title: "Available Now",
+    subtitle: "Scheduled and free",
+    filter: (s) => s.liveStatus === "available_now",
+    countColor: "var(--cs-success)",
+  },
+  {
+    key: "busy",
+    title: "Busy / Assigned",
+    subtitle: "In session or with booking",
+    filter: (s) => s.liveStatus === "busy_now",
+    countColor: "var(--cs-info)",
+  },
+  {
+    key: "off",
+    title: "Off Today",
+    subtitle: "Not scheduled",
+    filter: (s) => s.liveStatus === "off_today",
+    countColor: "var(--cs-text-muted)",
+  },
+  {
+    key: "attention",
+    title: "Needs Attention",
+    subtitle: "Requires action",
+    filter: (s) => s.needsAttention,
+    countColor: "var(--cs-warning)",
+  },
+];
 
-  if (filter === "service") {
-    rows = staff.filter((s) => s.is_service_provider);
-  } else if (filter === "driver") {
-    rows = staff.filter((s) => s.is_driver);
-  } else if (filter === "issues") {
-    rows = staff.filter((s) => s.scheduleStatus === "no_schedule");
-  }
+type Props = {
+  staff: CrmAvailabilityStaffRow[];
+  maxPerColumn?: number;
+};
 
-  if (rows.length === 0) {
-    return (
-      <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--cs-text-muted)", fontSize: 13 }}>
-        No staff to display for this filter.
-      </div>
-    );
-  }
-
+export function CrmAvailabilityBoard({ staff, maxPerColumn = 4 }: Props) {
   return (
-    <div style={{ border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-md)", overflow: "hidden" }}>
-      {/* Header */}
-      <div
-        style={{
-          display:       "grid",
-          gridTemplateColumns: "1fr 90px 140px 1fr",
-          gap:           12,
-          padding:       "8px 14px",
-          background:    "var(--cs-surface-raised)",
-          borderBottom:  "1px solid var(--cs-border-soft)",
-          fontSize:      11,
-          fontWeight:    600,
-          color:         "var(--cs-text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-        }}
-      >
-        <span>Staff</span>
-        <span>Status</span>
-        <span>Shift</span>
-        <span>Active Booking</span>
-      </div>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gap: "1rem",
+        alignItems: "start",
+      }}
+    >
+      {COLUMNS.map((col) => {
+        const colStaff = staff.filter(col.filter);
+        const shown = colStaff.slice(0, maxPerColumn);
+        const remaining = colStaff.length - shown.length;
 
-      {rows.map((s) => (
-        <StaffRow key={s.staff_id} staff={s} />
-      ))}
+        return (
+          <div key={col.key}>
+            {/* Column header */}
+            <div
+              style={{
+                display: "flex", alignItems: "baseline", gap: 6,
+                marginBottom: "0.625rem",
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>
+                {col.title}
+              </span>
+              <span
+                style={{
+                  fontSize: 12, fontWeight: 600,
+                  color: col.countColor,
+                  background: `${col.countColor}15`,
+                  padding: "0 6px", borderRadius: 8,
+                }}
+              >
+                {colStaff.length}
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
+              {col.subtitle}
+            </div>
+
+            {/* Cards */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {shown.map((s) => (
+                <StaffCard key={s.staff_id} staff={s} />
+              ))}
+              {shown.length === 0 && (
+                <div
+                  style={{
+                    padding: "20px 14px", textAlign: "center",
+                    fontSize: 12, color: "var(--cs-text-muted)",
+                    border: "1px dashed var(--cs-border-soft)",
+                    borderRadius: "var(--cs-r-md)",
+                  }}
+                >
+                  None
+                </div>
+              )}
+            </div>
+
+            {remaining > 0 && (
+              <div style={{ marginTop: 6, fontSize: 11, color: "var(--cs-text-muted)", textAlign: "center" }}>
+                + View all {colStaff.length}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

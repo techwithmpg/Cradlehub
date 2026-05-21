@@ -40,8 +40,23 @@ export default async function CrmAvailabilityPage() {
     <section className="space-y-5">
       <PageHeader
         title="Live Availability"
-        description="Who is scheduled today, who is free, and who is busy right now. Based on today's schedule — does not reflect physical check-in."
+        description="See who is scheduled, free, busy, off today, or needs setup before assigning bookings or dispatch."
       />
+
+      {/* Schedule-based disclaimer */}
+      <div
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "9px 14px",
+          background: "var(--cs-surface-raised)",
+          border: "1px solid var(--cs-border-soft)",
+          borderRadius: "var(--cs-r-sm)",
+          fontSize: 12, color: "var(--cs-text-muted)",
+        }}
+      >
+        <span style={{ fontSize: 14 }}>ℹ</span>
+        This view is <strong style={{ color: "var(--cs-text)" }}>schedule-based</strong> until staff check-in tracking is added.
+      </div>
 
       {error || !snapshot ? (
         <Alert variant="destructive">

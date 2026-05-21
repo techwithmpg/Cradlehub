@@ -1,6 +1,6 @@
 "use client";
 
-import { summarizeWeeklyHours } from "@/lib/utils/staff-schedule-summary";
+import { summarizeWeeklyHours, SHIFT_LABELS } from "@/lib/utils/staff-schedule-summary";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { Settings2 } from "lucide-react";
@@ -11,6 +11,7 @@ type Schedule = {
   start_time: string;
   end_time: string;
   is_active: boolean;
+  shift_type?: string;
 };
 
 type ScheduleOverride = {
@@ -48,9 +49,40 @@ type Props = {
   onManage: () => void;
 };
 
+const SHIFT_BADGE_COLORS: Record<string, { bg: string; color: string }> = {
+  opening: { bg: "rgba(74, 124, 89, 0.12)",  color: "#4A7C59" },
+  closing: { bg: "rgba(59, 130, 246, 0.12)", color: "#2563EB" },
+  single:  { bg: "rgba(107, 114, 128, 0.12)", color: "var(--cs-text-muted)" },
+};
+
+function ShiftBadge({ type }: { type: string }) {
+  const style = SHIFT_BADGE_COLORS[type] ?? SHIFT_BADGE_COLORS.single!;
+  return (
+    <span
+      style={{
+        display:      "inline-block",
+        padding:      "1px 7px",
+        borderRadius: 10,
+        fontSize:     11,
+        fontWeight:   500,
+        background:   style.bg,
+        color:        style.color,
+        whiteSpace:   "nowrap",
+      }}
+    >
+      {SHIFT_LABELS[type] ?? type}
+    </span>
+  );
+}
+
 export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, onManage }: Props) {
   const summary = summarizeWeeklyHours(schedules);
   const isScheduled = schedules.some((s) => s.is_active);
+
+  // Collect unique active shift types across all scheduled days
+  const activeShiftTypes = Array.from(
+    new Set(schedules.filter((s) => s.is_active).map((s) => s.shift_type ?? "single"))
+  );
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? staff.staff_type ?? "Staff";
   const displayName = getStaffAdminName(staff);
 
@@ -130,18 +162,27 @@ export function StaffScheduleRow({ staff, schedules, overrides, blockedTimes, on
         {staff.tier && ` · ${staff.tier}`}
       </div>
 
-      {/* Weekly Hours Summary */}
-      <div
-        style={{
-          fontSize: "0.75rem",
-          color: isScheduled ? "var(--cs-text)" : "var(--cs-text-muted)",
-          fontWeight: isScheduled ? 500 : 400,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {summary}
+      {/* Weekly Hours Summary + Shift Badges */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            color: isScheduled ? "var(--cs-text)" : "var(--cs-text-muted)",
+            fontWeight: isScheduled ? 500 : 400,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {summary}
+        </div>
+        {activeShiftTypes.length > 0 && (
+          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+            {activeShiftTypes.map((st) => (
+              <ShiftBadge key={st} type={st} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Overrides */}

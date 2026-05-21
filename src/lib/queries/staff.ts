@@ -135,10 +135,11 @@ export async function getStaffSchedule(staffId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("staff_schedules")
-    .select("*")
+    .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, created_at")
     .eq("staff_id", staffId)
     .eq("is_active", true)
-    .order("day_of_week");
+    .order("day_of_week")
+    .order("shift_type");
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -282,6 +283,7 @@ export type StaffAvailabilityItem = {
     start_time: string;
     end_time: string;
     is_active: boolean;
+    shift_type: "single" | "opening" | "closing";
   }>;
   overrides: Array<{
     id: string;
@@ -312,7 +314,7 @@ async function buildAvailabilityItems(
   const [schedulesResult, overridesResult, blockedResult] = await Promise.all([
     supabase
       .from("staff_schedules")
-      .select("id, staff_id, day_of_week, start_time, end_time, is_active")
+      .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type")
       .in("staff_id", staffIds),
     supabase
       .from("schedule_overrides")
@@ -345,6 +347,7 @@ async function buildAvailabilityItems(
         start_time: s.start_time,
         end_time: s.end_time,
         is_active: s.is_active,
+        shift_type: (s.shift_type ?? "single") as "single" | "opening" | "closing",
       })),
     overrides: overrides
       .filter((o) => o.staff_id === member.id)

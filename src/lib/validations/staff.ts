@@ -49,6 +49,7 @@ export const setScheduleSchema = z
     startTime: timeStr,
     endTime:   timeStr,
     isActive:  z.boolean().default(true),
+    shiftType: z.enum(["single", "opening", "closing"]).default("single"),
   })
   .refine((d) => d.startTime < d.endTime, "Start time must be before end time");
 export type SetScheduleInput = z.infer<typeof setScheduleSchema>;

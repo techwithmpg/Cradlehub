@@ -12,7 +12,7 @@ export function CrmAvailabilitySummary({ summary }: Props) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
         gap: "0.625rem",
       }}
     >
@@ -26,29 +26,35 @@ export function CrmAvailabilitySummary({ summary }: Props) {
       <StatCard
         label="Available Now"
         value={summary.availableNow}
+        sub="Scheduled and free"
         accentColor="var(--cs-success)"
       />
       <StatCard
         label="Busy Now"
         value={summary.busyNow}
+        sub="In session / assigned"
         accentColor="var(--cs-info)"
       />
       <StatCard
         label="Off Today"
         value={summary.offToday}
+        sub="Not scheduled"
         accentColor="var(--cs-text-muted)"
-      />
-      <StatCard
-        label="No Schedule"
-        value={summary.noSchedule}
-        accentColor="var(--cs-warning)"
       />
       <StatCard
         label="Drivers Ready"
         value={summary.driversReady}
-        sub={`of ${summary.driversTotal}`}
+        sub={`of ${summary.driversTotal} drivers`}
         accentColor="var(--cs-sand)"
       />
+      {summary.needsAttention > 0 && (
+        <StatCard
+          label="Needs Attention"
+          value={summary.needsAttention}
+          sub="Action needed"
+          accentColor="var(--cs-warning)"
+        />
+      )}
     </div>
   );
 }
