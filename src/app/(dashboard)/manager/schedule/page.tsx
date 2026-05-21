@@ -1,37 +1,9 @@
-import { redirect } from "next/navigation";
 import { ScheduleWorkspace } from "@/components/features/schedule/schedule-workspace";
 import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { getManagerContext } from "@/lib/queries/manager-context";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
-
-async function getManagerContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("id, branch_id, branches(name)")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!me && isDevAuthBypassEnabled()) {
-    const mock = getDevBypassLayoutStaff();
-    return {
-      branchId: mock.branch_id,
-      branchName: mock.branches.name,
-    };
-  }
-
-  if (!me?.branch_id) redirect("/login");
-  return {
-    branchId: me.branch_id as string,
-    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
-  };
-}
 
 export default async function ManagerSchedulePage({
   searchParams,

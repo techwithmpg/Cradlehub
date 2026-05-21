@@ -116,29 +116,13 @@ export async function getBranchStaffForScoring(branchId: string): Promise<StaffF
   }));
 }
 
-// ── Staff IDs helper ───────────────────────────────────────────────────────────
-
-async function getActiveBranchStaffIds(branchId: string): Promise<string[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("staff")
-    .select("id")
-    .eq("branch_id", branchId)
-    .eq("is_active", true);
-
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((s) => s.id);
-}
-
 // ── Staff services ─────────────────────────────────────────────────────────────
 
 export async function getStaffServicesForScoring(
   serviceId: string | null,
-  branchId: string
+  staffIds: string[]
 ): Promise<StaffServiceMapping[]> {
-  if (!serviceId) return [];
-  const staffIds = await getActiveBranchStaffIds(branchId);
-  if (staffIds.length === 0) return [];
+  if (!serviceId || staffIds.length === 0) return [];
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -154,10 +138,9 @@ export async function getStaffServicesForScoring(
 // ── Staff schedules ────────────────────────────────────────────────────────────
 
 export async function getStaffSchedulesForScoring(
-  branchId: string,
+  staffIds: string[],
   dayOfWeek: number
 ): Promise<ScheduleForScoring[]> {
-  const staffIds = await getActiveBranchStaffIds(branchId);
   if (staffIds.length === 0) return [];
 
   const supabase = await createClient();
@@ -175,10 +158,9 @@ export async function getStaffSchedulesForScoring(
 // ── Schedule overrides ─────────────────────────────────────────────────────────
 
 export async function getScheduleOverridesForScoring(
-  branchId: string,
+  staffIds: string[],
   date: string
 ): Promise<OverrideForScoring[]> {
-  const staffIds = await getActiveBranchStaffIds(branchId);
   if (staffIds.length === 0) return [];
 
   const supabase = await createClient();
@@ -195,10 +177,9 @@ export async function getScheduleOverridesForScoring(
 // ── Blocked times ──────────────────────────────────────────────────────────────
 
 export async function getBlockedTimesForScoring(
-  branchId: string,
+  staffIds: string[],
   date: string
 ): Promise<BlockForScoring[]> {
-  const staffIds = await getActiveBranchStaffIds(branchId);
   if (staffIds.length === 0) return [];
 
   const supabase = await createClient();
@@ -281,9 +262,8 @@ export async function getDriverConflictBookings(
 // ── Staff preferences ──────────────────────────────────────────────────────────
 
 export async function getStaffPreferencesForScoring(
-  branchId: string
+  staffIds: string[]
 ): Promise<StaffPreference[]> {
-  const staffIds = await getActiveBranchStaffIds(branchId);
   if (staffIds.length === 0) return [];
 
   const supabase = await createClient();
@@ -309,41 +289,41 @@ export async function getStaffPreferencesForScoring(
   }));
 }
 
-// ── Combined context builder ───────────────────────────────────────────────────
+// ── Internal context builder ───────────────────────────────────────────────────
 
-export async function buildRecommendationContext(
-  bookingId: string
-): Promise<RecommendationContext | null> {
-  const booking = await getBookingForRecommendation(bookingId);
-  if (!booking) return null;
-
-  const branchId = booking.branch_id;
-  const date = booking.booking_date;
+async function buildContextFromBooking(
+  booking: BookingForRecommendation,
+  conflictType: "therapist" | "driver"
+): Promise<RecommendationContext> {
+  const { branch_id: branchId, booking_date: date, service_id: serviceId } = booking;
   const dayOfWeek = (() => {
     const [y = "0", m = "1", d = "1"] = date.split("-");
     return new Date(Number(y), Number(m) - 1, Number(d)).getDay();
   })();
 
+  const staffList = await getBranchStaffForScoring(branchId);
+  const staffIds = staffList.map((s) => s.id);
+
   const [
     service,
-    staffList,
     staffServices,
     schedules,
     overrides,
     blockedTimes,
     checkins,
-    therapistConflicts,
+    conflictBookings,
     preferences,
   ] = await Promise.all([
-    getServiceForRecommendation(booking.service_id),
-    getBranchStaffForScoring(branchId),
-    getStaffServicesForScoring(booking.service_id, branchId),
-    getStaffSchedulesForScoring(branchId, dayOfWeek),
-    getScheduleOverridesForScoring(branchId, date),
-    getBlockedTimesForScoring(branchId, date),
+    getServiceForRecommendation(serviceId),
+    getStaffServicesForScoring(serviceId, staffIds),
+    getStaffSchedulesForScoring(staffIds, dayOfWeek),
+    getScheduleOverridesForScoring(staffIds, date),
+    getBlockedTimesForScoring(staffIds, date),
     getCheckinsForScoring(branchId, date),
-    getTherapistConflictBookings(branchId, date),
-    getStaffPreferencesForScoring(branchId),
+    conflictType === "driver"
+      ? getDriverConflictBookings(branchId, date)
+      : getTherapistConflictBookings(branchId, date),
+    getStaffPreferencesForScoring(staffIds),
   ]);
 
   const isHomeService =
@@ -368,9 +348,19 @@ export async function buildRecommendationContext(
     overrides,
     blockedTimes,
     checkins,
-    existingBookings: therapistConflicts,
+    existingBookings: conflictBookings,
     preferences,
   };
+}
+
+// ── Combined context builder ───────────────────────────────────────────────────
+
+export async function buildRecommendationContext(
+  bookingId: string
+): Promise<RecommendationContext | null> {
+  const booking = await getBookingForRecommendation(bookingId);
+  if (!booking) return null;
+  return buildContextFromBooking(booking, "therapist");
 }
 
 // ── Convenience: build driver-specific context ─────────────────────────────────
@@ -378,17 +368,7 @@ export async function buildRecommendationContext(
 export async function buildDriverRecommendationContext(
   bookingId: string
 ): Promise<RecommendationContext | null> {
-  const ctx = await buildRecommendationContext(bookingId);
-  if (!ctx) return null;
-
-  // Replace therapist conflicts with driver conflicts for driver scoring
   const booking = await getBookingForRecommendation(bookingId);
   if (!booking) return null;
-
-  const driverConflicts = await getDriverConflictBookings(booking.branch_id, booking.booking_date);
-
-  return {
-    ...ctx,
-    existingBookings: driverConflicts,
-  };
+  return buildContextFromBooking(booking, "driver");
 }
