@@ -12,6 +12,7 @@ import { TodaySideRail } from "@/components/features/crm/today/today-side-rail";
 import { TodayPriorityStrip } from "@/components/features/crm/today/today-priority-strip";
 import { TodayStaffReadiness } from "@/components/features/crm/today/today-staff-readiness";
 import { TodayDispatchSnapshot } from "@/components/features/crm/today/today-dispatch-snapshot";
+import { TodayQuickActions } from "@/components/features/crm/today/today-quick-actions";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 
 // ── Local types ───────────────────────────────────────────────────────────────
@@ -158,6 +159,9 @@ export default async function CrmTodayPage() {
 
       {/* Attention strip — shows only when there are action-required notifications */}
       <TodayAttentionStrip notifications={actionNotifications} />
+
+      {/* Quick action buttons */}
+      <TodayQuickActions />
 
       {/* Priority strip — 6 operational cards replacing stat cards + quick actions */}
       <TodayPriorityStrip
