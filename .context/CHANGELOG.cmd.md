@@ -1165,3 +1165,28 @@
 - `pnpm build`: ✅ Passing, 84 app routes
 
 **Commit:** `feat(assignments): add staff recommendation engine` on `main`
+
+---
+
+### 2026-05-21 — Claude Code (Phase 2X-A — Operations Unification Audit)
+
+**Task:** CRM-OPS-002X-A — Audit the entire operations workflow for duplication, broken links, and missing integration points.
+
+**Files Changed:**
+- `docs/phase-2x-operations-unification-audit.md` — Created: full audit document
+- `.context/CURRENT_TASK.cmd.md` — Updated to 2X-A
+- `.context/HANDOFF.cmd.md` — Updated with audit findings and 2X-B+ plan
+
+**Key Findings:**
+- CRITICAL: `staff_group_schedule_rules` is ignored by all 5 operational schedule consumers (booking engine, recommendation engine, daily schedule RPC, CRM availability, individual editor). Group rules have zero effect on bookings.
+- HIGH: `manager/staff-availability` diverged from `crm/staff-availability` — still uses legacy `StaffSchedulePageClient` while CRM has full Phase 2E `ScheduleSetupWorkspace`.
+- MEDIUM: `fmt12h()` duplicated in `dispatch-queries.ts` and `dispatch-workspace.tsx`. Shift badge constants in 4 files. Presence badge in 2 files.
+- MEDIUM: `/crm/schedule`, `/manager/schedule`, `/owner/schedule` each inline identical auth context setup code.
+- LOW: Double booking fetch in `buildDriverRecommendationContext`. 5 separate N+1 staff ID queries in recommendation context builder.
+
+**No code behavior was changed in this audit.**
+
+**Verification:**
+- No build needed (docs-only commit)
+
+**Commit:** `docs(ops): audit workflow unification gaps` on `main`

@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002I
+# CURRENT TASK: CRM-OPS-002X-A
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002I
+CRM-OPS-002X-A
 
 ## Description
-Add driver and therapist assignment recommendation engine
+Phase 2X-A — Operations Unification Audit
 
 ## Agent
 Claude Code
