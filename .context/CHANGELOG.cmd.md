@@ -1220,3 +1220,30 @@
 - `pnpm build`: ✅ Passing, all routes compiled
 
 **Commit:** `refactor(ui): consolidate schedule and availability badges` on `main`
+
+### 2026-05-21 — Claude Code (CRM-OPS-002X-F — Manager Schedule Setup Parity)
+
+**Task:** Make `/manager/staff-availability` use the same full `ScheduleSetupWorkspace` as `/crm/staff-availability`.
+
+**Files Changed:**
+- `src/app/(dashboard)/manager/staff-availability/page.tsx` — Rewritten to match CRM page
+  - Now imports `ScheduleSetupWorkspace` instead of `StaffSchedulePageClient`
+  - Fetches `getScheduleSetupOverview()` in parallel with `getStaffWithAvailability()`
+  - Passes `items`, `groups`, `rulesByGroup` to `ScheduleSetupWorkspace`
+  - Uses same `PageActions` placeholder buttons as CRM
+  - Same title "Schedule Setup" and description
+  - Same error handling pattern
+
+**What did NOT change:**
+- `src/app/(dashboard)/crm/staff-availability/page.tsx` — untouched
+- `ScheduleSetupWorkspace` component — no changes needed (already role-agnostic)
+- `StaffSchedulePageClient` — still used inside `ScheduleSetupWorkspace` for Individual Adjustments tab
+- Branch scoping — still uses `getManagerBranchId()`
+- Security — no role guards weakened
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+**Commit:** `refactor(schedule): align manager schedule setup workspace` on `main`

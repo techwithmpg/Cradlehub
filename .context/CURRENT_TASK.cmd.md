@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002X-E
+# CURRENT TASK: CRM-OPS-002X-F
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002X-E
+CRM-OPS-002X-F
 
 ## Description
-Wire universal group schedule rules into booking availability, daily schedule, and recommendations
+Make Manager Schedule Setup use the full ScheduleSetupWorkspace
 
 ## Agent
 Claude Code

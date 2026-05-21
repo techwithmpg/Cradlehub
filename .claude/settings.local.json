@@ -28,7 +28,12 @@
       "Bash(git --git-dir=E:/cradlehub/.git --work-tree=E:/cradlehub status --short)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(node -e \"require\\('./src/types/supabase.ts'\\)\")",
-      "Bash(node --input-type=module)"
+      "Bash(node --input-type=module)",
+      "Bash(Get-Content \"E:\\\\cradlehub\\\\.context\\\\CHANGELOG.cmd.md\")",
+      "Bash(Select-Object -Last 20)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
+      "Bash(findstr \"crm-today\")",
+      "Bash(dir \"E:\\\\cradlehub\\\\src\\\\lib\\\\queries\")"
     ]
   }
 }
