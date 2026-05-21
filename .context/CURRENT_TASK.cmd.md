@@ -4,10 +4,10 @@
 DONE
 
 ## Task ID
-CRM-OPS-002C
+CRM-OPS-002D
 
 ## Description
-Add shift_type to staff schedules and redesign schedule/availability UI clarity
+Add staff check-in/check-out tracking and wire it into CRM Live Availability
 
 ## Agent
 Claude Code

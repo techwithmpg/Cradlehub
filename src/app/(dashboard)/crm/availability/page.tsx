@@ -43,7 +43,7 @@ export default async function CrmAvailabilityPage() {
         description="See who is scheduled, free, busy, off today, or needs setup before assigning bookings or dispatch."
       />
 
-      {/* Schedule-based disclaimer */}
+      {/* Check-in awareness notice */}
       <div
         style={{
           display: "flex", alignItems: "center", gap: 8,
@@ -54,8 +54,10 @@ export default async function CrmAvailabilityPage() {
           fontSize: 12, color: "var(--cs-text-muted)",
         }}
       >
-        <span style={{ fontSize: 14 }}>ℹ</span>
-        This view is <strong style={{ color: "var(--cs-text)" }}>schedule-based</strong> until staff check-in tracking is added.
+        <span style={{ fontSize: 14 }}>✓</span>
+        Availability now uses <strong style={{ color: "var(--cs-text)" }}>staff check-in status</strong>.
+        {" "}Staff must be scheduled <em>and</em> checked in to appear as Available.
+        Use the <strong style={{ color: "var(--cs-text)" }}>Check in</strong> buttons to record presence.
       </div>
 
       {error || !snapshot ? (

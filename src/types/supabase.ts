@@ -1610,6 +1610,73 @@ export type Database = {
           },
         ]
       }
+      staff_shift_checkins: {
+        Row: {
+          id: string
+          staff_id: string
+          branch_id: string
+          shift_date: string
+          shift_type: string
+          checked_in_at: string
+          checked_out_at: string | null
+          status: string
+          recorded_by: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          staff_id: string
+          branch_id: string
+          shift_date: string
+          shift_type?: string
+          checked_in_at?: string
+          checked_out_at?: string | null
+          status?: string
+          recorded_by?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          staff_id?: string
+          branch_id?: string
+          shift_date?: string
+          shift_type?: string
+          checked_in_at?: string
+          checked_out_at?: string | null
+          status?: string
+          recorded_by?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_shift_checkins_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_shift_checkins_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_shift_checkins_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_scheduling_preferences: {
         Row: {
           id: string

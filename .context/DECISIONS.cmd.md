@@ -128,6 +128,19 @@ Adding `shift_type` to `staff_schedules` and changing the UNIQUE constraint is d
 **Rationale:**
 The RPC is the heart of the public booking engine. Any change must be backward-compatible (default `shift_type = 'single'` must behave identically to today). Rushing this risks breaking the booking wizard.
 
+### DEC-PHASE2-005: staff_shift_checkins as the source of truth for staff presence
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+Phase 2D introduces a `staff_shift_checkins` table as the physical presence layer. Schedule remains the plan; check-ins represent actual attendance. Available Now requires: scheduled + checked in + not checked out + not busy.
+
+**Rationale:**
+- Cleanest separation of concerns: schedule = intent, check-in = truth.
+- Minimal schema impact — one new table, no changes to booking engine or `get_available_slots`.
+- RLS enforces branch scope and self-check-in safety without exposing cross-branch data.
+- Drivers Ready now requires checked-in drivers, not just scheduled ones.
+- Staff self-check-in allowed via staff portal; CRM/manager can also record check-ins on behalf of staff.
+
 ### DEC-PHASE2-004: shift_type stored directly on staff_schedules (not shift_templates)
 **Status:** ACCEPTED — 2026-05-21
 

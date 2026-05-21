@@ -996,3 +996,28 @@
 - Run `pnpm db:types` after applying the migration to a live DB.
 - Existing single-shift schedules fully preserved (`shift_type = 'single'` default).
 - Opening/closing split shifts are supported by engine and UI but not yet exposed in the weekly hours editor UI for creation.
+
+---
+
+### 2026-05-21 — Claude Code (CRM-OPS-002D — Staff Check-in / Check-out Truth)
+
+**Task:** Add staff shift check-ins table and wire physical presence into CRM Live Availability.
+
+**Files Created:**
+- `supabase/migrations/20260523000001_staff_shift_checkins.sql` — `staff_shift_checkins` table, indexes, RLS, `fn_update_updated_at` trigger, data API grants
+- `src/lib/actions/staff-checkins.ts` — `checkInStaffForShiftAction`, `checkOutStaffForShiftAction`, `getStaffCheckinForDate`, `getBranchCheckinsForDate`
+- `src/components/features/staff-portal/staff-checkin-widget.tsx` — staff self-check-in/out widget for staff portal
+
+**Files Modified:**
+- `src/types/supabase.ts` — added `staff_shift_checkins` Row/Insert/Update (manual; run `pnpm db:types` after migration)
+- `src/lib/queries/crm-availability.ts` — added `PresenceStatus` type, fourth parallel check-in query, updated `LiveStatus` enum, updated `liveStatus`/`presenceStatus` logic, drivers-ready requires checked-in status, `branchId` added to snapshot
+- `src/components/features/crm/availability/crm-availability-summary.tsx` — new summary cards: Checked In, Not Checked In, updated Drivers Ready
+- `src/components/features/crm/availability/crm-availability-board.tsx` — 5-column board (Available/Busy/Not Checked In/Off+Out/Needs Attention), `PresenceBadge`, check-in/out action buttons
+- `src/components/features/crm/availability/crm-availability-client.tsx` — Staff List + Driver Readiness tabs with presence pills + check-in/out buttons; footer updated
+- `src/app/(dashboard)/crm/availability/page.tsx` — banner updated to "check-in enabled"
+- `src/app/(dashboard)/staff-portal/page.tsx` — fetches check-in status; renders `StaffCheckinWidget` on desktop + mobile
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes

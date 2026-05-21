@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CrmAvailabilityBoard } from "./crm-availability-board";
-import type { CrmAvailabilitySnapshot } from "@/lib/queries/crm-availability";
+import { checkInStaffForShiftAction, checkOutStaffForShiftAction } from "@/lib/actions/staff-checkins";
+import type { CrmAvailabilitySnapshot, CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
 
 type Tab = "live_board" | "staff_list" | "schedule_issues" | "driver_readiness";
 
@@ -24,8 +26,7 @@ function formatTime(t: string | null): string {
   return `${h12}:${m}${ampm}`;
 }
 
-/** Formats an ISO timestamp to a locale-neutral 12-hour time string.
- *  Uses manual extraction so server and client always produce identical output. */
+/** Deterministic 12-hour time from ISO string — avoids locale-based hydration mismatch. */
 function formatAsOf(isoString: string): string {
   const d = new Date(isoString);
   const h = d.getHours();
@@ -42,17 +43,21 @@ const SHIFT_BADGE: Record<string, { label: string; bg: string; color: string }> 
 };
 
 const STATUS_DOT: Record<string, string> = {
-  available_now: "var(--cs-success)",
-  busy_now:      "var(--cs-info)",
-  off_today:     "var(--cs-text-muted)",
-  no_schedule:   "var(--cs-warning)",
+  available_now:   "var(--cs-success)",
+  busy_now:        "var(--cs-info)",
+  not_checked_in:  "var(--cs-warning)",
+  checked_out:     "var(--cs-text-muted)",
+  off_today:       "var(--cs-text-muted)",
+  no_schedule:     "var(--cs-warning)",
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  available_now: "Available",
-  busy_now:      "Busy",
-  off_today:     "Off",
-  no_schedule:   "No Schedule",
+  available_now:   "Available",
+  busy_now:        "Busy",
+  not_checked_in:  "Not checked in",
+  checked_out:     "Checked out",
+  off_today:       "Off",
+  no_schedule:     "No Schedule",
 };
 
 type Props = { snapshot: CrmAvailabilitySnapshot };
@@ -114,11 +119,15 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
 
       {/* Tab panels */}
       {tab === "live_board" && (
-        <CrmAvailabilityBoard staff={snapshot.staff} />
+        <CrmAvailabilityBoard
+          staff={snapshot.staff}
+          shiftDate={snapshot.date}
+          branchId={snapshot.branchId}
+        />
       )}
 
       {tab === "staff_list" && (
-        <StaffListView staff={snapshot.staff} />
+        <StaffListView staff={snapshot.staff} branchId={snapshot.branchId} shiftDate={snapshot.date} />
       )}
 
       {tab === "schedule_issues" && (
@@ -126,13 +135,13 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
       )}
 
       {tab === "driver_readiness" && (
-        <DriverReadinessView staff={snapshot.staff} />
+        <DriverReadinessView staff={snapshot.staff} branchId={snapshot.branchId} shiftDate={snapshot.date} />
       )}
 
       {/* Footer note */}
       <div style={{ marginTop: "1rem", fontSize: 11, color: "var(--cs-text-muted)" }}>
         As of {formatAsOf(snapshot.asOf)}.
-        Schedule-based — does not reflect physical check-in.
+        Availability requires staff to be scheduled and checked in.
       </div>
     </div>
   );
@@ -140,14 +149,23 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
 
 // ── Sub-views ──────────────────────────────────────────────────────────────────
 
-import type { CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
+function StaffListView({
+  staff,
+  branchId,
+  shiftDate,
+}: {
+  staff: CrmAvailabilityStaffRow[];
+  branchId: string;
+  shiftDate: string;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
 
-function StaffListView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
   return (
     <div style={{ border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-md)", overflow: "hidden" }}>
       <div
         style={{
-          display: "grid", gridTemplateColumns: "1fr 80px 140px 1fr",
+          display: "grid", gridTemplateColumns: "1fr 100px 130px 120px 1fr",
           gap: 12, padding: "8px 14px",
           background: "var(--cs-surface-raised)", borderBottom: "1px solid var(--cs-border-soft)",
           fontSize: 11, fontWeight: 600, color: "var(--cs-text-muted)",
@@ -157,6 +175,7 @@ function StaffListView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
         <span>Staff</span>
         <span>Status</span>
         <span>Shift</span>
+        <span>Presence</span>
         <span>Active Booking</span>
       </div>
       {staff.map((s) => {
@@ -165,11 +184,13 @@ function StaffListView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
         const primaryShift = s.shifts[0];
         const shiftType = primaryShift?.shift_type ?? "single";
         const shiftCfg = SHIFT_BADGE[shiftType] ?? SHIFT_BADGE.single!;
+        const primaryShiftTypeEnum = (primaryShift?.shift_type ?? "single") as "single" | "opening" | "closing";
+
         return (
           <div
             key={s.staff_id}
             style={{
-              display: "grid", gridTemplateColumns: "1fr 80px 140px 1fr",
+              display: "grid", gridTemplateColumns: "1fr 100px 130px 120px 1fr",
               alignItems: "center", gap: 12,
               padding: "10px 14px", borderBottom: "1px solid var(--cs-border-soft)", fontSize: 13,
             }}
@@ -204,6 +225,59 @@ function StaffListView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
                 <span style={{ fontSize: 12, color: "var(--cs-text-muted)" }}>—</span>
               )}
             </div>
+            {/* Presence + action */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <PresencePill presenceStatus={s.presenceStatus} />
+              {s.presenceStatus === "not_checked_in" && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      await checkInStaffForShiftAction({
+                        staffId: s.staff_id,
+                        branchId,
+                        shiftDate,
+                        shiftType: primaryShiftTypeEnum,
+                      });
+                      router.refresh();
+                    });
+                  }}
+                  style={{
+                    padding: "2px 8px", fontSize: 10, fontWeight: 500,
+                    background: "var(--cs-success)", color: "#fff",
+                    border: "none", borderRadius: 5, cursor: "pointer",
+                    opacity: pending ? 0.5 : 1, width: "fit-content",
+                  }}
+                >
+                  Check in
+                </button>
+              )}
+              {s.presenceStatus === "checked_in" && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      await checkOutStaffForShiftAction({
+                        staffId: s.staff_id,
+                        shiftDate,
+                        shiftType: primaryShiftTypeEnum,
+                      });
+                      router.refresh();
+                    });
+                  }}
+                  style={{
+                    padding: "2px 8px", fontSize: 10, fontWeight: 500,
+                    background: "transparent", color: "var(--cs-text-muted)",
+                    border: "1px solid var(--cs-border-soft)", borderRadius: 5, cursor: "pointer",
+                    opacity: pending ? 0.5 : 1, width: "fit-content",
+                  }}
+                >
+                  Check out
+                </button>
+              )}
+            </div>
             <div style={{ fontSize: 12 }}>
               {s.active_booking ? (
                 <div>
@@ -218,6 +292,28 @@ function StaffListView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
         );
       })}
     </div>
+  );
+}
+
+function PresencePill({ presenceStatus }: { presenceStatus: CrmAvailabilityStaffRow["presenceStatus"] }) {
+  const cfg: Record<string, { label: string; color: string; bg: string }> = {
+    checked_in:     { label: "Checked in",    color: "#4A7C59", bg: "rgba(74,124,89,0.12)" },
+    not_checked_in: { label: "Not checked in", color: "#D97706", bg: "rgba(217,119,6,0.1)" },
+    checked_out:    { label: "Checked out",   color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)" },
+    off_today:      { label: "Off today",     color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)" },
+    no_schedule:    { label: "No schedule",   color: "#D97706", bg: "rgba(217,119,6,0.1)" },
+  };
+  const c = cfg[presenceStatus] ?? { label: presenceStatus, color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)" };
+  return (
+    <span
+      style={{
+        display: "inline-block", padding: "1px 7px",
+        borderRadius: 10, fontSize: 10, fontWeight: 500,
+        background: c.bg, color: c.color,
+      }}
+    >
+      {c.label}
+    </span>
   );
 }
 
@@ -260,7 +356,18 @@ function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
   );
 }
 
-function DriverReadinessView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
+function DriverReadinessView({
+  staff,
+  branchId,
+  shiftDate,
+}: {
+  staff: CrmAvailabilityStaffRow[];
+  branchId: string;
+  shiftDate: string;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
   const drivers = staff.filter((s) => s.is_driver);
   if (drivers.length === 0) {
     return (
@@ -269,26 +376,35 @@ function DriverReadinessView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
       </div>
     );
   }
-  const ready = drivers.filter((s) => s.liveStatus === "available_now");
-  const off   = drivers.filter((s) => s.liveStatus !== "available_now" && s.liveStatus !== "busy_now");
+
+  const checkedIn = drivers.filter((s) => s.presenceStatus === "checked_in");
+  const ready     = drivers.filter((s) => s.liveStatus === "available_now");
 
   return (
     <div>
       <div style={{ marginBottom: "0.75rem", fontSize: 12, color: "var(--cs-text-muted)" }}>
-        {ready.length} of {drivers.length} driver{drivers.length !== 1 ? "s" : ""} schedule-ready.
-        Schedule-based — does not reflect live GPS or check-in status.
+        {checkedIn.length} of {drivers.length} driver{drivers.length !== 1 ? "s" : ""} checked in.{" "}
+        {ready.length} ready to dispatch.
+        Check-in required for dispatch readiness.
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem" }}>
         {drivers.map((s) => {
-          const isReady = s.liveStatus === "available_now";
-          const isBusy  = s.liveStatus === "busy_now";
-          const dotColor = isReady ? "var(--cs-success)" : isBusy ? "var(--cs-info)" : "var(--cs-text-muted)";
-          const statusLabel = isReady ? "Schedule-ready" : isBusy ? "On trip" : "Off / No schedule";
+          const isReady       = s.liveStatus === "available_now";
+          const isBusy        = s.liveStatus === "busy_now";
+          const isCheckedIn   = s.presenceStatus === "checked_in";
+          const notCheckedIn  = s.presenceStatus === "not_checked_in";
+          const isCheckedOut  = s.presenceStatus === "checked_out";
+          const primaryShiftTypeEnum = (s.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
+
+          const borderColor = isReady ? "var(--cs-success)" : notCheckedIn ? "var(--cs-warning)" : "var(--cs-border-soft)";
+          const dotColor    = isReady ? "var(--cs-success)" : isBusy ? "var(--cs-info)" : notCheckedIn ? "var(--cs-warning)" : "var(--cs-text-muted)";
+          const statusLabel = isReady ? "Ready" : isBusy ? "On trip" : notCheckedIn ? "Not checked in" : isCheckedOut ? "Checked out" : "Off / No schedule";
+
           return (
             <div
               key={s.staff_id}
               style={{
-                border: `1px solid ${isReady ? "var(--cs-success)" : "var(--cs-border-soft)"}`,
+                border: `1px solid ${borderColor}`,
                 borderRadius: "var(--cs-r-md)", padding: "12px 14px",
                 background: "var(--cs-surface)",
               }}
@@ -304,16 +420,63 @@ function DriverReadinessView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: dotColor, fontWeight: 500 }}>{statusLabel}</span>
               </div>
+              {/* Check-in action for not-checked-in drivers */}
+              {notCheckedIn && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      await checkInStaffForShiftAction({
+                        staffId: s.staff_id,
+                        branchId,
+                        shiftDate,
+                        shiftType: primaryShiftTypeEnum,
+                      });
+                      router.refresh();
+                    });
+                  }}
+                  style={{
+                    marginTop: 8,
+                    padding: "3px 10px", fontSize: 11, fontWeight: 500,
+                    background: "var(--cs-success)", color: "#fff",
+                    border: "none", borderRadius: 6, cursor: "pointer",
+                    opacity: pending ? 0.5 : 1,
+                  }}
+                >
+                  {pending ? "…" : "Check in"}
+                </button>
+              )}
+              {/* Check-out for already checked-in drivers */}
+              {isCheckedIn && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      await checkOutStaffForShiftAction({
+                        staffId: s.staff_id,
+                        shiftDate,
+                        shiftType: primaryShiftTypeEnum,
+                      });
+                      router.refresh();
+                    });
+                  }}
+                  style={{
+                    marginTop: 8,
+                    padding: "3px 10px", fontSize: 11, fontWeight: 500,
+                    background: "transparent", color: "var(--cs-text-muted)",
+                    border: "1px solid var(--cs-border-soft)", borderRadius: 6, cursor: "pointer",
+                    opacity: pending ? 0.5 : 1,
+                  }}
+                >
+                  {pending ? "…" : "Check out"}
+                </button>
+              )}
             </div>
           );
         })}
       </div>
-      {/* Off section */}
-      {off.length > 0 && (
-        <div style={{ marginTop: "1rem", fontSize: 11, color: "var(--cs-text-muted)" }}>
-          {off.map((s) => s.staff_name).join(", ")} — off or no schedule today.
-        </div>
-      )}
     </div>
   );
 }

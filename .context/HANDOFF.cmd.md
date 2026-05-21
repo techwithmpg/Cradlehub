@@ -1,3 +1,88 @@
+# HANDOFF — CRM-OPS-002D
+
+## Date
+2026-05-21
+
+## What Changed
+
+### Migration
+**File:** `supabase/migrations/20260523000001_staff_shift_checkins.sql`
+- New table `staff_shift_checkins` (id, staff_id, branch_id, shift_date, shift_type, checked_in_at, checked_out_at, status, recorded_by, notes)
+- UNIQUE constraint: `(staff_id, shift_date, shift_type)` — one check-in per shift per day
+- Partial index on `(branch_id, shift_date, status) WHERE checked_out_at IS NULL` for fast active lookups
+- RLS: owner=all, manager/assistant_manager/store_manager=branch all, crm/csr_head/csr_staff=branch all, staff=read+write own
+- `fn_update_updated_at()` trigger reused
+
+### Types
+**File:** `src/types/supabase.ts` — manually added `staff_shift_checkins` Row/Insert/Update (local Supabase unavailable; run `pnpm db:types` after applying migration)
+
+### Server Actions
+**File:** `src/lib/actions/staff-checkins.ts` (NEW)
+- `checkInStaffForShiftAction(input)` — operators check in any branch staff; staff check in self; upsert-safe with conflict handling
+- `checkOutStaffForShiftAction(input)` — sets `checked_out_at + status = checked_out`
+- `getStaffCheckinForDate(staffId, branchId, date)` — server query for staff portal
+- `getBranchCheckinsForDate(branchId, date)` — server query for snapshot (not yet used externally)
+
+### CRM Availability Snapshot
+**File:** `src/lib/queries/crm-availability.ts`
+- Added `PresenceStatus` type: `checked_in | not_checked_in | checked_out | off_today | no_schedule`
+- `LiveStatus` updated: now includes `not_checked_in | checked_out`
+- `CrmAvailabilityStaffRow` now includes: `presenceStatus`, `checkedInAt`, `checkedOutAt`, `checkInId`
+- `CrmAvailabilitySnapshot` now includes `branchId`
+- `CrmAvailabilitySummary` now includes: `checkedIn`, `notCheckedIn`, `checkedOut`
+- Fourth parallel query fetches today's check-ins for the branch
+- `driversReady` now = drivers with `presenceStatus === "checked_in"` AND not busy (was: just `available_now`)
+
+### CRM Availability Summary
+**File:** `src/components/features/crm/availability/crm-availability-summary.tsx`
+- New cards: Scheduled, Checked In, Available, Busy, Not Checked In (conditional), Drivers Ready, Needs Attention
+
+### CRM Availability Board
+**File:** `src/components/features/crm/availability/crm-availability-board.tsx`
+- 5 columns: Available Now / Busy Assigned / Not Checked In / Off+Checked Out / Needs Attention
+- `PresenceBadge` component on each staff card
+- `CheckinButton` renders "Check in" (green) for `not_checked_in` staff and "Check out" for `checked_in`
+- Actions use `useTransition` + `router.refresh()` for optimistic UI
+
+### CRM Availability Client
+**File:** `src/components/features/crm/availability/crm-availability-client.tsx`
+- Staff List tab: added Presence column with `PresencePill` + inline check-in/out buttons
+- Driver Readiness tab: check-in buttons for not-checked-in drivers; check-out for checked-in
+- Footer updated: "Availability requires staff to be scheduled and checked in."
+
+### CRM Availability Page
+**File:** `src/app/(dashboard)/crm/availability/page.tsx`
+- Banner changed from "schedule-based" warning to "check-in enabled" confirmation
+
+### Staff Portal Check-in Widget
+**File:** `src/components/features/staff-portal/staff-checkin-widget.tsx` (NEW)
+- Shows My Shift Today status: Not yet checked in / Checked in at HH:MM / Shift complete
+- Check In / Check Out buttons with `useTransition` + `router.refresh()`
+
+### Staff Portal Page
+**File:** `src/app/(dashboard)/staff-portal/page.tsx`
+- Fetches `getStaffCheckinForDate()` alongside the today action
+- Renders `StaffCheckinWidget` on both desktop and mobile layouts (shown when `branch_id` is set)
+
+## Build / Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+## Git
+- Commit: TBD (pending) on `main`
+- Files changed: 11 (1 migration, 10 TypeScript/TSX files)
+
+---
+
+## ⚠️ Important Notes for Next Agent
+
+1. **Migration not yet applied to live DB.** Apply `supabase/migrations/20260523000001_staff_shift_checkins.sql` via `pnpm db:migrate`, then run `pnpm db:types`.
+2. **Self-check-in shift_type defaults to `single`.** The staff portal widget uses `shiftType: "single"` for self-check-in. Staff with opening/closing shifts need CRM to select the right shift type until the widget is updated.
+3. **Phase 2E (future):** Expose shift_type picker in staff portal widget. Auto-void + re-check-in for checked-out staff. GPS-based check-in validation.
+
+---
+
 # HANDOFF — CRM-OPS-002C
 
 ## Date

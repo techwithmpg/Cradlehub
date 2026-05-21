@@ -17,41 +17,48 @@ export function CrmAvailabilitySummary({ summary }: Props) {
       }}
     >
       <StatCard
-        label="Scheduled Today"
+        label="Scheduled"
         value={summary.scheduledToday}
-        sub={`of ${summary.total} total`}
-        accent
+        sub={`of ${summary.total} staff`}
         accentColor="var(--cs-sand)"
       />
       <StatCard
-        label="Available Now"
-        value={summary.availableNow}
-        sub="Scheduled and free"
+        label="Checked In"
+        value={summary.checkedIn}
+        sub="physically present"
         accentColor="var(--cs-success)"
       />
       <StatCard
-        label="Busy Now"
+        label="Available"
+        value={summary.availableNow}
+        sub="checked in + free"
+        accentColor="var(--cs-success)"
+      />
+      <StatCard
+        label="Busy"
         value={summary.busyNow}
-        sub="In session / assigned"
+        sub="in session"
         accentColor="var(--cs-info)"
       />
-      <StatCard
-        label="Off Today"
-        value={summary.offToday}
-        sub="Not scheduled"
-        accentColor="var(--cs-text-muted)"
-      />
+      {summary.notCheckedIn > 0 && (
+        <StatCard
+          label="Not Checked In"
+          value={summary.notCheckedIn}
+          sub="scheduled, absent?"
+          accentColor="var(--cs-warning)"
+        />
+      )}
       <StatCard
         label="Drivers Ready"
-        value={summary.driversReady}
-        sub={`of ${summary.driversTotal} drivers`}
-        accentColor="var(--cs-sand)"
+        value={`${summary.driversReady}/${summary.driversTotal}`}
+        sub="checked in + free"
+        accentColor={summary.driversReady > 0 ? "var(--cs-info)" : "var(--cs-text-muted)"}
       />
       {summary.needsAttention > 0 && (
         <StatCard
           label="Needs Attention"
           value={summary.needsAttention}
-          sub="Action needed"
+          sub="no schedule set"
           accentColor="var(--cs-warning)"
         />
       )}

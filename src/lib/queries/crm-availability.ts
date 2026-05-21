@@ -4,13 +4,36 @@ import { getStaffByBranch } from "./staff";
 import { isServiceStaffType } from "@/constants/staff-roles";
 
 export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule";
-export type LiveStatus = "available_now" | "busy_now" | "off_today" | "no_schedule";
+
+export type PresenceStatus =
+  | "checked_in"
+  | "not_checked_in"
+  | "checked_out"
+  | "off_today"
+  | "no_schedule";
+
+export type LiveStatus =
+  | "available_now"
+  | "busy_now"
+  | "not_checked_in"
+  | "checked_out"
+  | "off_today"
+  | "no_schedule";
+
 export type ShiftType = "single" | "opening" | "closing";
 
 export type StaffShiftEntry = {
   shift_type: ShiftType;
   start_time: string;
   end_time: string;
+};
+
+export type CheckinEntry = {
+  id: string;
+  shift_type: string;
+  checked_in_at: string;
+  checked_out_at: string | null;
+  status: string;
 };
 
 export type CrmAvailabilityStaffRow = {
@@ -22,6 +45,10 @@ export type CrmAvailabilityStaffRow = {
   is_service_provider: boolean;
   scheduleStatus: ScheduleStatus;
   liveStatus: LiveStatus;
+  presenceStatus: PresenceStatus;
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
+  checkInId: string | null;
   work_start: string | null;
   work_end: string | null;
   shifts: StaffShiftEntry[];
@@ -38,16 +65,20 @@ export type CrmAvailabilityStaffRow = {
 export type CrmAvailabilitySummary = {
   total: number;
   scheduledToday: number;
-  offToday: number;
-  noSchedule: number;
+  checkedIn: number;
+  notCheckedIn: number;
   availableNow: number;
   busyNow: number;
+  checkedOut: number;
+  offToday: number;
+  noSchedule: number;
   driversReady: number;
   driversTotal: number;
   needsAttention: number;
 };
 
 export type CrmAvailabilitySnapshot = {
+  branchId: string;
   date: string;
   asOf: string;
   staff: CrmAvailabilityStaffRow[];
@@ -79,8 +110,8 @@ export async function getCrmAvailabilitySnapshot(params: {
 
   const supabase = await createClient();
 
-  // Run all three queries in parallel
-  const [allStaff, scheduleRows, shiftsResult] = await Promise.all([
+  // Four parallel queries
+  const [allStaff, scheduleRows, shiftsResult, checkinsResult] = await Promise.all([
     getStaffByBranch(params.branchId),
     getDailySchedule({ branchId: params.branchId, date: params.date }),
     supabase
@@ -88,13 +119,19 @@ export async function getCrmAvailabilitySnapshot(params: {
       .select("staff_id, shift_type, start_time, end_time")
       .eq("day_of_week", dayOfWeek)
       .eq("is_active", true),
+    supabase
+      .from("staff_shift_checkins")
+      .select("id, staff_id, shift_type, checked_in_at, checked_out_at, status")
+      .eq("branch_id", params.branchId)
+      .eq("shift_date", params.date)
+      .neq("status", "voided"),
   ]);
 
   const scheduleMap = new Map<string, DailyScheduleStaffRow>(
     scheduleRows.map((row) => [row.staff_id, row])
   );
 
-  // Build shift map: staff_id → StaffShiftEntry[]
+  // shift map: staff_id → StaffShiftEntry[]
   const shiftMap = new Map<string, StaffShiftEntry[]>();
   for (const row of shiftsResult.data ?? []) {
     const list = shiftMap.get(row.staff_id) ?? [];
@@ -106,6 +143,23 @@ export async function getCrmAvailabilitySnapshot(params: {
     shiftMap.set(row.staff_id, list);
   }
 
+  // checkin map: staff_id → most recent non-voided check-in for today
+  // Prefer checked_in over checked_out when multiple exist.
+  const checkinMap = new Map<string, CheckinEntry>();
+  for (const row of checkinsResult.data ?? []) {
+    const existing = checkinMap.get(row.staff_id);
+    // Prefer active (checked_in) over checked_out
+    if (!existing || (row.status === "checked_in" && existing.status !== "checked_in")) {
+      checkinMap.set(row.staff_id, {
+        id: row.id,
+        shift_type: row.shift_type,
+        checked_in_at: row.checked_in_at,
+        checked_out_at: row.checked_out_at,
+        status: row.status,
+      });
+    }
+  }
+
   const staffRows: CrmAvailabilityStaffRow[] = allStaff.map((member) => {
     const schedule = scheduleMap.get(member.id);
     const staffType = member.staff_type ?? "";
@@ -113,7 +167,9 @@ export async function getCrmAvailabilitySnapshot(params: {
     const isDriver = systemRole === "driver" || staffType === "driver";
     const isServiceProvider = isServiceStaffType(staffType);
     const shifts = shiftMap.get(member.id) ?? [];
+    const checkin = checkinMap.get(member.id) ?? null;
 
+    // ── Schedule status ──────────────────────────────────────────────────────
     let scheduleStatus: ScheduleStatus;
     if (!schedule || schedule.work_start === null) {
       scheduleStatus = "no_schedule";
@@ -123,6 +179,21 @@ export async function getCrmAvailabilitySnapshot(params: {
       scheduleStatus = "scheduled";
     }
 
+    // ── Presence status (check-in truth) ────────────────────────────────────
+    let presenceStatus: PresenceStatus;
+    if (scheduleStatus === "off_today") {
+      presenceStatus = "off_today";
+    } else if (scheduleStatus === "no_schedule") {
+      presenceStatus = "no_schedule";
+    } else if (!checkin) {
+      presenceStatus = "not_checked_in";
+    } else if (checkin.status === "checked_out") {
+      presenceStatus = "checked_out";
+    } else {
+      presenceStatus = "checked_in";
+    }
+
+    // ── Live status (what CRM sees) ──────────────────────────────────────────
     let liveStatus: LiveStatus;
     let active_booking: CrmAvailabilityStaffRow["active_booking"] = null;
 
@@ -130,7 +201,12 @@ export async function getCrmAvailabilitySnapshot(params: {
       liveStatus = "off_today";
     } else if (scheduleStatus === "no_schedule") {
       liveStatus = "no_schedule";
+    } else if (presenceStatus === "not_checked_in") {
+      liveStatus = "not_checked_in";
+    } else if (presenceStatus === "checked_out") {
+      liveStatus = "checked_out";
     } else {
+      // presenceStatus === "checked_in" — check for active bookings
       const bookings = schedule?.bookings ?? [];
       const inProgress = bookings.find((b) => b.status === "in_progress");
       const confirmed = bookings.find(
@@ -165,6 +241,10 @@ export async function getCrmAvailabilitySnapshot(params: {
       is_service_provider: isServiceProvider,
       scheduleStatus,
       liveStatus,
+      presenceStatus,
+      checkedInAt: checkin?.checked_in_at ?? null,
+      checkedOutAt: checkin?.checked_out_at ?? null,
+      checkInId: checkin?.id ?? null,
       work_start: schedule?.work_start ?? null,
       work_end: schedule?.work_end ?? null,
       shifts,
@@ -179,26 +259,34 @@ export async function getCrmAvailabilitySnapshot(params: {
     };
   });
 
-  const scheduled = staffRows.filter((s) => s.scheduleStatus === "scheduled");
-  const offToday = staffRows.filter((s) => s.scheduleStatus === "off_today");
-  const noSchedule = staffRows.filter((s) => s.scheduleStatus === "no_schedule");
-  const availableNow = staffRows.filter((s) => s.liveStatus === "available_now");
-  const busyNow = staffRows.filter((s) => s.liveStatus === "busy_now");
-  const drivers = staffRows.filter((s) => s.is_driver);
-  const driversReady = drivers.filter((s) => s.liveStatus === "available_now");
-  const attention = staffRows.filter((s) => s.needsAttention);
+  const scheduled      = staffRows.filter((s) => s.scheduleStatus === "scheduled");
+  const checkedIn      = staffRows.filter((s) => s.presenceStatus === "checked_in");
+  const notCheckedIn   = staffRows.filter((s) => s.presenceStatus === "not_checked_in");
+  const availableNow   = staffRows.filter((s) => s.liveStatus === "available_now");
+  const busyNow        = staffRows.filter((s) => s.liveStatus === "busy_now");
+  const checkedOut     = staffRows.filter((s) => s.presenceStatus === "checked_out");
+  const offToday       = staffRows.filter((s) => s.scheduleStatus === "off_today");
+  const noSchedule     = staffRows.filter((s) => s.scheduleStatus === "no_schedule");
+  const drivers        = staffRows.filter((s) => s.is_driver);
+  // Drivers ready = checked in + not busy
+  const driversReady   = drivers.filter((s) => s.presenceStatus === "checked_in" && s.liveStatus !== "busy_now");
+  const attention      = staffRows.filter((s) => s.needsAttention);
 
   return {
+    branchId: params.branchId,
     date: params.date,
     asOf: now.toISOString(),
     staff: staffRows,
     summary: {
       total: staffRows.length,
       scheduledToday: scheduled.length,
-      offToday: offToday.length,
-      noSchedule: noSchedule.length,
+      checkedIn: checkedIn.length,
+      notCheckedIn: notCheckedIn.length,
       availableNow: availableNow.length,
       busyNow: busyNow.length,
+      checkedOut: checkedOut.length,
+      offToday: offToday.length,
+      noSchedule: noSchedule.length,
       driversReady: driversReady.length,
       driversTotal: drivers.length,
       needsAttention: attention.length,
