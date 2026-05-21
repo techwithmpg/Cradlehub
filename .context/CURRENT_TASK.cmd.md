@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002X-D
+# CURRENT TASK: CRM-OPS-002X-E
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002X-D
+CRM-OPS-002X-E
 
 ## Description
-Public Booking Group Schedule Integration Review — audit/design only, no code changes
+Wire universal group schedule rules into booking availability, daily schedule, and recommendations
 
 ## Agent
 Claude Code

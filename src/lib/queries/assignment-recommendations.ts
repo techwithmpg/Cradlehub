@@ -289,6 +289,80 @@ export async function getStaffPreferencesForScoring(
   }));
 }
 
+// ── Group schedule fallback ────────────────────────────────────────────────────
+
+async function getGroupSchedulesFallback(
+  staffWithoutSchedule: StaffForScoring[],
+  branchId: string,
+  dayOfWeek: number
+): Promise<ScheduleForScoring[]> {
+  if (staffWithoutSchedule.length === 0) return [];
+
+  const staffTypesNeeded = [
+    ...new Set(staffWithoutSchedule.map((s) => s.staff_type).filter((t): t is string => t !== null)),
+  ];
+  if (staffTypesNeeded.length === 0) return [];
+
+  const supabase = await createClient();
+
+  const groupsResult = await supabase
+    .from("staff_schedule_groups")
+    .select("id, group_key")
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .in("group_key", staffTypesNeeded);
+
+  if (groupsResult.error || !groupsResult.data || groupsResult.data.length === 0) {
+    return [];
+  }
+
+  type GroupRow = { id: string; group_key: string };
+  const groupRows = groupsResult.data as GroupRow[];
+  const groupIds = groupRows.map((g) => g.id);
+  const groupKeyById = new Map(groupRows.map((g) => [g.id, g.group_key]));
+
+  const rulesResult = await supabase
+    .from("staff_group_schedule_rules")
+    .select("group_id, day_of_week, shift_type, start_time, end_time, is_day_off")
+    .in("group_id", groupIds)
+    .eq("day_of_week", dayOfWeek)
+    .eq("is_active", true)
+    .eq("is_day_off", false);
+
+  if (rulesResult.error || !rulesResult.data) return [];
+
+  type GroupRuleRow = {
+    group_id: string;
+    day_of_week: number;
+    shift_type: string;
+    start_time: string | null;
+    end_time: string | null;
+    is_day_off: boolean;
+  };
+  const ruleRows = rulesResult.data as GroupRuleRow[];
+
+  const syntheticSchedules: ScheduleForScoring[] = [];
+
+  for (const staff of staffWithoutSchedule) {
+    if (!staff.staff_type) continue;
+    const matchingRules = ruleRows.filter(
+      (r) => groupKeyById.get(r.group_id) === staff.staff_type && r.start_time && r.end_time
+    );
+    for (const rule of matchingRules) {
+      syntheticSchedules.push({
+        staff_id:    staff.id,
+        day_of_week: rule.day_of_week,
+        start_time:  rule.start_time!,
+        end_time:    rule.end_time!,
+        is_active:   true,
+        shift_type:  rule.shift_type,
+      });
+    }
+  }
+
+  return syntheticSchedules;
+}
+
 // ── Internal context builder ───────────────────────────────────────────────────
 
 async function buildContextFromBooking(
@@ -307,7 +381,7 @@ async function buildContextFromBooking(
   const [
     service,
     staffServices,
-    schedules,
+    individualSchedules,
     overrides,
     blockedTimes,
     checkins,
@@ -325,6 +399,12 @@ async function buildContextFromBooking(
       : getTherapistConflictBookings(branchId, date),
     getStaffPreferencesForScoring(staffIds),
   ]);
+
+  // Group fallback: staff with no individual schedule use their group's default
+  const staffIdsWithSchedule = new Set(individualSchedules.map((s) => s.staff_id));
+  const staffWithoutSchedule = staffList.filter((s) => !staffIdsWithSchedule.has(s.id));
+  const groupSchedules = await getGroupSchedulesFallback(staffWithoutSchedule, branchId, dayOfWeek);
+  const schedules = [...individualSchedules, ...groupSchedules];
 
   const isHomeService =
     booking.delivery_type === "home_service" || booking.type === "home_service";

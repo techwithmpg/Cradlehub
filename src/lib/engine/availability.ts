@@ -59,6 +59,9 @@ type BlockingBookingRow = {
   hold_expires_at: string | null;
 };
 
+// Represents a single valid work window (one shift_type row, or a group rule row)
+type WorkingWindow = { start: string; end: string };
+
 const AVAILABILITY_RPC_ROW_LIMIT = 10000;
 
 function isMissingStaffProviderColumnError(message: string): boolean {
@@ -176,11 +179,27 @@ function totalBlockMinutes(
   }, 0);
 }
 
+/**
+ * Post-filter: confirms that each slot fits fully inside at least one valid
+ * working window for that staff member.
+ *
+ * Window priority (matches the SQL RPC):
+ *   1. schedule_override with explicit times → single override window
+ *   2. schedule_override is_day_off = TRUE   → slot dropped
+ *   3. individual staff_schedules rows        → one window per shift_type
+ *   4. group schedule rules (fallback)        → one window per shift_type rule
+ *   5. no window                              → slot dropped
+ *
+ * Multi-window: a slot passes if it fits inside ANY one window. This correctly
+ * handles opening (09:00–17:00) + closing (14:00–22:30) scenarios where a slot
+ * might only fit the closing window.
+ */
 async function filterSlotsToWorkingWindows(params: {
   supabase: AdminClient;
   date: string;
   slots: AvailabilitySlot[];
   totalBlockMinutes: number;
+  branchId: string;
 }): Promise<AvailabilitySlot[]> {
   if (params.slots.length === 0) return params.slots;
   if (params.totalBlockMinutes <= 0) return uniqueSlotsByStaffAndTime(params.slots);
@@ -209,12 +228,12 @@ async function filterSlotsToWorkingWindows(params: {
     throw new Error(`Schedule override query failed: ${overridesResult.error.message}`);
   }
 
-  const schedulesByStaff = new Map<string, StaffScheduleRow>();
+  // Build a multi-window map (one entry per shift_type row, e.g. opening + closing)
+  const individualWindowsByStaff = new Map<string, WorkingWindow[]>();
   for (const row of (schedulesResult.data ?? []) as StaffScheduleRow[]) {
-    const existing = schedulesByStaff.get(row.staff_id);
-    if (!existing || row.start_time < existing.start_time) {
-      schedulesByStaff.set(row.staff_id, row);
-    }
+    const windows = individualWindowsByStaff.get(row.staff_id) ?? [];
+    windows.push({ start: row.start_time, end: row.end_time });
+    individualWindowsByStaff.set(row.staff_id, windows);
   }
 
   const overridesByStaff = new Map<string, ScheduleOverrideRow>();
@@ -222,22 +241,113 @@ async function filterSlotsToWorkingWindows(params: {
     overridesByStaff.set(row.staff_id, row);
   }
 
+  // Group fallback: only needed for staff who have no individual schedule and
+  // no day-off override. These staff members got their slots from the RPC's
+  // group-rule branch; the TypeScript filter must honour the same source.
+  const staffNeedingGroupLookup = staffIds.filter(
+    (id) => !individualWindowsByStaff.has(id) && !overridesByStaff.get(id)?.is_day_off
+  );
+
+  const groupWindowsByStaff = new Map<string, WorkingWindow[]>();
+
+  if (staffNeedingGroupLookup.length > 0) {
+    const staffTypeResult = await params.supabase
+      .from("staff")
+      .select("id, staff_type")
+      .in("id", staffNeedingGroupLookup);
+
+    if (!staffTypeResult.error && staffTypeResult.data) {
+      type StaffTypeRow = { id: string; staff_type: string | null };
+      const staffTypeRows = staffTypeResult.data as StaffTypeRow[];
+      const staffTypeMap = new Map<string, string | null>(
+        staffTypeRows.map((s) => [s.id, s.staff_type])
+      );
+      const staffTypesNeeded = [
+        ...new Set(staffTypeRows.map((s) => s.staff_type).filter((t): t is string => t !== null)),
+      ];
+
+      if (staffTypesNeeded.length > 0) {
+        const groupsResult = await params.supabase
+          .from("staff_schedule_groups")
+          .select("id, group_key")
+          .eq("branch_id", params.branchId)
+          .eq("is_active", true)
+          .in("group_key", staffTypesNeeded);
+
+        if (!groupsResult.error && groupsResult.data && groupsResult.data.length > 0) {
+          type GroupRow = { id: string; group_key: string };
+          const groupRows = groupsResult.data as GroupRow[];
+          const groupIds = groupRows.map((g) => g.id);
+          const groupKeyById = new Map(groupRows.map((g) => [g.id, g.group_key]));
+
+          const rulesResult = await params.supabase
+            .from("staff_group_schedule_rules")
+            .select("group_id, start_time, end_time, is_day_off")
+            .in("group_id", groupIds)
+            .eq("day_of_week", dayOfWeek)
+            .eq("is_active", true);
+
+          if (!rulesResult.error && rulesResult.data) {
+            type GroupRuleRow = {
+              group_id: string;
+              start_time: string | null;
+              end_time: string | null;
+              is_day_off: boolean;
+            };
+            const ruleRows = rulesResult.data as GroupRuleRow[];
+
+            for (const [staffId, staffType] of staffTypeMap) {
+              if (!staffType) continue;
+              // Find all active non-day-off rules for this staff type
+              const matchingWindows: WorkingWindow[] = ruleRows
+                .filter(
+                  (r) =>
+                    groupKeyById.get(r.group_id) === staffType &&
+                    !r.is_day_off &&
+                    r.start_time !== null &&
+                    r.end_time !== null
+                )
+                .map((r) => ({ start: r.start_time!, end: r.end_time! }));
+
+              if (matchingWindows.length > 0) {
+                groupWindowsByStaff.set(staffId, matchingWindows);
+              }
+              // If group rule has is_day_off=TRUE for all rules, no windows added → slot correctly dropped
+            }
+          }
+        }
+      }
+    }
+  }
+
   return uniqueSlotsByStaffAndTime(
     params.slots.filter((slot) => {
       const override = overridesByStaff.get(slot.staff_id);
       if (override?.is_day_off) return false;
 
-      const startTime = override?.start_time ?? schedulesByStaff.get(slot.staff_id)?.start_time;
-      const endTime = override?.end_time ?? schedulesByStaff.get(slot.staff_id)?.end_time;
+      let windows: WorkingWindow[];
 
-      if (!startTime || !endTime) return false;
+      if (override?.start_time && override?.end_time) {
+        // Override with explicit times replaces all shift windows
+        windows = [{ start: override.start_time, end: override.end_time }];
+      } else if (individualWindowsByStaff.has(slot.staff_id)) {
+        windows = individualWindowsByStaff.get(slot.staff_id)!;
+      } else {
+        // No individual schedule — use group rule windows
+        windows = groupWindowsByStaff.get(slot.staff_id) ?? [];
+      }
+
+      if (windows.length === 0) return false;
 
       const slotStart = timeToMinutes(slot.slot_time);
-      const workStart = timeToMinutes(startTime);
-      const workEnd = timeToMinutes(endTime);
-      const slotEnd = slotStart + params.totalBlockMinutes;
+      const slotEnd   = slotStart + params.totalBlockMinutes;
 
-      return slotStart >= workStart && slotEnd <= workEnd;
+      // Slot must fit fully inside at least one valid working window
+      return windows.some((w) => {
+        const workStart = timeToMinutes(w.start);
+        const workEnd   = timeToMinutes(w.end);
+        return slotStart >= workStart && slotEnd <= workEnd;
+      });
     })
   );
 }
@@ -434,14 +544,15 @@ export async function getAvailableSlots(params: {
 
   slots = await filterSlotsToWorkingWindows({
     supabase,
-    date: params.date,
+    date:              params.date,
     slots,
     totalBlockMinutes: blockMinutes,
+    branchId:          params.branchId,
   });
 
   slots = await filterSlotsForQualifiedProviders({
-    branchId: params.branchId,
-    serviceIds: [params.serviceId],
+    branchId:     params.branchId,
+    serviceIds:   [params.serviceId],
     slots,
     serviceTimings,
   });
@@ -559,8 +670,9 @@ export async function getAvailableSlotsMulti(params: {
   const workingSlots = await filterSlotsToWorkingWindows({
     supabase,
     date,
-    slots: combinedSlots,
+    slots:             combinedSlots,
     totalBlockMinutes: totalMinutes,
+    branchId,
   });
 
   return filterSlotsForQualifiedProviders({

@@ -185,3 +185,17 @@ Phase 2I introduces a recommendation-first assignment model. The system scores a
 - Existing auto-assign by seniority still runs during public/in-house booking creation when no staff is selected.
 - Recommendation engine uses real data: staff_schedules, check-ins, conflicts, overrides, blocked times, staff_services.
 - No changes to `get_available_slots` RPC or public booking wizard.
+
+### DEC-PHASE2X-001: Group schedule rules are fallback schedule source only
+**Status:** ACCEPTED — 2026-05-21
+
+**Decision:**
+Individual `staff_schedules` override group `staff_group_schedule_rules` per day.
+Priority: schedule_override > individual staff_schedule > group rule > no schedule.
+Group day-off only applies when no individual schedule row exists for that day.
+Overrides, blocked times, check-ins, and bookings still apply on top.
+
+**Rationale:**
+- Preserves existing individual customization power.
+- Allows universal schedules to serve as true defaults without requiring every staff member to have individual rows.
+- Applies consistently to: `get_available_slots` RPC, `get_daily_schedule` RPC, TypeScript `filterSlotsToWorkingWindows`, and recommendation context builder.
