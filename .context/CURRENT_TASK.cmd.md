@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002X-F
+# CURRENT TASK: CRM-OPS-002X-G
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002X-F
+CRM-OPS-002X-G
 
 ## Description
-Make Manager Schedule Setup use the full ScheduleSetupWorkspace
+Safely remove dead legacy schedule code and cleanup obsolete duplicates
 
 ## Agent
 Claude Code

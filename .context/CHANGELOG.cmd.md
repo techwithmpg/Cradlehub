@@ -1247,3 +1247,28 @@
 - `pnpm build`: ✅ Passing, 84 app routes
 
 **Commit:** `refactor(schedule): align manager schedule setup workspace` on `main`
+
+### 2026-05-21 — Claude Code (CRM-OPS-002X-G — Dead Code / Legacy Cleanup)
+
+**Task:** Remove proven unused legacy schedule components after Manager and CRM aligned on `ScheduleSetupWorkspace`.
+
+**Files Deleted:**
+- `src/components/features/schedule/staff-schedule-grid.tsx` — **336 lines, completely unreferenced.** Legacy schedule grid component. Not imported by any page, component, or utility. Exported `StaffScheduleGrid` had zero external references.
+- `src/components/features/dashboard/schedule-manager.tsx` — **569 lines, completely unreferenced.** Legacy standalone schedule manager that imported old server actions from `@/app/(dashboard)/manager/staff/actions`. Replaced by the newer `staff-schedule-detail-panel.tsx` + `staff-weekly-hours-editor.tsx` + `staff-day-overrides-editor.tsx` + `staff-block-time-editor.tsx` stack. Not imported anywhere.
+
+**What was NOT deleted (intentionally kept):**
+- `StaffSchedulePageClient` — still used inside `ScheduleSetupWorkspace` (Individual Adjustments tab).
+- `StaffScheduleToolbar` — still used inside `StaffSchedulePageClient`.
+- `StaffScheduleDetailPanel` — still used inside `StaffSchedulePageClient`.
+- `QUICK_ACTIONS` array in `schedule-setup-right-rail.tsx` — still rendered as user-visible placeholder UI.
+- `fmt12h` in `dispatch-queries.ts` — already removed in prior phase.
+- `SHIFT_BADGE` / `PresenceBadge` / `PresencePill` — already removed in prior phases.
+- All other `staff-schedule/*.tsx` files — all still referenced by at least one consumer.
+- `today-kpi-row.tsx`, `customer-create-form.tsx`, `customer-search.tsx`, `role-badge.tsx`, `notification-card.tsx`, `scheduling-rules-form.tsx`, `service-card-skeleton.tsx` — outside Phase 2X-G scope.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+**Commit:** `refactor(ops): remove legacy schedule cleanup` on `main`
