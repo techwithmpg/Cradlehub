@@ -3,56 +3,64 @@
 > Last updated: 2026-05-21
 
 ## Current Phase
-Phase 2X-B complete — Shared UI Component Consolidation
+Phase 2X-D complete — Public Booking Group Schedule Integration Review (audit/design only)
 
-## What Just Happened (2X-B)
-Consolidated duplicated UI components and time-format helpers identified in the Phase 2X-A audit.
+## What Just Happened (2X-D)
+Full audit of `get_available_slots` and related systems. Design document produced. No code modified.
 
-**Created:**
-- `src/lib/utils/time-format.ts` — `formatTime12h(time: string | null | undefined): string`
-- `src/components/shared/shift-type-badge.tsx` — `ShiftTypeBadge` (opening/closing/single)
-- `src/components/shared/presence-status-badge.tsx` — `PresenceStatusBadge`
-- `src/components/shared/availability-status-badge.tsx` — `AvailabilityStatusBadge` (dot + label)
+**Key findings:**
+- The gap is in the `working_hours` CTE of `get_available_slots` — the `ELSE NULL` branch that fires when a staff member has no `staff_schedules` row. Group rules are never consulted.
+- There are **two** places to fix (they must ship together): the SQL RPC and the TypeScript `filterSlotsToWorkingWindows` post-filter in `availability.ts`. If only the RPC is updated, the TypeScript filter will drop all group-rule generated slots.
+- `get_daily_schedule` has the same gap and must also be updated for CRM board consistency.
+- The link between staff and their group is via `staff.staff_type = staff_schedule_groups.group_key`. There is no `group_id` FK on `staff`. The `staff_pool` CTE in the RPC needs `staff_type` added.
+- `get_available_slots` is SECURITY DEFINER — bypasses RLS correctly, new JOINs will work.
+- `applyGroupScheduleToStaffAction` (copies group rules to individual schedules) remains valid but is no longer the primary mechanism after 2X-E.
 
-**Updated (duplicates removed):**
-- `crm-availability-board.tsx` — removed `SHIFT_BADGE`, `ShiftBadge`, `PresenceBadge`, `formatTime`
-- `crm-availability-client.tsx` — removed `SHIFT_BADGE`, `STATUS_DOT`, `STATUS_LABEL`, `PresencePill`, `formatTime`
-- `staff-schedule-row.tsx` — removed `SHIFT_BADGE_COLORS`, local `ShiftBadge`
-- `group-schedule-rules-panel.tsx` — removed local `shortTime()`
-- `staff-schedule-summary.ts` — removed private `shortTime()`, uses `formatTime12h`
-- `dispatch-workspace.tsx` — removed local `fmt12h()`, uses `formatTime12h`
-- `dispatch-queries.ts` — removed local `fmt12h()` (UI formatting helper was misplaced in a query file)
+**Design document created:**
+- `docs/phase-2x-d-group-schedule-integration-design.md`
 
-Key findings:
-1. **CRITICAL:** `staff_group_schedule_rules` (Phase 2H) is ignored by ALL operational systems — booking engine, recommendation engine, daily schedule RPC, CRM availability. Group rule configuration has zero effect on bookings today.
-2. **HIGH:** `manager/staff-availability` was not updated to Phase 2E workspace — still shows legacy individual-only editor while `/crm/staff-availability` has the full group rules workspace.
-3. **MEDIUM:** `fmt12h()` defined in both `dispatch-workspace.tsx` and `dispatch-queries.ts` (exact duplicate). Shift badge constants duplicated across 4 files. Presence badge duplicated across 2 files.
-4. **MEDIUM:** 3 schedule pages (`/crm/schedule`, `/manager/schedule`, `/owner/schedule`) duplicate identical auth context setup code.
-5. **LOW:** Double booking fetch in `buildDriverRecommendationContext`. N+1 staff-ID queries in recommendation context builder.
+## Approved Priority Rule
+```
+1. schedule_overrides.is_day_off = TRUE   → staff is off (no slots)
+2. schedule_overrides with explicit times → use override window
+3. staff_schedules row(s) for that day    → use individual schedule
+4. staff_group_schedule_rules for that day → use group default (CURRENTLY MISSING)
+5. No rule at all                         → no slots
+6. blocked_times apply on top
+7. Booking conflicts apply on top
+```
 
 ## Recommended Next Step
-Phase 2X-C — Backend Schedule/Availability Utility Consolidation:
-- Extract shared `getSchedulePageContext()` helper for `/crm/schedule`, `/manager/schedule`, `/owner/schedule`
-- Fix double booking fetch in `buildDriverRecommendationContext`
-- Consolidate N+1 `getActiveBranchStaffIds` calls in recommendation context builder
-- Then 2X-D (public booking group rules review) and 2X-E (wire group rules to operational systems)
+Phase 2X-E — Wire Group Rules into Operational Systems:
+
+1. **Migration** `supabase/migrations/20260524000002_wire_group_rules_into_availability.sql`:
+   - Add `staff_type` to `staff_pool` CTE in `get_available_slots`
+   - Add LEFT JOINs to `staff_schedule_groups` + `staff_group_schedule_rules` in `working_hours` CTE
+   - Add group fallback CASE tier (see design doc §5.1)
+   - Same update to `get_daily_schedule` (see design doc §5.2)
+2. **`src/lib/engine/availability.ts`** — Update `filterSlotsToWorkingWindows`:
+   - Add `branchId` parameter
+   - Add group rule fallback for staff with no individual schedule (see design doc §5.3)
+3. **`src/lib/queries/assignment-recommendations.ts`** — Update schedule fetching to also consult group rules for staff without individual schedules (or add `getGroupSchedulesForScoring` helper)
+4. Run type-check, lint, build, manual smoke test
+5. Commit: `feat(availability): wire group schedule rules into booking engine`
 
 ## Files to Know
-- `docs/phase-2x-operations-unification-audit.md` — Full audit findings + remediation plan
-- `src/lib/assignments/recommendation-engine.ts` — Scoring logic (no group rules wired)
-- `src/lib/queries/assignment-recommendations.ts` — Data fetching (double-fetch bug in driver context)
-- `src/lib/queries/staff-schedule-groups.ts` — Group rules queries (only used by schedule setup UI)
-- `src/lib/queries/crm-availability.ts` — CRM availability (ignores group rules)
-- `src/components/features/dispatch/dispatch-workspace.tsx` — Dispatch (fmt12h duplicate here)
-- `src/lib/queries/dispatch-queries.ts` — Dispatch query (fmt12h should NOT be here)
+- `docs/phase-2x-d-group-schedule-integration-design.md` — Full audit + design (READ BEFORE 2X-E)
+- `supabase/migrations/20260522000004_add_shift_type_to_staff_schedules.sql` — Current (latest) `get_available_slots` implementation
+- `supabase/migrations/20260524000001_staff_group_schedule_rules.sql` — Group tables + RLS
+- `src/lib/engine/availability.ts` — TypeScript availability engine (filterSlotsToWorkingWindows needs group fallback)
+- `src/lib/queries/assignment-recommendations.ts` — Recommendation scoring (also needs group fallback)
+- `src/lib/actions/staff-schedule-groups.ts` — `applyGroupScheduleToStaffAction` (remains valid, no changes)
 
-## Known Limitations (carried forward from 2I)
-1. **Group schedules not wired into recommendations** — confirmed by audit; fix is 2X-E
-2. **Therapist assignment is recommendation-only** — no assign action exists
-3. **No workload caps enforced** — `max_services_per_day` fetched but not scored
-4. **No ETA/travel time in driver scoring** — geographic proximity not factored
+## Known Limitations (carried forward)
+1. **CRITICAL:** Group schedule fallback not yet wired — fix is 2X-E
+2. **HIGH:** `manager/staff-availability` still shows legacy individual-only editor — fix is 2X-F
+3. **Therapist assignment is recommendation-only** — no assign action exists
+4. **No workload caps enforced** — `max_services_per_day` fetched but not scored
+5. **Recommendation engine also ignores group schedules** — separate sub-task within 2X-E
 
 ## Build Status
-- `pnpm type-check`: ✅ Passing (no code changes in 2X-A)
+- `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 84 app routes

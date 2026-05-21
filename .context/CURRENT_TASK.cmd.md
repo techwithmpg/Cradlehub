@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002X-B
+# CURRENT TASK: CRM-OPS-002X-D
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002X-B
+CRM-OPS-002X-D
 
 ## Description
-Consolidate duplicated shared UI components for schedule, availability, and dispatch
+Public Booking Group Schedule Integration Review — audit/design only, no code changes
 
 ## Agent
 Claude Code
