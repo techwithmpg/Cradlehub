@@ -24,6 +24,17 @@ function formatTime(t: string | null): string {
   return `${h12}:${m}${ampm}`;
 }
 
+/** Formats an ISO timestamp to a locale-neutral 12-hour time string.
+ *  Uses manual extraction so server and client always produce identical output. */
+function formatAsOf(isoString: string): string {
+  const d = new Date(isoString);
+  const h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m} ${ampm}`;
+}
+
 const SHIFT_BADGE: Record<string, { label: string; bg: string; color: string }> = {
   opening: { label: "Opening",  bg: "rgba(74,124,89,0.12)",  color: "#4A7C59" },
   closing: { label: "Closing",  bg: "rgba(59,130,246,0.12)", color: "#2563EB" },
@@ -120,7 +131,7 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
 
       {/* Footer note */}
       <div style={{ marginTop: "1rem", fontSize: 11, color: "var(--cs-text-muted)" }}>
-        As of {new Date(snapshot.asOf).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+        As of {formatAsOf(snapshot.asOf)}.
         Schedule-based — does not reflect physical check-in.
       </div>
     </div>
