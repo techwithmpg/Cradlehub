@@ -1076,3 +1076,46 @@
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
+
+---
+
+### 2026-05-21 — Claude Code (CRM-OPS-002E-B — Manage Individual Schedule Modal Redesign)
+
+**Task:** Redesign the `StaffScheduleDetailPanel` sheet/modal and its three editors for a cleaner, more professional experience.
+
+**Files Modified:**
+- `src/components/features/staff-schedule/staff-schedule-detail-panel.tsx` — Complete redesign:
+  - Larger colored avatar with staff initials
+  - Name, role, tier, head badge, and status chip in header
+  - Weekly hours summary with day-of-week dot indicators
+  - Professional tab bar using project's `Tabs` component (Weekly Hours / Day Overrides / Block Time)
+  - Warm cream inner background, white cards, sand accent tabs
+- `src/components/features/staff-schedule/staff-weekly-hours-editor.tsx` — Redesigned:
+  - Days shown as circular badges with short labels
+  - Each row has day name, time range, and Edit/Set button
+  - Inline edit mode with time inputs and icon buttons (Check/X)
+  - Wrapped in a rounded white card
+- `src/components/features/staff-schedule/staff-day-overrides-editor.tsx` — Redesigned:
+  - Add-override form in a rounded white card with labeled fields
+  - Day off checkbox, From/To time inputs
+  - Override list items as cards with date circle, formatted date, day-off or time range
+  - Remove button with Trash icon
+  - Empty state with centered icon
+- `src/components/features/staff-schedule/staff-block-time-editor.tsx` — Redesigned:
+  - Add-block form in a rounded white card with labeled fields
+  - Reason select with custom arrow
+  - Block list items as cards with colored reason badge, date circle, formatted date
+  - Remove button with Trash icon
+  - Empty state with centered icon
+
+**Design Decisions:**
+- All existing logic, state, server actions, and callbacks preserved exactly.
+- Feedback alerts use CradleHub theme tokens (`--cs-success-bg`, `--cs-error-bg`) instead of hardcoded hex colors.
+- Editors wrapped in `var(--cs-surface)` white cards with `var(--cs-border-soft)` borders.
+- Sheet inner background uses `var(--cs-surface-warm)` for warmth.
+- Tabs use existing `Tabs` component with `variant="line"` and sand accent.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes

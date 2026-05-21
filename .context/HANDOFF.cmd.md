@@ -303,3 +303,53 @@
 
 ## Recommended Next Step
 - Phase 2F: Implement persistent universal group schedule tables.
+
+---
+
+# HANDOFF — CRM-OPS-002E-B
+
+## Date
+2026-05-21
+
+## What Changed
+
+### Manage Individual Schedule Modal Redesign
+**File:** `src/components/features/staff-schedule/staff-schedule-detail-panel.tsx`
+- Sheet now has a warm cream inner background (`var(--cs-surface-warm)`).
+- Header section with large colored avatar, staff name, role/tier/head badges, and status chip.
+- Weekly hours summary line with Clock icon and day-of-week dot indicators.
+- Tabs upgraded to project's `Tabs` component with line variant and sand accent.
+
+**File:** `src/components/features/staff-schedule/staff-weekly-hours-editor.tsx`
+- Days rendered as circular short-label badges (green when scheduled, muted when off).
+- Each day row shows full day name, time range, and Edit/Set ghost button.
+- Inline editing uses time inputs + primary check button + secondary cancel button.
+- Wrapped in a white rounded card.
+
+**File:** `src/components/features/staff-schedule/staff-day-overrides-editor.tsx`
+- Add-override form in a white rounded card with labeled Date, Day off, From/To fields.
+- Override list items are cards with a date circle, formatted date label, and time range/day-off status.
+- Remove action uses ghost button with Trash icon.
+- Empty state with CalendarDays icon.
+
+**File:** `src/components/features/staff-schedule/staff-block-time-editor.tsx`
+- Add-block form in a white rounded card with labeled Date, From, To, Reason fields.
+- Block list items are cards with colored reason badge, date circle, formatted date, and time range.
+- Remove action uses ghost button with Trash icon.
+- Empty state with ShieldAlert icon.
+
+## Build / Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 84 app routes
+
+## Git
+- Commit: TBD (pending) on `main`
+
+## ⚠️ Important Notes for Next Agent
+1. **All functionality is preserved.** Every server action call, state update, optimistic UI pattern, and callback remains unchanged.
+2. **No schema changes.** This is a pure UI redesign of the sheet and its three editors.
+3. **Feedback alerts now use theme tokens.** Success/error backgrounds use `--cs-success-bg` / `--cs-error-bg` instead of hardcoded hex.
+
+## Recommended Next Step
+- Phase 2F: Implement persistent universal group schedule tables.

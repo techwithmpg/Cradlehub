@@ -1,13 +1,13 @@
-# CURRENT TASK: CRM-OPS-002E-A
+# CURRENT TASK: CRM-OPS-002E-B
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-002E-A
+CRM-OPS-002E-B
 
 ## Description
-Polish Individual Adjustments tab — stat cards, filter pills, cleaner table, status chips, action buttons
+Redesign Manage Individual Schedule modal/sheet with cleaner tabs, cards, status chips, and polished editors
 
 ## Agent
 Claude Code

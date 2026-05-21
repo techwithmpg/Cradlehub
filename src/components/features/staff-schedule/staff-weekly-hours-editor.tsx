@@ -2,8 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { setStaffScheduleAction } from "@/app/(dashboard)/manager/staff/actions";
+import { Check, X, Pencil } from "lucide-react";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type Schedule = {
   id: string;
@@ -72,142 +75,176 @@ export function StaffWeeklyHoursEditor({ staffId, existingSchedules, onSave }: P
   }
 
   const inputStyle: React.CSSProperties = {
-    height: 32,
-    borderRadius: 5,
-    border: "1px solid var(--cs-border)",
-    padding: "0 0.5rem",
+    height: 34,
+    borderRadius: "var(--cs-r-sm)",
+    border: "1px solid var(--cs-border-soft)",
+    padding: "0 0.625rem",
     fontSize: "0.8125rem",
     backgroundColor: "var(--cs-surface)",
     color: "var(--cs-text)",
+    outline: "none",
+    transition: "border-color 150ms ease, box-shadow 150ms ease",
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       {feedback && (
         <div
           style={{
-            marginBottom: "0.5rem",
-            padding: "5px 10px",
-            backgroundColor:
-              feedback.includes("Failed") || feedback.includes("Error") ? "#FEF2F2" : "#F0FDF4",
-            border: `1px solid ${
-              feedback.includes("Failed") || feedback.includes("Error") ? "#FECACA" : "#BBF7D0"
-            }`,
-            borderRadius: 5,
+            marginBottom: "0.25rem",
+            padding: "8px 12px",
+            borderRadius: "var(--cs-r-sm)",
             fontSize: "0.8125rem",
-            color: feedback.includes("Failed") || feedback.includes("Error") ? "#991B1B" : "#15803D",
+            fontWeight: 500,
+            background:
+              feedback.includes("Failed") || feedback.includes("Error")
+                ? "var(--cs-error-bg)"
+                : "var(--cs-success-bg)",
+            color:
+              feedback.includes("Failed") || feedback.includes("Error")
+                ? "var(--cs-error-text)"
+                : "var(--cs-success-text)",
+            border:
+              feedback.includes("Failed") || feedback.includes("Error")
+                ? "1px solid var(--cs-error-bg)"
+                : "1px solid var(--cs-success-bg)",
           }}
         >
           {feedback}
         </div>
       )}
 
-      {DAY_NAMES.map((day, idx) => {
-        // For multi-shift days show the 'single' entry (opening/closing managed elsewhere).
-        const daySchedules = schedules.filter((row) => row.day_of_week === idx && row.is_active);
-        const existing = daySchedules.find((r) => r.shift_type === "single") ?? daySchedules[0];
-        const isEditing = editDay === idx;
+      <div
+        style={{
+          background: "var(--cs-surface)",
+          border: "1px solid var(--cs-border-soft)",
+          borderRadius: "var(--cs-r-lg)",
+          padding: "12px 16px",
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cs-text)", marginBottom: 10 }}>
+          Weekly Pattern
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {DAY_NAMES.map((day, idx) => {
+            const daySchedules = schedules.filter((row) => row.day_of_week === idx && row.is_active);
+            const existing = daySchedules.find((r) => r.shift_type === "single") ?? daySchedules[0];
+            const isEditing = editDay === idx;
 
-        return (
-          <div
-            key={idx}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              padding: "5px 0",
-              borderBottom: idx < 6 ? "1px solid var(--cs-border)" : "none",
-            }}
-          >
-            <div
-              style={{
-                minWidth: 80,
-                fontSize: "0.8125rem",
-                color: existing ? "var(--cs-text)" : "var(--cs-text-muted)",
-                fontWeight: existing ? 500 : 400,
-              }}
-            >
-              {day}
-            </div>
-
-            {isEditing ? (
-              <>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  style={inputStyle}
-                />
-                <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>to</span>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  style={inputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={() => saveWeeklySchedule(idx)}
-                  disabled={isPending}
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "7px 8px",
+                  borderRadius: "var(--cs-r-sm)",
+                  transition: "background-color 120ms ease",
+                  backgroundColor: isEditing ? "var(--cs-surface-warm)" : "transparent",
+                }}
+              >
+                <div
                   style={{
-                    padding: "4px 10px",
-                    borderRadius: 5,
-                    border: "none",
-                    backgroundColor: "var(--cs-sand)",
-                    color: "#fff",
-                    fontSize: "0.8125rem",
-                    cursor: "pointer",
+                    minWidth: 40,
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    backgroundColor: existing ? "var(--cs-success-bg)" : "var(--cs-border-soft)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: existing ? "var(--cs-success)" : "var(--cs-text-subtle)",
+                    flexShrink: 0,
                   }}
                 >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditDay(null)}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 5,
-                    border: "1px solid var(--cs-border)",
-                    backgroundColor: "transparent",
-                    color: "var(--cs-text-muted)",
-                    fontSize: "0.8125rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                <div style={{ flex: 1, fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-                  {existing
-                    ? `${shortTime(existing.start_time)} – ${shortTime(existing.end_time)}`
-                    : "Not scheduled"}
+                  {DAY_SHORT[idx]}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditDay(idx);
-                    setStartTime(existing ? shortTime(existing.start_time) : "09:00");
-                    setEndTime(existing ? shortTime(existing.end_time) : "18:00");
-                  }}
-                  style={{
-                    padding: "3px 8px",
-                    borderRadius: 4,
-                    border: "1px solid var(--cs-border)",
-                    backgroundColor: "transparent",
-                    color: "var(--cs-text-muted)",
-                    fontSize: "0.75rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  {existing ? "Edit" : "Set"}
-                </button>
-              </>
-            )}
-          </div>
-        );
-      })}
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: "0.8125rem",
+                      fontWeight: existing ? 500 : 400,
+                      color: existing ? "var(--cs-text)" : "var(--cs-text-muted)",
+                    }}
+                  >
+                    {day}
+                  </div>
+                  {existing && !isEditing && (
+                    <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginTop: 1 }}>
+                      {shortTime(existing.start_time)} – {shortTime(existing.end_time)}
+                    </div>
+                  )}
+                  {!existing && !isEditing && (
+                    <div style={{ fontSize: 11, color: "var(--cs-text-subtle)", marginTop: 1 }}>
+                      Not scheduled
+                    </div>
+                  )}
+                </div>
+
+                {isEditing ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      style={inputStyle}
+                    />
+                    <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>to</span>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      style={inputStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveWeeklySchedule(idx)}
+                      disabled={isPending}
+                      className="cs-btn cs-btn-primary cs-btn-sm"
+                      style={{ padding: "5px 10px", borderRadius: "var(--cs-r-sm)" }}
+                    >
+                      <Check size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditDay(null)}
+                      className="cs-btn cs-btn-secondary cs-btn-sm"
+                      style={{ padding: "5px 10px", borderRadius: "var(--cs-r-sm)" }}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditDay(idx);
+                      setStartTime(existing ? shortTime(existing.start_time) : "09:00");
+                      setEndTime(existing ? shortTime(existing.end_time) : "18:00");
+                    }}
+                    className="cs-btn cs-btn-ghost cs-btn-sm"
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: "var(--cs-r-sm)",
+                      fontSize: 12,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Pencil size={12} />
+                    {existing ? "Edit" : "Set"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
