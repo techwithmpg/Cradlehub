@@ -44,7 +44,6 @@ export default async function StaffTodayPage() {
           <div style={{ marginBottom: "1rem" }}>
             <StaffCheckinWidget
               staffId={result.staff.id}
-              branchId={result.staff.branch_id}
               shiftDate={today}
               checkin={checkin}
             />
@@ -63,7 +62,6 @@ export default async function StaffTodayPage() {
           <div style={{ marginBottom: "0.75rem" }}>
             <StaffCheckinWidget
               staffId={result.staff.id}
-              branchId={result.staff.branch_id}
               shiftDate={today}
               checkin={checkin}
             />

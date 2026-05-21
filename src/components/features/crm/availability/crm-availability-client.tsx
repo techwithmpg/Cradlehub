@@ -122,12 +122,11 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
         <CrmAvailabilityBoard
           staff={snapshot.staff}
           shiftDate={snapshot.date}
-          branchId={snapshot.branchId}
         />
       )}
 
       {tab === "staff_list" && (
-        <StaffListView staff={snapshot.staff} branchId={snapshot.branchId} shiftDate={snapshot.date} />
+        <StaffListView staff={snapshot.staff} shiftDate={snapshot.date} />
       )}
 
       {tab === "schedule_issues" && (
@@ -135,7 +134,7 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
       )}
 
       {tab === "driver_readiness" && (
-        <DriverReadinessView staff={snapshot.staff} branchId={snapshot.branchId} shiftDate={snapshot.date} />
+        <DriverReadinessView staff={snapshot.staff} shiftDate={snapshot.date} />
       )}
 
       {/* Footer note */}
@@ -151,11 +150,9 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
 
 function StaffListView({
   staff,
-  branchId,
   shiftDate,
 }: {
   staff: CrmAvailabilityStaffRow[];
-  branchId: string;
   shiftDate: string;
 }) {
   const router = useRouter();
@@ -234,13 +231,12 @@ function StaffListView({
                   disabled={pending}
                   onClick={() => {
                     startTransition(async () => {
-                      await checkInStaffForShiftAction({
+                      const result = await checkInStaffForShiftAction({
                         staffId: s.staff_id,
-                        branchId,
                         shiftDate,
                         shiftType: primaryShiftTypeEnum,
                       });
-                      router.refresh();
+                      if (result.ok) router.refresh();
                     });
                   }}
                   style={{
@@ -259,12 +255,12 @@ function StaffListView({
                   disabled={pending}
                   onClick={() => {
                     startTransition(async () => {
-                      await checkOutStaffForShiftAction({
+                      const result = await checkOutStaffForShiftAction({
                         staffId: s.staff_id,
                         shiftDate,
                         shiftType: primaryShiftTypeEnum,
                       });
-                      router.refresh();
+                      if (result.ok) router.refresh();
                     });
                   }}
                   style={{
@@ -358,11 +354,9 @@ function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
 
 function DriverReadinessView({
   staff,
-  branchId,
   shiftDate,
 }: {
   staff: CrmAvailabilityStaffRow[];
-  branchId: string;
   shiftDate: string;
 }) {
   const router = useRouter();
@@ -427,13 +421,12 @@ function DriverReadinessView({
                   disabled={pending}
                   onClick={() => {
                     startTransition(async () => {
-                      await checkInStaffForShiftAction({
+                      const result = await checkInStaffForShiftAction({
                         staffId: s.staff_id,
-                        branchId,
                         shiftDate,
                         shiftType: primaryShiftTypeEnum,
                       });
-                      router.refresh();
+                      if (result.ok) router.refresh();
                     });
                   }}
                   style={{
@@ -454,12 +447,12 @@ function DriverReadinessView({
                   disabled={pending}
                   onClick={() => {
                     startTransition(async () => {
-                      await checkOutStaffForShiftAction({
+                      const result = await checkOutStaffForShiftAction({
                         staffId: s.staff_id,
                         shiftDate,
                         shiftType: primaryShiftTypeEnum,
                       });
-                      router.refresh();
+                      if (result.ok) router.refresh();
                     });
                   }}
                   style={{

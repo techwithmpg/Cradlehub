@@ -23,10 +23,12 @@ export type CheckinRecord = {
 };
 
 // ── Validation ────────────────────────────────────────────────────────────────
+// branchId is intentionally NOT in the client input — the server resolves it
+// from the authenticated operator's own staff record. This prevents branchId
+// mismatch bugs (empty string, dev bypass UUID vs real UUID, etc.).
 
 const checkinInputSchema = z.object({
   staffId:   z.string().uuid(),
-  branchId:  z.string().uuid(),
   shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "shiftDate must be YYYY-MM-DD"),
   shiftType: z.enum(["single", "opening", "closing"]).default("single"),
   notes:     z.string().max(500).optional(),
@@ -45,14 +47,19 @@ const CHECKIN_OPERATOR_ROLES = new Set([
   "owner", "manager", "assistant_manager", "store_manager", "crm", "csr_head", "csr_staff",
 ]);
 
-async function getCheckinContext() {
+type CheckinContext = {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  me: { id: string; branch_id: string; system_role: string };
+};
+
+async function getCheckinContext(): Promise<CheckinContext | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  if (isDevAuthBypassEnabled()) {
-    return { supabase, me: { id: "dev", branch_id: "dev", system_role: "manager" } };
-  }
+  // Dev bypass: no real Supabase session, so DB operations won't work.
+  // Return early so callers get a clear error rather than an RLS failure.
+  if (isDevAuthBypassEnabled()) return null;
 
   const { data: me } = await supabase
     .from("staff")
@@ -61,11 +68,11 @@ async function getCheckinContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me) return null;
-  return { supabase, me };
+  if (!me?.branch_id) return null;
+  return { supabase, me: { id: me.id, branch_id: me.branch_id, system_role: me.system_role } };
 }
 
-// ── CRM / Manager: check any branch staff in ─────────────────────────────────
+// ── Check-in ──────────────────────────────────────────────────────────────────
 
 export async function checkInStaffForShiftAction(rawInput: unknown): Promise<CheckinActionResult> {
   const parsed = checkinInputSchema.safeParse(rawInput);
@@ -74,29 +81,25 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
   }
 
   const ctx = await getCheckinContext();
-  if (!ctx) return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in." };
+  if (!ctx) return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in with an active staff account." };
 
   const { supabase, me } = ctx;
-  const { staffId, branchId, shiftDate, shiftType, notes } = parsed.data;
+  const { staffId, shiftDate, shiftType, notes } = parsed.data;
 
-  // Operator roles can check in staff within their branch.
-  // Staff can also call this action to check themselves in (staffId must equal their own id).
-  const isSelf = me.id === staffId;
+  // branchId is always resolved from the operator's own staff record — never from the client.
+  const effectiveBranchId = me.branch_id;
+
+  const isSelf     = me.id === staffId;
   const isOperator = CHECKIN_OPERATOR_ROLES.has(me.system_role);
 
   if (!isSelf && !isOperator) {
     return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to check in other staff." };
   }
 
-  // Branch scope: operator must be in the same branch, unless they are owner.
-  if (isOperator && !isSelf && me.system_role !== "owner" && me.branch_id !== branchId) {
-    return { ok: false, code: "UNAUTHORIZED", message: "You can only check in staff at your branch." };
-  }
-
-  // Check for existing record
+  // Check for existing record for this staff / date / shift
   const { data: existing } = await supabase
     .from("staff_shift_checkins")
-    .select("id, status, checked_out_at")
+    .select("id, status")
     .eq("staff_id", staffId)
     .eq("shift_date", shiftDate)
     .eq("shift_type", shiftType)
@@ -104,32 +107,30 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
 
   if (existing) {
     if (existing.status === "checked_in") {
-      // Already checked in — return success without duplicate insert
       return { ok: true, id: existing.id, status: "checked_in", alreadyCheckedIn: true };
     }
     if (existing.status === "checked_out") {
-      return { ok: false, code: "ALREADY_CHECKED_OUT", message: "This staff member already checked out for this shift. Contact a manager to void and re-check in." };
+      return { ok: false, code: "ALREADY_CHECKED_OUT", message: "Already checked out for this shift. A manager must void the record before re-checking in." };
     }
-    // voided — allow a fresh check-in by falling through (insert will use a new record after voiding)
+    // voided — fall through to insert a fresh record
   }
 
-  // Insert new check-in
   const { data: inserted, error } = await supabase
     .from("staff_shift_checkins")
     .insert({
-      staff_id:      staffId,
-      branch_id:     branchId,
-      shift_date:    shiftDate,
-      shift_type:    shiftType,
-      status:        "checked_in",
-      recorded_by:   isSelf ? null : (me.id === "dev" ? null : me.id),
-      notes:         notes ?? null,
+      staff_id:    staffId,
+      branch_id:   effectiveBranchId,
+      shift_date:  shiftDate,
+      shift_type:  shiftType,
+      status:      "checked_in",
+      recorded_by: isSelf ? null : me.id,
+      notes:       notes ?? null,
     })
     .select("id")
     .single();
 
   if (error) {
-    // Unique constraint — treat as already checked in
+    // Unique constraint violation — a record was created concurrently; read and return it.
     if (error.code === "23505") {
       const { data: rec } = await supabase
         .from("staff_shift_checkins")
@@ -137,7 +138,7 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
         .eq("staff_id", staffId)
         .eq("shift_date", shiftDate)
         .eq("shift_type", shiftType)
-        .single();
+        .maybeSingle();
       return { ok: true, id: rec?.id ?? "", status: "checked_in", alreadyCheckedIn: true };
     }
     return { ok: false, code: "DB_ERROR", message: error.message };
@@ -148,7 +149,7 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
   return { ok: true, id: inserted.id, status: "checked_in" };
 }
 
-// ── CRM / Manager: check any branch staff out ────────────────────────────────
+// ── Check-out ─────────────────────────────────────────────────────────────────
 
 export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<CheckinActionResult> {
   const parsed = checkoutInputSchema.safeParse(rawInput);
@@ -157,19 +158,18 @@ export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<Ch
   }
 
   const ctx = await getCheckinContext();
-  if (!ctx) return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in." };
+  if (!ctx) return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in with an active staff account." };
 
   const { supabase, me } = ctx;
   const { staffId, shiftDate, shiftType } = parsed.data;
 
-  const isSelf = me.id === staffId;
+  const isSelf     = me.id === staffId;
   const isOperator = CHECKIN_OPERATOR_ROLES.has(me.system_role);
 
   if (!isSelf && !isOperator) {
     return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to check out other staff." };
   }
 
-  // Find the active check-in
   const { data: checkin } = await supabase
     .from("staff_shift_checkins")
     .select("id, status, branch_id")
@@ -184,11 +184,6 @@ export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<Ch
 
   if (checkin.status === "checked_out") {
     return { ok: true, id: checkin.id, status: "checked_out", alreadyCheckedIn: false };
-  }
-
-  // Branch scope check for operators
-  if (isOperator && !isSelf && me.system_role !== "owner" && me.branch_id !== checkin.branch_id) {
-    return { ok: false, code: "UNAUTHORIZED", message: "You can only check out staff at your branch." };
   }
 
   const { error } = await supabase

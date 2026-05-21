@@ -7,7 +7,6 @@ import type { CheckinRecord } from "@/lib/actions/staff-checkins";
 
 type Props = {
   staffId: string;
-  branchId: string;
   shiftDate: string;
   checkin: CheckinRecord | null;
 };
@@ -21,7 +20,7 @@ function formatCheckinTime(isoString: string): string {
   return `${h12}:${m} ${ampm}`;
 }
 
-export function StaffCheckinWidget({ staffId, branchId, shiftDate, checkin }: Props) {
+export function StaffCheckinWidget({ staffId, shiftDate, checkin }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -72,13 +71,12 @@ export function StaffCheckinWidget({ staffId, branchId, shiftDate, checkin }: Pr
             disabled={isPending}
             onClick={() => {
               startTransition(async () => {
-                await checkInStaffForShiftAction({
+                const result = await checkInStaffForShiftAction({
                   staffId,
-                  branchId,
                   shiftDate,
                   shiftType: "single",
                 });
-                router.refresh();
+                if (result.ok) router.refresh();
               });
             }}
             style={{
@@ -99,12 +97,12 @@ export function StaffCheckinWidget({ staffId, branchId, shiftDate, checkin }: Pr
             disabled={isPending}
             onClick={() => {
               startTransition(async () => {
-                await checkOutStaffForShiftAction({
+                const result = await checkOutStaffForShiftAction({
                   staffId,
                   shiftDate,
                   shiftType: (checkin?.shift_type ?? "single") as "single" | "opening" | "closing",
                 });
-                router.refresh();
+                if (result.ok) router.refresh();
               });
             }}
             style={{

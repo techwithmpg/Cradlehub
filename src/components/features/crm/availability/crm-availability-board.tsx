@@ -89,11 +89,9 @@ function PresenceBadge({ presenceStatus }: { presenceStatus: CrmAvailabilityStaf
 function CheckinButton({
   staff,
   shiftDate,
-  branchId,
 }: {
   staff: CrmAvailabilityStaffRow;
   shiftDate: string;
-  branchId: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -107,12 +105,12 @@ function CheckinButton({
         disabled={isPending}
         onClick={() => {
           startTransition(async () => {
-            await checkOutStaffForShiftAction({
+            const result = await checkOutStaffForShiftAction({
               staffId: staff.staff_id,
               shiftDate,
               shiftType: primaryShiftType,
             });
-            router.refresh();
+            if (result.ok) router.refresh();
           });
         }}
         style={{
@@ -137,13 +135,12 @@ function CheckinButton({
         disabled={isPending}
         onClick={() => {
           startTransition(async () => {
-            await checkInStaffForShiftAction({
+            const result = await checkInStaffForShiftAction({
               staffId: staff.staff_id,
-              branchId,
               shiftDate,
               shiftType: primaryShiftType,
             });
-            router.refresh();
+            if (result.ok) router.refresh();
           });
         }}
         style={{
@@ -169,12 +166,10 @@ function CheckinButton({
 function StaffCard({
   staff,
   shiftDate,
-  branchId,
   showCheckinButton,
 }: {
   staff: CrmAvailabilityStaffRow;
   shiftDate: string;
-  branchId: string;
   showCheckinButton: boolean;
 }) {
   const primaryShift = staff.shifts[0];
@@ -245,7 +240,7 @@ function StaffCard({
 
       {/* Check-in / check-out action */}
       {showCheckinButton && (
-        <CheckinButton staff={staff} shiftDate={shiftDate} branchId={branchId} />
+        <CheckinButton staff={staff} shiftDate={shiftDate} />
       )}
     </div>
   );
@@ -311,10 +306,9 @@ type Props = {
   staff: CrmAvailabilityStaffRow[];
   maxPerColumn?: number;
   shiftDate: string;
-  branchId: string;
 };
 
-export function CrmAvailabilityBoard({ staff, maxPerColumn = 5, shiftDate, branchId }: Props) {
+export function CrmAvailabilityBoard({ staff, maxPerColumn = 5, shiftDate }: Props) {
   return (
     <div
       style={{
@@ -356,7 +350,6 @@ export function CrmAvailabilityBoard({ staff, maxPerColumn = 5, shiftDate, branc
                   key={s.staff_id}
                   staff={s}
                   shiftDate={shiftDate}
-                  branchId={branchId}
                   showCheckinButton={col.showCheckinButton}
                 />
               ))}
