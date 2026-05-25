@@ -1971,3 +1971,43 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9F-001)
+
+**Task:** Phase 9F — Add Global CRM Readiness Badge / Indicator
+
+**Files Created:**
+- `src/components/features/crm/readiness/crm-readiness-badge.tsx`
+  - Server component — compact single-line pill linking to /crm/setup
+  - Props: `{ readiness: ReadinessResult | null }`
+  - Visual states: critical (red), warning (amber), ok (green), null/failure (muted)
+  - Counts: criticalCount + warningCount from readiness.issues; summary "X critical · Y warnings" or "All clear"
+  - Failure state: "Review needed" with neutral muted style
+  - Uses `Link` from next/link; `aria-label` for accessibility
+
+- `src/app/(dashboard)/crm/layout.tsx` (NEW)
+  - Server layout wrapping all /crm/* routes
+  - Calls `getLayoutStaffContext()` (React cache()-wrapped — no extra DB call vs dashboard layout)
+  - Calls `getCrmReadiness(branchId).catch(() => null)` — failure-safe
+  - Renders CrmReadinessBadge above {children}
+  - Mobile: badge wrapper uses `px-4 pt-3 md:px-0 md:pt-0` (main is p-0 mobile / p-5 desktop)
+
+**Intentionally Left Unchanged:**
+- `src/components/features/crm/today/today-readiness-strip.tsx` — /crm/today page-level strip preserved
+- `src/components/shared/readiness-issue-list.tsx` — no changes
+- All booking logic, dispatch logic, availability engine, schedule engine unchanged
+- No DB schema changed. No public /book behavior changed.
+
+**How branchId is resolved:**
+`getLayoutStaffContext()` is already React-`cache()`-wrapped. The `(dashboard)/layout.tsx` calls it
+first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB calls per request.
+`branchId = ctx?.me?.branch_id ?? null`.
+
+**Commit:** 7ecc036
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (86 routes — crm layout adds 1 route segment)

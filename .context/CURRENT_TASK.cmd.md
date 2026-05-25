@@ -1,17 +1,23 @@
-# CURRENT TASK: CRM-READINESS-PHASE9E-F-001
+# CURRENT TASK: CRM-READINESS-PHASE9F-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-READINESS-PHASE9E-F-001
+CRM-READINESS-PHASE9F-001
 
 ## Description
-Phase 9E-F — Migrate /crm/dispatch Home-Service Dispatch Warnings to Shared Readiness Components.
-Created dispatch-readiness-utils.ts with mapDispatchAlertToReadinessIssue and buildAlertIssues.
-Replaced hand-rolled AlertBanner (lucide AlertTriangle, amber/red divs) in dispatch-workspace.tsx
-with ReadinessIssueList compact. Severity mapping: danger→critical, warning→warning.
-All dispatch workflow cards, status chips, driver assignment UI, and booking logic untouched.
+Phase 9F — Add Global CRM Readiness Badge / Indicator.
+Created CrmReadinessBadge server component (compact pill, links to /crm/setup).
+Created /crm/layout.tsx wrapping all CRM routes; calls getCrmReadiness(branchId)
+via React-cached getLayoutStaffContext. Badge shows critical/warning counts or
+"All clear". Failure-safe fallback. Mobile-responsive. No booking logic changed.
+
+## Agent
+Claude Code (main branch, E:/cradlehub)
+
+## Branch
+main
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)
