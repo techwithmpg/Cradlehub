@@ -1384,3 +1384,36 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS, 85 app routes
+
+---
+
+### 2026-05-25 — Claude Code (CRM-TODAY-PHASE2-001 — Daily Operations Center UI)
+
+**Task:** Phase 2 CRM Today Daily Operations Center UI organization.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/today/page.tsx` — title changed to "Daily Operations Center"; added TodayWorkflowStrip, "Serve Customers" section label, "Today's Operational Snapshot" section label, TodaySystemMatchStatus, TodayEmergencyActions; retained all existing components
+- `src/components/features/crm/today/crm-booking-queue-panel.tsx` — improved empty-state message for active tab
+- `src/components/features/crm/today/today-staff-readiness.tsx` — added "Start Day" label and description inside the card
+- `src/components/features/crm/today/today-quick-actions.tsx` — removed self-owned marginBottom (now owned by section wrapper)
+- `src/components/features/crm/today/today-priority-strip.tsx` — removed self-owned marginBottom (now owned by section wrapper)
+
+**Files Created:**
+- `src/components/features/crm/today/today-workflow-strip.tsx` — visual shift workflow guide (Start Day → Serve Customers → Confirm Bookings → Monitor Operations → Emergency Actions)
+- `src/components/features/crm/today/today-system-match-status.tsx` — orientation card linking to 6 operational tools (no new queries, navigation only)
+- `src/components/features/crm/today/today-emergency-actions.tsx` — mid-shift action links card (navigation only)
+
+**Notes:**
+- Reorganized /crm/today around the daily front-desk workflow.
+- Added workflow strip, System Match Status, and Emergency Actions.
+- No booking business logic changed.
+- Online booking remains schedule-based.
+- In-house CRM booking remains live-operations based.
+- Home-service workflow remains dispatch/location based.
+- No new database queries or schema changes.
+- All links in new components point to existing CRM routes — no invented routes.
+
+**Build Status:**
+- `pnpm type-check`: ✅ PASS
+- `pnpm lint`: ✅ PASS
+- `pnpm build`: ✅ PASS, 85 app routes

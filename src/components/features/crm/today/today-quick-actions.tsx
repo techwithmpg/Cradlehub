@@ -44,7 +44,6 @@ export function TodayQuickActions() {
       style={{
         display: "flex",
         gap: "0.5rem",
-        marginBottom: "1.5rem",
         flexWrap: "wrap",
       }}
     >

@@ -82,7 +82,6 @@ export function TodayPriorityStrip({
         display: "grid",
         gridTemplateColumns: "repeat(6, 1fr)",
         gap: "0.625rem",
-        marginBottom: "1.25rem",
       }}
     >
       {cards.map((card) => (

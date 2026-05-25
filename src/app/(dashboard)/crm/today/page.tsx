@@ -13,6 +13,9 @@ import { TodayPriorityStrip } from "@/components/features/crm/today/today-priori
 import { TodayStaffReadiness } from "@/components/features/crm/today/today-staff-readiness";
 import { TodayDispatchSnapshot } from "@/components/features/crm/today/today-dispatch-snapshot";
 import { TodayQuickActions } from "@/components/features/crm/today/today-quick-actions";
+import { TodayWorkflowStrip } from "@/components/features/crm/today/today-workflow-strip";
+import { TodaySystemMatchStatus } from "@/components/features/crm/today/today-system-match-status";
+import { TodayEmergencyActions } from "@/components/features/crm/today/today-emergency-actions";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 
 // ── Local types ───────────────────────────────────────────────────────────────
@@ -151,7 +154,7 @@ export default async function CrmTodayPage() {
   return (
     <div>
       <PageHeader
-        title="Today"
+        title="Daily Operations Center"
         description={`${branchName} · ${new Date().toLocaleDateString("en-PH", {
           weekday: "long", month: "long", day: "numeric",
         })} · Front-desk operations`}
@@ -160,17 +163,64 @@ export default async function CrmTodayPage() {
       {/* Attention strip — shows only when there are action-required notifications */}
       <TodayAttentionStrip notifications={actionNotifications} />
 
-      {/* Quick action buttons */}
-      <TodayQuickActions />
+      {/* Workflow guide — visual step order for the front-desk shift */}
+      <TodayWorkflowStrip />
 
-      {/* Priority strip — 6 operational cards replacing stat cards + quick actions */}
-      <TodayPriorityStrip
-        bookingSummary={snapshot.bookingSummary}
-        staffReadiness={snapshot.staffReadiness}
-        dispatchStats={snapshot.dispatchStats}
-        payment={snapshot.payment}
-        urgentCount={actionNotifications.length}
-      />
+      {/* ── Serve Customers ── */}
+      <div style={{ marginBottom: "1.25rem" }}>
+        <div
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            fontFamily: "var(--font-display)",
+            marginBottom: "0.25rem",
+          }}
+        >
+          Serve Customers
+        </div>
+        <div
+          style={{
+            fontSize: "0.8125rem",
+            color: "var(--cs-text-muted)",
+            marginBottom: "0.75rem",
+          }}
+        >
+          Create walk-ins, start home-service bookings, review online requests, and search customers.
+        </div>
+        <TodayQuickActions />
+      </div>
+
+      {/* ── Today's Operational Snapshot ── */}
+      <div style={{ marginBottom: "1.25rem" }}>
+        <div
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            fontFamily: "var(--font-display)",
+            marginBottom: "0.25rem",
+          }}
+        >
+          Today&apos;s Operational Snapshot
+        </div>
+        <div
+          style={{
+            fontSize: "0.8125rem",
+            color: "var(--cs-text-muted)",
+            marginBottom: "0.75rem",
+          }}
+        >
+          A quick view of bookings, assignments, payments, dispatch, and urgent actions.
+        </div>
+        <TodayPriorityStrip
+          bookingSummary={snapshot.bookingSummary}
+          staffReadiness={snapshot.staffReadiness}
+          dispatchStats={snapshot.dispatchStats}
+          payment={snapshot.payment}
+          urgentCount={actionNotifications.length}
+        />
+      </div>
 
       {/* Main two-column layout */}
       <div
@@ -181,7 +231,7 @@ export default async function CrmTodayPage() {
           alignItems: "start",
         }}
       >
-        {/* ── Left column: booking queue ── */}
+        {/* ── Left column: booking queue + system cards ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
           {/* Next appointment banner */}
@@ -248,6 +298,10 @@ export default async function CrmTodayPage() {
               paymentAction={updateBookingPaymentAction}
             />
           </div>
+
+          {/* System orientation cards */}
+          <TodaySystemMatchStatus />
+          <TodayEmergencyActions />
         </div>
 
         {/* ── Right rail ── */}

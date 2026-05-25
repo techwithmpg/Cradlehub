@@ -44,6 +44,30 @@ export function TodayStaffReadiness({ summary }: Props) {
 
   return (
     <div className="cs-card" style={{ padding: "1.25rem" }}>
+      {/* Start Day label */}
+      <div
+        style={{
+          fontSize: "0.6875rem",
+          fontWeight: 600,
+          color: "var(--cs-sand)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: "0.375rem",
+        }}
+      >
+        Start Day
+      </div>
+      <div
+        style={{
+          fontSize: "0.75rem",
+          color: "var(--cs-text-muted)",
+          marginBottom: "0.75rem",
+          lineHeight: 1.4,
+        }}
+      >
+        Check who is present, missing, and ready before accepting walk-ins.
+      </div>
+
       {/* Header */}
       <div
         style={{

@@ -379,7 +379,9 @@ export function CrmBookingQueuePanel({
             borderRadius: 10,
           }}
         >
-          {activeTab === "active" ? "No active bookings right now." : `No ${TAB_LABELS[activeTab].toLowerCase()} bookings today.`}
+          {activeTab === "active"
+            ? "No active bookings right now. Use New Walk-in, New Home Service, or Online Requests to begin today's front-desk flow."
+            : `No ${TAB_LABELS[activeTab].toLowerCase()} bookings today.`}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
