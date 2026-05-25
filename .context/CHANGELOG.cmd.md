@@ -2156,3 +2156,26 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (HYDRATION-FIX-001 — Fix nested <a> in BookingCard)
+
+**Task:** Fix hydration error: `In HTML, <a> cannot be a descendant of <a>` in `crm-booking-queue-panel.tsx`.
+
+**Root Cause:** `BookingCard` wraps its content in `<Link href={...}>` (which renders as `<a>`). Inside the home-service footer row, the "Map ↗" link was also rendered as `<a href={booking.hs_map_url} target="_blank">` — invalid nested anchors per HTML spec.
+
+**Files Changed:**
+- `src/components/features/crm/today/crm-booking-queue-panel.tsx` — replaced the inner `<a>` map link with `<button type="button">` that calls `window.open(booking.hs_map_url!, "_blank", "noopener,noreferrer")` on click, preserving the same visual style and UX.
+
+**Commit:** `25ac12f`
+
+**Notes:**
+- No logic change — "Map ↗" still opens the Google Maps URL in a new tab
+- `e.preventDefault()` + `e.stopPropagation()` prevent the outer Link click from firing
+- No other components affected
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85 routes)
