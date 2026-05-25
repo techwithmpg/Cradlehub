@@ -3,6 +3,56 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+DISPATCH-CENTER-3TAB-001 complete — Build Complete Home-Service Dispatch Center with 3 Tabs
+
+## What Just Happened (Dispatch Center 3-Tab Rebuild)
+Redesigned `/crm/dispatch` (shared with `/manager/dispatch`) into a polished
+3-tab Home-Service Dispatch Center. The existing `HomeServiceDispatchWorkspace`
+component was replaced; page server files are unchanged.
+
+**Files changed (6 new + 1 updated):**
+
+`dispatch-workspace.tsx` (updated):
+- Same export interface (`HomeServiceDispatchWorkspace`, `HomeServiceDispatchWorkspaceProps`)
+- Tab shell with `flow | map | progress` state
+- Always-visible: KPI cards, dispatch alerts (ReadinessIssueList), emergency + related links
+
+`dispatch-summary-cards.tsx` (new):
+- 6 KPI cards: Needs Driver, Ready, En Route, In Service, Completed, Alerts
+- All counts derived from `DispatchData.items` + `DispatchData.alerts.length`
+
+`dispatch-flow-tab.tsx` (new):
+- Left: booking queue — status badge, missing-info badge, payment badge, address/staff snippets
+- Right: selected booking panel — dispatch readiness checklist (therapist/driver/address/GPS/payment) + trip timeline + `AssignmentRecommendationPanel` for awaiting-driver items
+- Ready bookings: honest note ("trip start handled by driver via Driver Portal")
+
+`dispatch-live-map-tab.tsx` (new):
+- Left: active trips (in_route + arrived + service_started) with live status badges and location indicator
+- Center: honest map placeholder — no fake map; shows live location snapshot count + missing-coords count + link to fix addresses
+- Right: selected trip detail (driver, therapist, address, ETA, timestamps, last location coords)
+
+`dispatch-travel-progress-tab.tsx` (new):
+- Desktop: sortable table with progress dots (6 stages: Confirmed/Driver/En Route/Arrived/In Service/Done)
+- Mobile: stacked cards with same progress visualization
+- Columns: #, Customer, Service, Time, Therapist, Driver, Progress, ETA, Last Update, Status
+
+`dispatch-emergency-actions.tsx` (new):
+- 6 emergency link shortcuts to operational pages
+
+`dispatch-related-tools.tsx` (new):
+- 6 related tool link cards
+
+**Intentionally unchanged:**
+- `dispatch-readiness-utils.ts` — `buildAlertIssues` still in use
+- `AssignmentRecommendationPanel` — reused in Tab 1
+- `assignBookingDriverAction` / `getDriverRecommendationsAction` — unchanged server actions
+- `/crm/dispatch/page.tsx` + `/manager/dispatch/page.tsx` — unchanged
+- `/crm/today` dispatch snapshot, `/crm/setup` readiness, `/crm/availability`
+- Online booking logic, dispatch actions, DB schema, public /book
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Previous Phase
 CRM-READINESS-PHASE9G-2-001 complete — Add Dispatch Missing Readiness Checks
 
 ## What Just Happened (Phase 9G-2 — Dispatch Missing Readiness Checks)

@@ -1,21 +1,38 @@
-# CURRENT TASK: CRM-READINESS-PHASE9G-2-001
+# CURRENT TASK: DISPATCH-CENTER-3TAB-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-READINESS-PHASE9G-2-001
+DISPATCH-CENTER-3TAB-001
 
 ## Description
-Phase 9G-2 — Add Dispatch Missing Readiness Checks.
-Added three new checks + coordinator to getCrmReadinessIssues in crm-readiness.ts:
-1. dispatch:assigned-driver-not-checked-in (driver assigned to active HS booking but not checked in — severity: critical)
-2. dispatch:home-service-missing-address (HS booking missing metadata.home_service_address.full_address — severity: critical)
-3. dispatch:home-service-missing-destination-coordinates (HS booking missing lat/lng — severity: warning)
-Check 4 (active HS no driver) deliberately skipped — covered by existing dispatch:awaiting-driver from getCrmTodaySnapshot.
-All checks run in parallel via getDispatchMissingReadinessIssues, failure-safe.
-Integrated as Source 4 in getCrmReadinessIssues.
-No UI changes required. No dispatch actions changed. No booking logic changed. No database schema changed.
+Build Complete Home-Service Dispatch Center with 3 Tabs.
+Redesigned /crm/dispatch (shared with /manager/dispatch) into a polished 3-tab
+Home-Service Dispatch Center using existing live data and honest empty states.
+
+Tabs added:
+1. Dispatch Flow — booking queue + selected booking readiness panel + driver assignment
+2. Live Map — active trips list + honest map placeholder + trip detail panel
+3. Travel Progress — progress stages table (desktop) / cards (mobile)
+
+Always-visible: KPI summary cards, dispatch readiness alerts (ReadinessIssueList),
+Emergency Dispatch Actions, Related Tools.
+
+New files:
+- dispatch-summary-cards.tsx (6 KPI cards)
+- dispatch-flow-tab.tsx (Tab 1: queue + readiness panel + AssignmentRecommendationPanel)
+- dispatch-live-map-tab.tsx (Tab 2: active trips + honest map placeholder)
+- dispatch-travel-progress-tab.tsx (Tab 3: progress stages visualization)
+- dispatch-emergency-actions.tsx (emergency link card)
+- dispatch-related-tools.tsx (related tool links)
+
+Updated:
+- dispatch-workspace.tsx (replaced with 3-tab shell, same export interface)
+
+No booking logic changed. No dispatch actions changed. No database schema changed.
+No public /book behavior changed. Existing AssignmentRecommendationPanel + driver
+actions reused as-is.
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)

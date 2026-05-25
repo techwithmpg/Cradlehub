@@ -2104,3 +2104,55 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (DISPATCH-CENTER-3TAB-001)
+
+**Task:** Build Home-Service Dispatch Center with 3 Tabs
+
+**Files Changed:**
+- `src/components/features/dispatch/dispatch-workspace.tsx` — replaced with 3-tab shell; same `HomeServiceDispatchWorkspace` / `HomeServiceDispatchWorkspaceProps` export interface preserved
+- `src/components/features/dispatch/dispatch-summary-cards.tsx` (new) — 6 KPI cards: Needs Driver, Ready, En Route, In Service, Completed, Alerts; all values derived from DispatchData
+- `src/components/features/dispatch/dispatch-flow-tab.tsx` (new) — Tab 1: booking queue (status badges, missing-info badges, address/staff snippets) + selected booking readiness checklist (therapist/driver/address/GPS/payment) + AssignmentRecommendationPanel for awaiting-driver items
+- `src/components/features/dispatch/dispatch-live-map-tab.tsx` (new) — Tab 2: active trips list + honest map placeholder (no fake map; collects live location data counts) + selected trip detail
+- `src/components/features/dispatch/dispatch-travel-progress-tab.tsx` (new) — Tab 3: desktop table / mobile cards with progress dot stages (Confirmed → Driver → En Route → Arrived → In Service → Done)
+- `src/components/features/dispatch/dispatch-emergency-actions.tsx` (new) — 6 emergency link shortcuts
+- `src/components/features/dispatch/dispatch-related-tools.tsx` (new) — 6 related tool links
+
+**Existing components preserved/reused:**
+- `dispatch-readiness-utils.ts` — unchanged; `buildAlertIssues` still used in workspace
+- `AssignmentRecommendationPanel` — unchanged; reused in Tab 1 for driver assignment
+- `assignBookingDriverAction` / `getDriverRecommendationsAction` — unchanged server actions reused
+- Both `/crm/dispatch` and `/manager/dispatch` page files — unchanged; same component interface
+
+**Visual improvements:**
+- Page title: "Home-Service Dispatch Center" (was "Home Service Dispatch")
+- Architecture note visible to operators
+- Booking queue: status badges + missing-info + payment badges
+- Dispatch readiness checklist per selected booking (therapist, driver, address, GPS, payment)
+- Trip timeline visible when travel has started
+- Progress stage visualization in Tab 3
+- Emergency actions card + related tools card at bottom
+
+**Data: live vs empty state:**
+- Summary cards: live (derived from DispatchData.items)
+- Dispatch alerts: live (buildAlertIssues from DispatchData.alerts)
+- Booking queue: live bookings from getDispatchData
+- Selected panel: live RealDispatchItem fields
+- Active trips (Tab 2): live dispatchStatus filter
+- Location data: live (currentLocation / lat / lng from RealDispatchItem)
+- Map rendering: honest placeholder ("Live map will appear when integration is connected")
+- Progress stages: derived from live dispatchStatus + timestamps
+
+**Notes:**
+- No "Confirm Dispatch" server action was created — Tab 1 shows an honest informational note for ready bookings ("handled by driver via Driver Portal")
+- No fake map, no fake route lines, no fake location markers
+- Map placeholder shows how many trips have live location snapshots and how many are missing coordinates
+- No UI changes to /crm/today dispatch snapshot, /crm/setup readiness list, or /crm/availability
+- No booking logic changed. No dispatch actions changed. No DB schema changed. No public /book changed.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85 routes)

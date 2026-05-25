@@ -1,184 +1,48 @@
 "use client";
 
+/**
+ * HomeServiceDispatchWorkspace
+ *
+ * Three-tab Home-Service Dispatch Center shell.
+ *
+ * Tabs:
+ *   1. Dispatch Flow     — booking queue + selected booking panel + driver assignment
+ *   2. Live Map          — active trips list + map placeholder + trip detail
+ *   3. Travel Progress   — full trip progress table / card list
+ *
+ * Always-visible:
+ *   - Page header + architecture note
+ *   - KPI summary cards (DispatchSummaryCards)
+ *   - Dispatch readiness alerts (ReadinessIssueList via buildAlertIssues)
+ *   - Emergency Dispatch Actions + Related Tools (bottom)
+ *
+ * Receives DispatchData from the page server component — no additional queries.
+ * The page files (/crm/dispatch, /manager/dispatch) pass `role` for display
+ * context only; auth and branch scoping are enforced by the server actions.
+ */
+
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Car, CheckCircle2, Clock, MapPin, User, XCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
-import { getDriverRecommendationsAction } from "@/lib/actions/assignment-recommendations";
-import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
-import { formatTime12h } from "@/lib/utils/time-format";
-import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
-import type { DispatchStatus } from "@/features/dispatch/types";
+import type { DispatchData } from "@/lib/queries/dispatch-queries";
 import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
 import { buildAlertIssues } from "./dispatch-readiness-utils";
+import { DispatchSummaryCards } from "./dispatch-summary-cards";
+import { DispatchFlowTab } from "./dispatch-flow-tab";
+import { DispatchLiveMapTab } from "./dispatch-live-map-tab";
+import { DispatchTravelProgressTab } from "./dispatch-travel-progress-tab";
+import { DispatchEmergencyActions } from "./dispatch-emergency-actions";
+import { DispatchRelatedTools } from "./dispatch-related-tools";
 
-// ── Status helpers ──────────────────────────────────────────────────────────
+// ── Tab definitions ────────────────────────────────────────────────────────────
 
-function statusLabel(s: DispatchStatus): string {
-  switch (s) {
-    case "awaiting_driver":     return "Awaiting Driver";
-    case "ready":               return "Ready";
-    case "in_route":            return "En Route";
-    case "arrived_at_customer": return "Arrived";
-    case "service_started":     return "In Service";
-    case "completed":           return "Completed";
-    case "cancelled":           return "Cancelled";
-  }
-}
+type TabId = "flow" | "map" | "progress";
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
-type StatusStyle = { variant: BadgeVariant; className: string };
+const TABS: { id: TabId; label: string }[] = [
+  { id: "flow",     label: "Dispatch Flow" },
+  { id: "map",      label: "Live Map" },
+  { id: "progress", label: "Travel Progress" },
+];
 
-function statusStyle(s: DispatchStatus): StatusStyle {
-  switch (s) {
-    case "awaiting_driver":     return { variant: "outline", className: "border-amber-400 text-amber-700 bg-amber-50" };
-    case "ready":               return { variant: "outline", className: "border-blue-400 text-blue-700 bg-blue-50" };
-    case "in_route":            return { variant: "outline", className: "border-purple-400 text-purple-700 bg-purple-50" };
-    case "arrived_at_customer": return { variant: "outline", className: "border-cyan-400 text-cyan-700 bg-cyan-50" };
-    case "service_started":     return { variant: "outline", className: "border-green-500 text-green-700 bg-green-50" };
-    case "completed":           return { variant: "secondary", className: "text-[var(--cs-text-secondary)]" };
-    case "cancelled":           return { variant: "outline", className: "border-red-300 text-red-600 bg-red-50" };
-  }
-}
-
-
-// ── Sub-components ──────────────────────────────────────────────────────────
-
-function StatCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "amber" | "blue" | "green" | "red" | "default";
-}) {
-  const colorMap: Record<string, string> = {
-    amber:   "text-amber-600",
-    blue:    "text-blue-600",
-    green:   "text-green-600",
-    red:     "text-red-600",
-    default: "text-[var(--cs-text)]",
-  };
-  const color = colorMap[tone ?? "default"] ?? colorMap["default"];
-  return (
-    <Card className="flex flex-col gap-1 p-4">
-      <span className={`text-2xl font-bold ${color}`}>{value}</span>
-      <span className="text-xs text-[var(--cs-text-secondary)]">{label}</span>
-    </Card>
-  );
-}
-
-
-function DispatchRecommendationPanel({ item }: { item: RealDispatchItem }) {
-  const router = useRouter();
-  return (
-    <AssignmentRecommendationPanel
-      bookingId={item.id}
-      fetchRecommendations={getDriverRecommendationsAction}
-      onAssignDriver={async (driverId) => {
-        await assignBookingDriverAction({ bookingId: item.id, driverId });
-        router.refresh();
-      }}
-      currentDriverId={item.driverId}
-      showTherapists={false}
-      showDrivers={true}
-    />
-  );
-}
-
-function DispatchItemRow({
-  item,
-  selected,
-  onSelect,
-}: {
-  item: RealDispatchItem;
-  selected: boolean;
-  onSelect: (id: string) => void;
-}) {
-  const style = statusStyle(item.dispatchStatus);
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(item.id)}
-      className={`w-full rounded-lg border px-4 py-3 text-left transition-colors hover:border-[var(--cs-border-focus)] ${
-        selected
-          ? "border-[var(--cs-border-focus)] bg-[var(--cs-bg-subtle)]"
-          : "border-[var(--cs-border)]"
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <span className="w-12 shrink-0 text-xs font-mono text-[var(--cs-text-secondary)]">
-          {item.number}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-[var(--cs-text)]">
-            {item.customerName}
-          </p>
-          <p className="truncate text-xs text-[var(--cs-text-secondary)]">
-            {item.serviceName}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xs text-[var(--cs-text-secondary)]">
-            {formatTime12h(item.startTime)}
-          </span>
-          <Badge variant={style.variant} className={`text-xs ${style.className}`}>
-            {statusLabel(item.dispatchStatus)}
-          </Badge>
-        </div>
-      </div>
-
-      {selected && (
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--cs-border)] pt-3 sm:grid-cols-3">
-          {item.driverName ? (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--cs-text-secondary)]">
-              <Car className="h-3.5 w-3.5" />
-              <span className="truncate">{item.driverName}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-xs text-amber-600">
-              <Car className="h-3.5 w-3.5" />
-              <span>No driver assigned</span>
-            </div>
-          )}
-
-          {item.therapistName && (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--cs-text-secondary)]">
-              <User className="h-3.5 w-3.5" />
-              <span className="truncate">{item.therapistName}</span>
-            </div>
-          )}
-
-          {item.area || item.formattedAddress ? (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--cs-text-secondary)]">
-              <MapPin className="h-3.5 w-3.5" />
-              <span className="truncate">{item.area ?? item.formattedAddress}</span>
-            </div>
-          ) : null}
-
-          {item.etaMinutes !== null && (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--cs-text-secondary)]">
-              <Clock className="h-3.5 w-3.5" />
-              <span>ETA {item.etaMinutes}m</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Recommendations for awaiting driver */}
-      {selected && item.dispatchStatus === "awaiting_driver" && (
-        <div className="mt-3">
-          <DispatchRecommendationPanel item={item} />
-        </div>
-      )}
-    </button>
-  );
-}
-
-// ── Main component ──────────────────────────────────────────────────────────
+// ── Main export ────────────────────────────────────────────────────────────────
 
 export interface HomeServiceDispatchWorkspaceProps {
   role: string;
@@ -189,104 +53,102 @@ export function HomeServiceDispatchWorkspace({
   role,
   data,
 }: HomeServiceDispatchWorkspaceProps) {
-  const [selectedId, setSelectedId] = useState<string>(data.items[0]?.id ?? "");
-
-  const activeItems = data.items.filter(
-    (i) => i.dispatchStatus !== "completed" && i.dispatchStatus !== "cancelled"
-  );
-  const doneItems = data.items.filter(
-    (i) => i.dispatchStatus === "completed" || i.dispatchStatus === "cancelled"
-  );
+  const [activeTab, setActiveTab] = useState<TabId>("flow");
+  const alertIssues = buildAlertIssues(data.alerts);
 
   return (
     <section className="space-y-6 p-4 md:p-0">
+      {/* ── Page header ──────────────────────────────────────────────────────── */}
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold leading-tight text-[var(--cs-text)]">
-          Home Service Dispatch
+        <h1
+          className="text-2xl font-bold leading-tight"
+          style={{ color: "var(--cs-text)" }}
+        >
+          Home-Service Dispatch Center
         </h1>
-        <p className="text-sm text-[var(--cs-text-secondary)]">
-          {data.today} · {role} view
+        <p
+          className="text-sm"
+          style={{ color: "var(--cs-text-secondary)" }}
+        >
+          Coordinate home-service bookings, drivers, therapist movement,
+          customer locations, and dispatch readiness.
+        </p>
+        <p className="text-xs" style={{ color: "var(--cs-text-muted)" }}>
+          {data.today} · {role} view · Home-service uses schedule availability
+          plus customer location, driver readiness, travel buffer, therapist
+          status, and dispatch workflow. Online booking remains schedule-based.
         </p>
       </header>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Total Today" value={data.stats.totalToday} />
-        <StatCard label="Awaiting Driver" value={data.stats.awaitingDispatch} tone="amber" />
-        <StatCard label="Active Trips" value={data.stats.activeTrips} tone="blue" />
-        <StatCard label="Completed" value={data.stats.completedToday} tone="green" />
-        <StatCard label="Cancelled" value={data.stats.cancelledToday} tone="red" />
-      </div>
+      {/* ── Summary cards ────────────────────────────────────────────────────── */}
+      <DispatchSummaryCards
+        items={data.items}
+        stats={data.stats}
+        alertCount={data.alerts.length}
+      />
 
+      {/* ── Dispatch readiness alerts ─────────────────────────────────────────── */}
       <ReadinessIssueList
-        issues={buildAlertIssues(data.alerts)}
+        issues={alertIssues}
         compact
         emptyTitle="No active dispatch alerts"
         emptyDescription="All home-service trips are progressing normally."
       />
 
-      {/* Active queue */}
-      {activeItems.length === 0 && doneItems.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--cs-border)] py-16">
-          <CheckCircle2 className="h-8 w-8 text-[var(--cs-text-muted)]" />
-          <p className="text-sm text-[var(--cs-text-secondary)]">
-            No home service dispatches scheduled for today.
-          </p>
+      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
+      <div className="cs-card overflow-hidden">
+        {/* Tab bar */}
+        <div
+          className="flex overflow-x-auto"
+          style={{ borderBottom: "1px solid var(--cs-border)" }}
+        >
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: "0.75rem 1.25rem",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                background: "none",
+                border: "none",
+                borderBottom:
+                  activeTab === tab.id
+                    ? "2px solid var(--cs-sand)"
+                    : "2px solid transparent",
+                marginBottom: -1,
+                color:
+                  activeTab === tab.id
+                    ? "var(--cs-text)"
+                    : "var(--cs-text-secondary)",
+                cursor: "pointer",
+                transition: "color 0.15s, border-color 0.15s",
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="space-y-4">
-          {activeItems.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-sm font-semibold text-[var(--cs-text)]">
-                Active ({activeItems.length})
-              </h2>
-              <div className="space-y-2">
-                {activeItems.map((item) => (
-                  <DispatchItemRow
-                    key={item.id}
-                    item={item}
-                    selected={selectedId === item.id}
-                    onSelect={setSelectedId}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
 
-          {doneItems.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-sm font-semibold text-[var(--cs-text-secondary)]">
-                Completed / Cancelled ({doneItems.length})
-              </h2>
-              <div className="space-y-2 opacity-70">
-                {doneItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 rounded-lg border border-[var(--cs-border)] px-4 py-3"
-                  >
-                    <span className="w-12 shrink-0 text-xs font-mono text-[var(--cs-text-secondary)]">
-                      {item.number}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-[var(--cs-text)]">
-                        {item.customerName}
-                      </p>
-                      <p className="truncate text-xs text-[var(--cs-text-secondary)]">
-                        {item.serviceName}
-                      </p>
-                    </div>
-                    {item.dispatchStatus === "cancelled" ? (
-                      <XCircle className="h-4 w-4 shrink-0 text-red-400" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Tab content */}
+        <div className="p-4 md:p-6">
+          {activeTab === "flow" && (
+            <DispatchFlowTab data={data} role={role} />
+          )}
+          {activeTab === "map" && <DispatchLiveMapTab data={data} />}
+          {activeTab === "progress" && (
+            <DispatchTravelProgressTab data={data} />
           )}
         </div>
-      )}
+      </div>
+
+      {/* ── Emergency actions + related tools ────────────────────────────────── */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <DispatchEmergencyActions />
+        <DispatchRelatedTools />
+      </div>
     </section>
   );
 }
