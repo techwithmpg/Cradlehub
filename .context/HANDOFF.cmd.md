@@ -3,7 +3,18 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
-CRM-SPACES-PHASE6-001 complete — Spaces & Booking Rules Center
+CRM-SCHEDULE-PHASE5B-001 complete — 2026 Manual Schedule Import
+
+## What Just Happened (Phase 5B — 2026 Manual Schedule Import)
+Phase 5B — "Current Manual Schedule Setup" collapsible wizard added to /crm/staff-availability:
+
+1. **`manual-schedule-2026.ts`**: Paper schedule constants (ALL CAPS names, no IDs). Three maps: `MANUAL_DAY_OFF_2026`, `MANUAL_SALON_DAY_OFF_2026`, `MANUAL_OPENING_2026`. Helpers: `getAllPaperNames()`, `getNameScheduleSummary()`, `detectOpeningOffConflicts()`.
+2. **`actions.ts`** (new route-level file): `applyManualScheduleImportAction` — CRM role guard (`owner/manager/assistant_manager/store_manager/crm/csr_head`), branch scope, staff ID verification, batch upsert to `staff_schedules` (7 rows per staff: off=`is_active:false/single`, opening=`is_active:true/opening`, regular=`is_active:true/single`). Revalidates `/crm/*` and `/book`.
+3. **`ManualScheduleImport`** client component: 3-tab wizard:
+   - **Preview**: Shows paper schedule in formatted cards per group
+   - **Match Names**: Auto-matches by `full_name`/`nickname`/first-name; CRM resolves ambiguous/unmatched via dropdown; can skip any name; summary pills show counts
+   - **Times & Apply**: Regular/opening shift time inputs (defaults: 10:00–22:00 / 09:00–21:30); conflict detection; readiness check; inline result feedback
+4. **Page updated**: `ManualScheduleImport` placed between health summary and workspace, staff list derived from already-fetched items (no extra query).
 
 ## What Just Happened (Phase 6 — Spaces & Booking Rules Center)
 Phase 6 — /crm/spaces-rules upgraded into "Spaces & Booking Rules Center":
