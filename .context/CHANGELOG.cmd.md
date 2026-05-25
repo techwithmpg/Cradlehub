@@ -1660,3 +1660,64 @@ All three flows share the scheduling/availability engine but apply it differentl
 - All new files are Server Components (no "use client"). Uses Link from next/link.
 - noUncheckedIndexedAccess safety: ?? fallbacks on all Record indexing.
 - Foundation for Phase 9C (aggregator query), 9D (replace duplicate displays), 9E (add missing checks).
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9C-001)
+
+**Task:** Phase 9C — CRM Operations Readiness Aggregator
+
+**Files Added:**
+- `src/lib/queries/crm-readiness.ts`
+  - `getCrmReadinessIssues(branchId)` — main aggregator, returns `ReadinessIssue[]`
+  - `getCrmReadiness(branchId)` — convenience wrapper, returns `ReadinessResult`
+  - `mapSetupIssuesToReadinessIssues()` — maps SetupIssue[] from getCrmSetupHealth
+  - `mapStaffReadinessToReadinessIssues()` — maps CrmAvailabilitySummary
+  - `mapDispatchStatsToReadinessIssues()` — maps DispatchStats
+  - `mapPaymentSummaryToReadinessIssues()` — maps daily payment summary
+  - `dedupeReadinessIssues()` — deduplicates by id, keeps highest severity
+  - `createSourceFailureIssue()` — emits system:warning when a source fails
+  - `mapSetupSeverity()`, `mapSetupScope()`, `deriveSetupFix()` — field mapping helpers
+
+**Existing Checks Mapped:**
+  From getCrmSetupHealth (6 issues):
+  - no-schedule → setup:no-schedule (schedule / warning)
+  - no-staff-for-service → setup:no-staff-for-service (service / critical)
+  - no-drivers → setup:no-drivers (dispatch / critical)
+  - no-resources → setup:no-resources (space / warning)
+  - default-rules → setup:default-rules (setup / info)
+  - unassigned-bookings → setup:unassigned-bookings (daily / critical)
+  From getCrmTodaySnapshot (5 issues):
+  - notCheckedIn → availability:not-checked-in (daily / warning)
+  - needsAttention → availability:needs-attention (schedule / warning)
+  - no drivers ready → availability:drivers-not-ready (dispatch / warning)
+  - awaitingDispatch → dispatch:awaiting-driver (dispatch / warning)
+  - unpaid_count → payment:unpaid-bookings (payment / warning)
+
+**Design Decisions:**
+  - getCrmTodaySnapshot called once (it internally calls getCrmAvailabilitySnapshot)
+    to avoid running availability queries twice
+  - Two sources run in parallel via Promise.allSettled (never throws)
+  - Source failure emits system:warning issue rather than crashing or silently omitting
+  - dedupeReadinessIssues keeps highest severity on ID collision
+  - Severity mapping: SetupIssue "error" → "critical", "warning" → "warning", "info" → "info"
+  - Scope derived from issue.id via SETUP_SCOPE_MAP lookup with "setup" fallback
+
+**Deferred to Phase 9E:**
+  - Service provider public/non-public distinction (requires staff_type filtering)
+  - Resource conflict detection (per-booking compute in spaces-rules-utils)
+  - Schedule coverage detail (per-staff, schedule-coverage-issues.tsx)
+  - 14 missing checks from docs/CRM_READINESS_AUDIT.md Section E
+
+**Notes:**
+  - No existing CRM page behavior changed
+  - No booking logic changed
+  - No DB schema changed
+  - Aggregator not wired to UI yet — Phase 9D will wire /crm/setup first
+
+**Commit:** 10a8062
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)

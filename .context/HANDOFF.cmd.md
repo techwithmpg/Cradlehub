@@ -3,6 +3,33 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9C-001 complete — CRM Operations Readiness Aggregator
+
+## What Just Happened (Phase 9C — CRM Operations Readiness Aggregator)
+Phase 9C — Central query aggregator. No CRM pages touched.
+
+**File created (commit 10a8062):**
+
+`src/lib/queries/crm-readiness.ts` — exports:
+- `getCrmReadinessIssues(branchId: string): Promise<ReadinessIssue[]>` — main aggregator
+- `getCrmReadiness(branchId: string): Promise<ReadinessResult>` — convenience wrapper
+
+**Sources aggregated (Promise.allSettled — never throws):**
+1. `getCrmSetupHealth(branchId)` → maps 6 SetupIssue types: no-schedule, no-staff-for-service, no-drivers, no-resources, default-rules, unassigned-bookings
+2. `getCrmTodaySnapshot({branchId, date})` → maps availability (3 issue types), dispatch (1), payment (1). Today snapshot internally calls getCrmAvailabilitySnapshot, so no redundant second call.
+
+**Issue IDs emitted (11 types + system:failure:* on source error):**
+- setup:no-schedule / setup:no-staff-for-service / setup:no-drivers / setup:no-resources / setup:default-rules / setup:unassigned-bookings
+- availability:not-checked-in / availability:needs-attention / availability:drivers-not-ready
+- dispatch:awaiting-driver / payment:unpaid-bookings
+
+**Internal helpers:** mapSetupIssuesToReadinessIssues, mapStaffReadinessToReadinessIssues, mapDispatchStatsToReadinessIssues, mapPaymentSummaryToReadinessIssues, dedupeReadinessIssues, createSourceFailureIssue
+
+**Deferred to Phase 9E:** service provider public/non-public distinction (needs staff_type filtering), resource conflict detection, schedule coverage detail, 14 missing checks from audit Section E.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Current Phase
 CRM-READINESS-PHASE9B-001 complete — Shared Operations Readiness Types & Components
 
 ## What Just Happened (Phase 9B — Shared Operations Readiness Types & Components)
@@ -200,19 +227,22 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-**Phase 9C** — Central Readiness Aggregator Query:
-- Create `src/lib/queries/crm-readiness.ts` — `getCrmReadiness(branchId)` running 8+ parallel Supabase queries, mapping results into `ReadinessIssue[]` via `buildReadinessResult()`.
-- Deduplication via `issue.source` + `issue.id` when multiple callers run the same check.
+**Phase 9D** — Wire /crm/setup to ReadinessIssueList (first UI migration):
+- Call `getCrmReadiness(branchId)` in the `/crm/setup` page server component
+- Replace existing `CrmSetupIssuesList` component with `ReadinessIssueList`
+- Keep `CrmSetupHealthCards` (health metrics) — replace with `ReadinessHealthGrid` optionally
+- Retire `CrmSetupIssuesList` + internal `IssueCard` from crm-setup-issues-list.tsx
+- This is the first proof that the shared components work end-to-end with real data
 
-**Phase 9D** (after 9C) — Replace duplicate issue displays:
-- `CrmSetupIssuesList` → `ReadinessIssueList` in crm/setup
-- Merge `TodayAttentionStrip` / `ActionRequiredList` duplication into one component
+**Phase 9E** (after 9D) — Add 14 missing checks + service provider public/non-public distinction:
+- Extend `getCrmReadiness` to add the missing checks from docs/CRM_READINESS_AUDIT.md Section E
+- Service provider check: query branch_services + staff_services filtered by SERVICE_STAFF_TYPES, split by visibility
 
-**Phase 9E** (after 9D) — Add 14 missing readiness checks (docs/CRM_READINESS_AUDIT.md Section E)
-
-**Phase 9F** — Global CRM readiness strip/badge in sidebar or header
+**Phase 9F** — Global CRM readiness strip/badge in sidebar or CRM header:
+- Small badge showing critical/warning count
+- Quick access to the full readiness list
 
 **Phase 8** (independent):
-- /crm/dispatch → Home-Service Dispatch Center (dispatch management, driver assignment, trip tracking)
-- Mobile responsiveness audit across CRM pages (Phases 1–7 touched 11+ pages)
+- /crm/dispatch → Home-Service Dispatch Center
+- Mobile responsiveness audit across CRM pages
 - Tighten provider assignment permissions from CRM to manager/owner once system is stable
