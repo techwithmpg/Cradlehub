@@ -44,8 +44,9 @@ export function SpacesRulesWorkspace({
   canManageResources,
   canEditRules,
 }: SpacesRulesWorkspaceProps) {
-  const canViewBookingRules = workspaceContext !== "crm";
-  const showActiveRulesKpi = workspaceContext !== "crm";
+  // All contexts can view booking rules (read-only for CRM — canEditRules gate handles edit access).
+  const canViewBookingRules = true;
+  const showActiveRulesKpi = true;
 
   const [activeTab, setActiveTab] = useState<SpacesRulesTab>("overview");
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(

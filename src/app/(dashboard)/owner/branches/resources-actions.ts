@@ -25,13 +25,18 @@ async function requireOwnerOrManager(branchId?: string) {
   
   // Owner can manage any branch
   if (me.system_role === "owner") return supabase;
-  
-  // Non-owner managers can manage only their own branch
-  if (["manager", "assistant_manager", "store_manager"].includes(me.system_role)) {
+
+  // Branch-scoped staff (managers + CRM ops) can manage only their own branch.
+  // crm / csr_head included for MVP practical-setup access (Phase 6).
+  if (
+    ["manager", "assistant_manager", "store_manager", "crm", "csr_head"].includes(
+      me.system_role
+    )
+  ) {
     if (branchId && me.branch_id !== branchId) return null;
     return supabase;
   }
-  
+
   return null;
 }
 
@@ -58,7 +63,8 @@ export async function createBranchResourceAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/owner/branches");
   revalidatePath(`/owner/branches/${branchId}`);
-  revalidatePath("/manager/operations"); // Assuming operations page might show resources
+  revalidatePath("/manager/operations");
+  revalidatePath("/crm/spaces-rules");
   return { success: true };
 }
 
@@ -96,6 +102,7 @@ export async function updateBranchResourceAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/owner/branches");
   revalidatePath(`/owner/branches/${existing.branch_id}`);
+  revalidatePath("/crm/spaces-rules");
   return { success: true };
 }
 
@@ -120,6 +127,7 @@ export async function toggleBranchResourceActiveAction(resourceId: string, isAct
   if (error) return { success: false, error: error.message };
   revalidatePath("/owner/branches");
   revalidatePath(`/owner/branches/${existing.branch_id}`);
+  revalidatePath("/crm/spaces-rules");
   return { success: true };
 }
 
