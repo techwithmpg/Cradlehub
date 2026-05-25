@@ -17,6 +17,8 @@ import { TodayWorkflowStrip } from "@/components/features/crm/today/today-workfl
 import { TodaySystemMatchStatus } from "@/components/features/crm/today/today-system-match-status";
 import { TodayEmergencyActions } from "@/components/features/crm/today/today-emergency-actions";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { getCrmReadiness } from "@/lib/queries/crm-readiness";
+import { TodayReadinessStrip } from "@/components/features/crm/today/today-readiness-strip";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -98,10 +100,11 @@ export default async function CrmTodayPage() {
   const today   = new Date().toISOString().split("T")[0]!;
   const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
 
-  const [rawBookings, snapshot, actionNotifications] = await Promise.all([
+  const [rawBookings, snapshot, actionNotifications, readiness] = await Promise.all([
     getTodaysSchedule(branchId, today),
     getCrmTodaySnapshot({ branchId, date: today }),
     getActionRequiredNotificationsAction(3),
+    getCrmReadiness(branchId).catch(() => null),
   ]);
 
   const bookings = rawBookings as BookingRow[];
@@ -165,6 +168,9 @@ export default async function CrmTodayPage() {
 
       {/* Workflow guide — visual step order for the front-desk shift */}
       <TodayWorkflowStrip />
+
+      {/* System Readiness — top issues from the readiness aggregator */}
+      <TodayReadinessStrip readiness={readiness} />
 
       {/* ── Serve Customers ── */}
       <div style={{ marginBottom: "1.25rem" }}>
