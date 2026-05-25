@@ -3,6 +3,26 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9E-A-001 complete — Add Compact System Readiness Strip to /crm/today
+
+## What Just Happened (Phase 9E-A — Compact Readiness Strip on /crm/today)
+Phase 9E-A — Second UI integration. Two files changed.
+
+**Files (commit b5a7679):**
+
+`src/components/features/crm/today/today-readiness-strip.tsx` (new):
+- Server component; `{ readiness: ReadinessResult | null }`
+- Header row: "System Readiness" + status badge (⛔ Critical / ⚠️ Warning / ✅ All Clear) + count summary + "View all issues ›" → /crm/setup
+- Body: `ReadinessIssueList compact maxItems={3}` — top 3 critical-first issues; each card shows severity badge, scope badge, title, action link
+- Null fallback: soft card + "Open Rules & Setup ›" link
+
+`src/app/(dashboard)/crm/today/page.tsx` (updated):
+- `getCrmReadiness(branchId).catch(() => null)` added to existing `Promise.all` (4th slot) — no extra waterfall
+- `TodayReadinessStrip` placed after `TodayWorkflowStrip`, before "Serve Customers" section
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Current Phase
 CRM-READINESS-PHASE9D-001 complete — Wire /crm/setup to Shared ReadinessIssueList
 
 ## What Just Happened (Phase 9D — Wire /crm/setup to Shared ReadinessIssueList)
@@ -243,19 +263,16 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-**Phase 9E (option A)** — Add Readiness Summary Strip to /crm/today:
-- Call `getCrmReadiness(branchId)` in the `/crm/today` page
-- Render a compact `ReadinessIssueList` (compact=true, maxItems=3) above or below the existing priority strip
-- Shows top 3 critical/warning issues with "View all in Setup" link
+**Phase 9E-B** — Migrate /crm/services provider warnings to ReadinessIssueCard:
+- The existing ⛔/⚠️ banners in `CrmServiceTherapistPanel` are hand-rolled inline
+- Replace them with `ReadinessIssueCard` instances from the shared component library
+- Requires mapping the panel's inline issue detection (public vs non-public service with no provider) to the `ReadinessIssue` shape
+- No new DB queries needed — the panel already has the computed data
 
-**Phase 9E (option B)** — Migrate /crm/services provider warnings to ReadinessIssueCard:
-- The existing ⛔/⚠️ banners in CrmServiceTherapistPanel are hand-rolled
-- Replace with ReadinessIssueCard instances using the shared component
-- Requires mapping the panel's inline issue detection to ReadinessIssue shape
-
-**Phase 9F** (after 9E) — Global CRM readiness badge in sidebar or header:
-- Small badge showing critical/warning count across all domains
-- Click → full readiness list on /crm/setup
+**Phase 9F** (after 9E-B) — Global CRM readiness badge in sidebar or header:
+- Small count badge showing critical+warning issues across all domains
+- Clicking navigates to /crm/setup for the full list
+- Requires the sidebar or layout component to call getCrmReadiness
 
 **Phase 9E** (after 9D) — Add 14 missing checks + service provider public/non-public distinction:
 - Extend `getCrmReadiness` to add the missing checks from docs/CRM_READINESS_AUDIT.md Section E

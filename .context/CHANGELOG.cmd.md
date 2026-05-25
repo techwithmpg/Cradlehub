@@ -1757,3 +1757,36 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9E-A-001)
+
+**Task:** Phase 9E-A — Add Compact System Readiness Strip to /crm/today
+
+**Files Added:**
+- `src/components/features/crm/today/today-readiness-strip.tsx`
+  - Server component. Props: `{ readiness: ReadinessResult | null }`
+  - Header row: section label + status badge (Critical/Warning/All Clear) + count summary + "View all issues ›" → /crm/setup
+  - Body: `ReadinessIssueList` with `compact={true}` and `maxItems={3}` (top 3 critical-first issues)
+  - Safe fallback card when readiness is null
+  - STATUS_STYLE record for color/bg/border per ReadinessStatus
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/today/page.tsx`
+  - `getCrmReadiness(branchId).catch(() => null)` added to existing `Promise.all` — no extra round trip; graceful degradation to null if aggregator throws
+  - `TodayReadinessStrip` rendered after `TodayWorkflowStrip`, before "Serve Customers" section
+  - All existing Today sections unchanged (TodayAttentionStrip, TodayWorkflowStrip, TodayPriorityStrip, TodayStaffReadiness, TodayDispatchSnapshot, TodaySideRail, CrmBookingQueuePanel, TodaySystemMatchStatus, TodayEmergencyActions)
+
+**Intentionally Left Unchanged:**
+- TodayPriorityStrip, TodayAttentionStrip — not replaced
+- No other CRM pages touched
+- No booking logic changed
+- No DB schema changed
+
+**Commit:** b5a7679
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)

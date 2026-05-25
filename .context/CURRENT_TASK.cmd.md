@@ -1,15 +1,15 @@
-# CURRENT TASK: CRM-READINESS-PHASE9D-001
+# CURRENT TASK: CRM-READINESS-PHASE9E-A-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-READINESS-PHASE9D-001
+CRM-READINESS-PHASE9E-A-001
 
 ## Description
-Phase 9D — Wire /crm/setup to Shared ReadinessIssueList.
-Replace CrmSetupIssuesList with ReadinessIssueList powered by getCrmReadiness().
-Health cards remain on getCrmSetupHealth(). CrmSetupIssuesList not deleted.
+Phase 9E-A — Add Compact System Readiness Strip to /crm/today.
+Create today-readiness-strip.tsx. Wire getCrmReadiness into page.tsx.
+No booking logic changed. No other CRM pages touched.
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)
