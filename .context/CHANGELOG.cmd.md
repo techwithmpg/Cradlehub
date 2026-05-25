@@ -1896,7 +1896,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - resource/rule editing actions — untouched
 - No booking logic changed. No DB schema changed.
 
-**Commit:** (pending)
+**Commit:** 5914379
 
 **Verification:**
 - `pnpm type-check`: ✅ Passing (0 errors)
