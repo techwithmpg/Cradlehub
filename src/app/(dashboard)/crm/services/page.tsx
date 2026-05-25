@@ -268,6 +268,7 @@ export default async function CrmServicesPage() {
               </Alert>
             ) : (
               <CrmServiceTherapistPanel
+                branchId={result.branchId}
                 services={result.activeServices}
                 staff={result.providerStaff}
                 assignments={result.providerAssignments}
