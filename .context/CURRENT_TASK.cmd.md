@@ -1,37 +1,38 @@
-# CURRENT TASK: CRM-SCHEDULE-PHASE5B-001
+# CURRENT TASK: CRM-AVAILABILITY-PHASE7-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-SCHEDULE-PHASE5B-001
+CRM-AVAILABILITY-PHASE7-001
 
 ## Description
-Phase 5B — Import the spa's 2026 manual schedule rules into CradleHub.
-Adds "Current Manual Schedule Setup" collapsible wizard to /crm/staff-availability.
+Phase 7 — Improve /crm/availability into "Live Availability & Check-In Center".
+Adds explanation cards, start-of-day checklist, impact card, and related tools footer.
+Preserves all existing check-in/check-out board and 4-tab workspace unchanged.
 
 ## Changes Completed
-- Encoded day-off (regular + salon) and opening-duty schedule as typed constants
-  in src/lib/schedule/manual-schedule-2026.ts (ALL CAPS names, no staff IDs)
-- Server action applyManualScheduleImportAction: CRM role guard, branch scope,
-  staff ID verification, 7-row upsert per staff (off=inactive/single,
-  opening=active/opening, regular=active/single)
-- ManualScheduleImport client component: 3-tab wizard (Preview, Match, Apply)
-  - Auto-matches paper names by full_name/nickname/first-name
-  - CRM resolves ambiguous/unmatched via dropdown, can skip any name
-  - Time inputs (regular start/end, opening start/end) with defaults
-  - Conflict detection (opening + off same day)
-  - Apply button disabled until all criticals resolved + times valid
-  - Inline success/error feedback
-- Page updated: ManualScheduleImport rendered between health summary and workspace
+- Page title → "Live Availability & Check-In Center"
+- CheckInExplainer: 3 cards explaining each booking flow's relationship to check-in
+  (In-House Operations uses check-in, Online Booking is schedule-based, Home Service uses dispatch+check-in)
+  with architecture note banner
+- StartDayChecklist: 5-step morning readiness guide with links to Today and Schedule Setup
+- LiveAvailabilityImpactCard: "What This Affects" — 4 rows mapping check-in status
+  to each flow (online = unaffected, in-house + dispatch = uses check-in)
+- AvailabilityRelatedTools: 6 footer links (Today, Schedules, Dispatch,
+  Services, Spaces & Rules, Rules & Setup)
+- Existing CrmAvailabilitySummary, CrmAvailabilityClient (4-tab board with
+  check-in/check-out actions) preserved unchanged
+- Old inline check-in awareness notice removed (explainer covers it more thoroughly)
 
 ## New Files
-- src/lib/schedule/manual-schedule-2026.ts
-- src/app/(dashboard)/crm/staff-availability/actions.ts
-- src/components/features/staff-schedule/manual-schedule-import.tsx
+- src/components/features/crm/availability/checkin-explainer.tsx
+- src/components/features/crm/availability/start-day-checklist.tsx
+- src/components/features/crm/availability/live-availability-impact-card.tsx
+- src/components/features/crm/availability/availability-related-tools.tsx
 
 ## Modified Files
-- src/app/(dashboard)/crm/staff-availability/page.tsx
+- src/app/(dashboard)/crm/availability/page.tsx
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)
@@ -43,4 +44,4 @@ main
 - npx tsc --noEmit: ✅ PASS (0 errors)
 - eslint (changed files): ✅ PASS (0 warnings)
 - pnpm build: ✅ PASS (85/85 routes)
-- Commit: 65e53d9
+- Commit: 3375c1f

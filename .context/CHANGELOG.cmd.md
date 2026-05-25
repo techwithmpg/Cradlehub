@@ -1528,3 +1528,49 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `npx tsc --noEmit`: ✅ PASS (0 errors)
 - `eslint (changed files)`: ✅ PASS (0 warnings)
 - Commit: e1c65da
+
+---
+
+### 2026-05-25 — Claude Code (CRM-AVAILABILITY-PHASE7-001)
+
+**Task:** Phase 7 — /crm/availability → "Live Availability & Check-In Center"
+
+**Files Added:**
+- `src/components/features/crm/availability/checkin-explainer.tsx`
+  - 3 cards: In-House Operations (amber), Online Booking (blue), Home Service (green)
+  - Each card explains the booking flow's relationship to check-in with bullet points
+  - Cross-links: Online Booking → Schedule Setup + Spaces & Rules; Home Service → Today
+  - Architecture note banner: online booking = schedule-based, not check-in-based
+- `src/components/features/crm/availability/start-day-checklist.tsx`
+  - 5-step morning readiness checklist (check in arrivals, review missing, confirm drivers,
+    check schedule issues, open Today to begin serving)
+  - Steps 4 and 5 link to Schedule Setup Center and Daily Operations Center
+- `src/components/features/crm/availability/live-availability-impact-card.tsx`
+  - "What This Affects" — 4 rows mapping check-in status to each booking flow
+  - Online booking: unaffected; In-house + Dispatch: "Uses check-in" badge; Staff readiness: feeds Today
+- `src/components/features/crm/availability/availability-related-tools.tsx`
+  - 6 footer tool link cards: Today, Schedule Setup, Dispatch, Services, Spaces & Rules, Rules & Setup
+
+**Files Modified:**
+- `src/app/(dashboard)/crm/availability/page.tsx`
+  - Title: "Live Availability" → "Live Availability & Check-In Center"
+  - Subtitle updated to describe same-day operations scope
+  - Added CheckInExplainer after PageHeader
+  - Removed old inline check-in awareness notice (explainer covers it more thoroughly)
+  - Layout: CheckInExplainer → CrmAvailabilitySummary → CrmAvailabilityClient → StartDayChecklist
+    → LiveAvailabilityImpactCard → AvailabilityRelatedTools
+  - Added StartDayChecklist, LiveAvailabilityImpactCard, AvailabilityRelatedTools imports
+
+**Notes:**
+- All existing check-in / check-out server actions (`checkInStaffForShiftAction`,
+  `checkOutStaffForShiftAction`) preserved unchanged.
+- `CrmAvailabilityClient` (4-tab board) and `CrmAvailabilitySummary` (7 stat cards)
+  preserved exactly as-is — no modifications.
+- No booking logic changed. No DB schema changes. No new migrations.
+- Online booking remains strictly schedule-based and is unaffected by this board.
+
+**Build Status:**
+- `npx tsc --noEmit`: ✅ PASS (0 errors)
+- `eslint (changed files)`: ✅ PASS (0 warnings)
+- `pnpm build`: ✅ PASS (85/85 routes)
+- Commit: 3375c1f

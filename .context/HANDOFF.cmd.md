@@ -3,6 +3,19 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-AVAILABILITY-PHASE7-001 complete — Live Availability & Check-In Center
+
+## What Just Happened (Phase 7 — Live Availability & Check-In Center)
+Phase 7 — /crm/availability upgraded into "Live Availability & Check-In Center":
+
+1. **`checkin-explainer.tsx`**: 3 cards (In-House Operations / amber, Online Booking / blue, Home Service / green) explaining each booking flow's relationship to check-in. Cross-links to Schedule Setup and Spaces & Rules. Architecture note banner: "Online booking follows saved schedules and branch booking rules — not daily staff check-in."
+2. **`start-day-checklist.tsx`**: 5-step morning checklist (check in arrivals → review missing → confirm drivers → check schedule issues → open Today). Steps link to Schedule Setup Center and Daily Operations Center.
+3. **`live-availability-impact-card.tsx`**: "What This Affects" — 4 rows mapping check-in status to booking flows. Online booking = unaffected (no "Uses check-in" badge). In-house and Home-service = tagged "Uses check-in". Staff readiness = feeds Today.
+4. **`availability-related-tools.tsx`**: 6 footer links — Daily Operations Center, Schedule Setup, Dispatch, Services & Therapist Setup, Spaces & Booking Rules, Rules & Setup Center.
+5. **`page.tsx` updated**: New title + description, renders `CheckInExplainer` → `CrmAvailabilitySummary` → `CrmAvailabilityClient` → `StartDayChecklist` → `LiveAvailabilityImpactCard` → `AvailabilityRelatedTools`. Old inline awareness notice removed (explainer covers it).
+6. **Preserved unchanged**: `CrmAvailabilitySummary` (7 stat cards), `CrmAvailabilityClient` (4-tab workspace: Live Board, Staff List, Schedule Issues, Driver Readiness), all check-in/check-out server actions.
+
+## Current Phase
 CRM-SCHEDULE-PHASE5B-001 complete — 2026 Manual Schedule Import
 
 ## What Just Happened (Phase 5B — 2026 Manual Schedule Import)
@@ -93,7 +106,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 ## Production Readiness
 - Public booking: ✅ Ready
 - CRM schedule setup: ✅ Ready
-- Live availability: ⚠️ Mostly ready (group shift_type gap is minor)
+- Live availability: ✅ Ready (explainer + checklist + impact card + related tools; group shift_type gap is minor)
 - CRM bookings: ✅ Ready
 - Dispatch: ✅ Ready
 - Staff portal: ✅ Ready
@@ -102,8 +115,9 @@ All three flows share the scheduling/availability engine but apply it differentl
 - CRM Services & Therapist Setup: ✅ Ready (editable provider assignments with guardrails)
 - CRM Schedule Setup Center: ✅ Ready (explainer cards + health summary + workspace + related tools)
 - CRM Spaces & Booking Rules Center: ✅ Ready (resource editing enabled, booking rules read-only for CRM)
+- CRM Live Availability & Check-In Center: ✅ Ready (check-in explainer + health summary + 4-tab board + checklist + impact card + related tools)
 
-## Known Limitations (updated Phase 6)
+## Known Limitations (updated Phase 7)
 6. **CRM cannot edit booking rules**: `updateBranchBookingRules` in `branch-booking-rules.ts` gates on `manager/assistant_manager/store_manager/owner`. Booking rules control online booking time windows, home-service enable/disable, and advance-booking limits — higher risk than resource toggling. Keep manager/owner-only. If operational need arises, add `crm` to `canManageBranchRules` and revalidate booking paths.
 
 ## Build Status
@@ -111,8 +125,8 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-Consider Phase 7:
-- /crm/availability → Live Availability & Check-In Center (CRM manage daily staff check-in, live presence, missing staff, same-day operational reality)
-- Mobile responsiveness audit across all new CRM pages (Phases 1–6 touched 10+ pages)
+Consider Phase 8:
+- /crm/dispatch → Home-Service Dispatch Center (dispatch management, driver assignment, trip tracking, location-based routing)
+- Mobile responsiveness audit across all new CRM pages (Phases 1–7 touched 11+ pages)
 - CRM notifications and urgent action handling
 - Tighten provider assignment permissions from CRM to manager/owner once system is stable
