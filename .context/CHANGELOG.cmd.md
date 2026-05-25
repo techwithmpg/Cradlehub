@@ -1938,3 +1938,36 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9E-F-001)
+
+**Task:** Phase 9E-F — Migrate /crm/dispatch Home-Service Dispatch Warnings to Shared Readiness Components
+
+**Files Created:**
+- `src/components/features/dispatch/dispatch-readiness-utils.ts`
+  - `mapDispatchAlertToReadinessIssue(alert)` — maps single DispatchAlert → ReadinessIssue; severity: "danger"→"critical", "warning"→"warning"; scope:"dispatch"; contextual impact+fix per alert title pattern (No Driver Assigned / Location Needs Confirmation / Booking Running Late)
+  - `buildAlertIssues(alerts)` — DispatchAlert[] → ReadinessIssue[], preserves order
+
+**Files Changed:**
+- `src/components/features/dispatch/dispatch-workspace.tsx` (minimal)
+  - Removed `AlertBanner` sub-component (lucide AlertTriangle, amber/red styled divs, return-null-when-empty pattern)
+  - Removed `AlertTriangle` from lucide imports
+  - Added imports: `ReadinessIssueList`, `buildAlertIssues`
+  - Replaced `<AlertBanner alerts={data.alerts} />` with `<ReadinessIssueList issues={buildAlertIssues(data.alerts)} compact emptyTitle="No active dispatch alerts" ...>`
+
+**Intentionally Left Unchanged:**
+- `src/lib/bookings/ops-warnings.ts` — OperationalWarning computation untouched
+- `src/lib/queries/dispatch-queries.ts` — computeAlerts, getDispatchData untouched
+- `src/features/dispatch/types.ts` — DispatchAlert, DispatchStatus untouched
+- `src/app/(dashboard)/crm/dispatch/page.tsx` — untouched
+- `StatCard`, `DispatchItemRow`, `DispatchRecommendationPanel`, `HomeServiceDispatchWorkspace` body — all untouched
+- All dispatch status progression, driver assignment, trip timeline, booking actions unchanged
+
+**Commit:** 036714d
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85 routes)
