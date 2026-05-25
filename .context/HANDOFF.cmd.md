@@ -3,7 +3,16 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
-CRM-SERVICES-PHASE4B-001 complete — CRM-managed therapist-service assignments
+CRM-SCHEDULE-PHASE5-001 complete — Schedule Setup Center
+
+## What Just Happened (Phase 5 — Schedule Setup Center)
+Phase 5 — /crm/staff-availability upgraded into "Schedule Setup Center":
+
+1. **ScheduleSetupExplainer** (`schedule-setup-explainer.tsx`): 3-card explanation of each schedule layer (Weekly Schedule → affects online booking, Overrides/Blocked Time → blocks specific slots, Live Check-In → in-house only). Architecture note banner: "Online booking follows saved schedules and blocked time — not daily staff check-in."
+2. **ScheduleSetupHealthSummary** (`schedule-setup-health-summary.tsx`): 6 stat cards (Active Staff, With Schedule, Missing Schedule, Schedule Groups, Overrides This Week, Blocked Time This Week) computed from already-fetched `StaffScheduleItem[]` — no new query. Warning banner when any staff have no individual schedule, pointing to Coverage Issues tab.
+3. **ScheduleRelatedTools** (`schedule-related-tools.tsx`): Footer link cards to Live Availability, Daily Operations Center, and Services & Therapist Setup.
+4. **Page title**: "Schedule Setup" → "Schedule Setup Center", description updated to mention online booking + in-house + home-service.
+5. **ScheduleSetupWorkspace** (4-tab editor) preserved exactly as-is.
 
 ## What Just Happened (Phase 4B — CRM Provider Assignment Management)
 Phase 4B — CRM can now assign/remove service providers from /crm/services:
@@ -67,13 +76,15 @@ All three flows share the scheduling/availability engine but apply it differentl
 - CRM Setup Center (Rules & Setup): ✅ Ready
 - CRM Today (Daily Operations Center): ✅ Ready
 - CRM Services & Therapist Setup: ✅ Ready (editable provider assignments with guardrails)
+- CRM Schedule Setup Center: ✅ Ready (explainer cards + health summary + workspace + related tools)
 
 ## Build Status
 - `npx tsc --noEmit`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-Consider Phase 5 options:
+Consider Phase 6 options:
 - /crm/spaces-rules improvements (currently minimal)
-- Mobile responsiveness audit across all new CRM pages (Phases 1–4B touched 8+ pages)
+- Mobile responsiveness audit across all new CRM pages (Phases 1–5 touched 9+ pages)
 - CRM notifications and urgent action handling
 - Tighten provider assignment permissions from CRM to manager/owner once system is stable (already documented as MVP-broad)
