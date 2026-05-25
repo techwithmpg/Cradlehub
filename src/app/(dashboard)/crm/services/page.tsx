@@ -174,7 +174,7 @@ async function getCrmServicesPageData() {
   };
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page (tabbed workspace — Active Services + Therapist Assignments) ─────────
 
 export default async function CrmServicesPage({
   searchParams,

@@ -16,6 +16,26 @@ import type { ServiceTableRow } from "./types";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
 import { ProviderAssignmentSheet } from "./provider-assignment-sheet";
 
+// ── Assignment status helper ──────────────────────────────────────────────────
+
+function getAssignmentStatus(row: ServiceTableRow): {
+  label: string;
+  caption: string;
+  color: string;
+  bg: string;
+} {
+  const count = row.assignedProviders.length;
+  if (count === 0) {
+    return row.isCritical
+      ? { label: "Needs Assignment", caption: "No providers", color: "#991B1B", bg: "#FEF2F2" }
+      : { label: "Needs Assignment", caption: "No providers", color: "#92400E", bg: "#FFF7ED" };
+  }
+  if (count === 1) {
+    return { label: "Low Coverage",  caption: "Only 1 provider", color: "#92400E", bg: "#FFF7ED" };
+  }
+  return   { label: "Well Assigned", caption: "Good coverage",   color: "#065F46", bg: "#ECFDF5" };
+}
+
 // ── How many chips to show inline before collapsing to "+N more" ──────────────
 const MAX_PREVIEW = 3;
 
@@ -222,6 +242,34 @@ export function ServiceAssignmentTableRow({
               No therapist assigned
             </div>
           )}
+        </td>
+
+        {/* ── Status ── */}
+        <td style={{ padding: "0.625rem 1rem", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+          {(() => {
+            const s = getAssignmentStatus(row);
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: s.bg,
+                    color: s.color,
+                    fontSize: "0.6875rem",
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {s.label}
+                </span>
+                <span style={{ fontSize: "0.625rem", color: "var(--cs-text-muted)" }}>
+                  {s.caption}
+                </span>
+              </div>
+            );
+          })()}
         </td>
 
         {/* ── Actions ── */}

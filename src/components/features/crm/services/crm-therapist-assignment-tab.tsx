@@ -3,20 +3,18 @@
 /**
  * CrmTherapistAssignmentTab
  *
- * The "Therapist Assignments" tab of the CRM Services page.
+ * Desktop-first professional SaaS table for the Therapist Assignments tab.
  *
- * Receives all data (services, staff, assignments) as plain props from the
- * server-side page component and handles all filter/search state client-side.
+ * Layout:
+ *   - Intro card (text)
+ *   - 4-column KPI cards: Active Services | Without Therapist | Eligible Providers | Fully Assigned
+ *   - Filter/search row
+ *   - Two-column grid: [table + pagination] | [right rail]
  *
- * Layout (desktop-first):
- *   - Intro card + stat cards
- *   - Filter row (search, category, service type, missing-only toggle)
- *   - Two-column: assignment table (flex:1) + right help panel (fixed width)
+ * Table columns: SERVICE · CATEGORY · ASSIGNED THERAPISTS · STATUS · ACTIONS
  *
- * Eligibility rules:
- *   - SERVICE_STAFF_TYPES can be providers (therapist, nail_tech, aesthetician, salon_head)
- *   - driver / utility are hard-excluded via system_role check
- *   - Inactive staff are excluded by the query
+ * Compact rows: max 3 preview chips + "+N more"; full list in Sheet.
+ * Pagination: client-side, 10/25/50 rows per page.
  */
 
 import { useState, useMemo } from "react";
@@ -43,7 +41,6 @@ function buildServiceTableRows(
   staff: StaffForServicePanel[],
   assignments: ServiceAssignmentRow[]
 ): ServiceTableRow[] {
-  // Build: serviceId → Set<staffId>
   const assignMap = new Map<string, Set<string>>();
   for (const a of assignments) {
     const set = assignMap.get(a.service_id) ?? new Set<string>();
@@ -75,9 +72,6 @@ function buildServiceTableRows(
         ? (catRel[0]?.name ?? null)
         : catRel.name ?? null;
 
-    const duration = svc.custom_duration_minutes ?? svc.services.duration_minutes;
-    const price = svc.custom_price ?? svc.services.price;
-
     return {
       branchServiceId: svc.id,
       serviceId,
@@ -90,161 +84,192 @@ function buildServiceTableRows(
       assignableProviders,
       isCritical: visibility === "public" && !hasProviders,
       isWarning: !hasProviders,
-      duration,
-      price,
+      duration: svc.custom_duration_minutes ?? svc.services.duration_minutes,
+      price: svc.custom_price ?? svc.services.price,
     };
   });
 }
 
-// ── Right help panel ─────────────────────────────────────────────────────────
+// ── Pagination helpers ────────────────────────────────────────────────────────
 
-function HelpPanel() {
+const SELECT_CHEVRON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")";
+
+const SELECT_STYLE: React.CSSProperties = {
+  height: 34,
+  padding: "0 28px 0 10px",
+  borderRadius: 6,
+  border: "1px solid var(--cs-border)",
+  background: "var(--cs-surface)",
+  fontSize: "0.8125rem",
+  color: "var(--cs-text)",
+  cursor: "pointer",
+  appearance: "none",
+  backgroundImage: SELECT_CHEVRON,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 10px center",
+};
+
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const show = new Set<number>([1, total]);
+  for (let p = current - 1; p <= current + 1; p++) {
+    if (p >= 1 && p <= total) show.add(p);
+  }
+  const sorted = [...show].sort((a, b) => a - b);
+  const result: (number | "...")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if (prev !== undefined && cur !== undefined && cur - prev > 1) {
+      result.push("...");
+    }
+    if (cur !== undefined) result.push(cur);
+  }
+  return result;
+}
+
+// ── KPI stat card ─────────────────────────────────────────────────────────────
+
+function StatCard({
+  count,
+  label,
+  caption,
+  icon,
+  accentColor,
+  accentBg,
+}: {
+  count: number;
+  label: string;
+  caption: string;
+  icon: string;
+  accentColor?: string;
+  accentBg?: string;
+}) {
   return (
-    <div
-      style={{
-        width: 220,
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.75rem",
-      }}
-    >
+    <div className="cs-card" style={{ padding: "1rem 1.125rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            background: accentBg ?? "var(--cs-sand-mist)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </div>
+        <div>
+          <div
+            style={{
+              fontSize: "1.375rem",
+              fontWeight: 700,
+              color: accentColor ?? "var(--cs-text)",
+              lineHeight: 1,
+            }}
+          >
+            {count}
+          </div>
+          <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cs-text-secondary)", marginTop: 1 }}>
+            {label}
+          </div>
+        </div>
+      </div>
+      <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", marginTop: 6 }}>
+        {caption}
+      </div>
+    </div>
+  );
+}
+
+// ── Right rail ────────────────────────────────────────────────────────────────
+
+function RightRail({
+  wellAssigned,
+  lowCoverage,
+  noTherapist,
+}: {
+  wellAssigned: number;
+  lowCoverage: number;
+  noTherapist: number;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+
       {/* Who can be assigned */}
       <div className="cs-card" style={{ padding: "0.875rem" }}>
-        <div
-          style={{
-            fontSize: "0.8125rem",
-            fontWeight: 700,
-            color: "var(--cs-text)",
-            marginBottom: 8,
-          }}
-        >
+        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)", marginBottom: 8 }}>
           Who can be assigned?
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {["Therapists", "Nail Technicians", "Aestheticians", "Salon Heads", "Other eligible provider staff"].map(
-            (label) => (
-              <div
-                key={label}
-                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem" }}
-              >
-                <span style={{ color: "var(--cs-success,#27ae60)", fontWeight: 700 }}>✓</span>
-                <span style={{ color: "var(--cs-text-secondary)" }}>{label}</span>
-              </div>
-            )
-          )}
-        </div>
-
-        <div
-          style={{
-            fontSize: "0.8125rem",
-            fontWeight: 700,
-            color: "var(--cs-text)",
-            marginTop: 12,
-            marginBottom: 8,
-          }}
-        >
+        {(["Therapists", "Nail Technicians", "Aestheticians", "Salon Heads", "Other eligible provider staff"] as const).map(
+          (label) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", marginBottom: 3 }}>
+              <span style={{ color: "var(--cs-success,#27ae60)", fontWeight: 700, flexShrink: 0 }}>✓</span>
+              <span style={{ color: "var(--cs-text-secondary)" }}>{label}</span>
+            </div>
+          )
+        )}
+        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)", marginTop: 12, marginBottom: 8 }}>
           Excluded
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {["Drivers", "Utility Staff", "CRM / Front Desk Staff", "Inactive Staff"].map(
-            (label) => (
-              <div
-                key={label}
-                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem" }}
-              >
-                <span style={{ color: "var(--cs-error,#c0392b)", fontWeight: 700 }}>✕</span>
-                <span style={{ color: "var(--cs-text-muted)" }}>{label}</span>
+        {(["Drivers", "Utility Staff", "CRM / Front Desk Staff", "Inactive Staff"] as const).map(
+          (label) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", marginBottom: 3 }}>
+              <span style={{ color: "var(--cs-error,#c0392b)", fontWeight: 700, flexShrink: 0 }}>✕</span>
+              <span style={{ color: "var(--cs-text-muted)" }}>{label}</span>
+            </div>
+          )
+        )}
+      </div>
+
+      {/* Assignment Overview */}
+      <div className="cs-card" style={{ padding: "0.875rem" }}>
+        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)", marginBottom: 10 }}>
+          Assignment Overview
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {[
+            { count: wellAssigned, label: "Well Assigned",   color: "#065F46", bg: "#ECFDF5", dot: "#059669" },
+            { count: lowCoverage,  label: "Low Coverage",    color: "#92400E", bg: "#FFF7ED", dot: "#D97706" },
+            { count: noTherapist,  label: "No Therapist",    color: "#991B1B", bg: "#FEF2F2", dot: "#DC2626" },
+          ].map(({ count, label, color, bg, dot }) => (
+            <div
+              key={label}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "5px 8px",
+                borderRadius: 6,
+                background: bg,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, flexShrink: 0, display: "inline-block" }} />
+                <span style={{ fontSize: "0.75rem", color, fontWeight: 500 }}>{label}</span>
               </div>
-            )
-          )}
+              <span style={{ fontSize: "0.875rem", fontWeight: 700, color }}>{count}</span>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Tip */}
       <div
         className="cs-card"
-        style={{
-          padding: "0.875rem",
-          background: "rgba(230,126,34,0.04)",
-          borderColor: "rgba(230,126,34,0.2)",
-        }}
+        style={{ padding: "0.875rem", background: "rgba(230,126,34,0.04)", borderColor: "rgba(230,126,34,0.2)" }}
       >
-        <div
-          style={{
-            fontSize: "0.8125rem",
-            fontWeight: 700,
-            color: "var(--cs-text-secondary)",
-            marginBottom: 6,
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-          }}
-        >
+        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text-secondary)", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
           <span>💡</span> Tip
         </div>
         <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", lineHeight: 1.6 }}>
           Assign at least one therapist or eligible provider to each active service so customers
           can book online and CRM can assign staff confidently.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
-
-function StatCard({
-  count,
-  label,
-  icon,
-  accent,
-}: {
-  count: number;
-  label: string;
-  icon: string;
-  accent?: string;
-}) {
-  return (
-    <div
-      className="cs-card"
-      style={{
-        padding: "1rem 1.25rem",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.875rem",
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          background: accent
-            ? `${accent}18`
-            : "var(--cs-sand-mist)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 20,
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div
-          style={{
-            fontSize: "1.25rem",
-            fontWeight: 700,
-            color: accent ?? "var(--cs-text)",
-            lineHeight: 1.1,
-          }}
-        >
-          {count}
-        </div>
-        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginTop: 2 }}>
-          {label}
         </div>
       </div>
     </div>
@@ -268,14 +293,16 @@ export function CrmTherapistAssignmentTab({
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedServiceType, setSelectedServiceType] = useState<"all" | "in_spa" | "home">("all");
   const [missingOnly, setMissingOnly] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Build rows once from props (pure computation)
+  // ── Computed data ──────────────────────────────────────────────────────────
+
   const allRows = useMemo(
     () => buildServiceTableRows(services, staff, assignments),
     [services, staff, assignments]
   );
 
-  // Derive unique categories for the dropdown
   const categories = useMemo(() => {
     const seen = new Set<string>();
     const result: string[] = [];
@@ -288,7 +315,6 @@ export function CrmTherapistAssignmentTab({
     return result.sort();
   }, [allRows]);
 
-  // Apply filters
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase().trim();
     return allRows.filter((row) => {
@@ -302,9 +328,19 @@ export function CrmTherapistAssignmentTab({
     });
   }, [allRows, search, selectedCategory, selectedServiceType, missingOnly]);
 
-  // Counts
-  const totalCount = allRows.length;
-  const missingCount = allRows.filter((r) => r.assignedProviders.length === 0).length;
+  // KPI counts (from full unfiltered data)
+  const eligibleProviderCount = useMemo(() => staff.filter(isValidProvider).length, [staff]);
+  const fullyAssignedCount    = useMemo(() => allRows.filter((r) => r.assignedProviders.length > 0).length, [allRows]);
+  const missingCount          = allRows.filter((r) => r.assignedProviders.length === 0).length;
+  const wellAssignedCount     = useMemo(() => allRows.filter((r) => r.assignedProviders.length >= 2).length, [allRows]);
+  const lowCoverageCount      = useMemo(() => allRows.filter((r) => r.assignedProviders.length === 1).length, [allRows]);
+
+  // Pagination — safeCurrentPage auto-clamps when filters change (no useEffect needed)
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * rowsPerPage;
+  const paginatedRows = filteredRows.slice(startIndex, startIndex + rowsPerPage);
+  const pageNumbers = getPageNumbers(safeCurrentPage, totalPages);
 
   return (
     <div id="therapist-assignments" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -312,65 +348,79 @@ export function CrmTherapistAssignmentTab({
       {/* ── Intro card ── */}
       <div
         style={{
-          padding: "1rem 1.25rem",
+          padding: "0.875rem 1.125rem",
           borderRadius: 10,
           background: "rgba(41,128,185,0.04)",
           border: "1px solid rgba(41,128,185,0.18)",
           display: "flex",
-          gap: "1.25rem",
-          alignItems: "flex-start",
+          alignItems: "center",
+          gap: "0.875rem",
         }}
       >
         <div
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
-            background: "rgba(41,128,185,0.1)",
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: "rgba(41,128,185,0.12)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 20,
+            fontSize: 18,
             flexShrink: 0,
           }}
         >
           👥
         </div>
         <div>
-          <div
-            style={{
-              fontSize: "0.9375rem",
-              fontWeight: 700,
-              color: "var(--cs-text)",
-              marginBottom: 4,
-            }}
-          >
+          <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--cs-text)" }}>
             Assign Therapists to Services
           </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.6 }}>
+          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.5, marginTop: 2 }}>
             Each active service should have at least one eligible provider assigned.
-            Only eligible provider staff are shown below.
             Provider assignments affect who appears in the booking wizard and CRM booking flow.
           </div>
         </div>
+      </div>
 
-        {/* Stat cards inline-right */}
-        <div
-          style={{
-            display: "flex",
-            gap: "0.75rem",
-            marginLeft: "auto",
-            flexShrink: 0,
-          }}
-        >
-          <StatCard count={totalCount} label="Active Services" icon="✨" />
-          <StatCard
-            count={missingCount}
-            label="Services without therapist"
-            icon="⚠️"
-            accent={missingCount > 0 ? "#92400E" : undefined}
-          />
-        </div>
+      {/* ── 4 KPI cards ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gap: "0.75rem",
+        }}
+      >
+        <StatCard
+          count={allRows.length}
+          label="Active Services"
+          caption="Across all categories"
+          icon="✨"
+        />
+        <StatCard
+          count={missingCount}
+          label="Without Therapist"
+          caption="Need attention"
+          icon="⚠️"
+          accentColor={missingCount > 0 ? "#92400E" : undefined}
+          accentBg={missingCount > 0 ? "#FFF7ED" : undefined}
+        />
+        <StatCard
+          count={eligibleProviderCount}
+          label="Eligible Providers"
+          caption="In your branch"
+          icon="👤"
+          accentColor="#1E40AF"
+          accentBg="#EFF6FF"
+        />
+        <StatCard
+          count={fullyAssignedCount}
+          label="Fully Assigned"
+          caption="Services with therapists"
+          icon="✅"
+          accentColor="#065F46"
+          accentBg="#ECFDF5"
+        />
       </div>
 
       {/* ── Filter row ── */}
@@ -394,7 +444,7 @@ export function CrmTherapistAssignmentTab({
             type="text"
             placeholder="Search service..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             style={{
               width: "100%",
               height: 34,
@@ -413,50 +463,20 @@ export function CrmTherapistAssignmentTab({
         {/* Category */}
         <select
           value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          style={{
-            height: 34,
-            padding: "0 28px 0 10px",
-            borderRadius: 6,
-            border: "1px solid var(--cs-border)",
-            background: "var(--cs-surface)",
-            fontSize: "0.8125rem",
-            color: "var(--cs-text)",
-            cursor: "pointer",
-            appearance: "none",
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "right 10px center",
-          }}
+          onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
+          style={SELECT_STYLE}
         >
           <option value="all">All Categories</option>
           {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
+            <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
 
         {/* Service type */}
         <select
           value={selectedServiceType}
-          onChange={(e) => setSelectedServiceType(e.target.value as "all" | "in_spa" | "home")}
-          style={{
-            height: 34,
-            padding: "0 28px 0 10px",
-            borderRadius: 6,
-            border: "1px solid var(--cs-border)",
-            background: "var(--cs-surface)",
-            fontSize: "0.8125rem",
-            color: "var(--cs-text)",
-            cursor: "pointer",
-            appearance: "none",
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "right 10px center",
-          }}
+          onChange={(e) => { setSelectedServiceType(e.target.value as "all" | "in_spa" | "home"); setCurrentPage(1); }}
+          style={SELECT_STYLE}
         >
           <option value="all">All Service Types</option>
           <option value="in_spa">In-spa</option>
@@ -466,7 +486,7 @@ export function CrmTherapistAssignmentTab({
         {/* Missing-only toggle */}
         <button
           type="button"
-          onClick={() => setMissingOnly((v) => !v)}
+          onClick={() => { setMissingOnly((v) => !v); setCurrentPage(1); }}
           style={{
             height: 34,
             padding: "0 12px",
@@ -506,15 +526,15 @@ export function CrmTherapistAssignmentTab({
         </button>
       </div>
 
-      {/* ── Table + right panel ── */}
-      <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start" }}>
+      {/* ── Table + right rail (2-column grid) ── */}
+      <div className="grid grid-cols-[minmax(0,1fr)_280px] gap-6 items-start">
 
-        {/* Table area */}
-        <div style={{ flex: 1, minWidth: 0, overflow: "hidden", borderRadius: 10, border: "1px solid var(--cs-border-soft)" }}>
+        {/* ── Main table column ── */}
+        <div style={{ minWidth: 0, overflow: "hidden", borderRadius: 10, border: "1px solid var(--cs-border-soft)" }}>
           {filteredRows.length === 0 ? (
             <div
               style={{
-                padding: "2.5rem",
+                padding: "3rem 2rem",
                 textAlign: "center",
                 color: "var(--cs-text-muted)",
                 fontSize: "0.875rem",
@@ -536,13 +556,8 @@ export function CrmTherapistAssignmentTab({
                 }}
               >
                 <thead>
-                  <tr
-                    style={{
-                      background: "var(--cs-surface-warm)",
-                      borderBottom: "1px solid var(--cs-border)",
-                    }}
-                  >
-                    {["Service", "Category", "Assigned Therapists", "Actions"].map((col) => (
+                  <tr style={{ background: "var(--cs-surface-warm)", borderBottom: "1px solid var(--cs-border)" }}>
+                    {["Service", "Category", "Assigned Therapists", "Status", "Actions"].map((col) => (
                       <th
                         key={col}
                         style={{
@@ -557,24 +572,12 @@ export function CrmTherapistAssignmentTab({
                         }}
                       >
                         {col}
-                        {col === "Assigned Therapists" && (
-                          <span
-                            style={{
-                              marginLeft: 5,
-                              fontSize: "0.5625rem",
-                              fontWeight: 500,
-                              color: "var(--cs-text-muted)",
-                            }}
-                          >
-                            ⓘ
-                          </span>
-                        )}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row) => (
+                  {paginatedRows.map((row) => (
                     <ServiceAssignmentTableRow
                       key={row.branchServiceId}
                       row={row}
@@ -586,30 +589,155 @@ export function CrmTherapistAssignmentTab({
             </div>
           )}
 
-          {/* Footer note */}
-          <div
-            style={{
-              padding: "0.625rem 1rem",
-              borderTop: "1px solid var(--cs-border-soft)",
-              background: "var(--cs-surface-warm)",
-              fontSize: "0.75rem",
-              color: "var(--cs-text-muted)",
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            <span>ⓘ</span>
-            <span>
-              Changes are saved automatically.
-              Provider assignments affect who appears in the booking calendar and online booking
-              selection.
-            </span>
-          </div>
+          {/* ── Pagination ── */}
+          {filteredRows.length > 0 && (
+            <div
+              style={{
+                padding: "0.625rem 1rem",
+                borderTop: "1px solid var(--cs-border-soft)",
+                background: "var(--cs-surface-warm)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              {/* Count + rows per page */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                  Showing{" "}
+                  <strong style={{ color: "var(--cs-text-secondary)" }}>
+                    {startIndex + 1}–{Math.min(startIndex + rowsPerPage, filteredRows.length)}
+                  </strong>{" "}
+                  of{" "}
+                  <strong style={{ color: "var(--cs-text-secondary)" }}>{filteredRows.length}</strong>{" "}
+                  services
+                </span>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  aria-label="Rows per page"
+                  style={{
+                    height: 28,
+                    padding: "0 22px 0 8px",
+                    borderRadius: 5,
+                    border: "1px solid var(--cs-border)",
+                    background: "var(--cs-surface)",
+                    fontSize: "0.75rem",
+                    color: "var(--cs-text)",
+                    cursor: "pointer",
+                    appearance: "none",
+                    backgroundImage: SELECT_CHEVRON,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 7px center",
+                  }}
+                >
+                  {[10, 25, 50].map((n) => (
+                    <option key={n} value={n}>{n} per page</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Page buttons */}
+              {totalPages > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  {/* Prev */}
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === 1}
+                    onClick={() => setCurrentPage(safeCurrentPage - 1)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 5,
+                      border: "1px solid var(--cs-border)",
+                      background: "transparent",
+                      color: safeCurrentPage === 1 ? "var(--cs-text-muted)" : "var(--cs-text-secondary)",
+                      fontSize: "0.8125rem",
+                      cursor: safeCurrentPage === 1 ? "not-allowed" : "pointer",
+                      opacity: safeCurrentPage === 1 ? 0.4 : 1,
+                    }}
+                    aria-label="Previous page"
+                  >
+                    ‹
+                  </button>
+
+                  {/* Page numbers */}
+                  {pageNumbers.map((p, idx) =>
+                    p === "..." ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        style={{ width: 28, textAlign: "center", fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCurrentPage(p)}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: 5,
+                          border: p === safeCurrentPage ? "1px solid var(--cs-sand)" : "1px solid var(--cs-border)",
+                          background: p === safeCurrentPage ? "var(--cs-sand-mist)" : "transparent",
+                          color: p === safeCurrentPage ? "var(--cs-sand)" : "var(--cs-text-secondary)",
+                          fontSize: "0.75rem",
+                          fontWeight: p === safeCurrentPage ? 700 : 400,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+
+                  {/* Next */}
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage === totalPages}
+                    onClick={() => setCurrentPage(safeCurrentPage + 1)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 5,
+                      border: "1px solid var(--cs-border)",
+                      background: "transparent",
+                      color: safeCurrentPage === totalPages ? "var(--cs-text-muted)" : "var(--cs-text-secondary)",
+                      fontSize: "0.8125rem",
+                      cursor: safeCurrentPage === totalPages ? "not-allowed" : "pointer",
+                      opacity: safeCurrentPage === totalPages ? 0.4 : 1,
+                    }}
+                    aria-label="Next page"
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Right help panel (desktop) */}
-        <HelpPanel />
+        {/* ── Right rail ── */}
+        <RightRail
+          wellAssigned={wellAssignedCount}
+          lowCoverage={lowCoverageCount}
+          noTherapist={missingCount}
+        />
       </div>
     </div>
   );
