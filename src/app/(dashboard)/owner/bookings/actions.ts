@@ -15,6 +15,7 @@ import {
   getBookingTrend,
 } from "@/lib/queries/analytics";
 import { revalidatePath } from "next/cache";
+import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { updateBookingPaymentSchema } from "@/lib/validations/booking";
 import { getCrossbranchCashSummary } from "@/lib/queries/analytics";
 
@@ -83,18 +84,21 @@ export async function ownerUpdateBookingStatusAction(rawInput: unknown) {
   const ctx = await requireOwner();
   if (!ctx) return { success: false, error: "Unauthorized" };
 
-  // Set attribution for trigger
-  await (
-    ctx.supabase as unknown as {
-      rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
-    }
-  )
-    .rpc("set_config", {
-      setting:  "app.current_staff_id",
-      value:    ctx.me.id,
-      is_local: true,
-    })
-    .catch(() => {});
+  // Set attribution for trigger (fire-and-forget — non-critical).
+  // set_config is a Postgres built-in, not in generated Supabase types — cast required.
+  try {
+    await (ctx.supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
+      .rpc("set_config", { setting: "app.current_staff_id", value: ctx.me.id, is_local: true });
+  } catch {
+    // Non-critical: trigger attribution may not run, booking update proceeds
+  }
+
+  // Fetch branch_id for cache invalidation (owner is cross-branch).
+  const { data: booking } = await ctx.supabase
+    .from("bookings")
+    .select("branch_id")
+    .eq("id", parsed.data.bookingId)
+    .single();
 
   // NO branch_id filter — owner can update any booking in any branch
   const { error } = await ctx.supabase
@@ -105,6 +109,10 @@ export async function ownerUpdateBookingStatusAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/owner");
   revalidatePath("/owner/bookings");
+  if (booking?.branch_id) {
+    invalidateTag(cacheTags.ownerWorkspace(booking.branch_id));
+    invalidateTag(cacheTags.crmWorkspace(booking.branch_id));
+  }
   return { success: true };
 }
 
@@ -176,7 +184,7 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
   // Fetch current payment state for audit log
   const { data: before } = await ctx.supabase
     .from("bookings")
-    .select("payment_method, payment_status, amount_paid, payment_reference")
+    .select("branch_id, payment_method, payment_status, amount_paid, payment_reference")
     .eq("id", bookingId)
     .single();
 
@@ -218,5 +226,9 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
   revalidatePath("/owner");
   revalidatePath("/owner/bookings");
   revalidatePath("/owner/reports");
+  if (before?.branch_id) {
+    invalidateTag(cacheTags.ownerWorkspace(before.branch_id));
+    invalidateTag(cacheTags.crmWorkspace(before.branch_id));
+  }
   return { success: true };
 }

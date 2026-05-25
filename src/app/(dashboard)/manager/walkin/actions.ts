@@ -118,17 +118,14 @@ export async function createWalkinBookingAction(rawInput: unknown) {
       .eq("is_active", true)
       .maybeSingle();
 
-    await (
-      supabase as unknown as {
-        rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
-      }
-    )
-      .rpc("set_config", {
-        setting: "app.current_staff_id",
-        value: staffRow?.id ?? "",
-        is_local: true,
-      })
-      .catch(() => {}); // best-effort
+    // Set attribution for trigger (fire-and-forget — non-critical).
+    // set_config is a Postgres built-in, not in generated Supabase types — cast required.
+    try {
+      await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
+        .rpc("set_config", { setting: "app.current_staff_id", value: staffRow?.id ?? "", is_local: true });
+    } catch {
+      // Non-critical: trigger attribution may not run, booking creation proceeds
+    }
 
     const { data: booking, error: bookErr } = await admin
       .from("bookings")
