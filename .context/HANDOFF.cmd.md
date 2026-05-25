@@ -3,6 +3,46 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9G-2-001 complete — Add Dispatch Missing Readiness Checks
+
+## What Just Happened (Phase 9G-2 — Dispatch Missing Readiness Checks)
+Phase 9G-2 — One file changed. No UI changes. No dispatch actions changed. No booking logic changed. No DB schema changed.
+
+**File changed:**
+
+`src/lib/queries/crm-readiness.ts` (updated):
+- Added `extractHomeServiceAddress(metadata)` — safe JSONB accessor for `home_service_address` sub-object in booking metadata
+- Added `getAssignedDriverNotCheckedInIssue(branchId, today)` — emits `dispatch:assigned-driver-not-checked-in` (critical). Two-query strategy: (1) bookings with driver_id + HS filter + active status → unique driver IDs; (2) staff_shift_checkins for those IDs today → diff gives unchecked-in drivers; returns bookings whose driver is absent.
+- Added `getHomeServiceMissingAddressIssue(branchId, today)` — emits `dispatch:home-service-missing-address` (critical). Single query; TypeScript filter on `metadata.home_service_address.full_address` for null/empty.
+- Added `getHomeServiceMissingCoordinatesIssue(branchId, today)` — emits `dispatch:home-service-missing-destination-coordinates` (warning). Same query pattern; checks `lat`/`lng` are numeric and non-NaN.
+- Added `getDispatchMissingReadinessIssues(branchId, today)` — `Promise.allSettled` coordinator for all three checks; always resolves.
+- `getCrmReadinessIssues` now runs 4 source groups in parallel (was 3); Source 4 failure emits `system:failure:dispatch-missing`.
+
+**Check 4 (active HS no driver) deliberately skipped:**
+Covered by existing `dispatch:awaiting-driver` from `mapDispatchStatsToReadinessIssues` / `getCrmTodaySnapshot`. Emitting a second ID for the same condition would create duplicate operator noise.
+
+**Query patterns:**
+- Home-service detection: `.or("type.eq.home_service,delivery_type.eq.home_service")` (both legacy `type` and newer `delivery_type` fields)
+- Active status exclusions: `.neq("status","cancelled").neq("status","completed").neq("status","no_show")`
+- All queries: branch-scoped (`branch_id`), date-scoped (`booking_date = today`), column-minimal, `limit(50)` on booking fetches; entity IDs capped at 20
+
+**Intentionally Left Unchanged:**
+- All dispatch actions (`src/lib/actions/dispatch*`, `src/components/features/dispatch/*`)
+- `src/app/(dashboard)/crm/dispatch/page.tsx`
+- `src/app/(dashboard)/crm/layout.tsx`
+- All booking logic, availability engine, schedule engine
+- No DB schema changed. No public `/book` behavior changed.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Recommended Next Step
+**Phase 9G-3** — Payment & Follow-Up Readiness Checks:
+- completed booking with unpaid/overdue payment
+- pending payment holds close to expiry
+- CRM payment confirmation overdue
+- booking completed but no payment log
+
+## Previous Phase
 CRM-READINESS-PHASE9E-G-001 complete — Migrate CRM Availability Needs-Attention Warnings to Shared Readiness Components
 
 ## What Just Happened (Phase 9E-G — CRM Availability Warnings → ReadinessIssueList)

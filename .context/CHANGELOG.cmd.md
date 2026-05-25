@@ -2065,3 +2065,42 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9G-2-001)
+
+**Task:** Phase 9G-2 — Add Dispatch Missing Readiness Checks
+
+**Files Changed:**
+- `src/lib/queries/crm-readiness.ts` — added Phase 9G-2 section with 3 checks + coordinator; integrated as Source 4 in getCrmReadinessIssues
+
+**Checks Added:**
+1. `dispatch:assigned-driver-not-checked-in` (critical) — driver assigned to active HS booking but not checked in today. Two-query: bookings with driver_id → staff_shift_checkins cross-ref.
+2. `dispatch:home-service-missing-address` (critical) — active HS booking missing metadata.home_service_address.full_address. Single bookings query + TypeScript filter on JSONB.
+3. `dispatch:home-service-missing-destination-coordinates` (warning) — active HS booking missing lat/lng coordinates. Same query pattern as Check 2; checks numeric validity via typeof + Number.isNaN.
+
+**Checks Skipped:**
+- Check 4 (active home-service no driver) — deliberately excluded. Covered by existing `dispatch:awaiting-driver` issue from mapDispatchStatsToReadinessIssues / getCrmTodaySnapshot. Emitting a second ID for the same condition would confuse operators.
+
+**Helper added:**
+- `extractHomeServiceAddress(metadata)` — safe JSONB accessor for home_service_address sub-object
+- `getDispatchMissingReadinessIssues(branchId, today)` — Promise.allSettled coordinator; always resolves
+
+**Integration:**
+- getCrmReadinessIssues now runs 4 sources in parallel (was 3)
+- Source 4 failure emits system:failure:dispatch-missing warning (same pattern as other sources)
+
+**Notes:**
+- Home-service detection: `.or("type.eq.home_service,delivery_type.eq.home_service")` (both legacy + new field)
+- Active status filter: `.neq("status", "cancelled").neq("status", "completed").neq("status", "no_show")`
+- Coordinates stored in metadata JSONB at home_service_address.lat / .lng (numeric)
+- Address stored at metadata.home_service_address.full_address (string)
+- All queries: branch-scoped, date-scoped (today), column-minimal, limit 50 for booking fetches; entity IDs capped at 20
+- No UI changes required — global badge, /crm/today strip, /crm/setup list, /crm/dispatch readiness surface these automatically
+- No dispatch actions changed. No booking logic changed. No database schema changed. No public /book behavior changed.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85 routes)

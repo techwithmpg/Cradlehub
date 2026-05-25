@@ -1,25 +1,21 @@
-# CURRENT TASK: CRM-READINESS-PHASE9G-1-001
+# CURRENT TASK: CRM-READINESS-PHASE9G-2-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-READINESS-PHASE9G-1-001
+CRM-READINESS-PHASE9G-2-001
 
 ## Description
-Phase 9G-1 — Add Daily Operations Missing Readiness Checks.
-Added three new checks to getCrmReadinessIssues in crm-readiness.ts:
-1. daily:checked-in-not-scheduled (ghost check-ins via staff_shift_checkins x staff_schedules)
-2. daily:no-opening-shift-today (no opening shift_type in staff_schedules for today)
-3. daily:booking-request-no-follow-up (online pending bookings > 30min old)
-All checks run in parallel, failure-safe. No UI changes required.
-No booking logic changed. No database schema changed.
-
-## Agent
-Claude Code (main branch, E:/cradlehub)
-
-## Branch
-main
+Phase 9G-2 — Add Dispatch Missing Readiness Checks.
+Added three new checks + coordinator to getCrmReadinessIssues in crm-readiness.ts:
+1. dispatch:assigned-driver-not-checked-in (driver assigned to active HS booking but not checked in — severity: critical)
+2. dispatch:home-service-missing-address (HS booking missing metadata.home_service_address.full_address — severity: critical)
+3. dispatch:home-service-missing-destination-coordinates (HS booking missing lat/lng — severity: warning)
+Check 4 (active HS no driver) deliberately skipped — covered by existing dispatch:awaiting-driver from getCrmTodaySnapshot.
+All checks run in parallel via getDispatchMissingReadinessIssues, failure-safe.
+Integrated as Source 4 in getCrmReadinessIssues.
+No UI changes required. No dispatch actions changed. No booking logic changed. No database schema changed.
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)

@@ -504,6 +504,256 @@ async function getDailyOperationsReadinessIssues(
   return issues;
 }
 
+// ── Phase 9G-2: Dispatch missing readiness checks ────────────────────────────
+
+/**
+ * Extracts home_service_address from booking metadata (JSONB), safely.
+ *
+ * Returns the address sub-object if it exists and is a plain object,
+ * or null if metadata is missing / malformed.
+ */
+function extractHomeServiceAddress(
+  metadata: unknown
+): { full_address?: unknown; lat?: unknown; lng?: unknown } | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const m = metadata as Record<string, unknown>;
+  const hsa = m["home_service_address"];
+  if (!hsa || typeof hsa !== "object" || Array.isArray(hsa)) return null;
+  return hsa as { full_address?: unknown; lat?: unknown; lng?: unknown };
+}
+
+/**
+ * Check 1 — Assigned driver not checked in today.
+ *
+ * Finds active home-service bookings for today that already have a driver_id,
+ * then cross-references with staff_shift_checkins.  If the assigned driver has
+ * not checked in today the booking cannot safely depart.
+ *
+ * Excludes cancelled / completed / no_show bookings.
+ * Returns null if all assigned drivers are checked in or if the query fails.
+ */
+async function getAssignedDriverNotCheckedInIssue(
+  branchId: string,
+  today: string
+): Promise<ReadinessIssue | null> {
+  const supabase = await createClient();
+
+  // Active home-service bookings that already have a driver assigned.
+  const { data: bookings, error: bookErr } = await supabase
+    .from("bookings")
+    .select("id, driver_id")
+    .eq("branch_id", branchId)
+    .eq("booking_date", today)
+    .or("type.eq.home_service,delivery_type.eq.home_service")
+    .not("driver_id", "is", null)
+    .neq("status", "cancelled")
+    .neq("status", "completed")
+    .neq("status", "no_show")
+    .limit(50);
+
+  if (bookErr || !bookings?.length) return null;
+
+  // TypeScript still sees driver_id as string | null after the .not() filter.
+  const bookingsWithDriver = bookings.filter(
+    (b): b is typeof b & { driver_id: string } => b.driver_id !== null
+  );
+  if (!bookingsWithDriver.length) return null;
+
+  // Unique driver IDs across affected bookings.
+  const driverIds = [...new Set(bookingsWithDriver.map((b) => b.driver_id))];
+
+  // Which of those drivers are checked in today at this branch?
+  const { data: checkins } = await supabase
+    .from("staff_shift_checkins")
+    .select("staff_id")
+    .eq("branch_id", branchId)
+    .eq("shift_date", today)
+    .eq("status", "checked_in")
+    .in("staff_id", driverIds);
+
+  const checkedInIds = new Set((checkins ?? []).map((c) => c.staff_id));
+
+  // Bookings whose assigned driver has NOT checked in.
+  const affected = bookingsWithDriver.filter((b) => !checkedInIds.has(b.driver_id));
+  if (!affected.length) return null;
+
+  const n = affected.length;
+  const plural = n !== 1;
+  return {
+    id: "dispatch:assigned-driver-not-checked-in",
+    scope: "dispatch",
+    severity: "critical",
+    title: `${n} home-service booking${plural ? "s have" : " has"} an assigned driver who is not checked in`,
+    problem: `${n} active home-service trip${plural ? "s have" : " has"} a driver assigned, but that driver has not checked in today.`,
+    impact:
+      "Trips cannot depart until the driver is checked in. Customers may experience delays or failed service.",
+    fix: "Check in the assigned driver in Live Availability, or reassign the trip to a checked-in driver.",
+    actionLabel: "Open Dispatch",
+    actionHref: "/crm/dispatch",
+    source: "getCrmReadiness",
+    entityType: "booking",
+    entityIds: affected.slice(0, 20).map((b) => b.id),
+    count: n,
+  };
+}
+
+/**
+ * Check 2 — Home-service booking missing a delivery address.
+ *
+ * Queries active home-service bookings for today and inspects the JSONB
+ * metadata field for a non-empty home_service_address.full_address value.
+ * A booking without an address cannot be dispatched.
+ *
+ * Returns null if all bookings have an address or if the query fails.
+ */
+async function getHomeServiceMissingAddressIssue(
+  branchId: string,
+  today: string
+): Promise<ReadinessIssue | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, metadata")
+    .eq("branch_id", branchId)
+    .eq("booking_date", today)
+    .or("type.eq.home_service,delivery_type.eq.home_service")
+    .neq("status", "cancelled")
+    .neq("status", "completed")
+    .neq("status", "no_show")
+    .limit(50);
+
+  if (error || !data?.length) return null;
+
+  const missing = data.filter((row) => {
+    const hsa = extractHomeServiceAddress(row.metadata);
+    const addr = hsa?.full_address;
+    return !addr || typeof addr !== "string" || addr.trim() === "";
+  });
+
+  if (!missing.length) return null;
+
+  const n = missing.length;
+  const plural = n !== 1;
+  return {
+    id: "dispatch:home-service-missing-address",
+    scope: "dispatch",
+    severity: "critical",
+    title: `${n} home-service booking${plural ? "s are" : " is"} missing a delivery address`,
+    problem: `${n} active home-service booking${plural ? "s do" : " does"} not have a delivery address recorded.`,
+    impact:
+      "Drivers cannot navigate to the customer without a delivery address. The booking cannot be dispatched.",
+    fix: "Open each affected booking and confirm or enter the customer's full delivery address.",
+    actionLabel: "Open Dispatch",
+    actionHref: "/crm/dispatch",
+    source: "getCrmReadiness",
+    entityType: "booking",
+    entityIds: missing.slice(0, 20).map((r) => r.id),
+    count: n,
+  };
+}
+
+/**
+ * Check 3 — Home-service booking missing destination coordinates.
+ *
+ * Same booking scope as Check 2.  Inspects metadata.home_service_address.lat
+ * and .lng for valid numeric values.  Missing or non-numeric coordinates
+ * prevent drivers from using in-app map navigation.
+ *
+ * Returns null if all bookings have valid coordinates or if the query fails.
+ *
+ * Note: Check 4 (active home-service with no driver) is intentionally omitted
+ * here — it is already covered by the existing dispatch:awaiting-driver issue
+ * emitted via mapDispatchStatsToReadinessIssues / getCrmTodaySnapshot.
+ * Duplicating it would show the same problem under two different IDs.
+ */
+async function getHomeServiceMissingCoordinatesIssue(
+  branchId: string,
+  today: string
+): Promise<ReadinessIssue | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, metadata")
+    .eq("branch_id", branchId)
+    .eq("booking_date", today)
+    .or("type.eq.home_service,delivery_type.eq.home_service")
+    .neq("status", "cancelled")
+    .neq("status", "completed")
+    .neq("status", "no_show")
+    .limit(50);
+
+  if (error || !data?.length) return null;
+
+  const missing = data.filter((row) => {
+    const hsa = extractHomeServiceAddress(row.metadata);
+    // If there is no address sub-object at all, coords are definitely absent.
+    if (!hsa) return true;
+    const { lat, lng } = hsa;
+    const hasLat = typeof lat === "number" && !Number.isNaN(lat);
+    const hasLng = typeof lng === "number" && !Number.isNaN(lng);
+    return !hasLat || !hasLng;
+  });
+
+  if (!missing.length) return null;
+
+  const n = missing.length;
+  const plural = n !== 1;
+  return {
+    id: "dispatch:home-service-missing-destination-coordinates",
+    scope: "dispatch",
+    severity: "warning",
+    title: `${n} home-service booking${plural ? "s are" : " is"} missing GPS coordinates`,
+    problem: `${n} active home-service booking${plural ? "s are" : " is"} missing destination latitude/longitude coordinates.`,
+    impact:
+      "Drivers may be unable to use in-app navigation, leading to delays or missed service locations.",
+    fix: "Re-enter the delivery address to trigger coordinate lookup, or manually confirm coordinates in the booking details.",
+    actionLabel: "Open Dispatch",
+    actionHref: "/crm/dispatch",
+    source: "getCrmReadiness",
+    entityType: "booking",
+    entityIds: missing.slice(0, 20).map((r) => r.id),
+    count: n,
+  };
+}
+
+/**
+ * getDispatchMissingReadinessIssues
+ *
+ * Runs the three dispatch missing-data checks in parallel.
+ * Individual check failures are silently suppressed — the coordinator always
+ * resolves with whatever partial results are available.
+ *
+ * Check 4 (no driver assigned) is deliberately excluded: it is already
+ * covered by the `dispatch:awaiting-driver` issue from getCrmTodaySnapshot /
+ * mapDispatchStatsToReadinessIssues.  Emitting a second issue under a
+ * different ID for the same condition would confuse operators.
+ */
+async function getDispatchMissingReadinessIssues(
+  branchId: string,
+  today: string
+): Promise<ReadinessIssue[]> {
+  const [driverCheckinResult, missingAddressResult, missingCoordsResult] =
+    await Promise.allSettled([
+      getAssignedDriverNotCheckedInIssue(branchId, today),
+      getHomeServiceMissingAddressIssue(branchId, today),
+      getHomeServiceMissingCoordinatesIssue(branchId, today),
+    ]);
+
+  const issues: ReadinessIssue[] = [];
+  if (driverCheckinResult.status === "fulfilled" && driverCheckinResult.value !== null) {
+    issues.push(driverCheckinResult.value);
+  }
+  if (missingAddressResult.status === "fulfilled" && missingAddressResult.value !== null) {
+    issues.push(missingAddressResult.value);
+  }
+  if (missingCoordsResult.status === "fulfilled" && missingCoordsResult.value !== null) {
+    issues.push(missingCoordsResult.value);
+  }
+  return issues;
+}
+
 // ── Main exports ──────────────────────────────────────────────────────────────
 
 /**
@@ -527,15 +777,17 @@ export async function getCrmReadinessIssues(
   const dayOfWeek = new Date(today + "T00:00:00").getDay();
   const allIssues: ReadinessIssue[] = [];
 
-  // Run all three primary source groups in parallel.
+  // Run all four primary source groups in parallel.
   // getCrmTodaySnapshot already calls getCrmAvailabilitySnapshot internally,
   // so availability data is obtained once through the today snapshot to avoid
   // a redundant second call to getCrmAvailabilitySnapshot.
-  const [setupResult, todayResult, dailyOpsResult] = await Promise.allSettled([
-    getCrmSetupHealth(branchId),
-    getCrmTodaySnapshot({ branchId, date: today }),
-    getDailyOperationsReadinessIssues(branchId, today, dayOfWeek),
-  ]);
+  const [setupResult, todayResult, dailyOpsResult, dispatchMissingResult] =
+    await Promise.allSettled([
+      getCrmSetupHealth(branchId),
+      getCrmTodaySnapshot({ branchId, date: today }),
+      getDailyOperationsReadinessIssues(branchId, today, dayOfWeek),
+      getDispatchMissingReadinessIssues(branchId, today),
+    ]);
 
   // ── Source 1: Setup health ─────────────────────────────────────────────────
   if (setupResult.status === "fulfilled") {
@@ -592,6 +844,24 @@ export async function getCrmReadinessIssues(
         problem: "The readiness engine could not run daily operations checks. Ghost check-in, opening-shift, and booking follow-up warnings may not appear.",
         actionHref: "/crm/today",
         actionLabel: "Open Today",
+      })
+    );
+  }
+
+  // ── Source 4: Dispatch missing checks (Phase 9G-2) ─────────────────────────
+  // getDispatchMissingReadinessIssues uses Promise.allSettled internally so it
+  // never rejects — dispatchMissingResult is always "fulfilled".
+  if (dispatchMissingResult.status === "fulfilled") {
+    allIssues.push(...dispatchMissingResult.value);
+  } else {
+    allIssues.push(
+      createSourceFailureIssue({
+        sourceKey: "dispatch-missing",
+        title: "Dispatch missing-data checks could not be completed",
+        problem:
+          "The readiness engine could not run dispatch data checks. Missing address, missing coordinates, and driver check-in warnings may not appear.",
+        actionHref: "/crm/dispatch",
+        actionLabel: "Open Dispatch",
       })
     );
   }
