@@ -158,24 +158,47 @@ async function checkBranchScope(
   return null; // ✓ allowed
 }
 
+// ── UUID regex ─────────────────────────────────────────────────────────────────
+
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/**
+ * UUID field with diagnostic: the error message includes the received value
+ * so it shows up in the UI and lets us identify what is actually being sent.
+ * Remove the diagnostic suffix once the root cause is confirmed.
+ */
+function uuidField(missingMsg: string, label: string) {
+  return z
+    .string()
+    .min(1, missingMsg)
+    .superRefine((val, ctx) => {
+      if (!UUID_RE.test(val)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `[debug] ${label} received non-UUID: "${val.slice(0, 60)}"`,
+        });
+      }
+    });
+}
+
 // ── Zod schemas ───────────────────────────────────────────────────────────────
 
 const assignSchema = z.object({
-  branchId: z
-    .string()
-    .min(1, "Branch ID is missing — please reload the page and try again.")
-    .uuid("Invalid branch ID — please reload the Services page and try again."),
-  serviceId: z.string().min(1, "Service ID is required.").uuid("Invalid service ID"),
-  staffId: z.string().min(1, "Please select a provider to assign.").uuid("Invalid staff ID"),
+  branchId: uuidField(
+    "Branch ID is missing — please reload the page and try again.",
+    "branchId"
+  ),
+  serviceId: uuidField("Service ID is required.", "serviceId"),
+  staffId:   uuidField("Please select a provider to assign.", "staffId"),
 });
 
 const removeSchema = z.object({
-  branchId: z
-    .string()
-    .min(1, "Branch ID is missing — please reload the page and try again.")
-    .uuid("Invalid branch ID — please reload the Services page and try again."),
-  serviceId: z.string().min(1, "Service ID is required.").uuid("Invalid service ID"),
-  staffId: z.string().min(1, "Staff ID is required.").uuid("Invalid staff ID"),
+  branchId: uuidField(
+    "Branch ID is missing — please reload the page and try again.",
+    "branchId"
+  ),
+  serviceId: uuidField("Service ID is required.", "serviceId"),
+  staffId:   uuidField("Staff ID is required.", "staffId"),
 });
 
 // ── Helper: is a staff row a valid service provider? ──────────────────────────
@@ -210,6 +233,11 @@ export async function assignProviderToServiceAction(
 ): Promise<ActionResult> {
   const parsed = assignSchema.safeParse(rawInput);
   if (!parsed.success) {
+    // Diagnostic: log what actually arrived so we can identify the bad value
+    console.error("[crm/services] assignProvider: input validation failed", {
+      receivedInput: rawInput,
+      zodIssues: parsed.error.issues,
+    });
     return {
       ok: false,
       message: parsed.error.issues[0]?.message ?? "Invalid input",
@@ -331,6 +359,11 @@ export async function removeProviderFromServiceAction(
 ): Promise<ActionResult> {
   const parsed = removeSchema.safeParse(rawInput);
   if (!parsed.success) {
+    // Diagnostic: log what actually arrived so we can identify the bad value
+    console.error("[crm/services] removeProvider: input validation failed", {
+      receivedInput: rawInput,
+      zodIssues: parsed.error.issues,
+    });
     return {
       ok: false,
       message: parsed.error.issues[0]?.message ?? "Invalid input",
