@@ -2,6 +2,10 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CrmAvailabilitySummary } from "@/components/features/crm/availability/crm-availability-summary";
 import { CrmAvailabilityClient } from "@/components/features/crm/availability/crm-availability-client";
+import { CheckInExplainer } from "@/components/features/crm/availability/checkin-explainer";
+import { StartDayChecklist } from "@/components/features/crm/availability/start-day-checklist";
+import { LiveAvailabilityImpactCard } from "@/components/features/crm/availability/live-availability-impact-card";
+import { AvailabilityRelatedTools } from "@/components/features/crm/availability/availability-related-tools";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getCrmAvailabilitySnapshot, type CrmAvailabilitySnapshot } from "@/lib/queries/crm-availability";
 
@@ -37,38 +41,14 @@ export default async function CrmAvailabilityPage() {
   const { snapshot, error } = await getPageData(branchId);
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <PageHeader
-        title="Live Availability"
-        description="See who is scheduled, free, busy, off today, or needs setup before assigning bookings or dispatch."
+        title="Live Availability & Check-In Center"
+        description="Manage same-day staff readiness, check-ins, check-outs, and live availability for walk-ins, in-house bookings, and dispatch operations."
       />
 
-      {/* Check-in awareness notice */}
-      <div
-        style={{
-          display: "flex", alignItems: "flex-start", gap: 10,
-          padding: "10px 14px",
-          background: "var(--cs-surface-raised)",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: "var(--cs-r-sm)",
-          fontSize: 12, color: "var(--cs-text-muted)",
-        }}
-      >
-        <span style={{ fontSize: 14, marginTop: 1, flexShrink: 0 }}>✓</span>
-        <span>
-          CRM live availability uses{" "}
-          <strong style={{ color: "var(--cs-text)" }}>staff check-in status</strong>{" "}
-          for same-day in-house operations. Staff must be scheduled <em>and</em> checked in
-          to appear as available here. Use the{" "}
-          <strong style={{ color: "var(--cs-text)" }}>Check in</strong> buttons to record
-          presence.{" "}
-          <span style={{ color: "var(--cs-text-secondary)" }}>
-            Online booking remains <strong style={{ color: "var(--cs-text)" }}>schedule-based</strong>{" "}
-            and is not controlled by this check-in board — public customers book using saved
-            staff schedules and branch rules, not live check-in status.
-          </span>
-        </span>
-      </div>
+      {/* How each booking flow uses availability and check-in data */}
+      <CheckInExplainer />
 
       {error || !snapshot ? (
         <Alert variant="destructive">
@@ -77,10 +57,22 @@ export default async function CrmAvailabilityPage() {
         </Alert>
       ) : (
         <>
+          {/* Quick-glance health stats (computed from snapshot — no extra query) */}
           <CrmAvailabilitySummary summary={snapshot.summary} />
+
+          {/* 4-tab workspace: Live Board, Staff List, Schedule Issues, Driver Readiness */}
           <CrmAvailabilityClient snapshot={snapshot} />
         </>
       )}
+
+      {/* Start-of-day action checklist */}
+      <StartDayChecklist />
+
+      {/* What live check-in affects across booking flows */}
+      <LiveAvailabilityImpactCard />
+
+      {/* Footer links to related CRM tools */}
+      <AvailabilityRelatedTools />
     </section>
   );
 }
