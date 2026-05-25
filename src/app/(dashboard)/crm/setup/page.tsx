@@ -4,11 +4,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getCrmSetupHealth } from "@/lib/queries/crm-setup";
+import { getCrmReadiness } from "@/lib/queries/crm-readiness";
 import { CrmSetupHealthCards } from "@/components/features/crm/setup/crm-setup-health-cards";
-import { CrmSetupIssuesList } from "@/components/features/crm/setup/crm-setup-issues-list";
 import { CrmSetupWorkspaceTiles } from "@/components/features/crm/setup/crm-setup-workspace-tiles";
 import { CrmBookingFlowRules } from "@/components/features/crm/setup/crm-booking-flow-rules";
 import { CrmBookingImpactMatrix } from "@/components/features/crm/setup/crm-booking-impact-matrix";
+import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
 
 // ── Auth + branch resolution ───────────────────────────────────────────────────
 
@@ -83,9 +84,19 @@ function Section({
 export default async function CrmSetupPage() {
   const { branchId, branchName } = await getSetupPageContext();
 
-  let health;
+  // getCrmSetupHealth powers the health cards — it is the required query.
+  // getCrmReadiness powers the issues list and is fetched in parallel.
+  // If getCrmReadiness fails internally it already emits system:warning issues
+  // rather than throwing, so the .catch(() => null) guard is an extra safety net
+  // for unexpected throws (e.g. module-load errors in tests).
+  let health: Awaited<ReturnType<typeof getCrmSetupHealth>>;
+  let readiness: Awaited<ReturnType<typeof getCrmReadiness>> | null;
+
   try {
-    health = await getCrmSetupHealth(branchId);
+    [health, readiness] = await Promise.all([
+      getCrmSetupHealth(branchId),
+      getCrmReadiness(branchId).catch(() => null),
+    ]);
   } catch (err) {
     console.error("[crm/setup] health check failed", {
       branchId,
@@ -121,8 +132,30 @@ export default async function CrmSetupPage() {
     );
   }
 
-  const issueCount = health.issues.length;
-  const errorCount = health.issues.filter((i) => i.severity === "error").length;
+  // Use readiness counts for the summary banner when available — these reflect
+  // the full operational picture (setup + availability + dispatch + payment).
+  // Fall back to getCrmSetupHealth counts if getCrmReadiness unexpectedly failed.
+  const issueCount =
+    readiness !== null
+      ? readiness.issues.length
+      : health.issues.length;
+
+  const criticalCount =
+    readiness !== null
+      ? readiness.issues.filter((i) => i.severity === "critical").length
+      : health.issues.filter((i) => i.severity === "error").length;
+
+  const overallStatus = readiness?.status ?? (criticalCount > 0 ? "critical" : issueCount > 0 ? "warning" : "ok");
+
+  const statusBadgeColor =
+    overallStatus === "critical"
+      ? "var(--cs-error, #c0392b)"
+      : overallStatus === "warning"
+        ? "var(--cs-warning, #e67e22)"
+        : "var(--cs-success, #27ae60)";
+
+  const statusBadgeLabel =
+    overallStatus === "critical" ? "Critical" : overallStatus === "warning" ? "Warning" : "OK";
 
   return (
     <section className="space-y-6">
@@ -141,7 +174,7 @@ export default async function CrmSetupPage() {
       </Section>
 
       {/* ── Section 2: Setup Health ── */}
-      {/* Issue summary banner */}
+      {/* Readiness summary banner — shown when there are any issues */}
       {issueCount > 0 && (
         <div
           style={{
@@ -149,20 +182,36 @@ export default async function CrmSetupPage() {
             alignItems: "center",
             gap: 10,
             padding: "10px 14px",
-            backgroundColor: errorCount > 0 ? "rgba(192,57,43,0.06)" : "rgba(230,126,34,0.06)",
-            border: `1px solid ${errorCount > 0 ? "rgba(192,57,43,0.25)" : "rgba(230,126,34,0.25)"}`,
+            backgroundColor: criticalCount > 0 ? "rgba(192,57,43,0.06)" : "rgba(230,126,34,0.06)",
+            border: `1px solid ${criticalCount > 0 ? "rgba(192,57,43,0.25)" : "rgba(230,126,34,0.25)"}`,
             borderRadius: "var(--cs-r-sm, 8px)",
             fontSize: "0.875rem",
             color: "var(--cs-text-secondary)",
           }}
         >
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{errorCount > 0 ? "⛔" : "⚠️"}</span>
-          <span>
-            <strong style={{ color: errorCount > 0 ? "var(--cs-error, #c0392b)" : "var(--cs-warning, #e67e22)" }}>
-              {issueCount} setup issue{issueCount > 1 ? "s" : ""} detected
+          <span style={{ fontSize: 18, flexShrink: 0 }}>{criticalCount > 0 ? "⛔" : "⚠️"}</span>
+          <span style={{ flex: 1 }}>
+            <strong style={{ color: criticalCount > 0 ? "var(--cs-error, #c0392b)" : "var(--cs-warning, #e67e22)" }}>
+              {issueCount} readiness issue{issueCount !== 1 ? "s" : ""} detected
             </strong>
-            {errorCount > 0 && ` · ${errorCount} require${errorCount === 1 ? "s" : ""} immediate action`}
+            {criticalCount > 0 && ` · ${criticalCount} require${criticalCount === 1 ? "s" : ""} immediate action`}
             {" — review the checklist below."}
+          </span>
+          {/* Overall status badge */}
+          <span
+            style={{
+              fontSize: "0.6875rem",
+              fontWeight: 700,
+              color: statusBadgeColor,
+              background: `${statusBadgeColor}18`,
+              border: `1px solid ${statusBadgeColor}40`,
+              padding: "2px 8px",
+              borderRadius: 10,
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            {statusBadgeLabel}
           </span>
         </div>
       )}
@@ -174,12 +223,37 @@ export default async function CrmSetupPage() {
         <CrmSetupHealthCards data={health} />
       </Section>
 
-      {/* ── Section 3: Setup Issues ── */}
+      {/* ── Section 3: Readiness Issues (powered by getCrmReadiness) ── */}
       <Section
-        title={`Setup Issues${issueCount > 0 ? ` · ${issueCount} item${issueCount > 1 ? "s" : ""}` : " · All clear"}`}
-        description="Fix these before relying on full automation."
+        title={
+          issueCount > 0
+            ? `Readiness Issues · ${issueCount} item${issueCount !== 1 ? "s" : ""}`
+            : "Readiness Issues · All clear"
+        }
+        description="Current setup and operational conditions that need attention. Includes setup, scheduling, dispatch, and payment signals."
       >
-        <CrmSetupIssuesList issues={health.issues} />
+        {readiness !== null ? (
+          <ReadinessIssueList
+            issues={readiness.issues}
+            emptyTitle="No readiness issues found"
+            emptyDescription="The system has the required setup for this area."
+          />
+        ) : (
+          /* Fallback when getCrmReadiness unexpectedly failed after retries */
+          <div
+            style={{
+              padding: "1rem 1.125rem",
+              backgroundColor: "var(--cs-surface-raised)",
+              border: "1px solid var(--cs-border-soft)",
+              borderRadius: "var(--cs-r-sm, 8px)",
+              fontSize: "0.8125rem",
+              color: "var(--cs-text-muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            Readiness issues could not be loaded. Open individual setup tools to continue configuration.
+          </div>
+        )}
       </Section>
 
       {/* ── Section 4: Setup Workspaces ── */}
