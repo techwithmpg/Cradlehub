@@ -1865,3 +1865,40 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (Phase 9E-E — Spaces & Rules Resource Conflicts → Shared Readiness Components)
+
+**Task:** CRM-READINESS-PHASE9E-E-001 — Migrate hand-rolled resource conflict warnings in /crm/spaces-rules to use shared ReadinessIssueCard and ReadinessIssueList components.
+
+**Files Created:**
+- `src/components/features/spaces-rules/spaces-readiness-utils.ts`
+  - `mapResourceConflictToReadinessIssue(conflict, index)` — one ReadinessIssue per conflict; conflict.description → problem field (detail preserved); severity from conflict type: missing_assignment=warning, overlap/capacity_overflow=critical
+  - `buildConflictSummaryIssues(conflicts)` — aggregates to one summary issue per conflict type; used in OverviewTab alerts section
+
+**Files Changed:**
+- `src/components/features/spaces-rules/conflicts-tab.tsx`
+  - Removed hand-rolled `ConflictRow` sub-component and lucide-react icon imports (AlertTriangle, CircleDashed, Wrench)
+  - Maps all conflicts via `mapResourceConflictToReadinessIssue` then passes to `ReadinessIssueList` (non-compact: problem/impact/fix/action all visible)
+  - Empty state uses ReadinessIssueList's built-in emptyTitle/emptyDescription
+
+- `src/components/features/spaces-rules/overview-tab.tsx`
+  - Removed custom amber/red alert div blocks + lucide imports (AlertTriangle, CircleDashed)
+  - Replaced "Alerts" card content with `ReadinessIssueList compact` fed by `buildConflictSummaryIssues(conflicts)` — shows one card per conflict type with count badge
+
+**Intentionally Left Unchanged:**
+- `computeResourceConflicts()` in spaces-rules-utils.ts — all conflict detection logic preserved
+- `computeKpiData()`, `ResourceConflict` type, `ResourceRow` — unchanged
+- `SpacesRulesHealthSummary` — pure stat cards, no warning banners, untouched
+- `SpacesRulesKpiCards` — metric display, untouched
+- `spaces-rules-workspace.tsx`, `spaces-tab.tsx`, `booking-rules-tab.tsx` — untouched
+- resource/rule editing actions — untouched
+- No booking logic changed. No DB schema changed.
+
+**Commit:** (pending)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)

@@ -8,7 +8,9 @@ import {
   type ResourceConflict,
   type ConflictBooking,
 } from "./spaces-rules-utils";
-import { AlertTriangle, CircleDashed, Clock } from "lucide-react";
+import { buildConflictSummaryIssues } from "./spaces-readiness-utils";
+import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
+import { Clock } from "lucide-react";
 
 export function OverviewTab({
   resources,
@@ -28,8 +30,7 @@ export function OverviewTab({
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
     .slice(0, 5);
 
-  const missingCount = conflicts.filter((c) => c.type === "missing_assignment").length;
-  const overlapCount = conflicts.filter((c) => c.type === "overlap").length;
+  const alertIssues = buildConflictSummaryIssues(conflicts);
 
   return (
     <div
@@ -159,52 +160,17 @@ export function OverviewTab({
             color: "var(--cs-text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
-            marginBottom: "1rem",
+            marginBottom: "0.75rem",
           }}
         >
           Alerts
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-          {missingCount > 0 && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.625rem 0.75rem",
-                borderRadius: 8,
-                backgroundColor: "#FEF3C7",
-                color: "#92400E",
-                fontSize: "0.8125rem",
-              }}
-            >
-              <CircleDashed size={14} />
-              {missingCount} booking{missingCount === 1 ? "" : "s"} missing room assignment
-            </div>
-          )}
-          {overlapCount > 0 && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.625rem 0.75rem",
-                borderRadius: 8,
-                backgroundColor: "#FEE2E2",
-                color: "#991B1B",
-                fontSize: "0.8125rem",
-              }}
-            >
-              <AlertTriangle size={14} />
-              {overlapCount} overlapping booking{overlapCount === 1 ? "" : "s"} detected
-            </div>
-          )}
-          {missingCount === 0 && overlapCount === 0 && (
-            <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-              No alerts right now.
-            </div>
-          )}
-        </div>
+        <ReadinessIssueList
+          issues={alertIssues}
+          compact
+          emptyTitle="No alerts right now"
+          emptyDescription="All bookings have room assignments and no overlaps detected."
+        />
       </div>
     </div>
   );

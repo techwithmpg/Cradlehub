@@ -3,6 +3,35 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9E-E-001 complete — Migrate Spaces & Rules Resource Conflicts to Shared Readiness Components
+
+## What Just Happened (Phase 9E-E — Spaces & Rules Conflicts → ReadinessIssueCard)
+Phase 9E-E — Three files changed. Display-only migration; no conflict computation, resource/rule editing, or booking logic changed.
+
+**Files (commit pending):**
+
+`src/components/features/spaces-rules/spaces-readiness-utils.ts` (new):
+- `mapResourceConflictToReadinessIssue(conflict, index)` — per-conflict mapping; `conflict.description` → `problem` so detail is preserved; severity: missing_assignment=warning, overlap/capacity_overflow=critical
+- `buildConflictSummaryIssues(conflicts)` — aggregate: one issue per conflict type with count badge; used in OverviewTab
+
+`src/components/features/spaces-rules/conflicts-tab.tsx` (rewritten):
+- Removed `ConflictRow` sub-component and all lucide-react icon imports
+- Maps conflicts via `mapResourceConflictToReadinessIssue` → `ReadinessIssueList` (non-compact, full detail visible)
+
+`src/components/features/spaces-rules/overview-tab.tsx` (updated):
+- Removed custom amber/red inline alert divs + AlertTriangle, CircleDashed imports
+- "Alerts" card body replaced with `ReadinessIssueList compact` fed by `buildConflictSummaryIssues(conflicts)`
+
+**Intentionally Left Unchanged:**
+- `computeResourceConflicts()`, `ResourceConflict` type, `computeKpiData()` — all conflict logic preserved
+- `SpacesRulesHealthSummary` (pure stat cards — no banner), `SpacesRulesKpiCards`
+- `spaces-rules-workspace.tsx`, `spaces-tab.tsx`, `booking-rules-tab.tsx`
+- resource/rule editing actions — untouched
+- No booking logic changed. No DB schema changed.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Previous Phase
 CRM-READINESS-PHASE9E-C-001 complete — Migrate Schedule Setup Warnings to Shared Readiness Components
 
 ## What Just Happened (Phase 9E-C — Schedule Setup Warnings → ReadinessIssueCard)
@@ -320,6 +349,11 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
+**Phase 9E-F** — Migrate /crm/dispatch warnings to ReadinessIssueCard / ReadinessIssueList:
+- Home-service dispatch warnings (no driver assigned, driver not checked in, location issues) use hand-rolled inline UI
+- Replace those with shared readiness components
+- No dispatch logic or booking logic changed
+
 **Phase 9E-D** — Migrate /crm/availability needs-attention warnings to ReadinessIssueCard:
 - `CrmAvailabilitySummary` and the Live Board tab in `CrmAvailabilityClient` use hand-rolled warning banners for staff not checked in, needing attention, and drivers not ready
 - Replace those banners with `ReadinessIssueCard` / `ReadinessIssueList` from the shared library
