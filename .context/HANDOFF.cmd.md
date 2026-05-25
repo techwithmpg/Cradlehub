@@ -3,30 +3,35 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
-CRM-SETUP-PHASE3-001 complete — Rules & Setup Center
+CRM-SERVICES-PHASE4-001 complete — Services & Therapist Setup
 
-## What Just Happened
-Phase 3 of CRM improvement — /crm/setup converted into a clear Rules & Setup Center:
+## What Just Happened (Phase 4 — Services & Therapist Setup)
+Phase 4 of CRM improvement — /crm/services upgraded into "Services & Therapist Setup":
 
-1. **Title** changed to "Rules & Setup Center"
-2. **Section 1 — Booking Flow Rules**: 3 cards (Online Booking / In-House Walk-In / Home Service) each with badge (Schedule-based / Live operations / Dispatch workflow), description, and 3 quick links
-3. **Section 2 — Setup Health**: existing CrmSetupHealthCards, unchanged
-4. **Section 3 — Setup Issues**: existing CrmSetupIssuesList, unchanged
-5. **Section 4 — Setup Workspaces**: updated tiles now link to Services & Therapists, Schedule Setup, Spaces & Rules, Live Availability, Dispatch, Daily Operations Center
-6. **Section 5 — What affects each booking type?**: booking impact matrix — 10 data-factor rows × 3 booking type columns; scrollable on mobile
+1. **Title** changed to "Services & Therapist Setup" (icon: ✨)
+2. **Section 1 — Active Services**: existing `ServicesOfferedTab` retained unchanged — manages active/in-spa/home-service flags, price overrides, visibility, adding/removing services
+3. **Section 2 — Provider Assignments** (new): `CrmServiceTherapistPanel` shows per-service:
+   - In-spa / Home / Visibility eligibility pills
+   - Assigned provider chips (staff name + staff_type badge)
+   - ⛔ critical banner for **public services with 0 valid providers** (online booking fails to show therapists)
+   - ⚠️ warning for non-public services with 0 providers
+   - "How provider matching works" footnote — explains `SERVICE_STAFF_TYPES` rule and hard-excluded roles
+4. **New query**: `getBranchStaffAndServiceAssignments(branchId, serviceIds)` — parallel fetch of active branch staff + staff_services rows
+5. **Architecture rule enforced** (display only): only `SERVICE_STAFF_TYPES` (therapist, nail_tech, aesthetician, salon_head) count as valid providers; driver and utility are hard-excluded regardless of staff_services entries
 
-## Key Files Added
-- `src/components/features/crm/setup/crm-booking-flow-rules.tsx`
-- `src/components/features/crm/setup/crm-booking-impact-matrix.tsx`
+## Key Files Added (Phase 4)
+- `src/lib/queries/crm-services.ts`
+- `src/components/features/crm/services/crm-service-therapist-panel.tsx`
 
-## Key Files Modified
-- `src/app/(dashboard)/crm/setup/page.tsx`
-- `src/components/features/crm/setup/crm-setup-workspace-tiles.tsx`
+## Key Files Modified (Phase 4)
+- `src/app/(dashboard)/crm/services/page.tsx`
 
-## Key Files Untouched (reused as-is)
-- `src/components/features/crm/setup/crm-setup-health-cards.tsx`
-- `src/components/features/crm/setup/crm-setup-issues-list.tsx`
-- `src/lib/queries/crm-setup.ts`
+## Phase 3 Summary (retained for context)
+Phase 3 — /crm/setup into Rules & Setup Center (commit c9c3fe0):
+- `src/components/features/crm/setup/crm-booking-flow-rules.tsx` (new)
+- `src/components/features/crm/setup/crm-booking-impact-matrix.tsx` (new)
+- `src/app/(dashboard)/crm/setup/page.tsx` (title + sections)
+- `src/components/features/crm/setup/crm-setup-workspace-tiles.tsx` (updated tiles)
 
 ## Architecture Rule (carry forward)
 Online booking remains strictly schedule-based.
@@ -38,7 +43,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 1. **Group schedule shift_type in Live Availability:** getCrmAvailabilitySnapshot populates shifts[] only from individual staff_schedules. Staff with group rules but no individual row get shift_type "single" for check-in.
 2. **Recommendation engine workload caps:** max_services_per_day / max_trips_per_day fetched but not used in scoring.
 3. **Driver ETA scoring:** Geographic proximity / travel time not factored into driver recommendations.
-4. **Workspace tiles "Services & Therapists":** Note in tile description says "review or manage where available" — full therapist-service assignment editing is Phase 4 scope.
+4. **Provider assignment editing from CRM:** The Phase 4 panel is read-only. To assign a staff member to a service, use the owner workspace (owner → Staff → [staff member] → Services tab). A future CRM phase could add inline assignment editing directly in the services page.
 
 ## Production Readiness
 - Public booking: ✅ Ready
@@ -49,16 +54,14 @@ All three flows share the scheduling/availability engine but apply it differentl
 - Staff portal: ✅ Ready
 - CRM Setup Center (Rules & Setup): ✅ Ready
 - CRM Today (Daily Operations Center): ✅ Ready
+- CRM Services & Therapist Setup: ✅ Ready (read-only provider panel)
 
 ## Build Status
-- `pnpm type-check`: ✅ Passing
-- `pnpm lint`: ✅ Passing
-- `pnpm build`: ✅ Passing, 85 app routes
+- `npx tsc --noEmit`: ✅ Passing (0 errors)
 
 ## Recommended Next Step
-Phase 4 — Improve service and therapist setup inside /crm/services:
-- Service visibility management (in-spa / home-service eligibility flags)
-- Therapist-service assignment (clear assignment UI, warnings for unassigned services)
-- Service readiness warnings (service with no qualified therapist = blocked bookings)
-- Preventing drivers/utility staff from appearing as service providers
-- Clearer mobile UI for service setup
+Consider Phase 5 options:
+- Inline staff-service assignment editing within /crm/services (currently read-only, requires owner workspace)
+- /crm/spaces-rules improvements (currently minimal)
+- Mobile responsiveness audit across all new CRM pages
+- CRM notifications and urgent action handling

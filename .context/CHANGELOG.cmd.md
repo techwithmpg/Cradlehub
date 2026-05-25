@@ -1452,3 +1452,36 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS, 85 app routes
+
+---
+
+### 2026-05-25 — Claude Code (CRM-SERVICES-PHASE4-001)
+
+**Task:** Phase 4 — /crm/services → "Services & Therapist Setup"
+
+**Files Added:**
+- `src/lib/queries/crm-services.ts` — `getBranchStaffAndServiceAssignments(branchId, serviceIds)`: parallel fetch of active branch staff + staff_services rows for the provider panel
+- `src/components/features/crm/services/crm-service-therapist-panel.tsx` — `CrmServiceTherapistPanel`: read-only per-service provider assignment view with warning/critical states
+
+**Files Modified:**
+- `src/app/(dashboard)/crm/services/page.tsx`
+  - Title: "Services" → "Services & Therapist Setup" (icon: ✨)
+  - Added `isActiveBranchService` type guard
+  - Fetches providerStaff + providerAssignments after branch services (non-fatal: panel shows empty if fails)
+  - Two sections: Active Services + Provider Assignments
+
+**Key Decisions:**
+- Provider Assignments panel is read-only for CRM workspace — assignment editing stays in owner workspace (owner → Staff → [member] → Services tab)
+- `SERVICE_STAFF_TYPES = ["therapist", "nail_tech", "aesthetician", "salon_head"]` — only these count as valid providers
+- `HARD_EXCLUDED_SYSTEM_ROLES = ["driver", "utility"]` — never shown as providers even if staff_services row exists
+- ⛔ critical = public service + 0 valid providers (online booking affected)
+- ⚠️ warning = non-public service + 0 valid providers (CRM bookings affected)
+- Panel footnote explains the matching rule and links to /owner/staff for edits
+
+**Notes:**
+- No booking logic changed. No DB schema changes. No new migrations.
+- The `noUncheckedIndexedAccess` tsconfig flag required using inline object fallbacks for Record<string, T> access (not `record[key] ?? record.defaultKey` pattern).
+
+**Build Status:**
+- `npx tsc --noEmit`: ✅ PASS (0 errors)
+- Commit: 79dd447

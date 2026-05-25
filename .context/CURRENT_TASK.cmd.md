@@ -1,23 +1,34 @@
-# CURRENT TASK: CRM-SETUP-PHASE3-001
+# CURRENT TASK: CRM-SERVICES-PHASE4-001
 
 ## Status
 DONE
 
 ## Task ID
-CRM-SETUP-PHASE3-001
+CRM-SERVICES-PHASE4-001
 
 ## Description
-Phase 3 — Convert /crm/setup into a clear Rules & Setup Center.
-UI/information architecture only. No booking logic changes. No DB changes.
+Phase 4 — Improve /crm/services into "Services & Therapist Setup".
+Adds Provider Assignments panel showing which staff are assigned to each service.
+Read-only for CRM workspace. No booking logic changes. No DB schema changes.
 
 ## Changes Completed
-- Title: "Operations Setup" → "Rules & Setup Center"
-- New Section 1: Booking Flow Rules (3 cards: Online/In-House/Home-Service)
-- Section 2: Setup Health (existing CrmSetupHealthCards, unchanged)
-- Section 3: Setup Issues (existing CrmSetupIssuesList, unchanged)
-- Section 4: Setup Workspaces (updated tiles: Services, Schedule, Spaces, Availability, Dispatch, Today)
-- New Section 5: What affects each booking type? (impact matrix)
-- Section helper upgraded with description prop
+- Title: "Services" → "Services & Therapist Setup" with 🧖 icon
+- Section 1: Active Services (existing ServicesOfferedTab, unchanged)
+- Section 2: Provider Assignments (new CrmServiceTherapistPanel)
+  - Per-service: name, category, in-spa/home/visibility badges
+  - Assigned provider chips (name + staff_type badge)
+  - ⛔ critical for public services with 0 valid providers
+  - ⚠️ warning for non-public services with 0 providers
+  - "How provider matching works" footnote
+- New query: getBranchStaffAndServiceAssignments(branchId, serviceIds)
+- Architecture rule enforced (display): only SERVICE_STAFF_TYPES can be providers
+
+## New Files
+- src/lib/queries/crm-services.ts
+- src/components/features/crm/services/crm-service-therapist-panel.tsx
+
+## Modified Files
+- src/app/(dashboard)/crm/services/page.tsx
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)
@@ -26,6 +37,4 @@ Claude Code (main branch, E:/cradlehub)
 main
 
 ## Build Status
-- pnpm type-check: ✅ PASS
-- pnpm lint: ✅ PASS
-- pnpm build: ✅ PASS (85 routes)
+- npx tsc --noEmit: ✅ PASS (0 errors)
