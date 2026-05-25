@@ -36,6 +36,17 @@ const CRM_SETUP_ROLES = new Set([
   "csr_head",
 ]);
 
+/**
+ * High-privilege roles that can manage any branch (not tied to a specific branch_id).
+ * These roles are trusted to provide a valid branchId from the UI context.
+ */
+const HIGH_PRIVILEGE_ROLES = new Set([
+  "owner",
+  "manager",
+  "assistant_manager",
+  "store_manager",
+]);
+
 /** System roles that can never be service providers, regardless of staff_services entries. */
 const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
 
@@ -46,10 +57,24 @@ const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
 
 type CrmSetupContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
-  branchId: string;
+  /** null for high-privilege roles without a personal branch assignment */
+  branchId: string | null;
   systemRole: string;
+  /** true for owner/manager/assistant_manager/store_manager — can act on any branch */
+  isHighPrivilege: boolean;
 };
 
+/**
+ * Resolves the calling user's CRM setup access context.
+ *
+ * Priority order (consistent with how page.tsx resolves staff context):
+ *   1. Real active staff record from DB
+ *   2. Dev bypass mock (only if no real record and dev bypass is enabled)
+ *
+ * High-privilege roles (owner, manager, etc.) are allowed to operate on any
+ * branch — their branchId may be null if they have no personal branch assignment.
+ * Branch-scoped roles (crm, csr_head) must have a branch_id set.
+ */
 async function requireCrmSetupAccess(): Promise<CrmSetupContext | null> {
   const supabase = await createClient();
   const {
@@ -57,15 +82,7 @@ async function requireCrmSetupAccess(): Promise<CrmSetupContext | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  if (isDevAuthBypassEnabled()) {
-    const mock = getDevBypassLayoutStaff();
-    return {
-      supabase,
-      branchId: mock.branch_id,
-      systemRole: mock.system_role,
-    };
-  }
-
+  // Always check for a real staff record first (same priority as page.tsx)
   const { data: me } = await supabase
     .from("staff")
     .select("branch_id, system_role")
@@ -73,27 +90,92 @@ async function requireCrmSetupAccess(): Promise<CrmSetupContext | null> {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !me.branch_id || !CRM_SETUP_ROLES.has(me.system_role)) return null;
+  if (me) {
+    if (!CRM_SETUP_ROLES.has(me.system_role as string)) return null;
+    const isHighPrivilege = HIGH_PRIVILEGE_ROLES.has(me.system_role as string);
+    // Branch-scoped roles (crm, csr_head) must have a branch assigned
+    if (!isHighPrivilege && !me.branch_id) return null;
+    return {
+      supabase,
+      branchId: (me.branch_id as string | null) ?? null,
+      systemRole: me.system_role as string,
+      isHighPrivilege,
+    };
+  }
 
-  return {
-    supabase,
-    branchId: me.branch_id as string,
-    systemRole: me.system_role as string,
-  };
+  // Fall back to dev bypass only when no real staff record exists
+  if (isDevAuthBypassEnabled()) {
+    const mock = getDevBypassLayoutStaff();
+    return {
+      supabase,
+      branchId: mock.branch_id,
+      systemRole: mock.system_role,
+      isHighPrivilege: true, // mock is always "owner"
+    };
+  }
+
+  return null;
+}
+
+// ── Branch scope guard ────────────────────────────────────────────────────────
+
+/**
+ * Validates that the calling user is authorised to act on `branchId`.
+ *
+ * - High-privilege roles: verify the branch exists and is active in the DB.
+ * - Branch-scoped roles: must match their own branch_id exactly.
+ *
+ * Returns an error result on failure, or null on success.
+ */
+async function checkBranchScope(
+  ctx: CrmSetupContext,
+  branchId: string
+): Promise<ActionResult | null> {
+  if (ctx.isHighPrivilege) {
+    // Owner / manager: verify the target branch exists
+    const { data: branch } = await ctx.supabase
+      .from("branches")
+      .select("id")
+      .eq("id", branchId)
+      .maybeSingle();
+    if (!branch) {
+      return {
+        ok: false,
+        message:
+          "Branch not found. Please reload the Services page and try again.",
+      };
+    }
+    return null; // ✓ allowed
+  }
+
+  // Branch-scoped CRM / CSR roles: must be on their own branch
+  if (!ctx.branchId || ctx.branchId !== branchId) {
+    return {
+      ok: false,
+      message: "You can only manage assignments for your own branch.",
+    };
+  }
+  return null; // ✓ allowed
 }
 
 // ── Zod schemas ───────────────────────────────────────────────────────────────
 
 const assignSchema = z.object({
-  branchId: z.string().uuid("Invalid branch ID"),
-  serviceId: z.string().uuid("Invalid service ID"),
-  staffId: z.string().uuid("Invalid staff ID"),
+  branchId: z
+    .string()
+    .min(1, "Branch ID is missing — please reload the page and try again.")
+    .uuid("Invalid branch ID — please reload the Services page and try again."),
+  serviceId: z.string().min(1, "Service ID is required.").uuid("Invalid service ID"),
+  staffId: z.string().min(1, "Please select a provider to assign.").uuid("Invalid staff ID"),
 });
 
 const removeSchema = z.object({
-  branchId: z.string().uuid("Invalid branch ID"),
-  serviceId: z.string().uuid("Invalid service ID"),
-  staffId: z.string().uuid("Invalid staff ID"),
+  branchId: z
+    .string()
+    .min(1, "Branch ID is missing — please reload the page and try again.")
+    .uuid("Invalid branch ID — please reload the Services page and try again."),
+  serviceId: z.string().min(1, "Service ID is required.").uuid("Invalid service ID"),
+  staffId: z.string().min(1, "Staff ID is required.").uuid("Invalid staff ID"),
 });
 
 // ── Helper: is a staff row a valid service provider? ──────────────────────────
@@ -143,13 +225,9 @@ export async function assignProviderToServiceAction(
     };
   }
 
-  // Branch scope: the action must target the caller's own branch
-  if (ctx.branchId !== branchId) {
-    return {
-      ok: false,
-      message: "You can only manage assignments for your own branch.",
-    };
-  }
+  // Branch scope: role-aware (owner/manager can manage any branch; crm/csr must match own branch)
+  const scopeError = await checkBranchScope(ctx, branchId);
+  if (scopeError) return scopeError;
 
   // Verify the service is active for this branch
   const { data: branchService, error: bsErr } = await ctx.supabase
@@ -268,12 +346,9 @@ export async function removeProviderFromServiceAction(
     };
   }
 
-  if (ctx.branchId !== branchId) {
-    return {
-      ok: false,
-      message: "You can only manage assignments for your own branch.",
-    };
-  }
+  // Branch scope: role-aware (owner/manager can manage any branch; crm/csr must match own branch)
+  const scopeErr = await checkBranchScope(ctx, branchId);
+  if (scopeErr) return scopeErr;
 
   // ── Last-provider protection for public active services ──
   const { data: branchService } = await ctx.supabase

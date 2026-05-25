@@ -289,6 +289,10 @@ export function ProviderAssignmentSheet({
 
   function handleAssign() {
     if (!selectedStaffId) return;
+    if (!branchId) {
+      setStatus({ type: "error", text: "Branch information is missing. Please reload the page and try again." });
+      return;
+    }
     const id = selectedStaffId;
     runAction(async () => {
       const res = await assignProviderToServiceAction({
@@ -302,6 +306,10 @@ export function ProviderAssignmentSheet({
   }
 
   function handleRemove(staffId: string) {
+    if (!branchId) {
+      setStatus({ type: "error", text: "Branch information is missing. Please reload the page and try again." });
+      return;
+    }
     runAction(() =>
       removeProviderFromServiceAction({ branchId, serviceId: row.serviceId, staffId })
     );
