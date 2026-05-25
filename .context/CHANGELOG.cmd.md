@@ -1790,3 +1790,38 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (Phase 9E-B — CRM Services Provider Warnings → ReadinessIssueCard)
+
+**Task:** CRM-READINESS-PHASE9E-B-001 — Migrate hand-rolled provider warning banners in the CRM Services panel to use shared `ReadinessIssueCard` and `ReadinessIssueList` components.
+
+**Files Changed:**
+
+- `src/components/features/crm/services/crm-service-therapist-panel.tsx`
+  - Added `ReadinessIssueList` import and `ReadinessIssue` type import
+  - Exported `createNoProviderReadinessIssue(row: ServiceRow): ReadinessIssue | null` — maps a no-provider ServiceRow to a ReadinessIssue (critical for public services, warning for internal)
+  - Replaced hand-rolled aggregate banner (criticalCount/warningCount div) with `ReadinessIssueList compact` showing one issue per affected service
+
+- `src/components/features/crm/services/provider-assignment-card.tsx`
+  - Added `ReadinessIssueCard` import and `ReadinessIssue` type import
+  - Added `buildNoProviderIssue(row: ServiceRow): ReadinessIssue | null` local helper (mirrors `createNoProviderReadinessIssue` but self-contained in the client component)
+  - Computes `noProviderIssue = buildNoProviderIssue(row)` in component body
+  - Replaced old ⛔/⚠️ italic text block with `<ReadinessIssueCard issue={noProviderIssue} compact />` in the else branch of the assigned-providers conditional
+
+**Intentionally Left Unchanged:**
+- Assign Provider dropdown (select + Assign button)
+- Remove provider chips (ProviderChip + ✕ button)
+- Inline StatusMessage (success/error feedback)
+- `router.refresh()` on successful action
+- `assignProviderToServiceAction` / `removeProviderFromServiceAction` calls
+- Last-provider protection (lives in actions.ts)
+- No booking logic changed. No DB schema changed. No other CRM pages touched.
+
+**Commit:** (pending)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)

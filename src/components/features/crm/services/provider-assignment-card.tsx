@@ -20,6 +20,8 @@ import {
   assignProviderToServiceAction,
   removeProviderFromServiceAction,
 } from "@/app/(dashboard)/crm/services/actions";
+import { ReadinessIssueCard } from "@/components/shared/readiness-issue-card";
+import type { ReadinessIssue } from "@/types/readiness";
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
 
@@ -43,6 +45,51 @@ const STAFF_TYPE_STYLE: Record<ServiceStaffType, { color: string; bg: string }> 
 };
 
 const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
+
+// ── Readiness helper ──────────────────────────────────────────────────────────
+
+/**
+ * Builds a ReadinessIssue for the per-row "no providers" state.
+ * Mirrors createNoProviderReadinessIssue in crm-service-therapist-panel.tsx
+ * but lives here so ProviderAssignmentCard ("use client") stays self-contained.
+ */
+function buildNoProviderIssue(row: ServiceRow): ReadinessIssue | null {
+  if (row.assignedProviders.length > 0) return null;
+
+  if (row.isCritical) {
+    return {
+      id: `service:${row.serviceId}:no-public-provider`,
+      scope: "service",
+      severity: "critical",
+      title: "Public service has no valid provider",
+      problem: `"${row.name}" is visible to customers but has no eligible provider assigned.`,
+      impact: "Customers may not be able to choose a therapist or complete a booking for this service online.",
+      fix: "Assign at least one eligible service provider (therapist, nail tech, aesthetician, or salon head) before relying on this service in online booking.",
+      actionLabel: "Assign provider",
+      actionHref: "/crm/services",
+      source: "ProviderAssignmentCard",
+      entityType: "service",
+      entityIds: [row.serviceId],
+      count: 1,
+    };
+  }
+
+  return {
+    id: `service:${row.serviceId}:no-internal-provider`,
+    scope: "service",
+    severity: "warning",
+    title: "Service has no valid provider",
+    problem: `"${row.name}" has no eligible provider assigned yet.`,
+    impact: "CRM may not be able to assign this service during in-house or internal booking.",
+    fix: "Assign an eligible provider using the dropdown, or disable the service until it is ready.",
+    actionLabel: "Assign provider",
+    actionHref: "/crm/services",
+    source: "ProviderAssignmentCard",
+    entityType: "service",
+    entityIds: [row.serviceId],
+    count: 1,
+  };
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -214,6 +261,7 @@ export function ProviderAssignmentCard({
     text: string;
   } | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState("");
+  const noProviderIssue = buildNoProviderIssue(row);
 
   function runAction(action: () => Promise<{ ok: boolean; message: string }>) {
     setStatus(null);
@@ -325,21 +373,9 @@ export function ProviderAssignmentCard({
               />
             ))}
           </div>
-        ) : (
-          <div
-            style={{
-              fontSize: "0.8125rem",
-              fontStyle: "italic",
-              color: row.isCritical
-                ? "var(--cs-error,#c0392b)"
-                : "var(--cs-warning,#e67e22)",
-            }}
-          >
-            {row.isCritical
-              ? "⛔ No providers — customers cannot select a therapist for this service in online booking."
-              : "⚠️ No providers assigned yet."}
-          </div>
-        )}
+        ) : noProviderIssue !== null ? (
+          <ReadinessIssueCard issue={noProviderIssue} compact />
+        ) : null}
       </div>
 
       {/* ── Add provider control ── */}

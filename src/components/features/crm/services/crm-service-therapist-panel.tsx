@@ -24,11 +24,60 @@ import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/c
 import { SERVICE_STAFF_TYPES } from "@/constants/staff-roles";
 import type { ServiceRow } from "./types";
 import { ProviderAssignmentCard } from "./provider-assignment-card";
+import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
+import type { ReadinessIssue } from "@/types/readiness";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
 const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
+
+// ── Readiness issue factory ───────────────────────────────────────────────────
+
+/**
+ * Maps a ServiceRow with no assigned providers to a ReadinessIssue.
+ * Returns null when the service already has at least one valid provider.
+ * Exported so ProviderAssignmentCard can reuse the same definition.
+ */
+export function createNoProviderReadinessIssue(row: ServiceRow): ReadinessIssue | null {
+  if (row.assignedProviders.length > 0) return null;
+
+  if (row.isCritical) {
+    // Public active service with no valid providers — affects online booking.
+    return {
+      id: `service:${row.serviceId}:no-public-provider`,
+      scope: "service",
+      severity: "critical",
+      title: "Public service has no valid provider",
+      problem: `"${row.name}" is visible to customers but has no eligible provider assigned.`,
+      impact: "Customers may not be able to choose a therapist or complete a booking for this service online.",
+      fix: "Assign at least one eligible service provider (therapist, nail tech, aesthetician, or salon head) before relying on this service in online booking.",
+      actionLabel: "Assign provider",
+      actionHref: "/crm/services",
+      source: "CrmServiceTherapistPanel",
+      entityType: "service",
+      entityIds: [row.serviceId],
+      count: 1,
+    };
+  }
+
+  // Non-public / internal service with no valid providers.
+  return {
+    id: `service:${row.serviceId}:no-internal-provider`,
+    scope: "service",
+    severity: "warning",
+    title: "Service has no valid provider",
+    problem: `"${row.name}" has no eligible provider assigned yet.`,
+    impact: "CRM may not be able to assign this service during in-house or internal booking.",
+    fix: "Assign an eligible provider using the dropdown, or disable the service until it is ready.",
+    actionLabel: "Assign provider",
+    actionHref: "/crm/services",
+    source: "CrmServiceTherapistPanel",
+    entityType: "service",
+    entityIds: [row.serviceId],
+    count: 1,
+  };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -123,9 +172,11 @@ export function CrmServiceTherapistPanel({
   }
 
   const rows = buildServiceRows(services, staff, assignments);
-  const criticalCount = rows.filter((r) => r.isCritical).length;
-  const warningCount = rows.filter((r) => r.isWarning && !r.isCritical).length;
-  const totalIssues = criticalCount + warningCount;
+
+  // Build per-service readiness issues for all rows missing valid providers.
+  const providerIssues = rows
+    .map(createNoProviderReadinessIssue)
+    .filter((i): i is ReadinessIssue => i !== null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
@@ -152,43 +203,14 @@ export function CrmServiceTherapistPanel({
         </span>
       </div>
 
-      {/* ── Issue summary banner ── */}
-      {totalIssues > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            borderRadius: "var(--cs-r-sm,8px)",
-            border: `1px solid ${criticalCount > 0 ? "rgba(192,57,43,0.25)" : "rgba(230,126,34,0.25)"}`,
-            background: criticalCount > 0 ? "rgba(192,57,43,0.05)" : "rgba(230,126,34,0.05)",
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-secondary)",
-          }}
-        >
-          <span style={{ fontSize: 18, flexShrink: 0 }}>
-            {criticalCount > 0 ? "⛔" : "⚠️"}
-          </span>
-          <span>
-            {criticalCount > 0 && (
-              <>
-                <strong style={{ color: "var(--cs-error,#c0392b)" }}>
-                  {criticalCount} public service{criticalCount > 1 ? "s" : ""} have no providers
-                </strong>
-                {" — customers won't be able to select a therapist in online booking. "}
-              </>
-            )}
-            {warningCount > 0 && (
-              <>
-                <strong style={{ color: "var(--cs-warning,#e67e22)" }}>
-                  {warningCount} service{warningCount > 1 ? "s" : ""} missing providers
-                </strong>
-                {criticalCount > 0 ? " (non-public)." : " — assign therapists using the dropdowns below."}
-              </>
-            )}
-          </span>
-        </div>
+      {/* ── Provider issue list (replaces hand-rolled aggregate banner) ── */}
+      {providerIssues.length > 0 && (
+        <ReadinessIssueList
+          issues={providerIssues}
+          compact
+          emptyTitle="All services have providers assigned"
+          emptyDescription="Every active service has at least one eligible provider."
+        />
       )}
 
       {/* ── Per-service assignment cards ── */}

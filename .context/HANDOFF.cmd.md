@@ -3,6 +3,32 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9E-B-001 complete — Migrate CRM Services Provider Warnings to ReadinessIssueCard
+
+## What Just Happened (Phase 9E-B — CRM Services Provider Warnings → ReadinessIssueCard)
+Phase 9E-B — Two files changed. Display-only migration; no assignment logic, booking logic, or DB schema changed.
+
+**Files (commit pending):**
+
+`src/components/features/crm/services/crm-service-therapist-panel.tsx` (updated):
+- Added `ReadinessIssueList` import + `ReadinessIssue` type import
+- Exported `createNoProviderReadinessIssue(row: ServiceRow): ReadinessIssue | null` — produces a `critical` issue for public services with no valid providers, `warning` for non-public/internal ones
+- Replaced hand-rolled aggregate banner div (with criticalCount/warningCount inline text) with `<ReadinessIssueList issues={providerIssues} compact />` — one card per affected service
+
+`src/components/features/crm/services/provider-assignment-card.tsx` (updated):
+- Added `ReadinessIssueCard` import + `ReadinessIssue` type import
+- Added local `buildNoProviderIssue(row: ServiceRow): ReadinessIssue | null` (self-contained; mirrors `createNoProviderReadinessIssue` but lives in the "use client" file to avoid cross-boundary import issues)
+- Computes `noProviderIssue` in component body
+- Replaced ⛔/⚠️ italic text block in the else branch of the assigned-providers conditional with `<ReadinessIssueCard issue={noProviderIssue} compact />`
+
+**Intentionally Left Unchanged:**
+- Assign Provider dropdown, ProviderChip remove buttons, StatusMessage, router.refresh(), server action calls, last-provider protection
+- /crm/today ReadinessStrip, /crm/setup ReadinessIssueList — unaffected
+- No booking logic changed. No DB schema changed.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Previous Phase
 CRM-READINESS-PHASE9E-A-001 complete — Add Compact System Readiness Strip to /crm/today
 
 ## What Just Happened (Phase 9E-A — Compact Readiness Strip on /crm/today)
@@ -263,13 +289,13 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-**Phase 9E-B** — Migrate /crm/services provider warnings to ReadinessIssueCard:
-- The existing ⛔/⚠️ banners in `CrmServiceTherapistPanel` are hand-rolled inline
-- Replace them with `ReadinessIssueCard` instances from the shared component library
-- Requires mapping the panel's inline issue detection (public vs non-public service with no provider) to the `ReadinessIssue` shape
-- No new DB queries needed — the panel already has the computed data
+**Phase 9E-C** — Migrate /crm/staff-availability schedule warnings to ReadinessIssueCard:
+- The schedule coverage issues in `ScheduleSetupWorkspace` / `schedule-coverage-issues.tsx` use hand-rolled issue shapes (`ScheduleHealthIssue`) with their own display
+- Replace those displays with `ReadinessIssueCard` / `ReadinessIssueList` from the shared library
+- Map `ScheduleHealthIssue` → `ReadinessIssue` (severity: "error" → "critical", "warning" → "warning")
+- No new DB queries needed — the schedule health data is already fetched
 
-**Phase 9F** (after 9E-B) — Global CRM readiness badge in sidebar or header:
+**Phase 9F** (after 9E-C) — Global CRM readiness badge in sidebar or header:
 - Small count badge showing critical+warning issues across all domains
 - Clicking navigates to /crm/setup for the full list
 - Requires the sidebar or layout component to call getCrmReadiness
