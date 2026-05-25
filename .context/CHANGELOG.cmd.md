@@ -1902,3 +1902,39 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (Phase 9E-G — CRM Availability Warnings → Shared Readiness Components)
+
+**Task:** CRM-READINESS-PHASE9E-G-001 — Migrate needs-attention / live availability warning UI in /crm/availability to shared ReadinessIssueCard and ReadinessIssueList components.
+
+**Files Created:**
+- `src/components/features/crm/availability/availability-readiness-utils.ts`
+  - `buildAvailabilityReadinessIssues(summary)` — maps CrmAvailabilitySummary → ReadinessIssue[]: notCheckedIn → warning (scope:daily), needsAttention → warning (scope:schedule), driversTotal>0 && driversReady===0 → warning (scope:dispatch)
+  - `buildNoScheduleStaffIssue(count)` — single issue for ScheduleIssuesView tab banner
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/availability/page.tsx`
+  - Added imports: ReadinessIssueList, buildAvailabilityReadinessIssues
+  - Added `<ReadinessIssueList compact>` between CrmAvailabilitySummary and CrmAvailabilityClient; emits issues only when snapshot.summary has notCheckedIn/needsAttention/no-driver-ready; shows "Live availability looks ready" empty state when none
+
+- `src/components/features/crm/availability/crm-availability-client.tsx` (minimal change)
+  - Added imports: ReadinessIssueCard, ReadinessIssueList, buildNoScheduleStaffIssue
+  - `ScheduleIssuesView` only: replaced description paragraph with `ReadinessIssueCard compact`; replaced custom empty state div with `ReadinessIssueList issues={[]}` empty state; per-staff orange-bordered grid preserved
+
+**Intentionally Left Unchanged:**
+- `CrmAvailabilitySummary` stat cards (Scheduled, Checked In, Available, Busy, Not Checked In, Drivers Ready, Needs Attention) — pure metrics, no banner
+- `StaffListView` (check-in/check-out buttons untouched)
+- `DriverReadinessView` (check-in/check-out buttons untouched)
+- `CrmAvailabilityBoard` (live board columns unchanged)
+- `getCrmAvailabilitySnapshot` query logic unchanged
+- `checkInStaffForShiftAction`, `checkOutStaffForShiftAction` — unchanged
+- No booking logic changed. No DB schema changed.
+
+**Commit:** (pending)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)

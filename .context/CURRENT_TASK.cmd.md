@@ -1,16 +1,17 @@
-# CURRENT TASK: CRM-READINESS-PHASE9E-E-001
+# CURRENT TASK: CRM-READINESS-PHASE9E-G-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-READINESS-PHASE9E-E-001
+CRM-READINESS-PHASE9E-G-001
 
 ## Description
-Phase 9E-E — Migrate Spaces & Rules Resource Conflicts to Shared Readiness Components.
-Replace hand-rolled ConflictRow cards in ConflictsTab and custom amber/red alert divs
-in OverviewTab with ReadinessIssueList/ReadinessIssueCard.
-Resource conflict computation, resource/rule editing, and booking logic unchanged.
+Phase 9E-G — Migrate CRM Availability Needs-Attention Warnings to Shared Readiness Components.
+Add page-level ReadinessIssueList strip (notCheckedIn / needsAttention / drivers-not-ready)
+between CrmAvailabilitySummary and CrmAvailabilityClient. Replace ScheduleIssuesView
+description paragraph with ReadinessIssueCard compact. Check-in/check-out and all
+availability logic unchanged.
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)

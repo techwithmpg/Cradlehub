@@ -9,6 +9,9 @@ import { AvailabilityStatusBadge } from "@/components/shared/availability-status
 import { formatTime12h } from "@/lib/utils/time-format";
 import { checkInStaffForShiftAction, checkOutStaffForShiftAction } from "@/lib/actions/staff-checkins";
 import type { CrmAvailabilitySnapshot, CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
+import { ReadinessIssueCard } from "@/components/shared/readiness-issue-card";
+import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
+import { buildNoScheduleStaffIssue } from "./availability-readiness-utils";
 
 type Tab = "live_board" | "staff_list" | "schedule_issues" | "driver_readiness";
 
@@ -250,18 +253,23 @@ function StaffListView({
 
 function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
   const issues = staff.filter((s) => s.scheduleStatus === "no_schedule");
+
   if (issues.length === 0) {
     return (
-      <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--cs-text-muted)", fontSize: 13 }}>
-        No schedule issues today. All staff have a weekly pattern set.
-      </div>
+      <ReadinessIssueList
+        issues={[]}
+        emptyTitle="No schedule issues today"
+        emptyDescription="All staff have a weekly schedule pattern set."
+      />
     );
   }
+
   return (
-    <div>
-      <div style={{ marginBottom: "0.75rem", fontSize: 12, color: "var(--cs-text-muted)" }}>
-        Staff without a weekly schedule set. These staff members will not appear in the booking engine.
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      {/* Issue banner */}
+      <ReadinessIssueCard issue={buildNoScheduleStaffIssue(issues.length)} compact />
+
+      {/* Per-staff detail grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
         {issues.map((s) => (
           <div

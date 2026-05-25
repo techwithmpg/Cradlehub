@@ -3,6 +3,37 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9E-G-001 complete — Migrate CRM Availability Needs-Attention Warnings to Shared Readiness Components
+
+## What Just Happened (Phase 9E-G — CRM Availability Warnings → ReadinessIssueList)
+Phase 9E-G — Three files changed. Display-only migration; check-in/check-out actions, availability snapshot query, and all booking logic unchanged.
+
+**Files (commit pending):**
+
+`src/components/features/crm/availability/availability-readiness-utils.ts` (new):
+- `buildAvailabilityReadinessIssues(summary: CrmAvailabilitySummary): ReadinessIssue[]` — up to 3 issues: notCheckedIn (daily/warning), needsAttention (schedule/warning), drivers-not-ready (dispatch/warning when driversTotal>0 && driversReady===0)
+- `buildNoScheduleStaffIssue(count: number): ReadinessIssue` — for ScheduleIssuesView tab banner
+
+`src/app/(dashboard)/crm/availability/page.tsx` (updated):
+- `<ReadinessIssueList compact>` added between CrmAvailabilitySummary and CrmAvailabilityClient
+- Built from `buildAvailabilityReadinessIssues(snapshot.summary)` — no extra query
+- emptyTitle: "Live availability looks ready" / emptyDescription when no issues
+
+`src/components/features/crm/availability/crm-availability-client.tsx` (minimal — ScheduleIssuesView only):
+- Description paragraph → `ReadinessIssueCard compact` (buildNoScheduleStaffIssue)
+- Per-staff orange-bordered grid preserved below the card
+- Custom empty state → `ReadinessIssueList issues={[]}` with emptyTitle/emptyDescription
+- StaffListView, DriverReadinessView, CrmAvailabilityBoard — all untouched
+
+**Intentionally Left Unchanged:**
+- CrmAvailabilitySummary stat cards (not warning banners)
+- All check-in/check-out buttons and actions
+- getCrmAvailabilitySnapshot, crm-availability board columns
+- No booking logic changed. No DB schema changed.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Previous Phase
 CRM-READINESS-PHASE9E-E-001 complete — Migrate Spaces & Rules Resource Conflicts to Shared Readiness Components
 
 ## What Just Happened (Phase 9E-E — Spaces & Rules Conflicts → ReadinessIssueCard)
@@ -354,7 +385,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - Replace those with shared readiness components
 - No dispatch logic or booking logic changed
 
-**Phase 9E-D** — Migrate /crm/availability needs-attention warnings to ReadinessIssueCard:
+**Phase 9F** — Global CRM readiness badge in sidebar or header:
 - `CrmAvailabilitySummary` and the Live Board tab in `CrmAvailabilityClient` use hand-rolled warning banners for staff not checked in, needing attention, and drivers not ready
 - Replace those banners with `ReadinessIssueCard` / `ReadinessIssueList` from the shared library
 - No new DB queries needed — availability data is already fetched

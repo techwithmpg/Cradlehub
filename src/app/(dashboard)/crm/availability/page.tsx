@@ -8,6 +8,8 @@ import { LiveAvailabilityImpactCard } from "@/components/features/crm/availabili
 import { AvailabilityRelatedTools } from "@/components/features/crm/availability/availability-related-tools";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getCrmAvailabilitySnapshot, type CrmAvailabilitySnapshot } from "@/lib/queries/crm-availability";
+import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
+import { buildAvailabilityReadinessIssues } from "@/components/features/crm/availability/availability-readiness-utils";
 
 function todayDateString(): string {
   const d = new Date();
@@ -59,6 +61,14 @@ export default async function CrmAvailabilityPage() {
         <>
           {/* Quick-glance health stats (computed from snapshot — no extra query) */}
           <CrmAvailabilitySummary summary={snapshot.summary} />
+
+          {/* Live readiness issues — shown when notCheckedIn / needsAttention / drivers-not-ready */}
+          <ReadinessIssueList
+            issues={buildAvailabilityReadinessIssues(snapshot.summary)}
+            compact
+            emptyTitle="Live availability looks ready"
+            emptyDescription="No urgent check-in or schedule issues were found right now."
+          />
 
           {/* 4-tab workspace: Live Board, Staff List, Schedule Issues, Driver Readiness */}
           <CrmAvailabilityClient snapshot={snapshot} />
