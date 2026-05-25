@@ -3,7 +3,18 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
-CRM-SERVICES-PHASE4-001 complete — Services & Therapist Setup
+CRM-SERVICES-PHASE4B-001 complete — CRM-managed therapist-service assignments
+
+## What Just Happened (Phase 4B — CRM Provider Assignment Management)
+Phase 4B — CRM can now assign/remove service providers from /crm/services:
+
+1. **Server actions** (`src/app/(dashboard)/crm/services/actions.ts`):
+   - `assignProviderToServiceAction`: validates role → branch → service-active → staff-eligible → no-duplicate → inserts staff_services
+   - `removeProviderFromServiceAction`: same guards + **last-provider protection** (blocks removal if it would leave a public active service with 0 valid providers)
+2. **ProviderAssignmentCard** (client): per-service interactive row — assign dropdown (pre-filtered to valid/unassigned providers only), provider chips with ✕ remove buttons, inline status feedback
+3. **ServiceRow shared type** in `types.ts` — used by both server panel and client card
+4. **Panel refactored** from client to server/client split — server computes `ServiceRow[]` including `assignableProviders`, delegates interactivity to client cards
+5. **MVP access notice** added to panel — explains temporary CRM permission and what types are excluded
 
 ## What Just Happened (Phase 4 — Services & Therapist Setup)
 Phase 4 of CRM improvement — /crm/services upgraded into "Services & Therapist Setup":
@@ -43,7 +54,8 @@ All three flows share the scheduling/availability engine but apply it differentl
 1. **Group schedule shift_type in Live Availability:** getCrmAvailabilitySnapshot populates shifts[] only from individual staff_schedules. Staff with group rules but no individual row get shift_type "single" for check-in.
 2. **Recommendation engine workload caps:** max_services_per_day / max_trips_per_day fetched but not used in scoring.
 3. **Driver ETA scoring:** Geographic proximity / travel time not factored into driver recommendations.
-4. **Provider assignment editing from CRM:** The Phase 4 panel is read-only. To assign a staff member to a service, use the owner workspace (owner → Staff → [staff member] → Services tab). A future CRM phase could add inline assignment editing directly in the services page.
+4. **CRM provider assignment is MVP-broad:** CRM setup roles can manage assignments for immediate operational use. Tighten to manager/owner-only once stable (HANDOFF note, not a bug).
+5. **staff_services has no branch_id column:** Assignments are global to the staff/service relationship, not branch-scoped. This matches the existing system design — staff_type and branch_id on the staff table provide indirect branch scoping.
 
 ## Production Readiness
 - Public booking: ✅ Ready
@@ -54,14 +66,14 @@ All three flows share the scheduling/availability engine but apply it differentl
 - Staff portal: ✅ Ready
 - CRM Setup Center (Rules & Setup): ✅ Ready
 - CRM Today (Daily Operations Center): ✅ Ready
-- CRM Services & Therapist Setup: ✅ Ready (read-only provider panel)
+- CRM Services & Therapist Setup: ✅ Ready (editable provider assignments with guardrails)
 
 ## Build Status
 - `npx tsc --noEmit`: ✅ Passing (0 errors)
 
 ## Recommended Next Step
 Consider Phase 5 options:
-- Inline staff-service assignment editing within /crm/services (currently read-only, requires owner workspace)
 - /crm/spaces-rules improvements (currently minimal)
-- Mobile responsiveness audit across all new CRM pages
+- Mobile responsiveness audit across all new CRM pages (Phases 1–4B touched 8+ pages)
 - CRM notifications and urgent action handling
+- Tighten provider assignment permissions from CRM to manager/owner once system is stable (already documented as MVP-broad)

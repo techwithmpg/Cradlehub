@@ -1485,3 +1485,46 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Build Status:**
 - `npx tsc --noEmit`: ✅ PASS (0 errors)
 - Commit: 79dd447
+
+---
+
+### 2026-05-25 — Claude Code (CRM-SERVICES-PHASE4B-001)
+
+**Task:** Phase 4B — CRM-managed therapist-service assignments with guardrails
+
+**Files Added:**
+- `src/app/(dashboard)/crm/services/actions.ts`
+  - `assignProviderToServiceAction`: role guard → branch scope → service-active → staff-eligible (SERVICE_STAFF_TYPES, HARD_EXCLUDED_SYSTEM_ROLES, is_active) → no-duplicate → inserts staff_services row
+  - `removeProviderFromServiceAction`: same guards + last-provider protection (blocks removal that would leave a public active service with 0 valid providers)
+  - `requireCrmSetupAccess()`: context helper for CRM_SETUP_ROLES (owner, manager, assistant_manager, store_manager, crm, csr_head)
+  - Zod validation for all inputs
+  - Revalidates /crm/services, /crm/setup, /crm/today after mutations
+- `src/components/features/crm/services/provider-assignment-card.tsx`
+  - Client component per service: assign dropdown (pre-filtered to valid/unassigned/active providers only), ✕ remove buttons per chip, inline status feedback, router.refresh() on success
+- `src/components/features/crm/services/types.ts`
+  - ServiceRow shared type (server panel + client card)
+
+**Files Modified:**
+- `src/components/features/crm/services/crm-service-therapist-panel.tsx`
+  - Refactored from client → server component shell
+  - Computes ServiceRow[] including assignableProviders per service
+  - Renders ProviderAssignmentCard per row
+  - MVP access notice added
+- `src/app/(dashboard)/crm/services/page.tsx`
+  - Passes branchId prop to CrmServiceTherapistPanel
+
+**Notes:**
+- Enabled CRM to assign/remove valid service providers for MVP setup.
+- Uses existing staff_services relationship — no duplicate system.
+- Validates staff eligibility with SERVICE_STAFF_TYPES and HARD_EXCLUDED_SYSTEM_ROLES.
+- Blocks invalid provider roles (drivers, utility, CRM/CSR-only without service staff_type).
+- Protects public active services from ending with zero valid providers.
+- Assign dropdown excludes: drivers, utility, inactive, already-assigned providers.
+- No booking logic changed. Online booking remains schedule-based.
+- MVP note: CRM permission is intentionally broad; can be tightened to manager/owner later.
+- No database schema changes. No new migrations.
+
+**Build Status:**
+- `npx tsc --noEmit`: ✅ PASS (0 errors)
+- `eslint (changed files)`: ✅ PASS (0 warnings)
+- Commit: e1c65da
