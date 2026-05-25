@@ -3,6 +3,22 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9D-001 complete — Wire /crm/setup to Shared ReadinessIssueList
+
+## What Just Happened (Phase 9D — Wire /crm/setup to Shared ReadinessIssueList)
+Phase 9D — First UI migration. Only `src/app/(dashboard)/crm/setup/page.tsx` changed.
+
+**Changes (commit d3aaf73):**
+- `getCrmReadiness(branchId)` and `getCrmSetupHealth(branchId)` now run in parallel via `Promise.all`. getCrmReadiness uses `.catch(() => null)` so a readiness source failure never crashes health-card rendering.
+- **Summary banner** now uses `readiness.issues` counts (full operational picture: setup + availability + dispatch + payment) with health.issues as fallback. New **overall status badge** (Critical / Warning / OK) derived from `readiness.status`.
+- **Issues section** renamed "Readiness Issues" and now renders `ReadinessIssueList` with `readiness.issues`. Shows severity badge, scope badge, problem, impact, fix, and action link per issue. Falls back to a safe text message if readiness is null.
+- `CrmSetupHealthCards` unchanged — still powered by `getCrmSetupHealth`.
+- `CrmSetupIssuesList` not deleted — just no longer rendered on `/crm/setup`.
+- No other CRM pages touched. No booking logic changed. No DB schema changed.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Current Phase
 CRM-READINESS-PHASE9C-001 complete — CRM Operations Readiness Aggregator
 
 ## What Just Happened (Phase 9C — CRM Operations Readiness Aggregator)
@@ -227,12 +243,19 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-**Phase 9D** — Wire /crm/setup to ReadinessIssueList (first UI migration):
-- Call `getCrmReadiness(branchId)` in the `/crm/setup` page server component
-- Replace existing `CrmSetupIssuesList` component with `ReadinessIssueList`
-- Keep `CrmSetupHealthCards` (health metrics) — replace with `ReadinessHealthGrid` optionally
-- Retire `CrmSetupIssuesList` + internal `IssueCard` from crm-setup-issues-list.tsx
-- This is the first proof that the shared components work end-to-end with real data
+**Phase 9E (option A)** — Add Readiness Summary Strip to /crm/today:
+- Call `getCrmReadiness(branchId)` in the `/crm/today` page
+- Render a compact `ReadinessIssueList` (compact=true, maxItems=3) above or below the existing priority strip
+- Shows top 3 critical/warning issues with "View all in Setup" link
+
+**Phase 9E (option B)** — Migrate /crm/services provider warnings to ReadinessIssueCard:
+- The existing ⛔/⚠️ banners in CrmServiceTherapistPanel are hand-rolled
+- Replace with ReadinessIssueCard instances using the shared component
+- Requires mapping the panel's inline issue detection to ReadinessIssue shape
+
+**Phase 9F** (after 9E) — Global CRM readiness badge in sidebar or header:
+- Small badge showing critical/warning count across all domains
+- Click → full readiness list on /crm/setup
 
 **Phase 9E** (after 9D) — Add 14 missing checks + service provider public/non-public distinction:
 - Extend `getCrmReadiness` to add the missing checks from docs/CRM_READINESS_AUDIT.md Section E

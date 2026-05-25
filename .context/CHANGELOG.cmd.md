@@ -1721,3 +1721,39 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9D-001)
+
+**Task:** Phase 9D — Wire /crm/setup to Shared ReadinessIssueList
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/setup/page.tsx`
+  - Added `getCrmReadiness` import (Phase 9C aggregator)
+  - Added `ReadinessIssueList` import (Phase 9B shared component)
+  - Removed `CrmSetupIssuesList` usage (import also removed from page; component file NOT deleted)
+  - getCrmSetupHealth and getCrmReadiness now run in parallel via Promise.all
+  - getCrmReadiness uses .catch(() => null) so readiness failure never crashes health cards
+  - Summary banner: counts + status badge now derived from readiness.issues (full operational picture)
+    with getCrmSetupHealth counts as safe fallback when readiness is null
+  - Overall status badge (Critical / Warning / OK) added to summary banner
+  - "Setup Issues" section renamed to "Readiness Issues" to reflect broader coverage
+  - Issues section replaced: CrmSetupIssuesList → ReadinessIssueList
+  - Safe fallback message shown when getCrmReadiness unexpectedly returns null
+  - CrmSetupHealthCards unchanged — still powered by getCrmSetupHealth
+  - All other sections (Booking Flow Rules, Setup Health, Setup Workspaces, Impact Matrix) unchanged
+
+**Intentionally Left Unchanged:**
+- `src/components/features/crm/setup/crm-setup-issues-list.tsx` — NOT deleted
+- `src/lib/queries/crm-setup.ts` — NOT changed
+- All other CRM pages — NOT migrated in this phase
+- No booking logic changed
+- No database schema changed
+
+**Commit:** d3aaf73
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)
