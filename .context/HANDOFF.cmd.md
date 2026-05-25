@@ -3,7 +3,20 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
-CRM-SCHEDULE-PHASE5-001 complete — Schedule Setup Center
+CRM-SPACES-PHASE6-001 complete — Spaces & Booking Rules Center
+
+## What Just Happened (Phase 6 — Spaces & Booking Rules Center)
+Phase 6 — /crm/spaces-rules upgraded into "Spaces & Booking Rules Center":
+
+1. **Permission extension** (`resources-actions.ts`): `requireOwnerOrManager` now includes `crm` and `csr_head` with branch-scope check — consistent with `requireOwnerOrBranchManager` pattern in `branches/actions.ts`. All three resource mutations also revalidate `/crm/spaces-rules`.
+2. **CRM resource management enabled**: `canManageResources={true}` — CRM can add/edit/toggle rooms and resources. Server action validates role + branch_id.
+3. **Booking rules kept read-only for CRM**: `canEditRules={false}` — booking rules control online booking time windows, home-service availability, and advance-booking limits. These settings directly affect live online booking; tightening to manager/owner only is the safe choice (documented here).
+4. **Booking Rules tab now visible for CRM**: Changed `canViewBookingRules` and `showActiveRulesKpi` from `workspaceContext !== "crm"` to `true` so CRM can see (but not edit) the active rules.
+5. **SpacesRulesExplainer** (`spaces-rules-explainer.tsx`): 3 cards for In-Spa, In-House/Walk-In, and Home-Service — explains what each booking flow uses and how spaces/rules affect them. Architecture note banner.
+6. **SpacesRulesHealthSummary** (`spaces-rules-health-summary.tsx`): 8 stat cards from already-fetched `ResourceRow[]` + `BranchBookingRules` — no extra queries.
+7. **SpacesRulesAccessNotice** (`spaces-rules-access-notice.tsx`): Clear can/cannot two-column notice for CRM scope.
+8. **SpacesRulesRelatedTools** (`spaces-rules-related-tools.tsx`): Footer links to Today, Live Availability, Services, Schedule Setup, Rules & Setup.
+9. **Page title** → "Spaces & Booking Rules Center" with `PageHeader`, description updated.
 
 ## What Just Happened (Phase 5 — Schedule Setup Center)
 Phase 5 — /crm/staff-availability upgraded into "Schedule Setup Center":
@@ -77,14 +90,18 @@ All three flows share the scheduling/availability engine but apply it differentl
 - CRM Today (Daily Operations Center): ✅ Ready
 - CRM Services & Therapist Setup: ✅ Ready (editable provider assignments with guardrails)
 - CRM Schedule Setup Center: ✅ Ready (explainer cards + health summary + workspace + related tools)
+- CRM Spaces & Booking Rules Center: ✅ Ready (resource editing enabled, booking rules read-only for CRM)
+
+## Known Limitations (updated Phase 6)
+6. **CRM cannot edit booking rules**: `updateBranchBookingRules` in `branch-booking-rules.ts` gates on `manager/assistant_manager/store_manager/owner`. Booking rules control online booking time windows, home-service enable/disable, and advance-booking limits — higher risk than resource toggling. Keep manager/owner-only. If operational need arises, add `crm` to `canManageBranchRules` and revalidate booking paths.
 
 ## Build Status
 - `npx tsc --noEmit`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-Consider Phase 6 options:
-- /crm/spaces-rules improvements (currently minimal)
-- Mobile responsiveness audit across all new CRM pages (Phases 1–5 touched 9+ pages)
+Consider Phase 7:
+- /crm/availability → Live Availability & Check-In Center (CRM manage daily staff check-in, live presence, missing staff, same-day operational reality)
+- Mobile responsiveness audit across all new CRM pages (Phases 1–6 touched 10+ pages)
 - CRM notifications and urgent action handling
-- Tighten provider assignment permissions from CRM to manager/owner once system is stable (already documented as MVP-broad)
+- Tighten provider assignment permissions from CRM to manager/owner once system is stable
