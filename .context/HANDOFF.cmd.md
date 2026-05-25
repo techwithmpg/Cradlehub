@@ -3,32 +3,30 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
-CRM-TODAY-PHASE2-001 complete — Daily Operations Center UI
+CRM-SETUP-PHASE3-001 complete — Rules & Setup Center
 
 ## What Just Happened
-Phase 2 of CRM improvement — /crm/today reorganised into a clear Daily Operations Center:
+Phase 3 of CRM improvement — /crm/setup converted into a clear Rules & Setup Center:
 
-1. **Title** changed to "Daily Operations Center"
-2. **TodayWorkflowStrip** — calm visual guide: Start Day → Serve Customers → Confirm Bookings → Monitor Operations → Emergency Actions
-3. **"Serve Customers" section** wraps quick actions with label + description
-4. **"Today's Operational Snapshot" section** wraps KPI cards with label + description
-5. **Booking queue empty state** now says: "No active bookings right now. Use New Walk-in, New Home Service, or Online Requests to begin today's front-desk flow."
-6. **TodaySystemMatchStatus** card below queue — 6 links to existing operational tools (no new queries)
-7. **TodayEmergencyActions** card below System Match Status — 6 mid-shift action links
-8. **Staff Readiness card** now opens with "Start Day" label + "Check who is present, missing, and ready before accepting walk-ins."
-9. Day Progress and Payment Summary remain untouched in right rail.
+1. **Title** changed to "Rules & Setup Center"
+2. **Section 1 — Booking Flow Rules**: 3 cards (Online Booking / In-House Walk-In / Home Service) each with badge (Schedule-based / Live operations / Dispatch workflow), description, and 3 quick links
+3. **Section 2 — Setup Health**: existing CrmSetupHealthCards, unchanged
+4. **Section 3 — Setup Issues**: existing CrmSetupIssuesList, unchanged
+5. **Section 4 — Setup Workspaces**: updated tiles now link to Services & Therapists, Schedule Setup, Spaces & Rules, Live Availability, Dispatch, Daily Operations Center
+6. **Section 5 — What affects each booking type?**: booking impact matrix — 10 data-factor rows × 3 booking type columns; scrollable on mobile
 
 ## Key Files Added
-- `src/components/features/crm/today/today-workflow-strip.tsx`
-- `src/components/features/crm/today/today-system-match-status.tsx`
-- `src/components/features/crm/today/today-emergency-actions.tsx`
+- `src/components/features/crm/setup/crm-booking-flow-rules.tsx`
+- `src/components/features/crm/setup/crm-booking-impact-matrix.tsx`
 
 ## Key Files Modified
-- `src/app/(dashboard)/crm/today/page.tsx`
-- `src/components/features/crm/today/crm-booking-queue-panel.tsx`
-- `src/components/features/crm/today/today-staff-readiness.tsx`
-- `src/components/features/crm/today/today-quick-actions.tsx`
-- `src/components/features/crm/today/today-priority-strip.tsx`
+- `src/app/(dashboard)/crm/setup/page.tsx`
+- `src/components/features/crm/setup/crm-setup-workspace-tiles.tsx`
+
+## Key Files Untouched (reused as-is)
+- `src/components/features/crm/setup/crm-setup-health-cards.tsx`
+- `src/components/features/crm/setup/crm-setup-issues-list.tsx`
+- `src/lib/queries/crm-setup.ts`
 
 ## Architecture Rule (carry forward)
 Online booking remains strictly schedule-based.
@@ -37,9 +35,10 @@ Home-service booking keeps its dispatch/location workflow.
 All three flows share the scheduling/availability engine but apply it differently based on booking context.
 
 ## Known Limitations (carried forward)
-1. **Group schedule shift_type in Live Availability:** `getCrmAvailabilitySnapshot` populates `shifts[]` only from `staff_schedules` (individual). Staff with group rules but no individual schedule get `shift_type: "single"` for check-in.
-2. **Recommendation engine workload caps:** `max_services_per_day` / `max_trips_per_day` from `staff_scheduling_preferences` are fetched but not used in scoring.
-3. **Driver ETA scoring:** Geographic proximity / travel time is not factored into driver recommendations.
+1. **Group schedule shift_type in Live Availability:** getCrmAvailabilitySnapshot populates shifts[] only from individual staff_schedules. Staff with group rules but no individual row get shift_type "single" for check-in.
+2. **Recommendation engine workload caps:** max_services_per_day / max_trips_per_day fetched but not used in scoring.
+3. **Driver ETA scoring:** Geographic proximity / travel time not factored into driver recommendations.
+4. **Workspace tiles "Services & Therapists":** Note in tile description says "review or manage where available" — full therapist-service assignment editing is Phase 4 scope.
 
 ## Production Readiness
 - Public booking: ✅ Ready
@@ -48,8 +47,8 @@ All three flows share the scheduling/availability engine but apply it differentl
 - CRM bookings: ✅ Ready
 - Dispatch: ✅ Ready
 - Staff portal: ✅ Ready
-- CRM Setup Center: ✅ Ready
-- CRM Today (Phase 2): ✅ Ready
+- CRM Setup Center (Rules & Setup): ✅ Ready
+- CRM Today (Daily Operations Center): ✅ Ready
 
 ## Build Status
 - `pnpm type-check`: ✅ Passing
@@ -57,10 +56,9 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing, 85 app routes
 
 ## Recommended Next Step
-Phase 3 — Turn /crm/setup into a proper Rules & Setup Center:
-- Current active rules summary
-- Services & therapist assignments
-- Schedule setup overview
-- Spaces/resources & booking rules
-- Staff-service assignments
-- Setup health checks & issues list
+Phase 4 — Improve service and therapist setup inside /crm/services:
+- Service visibility management (in-spa / home-service eligibility flags)
+- Therapist-service assignment (clear assignment UI, warnings for unassigned services)
+- Service readiness warnings (service with no qualified therapist = blocked bookings)
+- Preventing drivers/utility staff from appearing as service providers
+- Clearer mobile UI for service setup

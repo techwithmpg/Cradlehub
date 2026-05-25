@@ -1417,3 +1417,38 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS, 85 app routes
+
+---
+
+### 2026-05-25 — Claude Code (CRM-SETUP-PHASE3-001 — Rules & Setup Center)
+
+**Task:** Phase 3 CRM Rules & Setup Center.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/setup/page.tsx` — title changed to "Rules & Setup Center"; Section helper upgraded with description prop; 5-section layout: Booking Flow Rules, Setup Health, Setup Issues, Setup Workspaces, What affects each booking type?; both informational-only sections render even on health-check error; footer updated with online-booking architecture note
+- `src/components/features/crm/setup/crm-setup-workspace-tiles.tsx` — TILES array updated to match Phase 3 required 6 workspaces: Services & Therapists, Schedule Setup, Spaces & Rules, Live Availability, Dispatch, Daily Operations Center
+
+**Files Created:**
+- `src/components/features/crm/setup/crm-booking-flow-rules.tsx` — 3-card grid (Online Booking/Schedule-based, In-House/Live operations, Home-Service/Dispatch workflow) with badge, description, and 3 quick links each; informational/navigation only
+- `src/components/features/crm/setup/crm-booking-impact-matrix.tsx` — responsive table (overflow-x: auto) with 10 data-factor rows × 3 booking-type columns; ✓/✕/partial-note cells; informational only
+
+**Files Untouched (reused as-is):**
+- `src/components/features/crm/setup/crm-setup-health-cards.tsx`
+- `src/components/features/crm/setup/crm-setup-issues-list.tsx`
+- `src/lib/queries/crm-setup.ts`
+
+**Notes:**
+- Converted /crm/setup into Rules & Setup Center.
+- Added booking flow rules explanation (3 cards, badges, quick links).
+- Added booking impact matrix (10 factors × 3 booking types).
+- Preserved existing setup health and setup issues components untouched.
+- No booking logic changed.
+- Online booking remains schedule-based.
+- In-house booking remains live-operations based.
+- Home-service remains dispatch/location based.
+- No new DB queries. No schema changes. No new migrations.
+
+**Build Status:**
+- `pnpm type-check`: ✅ PASS
+- `pnpm lint`: ✅ PASS
+- `pnpm build`: ✅ PASS, 85 app routes
