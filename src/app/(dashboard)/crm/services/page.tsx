@@ -6,21 +6,14 @@ import type {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ServicesOfferedTab } from "@/components/features/manager-settings/services-offered-tab";
+import { CrmServiceTherapistPanel } from "@/components/features/crm/services/crm-service-therapist-panel";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getBranchServicesForManagement } from "@/lib/queries/branches";
+import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
+import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import { createClient } from "@/lib/supabase/server";
 
-async function getAllActiveServices(): Promise<GlobalService[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("services")
-    .select("id, name, duration_minutes, price")
-    .eq("is_active", true)
-    .order("name");
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as GlobalService[];
-}
+// ── Auth helpers ───────────────────────────────────────────────────────────────
 
 type BranchRelation = { name: string } | Array<{ name: string }> | null;
 type StaffContext = {
@@ -30,7 +23,6 @@ type StaffContext = {
 };
 
 // All roles that may manage services from the CRM workspace.
-// Tighten this list when the system goes live.
 const CRM_SERVICE_ROLES = new Set([
   "owner",
   "manager",
@@ -45,6 +37,26 @@ function firstBranchName(branches: BranchRelation) {
   return Array.isArray(branches)
     ? (branches[0]?.name ?? "your assigned branch")
     : branches.name;
+}
+
+// ── Type guard ─────────────────────────────────────────────────────────────────
+
+function isActiveBranchService(s: ServiceLite): s is ActiveBranchService {
+  return s.is_active && s.services !== null;
+}
+
+// ── Data queries ───────────────────────────────────────────────────────────────
+
+async function getAllActiveServices(): Promise<GlobalService[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("services")
+    .select("id, name, duration_minutes, price")
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as GlobalService[];
 }
 
 async function getCrmServicesPageData() {
@@ -91,19 +103,23 @@ async function getCrmServicesPageData() {
     };
   }
 
+  const branchId = me.branch_id;
+
+  // ── Parallel fetch: branch services + global catalog ──
   const [servicesResult, allServicesResult] = await Promise.allSettled([
-    getBranchServicesForManagement(me.branch_id),
+    getBranchServicesForManagement(branchId),
     getAllActiveServices(),
   ]);
 
   let services: ServiceLite[] = [];
   let loadError: string | null = null;
+
   if (servicesResult.status === "fulfilled") {
     services = servicesResult.value as ServiceLite[];
   } else {
     loadError = "Unable to load branch services.";
     console.error("[crm/services] branch services query failed", {
-      branchId: me.branch_id,
+      branchId,
       error:
         servicesResult.reason instanceof Error
           ? servicesResult.reason.message
@@ -116,7 +132,7 @@ async function getCrmServicesPageData() {
     allServices = allServicesResult.value;
   } else {
     console.error("[crm/services] catalog services query failed", {
-      branchId: me.branch_id,
+      branchId,
       error:
         allServicesResult.reason instanceof Error
           ? allServicesResult.reason.message
@@ -124,27 +140,97 @@ async function getCrmServicesPageData() {
     });
   }
 
+  // ── Fetch staff + assignment data for the provider panel ──
+  // Collect the global service IDs for all active branch services.
+  const activeServices = services.filter(isActiveBranchService);
+  const activeServiceIds = activeServices.map(
+    (s) => s.service_id ?? s.services.id
+  );
+
+  let providerStaff: Awaited<ReturnType<typeof getBranchStaffAndServiceAssignments>>["staff"] = [];
+  let providerAssignments: Awaited<ReturnType<typeof getBranchStaffAndServiceAssignments>>["assignments"] = [];
+
+  try {
+    const pa = await getBranchStaffAndServiceAssignments(branchId, activeServiceIds);
+    providerStaff = pa.staff;
+    providerAssignments = pa.assignments;
+  } catch (err) {
+    // Non-fatal — panel will show with empty assignments
+    console.error("[crm/services] provider assignment fetch failed", {
+      branchId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   return {
     status: "ready" as const,
-    branchId: me.branch_id,
+    branchId,
     branchName: firstBranchName(me.branches),
     services,
     allServices,
     loadError,
+    activeServices,
+    providerStaff,
+    providerAssignments,
   };
 }
+
+// ── Section wrapper ────────────────────────────────────────────────────────────
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      <div>
+        <div
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            fontFamily: "var(--font-display)",
+            marginBottom: description ? "0.25rem" : 0,
+          }}
+        >
+          {title}
+        </div>
+        {description && (
+          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
+            {description}
+          </div>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function CrmServicesPage() {
   const result = await getCrmServicesPageData();
 
   if (result.status === "unauthorized") redirect("/crm");
 
+  const description =
+    result.status === "ready"
+      ? `${result.branchName} · Manage the service menu and review which therapists are assigned to each service`
+      : "Manage the service menu for your branch.";
+
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <PageHeader
-        title="Services"
-        description="Manage the service menu for your branch."
+        title="Services & Therapist Setup"
+        description={description}
+        icon="✨"
       />
+
       {result.status === "missing_branch" ? (
         <Alert variant="destructive">
           <AlertTitle>Could not resolve your assigned branch.</AlertTitle>
@@ -154,12 +240,41 @@ export default async function CrmServicesPage() {
           </AlertDescription>
         </Alert>
       ) : (
-        <ServicesOfferedTab
-          branchId={result.branchId}
-          services={result.services}
-          allServices={result.allServices}
-          loadError={result.loadError}
-        />
+        <>
+          {/* ── Section 1: Active Services ── */}
+          <Section
+            title="Active Services"
+            description="Control which services are offered at this branch, their eligibility for in-spa or home service, branch price overrides, and booking visibility."
+          >
+            <ServicesOfferedTab
+              branchId={result.branchId}
+              services={result.services}
+              allServices={result.allServices}
+              loadError={result.loadError}
+            />
+          </Section>
+
+          {/* ── Section 2: Provider Assignments ── */}
+          <Section
+            title="Provider Assignments"
+            description="Which staff members are assigned to perform each service. Services without assigned providers will not show therapist options in the booking wizard."
+          >
+            {result.loadError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Could not load provider data</AlertTitle>
+                <AlertDescription>
+                  Branch services failed to load so provider assignments cannot be shown. Refresh the page to try again.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <CrmServiceTherapistPanel
+                services={result.activeServices}
+                staff={result.providerStaff}
+                assignments={result.providerAssignments}
+              />
+            )}
+          </Section>
+        </>
       )}
     </section>
   );
