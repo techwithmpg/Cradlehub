@@ -29,3 +29,14 @@ export type ServiceRow = {
   /** any visibility + 0 valid providers */
   isWarning: boolean;
 };
+
+/**
+ * ServiceTableRow extends ServiceRow with fields needed for the table layout.
+ * Used by CrmTherapistAssignmentTab + ServiceAssignmentTableRow.
+ */
+export type ServiceTableRow = ServiceRow & {
+  /** Duration in minutes (custom_duration_minutes ?? services.duration_minutes) */
+  duration: number;
+  /** Effective price (custom_price ?? services.price) */
+  price: number;
+};

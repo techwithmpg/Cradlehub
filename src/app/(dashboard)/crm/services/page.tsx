@@ -5,8 +5,7 @@ import type {
 } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageHeader } from "@/components/features/dashboard/page-header";
-import { ServicesOfferedTab } from "@/components/features/manager-settings/services-offered-tab";
-import { CrmServiceTherapistPanel } from "@/components/features/crm/services/crm-service-therapist-panel";
+import { CrmServicesWorkspace } from "@/components/features/crm/services/crm-services-workspace";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getBranchServicesForManagement } from "@/lib/queries/branches";
 import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
@@ -175,48 +174,23 @@ async function getCrmServicesPageData() {
   };
 }
 
-// ── Section wrapper ────────────────────────────────────────────────────────────
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <div>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: description ? "0.25rem" : 0,
-          }}
-        >
-          {title}
-        </div>
-        {description && (
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-            {description}
-          </div>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function CrmServicesPage() {
-  const result = await getCrmServicesPageData();
+export default async function CrmServicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const [result, params] = await Promise.all([
+    getCrmServicesPageData(),
+    searchParams,
+  ]);
 
   if (result.status === "unauthorized") redirect("/crm");
+
+  // Determine initial tab from ?tab= query param
+  const initialTab =
+    params.tab === "assignments" ? ("therapist_assignments" as const) : ("active_services" as const);
 
   const description =
     result.status === "ready"
@@ -240,42 +214,16 @@ export default async function CrmServicesPage() {
           </AlertDescription>
         </Alert>
       ) : (
-        <>
-          {/* ── Section 1: Active Services ── */}
-          <Section
-            title="Active Services"
-            description="Control which services are offered at this branch, their eligibility for in-spa or home service, branch price overrides, and booking visibility."
-          >
-            <ServicesOfferedTab
-              branchId={result.branchId}
-              services={result.services}
-              allServices={result.allServices}
-              loadError={result.loadError}
-            />
-          </Section>
-
-          {/* ── Section 2: Provider Assignments ── */}
-          <Section
-            title="Provider Assignments"
-            description="Which staff members are assigned to perform each service. Services without assigned providers will not show therapist options in the booking wizard."
-          >
-            {result.loadError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Could not load provider data</AlertTitle>
-                <AlertDescription>
-                  Branch services failed to load so provider assignments cannot be shown. Refresh the page to try again.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <CrmServiceTherapistPanel
-                branchId={result.branchId}
-                services={result.activeServices}
-                staff={result.providerStaff}
-                assignments={result.providerAssignments}
-              />
-            )}
-          </Section>
-        </>
+        <CrmServicesWorkspace
+          branchId={result.branchId}
+          services={result.services}
+          allServices={result.allServices}
+          loadError={result.loadError}
+          activeServices={result.activeServices}
+          providerStaff={result.providerStaff}
+          providerAssignments={result.providerAssignments}
+          initialTab={initialTab}
+        />
       )}
     </section>
   );
