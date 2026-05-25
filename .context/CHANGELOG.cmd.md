@@ -2231,3 +2231,35 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS (85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-SERVICES-TABLE-REDESIGN-001 — Professional SaaS Table Redesign)
+
+**Task:** Redesign Therapist Assignments tab into a compact professional SaaS table.
+
+**Files Changed:**
+- `src/components/features/crm/services/crm-therapist-assignment-tab.tsx` (rewritten)
+  - 4 KPI `StatCard` components: Active Services, Without Therapist, Eligible Providers, Fully Assigned
+  - `RightRail` with "Who can be assigned?" card, "Assignment Overview" card (color-coded dots + counts), and Tip card
+  - CSS grid layout: `grid-cols-[minmax(0,1fr)_280px]` (fluid main table + 280px right rail)
+  - Table header updated to 5 columns: Service | Category | Assigned Therapists | Status | Actions
+  - Client-side pagination: 10/25/50 rows per page; ellipsis page numbers via `getPageNumbers()`
+  - `safeCurrentPage = Math.min(currentPage, totalPages)` — clamps page on filter change without useEffect
+  - Filter row event handlers explicitly call `setCurrentPage(1)` (in event handlers, not effects)
+- `src/components/features/crm/services/service-assignment-table-row.tsx` (updated)
+  - Added `getAssignmentStatus(row)` helper: Well Assigned (≥2 providers, green), Low Coverage (1 provider, amber), Needs Assignment (0 providers, red)
+  - Added STATUS `<td>` between Assigned Therapists and Actions columns
+  - STATUS cell renders pill badge (color-coded) + caption text below
+
+**Commit:** 481aac8
+
+**Notes:**
+- Table now has 5 columns matching header: Service | Category | Assigned Therapists | Status | Actions
+- All mutations, last-provider protection, and Sheet drawer behavior unchanged
+- No booking logic changed. No DB schema changed.
+
+**Build Status:**
+- `pnpm type-check`: ✅ PASS
+- `pnpm lint`: ✅ PASS
+- `pnpm build`: ✅ PASS (85 routes)
