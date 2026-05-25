@@ -52,18 +52,14 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     return { success: false, error: "You do not have permission to cancel bookings" };
   }
 
-  // Set attribution for trigger
-  await (
-    supabase as unknown as {
-      rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
-    }
-  )
-    .rpc("set_config", {
-      setting: "app.current_staff_id",
-      value: me.id,
-      is_local: true,
-    })
-    .catch(() => {});
+  // Set attribution for trigger (fire-and-forget — non-critical).
+  // set_config is a Postgres built-in, not in generated Supabase types — cast required.
+  try {
+    await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
+      .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
+  } catch {
+    // Non-critical: trigger attribution may not run, booking update proceeds
+  }
 
   const updates: Database["public"]["Tables"]["bookings"]["Update"] = {
     status: parsed.data.status,
@@ -323,18 +319,14 @@ export async function editBookingAction(rawInput: unknown) {
     } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
   }
 
-  // Set attribution so trigger writes changed_by to booking_events
-  await (
-    supabase as unknown as {
-      rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
-    }
-  )
-    .rpc("set_config", {
-      setting:  "app.current_staff_id",
-      value:    me.id,
-      is_local: true,
-    })
-    .catch(() => {});
+  // Set attribution so trigger writes changed_by to booking_events (fire-and-forget — non-critical).
+  // set_config is a Postgres built-in, not in generated Supabase types — cast required.
+  try {
+    await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
+      .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
+  } catch {
+    // Non-critical: trigger attribution may not run, booking update proceeds
+  }
 
   const _editUpdateQ = supabase
     .from("bookings")
