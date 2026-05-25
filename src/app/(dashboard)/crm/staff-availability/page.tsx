@@ -1,5 +1,8 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/schedule-setup-workspace";
+import { ScheduleSetupExplainer } from "@/components/features/staff-schedule/schedule-setup-explainer";
+import { ScheduleSetupHealthSummary } from "@/components/features/staff-schedule/schedule-setup-health-summary";
+import { ScheduleRelatedTools } from "@/components/features/staff-schedule/schedule-related-tools";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
@@ -66,13 +69,22 @@ export default async function CrmStaffAvailabilityPage() {
   const { items, groups, rulesByGroup, error } = await getPageData(branchId);
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <PageHeader
-        title="Schedule Setup"
-        description="Configure universal schedules by staff group, then customize individual schedules only when needed."
+        title="Schedule Setup Center"
+        description="Set the schedules, overrides, and blocked time the system uses for online booking, in-house bookings, and home-service planning."
         action={<PageActions />}
       />
 
+      {/* How each layer works */}
+      <ScheduleSetupExplainer />
+
+      {/* Quick-glance health stats (computed from fetched data — no extra query) */}
+      {!error && (
+        <ScheduleSetupHealthSummary items={items} groups={groups} />
+      )}
+
+      {/* Main workspace — 4-tab editor (unchanged) */}
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Could not load staff data</AlertTitle>
@@ -81,6 +93,9 @@ export default async function CrmStaffAvailabilityPage() {
       ) : (
         <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} />
       )}
+
+      {/* Footer links to related CRM tools */}
+      <ScheduleRelatedTools />
     </section>
   );
 }
