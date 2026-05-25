@@ -1,5 +1,13 @@
+import { ReadinessIssueCard } from "@/components/shared/readiness-issue-card";
+import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
+import {
+  buildNoGroupOrIndividualIssue,
+  buildNoActiveScheduleIssue,
+  buildNoOpeningShiftIssue,
+  buildOnLeaveTodayIssue,
+} from "./schedule-readiness-utils";
 
 type Props = { items: StaffScheduleItem[]; rulesByGroup?: Record<string, StaffGroupScheduleRule[]> };
 
@@ -38,119 +46,110 @@ export function ScheduleCoverageIssues({ items, rulesByGroup }: Props) {
 
   const totalIssues = noSchedule.length + noGroupOrIndividual.length;
 
+  // ── Empty state ───────────────────────────────────────────────────────────────
   if (totalIssues === 0 && noOpeningToday.length === 0 && onLeaveToday.length === 0) {
     return (
-      <div
-        style={{
-          padding: "40px 16px",
-          textAlign: "center",
-          color: "var(--cs-text-muted)",
-          fontSize: 13,
-          background: "var(--cs-surface)",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: "var(--cs-r-lg)",
-        }}
-      >
-        ✅ No coverage issues found. All staff have a weekly schedule set.
-      </div>
+      <ReadinessIssueList
+        issues={[]}
+        emptyTitle="Schedule coverage looks good"
+        emptyDescription="No urgent schedule issues found. All staff have weekly schedule coverage configured."
+      />
     );
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
 
-      {/* No schedule */}
-      {noSchedule.length > 0 && (
-        <IssueSection
-          title={`No weekly schedule (${noSchedule.length})`}
-          description="These staff will not appear in the booking engine until a schedule is set."
-          color="var(--cs-warning)"
-          badge={noSchedule.length}
-        >
-          {noSchedule.map((item) => (
-            <IssueCard key={item.staff.id} item={item} tag="No schedule" tagColor="var(--cs-warning)" />
-          ))}
-        </IssueSection>
-      )}
-
-      {/* No group rules or individual schedule */}
+      {/* ── No group rules or individual schedule (critical) ── */}
       {noGroupOrIndividual.length > 0 && (
-        <IssueSection
-          title={`No group rules or individual schedule (${noGroupOrIndividual.length})`}
-          description="These staff have no individual schedule and their staff group has no universal rules."
-          color="var(--cs-error)"
-          badge={noGroupOrIndividual.length}
-        >
-          {noGroupOrIndividual.map((item) => (
-            <IssueCard key={item.staff.id} item={item} tag="No rules" tagColor="var(--cs-error)" />
-          ))}
-        </IssueSection>
+        <IssueGroup>
+          <ReadinessIssueCard
+            issue={buildNoGroupOrIndividualIssue(noGroupOrIndividual.length)}
+            compact
+          />
+          <StaffGrid>
+            {noGroupOrIndividual.map((item) => (
+              <IssueCard key={item.staff.id} item={item} tag="No rules" tagColor="var(--cs-error)" />
+            ))}
+          </StaffGrid>
+        </IssueGroup>
       )}
 
-      {/* No opening shift today */}
+      {/* ── No active individual schedule (warning) ── */}
+      {noSchedule.length > 0 && (
+        <IssueGroup>
+          <ReadinessIssueCard
+            issue={buildNoActiveScheduleIssue(noSchedule.length)}
+            compact
+          />
+          <StaffGrid>
+            {noSchedule.map((item) => (
+              <IssueCard key={item.staff.id} item={item} tag="No schedule" tagColor="var(--cs-warning)" />
+            ))}
+          </StaffGrid>
+        </IssueGroup>
+      )}
+
+      {/* ── No opening shift today (warning) ── */}
       {noOpeningToday.length > 0 && (
-        <IssueSection
-          title={`No opening shift today (${noOpeningToday.length})`}
-          description="Scheduled today but no opening shift assigned — may affect opening coverage."
-          color="var(--cs-info)"
-          badge={noOpeningToday.length}
-        >
-          {noOpeningToday.map((item) => (
-            <IssueCard key={item.staff.id} item={item} tag="No opening" tagColor="var(--cs-info)" />
-          ))}
-        </IssueSection>
+        <IssueGroup>
+          <ReadinessIssueCard
+            issue={buildNoOpeningShiftIssue(noOpeningToday.length)}
+            compact
+          />
+          <StaffGrid>
+            {noOpeningToday.map((item) => (
+              <IssueCard key={item.staff.id} item={item} tag="No opening" tagColor="var(--cs-info)" />
+            ))}
+          </StaffGrid>
+        </IssueGroup>
       )}
 
-      {/* On leave today */}
+      {/* ── On leave today (info) ── */}
       {onLeaveToday.length > 0 && (
-        <IssueSection
-          title={`On leave today (${onLeaveToday.length})`}
-          description="Staff with a day-off override for today."
-          color="var(--cs-text-muted)"
-          badge={onLeaveToday.length}
-        >
-          {onLeaveToday.map((item) => (
-            <IssueCard key={item.staff.id} item={item} tag="Day off" tagColor="var(--cs-text-muted)" />
-          ))}
-        </IssueSection>
+        <IssueGroup>
+          <ReadinessIssueCard
+            issue={buildOnLeaveTodayIssue(onLeaveToday.length)}
+            compact
+          />
+          <StaffGrid>
+            {onLeaveToday.map((item) => (
+              <IssueCard key={item.staff.id} item={item} tag="Day off" tagColor="var(--cs-text-muted)" />
+            ))}
+          </StaffGrid>
+        </IssueGroup>
       )}
 
     </div>
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Layout helpers ─────────────────────────────────────────────────────────────
 
-function IssueSection({
-  title,
-  description,
-  badge,
-  color,
-  children,
-}: {
-  title: string;
-  description: string;
-  badge: number;
-  color: string;
-  children: React.ReactNode;
-}) {
+function IssueGroup({ children }: { children: React.ReactNode }) {
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>{title}</span>
-        <span style={{
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          minWidth: 20, height: 20, borderRadius: 10,
-          background: color, color: "#fff", fontSize: 10, fontWeight: 600, padding: "0 5px",
-        }}>{badge}</span>
-      </div>
-      <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginBottom: 10 }}>{description}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.625rem" }}>
-        {children}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+      {children}
     </div>
   );
 }
+
+function StaffGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+        gap: "0.625rem",
+        paddingLeft: "0.25rem",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Per-staff detail card ──────────────────────────────────────────────────────
 
 function IssueCard({
   item,

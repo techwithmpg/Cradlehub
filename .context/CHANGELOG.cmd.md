@@ -1825,3 +1825,43 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (Phase 9E-C — Schedule Setup Warnings → Shared Readiness Components)
+
+**Task:** CRM-READINESS-PHASE9E-C-001 — Migrate hand-rolled schedule coverage warning banners in /crm/staff-availability to use shared ReadinessIssueCard and ReadinessIssueList components.
+
+**Files Created:**
+- `src/components/features/staff-schedule/schedule-readiness-utils.ts`
+  - Pure helper functions (no React, no server-only APIs): `buildMissingScheduleIssue`, `buildNoGroupOrIndividualIssue`, `buildNoActiveScheduleIssue`, `buildNoOpeningShiftIssue`, `buildOnLeaveTodayIssue`
+  - Usable in both server and client component contexts
+
+**Files Changed:**
+- `src/components/features/staff-schedule/schedule-coverage-issues.tsx`
+  - Removed hand-rolled `IssueSection` sub-component (title/description/badge/color div header)
+  - Replaced each section header with `ReadinessIssueCard compact` using helpers from utils
+  - Kept per-staff `IssueCard` grid below each ReadinessIssueCard (preserves who-is-affected detail)
+  - Empty state now uses `ReadinessIssueList` (issues=[], emptyTitle/emptyDescription) for shared styling
+  - Issue order: critical (noGroupOrIndividual) → warning (noSchedule) → warning (noOpeningToday) → info (onLeaveToday)
+  - Severity mappings: noGroupOrIndividual=critical, noSchedule/noOpeningToday=warning, onLeaveToday=info
+
+- `src/components/features/staff-schedule/schedule-setup-health-summary.tsx`
+  - Added imports: `ReadinessIssueCard`, `buildMissingScheduleIssue`
+  - Replaced hand-rolled ⚠️ banner div with `<ReadinessIssueCard issue={buildMissingScheduleIssue(stats.missingSchedule)} />` (full/non-compact for context)
+  - Stat cards grid unchanged
+
+**Intentionally Left Unchanged:**
+- All schedule data computation (noSchedule, noGroupOrIndividual, noOpeningToday, onLeaveToday filters)
+- `IssueCard` per-staff detail cards (still show individual staff names with tag badges)
+- `ScheduleSetupWorkspace` (4-tab editor), `ScheduleSetupExplainer`, `ScheduleRelatedTools`
+- `ManualScheduleImport` wizard and `applyManualScheduleImportAction`
+- `schedule-setup-workspace.tsx` — untouched
+- No booking logic changed. No DB schema changed. No schedule save actions changed.
+
+**Commit:** (pending)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)

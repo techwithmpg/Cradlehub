@@ -16,6 +16,8 @@
  * directing CRM to the Coverage Issues tab for full details.
  */
 
+import { ReadinessIssueCard } from "@/components/shared/readiness-issue-card";
+import { buildMissingScheduleIssue } from "./schedule-readiness-utils";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
 
@@ -150,29 +152,7 @@ export function ScheduleSetupHealthSummary({
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       {/* Warning if staff missing individual schedules */}
       {stats.missingSchedule > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            borderRadius: "var(--cs-r-sm,8px)",
-            border: "1px solid rgba(230,126,34,0.25)",
-            background: "rgba(230,126,34,0.05)",
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-secondary)",
-          }}
-        >
-          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
-          <span>
-            <strong style={{ color: "var(--cs-warning,#e67e22)" }}>
-              {stats.missingSchedule} staff member{stats.missingSchedule > 1 ? "s have" : " has"} no individual weekly schedule.
-            </strong>
-            {" They may still be covered by a group schedule rule. Check the "}
-            <strong>Coverage Issues</strong>
-            {" tab below for full detail."}
-          </span>
-        </div>
+        <ReadinessIssueCard issue={buildMissingScheduleIssue(stats.missingSchedule)} />
       )}
 
       {/* Stats grid */}

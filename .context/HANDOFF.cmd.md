@@ -3,6 +3,37 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9E-C-001 complete — Migrate Schedule Setup Warnings to Shared Readiness Components
+
+## What Just Happened (Phase 9E-C — Schedule Setup Warnings → ReadinessIssueCard)
+Phase 9E-C — Three files changed. Display-only migration; no schedule save logic, manual import, or booking logic changed.
+
+**Files (commit pending):**
+
+`src/components/features/staff-schedule/schedule-readiness-utils.ts` (new):
+- 5 pure helper functions returning `ReadinessIssue`: `buildMissingScheduleIssue`, `buildNoGroupOrIndividualIssue`, `buildNoActiveScheduleIssue`, `buildNoOpeningShiftIssue`, `buildOnLeaveTodayIssue`
+- No React. No server-only APIs. Works in both server and client component contexts.
+
+`src/components/features/staff-schedule/schedule-coverage-issues.tsx` (updated):
+- Removed `IssueSection` sub-component (hand-rolled title/badge/description header)
+- Each coverage section now uses `ReadinessIssueCard compact` from the helper + `StaffGrid` of `IssueCard`s below
+- Issue order: critical (noGroupOrIndividual) → warning (noSchedule) → warning (noOpeningToday) → info (onLeaveToday)
+- Empty state updated to `ReadinessIssueList issues={[]} emptyTitle/emptyDescription`
+
+`src/components/features/staff-schedule/schedule-setup-health-summary.tsx` (updated):
+- Replaced ⚠️ banner div with `<ReadinessIssueCard issue={buildMissingScheduleIssue(stats.missingSchedule)} />` (full mode — shows problem/impact/fix with "View Coverage Issues" action)
+- Stat cards grid unchanged
+
+**Intentionally Left Unchanged:**
+- All data computation (noSchedule, noGroupOrIndividual, noOpeningToday, onLeaveToday filters)
+- Per-staff `IssueCard` detail grids
+- `ManualScheduleImport` wizard and `applyManualScheduleImportAction`
+- `ScheduleSetupWorkspace`, `ScheduleSetupExplainer`, `ScheduleRelatedTools`
+- No booking logic changed. No DB schema changed.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Previous Phase
 CRM-READINESS-PHASE9E-B-001 complete — Migrate CRM Services Provider Warnings to ReadinessIssueCard
 
 ## What Just Happened (Phase 9E-B — CRM Services Provider Warnings → ReadinessIssueCard)
@@ -289,13 +320,12 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-**Phase 9E-C** — Migrate /crm/staff-availability schedule warnings to ReadinessIssueCard:
-- The schedule coverage issues in `ScheduleSetupWorkspace` / `schedule-coverage-issues.tsx` use hand-rolled issue shapes (`ScheduleHealthIssue`) with their own display
-- Replace those displays with `ReadinessIssueCard` / `ReadinessIssueList` from the shared library
-- Map `ScheduleHealthIssue` → `ReadinessIssue` (severity: "error" → "critical", "warning" → "warning")
-- No new DB queries needed — the schedule health data is already fetched
+**Phase 9E-D** — Migrate /crm/availability needs-attention warnings to ReadinessIssueCard:
+- `CrmAvailabilitySummary` and the Live Board tab in `CrmAvailabilityClient` use hand-rolled warning banners for staff not checked in, needing attention, and drivers not ready
+- Replace those banners with `ReadinessIssueCard` / `ReadinessIssueList` from the shared library
+- No new DB queries needed — availability data is already fetched
 
-**Phase 9F** (after 9E-C) — Global CRM readiness badge in sidebar or header:
+**Phase 9F** (after 9E-D) — Global CRM readiness badge in sidebar or header:
 - Small count badge showing critical+warning issues across all domains
 - Clicking navigates to /crm/setup for the full list
 - Requires the sidebar or layout component to call getCrmReadiness
