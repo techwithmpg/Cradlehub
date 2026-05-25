@@ -3,6 +3,32 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9B-001 complete — Shared Operations Readiness Types & Components
+
+## What Just Happened (Phase 9B — Shared Operations Readiness Types & Components)
+Phase 9B — Foundation layer for the unified readiness engine. No CRM pages touched.
+
+**Files created (commit dbdef68):**
+
+1. **`src/types/readiness.ts`**: Canonical types:
+   - `ReadinessSeverity` ("critical" | "warning" | "info" | "success")
+   - `ReadinessScope` (8 domains: setup/schedule/daily/service/space/dispatch/payment/system)
+   - `ReadinessStatus` ("ok" | "warning" | "critical")
+   - `ReadinessIssue` — superset of all 7 legacy warning shapes with: id, scope, severity, title, problem, impact, fix, actionLabel, actionHref, source, entityType?, entityIds?, count?
+   - `ReadinessResult` — { issues, status }
+   - `ReadinessHealthMetric` — (id, label, value, description?, status?, href?)
+   - Helpers: `getReadinessStatusFromIssues()`, `sortReadinessIssues()`, `buildReadinessResult()`
+   - `READINESS_SCOPE_META` — icon/label map for all 8 scopes
+
+2. **`src/components/shared/readiness-issue-card.tsx`**: Server component. Severity badge + icon, scope badge, count badge, title, problem, impact, fix, action Link. Compact mode hides detail rows.
+
+3. **`src/components/shared/readiness-issue-list.tsx`**: Server component. Sorted list (critical first), green empty-state, optional section header with count badge, maxItems cap with hidden-count footer.
+
+4. **`src/components/shared/readiness-health-grid.tsx`**: Server component. Responsive grid (2/3/4 col) of metric cards; critical/warning/ok/neutral status colours; optional drill-down Link per card.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Current Phase
 CRM-READINESS-PHASE9A-001 complete — Operations Readiness Audit
 
 ## What Just Happened (Phase 9A — Operations Readiness Audit)
@@ -174,8 +200,19 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 ## Recommended Next Step
-Consider Phase 8:
-- /crm/dispatch → Home-Service Dispatch Center (dispatch management, driver assignment, trip tracking, location-based routing)
-- Mobile responsiveness audit across all new CRM pages (Phases 1–7 touched 11+ pages)
-- CRM notifications and urgent action handling
+**Phase 9C** — Central Readiness Aggregator Query:
+- Create `src/lib/queries/crm-readiness.ts` — `getCrmReadiness(branchId)` running 8+ parallel Supabase queries, mapping results into `ReadinessIssue[]` via `buildReadinessResult()`.
+- Deduplication via `issue.source` + `issue.id` when multiple callers run the same check.
+
+**Phase 9D** (after 9C) — Replace duplicate issue displays:
+- `CrmSetupIssuesList` → `ReadinessIssueList` in crm/setup
+- Merge `TodayAttentionStrip` / `ActionRequiredList` duplication into one component
+
+**Phase 9E** (after 9D) — Add 14 missing readiness checks (docs/CRM_READINESS_AUDIT.md Section E)
+
+**Phase 9F** — Global CRM readiness strip/badge in sidebar or header
+
+**Phase 8** (independent):
+- /crm/dispatch → Home-Service Dispatch Center (dispatch management, driver assignment, trip tracking)
+- Mobile responsiveness audit across CRM pages (Phases 1–7 touched 11+ pages)
 - Tighten provider assignment permissions from CRM to manager/owner once system is stable

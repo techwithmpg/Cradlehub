@@ -1613,3 +1613,50 @@ All three flows share the scheduling/availability engine but apply it differentl
 
 **Build Status:**
 - No source changes — build not run (not required)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9B-001)
+
+**Task:** Phase 9B — Shared Operations Readiness Types & Components
+
+**Files Added:**
+- `src/types/readiness.ts`
+  - `ReadinessSeverity` — "critical" | "warning" | "info" | "success"
+  - `ReadinessScope` — 8 domains: setup/schedule/daily/service/space/dispatch/payment/system
+  - `ReadinessStatus` — "ok" | "warning" | "critical"
+  - `ReadinessIssue` — canonical issue shape (id, scope, severity, title, problem, impact, fix, actionLabel, actionHref, source, entityType?, entityIds?, count?)
+  - `ReadinessResult` — { issues, status }
+  - `ReadinessHealthMetric` — (id, label, value, description?, status?, href?)
+  - `getReadinessStatusFromIssues()` — derives status from highest-severity issue
+  - `sortReadinessIssues()` — critical → warning → info → success, then alpha by title
+  - `buildReadinessResult()` — convenience wrapper
+  - `READINESS_SCOPE_META` — icon/label map for all 8 scopes
+- `src/components/shared/readiness-issue-card.tsx` — Server component
+  - Severity icon + badge label, scope badge with icon, count badge (when >1)
+  - Full detail: title, problem, impact, fix, action Link
+  - Compact mode: title + action only (hides problem/impact/fix, smaller icon)
+  - SEVERITY_STYLE record for color/bg/border per severity level
+- `src/components/shared/readiness-issue-list.tsx` — Server component
+  - Sorts via sortReadinessIssues (critical first)
+  - Empty state: green ✅ banner with configurable title/description
+  - Optional section header with issue count badge
+  - maxItems cap with "+ N more issues not shown" footer
+  - compact prop forwarded to each ReadinessIssueCard
+- `src/components/shared/readiness-health-grid.tsx` — Server component
+  - Responsive grid (columns prop: 2 | 3 | 4, default 3)
+  - Metric card: large value, label, description, "View details ›" link if href present
+  - Status colours: critical=red, warning=amber, ok=green, neutral=muted
+
+**Commit:** dbdef68
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing (85/85 routes)
+
+**Notes:**
+- No existing CRM pages touched. No booking logic changed. No DB schema changes.
+- All new files are Server Components (no "use client"). Uses Link from next/link.
+- noUncheckedIndexedAccess safety: ?? fallbacks on all Record indexing.
+- Foundation for Phase 9C (aggregator query), 9D (replace duplicate displays), 9E (add missing checks).
