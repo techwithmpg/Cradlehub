@@ -275,15 +275,28 @@ function BookingCard({ booking, isNext, paymentAction }: { booking: BookingCardD
             </span>
           )}
           {booking.hs_map_url && (
-            <a
-              href={booking.hs_map_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              style={{ marginLeft: "auto", color: "var(--cs-sand)", fontWeight: 600, flexShrink: 0 }}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(booking.hs_map_url!, "_blank", "noopener,noreferrer");
+              }}
+              style={{
+                marginLeft: "auto",
+                color: "var(--cs-sand)",
+                fontWeight: 600,
+                flexShrink: 0,
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                font: "inherit",
+                fontSize: "0.6875rem",
+              }}
             >
               Map ↗
-            </a>
+            </button>
           )}
         </div>
       )}
