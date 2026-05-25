@@ -2011,3 +2011,57 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (86 routes — crm layout adds 1 route segment)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9G-1-001)
+
+**Task:** Phase 9G-1 — Add Daily Operations Missing Readiness Checks
+
+**Files Changed:**
+- `src/lib/queries/crm-readiness.ts`
+  - Added `import { createClient } from "@/lib/supabase/server"`
+  - Added `getCheckedInNotScheduledIssue(branchId, today, dayOfWeek)`:
+    - Queries `staff_shift_checkins` (status='checked_in') then cross-references `staff_schedules` (day_of_week, is_active)
+    - Emits `daily:checked-in-not-scheduled` warning when ghost check-ins exist
+  - Added `getNoOpeningShiftIssue(branchId, dayOfWeek)`:
+    - Queries `staff` (branch_id) then `staff_schedules` (day_of_week, is_active)
+    - Suppressed if no staff are scheduled at all (branch likely closed)
+    - Emits `daily:no-opening-shift-today` warning when staff are scheduled but none have shift_type='opening'
+  - Added `getPendingBookingFollowUpIssue(branchId, today)`:
+    - Queries `bookings` where type='online', status='pending', created_at <= now-30min, booking_date >= today
+    - Emits `daily:booking-request-no-follow-up` warning for stale pending online bookings
+  - Added `getDailyOperationsReadinessIssues(branchId, today, dayOfWeek)`:
+    - Coordinator that runs all three checks via `Promise.allSettled` (never rejects)
+    - Individual check failures silently suppressed; other checks still surface
+  - Modified `getCrmReadinessIssues`:
+    - Added `dayOfWeek` computation from `today`
+    - Extended `Promise.allSettled` from 2 to 3 sources (now includes `getDailyOperationsReadinessIssues`)
+    - Handles `dailyOpsResult` fulfilled/rejected paths with source-failure fallback
+
+**Deferred Checks:**
+- None in Phase 9G-1. All three required checks implemented.
+- Note: `getNoOpeningShiftIssue` checks individual `staff_schedules` only (not `staff_group_schedule_rules`).
+  If a branch uses only group rules to define opening shifts, this check may produce false positives.
+  Phase 9G future work can extend this to also check group rules if needed.
+
+**Intentionally Unchanged:**
+- No UI changes — existing badge (/crm/layout.tsx), /crm/today strip, /crm/setup list naturally surface new issues
+- `src/lib/actions/staff-checkins.ts` — unchanged
+- `src/lib/queries/crm-availability.ts` — unchanged
+- `src/lib/queries/crm-today.ts` — unchanged
+- All booking logic, dispatch logic, availability engine, schedule engine unchanged
+- No DB schema changed. No public /book behavior changed.
+
+**Query Strategy:**
+- Check 1: 2 Supabase queries (staff_shift_checkins → staff_schedules cross-ref)
+- Check 2: 2 Supabase queries (staff → staff_schedules)
+- Check 3: 1 Supabase query (bookings with 4 filters + limit 20)
+- All queries branch-scoped, date-scoped, column-minimal (select only needed fields)
+
+**Commit:** d8220fb
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing
