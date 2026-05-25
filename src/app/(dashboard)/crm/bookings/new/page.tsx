@@ -4,6 +4,20 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { BookingWizard } from "@/components/public/booking-wizard";
 import { createClient } from "@/lib/supabase/server";
+import type { VisitType } from "@/lib/bookings/visit-type-availability";
+
+type CrmBookingType = "walkin" | "home_service";
+
+function normalizeCrmBookingType(
+  value: string | string[] | undefined,
+): CrmBookingType {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw === "home_service" ? "home_service" : "walkin";
+}
+
+function getInitialVisitType(crmType: CrmBookingType): VisitType {
+  return crmType === "home_service" ? "home_service" : "in_spa";
+}
 
 type StaffContext = {
   branch_id: string | null;
@@ -62,17 +76,29 @@ async function getCustomerPrefill(customerId: string | undefined): Promise<Custo
 export default async function CrmBookingWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customerId?: string }>;
+  searchParams: Promise<{ customerId?: string; type?: string }>;
 }) {
   const params = await searchParams;
   const defaultBranchId = await getDefaultBranchId();
   const customerPrefill = await getCustomerPrefill(params.customerId);
 
+  const crmBookingType = normalizeCrmBookingType(params.type);
+  const initialVisitType = getInitialVisitType(crmBookingType);
+
+  const pageTitle =
+    crmBookingType === "home_service"
+      ? "New Home Service Booking"
+      : "New Walk-in Booking";
+  const pageDescription =
+    crmBookingType === "home_service"
+      ? "Start a home-service booking with address and dispatch details."
+      : "Create an in-spa booking for a customer at the front desk.";
+
   return (
     <div>
       <PageHeader
-        title="New In-House Booking"
-        description="Create a booking for walk-in, phone, or staff-assisted customers."
+        title={pageTitle}
+        description={pageDescription}
         action={
           <Button asChild variant="outline" size="sm">
             <Link href="/crm/today">Back to Today</Link>
@@ -81,10 +107,11 @@ export default async function CrmBookingWizardPage({
       />
 
       <BookingWizard
-        key={`${defaultBranchId ?? "none"}-${params.customerId ?? "new"}`}
+        key={`${defaultBranchId ?? "none"}-${params.customerId ?? "new"}-${crmBookingType}`}
         mode="inhouse"
         initialBranchId={defaultBranchId}
         initialCustomer={customerPrefill}
+        initialVisitType={initialVisitType}
       />
     </div>
   );

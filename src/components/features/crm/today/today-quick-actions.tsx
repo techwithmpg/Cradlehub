@@ -2,11 +2,40 @@
 
 import Link from "next/link";
 
-const ACTIONS = [
-  { label: "New In-House Booking", href: "/crm/bookings/new", primary: true },
-  { label: "Search Customer", href: "/crm/customers" },
-  { label: "Schedule", href: "/crm/schedule" },
-  { label: "All Bookings", href: "/crm/bookings" },
+type Action = {
+  label: string;
+  description: string;
+  href: string;
+  primary?: boolean;
+};
+
+const ACTIONS: Action[] = [
+  {
+    label: "New Walk-in",
+    description: "Create an in-spa booking for a customer at the front desk.",
+    href: "/crm/bookings/new?type=walkin",
+    primary: true,
+  },
+  {
+    label: "New Home Service",
+    description: "Start a home-service booking with address and dispatch details.",
+    href: "/crm/bookings/new?type=home_service",
+  },
+  {
+    label: "Online Requests",
+    description: "Review online bookings that need CRM attention.",
+    href: "/crm/bookings?status=pending",
+  },
+  {
+    label: "Search Customer",
+    description: "Find customer records, repeat clients, and history.",
+    href: "/crm/customers",
+  },
+  {
+    label: "Live Availability",
+    description: "See who is checked in, busy, missing, or available now.",
+    href: "/crm/availability",
+  },
 ];
 
 export function TodayQuickActions() {
@@ -23,6 +52,7 @@ export function TodayQuickActions() {
         <Link
           key={action.href}
           href={action.href}
+          title={action.description}
           style={{
             padding: "8px 16px",
             borderRadius: 8,

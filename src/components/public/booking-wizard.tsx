@@ -264,10 +264,17 @@ export function BookingWizard({
   mode = "public",
   initialBranchId = null,
   initialCustomer = null,
+  initialVisitType = undefined,
 }: {
   mode?: BookingWizardMode;
   initialBranchId?: string | null;
   initialCustomer?: InitialCustomer | null;
+  /**
+   * Optional: seed the wizard with a specific visit type selected.
+   * Used by CRM when opening /crm/bookings/new?type=home_service or ?type=walkin.
+   * When omitted the wizard defaults to "in_spa" — preserving existing public booking behavior.
+   */
+  initialVisitType?: VisitType;
 } = {}) {
   const [step, setStep] = useState(1);
   const { isOffline } = useNetworkStatus();
@@ -299,7 +306,9 @@ export function BookingWizard({
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<"auto" | string>("auto");
   const [bookingType, setBookingType] = useState<BookingType>(
-    getBookingTypeForVisitType("in_spa", mode)
+    // Seed from initialVisitType when provided (CRM walk-in / home-service routing).
+    // Falls back to "in_spa" default — preserves existing public booking behavior.
+    getBookingTypeForVisitType(initialVisitType ?? "in_spa", mode)
   );
 
   // Form

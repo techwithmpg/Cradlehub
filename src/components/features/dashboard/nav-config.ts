@@ -74,8 +74,9 @@ const CRM_NAV_GROUPS: NavGroup[] = [
   {
     label: "Service & Resource Setup",
     items: [
-      { label: "Services", href: "/crm/services",    icon: "Sparkles" },
-      { label: "Spaces",   href: "/crm/spaces-rules", icon: "Building2" },
+      { label: "Rules & Setup",    href: "/crm/setup",        icon: "Wrench" },
+      { label: "Services",         href: "/crm/services",     icon: "Sparkles" },
+      { label: "Spaces & Rules",   href: "/crm/spaces-rules", icon: "Building2" },
     ],
   },
   {
@@ -116,7 +117,8 @@ const CSR_HEAD_NAV_GROUPS: NavGroup[] = [
   {
     label: "Service & Resource Setup",
     items: [
-      { label: "Services", href: "/crm/services", icon: "Sparkles" },
+      { label: "Rules & Setup", href: "/crm/setup",    icon: "Wrench" },
+      { label: "Services",      href: "/crm/services", icon: "Sparkles" },
     ],
   },
   {

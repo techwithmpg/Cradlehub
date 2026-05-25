@@ -199,3 +199,16 @@ Overrides, blocked times, check-ins, and bookings still apply on top.
 - Preserves existing individual customization power.
 - Allows universal schedules to serve as true defaults without requiring every staff member to have individual rows.
 - Applies consistently to: `get_available_slots` RPC, `get_daily_schedule` RPC, TypeScript `filterSlotsToWorkingWindows`, and recommendation context builder.
+
+### DEC-CRM-004: /crm root redirects to /crm/today (supersedes DEC-CRM-003)
+**Status:** ACCEPTED — 2026-05-25
+
+**Decision:**
+`/crm` now redirects to `/crm/today` (the Daily Operations page) instead of `/crm/control`.
+DEC-CRM-003 is superseded.
+
+**Rationale:**
+- `/crm/today` is the natural landing page for front-desk CRM staff starting their shift.
+- It shows staff readiness, today's bookings, and quick actions for walk-ins and home service.
+- `/crm/control` remains fully accessible from the sidebar under "Main Operations".
+- This is Phase 1 of CRM improvement — the redirect change is the safest first step.

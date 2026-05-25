@@ -1304,3 +1304,83 @@
 - `pnpm build`: ✅ Passing, 84 app routes
 
 **Commit:** `fix(ops): resolve smoke test blockers` on `main`
+
+---
+
+### 2026-05-24 — Claude Code (CRM Operations Setup Center)
+
+**Task:** CRM-OPS-003 — Build unified CRM Operations Setup Center
+
+**Audit Findings:**
+- 20 existing CRM pages covering all operational areas
+- Nav already grouped into 5 logical sections (Main Ops, Customer Mgmt, Service & Resource Setup, Staff & Internal Work, Finance)
+- All individual setup pages exist: schedule, availability, services, spaces-rules, dispatch, control, live-operations
+- Key gap: no unified "operational health" view — CRM must navigate multiple pages to understand what's misconfigured
+- Key gap: no "Setup Issues" checklist — no way to see broken configuration at a glance
+
+**Files Created:**
+- `src/lib/queries/crm-setup.ts` — `getCrmSetupHealth()` query: checks service staff schedules, staff_services assignments, booking rules, resources, drivers, unassigned bookings
+- `src/app/(dashboard)/crm/setup/page.tsx` — Operations Setup Center page (`/crm/setup`)
+- `src/components/features/crm/setup/crm-setup-health-cards.tsx` — 6 health status cards (ready/warning/error/info)
+- `src/components/features/crm/setup/crm-setup-issues-list.tsx` — actionable issues checklist (severity-sorted, linked to fix pages)
+- `src/components/features/crm/setup/crm-setup-workspace-tiles.tsx` — tiles navigating to existing setup pages (no duplication of logic)
+
+**Files Updated:**
+- `src/components/features/dashboard/nav-config.ts` — added "Ops Setup" link to CRM and CSR Head "Service & Resource Setup" nav groups
+- `src/app/(dashboard)/dev/page.tsx` — added /crm/setup to CRM section in dev panel
+
+**Architecture Decisions Followed:**
+- DEC-CRM-001: Used existing route paths — no redirect indirection
+- DEC-CRM-002: Grouped nav only for CRM roles — not touched for other workspaces
+- No business logic duplicated — all existing queries/pages reused via links
+- SERVICE_STAFF_TYPES constant used to filter service-providing staff (therapist, nail_tech, aesthetician, salon_head)
+- day_of_week: 0=Sunday (JS getDay() convention, matches staff_schedules DB column)
+
+**What the Setup Center Checks:**
+1. Service staff with individual schedule rows (for today's day_of_week)
+2. Active branch services with at least one staff_services assignment
+3. Active branch_resources count
+4. Whether custom branch_booking_rules exist (vs system defaults)
+5. Home service enabled + drivers available
+6. Unassigned confirmed bookings for today
+
+**Build Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
+- `pnpm build`: ✅ Passing, 85 app routes (added /crm/setup)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-SAFE-TWEAKS-001 — CRM Safe Usability Tweaks)
+
+**Task:** CRM safe usability tweaks before full CRM setup redesign.
+Phase 1 only — small, regression-resistant changes. No booking logic changed.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/page.tsx` — changed /crm redirect from /crm/control → /crm/today
+- `src/app/(dashboard)/crm/availability/page.tsx` — clarified live availability vs online booking; notice now explicitly states online booking remains schedule-based and is not controlled by the check-in board
+- `src/app/(dashboard)/crm/bookings/new/page.tsx` — reads `type` query param (walkin | home_service), derives initialVisitType and passes it to BookingWizard; also updates page title/description dynamically
+- `src/components/public/booking-wizard.tsx` — added optional `initialVisitType?: VisitType` prop; initializes bookingType state from it (falls back to "in_spa" when omitted — no change to public booking behavior)
+- `src/components/features/crm/today/today-quick-actions.tsx` — replaced 4 generic actions with 5 CRM-focused quick actions: New Walk-in, New Home Service, Online Requests, Search Customer, Live Availability
+- `src/components/features/crm/today/today-staff-readiness.tsx` — fixed "Full View" link from /crm/staff-availability → /crm/availability
+- `src/components/features/dashboard/nav-config.ts` — renamed "Ops Setup" → "Rules & Setup" and "Spaces" → "Spaces & Rules" in CRM_NAV_GROUPS and CSR_HEAD_NAV_GROUPS
+
+**Files NOT Changed (confirmed):**
+- src/lib/actions/online-booking.ts — untouched
+- src/lib/actions/inhouse-booking.ts — untouched
+- src/lib/engine/availability.ts — untouched
+- src/lib/engine/resource-availability.ts — untouched
+- src/lib/bookings/dispatch-conflict.ts — untouched
+- src/lib/bookings/dispatch-slot-filter.ts — untouched
+- No database schema changes. No migrations.
+
+**Architecture Note (to carry forward):**
+Online booking remains strictly schedule-based.
+CRM/in-house booking can use daily staff check-in and live resource readiness.
+Home-service booking keeps its dispatch/location workflow.
+All three flows share the scheduling/availability engine but apply it differently based on booking context.
+
+**Build Status:**
+- `pnpm type-check`: ✅ PASS
+- `pnpm lint`: ✅ PASS
+- `pnpm build`: ✅ PASS, 85 app routes
