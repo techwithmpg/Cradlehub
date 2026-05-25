@@ -2209,3 +2209,25 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS (85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-SERVICES-COMPACT-001 — Compact Provider Table Rows)
+
+**Task:** Fix scalability of Therapist Assignments table — rows with many providers expanded vertically.
+
+**Files Changed:**
+- `src/components/features/crm/services/service-assignment-table-row.tsx` (rewritten) — now shows max 3 mini provider chips inline + "+N more" badge + "N assigned" count; Manage/Assign Therapist button opens Sheet (no inline expand)
+- `src/components/features/crm/services/provider-assignment-sheet.tsx` (NEW) — right-side Sheet (480px) with service summary bar, full vertical provider list with Remove buttons, Add Provider select + Assign button, status feedback, eligibility note
+
+**Notes:**
+- Sheet uses existing `Sheet`/`SheetContent`/`SheetHeader`/`SheetTitle` from `@/components/ui/sheet` (backed by `@base-ui/react/dialog`)
+- All mutations reuse `assignProviderToServiceAction` and `removeProviderFromServiceAction` unchanged
+- Last-provider protection for public active services still enforced server-side
+- Sheet resets `status` and `selectedStaffId` on close
+- `router.refresh()` after mutations keeps data fresh without full page reload
+
+**Build Status:**
+- `pnpm type-check`: ✅ PASS
+- `pnpm lint`: ✅ PASS
+- `pnpm build`: ✅ PASS (85 routes)
