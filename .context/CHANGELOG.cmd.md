@@ -1932,7 +1932,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `checkInStaffForShiftAction`, `checkOutStaffForShiftAction` — unchanged
 - No booking logic changed. No DB schema changed.
 
-**Commit:** (pending)
+**Commit:** d4327d4
 
 **Verification:**
 - `pnpm type-check`: ✅ Passing (0 errors)
