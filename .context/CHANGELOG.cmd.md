@@ -1819,7 +1819,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - Last-provider protection (lives in actions.ts)
 - No booking logic changed. No DB schema changed. No other CRM pages touched.
 
-**Commit:** (pending)
+**Commit:** b071912
 
 **Verification:**
 - `pnpm type-check`: ✅ Passing (0 errors)
