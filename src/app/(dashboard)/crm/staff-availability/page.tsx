@@ -3,6 +3,7 @@ import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/sch
 import { ScheduleSetupExplainer } from "@/components/features/staff-schedule/schedule-setup-explainer";
 import { ScheduleSetupHealthSummary } from "@/components/features/staff-schedule/schedule-setup-health-summary";
 import { ScheduleRelatedTools } from "@/components/features/staff-schedule/schedule-related-tools";
+import { ManualScheduleImport } from "@/components/features/staff-schedule/manual-schedule-import";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
@@ -82,6 +83,19 @@ export default async function CrmStaffAvailabilityPage() {
       {/* Quick-glance health stats (computed from fetched data — no extra query) */}
       {!error && (
         <ScheduleSetupHealthSummary items={items} groups={groups} />
+      )}
+
+      {/* Current Manual Schedule Setup — 2026 import wizard */}
+      {!error && (
+        <ManualScheduleImport
+          branchId={branchId}
+          staff={items.map((item) => ({
+            id: item.staff.id,
+            full_name: item.staff.full_name,
+            nickname: item.staff.nickname ?? null,
+            is_active: item.staff.is_active,
+          }))}
+        />
       )}
 
       {/* Main workspace — 4-tab editor (unchanged) */}
