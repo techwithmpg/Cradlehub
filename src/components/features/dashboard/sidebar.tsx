@@ -1,8 +1,8 @@
 "use client";
 
 import Link            from "next/link";
-import { usePathname } from "next/navigation";
-import { useState }    from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useCallback }    from "react";
 import {
   LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
   UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
@@ -104,14 +104,25 @@ type NavLinkProps = {
 
 function NavLink({ item, pathname, accent, onNav }: NavLinkProps) {
   const Icon          = ICON_MAP[item.icon];
+  const router        = useRouter();
   const isRootSection = ["/manager", "/owner", "/crm", "/staff-portal", "/driver", "/utility", "/dev"].includes(item.href);
   const isActive      = isRootSection
     ? pathname === item.href
     : pathname === item.href || pathname.startsWith(item.href + "/");
+
+  const handleMouseEnter = useCallback(() => {
+    try {
+      router.prefetch(item.href);
+    } catch {
+      // Best-effort prefetch.
+    }
+  }, [router, item.href]);
+
   return (
     <Link
       href={item.href}
       onClick={onNav}
+      onMouseEnter={handleMouseEnter}
       style={{
         display:         "flex",
         alignItems:      "center",

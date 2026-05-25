@@ -13,6 +13,7 @@ import {
 } from "@/lib/queries/customers";
 import { getBookingsByCustomer } from "@/lib/queries/bookings";
 import { revalidatePath } from "next/cache";
+import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 
 // ── Auth: CRM/Front-desk + owner only ─────────────────────────────────────
 async function requireCrmAccess() {
@@ -103,6 +104,7 @@ export async function updateCustomerAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/crm/customers");
   revalidatePath(`/crm/${customerId}`);
+  if (ctx.branchId) invalidateTag(cacheTags.crmWorkspace(ctx.branchId));
   return { success: true };
 }
 
@@ -148,6 +150,7 @@ export async function createCustomerAction(rawInput: unknown) {
 
   revalidatePath("/crm/customers");
   revalidatePath("/crm/today");
+  if (ctx.branchId) invalidateTag(cacheTags.crmWorkspace(ctx.branchId));
   return { success: true, customerId: String(customerId) };
 }
 

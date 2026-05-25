@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
+import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
 
 const uuid = z.guid("Invalid ID");
@@ -133,6 +134,7 @@ export async function assignBookingDriverAction(rawInput: unknown): Promise<{
   revalidatePath("/manager/control");
   revalidatePath("/crm/control");
   revalidatePath("/driver");
+  invalidateCrmWorkspace(booking.branch_id);
 
   return { success: true };
 }

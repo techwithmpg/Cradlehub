@@ -1,30 +1,56 @@
-# CURRENT TASK: CRM-SERVICES-TABLE-REDESIGN-001
+# CURRENT TASK: WORKSPACE-PREFETCH-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-SERVICES-TABLE-REDESIGN-001
+WORKSPACE-PREFETCH-001
 
 ## Description
-Redesign Therapist Assignments tab into a compact professional SaaS table.
+Implement workspace route warm-up and smart prefetching for CradleHub CRM/Manager/Owner workspaces.
 
-Changes:
-- 4 KPI stat cards: Active Services | Without Therapist | Eligible Providers | Fully Assigned
-- STATUS column in table: Well Assigned (≥2) / Low Coverage (1) / Needs Assignment (0)
-- Client-side pagination: 10/25/50 rows per page with ellipsis page numbers
-- CSS grid layout: fluid main table + 280px right rail
-- Right rail: Who can be assigned? + Assignment Overview (color dots) + Tip cards
-- Filter row: search / category / service type / missing-only toggle — all reset page to 1
-- `safeCurrentPage` clamping avoids useEffect for filter-reset page correction
+## Changes
+- Created reusable `WorkspaceRoutePrefetcher` client component with connection-aware prefetching
+- Created workspace-specific route configs (CRM, Manager, Owner, Staff Portal, Driver)
+- Mounted prefetcher in CRM layout, created Manager and Owner layouts for the same
+- Added hover prefetch to sidebar NavLink for instant route warming on mouse enter
+- Extended cache tags system with workspace-scoped tags and batch invalidation helpers
+- Created cached query wrappers for high-traffic workspace data (today snapshot, availability, dispatch, setup health)
+- Added cache tag invalidation to key action files:
+  - staff-checkins, driver-actions, crm/bookings, manager/bookings, owner/bookings,
+    crm/actions, manager/staff, crm/staff-availability, crm/services
+
+## Safety
+- Respects Data Saver mode (skips all prefetch)
+- Respects slow 2g connections (skips idle prefetch)
+- Does not prefetch heavy routes (reports, maps, analytics) automatically
+- Does not bypass RBAC or fetch unauthorized routes
+- No booking logic changed
+- No DB schema changed
 
 ## Files Changed
-- src/components/features/crm/services/crm-therapist-assignment-tab.tsx (rewritten)
-- src/components/features/crm/services/service-assignment-table-row.tsx (STATUS column added)
-- src/app/(dashboard)/crm/services/page.tsx (cosmetic comment bump)
+- src/components/features/workspace/workspace-route-prefetcher.tsx (new)
+- src/components/features/workspace/workspace-prefetch-config.ts (new)
+- src/app/(dashboard)/crm/layout.tsx (add prefetcher)
+- src/app/(dashboard)/manager/layout.tsx (new)
+- src/app/(dashboard)/owner/layout.tsx (new)
+- src/components/features/dashboard/sidebar.tsx (hover prefetch)
+- src/lib/cache/cache-tags.ts (workspace tags + helpers)
+- src/lib/queries/workspace-cached.ts (new)
+- src/lib/actions/staff-checkins.ts
+- src/lib/actions/driver-actions.ts
+- src/app/(dashboard)/crm/bookings/actions.ts
+- src/app/(dashboard)/manager/bookings/actions.ts
+- src/app/(dashboard)/owner/bookings/actions.ts
+- src/app/(dashboard)/crm/actions.ts
+- src/app/(dashboard)/manager/staff/actions.ts
+- src/app/(dashboard)/crm/staff-availability/actions.ts
+- src/app/(dashboard)/crm/services/actions.ts
 
-## Commit
-481aac8
+## Build Status
+- pnpm type-check: ✅ Passing (0 errors)
+- pnpm lint: ✅ Passing (0 errors, 1 pre-existing warning)
+- pnpm build: ✅ Passing (99 routes)
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)

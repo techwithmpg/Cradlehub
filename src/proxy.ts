@@ -54,6 +54,13 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const devBypass = isDevAuthBypassEnabled();
 
+  // API routes are never in the protected dashboard prefixes and manage their
+  // own auth via the request-scoped Supabase client. Skip the session refresh
+  // (a Supabase network call) so timeouts here don't block every API request.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Always refresh the session token
   const response = await updateSession(request);
 

@@ -5,6 +5,7 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { revalidatePath } from "next/cache";
+import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import type { Database } from "@/types/supabase";
@@ -220,5 +221,6 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
   revalidatePath("/crm/bookings");
   revalidatePath("/manager");
   revalidatePath("/manager/bookings");
+  invalidateTag(cacheTags.crmWorkspace(booking.branch_id));
   return { success: true };
 }

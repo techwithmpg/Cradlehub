@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { SERVICE_STAFF_TYPES } from "@/constants/staff-roles";
@@ -342,6 +343,7 @@ export async function assignProviderToServiceAction(
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   revalidatePath("/crm/today");
+  invalidateCrmWorkspace(branchId);
 
   return { ok: true, message: "Provider assigned successfully." };
 }
@@ -462,6 +464,7 @@ export async function removeProviderFromServiceAction(
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   revalidatePath("/crm/today");
+  invalidateCrmWorkspace(branchId);
 
   return { ok: true, message: "Provider removed." };
 }

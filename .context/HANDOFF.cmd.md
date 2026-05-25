@@ -497,3 +497,43 @@ All three flows share the scheduling/availability engine but apply it differentl
 - /crm/dispatch → Home-Service Dispatch Center
 - Mobile responsiveness audit across CRM pages
 - Tighten provider assignment permissions from CRM to manager/owner once system is stable
+
+---
+
+## Workspace Prefetch System (WORKSPACE-PREFETCH-001)
+
+### New Components
+- `WorkspaceRoutePrefetcher` — mount inside any workspace layout for background route warming
+- `workspace-prefetch-config.ts` — defines immediate/idle/hover route lists per workspace
+
+### Integration Points
+| Workspace | File | Prefetcher mounted |
+|---|---|---|
+| CRM | `src/app/(dashboard)/crm/layout.tsx` | ✅ explicit CRM_PREFETCH config |
+| Manager | `src/app/(dashboard)/manager/layout.tsx` | ✅ new layout wrapper |
+| Owner | `src/app/(dashboard)/owner/layout.tsx` | ✅ new layout wrapper |
+
+### Sidebar Hover Prefetch
+All sidebar `NavLink` items now call `router.prefetch(href)` on `onMouseEnter`.
+
+### Cache Tags Added
+- `crm-workspace:{branchId}`
+- `crm-bookings:{branchId}`
+- `crm-dispatch:{branchId}`
+- `crm-availability:{branchId}`
+- `crm-setup:{branchId}`
+- `manager-workspace:{branchId}`
+- `owner-workspace:{branchId}`
+
+### Batch Invalidation Helpers
+- `invalidateCrmWorkspace(branchId)`
+- `invalidateManagerWorkspace(branchId)`
+- `invalidateOwnerWorkspace(branchId)`
+
+### Cached Query Wrappers (new file: `src/lib/queries/workspace-cached.ts`)
+- `getCrmSetupHealthCached(branchId)`
+- `getCrmTodaySnapshotCached(branchId, date)`
+- `getCrmAvailabilitySnapshotCached(branchId, date)`
+- `getDispatchDataCached(branchId, date)`
+
+These are **not yet wired into existing pages** — they are ready for gradual adoption.

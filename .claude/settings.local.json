@@ -33,7 +33,24 @@
       "Bash(Select-Object -Last 20)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
       "Bash(findstr \"crm-today\")",
-      "Bash(dir \"E:\\\\cradlehub\\\\src\\\\lib\\\\queries\")"
+      "Bash(dir \"E:\\\\cradlehub\\\\src\\\\lib\\\\queries\")",
+      "Bash(xargs head -200)",
+      "Bash(xargs cat)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(taskkill /PID 30772 /F)",
+      "PowerShell(Stop-Process -Id 30772 -Force -ErrorAction SilentlyContinue)",
+      "Bash(npx eslint *)",
+      "Bash(git commit -m 'chore: update context files for Phase 9E-B completion *)",
+      "Bash(git commit -m 'chore: update context files for Phase 9E-C completion *)",
+      "Bash(git commit -m 'chore: update context files for Phase 9E-E completion *)",
+      "Bash(git commit -m 'Phase 9E-G: migrate /crm/availability warnings to shared ReadinessIssueList *)",
+      "Bash(git commit -m 'chore: update context files for Phase 9E-G completion *)",
+      "Bash(git commit -m 'feat\\(crm/dispatch\\): Phase 9E-F — migrate dispatch AlertBanner to ReadinessIssueList *)",
+      "Bash(git commit -m 'chore\\(context\\): update CURRENT_TASK and CHANGELOG for Phase 9E-F *)",
+      "Bash(git commit -m 'chore\\(context\\): update CHANGELOG for CRM-SERVICES-COMPACT-001 *)",
+      "Bash(node -e ' *)"
     ]
   }
 }

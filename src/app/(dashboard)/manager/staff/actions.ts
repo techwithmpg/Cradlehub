@@ -8,6 +8,7 @@ import {
   createBlockedTimeSchema,
 } from "@/lib/validations/staff";
 import { revalidatePath } from "next/cache";
+import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 
 async function getManagerContext() {
   const supabase = await createClient();
@@ -56,6 +57,8 @@ export async function setStaffScheduleAction(rawInput: unknown) {
   revalidatePath("/manager/staff");
   revalidatePath("/manager/staff-availability");
   revalidatePath("/crm/staff-availability");
+  invalidateCrmWorkspace(ctx.me.branch_id);
+  invalidateManagerWorkspace(ctx.me.branch_id);
   return { success: true };
 }
 
@@ -84,6 +87,8 @@ export async function createScheduleOverrideAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
   revalidatePath("/crm/staff-availability");
+  invalidateCrmWorkspace(ctx.me.branch_id);
+  invalidateManagerWorkspace(ctx.me.branch_id);
   return { success: true };
 }
 
@@ -109,6 +114,8 @@ export async function createBlockedTimeAction(rawInput: unknown) {
   revalidatePath("/manager/staff");
   revalidatePath("/manager/staff-availability");
   revalidatePath("/crm/staff-availability");
+  invalidateCrmWorkspace(ctx.me.branch_id);
+  invalidateManagerWorkspace(ctx.me.branch_id);
   return { success: true };
 }
 
@@ -137,6 +144,8 @@ export async function deleteBlockedTimeAction(blockedTimeId: string) {
   revalidatePath("/manager/staff");
   revalidatePath("/manager/staff-availability");
   revalidatePath("/crm/staff-availability");
+  invalidateCrmWorkspace(ctx.me.branch_id);
+  invalidateManagerWorkspace(ctx.me.branch_id);
   return { success: true };
 }
 

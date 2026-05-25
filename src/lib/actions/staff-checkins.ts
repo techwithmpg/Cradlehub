@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { revalidatePath } from "next/cache";
+import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -146,6 +147,8 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
 
   revalidatePath("/crm/availability");
   revalidatePath("/manager/staff-availability");
+  invalidateCrmWorkspace(effectiveBranchId);
+  invalidateManagerWorkspace(effectiveBranchId);
   return { ok: true, id: inserted.id, status: "checked_in" };
 }
 
@@ -195,6 +198,8 @@ export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<Ch
 
   revalidatePath("/crm/availability");
   revalidatePath("/manager/staff-availability");
+  invalidateCrmWorkspace(checkin.branch_id);
+  invalidateManagerWorkspace(checkin.branch_id);
   return { ok: true, id: checkin.id, status: "checked_out" };
 }
 

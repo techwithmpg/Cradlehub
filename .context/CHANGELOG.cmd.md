@@ -2263,3 +2263,48 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS (85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (WORKSPACE-PREFETCH-001)
+
+**Task:** Implement workspace route warm-up and smart prefetching for CradleHub CRM/Manager/Owner workspaces.
+
+**Files Created:**
+- `src/components/features/workspace/workspace-route-prefetcher.tsx` — reusable client component with connection-aware prefetching (Data Saver, 2g guards, requestIdleCallback fallback)
+- `src/components/features/workspace/workspace-prefetch-config.ts` — workspace route configs with immediate / idle / hover priority tiers
+- `src/app/(dashboard)/manager/layout.tsx` — manager layout wrapper mounting the prefetcher
+- `src/app/(dashboard)/owner/layout.tsx` — owner layout wrapper mounting the prefetcher
+- `src/lib/queries/workspace-cached.ts` — `unstable_cache` wrappers for high-traffic queries (today snapshot, availability, dispatch, setup health)
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/layout.tsx` — added `<WorkspaceRoutePrefetcher config={CRM_PREFETCH} />`
+- `src/components/features/dashboard/sidebar.tsx` — NavLink now calls `router.prefetch` on `onMouseEnter` for instant hover warming
+- `src/lib/cache/cache-tags.ts` — added workspace-scoped cache tags (`crm-workspace`, `crm-bookings`, `crm-dispatch`, `crm-availability`, `crm-setup`, `manager-workspace`, `owner-workspace`) plus batch invalidation helpers (`invalidateCrmWorkspace`, `invalidateManagerWorkspace`, `invalidateOwnerWorkspace`)
+- `src/lib/actions/staff-checkins.ts` — added `invalidateCrmWorkspace` + `invalidateManagerWorkspace` after check-in/check-out
+- `src/lib/actions/driver-actions.ts` — added `invalidateCrmWorkspace` after driver assignment
+- `src/app/(dashboard)/crm/bookings/actions.ts` — added `invalidateTag(cacheTags.crmWorkspace(...))` after payment confirmation
+- `src/app/(dashboard)/manager/bookings/actions.ts` — added workspace tag invalidation after status edit, booking edit, and payment update
+- `src/app/(dashboard)/owner/bookings/actions.ts` — added owner + CRM workspace tag invalidation after status/payment updates (fetches booking branch_id for cross-branch owner actions)
+- `src/app/(dashboard)/crm/actions.ts` — added CRM workspace tag invalidation after customer create/update
+- `src/app/(dashboard)/manager/staff/actions.ts` — added workspace tag invalidation after schedule/blocked-time/override mutations
+- `src/app/(dashboard)/crm/staff-availability/actions.ts` — added CRM workspace tag invalidation after manual schedule import
+- `src/app/(dashboard)/crm/services/actions.ts` — added CRM workspace tag invalidation after provider assign/remove
+
+**Design Decisions:**
+- Immediate routes (today, control, bookings, dispatch) prefetch ~250ms after mount.
+- Idle routes (availability, staff-availability, customers, setup) defer via `requestIdleCallback` or 2s fallback.
+- Heavy routes (reports, live map, reconciliation, analytics) are NEVER auto-prefetched — they warm only on sidebar hover.
+- Slow connections (<0.5 downlink, 2g, Data Saver) skip idle prefetch entirely.
+- Cached queries use 1-hour `revalidate` with tag-based invalidation on mutations, keeping data fresh without extra DB round-trips.
+
+**Safety:**
+- No booking logic changed.
+- No DB schema changed.
+- No routes removed.
+- RBAC preserved — prefetcher is a pure client component with no data access.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning)
+- `pnpm build`: ✅ Passing (99 routes)

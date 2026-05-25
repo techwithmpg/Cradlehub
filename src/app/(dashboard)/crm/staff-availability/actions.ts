@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
@@ -248,6 +249,7 @@ export async function applyManualScheduleImportAction(
   revalidatePath("/crm/today");
   revalidatePath("/crm/setup");
   revalidatePath("/book");
+  invalidateCrmWorkspace(branchId);
 
   return { ok: true, staffCount: resolvedMatches.length, rowsWritten: rows.length };
 }
