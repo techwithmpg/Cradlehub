@@ -3,67 +3,33 @@
 /**
  * ServiceAssignmentTableRow
  *
- * Renders a single <tr> in the Therapist Assignments table.
- * Clicking Manage / Assign Therapist expands an inline detail row
- * containing the full assignment controls (add + remove).
+ * Renders a single compact <tr> in the Therapist Assignments table.
  *
- * Mirrors the logic in ProviderAssignmentCard but styled for table layout.
+ * Assigned Therapists column shows a preview of max 3 provider chips plus a
+ * "+N more" badge and total count. Full management opens in a right-side sheet.
+ *
+ * Clicking Manage or + Assign Therapist opens ProviderAssignmentSheet.
  */
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { ServiceTableRow } from "./types";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
-import { STAFF_TYPE_LABELS } from "@/constants/staff-roles";
-import type { ServiceStaffType } from "@/constants/staff-roles";
-import {
-  assignProviderToServiceAction,
-  removeProviderFromServiceAction,
-} from "@/app/(dashboard)/crm/services/actions";
+import { ProviderAssignmentSheet } from "./provider-assignment-sheet";
 
-// ── Inline status message ─────────────────────────────────────────────────────
+// ── How many chips to show inline before collapsing to "+N more" ──────────────
+const MAX_PREVIEW = 3;
 
-function StatusMessage({ type, text }: { type: "success" | "error"; text: string }) {
-  return (
-    <div
-      style={{
-        fontSize: "0.75rem",
-        padding: "6px 10px",
-        borderRadius: 6,
-        background: type === "success" ? "rgba(39,174,96,0.08)" : "rgba(192,57,43,0.08)",
-        color: type === "success" ? "var(--cs-success,#27ae60)" : "var(--cs-error,#c0392b)",
-        border: `1px solid ${type === "success" ? "rgba(39,174,96,0.2)" : "rgba(192,57,43,0.2)"}`,
-        lineHeight: 1.5,
-        marginTop: 8,
-      }}
-    >
-      {text}
-    </div>
-  );
-}
+// ── Mini provider chip (no remove button, read-only preview) ─────────────────
 
-// ── Provider chip (compact, table-friendly) ───────────────────────────────────
-
-function ProviderChip({
-  member,
-  onRemove,
-  isPending,
-}: {
-  member: StaffForServicePanel;
-  onRemove: () => void;
-  isPending: boolean;
-}) {
+function MiniChip({ member }: { member: StaffForServicePanel }) {
   const initials = member.full_name.charAt(0).toUpperCase();
-  const staffLabel = member.staff_type
-    ? (STAFF_TYPE_LABELS[member.staff_type as ServiceStaffType] ?? member.staff_type)
-    : null;
-
   return (
     <span
+      title={member.full_name}
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 4,
+        gap: 5,
         padding: "2px 8px 2px 4px",
         borderRadius: 20,
         background: "var(--cs-surface-warm)",
@@ -73,11 +39,10 @@ function ProviderChip({
         whiteSpace: "nowrap",
       }}
     >
-      {/* Avatar */}
       <span
         style={{
-          width: 22,
-          height: 22,
+          width: 20,
+          height: 20,
           borderRadius: "50%",
           background: "var(--cs-sand-mist)",
           display: "inline-flex",
@@ -91,41 +56,11 @@ function ProviderChip({
       >
         {initials}
       </span>
-      <span style={{ fontWeight: 500 }}>{member.full_name}</span>
-      {staffLabel && (
-        <span
-          style={{
-            fontSize: "0.625rem",
-            fontWeight: 700,
-            padding: "1px 5px",
-            borderRadius: 20,
-            background: "var(--cs-sand-mist)",
-            color: "var(--cs-sand)",
-          }}
-        >
-          {staffLabel}
-        </span>
-      )}
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={onRemove}
-        aria-label={`Remove ${member.full_name}`}
-        style={{
-          marginLeft: 2,
-          padding: "1px 4px",
-          borderRadius: 20,
-          border: "1px solid var(--cs-border-soft)",
-          background: "transparent",
-          color: "var(--cs-text-muted)",
-          fontSize: "0.6875rem",
-          cursor: isPending ? "not-allowed" : "pointer",
-          lineHeight: 1,
-          opacity: isPending ? 0.5 : 1,
-        }}
-      >
-        ✕
-      </button>
+      <span style={{ fontWeight: 500 }}>
+        {/* First name only to stay compact */}
+        {member.full_name.split(" ")[0]}
+        {member.full_name.includes(" ") ? ` ${member.full_name.split(" ")[1]?.charAt(0)}.` : ""}
+      </span>
     </span>
   );
 }
@@ -142,11 +77,11 @@ function DeliveryBadge({ inSpa, home }: { inSpa: boolean; home: boolean }) {
         fontWeight: 700,
         padding: "2px 6px",
         borderRadius: 3,
-        textTransform: "uppercase",
+        textTransform: "uppercase" as const,
         letterSpacing: "0.04em",
         backgroundColor: isHome ? "#FFF7ED" : "var(--cs-sand-mist)",
         color: isHome ? "#92400E" : "var(--cs-sand)",
-        whiteSpace: "nowrap",
+        whiteSpace: "nowrap" as const,
       }}
     >
       {label}
@@ -163,61 +98,26 @@ export function ServiceAssignmentTableRow({
   row: ServiceTableRow;
   branchId: string;
 }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [expanded, setExpanded] = useState(false);
-  const [selectedStaffId, setSelectedStaffId] = useState("");
-  const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const hasProviders = row.assignedProviders.length > 0;
-
-  function runAction(action: () => Promise<{ ok: boolean; message: string }>) {
-    setStatus(null);
-    startTransition(async () => {
-      const result = await action();
-      setStatus({ type: result.ok ? "success" : "error", text: result.message });
-      if (result.ok) router.refresh();
-    });
-  }
-
-  function handleAssign() {
-    if (!selectedStaffId) return;
-    const id = selectedStaffId;
-    runAction(async () => {
-      const res = await assignProviderToServiceAction({
-        branchId,
-        serviceId: row.serviceId,
-        staffId: id,
-      });
-      if (res.ok) setSelectedStaffId("");
-      return res;
-    });
-  }
-
-  function handleRemove(staffId: string) {
-    runAction(() =>
-      removeProviderFromServiceAction({ branchId, serviceId: row.serviceId, staffId })
-    );
-  }
-
-  const rowBg = row.isCritical
-    ? "rgba(192,57,43,0.018)"
-    : row.isWarning
-    ? "rgba(230,126,34,0.018)"
-    : "transparent";
+  const preview = row.assignedProviders.slice(0, MAX_PREVIEW);
+  const extraCount = row.assignedProviders.length - MAX_PREVIEW;
 
   return (
     <>
-      {/* ── Primary row ── */}
       <tr
         style={{
-          borderBottom: expanded ? "none" : "1px solid var(--cs-border-soft)",
-          background: rowBg,
-          transition: "background 0.1s",
+          borderBottom: "1px solid var(--cs-border-soft)",
+          background: row.isCritical
+            ? "rgba(192,57,43,0.018)"
+            : row.isWarning
+            ? "rgba(230,126,34,0.018)"
+            : "transparent",
         }}
       >
-        {/* Service */}
-        <td style={{ padding: "0.75rem 1rem", verticalAlign: "middle" }}>
+        {/* ── Service ── */}
+        <td style={{ padding: "0.625rem 1rem", verticalAlign: "middle" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span
@@ -225,6 +125,7 @@ export function ServiceAssignmentTableRow({
                   fontSize: "0.875rem",
                   fontWeight: 600,
                   color: "var(--cs-text)",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {row.name}
@@ -239,6 +140,7 @@ export function ServiceAssignmentTableRow({
                   color: "#065F46",
                   letterSpacing: "0.04em",
                   textTransform: "uppercase",
+                  flexShrink: 0,
                 }}
               >
                 Active
@@ -246,11 +148,12 @@ export function ServiceAssignmentTableRow({
             </div>
             <div
               style={{
-                fontSize: "0.75rem",
+                fontSize: "0.6875rem",
                 color: "var(--cs-text-muted)",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 5,
+                flexWrap: "wrap",
               }}
             >
               <span>{row.duration} min</span>
@@ -261,67 +164,95 @@ export function ServiceAssignmentTableRow({
           </div>
         </td>
 
-        {/* Category */}
+        {/* ── Category ── */}
         <td
           style={{
-            padding: "0.75rem 1rem",
+            padding: "0.625rem 1rem",
             verticalAlign: "middle",
             fontSize: "0.8125rem",
             color: "var(--cs-text-secondary)",
+            whiteSpace: "nowrap",
           }}
         >
           {row.category ?? <span style={{ color: "var(--cs-text-muted)" }}>—</span>}
         </td>
 
-        {/* Assigned Therapists */}
-        <td style={{ padding: "0.75rem 1rem", verticalAlign: "middle" }}>
+        {/* ── Assigned Therapists (compact preview) ── */}
+        <td style={{ padding: "0.625rem 1rem", verticalAlign: "middle" }}>
           {hasProviders ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {row.assignedProviders.map((m) => (
-                <ProviderChip
-                  key={m.id}
-                  member={m}
-                  isPending={isPending}
-                  onRemove={() => handleRemove(m.id)}
-                />
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {/* Provider chip previews */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                {preview.map((m) => (
+                  <MiniChip key={m.id} member={m} />
+                ))}
+                {extraCount > 0 && (
+                  <span
+                    style={{
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: "var(--cs-sand-mist)",
+                      color: "var(--cs-sand)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    +{extraCount} more
+                  </span>
+                )}
+              </div>
+              {/* Total count */}
+              <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
+                {row.assignedProviders.length} assigned
+              </div>
             </div>
           ) : (
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 5,
                 fontSize: "0.8125rem",
                 color: "#991B1B",
                 fontWeight: 500,
               }}
             >
-              <span style={{ fontSize: 14 }}>⚠</span>
+              <span style={{ fontSize: 13 }}>⚠</span>
               No therapist assigned
             </div>
           )}
         </td>
 
-        {/* Actions */}
-        <td style={{ padding: "0.75rem 1rem", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+        {/* ── Actions ── */}
+        <td style={{ padding: "0.625rem 1rem", verticalAlign: "middle", whiteSpace: "nowrap" }}>
           {hasProviders ? (
             <button
               type="button"
-              onClick={() => setExpanded((v) => !v)}
+              onClick={() => setSheetOpen(true)}
               style={{
                 padding: "5px 12px",
                 borderRadius: 6,
                 border: "1px solid var(--cs-border)",
-                background: expanded ? "var(--cs-sand-mist)" : "transparent",
-                color: expanded ? "var(--cs-sand)" : "var(--cs-text-secondary)",
+                background: "transparent",
+                color: "var(--cs-text-secondary)",
                 fontSize: "0.8125rem",
                 fontWeight: 500,
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 4,
-                transition: "background 0.15s",
+                transition: "background 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--cs-sand-mist)";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--cs-sand)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--cs-sand)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--cs-text-secondary)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--cs-border)";
               }}
             >
               <span style={{ fontSize: 12 }}>⚙</span>
@@ -330,12 +261,12 @@ export function ServiceAssignmentTableRow({
           ) : (
             <button
               type="button"
-              onClick={() => setExpanded((v) => !v)}
+              onClick={() => setSheetOpen(true)}
               style={{
                 padding: "5px 12px",
                 borderRadius: 6,
                 border: "none",
-                background: expanded ? "#6d28d9" : "#7c3aed",
+                background: "#7c3aed",
                 color: "#fff",
                 fontSize: "0.8125rem",
                 fontWeight: 600,
@@ -345,6 +276,12 @@ export function ServiceAssignmentTableRow({
                 gap: 4,
                 transition: "background 0.15s",
               }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "#6d28d9";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "#7c3aed";
+              }}
             >
               <span style={{ fontWeight: 700 }}>+</span>
               Assign Therapist
@@ -353,123 +290,13 @@ export function ServiceAssignmentTableRow({
         </td>
       </tr>
 
-      {/* ── Expanded assignment panel ── */}
-      {expanded && (
-        <tr
-          style={{
-            background: "var(--cs-surface-warm)",
-            borderBottom: "1px solid var(--cs-border-soft)",
-          }}
-        >
-          <td
-            colSpan={4}
-            style={{ padding: "0.75rem 1rem 1rem", borderTop: "1px solid var(--cs-border-soft)" }}
-          >
-            <div
-              style={{
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                color: "var(--cs-text-secondary)",
-                marginBottom: 10,
-              }}
-            >
-              {hasProviders ? "Manage Providers" : "Assign a Provider"} — {row.name}
-            </div>
-
-            {/* Add provider row */}
-            {row.assignableProviders.length > 0 ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <select
-                  value={selectedStaffId}
-                  disabled={isPending}
-                  onChange={(e) => setSelectedStaffId(e.target.value)}
-                  aria-label={`Add provider to ${row.name}`}
-                  style={{
-                    flex: "1 1 200px",
-                    minWidth: 0,
-                    maxWidth: 320,
-                    height: 34,
-                    padding: "0 10px",
-                    borderRadius: 6,
-                    border: "1px solid var(--cs-border)",
-                    background: "var(--cs-surface)",
-                    fontSize: "0.8125rem",
-                    color: "var(--cs-text)",
-                    opacity: isPending ? 0.6 : 1,
-                    cursor: isPending ? "not-allowed" : "default",
-                  }}
-                >
-                  <option value="">Select provider to add…</option>
-                  {row.assignableProviders.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name}
-                      {s.staff_type
-                        ? ` · ${STAFF_TYPE_LABELS[s.staff_type as ServiceStaffType] ?? s.staff_type}`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!selectedStaffId || isPending}
-                  onClick={handleAssign}
-                  style={{
-                    height: 34,
-                    padding: "0 14px",
-                    borderRadius: 6,
-                    border: "none",
-                    background:
-                      selectedStaffId && !isPending ? "var(--cs-sand)" : "var(--cs-border)",
-                    color: selectedStaffId && !isPending ? "#fff" : "var(--cs-text-muted)",
-                    fontSize: "0.8125rem",
-                    fontWeight: 600,
-                    cursor: selectedStaffId && !isPending ? "pointer" : "not-allowed",
-                    whiteSpace: "nowrap",
-                    transition: "background 0.15s",
-                  }}
-                >
-                  {isPending ? "Saving…" : "Assign Provider"}
-                </button>
-              </div>
-            ) : (
-              <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", fontStyle: "italic" }}>
-                No additional eligible providers available. Add therapists, nail technicians,
-                aestheticians, or salon heads to your branch staff first.
-              </p>
-            )}
-
-            {/* Already-assigned chips with remove buttons (only when managing) */}
-            {hasProviders && (
-              <div style={{ marginTop: 10 }}>
-                <div
-                  style={{
-                    fontSize: "0.6875rem",
-                    fontWeight: 600,
-                    color: "var(--cs-text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    marginBottom: 6,
-                  }}
-                >
-                  Currently Assigned
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {row.assignedProviders.map((m) => (
-                    <ProviderChip
-                      key={m.id}
-                      member={m}
-                      isPending={isPending}
-                      onRemove={() => handleRemove(m.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {status && <StatusMessage type={status.type} text={status.text} />}
-          </td>
-        </tr>
-      )}
+      {/* ── Management sheet (portal, renders outside table) ── */}
+      <ProviderAssignmentSheet
+        row={row}
+        branchId={branchId}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+      />
     </>
   );
 }
