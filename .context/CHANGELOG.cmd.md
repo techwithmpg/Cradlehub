@@ -1574,3 +1574,42 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `eslint (changed files)`: ✅ PASS (0 warnings)
 - `pnpm build`: ✅ PASS (85/85 routes)
 - Commit: 3375c1f
+
+---
+
+### 2026-05-25 — Claude Code (CRM-READINESS-PHASE9A-001)
+
+**Task:** Phase 9A — Audit Existing Readiness & Condition Checks
+
+**Files Added:**
+- `docs/CRM_READINESS_AUDIT.md`
+  - Full codebase audit of all readiness/health/warning/issue/notification logic
+  - Section A: Readiness system map (8 CRM pages/features, each with queries, components, data shapes)
+  - Section B: All 7 distinct severity/issue type systems with full TypeScript shapes
+  - Section C: Reusable component candidates (ActionableWarning, ActionableWarningList as gold standard)
+  - Section D: 8 cases of duplicate logic with source-of-truth recommendations
+  - Section E: 14 missing condition checks with severity and suggested fix links
+  - Section F: Proposed ReadinessIssue + ReadinessSeverity + ReadinessScope canonical types
+  - Section G: 7-phase implementation plan (9B–9G)
+  - Section H: Do-not-touch files list
+  - Section I: Summary table across all CRM pages
+
+**Files Changed:**
+- `.context/CURRENT_TASK.cmd.md` — updated to Phase 9A COMPLETE
+- `.context/CHANGELOG.cmd.md` — this entry
+- `.context/HANDOFF.cmd.md` — Phase 9A summary added
+
+**Key Audit Findings:**
+- 7 different severity type systems in use (`"danger"/"error"/"critical"` all mean the same thing but appear in different files)
+- `ActionableWarning` in `src/types/warnings.ts` is the most mature shared type and should become the standard
+- `getCrmSetupHealth()` in `src/lib/queries/crm-setup.ts` is the only centralized multi-domain aggregator — the model for the future engine
+- `CrmSetupIssuesList` is a near-duplicate of `ActionableWarningList` but uses a different data shape
+- Staff-no-schedule check appears in 3 independent places; service-no-provider in 2; unassigned bookings in 3
+- 14 missing checks identified including: driver-assigned-not-checked-in, home-service-no-therapist, no-opening-shift, ghost-check-in, payment-overdue, booking-no-address
+
+**Notes:**
+- No booking logic changed. No DB schema changes. No new migrations.
+- No source code files modified — audit document only.
+
+**Build Status:**
+- No source changes — build not run (not required)

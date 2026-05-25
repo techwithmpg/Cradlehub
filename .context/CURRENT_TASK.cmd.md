@@ -1,38 +1,36 @@
-# CURRENT TASK: CRM-AVAILABILITY-PHASE7-001
+# CURRENT TASK: CRM-READINESS-PHASE9A-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-CRM-AVAILABILITY-PHASE7-001
+CRM-READINESS-PHASE9A-001
 
 ## Description
-Phase 7 — Improve /crm/availability into "Live Availability & Check-In Center".
-Adds explanation cards, start-of-day checklist, impact card, and related tools footer.
-Preserves all existing check-in/check-out board and 4-tab workspace unchanged.
+Phase 9A — Audit Existing Readiness & Condition Checks.
+Full codebase inspection of all health/warning/issue/readiness/notification logic across CRM.
+Produced comprehensive audit report at docs/CRM_READINESS_AUDIT.md.
+No source code changes — context files and audit doc only.
 
-## Changes Completed
-- Page title → "Live Availability & Check-In Center"
-- CheckInExplainer: 3 cards explaining each booking flow's relationship to check-in
-  (In-House Operations uses check-in, Online Booking is schedule-based, Home Service uses dispatch+check-in)
-  with architecture note banner
-- StartDayChecklist: 5-step morning readiness guide with links to Today and Schedule Setup
-- LiveAvailabilityImpactCard: "What This Affects" — 4 rows mapping check-in status
-  to each flow (online = unaffected, in-house + dispatch = uses check-in)
-- AvailabilityRelatedTools: 6 footer links (Today, Schedules, Dispatch,
-  Services, Spaces & Rules, Rules & Setup)
-- Existing CrmAvailabilitySummary, CrmAvailabilityClient (4-tab board with
-  check-in/check-out actions) preserved unchanged
-- Old inline check-in awareness notice removed (explainer covers it more thoroughly)
+## Audit Findings Summary
+- 7 distinct severity/warning type systems (ActionableWarning, SetupIssue, OperationalWarning,
+  TodayAlert, DispatchAlert, ManagerSettingsWarning, ScheduleHealthIssue)
+- 11 UI components for displaying issues/warnings (none shared across domains)
+- 7 independent query/compute functions for readiness checks
+- Most mature shared type: ActionableWarning (src/types/warnings.ts) with full routing support
+- Most centralized query: getCrmSetupHealth() covers 6 checks across 4 domains
+- 8 cases of duplicate logic across pages
+- 14 missing condition checks identified (see doc for full list)
+- Proposed ReadinessIssue type as superset of all existing shapes
+- Proposed 7-phase implementation plan (9B–9G)
 
 ## New Files
-- src/components/features/crm/availability/checkin-explainer.tsx
-- src/components/features/crm/availability/start-day-checklist.tsx
-- src/components/features/crm/availability/live-availability-impact-card.tsx
-- src/components/features/crm/availability/availability-related-tools.tsx
+- docs/CRM_READINESS_AUDIT.md
 
 ## Modified Files
-- src/app/(dashboard)/crm/availability/page.tsx
+- .context/CURRENT_TASK.cmd.md (this file)
+- .context/CHANGELOG.cmd.md
+- .context/HANDOFF.cmd.md
 
 ## Agent
 Claude Code (main branch, E:/cradlehub)
@@ -41,7 +39,4 @@ Claude Code (main branch, E:/cradlehub)
 main
 
 ## Build Status
-- npx tsc --noEmit: ✅ PASS (0 errors)
-- eslint (changed files): ✅ PASS (0 warnings)
-- pnpm build: ✅ PASS (85/85 routes)
-- Commit: 3375c1f
+- No source files changed — build not required

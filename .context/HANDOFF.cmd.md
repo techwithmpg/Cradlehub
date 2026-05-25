@@ -3,6 +3,55 @@
 > Last updated: 2026-05-25
 
 ## Current Phase
+CRM-READINESS-PHASE9A-001 complete — Operations Readiness Audit
+
+## What Just Happened (Phase 9A — Operations Readiness Audit)
+Phase 9A — Full codebase audit of readiness, health, warning, issue, and notification logic.
+Audit document produced at `docs/CRM_READINESS_AUDIT.md`. No source code changed.
+
+**Key findings:**
+
+1. **7 divergent severity/issue type systems** — `ActionableWarning` (`src/types/warnings.ts`),
+   `SetupIssue` (crm-setup.ts), `OperationalWarning` (ops-warnings.ts), `TodayAlert`
+   (manager-today-utils.ts), `DispatchAlert` (dispatch/types.ts), `ManagerSettingsWarning`
+   (manager-settings/types.ts), `ScheduleHealthIssue` (scheduling/types.ts). All cover the
+   same concept (what/why/fix) but are incompatible shapes.
+
+2. **Best existing shared type:** `ActionableWarning` in `src/types/warnings.ts` —
+   has id, severity, title, description, impact, actionLabel, target (multi-type routing).
+   Already has `ActionableWarning` + `ActionableWarningList` shared components and 30+
+   `warningTargets.*` factories. Should become the standard.
+
+3. **Best existing query:** `getCrmSetupHealth(branchId)` in `src/lib/queries/crm-setup.ts` —
+   8 parallel DB queries, derives 6 issues across 4 domains. The model for the future engine.
+
+4. **8 duplicate checks found:**
+   - Staff no schedule: crm-setup.ts + schedule-coverage-issues.tsx + crm-availability.ts
+   - Service no provider: crm-setup.ts + crm-service-therapist-panel.tsx
+   - No drivers: crm-setup.ts + setup-warnings.ts (DB notification)
+   - Unassigned bookings: crm-setup.ts + manager-today-utils.ts + TodayPriorityStrip
+   - Missing room: spaces-rules-utils.ts + manager-today-utils.ts
+   - Home service not set up: crm-setup.ts + setup-warnings.ts
+   - Not checked in: crm-availability.ts + TodayPriorityStrip + CrmAvailabilitySummary
+   - Action item count: TodayAttentionStrip + ActionRequiredList (near-identical components)
+
+5. **14 missing checks identified** (see audit doc Section E for full list with severity/links):
+   E-1: Home-service service has no capable therapist assigned
+   E-2: Home service enabled but no eligible branch services
+   E-5: Driver assigned to trip but not checked in
+   E-7: No opening-shift staff for today
+   E-8: Home-service booking has no customer address/coordinates
+   E-9: Payment overdue for completed booking (no CRM action)
+   ... and 8 more (see audit doc)
+
+6. **Proposed `ReadinessIssue` type** — superset of all existing shapes with scope, severity,
+   title, problem, impact, fix, actionLabel, actionHref, source, entityType, entityIds, count.
+
+7. **Proposed 7-phase plan:** 9B (shared types+components) → 9C (aggregator query) →
+   9D (replace duplicate displays) → 9E (add missing checks) → 9F (global sidebar strip) →
+   9G (extend to manager workspace).
+
+## Current Phase
 CRM-AVAILABILITY-PHASE7-001 complete — Live Availability & Check-In Center
 
 ## What Just Happened (Phase 7 — Live Availability & Check-In Center)
