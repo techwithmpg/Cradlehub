@@ -53,7 +53,7 @@ async function requireImportAccess(branchId: string) {
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
 
-export const applyImportSchema = z
+const applyImportSchema = z
   .object({
     branchId: uuid,
     resolvedMatches: z
@@ -78,7 +78,7 @@ export const applyImportSchema = z
     path: ["openingEnd"],
   });
 
-export type ApplyImportInput = z.infer<typeof applyImportSchema>;
+type ApplyImportInput = z.infer<typeof applyImportSchema>;
 
 export type ApplyImportResult =
   | { ok: true; staffCount: number; rowsWritten: number }
