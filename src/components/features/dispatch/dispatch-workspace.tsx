@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Car, CheckCircle2, Clock, MapPin, User, XCircle } from "lucide-react";
+import { Car, CheckCircle2, Clock, MapPin, User, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
@@ -11,6 +11,8 @@ import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import type { DispatchStatus } from "@/features/dispatch/types";
+import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
+import { buildAlertIssues } from "./dispatch-readiness-utils";
 
 // ── Status helpers ──────────────────────────────────────────────────────────
 
@@ -69,39 +71,6 @@ function StatCard({
   );
 }
 
-function AlertBanner({ alerts }: { alerts: DispatchData["alerts"] }) {
-  if (alerts.length === 0) return null;
-  return (
-    <div className="space-y-2">
-      <h2 className="text-sm font-semibold text-[var(--cs-text)]">Active Alerts</h2>
-      {alerts.map((alert) => (
-        <div
-          key={alert.id}
-          className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${
-            alert.severity === "danger"
-              ? "border-red-200 bg-red-50"
-              : "border-amber-200 bg-amber-50"
-          }`}
-        >
-          <AlertTriangle
-            className={`mt-0.5 h-4 w-4 shrink-0 ${
-              alert.severity === "danger" ? "text-red-500" : "text-amber-500"
-            }`}
-          />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-[var(--cs-text)]">
-              {alert.dispatchNumber} · {alert.title}
-            </p>
-            <p className="text-xs text-[var(--cs-text-secondary)]">{alert.description}</p>
-          </div>
-          <span className="ml-auto shrink-0 text-xs text-[var(--cs-text-secondary)]">
-            {alert.timeAgo}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function DispatchRecommendationPanel({ item }: { item: RealDispatchItem }) {
   const router = useRouter();
@@ -249,7 +218,12 @@ export function HomeServiceDispatchWorkspace({
         <StatCard label="Cancelled" value={data.stats.cancelledToday} tone="red" />
       </div>
 
-      <AlertBanner alerts={data.alerts} />
+      <ReadinessIssueList
+        issues={buildAlertIssues(data.alerts)}
+        compact
+        emptyTitle="No active dispatch alerts"
+        emptyDescription="All home-service trips are progressing normally."
+      />
 
       {/* Active queue */}
       {activeItems.length === 0 && doneItems.length === 0 ? (
