@@ -2179,3 +2179,33 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
+
+---
+
+### 2026-05-25 — Claude Code (CRM-SERVICES-ASSIGNMENTS-001 — Therapist Assignments Tab)
+
+**Task:** Add Therapist Assignments tab to /crm/services.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/services/page.tsx` — replaced stacked Section layout with `CrmServicesWorkspace`; reads `?tab=assignments` searchParam to pre-select tab server-side
+- `src/components/features/crm/services/crm-services-workspace.tsx` (NEW) — client tab shell managing "Active Services" | "Therapist Assignments" tab state; initialised from `initialTab` prop (no useEffect needed)
+- `src/components/features/crm/services/crm-therapist-assignment-tab.tsx` (NEW) — full Therapist Assignments tab: intro card, stat cards (active services + services without therapist), filter row (search / category / service type / missing-only toggle), desktop assignment table, right-side help panel
+- `src/components/features/crm/services/service-assignment-table-row.tsx` (NEW) — individual table row with expand/collapse; inline assign (select + button) + remove (chip ✕) controls, reuses existing server actions
+- `src/components/features/crm/services/types.ts` — added `ServiceTableRow` (extends `ServiceRow` with `duration` and `price`)
+- `src/components/features/crm/services/crm-service-therapist-panel.tsx` — updated readiness `actionHref` to `/crm/services?tab=assignments`
+- `src/components/features/crm/services/provider-assignment-card.tsx` — updated readiness `actionHref` to `/crm/services?tab=assignments`
+
+**Notes:**
+- Active Services tab keeps existing ServicesOfferedTab (service toggle, visibility, price overrides) completely unchanged
+- All assignment mutations use existing `assignProviderToServiceAction` and `removeProviderFromServiceAction` — no new server actions
+- Last-provider protection for public active services remains enforced server-side
+- Drivers, utility staff, CRM/front-desk, inactive staff excluded by `isValidProvider()` logic (same as before)
+- `buildServiceTableRows()` is a client-side pure function (mirrors server-side `buildServiceRows` in panel)
+- Tab switching from readiness links uses `?tab=assignments` query param (server-side, no useEffect lint issue)
+- `id="therapist-assignments"` is on the tab content container for direct scroll anchoring when the tab is active
+- No booking logic changed. No dispatch actions changed. No DB schema changed. No public /book changed.
+
+**Build Status:**
+- `pnpm type-check`: ✅ PASS
+- `pnpm lint`: ✅ PASS
+- `pnpm build`: ✅ PASS (85 routes)
