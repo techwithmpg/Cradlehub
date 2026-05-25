@@ -1859,7 +1859,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `schedule-setup-workspace.tsx` — untouched
 - No booking logic changed. No DB schema changed. No schedule save actions changed.
 
-**Commit:** (pending)
+**Commit:** 5144f65
 
 **Verification:**
 - `pnpm type-check`: ✅ Passing (0 errors)
