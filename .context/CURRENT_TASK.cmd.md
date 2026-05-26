@@ -1,59 +1,54 @@
-# CURRENT TASK: WORKSPACE-PREFETCH-001
+# CURRENT TASK: CRM-SPACES-REDESIGN-001
 
 ## Status
 COMPLETE
 
 ## Task ID
-WORKSPACE-PREFETCH-001
+CRM-SPACES-REDESIGN-001
 
 ## Description
-Implement workspace route warm-up and smart prefetching for CradleHub CRM/Manager/Owner workspaces.
+Redesigned CRM Spaces & Rules page UI only. Transformed it from a generic admin settings page into a clean "Spaces & Availability" operations center for front-desk CRM staff.
 
-## Changes
-- Created reusable `WorkspaceRoutePrefetcher` client component with connection-aware prefetching
-- Created workspace-specific route configs (CRM, Manager, Owner, Staff Portal, Driver)
-- Mounted prefetcher in CRM layout, created Manager and Owner layouts for the same
-- Added hover prefetch to sidebar NavLink for instant route warming on mouse enter
-- Extended cache tags system with workspace-scoped tags and batch invalidation helpers
-- Created cached query wrappers for high-traffic workspace data (today snapshot, availability, dispatch, setup health)
-- Added cache tag invalidation to key action files:
-  - staff-checkins, driver-actions, crm/bookings, manager/bookings, owner/bookings,
-    crm/actions, manager/staff, crm/staff-availability, crm/services
+## Changes Made
 
-## Safety
-- Respects Data Saver mode (skips all prefetch)
-- Respects slow 2g connections (skips idle prefetch)
-- Does not prefetch heavy routes (reports, maps, analytics) automatically
-- Does not bypass RBAC or fetch unauthorized routes
-- No booking logic changed
-- No DB schema changed
+### Files Changed
+1. `src/app/(dashboard)/crm/spaces-rules/page.tsx` — Simplified: removed heavy explainer/health/access components, now renders only the workspace component
+2. `src/components/features/spaces-rules/spaces-rules-workspace.tsx` — Added CRM-specific layout with conditional rendering based on workspaceContext
+3. `src/components/features/spaces-rules/spaces-rules-utils.ts` — Added CrmOperationalKpiData type, computeCrmOperationalKpi(), resource status helpers (getResourceStatus, getResourceStatusLabel, getResourceStatusColor), CrmSpacesTab type
+4. `src/components/features/spaces-rules/spaces-rules-kpi-cards.tsx` — Added CrmOperationalKpiStrip component with 6 operational KPIs
+5. `src/components/features/spaces-rules/spaces-rules-tabs.tsx` — Added CrmSpacesTabs component (Overview, Spaces, Conflicts) with conflict count badge
+6. `src/components/features/spaces-rules/overview-tab.tsx` — Added CrmOverviewTab with readiness summary, resource type breakdown, and alerts
+7. `src/components/features/spaces-rules/spaces-tab.tsx` — Added CrmSpacesTab with compact resource list showing status badges and booking counts
+8. `src/components/features/spaces-rules/conflicts-tab.tsx` — Added CrmConflictsTab with severity-grouped conflicts (Critical/Warning) and actionable recommendations
+9. `src/components/features/spaces-rules/space-detail-panel.tsx` — Added CrmSpaceDetailPanel with status, conflicts warning, today's bookings, and quick action links
+10. `src/components/features/spaces-rules/crm-spaces-quick-actions.tsx` — New component with quick links to Bookings, Availability, Dispatch, Schedule, Rules & Setup
 
-## Files Changed
-- src/components/features/workspace/workspace-route-prefetcher.tsx (new)
-- src/components/features/workspace/workspace-prefetch-config.ts (new)
-- src/app/(dashboard)/crm/layout.tsx (add prefetcher)
-- src/app/(dashboard)/manager/layout.tsx (new)
-- src/app/(dashboard)/owner/layout.tsx (new)
-- src/components/features/dashboard/sidebar.tsx (hover prefetch)
-- src/lib/cache/cache-tags.ts (workspace tags + helpers)
-- src/lib/queries/workspace-cached.ts (new)
-- src/lib/actions/staff-checkins.ts
-- src/lib/actions/driver-actions.ts
-- src/app/(dashboard)/crm/bookings/actions.ts
-- src/app/(dashboard)/manager/bookings/actions.ts
-- src/app/(dashboard)/owner/bookings/actions.ts
-- src/app/(dashboard)/crm/actions.ts
-- src/app/(dashboard)/manager/staff/actions.ts
-- src/app/(dashboard)/crm/staff-availability/actions.ts
-- src/app/(dashboard)/crm/services/actions.ts
+### Design Improvements
+- Premium spa operations dashboard aesthetic
+- Cream/off-white background with white cards
+- Forest green (#4A7C59) for available/healthy states
+- Warm gold (#B08850) for in-use/occupied states
+- Soft orange (#D97706) for warnings
+- Red (#DC2626) only for critical conflicts
+- Compact KPI strip with 6 operational metrics
+- Simplified tabs (Overview, Spaces, Conflicts only)
+- Resource list with status badges and live booking counts
+- Conflict grouping by severity with recommended actions
+- Detail panel focused on operational info
 
-## Build Status
-- pnpm type-check: ✅ Passing (0 errors)
-- pnpm lint: ✅ Passing (0 errors, 1 pre-existing warning)
-- pnpm build: ✅ Passing (99 routes)
+### Owner/Manager Preserved
+- All original components (SpacesRulesKpiCards, SpacesRulesTabs, OverviewTab, SpacesTab, ConflictsTab, SpaceDetailPanel) remain unchanged for owner/manager
+- Workspace component uses workspaceContext condition to render CRM vs Owner/Manager layouts
+- No changes to booking rules tab (CRM doesn't see it anyway per existing logic)
+- All permission flags (canManageResources, canEditRules) behavior unchanged
+
+## Verification
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning)
+- `pnpm build`: ⚠️ Pre-existing environment issue (supabaseUrl required) — not related to this task
 
 ## Agent
-Claude Code (main branch, E:/cradlehub)
+v0 (main branch)
 
 ## Branch
 main

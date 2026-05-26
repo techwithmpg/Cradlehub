@@ -1,11 +1,5 @@
 import { redirect } from "next/navigation";
 import { SpacesRulesWorkspace } from "@/components/features/spaces-rules/spaces-rules-workspace";
-import { SpacesRulesExplainer } from "@/components/features/spaces-rules/spaces-rules-explainer";
-import { SpacesRulesHealthSummary } from "@/components/features/spaces-rules/spaces-rules-health-summary";
-import { SpacesRulesAccessNotice } from "@/components/features/spaces-rules/spaces-rules-access-notice";
-import { SpacesRulesRelatedTools } from "@/components/features/spaces-rules/spaces-rules-related-tools";
-import { PageHeader } from "@/components/features/dashboard/page-header";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getBranchWithFullDetail } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { createClient } from "@/lib/supabase/server";
@@ -116,61 +110,25 @@ export default async function CRMSpacesRulesPage() {
   });
 
   // ── Permission flags ─────────────────────────────────────────────────────────
-  // canManageResources: CRM can add/edit/toggle rooms for daily ops.
-  // Server-side guard in resources-actions.ts validates role + branch_id.
+  // CRM can manage resources for operational purposes
   const canManageResources = CRM_SPACES_ROLES.has(role);
 
-  // canEditRules: Booking rules control online booking time windows,
-  // home-service availability, and advance-booking limits.
-  // These are higher-risk settings — kept manager/owner-only.
-  // CRM can VIEW rules (read-only) but cannot save changes.
+  // CRM cannot edit booking rules — read-only view
   const canEditRules = ["owner", "manager", "assistant_manager", "store_manager"].includes(role);
 
   return (
-    <section className="space-y-6">
-      <PageHeader
-        title="Spaces & Booking Rules Center"
-        description={`${branchName} · Set up the rooms, resources, and booking rules the system uses for in-spa, in-house, and home-service operations.`}
-        icon="🏢"
-      />
-
-      {/* How each flow uses spaces and rules */}
-      <SpacesRulesExplainer />
-
-      {/* Quick-glance health stats */}
-      <SpacesRulesHealthSummary resources={detail.resources} rules={rules} />
-
-      {/* MVP access notice — what CRM can and cannot configure */}
-      <SpacesRulesAccessNotice />
-
-      {/* Alert if resources failed to load */}
-      {detail.resources.length === 0 && (
-        <Alert>
-          <AlertTitle>No resources found</AlertTitle>
-          <AlertDescription>
-            No rooms or resources have been configured for this branch yet. Use the
-            Spaces tab below to add your first room or equipment item.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Existing SpacesRulesWorkspace — preserved unchanged */}
-      <SpacesRulesWorkspace
-        workspaceContext="crm"
-        viewerRole={role}
-        branchId={branchId}
-        branchName={branchName}
-        branches={[{ id: branchId, name: branchName }]}
-        resources={detail.resources}
-        rules={rules}
-        bookings={bookings}
-        canSwitchBranch={false}
-        canManageResources={canManageResources}
-        canEditRules={canEditRules}
-      />
-
-      {/* Footer links to related CRM tools */}
-      <SpacesRulesRelatedTools />
-    </section>
+    <SpacesRulesWorkspace
+      workspaceContext="crm"
+      viewerRole={role}
+      branchId={branchId}
+      branchName={branchName}
+      branches={[{ id: branchId, name: branchName }]}
+      resources={detail.resources}
+      rules={rules}
+      bookings={bookings}
+      canSwitchBranch={false}
+      canManageResources={canManageResources}
+      canEditRules={canEditRules}
+    />
   );
 }

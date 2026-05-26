@@ -1893,7 +1893,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `SpacesRulesHealthSummary` — pure stat cards, no warning banners, untouched
 - `SpacesRulesKpiCards` — metric display, untouched
 - `spaces-rules-workspace.tsx`, `spaces-tab.tsx`, `booking-rules-tab.tsx` — untouched
-- resource/rule editing actions — untouched
+- resource/rule editing actions �� untouched
 - No booking logic changed. No DB schema changed.
 
 **Commit:** 5914379
@@ -2297,6 +2297,45 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Heavy routes (reports, live map, reconciliation, analytics) are NEVER auto-prefetched — they warm only on sidebar hover.
 - Slow connections (<0.5 downlink, 2g, Data Saver) skip idle prefetch entirely.
 - Cached queries use 1-hour `revalidate` with tag-based invalidation on mutations, keeping data fresh without extra DB round-trips.
+
+---
+
+### 2026-05-26 — v0 (CRM-SPACES-REDESIGN-001 — CRM Spaces & Availability Redesign)
+
+**Task:** Redesign CRM Spaces & Rules page UI only. Transform it from a generic admin settings page into a clean "Spaces & Availability" operations center for front-desk CRM staff.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/spaces-rules/page.tsx` — Simplified: removed heavy explainer/health/access components, renders only workspace component
+- `src/components/features/spaces-rules/spaces-rules-workspace.tsx` — Added CRM-specific layout with conditional rendering based on workspaceContext
+- `src/components/features/spaces-rules/spaces-rules-utils.ts` — Added CrmOperationalKpiData type, computeCrmOperationalKpi(), resource status helpers
+- `src/components/features/spaces-rules/spaces-rules-kpi-cards.tsx` — Added CrmOperationalKpiStrip (6 operational KPIs: Total, Available, Occupied, Conflicts, Missing, Blocked)
+- `src/components/features/spaces-rules/spaces-rules-tabs.tsx` — Added CrmSpacesTabs (Overview, Spaces, Conflicts) with conflict count badge
+- `src/components/features/spaces-rules/overview-tab.tsx` — Added CrmOverviewTab with readiness summary, resource type breakdown, alerts
+- `src/components/features/spaces-rules/spaces-tab.tsx` — Added CrmSpacesTab with compact resource list, status badges, booking counts
+- `src/components/features/spaces-rules/conflicts-tab.tsx` — Added CrmConflictsTab with severity-grouped conflicts and recommendations
+- `src/components/features/spaces-rules/space-detail-panel.tsx` — Added CrmSpaceDetailPanel with status, conflicts warning, bookings, quick actions
+- `src/components/features/spaces-rules/crm-spaces-quick-actions.tsx` — NEW: Quick links to Bookings, Availability, Dispatch, Schedule, Setup
+
+**Design Improvements:**
+- Premium spa operations dashboard aesthetic (cream background, white cards)
+- Forest green (#4A7C59) for available/healthy states
+- Warm gold (#B08850) for occupied states
+- Soft orange (#D97706) for warnings only
+- Red (#DC2626) only for critical conflicts
+- Compact 6-KPI operational strip
+- Simplified tabs (Overview, Spaces, Conflicts)
+- Resource list with status badges and live booking counts
+- Conflict grouping by severity with actionable recommendations
+
+**Preserved:**
+- Owner/Manager layout completely unchanged (uses workspaceContext conditional)
+- All permission flags (canManageResources, canEditRules) behavior intact
+- No changes to booking logic, RBAC, Supabase queries, or DB schema
+
+**Build Status:**
+- `pnpm type-check`: ✅ PASS
+- `pnpm lint`: ✅ PASS (0 errors, 1 pre-existing warning)
+- `pnpm build`: ⚠️ Pre-existing environment issue (supabaseUrl required at build time) — not related to this task
 
 **Safety:**
 - No booking logic changed.
