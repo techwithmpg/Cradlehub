@@ -3,7 +3,22 @@
 > Last updated: 2026-05-26
 
 ## Current Phase
-FRONTDESK-UI-REDESIGN-001 complete — Front Desk Pages UI Redesign (Today, Setup, Availability)
+FRONTDESK-UI-REDESIGN-001 Phase 2 complete — Availability Board Deep Redesign
+
+## What Just Happened (Availability Board Deep Redesign)
+The Live Availability & Check-In Center board was too sparse and wide (Kanban-style tall cards). Three files were completely rewritten into a dense 4-column operations board/table hybrid.
+
+**Files rewritten:**
+- `src/components/features/crm/availability/crm-availability-board.tsx` — 4-column fixed-height board (380px with overflow-y:auto): Not Checked In (amber) | Available Now (green) | Busy/Assigned (blue) | Needs Attention (orange). Compact 72px rows with Avatar + name/role/time/booking + StatusChip + CheckinAction. `NeedsAttentionContent` groups by `scheduleStatus` (No Schedule Set vs. Needs Review) with group headers and overflow "+N more" count.
+- `src/components/features/crm/availability/crm-availability-summary.tsx` — Replaced `StatCard` (tall 1.75rem values) with compact `MetricChip` components (7px dot + 10px uppercase label + 14px bold value, flex-wrap layout). Chips: Scheduled N/N | Checked In | Available | Busy | Not In | Drivers N/N | Attention (conditional).
+- `src/components/features/crm/availability/crm-availability-client.tsx` — Added quick action buttons right of tab bar: ⚠ Schedule Issues (conditional), 🚗 Drivers (conditional), Staff List (conditional), ↺ Refresh (always). Tab bar font tightened (12px/600 active). All four tab panels (live_board, staff_list, schedule_issues, driver_readiness) preserved in behavior.
+
+**What was NOT changed:** Business logic, availability calculations, check-in server actions, schedule logic, dispatch logic, RBAC, query layer, other pages.
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Previous Phase
+FRONTDESK-UI-REDESIGN-001 Phase 1 complete — Front Desk Pages UI Redesign (Today, Setup, Availability)
 
 ## What Just Happened (Front Desk Pages Redesign)
 Refactored three CRM front-desk pages so main content is visible above the fold, readiness

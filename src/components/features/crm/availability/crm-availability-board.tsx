@@ -2,15 +2,13 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ShiftTypeBadge } from "@/components/shared/shift-type-badge";
-import { PresenceStatusBadge } from "@/components/shared/presence-status-badge";
-import { formatTime12h } from "@/lib/utils/time-format";
-import type { CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
+import type { CrmAvailabilityStaffRow, LiveStatus } from "@/lib/queries/crm-availability";
 import { checkInStaffForShiftAction, checkOutStaffForShiftAction } from "@/lib/actions/staff-checkins";
+import { formatTime12h } from "@/lib/utils/time-format";
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Avatar ─────────────────────────────────────────────────────────────────────
 
-function Initials({ name }: { name: string }) {
+function Avatar({ name, bg = "var(--cs-border)" }: { name: string; bg?: string }) {
   const initials = name
     .split(" ")
     .map((w) => w[0] ?? "")
@@ -21,10 +19,11 @@ function Initials({ name }: { name: string }) {
     <div
       style={{
         width: 32, height: 32, borderRadius: "50%",
-        background: "var(--cs-border)",
+        background: bg,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 11, fontWeight: 600, color: "var(--cs-text-muted)",
+        fontSize: 11, fontWeight: 700, color: "#fff",
         flexShrink: 0,
+        userSelect: "none",
       }}
     >
       {initials}
@@ -32,9 +31,45 @@ function Initials({ name }: { name: string }) {
   );
 }
 
-// ── Check-in action button ────────────────────────────────────────────────────
+// ── Status badge ──────────────────────────────────────────────────────────────
 
-function CheckinButton({
+const STATUS_META: Record<LiveStatus, { label: string; bg: string; color: string }> = {
+  available_now:  { label: "Available",    bg: "rgba(39,174,96,0.13)",   color: "#1d7a42" },
+  busy_now:       { label: "Busy",         bg: "rgba(41,128,185,0.12)",  color: "#1a5f8e" },
+  not_checked_in: { label: "Not In",       bg: "rgba(230,126,34,0.12)",  color: "#b35b0a" },
+  checked_out:    { label: "Checked Out",  bg: "rgba(120,120,120,0.10)", color: "var(--cs-text-muted)" },
+  off_today:      { label: "Off Today",    bg: "rgba(120,120,120,0.10)", color: "var(--cs-text-muted)" },
+  no_schedule:    { label: "No Schedule",  bg: "rgba(230,126,34,0.12)",  color: "#b35b0a" },
+};
+
+function StatusChip({ status }: { status: LiveStatus }) {
+  const m = STATUS_META[status] ?? { label: status, bg: "rgba(0,0,0,0.06)", color: "var(--cs-text-muted)" };
+  return (
+    <span
+      style={{
+        fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 10,
+        background: m.bg, color: m.color, whiteSpace: "nowrap", letterSpacing: "0.02em",
+      }}
+    >
+      {m.label}
+    </span>
+  );
+}
+
+// ── Avatar colors by liveStatus ───────────────────────────────────────────────
+
+const AVATAR_BG: Record<LiveStatus, string> = {
+  available_now:  "#2d9e63",
+  busy_now:       "#2471a3",
+  not_checked_in: "#c97a18",
+  checked_out:    "#95a5a6",
+  off_today:      "#95a5a6",
+  no_schedule:    "#e67e22",
+};
+
+// ── Check-in / out action ─────────────────────────────────────────────────────
+
+function CheckinAction({
   staff,
   shiftDate,
 }: {
@@ -43,62 +78,31 @@ function CheckinButton({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-
-  const primaryShiftType = (staff.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
-
-  if (staff.presenceStatus === "checked_in") {
-    return (
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => {
-          startTransition(async () => {
-            const result = await checkOutStaffForShiftAction({
-              staffId: staff.staff_id,
-              shiftDate,
-              shiftType: primaryShiftType,
-            });
-            if (result.ok) router.refresh();
-          });
-        }}
-        style={{
-          marginTop: 6,
-          padding: "3px 10px", fontSize: 11, fontWeight: 500,
-          background: "transparent",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: 6, cursor: isPending ? "wait" : "pointer",
-          color: "var(--cs-text-muted)",
-          opacity: isPending ? 0.5 : 1,
-        }}
-      >
-        {isPending ? "…" : "Check out"}
-      </button>
-    );
-  }
+  const shiftType = (staff.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
 
   if (staff.presenceStatus === "not_checked_in") {
     return (
       <button
         type="button"
+        aria-label={`Check in ${staff.staff_name}`}
         disabled={isPending}
-        onClick={() => {
+        onClick={() =>
           startTransition(async () => {
-            const result = await checkInStaffForShiftAction({
+            const r = await checkInStaffForShiftAction({
               staffId: staff.staff_id,
               shiftDate,
-              shiftType: primaryShiftType,
+              shiftType,
             });
-            if (result.ok) router.refresh();
-          });
-        }}
+            if (r.ok) router.refresh();
+          })
+        }
         style={{
-          marginTop: 6,
-          padding: "3px 10px", fontSize: 11, fontWeight: 500,
-          background: "var(--cs-success)",
-          border: "none",
-          borderRadius: 6, cursor: isPending ? "wait" : "pointer",
-          color: "#fff",
-          opacity: isPending ? 0.5 : 1,
+          padding: "2px 9px", fontSize: 10, fontWeight: 600,
+          background: "#2d9e63", color: "#fff",
+          border: "none", borderRadius: 5,
+          cursor: isPending ? "wait" : "pointer",
+          opacity: isPending ? 0.6 : 1,
+          whiteSpace: "nowrap",
         }}
       >
         {isPending ? "…" : "Check in"}
@@ -106,223 +110,398 @@ function CheckinButton({
     );
   }
 
+  if (staff.presenceStatus === "checked_in") {
+    return (
+      <button
+        type="button"
+        aria-label={`Check out ${staff.staff_name}`}
+        disabled={isPending}
+        onClick={() =>
+          startTransition(async () => {
+            const r = await checkOutStaffForShiftAction({
+              staffId: staff.staff_id,
+              shiftDate,
+              shiftType,
+            });
+            if (r.ok) router.refresh();
+          })
+        }
+        style={{
+          padding: "2px 9px", fontSize: 10, fontWeight: 500,
+          background: "transparent", color: "var(--cs-text-muted)",
+          border: "1px solid var(--cs-border-soft)", borderRadius: 5,
+          cursor: isPending ? "wait" : "pointer",
+          opacity: isPending ? 0.6 : 1,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {isPending ? "…" : "Check out"}
+      </button>
+    );
+  }
+
   return null;
 }
 
-// ── Staff card ────────────────────────────────────────────────────────────────
+// ── Compact staff row (72–84 px) ──────────────────────────────────────────────
 
-function StaffCard({
-  staff,
-  shiftDate,
-  showCheckinButton,
-}: {
+type CompactStaffRowProps = {
   staff: CrmAvailabilityStaffRow;
   shiftDate: string;
-  showCheckinButton: boolean;
-}) {
-  const primaryShift = staff.shifts[0];
-  const shiftType = primaryShift?.shift_type ?? "single";
-  const hasMultiShift = staff.shifts.length > 1;
+  showAction?: boolean;
+};
+
+function CompactStaffRow({ staff, shiftDate, showAction = true }: CompactStaffRowProps) {
+  const roleLabel = (staff.staff_type || staff.system_role)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const timeLabel =
+    staff.work_start && staff.work_end
+      ? `${formatTime12h(staff.work_start)} – ${formatTime12h(staff.work_end)}`
+      : null;
+
+  const bookingService =
+    staff.liveStatus === "busy_now" && staff.active_booking
+      ? staff.active_booking.service
+      : null;
+
+  const avatarBg = AVATAR_BG[staff.liveStatus] ?? "var(--cs-border)";
 
   return (
     <div
       style={{
-        background: "var(--cs-surface)",
-        border: "1px solid var(--cs-border-soft)",
-        borderRadius: "var(--cs-r-md)",
-        padding: "11px 13px",
         display: "flex",
-        flexDirection: "column",
-        gap: 6,
+        alignItems: "center",
+        gap: 9,
+        padding: "8px 10px",
+        borderBottom: "1px solid var(--cs-border-soft)",
+        minHeight: 72,
+        background: "var(--cs-surface)",
       }}
     >
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Initials name={staff.staff_name} />
-        <div style={{ minWidth: 0 }}>
+      {/* Avatar */}
+      <Avatar name={staff.staff_name} bg={avatarBg} />
+
+      {/* Name / role / time */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 12, fontWeight: 600, color: "var(--cs-text)",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            lineHeight: 1.3,
+          }}
+        >
+          {staff.staff_name}
+        </div>
+        <div
+          style={{
+            fontSize: 10, color: "var(--cs-text-muted)", marginTop: 1,
+            textTransform: "capitalize", lineHeight: 1.3,
+          }}
+        >
+          {roleLabel}
+        </div>
+        {timeLabel && (
+          <div style={{ fontSize: 10, color: "var(--cs-text-subtle)", marginTop: 1, lineHeight: 1.3 }}>
+            {timeLabel}
+          </div>
+        )}
+        {bookingService && (
           <div
             style={{
-              fontSize: 12, fontWeight: 500, color: "var(--cs-text)",
+              fontSize: 10, color: "#1a5f8e", marginTop: 1, lineHeight: 1.3,
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}
           >
-            {staff.staff_name}
+            {bookingService}
           </div>
-          <div style={{ fontSize: 10, color: "var(--cs-text-muted)", textTransform: "capitalize" }}>
-            {(staff.staff_type || staff.system_role).replace("_", " ")}
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Shift badges */}
-      {staff.work_start && (
-        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-          {hasMultiShift
-            ? staff.shifts.map((s) => <ShiftTypeBadge key={s.shift_type} shiftType={s.shift_type} />)
-            : <ShiftTypeBadge shiftType={shiftType} />
-          }
-        </div>
-      )}
+      {/* Status + action */}
+      <div
+        style={{
+          display: "flex", flexDirection: "column", alignItems: "flex-end",
+          gap: 4, flexShrink: 0,
+        }}
+      >
+        <StatusChip status={staff.liveStatus} />
+        {showAction && <CheckinAction staff={staff} shiftDate={shiftDate} />}
+      </div>
+    </div>
+  );
+}
 
-      {/* Shift window */}
-      {staff.work_start && staff.work_end && (
-        <div style={{ fontSize: 10, color: "var(--cs-text-subtle)" }}>
-          {formatTime12h(staff.work_start)} – {formatTime12h(staff.work_end)}
-        </div>
-      )}
+// ── Column header ─────────────────────────────────────────────────────────────
 
-      {/* Presence badge */}
-      <PresenceStatusBadge status={staff.presenceStatus} />
-
-      {/* Active booking */}
-      {staff.liveStatus === "busy_now" && staff.active_booking && (
-        <div style={{ fontSize: 10, color: "var(--cs-text-muted)" }}>
-          {staff.active_booking.service}
-        </div>
-      )}
-
-      {/* No-schedule warning */}
-      {staff.liveStatus === "no_schedule" && (
-        <div style={{ fontSize: 10, color: "var(--cs-warning)" }}>No weekly schedule set</div>
-      )}
-
-      {/* Check-in / check-out action */}
-      {showCheckinButton && (
-        <CheckinButton staff={staff} shiftDate={shiftDate} />
+function ColumnHeader({
+  title,
+  count,
+  countColor,
+  helper,
+}: {
+  title: string;
+  count: number;
+  countColor: string;
+  helper?: string;
+}) {
+  return (
+    <div
+      style={{
+        padding: "9px 12px",
+        borderBottom: "1px solid var(--cs-border-soft)",
+        background: "var(--cs-surface-warm)",
+        flexShrink: 0,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cs-text)" }}>{title}</span>
+        <span
+          style={{
+            fontSize: 11, fontWeight: 700,
+            color: countColor,
+            background: `${countColor}1a`,
+            padding: "1px 7px", borderRadius: 10, lineHeight: 1.5,
+          }}
+        >
+          {count}
+        </span>
+      </div>
+      {helper && (
+        <div style={{ fontSize: 10, color: "var(--cs-text-muted)", marginTop: 2 }}>{helper}</div>
       )}
     </div>
   );
 }
 
-// ── Board columns ─────────────────────────────────────────────────────────────
+// ── Empty column state ────────────────────────────────────────────────────────
 
-type ColumnDef = {
-  key: string;
-  title: string;
-  subtitle: string;
-  filter: (s: CrmAvailabilityStaffRow) => boolean;
-  countColor: string;
-  showCheckinButton: boolean;
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px 12px",
+        textAlign: "center",
+        fontSize: 11,
+        color: "var(--cs-text-muted)",
+        lineHeight: 1.5,
+      }}
+    >
+      {message}
+    </div>
+  );
+}
+
+// ── Needs Attention — grouped sections ────────────────────────────────────────
+
+type IssueGroup = {
+  id: string;
+  label: string;
+  count: number;
+  members: CrmAvailabilityStaffRow[];
 };
 
-const COLUMNS: ColumnDef[] = [
-  {
-    key: "available",
-    title: "Available Now",
-    subtitle: "Checked in and free",
-    filter: (s) => s.liveStatus === "available_now",
-    countColor: "var(--cs-success)",
-    showCheckinButton: false,
-  },
-  {
-    key: "busy",
-    title: "Busy / Assigned",
-    subtitle: "In session or assigned",
-    filter: (s) => s.liveStatus === "busy_now",
-    countColor: "var(--cs-info)",
-    showCheckinButton: false,
-  },
-  {
-    key: "not_checked_in",
-    title: "Not Checked In",
-    subtitle: "Scheduled but absent",
-    filter: (s) => s.liveStatus === "not_checked_in",
-    countColor: "var(--cs-warning)",
-    showCheckinButton: true,
-  },
-  {
-    key: "off_checked_out",
-    title: "Off / Checked Out",
-    subtitle: "Not available",
-    filter: (s) => s.liveStatus === "off_today" || s.liveStatus === "checked_out",
-    countColor: "var(--cs-text-muted)",
-    showCheckinButton: false,
-  },
-  {
-    key: "attention",
-    title: "Needs Attention",
-    subtitle: "Setup required",
-    filter: (s) => s.needsAttention,
-    countColor: "var(--cs-warning)",
-    showCheckinButton: false,
-  },
-];
+function buildGroups(staff: CrmAvailabilityStaffRow[]): IssueGroup[] {
+  const noSchedule = staff.filter((s) => s.scheduleStatus === "no_schedule");
+  const other      = staff.filter((s) => s.scheduleStatus !== "no_schedule");
+
+  const groups: IssueGroup[] = [];
+  if (noSchedule.length > 0)
+    groups.push({ id: "no_schedule", label: "No Schedule Set", count: noSchedule.length, members: noSchedule });
+  if (other.length > 0)
+    groups.push({ id: "review",     label: "Needs Review",    count: other.length,      members: other });
+  return groups;
+}
+
+const MAX_PER_GROUP = 4;
+
+function NeedsAttentionContent({
+  staff,
+  shiftDate,
+}: {
+  staff: CrmAvailabilityStaffRow[];
+  shiftDate: string;
+}) {
+  if (staff.length === 0) {
+    return <EmptyState message={"✓ Nothing needs\nattention right now"} />;
+  }
+
+  const groups = buildGroups(staff);
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto" }}>
+      {groups.map((group) => (
+        <div key={group.id}>
+          {/* Group header */}
+          <div
+            style={{
+              padding: "5px 10px",
+              background: "rgba(230,126,34,0.07)",
+              borderBottom: "1px solid var(--cs-border-soft)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span style={{ fontSize: 10, color: "#b35b0a" }}>⚠</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-text-secondary)", flex: 1 }}>
+              {group.label}
+            </span>
+            <span
+              style={{
+                fontSize: 10, fontWeight: 700, color: "#b35b0a",
+                background: "rgba(230,126,34,0.15)", padding: "0 5px", borderRadius: 8,
+              }}
+            >
+              {group.count}
+            </span>
+          </div>
+
+          {/* Top rows */}
+          {group.members.slice(0, MAX_PER_GROUP).map((s) => (
+            <CompactStaffRow key={s.staff_id} staff={s} shiftDate={shiftDate} showAction={false} />
+          ))}
+
+          {/* Overflow count */}
+          {group.count > MAX_PER_GROUP && (
+            <div
+              style={{
+                padding: "5px 10px",
+                fontSize: 10, color: "var(--cs-text-muted)", textAlign: "center",
+                borderBottom: "1px solid var(--cs-border-soft)",
+              }}
+            >
+              +{group.count - MAX_PER_GROUP} more — see Schedule Issues tab
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── Board ─────────────────────────────────────────────────────────────────────
 
-type Props = {
+const BOARD_HEIGHT = 380; // px — consistent column height with internal scroll
+
+type CrmAvailabilityBoardProps = {
   staff: CrmAvailabilityStaffRow[];
-  maxPerColumn?: number;
   shiftDate: string;
+  /** Not used — kept for compatibility with old call sites. */
+  maxPerColumn?: number;
 };
 
-export function CrmAvailabilityBoard({ staff, maxPerColumn = 5, shiftDate }: Props) {
+export function CrmAvailabilityBoard({ staff, shiftDate }: CrmAvailabilityBoardProps) {
+  const notCheckedIn = staff.filter((s) => s.liveStatus === "not_checked_in");
+  const available    = staff.filter((s) => s.liveStatus === "available_now");
+  const busy         = staff.filter((s) => s.liveStatus === "busy_now");
+  const attention    = staff.filter((s) => s.needsAttention);
+
+  const MAX_ROWS_NOT_CHECKED_IN = 12;
+
+  const colStyle: React.CSSProperties = {
+    border: "1px solid var(--cs-border-soft)",
+    borderRadius: "var(--cs-r-md, 10px)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    height: BOARD_HEIGHT,
+    background: "var(--cs-surface)",
+  };
+
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-        gap: "1rem",
-        alignItems: "start",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: "0.75rem",
       }}
     >
-      {COLUMNS.map((col) => {
-        const colStaff = staff.filter(col.filter);
-        const shown = colStaff.slice(0, maxPerColumn);
-        const remaining = colStaff.length - shown.length;
-
-        return (
-          <div key={col.key}>
-            {/* Column header */}
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: "0.5rem" }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--cs-text)" }}>{col.title}</span>
-              <span
-                style={{
-                  fontSize: 11, fontWeight: 600,
-                  color: col.countColor,
-                  background: `${col.countColor}18`,
-                  padding: "0 5px", borderRadius: 8,
-                }}
-              >
-                {colStaff.length}
-              </span>
-            </div>
-            <div style={{ fontSize: 10, color: "var(--cs-text-muted)", marginBottom: "0.625rem" }}>
-              {col.subtitle}
-            </div>
-
-            {/* Cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              {shown.map((s) => (
-                <StaffCard
-                  key={s.staff_id}
-                  staff={s}
-                  shiftDate={shiftDate}
-                  showCheckinButton={col.showCheckinButton}
-                />
+      {/* Column 1 — Not Checked In */}
+      <div style={colStyle}>
+        <ColumnHeader
+          title="Not Checked In"
+          count={notCheckedIn.length}
+          countColor="#c97a18"
+          helper="Scheduled but not present"
+        />
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {notCheckedIn.length === 0 ? (
+            <EmptyState message={"✓ All scheduled\nstaff are checked in"} />
+          ) : (
+            <>
+              {notCheckedIn.slice(0, MAX_ROWS_NOT_CHECKED_IN).map((s) => (
+                <CompactStaffRow key={s.staff_id} staff={s} shiftDate={shiftDate} showAction />
               ))}
-              {shown.length === 0 && (
+              {notCheckedIn.length > MAX_ROWS_NOT_CHECKED_IN && (
                 <div
                   style={{
-                    padding: "18px 12px", textAlign: "center",
-                    fontSize: 11, color: "var(--cs-text-muted)",
-                    border: "1px dashed var(--cs-border-soft)",
-                    borderRadius: "var(--cs-r-md)",
+                    padding: "6px 10px",
+                    fontSize: 10, color: "var(--cs-text-muted)", textAlign: "center",
+                    borderTop: "1px solid var(--cs-border-soft)",
                   }}
                 >
-                  None
+                  +{notCheckedIn.length - MAX_ROWS_NOT_CHECKED_IN} more — see Staff List
                 </div>
               )}
-            </div>
+            </>
+          )}
+        </div>
+      </div>
 
-            {remaining > 0 && (
-              <div style={{ marginTop: 5, fontSize: 10, color: "var(--cs-text-muted)", textAlign: "center" }}>
-                +{remaining} more
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {/* Column 2 — Available Now */}
+      <div style={colStyle}>
+        <ColumnHeader
+          title="Available Now"
+          count={available.length}
+          countColor="#2d9e63"
+          helper="Checked in and free"
+        />
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {available.length === 0 ? (
+            <EmptyState message="No staff available right now" />
+          ) : (
+            available.map((s) => (
+              <CompactStaffRow key={s.staff_id} staff={s} shiftDate={shiftDate} showAction />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Column 3 — Busy / Assigned */}
+      <div style={colStyle}>
+        <ColumnHeader
+          title="Busy / Assigned"
+          count={busy.length}
+          countColor="#2471a3"
+          helper="In session or assigned"
+        />
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {busy.length === 0 ? (
+            <EmptyState message="No active sessions" />
+          ) : (
+            busy.map((s) => (
+              <CompactStaffRow key={s.staff_id} staff={s} shiftDate={shiftDate} showAction={false} />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Column 4 — Needs Attention */}
+      <div style={colStyle}>
+        <ColumnHeader
+          title="Needs Attention"
+          count={attention.length}
+          countColor="#c97a18"
+          helper="Setup or schedule issues"
+        />
+        <NeedsAttentionContent staff={attention} shiftDate={shiftDate} />
+      </div>
     </div>
   );
 }

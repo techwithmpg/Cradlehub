@@ -2363,3 +2363,43 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-26 — Claude (FRONTDESK-UI-REDESIGN-001 Phase 2 — Availability Board Deep Redesign)
+
+**Task:** The Live Availability board was still too sparse and wide after Phase 1 — still Kanban-style with tall cards. Deep redesign into a 4-column dense operations board/table hybrid matching the approved mockup direction.
+
+**Files Rewritten (3):**
+
+`src/components/features/crm/availability/crm-availability-board.tsx`:
+- Complete rewrite from 5-column Kanban (tall cards, static layout) → 4-column fixed-height compact board
+- `BOARD_HEIGHT = 380px`; each column has `overflow-y: auto` for scroll within the fixed height
+- Columns: Not Checked In (amber, `#c97a18`) | Available Now (green, `#2d9e63`) | Busy/Assigned (blue, `#2471a3`) | Needs Attention (orange, `#c97a18`)
+- `CompactStaffRow`: `minHeight: 72px`, flex row — 32px Avatar with initials + colored bg + name/role/time/booking-service div + StatusChip + CheckinAction
+- `Avatar`: 32px circle, name initials, bg color driven by `AVATAR_BG: Record<LiveStatus, string>`
+- `STATUS_META: Record<LiveStatus, {...}>` for status badge colors
+- `NeedsAttentionContent`: groups staff into "No Schedule Set" and "Needs Review" via `buildGroups()`; shows group header with count badge + up to 4 rows + "+N more" overflow
+- Off Today / Checked Out removed as separate columns — accessible via Staff List tab
+- `maxPerColumn` prop kept for backward compat (unused)
+
+`src/components/features/crm/availability/crm-availability-summary.tsx`:
+- Complete rewrite — replaced tall `StatCard` (1.75rem value font-size) with compact `MetricChip` inline components
+- `MetricChip`: `inline-flex`, `padding: 5px 11px`, `border-radius: 8px`, 7px colored dot + 10px uppercase label + 14px bold value
+- `highlight` prop: colored border + faint bg when actionable (checkedIn > 0, availableNow > 0, notCheckedIn > 0, etc.)
+- Chips: Scheduled N/N | Checked In | Available | Busy | Not In | Drivers N/N | Attention (conditional, only when > 0)
+- Layout: `flexWrap: "wrap"`, `gap: "0.5rem"` — chips flow naturally, no grid
+
+`src/components/features/crm/availability/crm-availability-client.tsx`:
+- Added quick action buttons right of the tab bar: ⚠ Schedule Issues (amber, shows when issueCount > 0 and not already on that tab), 🚗 Drivers (shows when driverCount > 0 and not on driver tab), Staff List (shows when not on staff_list tab), ↺ Refresh (always, useTransition + router.refresh())
+- Quick action button style: 11px/500, surface bg, soft border, radius 6
+- Tab bar tightened: font-size 12, font-weight 600 when active; Schedule Issues badge uses `#c97a18`
+- All four tab panels (live_board, staff_list, schedule_issues, driver_readiness) preserved exactly in behavior
+- StaffListView, ScheduleIssuesView, DriverReadinessView: no functional changes
+
+**What was NOT changed:** getCrmAvailabilitySnapshot query, check-in/check-out server actions, RBAC, schedule logic, dispatch logic, all other pages, availability calculations.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
+- `pnpm build`: ✅ Passing (85/85 routes)

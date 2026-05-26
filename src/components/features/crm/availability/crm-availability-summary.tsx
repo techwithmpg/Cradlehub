@@ -1,67 +1,136 @@
 "use client";
 
-import { StatCard } from "@/components/features/dashboard/stat-card";
 import type { CrmAvailabilitySummary } from "@/lib/queries/crm-availability";
 
 type Props = {
   summary: CrmAvailabilitySummary;
 };
 
-export function CrmAvailabilitySummary({ summary }: Props) {
+type Chip = {
+  label: string;
+  value: string | number;
+  color: string;
+  dotColor: string;
+  highlight?: boolean;
+};
+
+// ── Single metric chip ────────────────────────────────────────────────────────
+
+function MetricChip({ label, value, color, dotColor, highlight = false }: Chip) {
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-        gap: "0.625rem",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "5px 11px",
+        border: highlight
+          ? `1px solid ${dotColor}55`
+          : "1px solid var(--cs-border-soft)",
+        borderRadius: 8,
+        background: highlight ? `${dotColor}0d` : "var(--cs-surface)",
+        whiteSpace: "nowrap",
+        flexShrink: 0,
       }}
     >
-      <StatCard
-        label="Scheduled"
-        value={summary.scheduledToday}
-        sub={`of ${summary.total} staff`}
-        accentColor="var(--cs-sand)"
+      {/* Colored status dot */}
+      <span
+        style={{
+          width: 7, height: 7, borderRadius: "50%",
+          background: dotColor, flexShrink: 0,
+        }}
       />
-      <StatCard
-        label="Checked In"
-        value={summary.checkedIn}
-        sub="physically present"
-        accentColor="var(--cs-success)"
-      />
-      <StatCard
-        label="Available"
-        value={summary.availableNow}
-        sub="checked in + free"
-        accentColor="var(--cs-success)"
-      />
-      <StatCard
-        label="Busy"
-        value={summary.busyNow}
-        sub="in session"
-        accentColor="var(--cs-info)"
-      />
-      {summary.notCheckedIn > 0 && (
-        <StatCard
-          label="Not Checked In"
-          value={summary.notCheckedIn}
-          sub="scheduled, absent?"
-          accentColor="var(--cs-warning)"
-        />
-      )}
-      <StatCard
-        label="Drivers Ready"
-        value={`${summary.driversReady}/${summary.driversTotal}`}
-        sub="checked in + free"
-        accentColor={summary.driversReady > 0 ? "var(--cs-info)" : "var(--cs-text-muted)"}
-      />
-      {summary.needsAttention > 0 && (
-        <StatCard
-          label="Needs Attention"
-          value={summary.needsAttention}
-          sub="no schedule set"
-          accentColor="var(--cs-warning)"
-        />
-      )}
+      {/* Label */}
+      <span
+        style={{
+          fontSize: 10, fontWeight: 500,
+          color: "var(--cs-text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+        }}
+      >
+        {label}
+      </span>
+      {/* Value */}
+      <span
+        style={{
+          fontSize: 14, fontWeight: 700,
+          color, lineHeight: 1,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ── Summary strip ─────────────────────────────────────────────────────────────
+
+export function CrmAvailabilitySummary({ summary }: Props) {
+  const chips: Chip[] = [
+    {
+      label: "Scheduled",
+      value: `${summary.scheduledToday}/${summary.total}`,
+      color: "var(--cs-text)",
+      dotColor: "#c8a96b",
+    },
+    {
+      label: "Checked In",
+      value: summary.checkedIn,
+      color: "#2d9e63",
+      dotColor: "#2d9e63",
+      highlight: summary.checkedIn > 0,
+    },
+    {
+      label: "Available",
+      value: summary.availableNow,
+      color: "#2d9e63",
+      dotColor: "#2d9e63",
+      highlight: summary.availableNow > 0,
+    },
+    {
+      label: "Busy",
+      value: summary.busyNow,
+      color: "#2471a3",
+      dotColor: "#2471a3",
+    },
+    {
+      label: "Not In",
+      value: summary.notCheckedIn,
+      color: summary.notCheckedIn > 0 ? "#b35b0a" : "var(--cs-text-muted)",
+      dotColor: summary.notCheckedIn > 0 ? "#c97a18" : "#b0b0b0",
+      highlight: summary.notCheckedIn > 0,
+    },
+    {
+      label: "Drivers",
+      value: `${summary.driversReady}/${summary.driversTotal}`,
+      color: summary.driversReady > 0 ? "#2471a3" : "var(--cs-text-muted)",
+      dotColor: summary.driversReady > 0 ? "#2471a3" : "#b0b0b0",
+      highlight: summary.driversTotal > 0 && summary.driversReady === 0,
+    },
+    ...(summary.needsAttention > 0
+      ? [{
+          label: "Attention",
+          value: summary.needsAttention,
+          color: "#b35b0a",
+          dotColor: "#c97a18",
+          highlight: true,
+        } satisfies Chip]
+      : []),
+  ];
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "0.5rem",
+      }}
+    >
+      {chips.map((chip) => (
+        <MetricChip key={chip.label} {...chip} />
+      ))}
     </div>
   );
 }
