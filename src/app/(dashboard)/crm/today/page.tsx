@@ -7,18 +7,16 @@ import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypas
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
 import { getCrmTodaySnapshot } from "@/lib/queries/crm-today";
 import { CrmBookingQueuePanel } from "@/components/features/crm/today/crm-booking-queue-panel";
-import { TodayAttentionStrip } from "@/components/features/crm/today/today-attention-strip";
 import { TodaySideRail } from "@/components/features/crm/today/today-side-rail";
 import { TodayPriorityStrip } from "@/components/features/crm/today/today-priority-strip";
 import { TodayStaffReadiness } from "@/components/features/crm/today/today-staff-readiness";
 import { TodayDispatchSnapshot } from "@/components/features/crm/today/today-dispatch-snapshot";
 import { TodayQuickActions } from "@/components/features/crm/today/today-quick-actions";
-import { TodayWorkflowStrip } from "@/components/features/crm/today/today-workflow-strip";
-import { TodaySystemMatchStatus } from "@/components/features/crm/today/today-system-match-status";
 import { TodayEmergencyActions } from "@/components/features/crm/today/today-emergency-actions";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { getCrmReadiness } from "@/lib/queries/crm-readiness";
-import { TodayReadinessStrip } from "@/components/features/crm/today/today-readiness-strip";
+import { SystemReadinessBar } from "@/components/shared/system-readiness-bar";
+import { buildReadinessResult } from "@/types/readiness";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -154,8 +152,22 @@ export default async function CrmTodayPage() {
     : role === "manager" ? "Manager"
     : "CSR Staff";
 
+  // Derived readiness props for the compact bar
+  const readinessResult = readiness ?? buildReadinessResult([]);
+  const readinessIssues = readinessResult.issues;
+  const readinessStatus = readinessResult.status;
+
   return (
     <div>
+      {/* ── Compact system readiness bar ── */}
+      <div style={{ marginBottom: "0.875rem" }}>
+        <SystemReadinessBar
+          issues={readinessIssues}
+          status={readinessStatus}
+          label="System Readiness"
+        />
+      </div>
+
       <PageHeader
         title="Daily Operations Center"
         description={`${branchName} · ${new Date().toLocaleDateString("en-PH", {
@@ -163,62 +175,13 @@ export default async function CrmTodayPage() {
         })} · Front-desk operations`}
       />
 
-      {/* Attention strip — shows only when there are action-required notifications */}
-      <TodayAttentionStrip notifications={actionNotifications} />
-
-      {/* Workflow guide — visual step order for the front-desk shift */}
-      <TodayWorkflowStrip />
-
-      {/* System Readiness — top issues from the readiness aggregator */}
-      <TodayReadinessStrip readiness={readiness} />
-
-      {/* ── Serve Customers ── */}
-      <div style={{ marginBottom: "1.25rem" }}>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: "0.25rem",
-          }}
-        >
-          Serve Customers
-        </div>
-        <div
-          style={{
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
-            marginBottom: "0.75rem",
-          }}
-        >
-          Create walk-ins, start home-service bookings, review online requests, and search customers.
-        </div>
+      {/* ── Primary actions ── */}
+      <div style={{ marginBottom: "1rem" }}>
         <TodayQuickActions />
       </div>
 
-      {/* ── Today's Operational Snapshot ── */}
+      {/* ── KPI snapshot strip ── */}
       <div style={{ marginBottom: "1.25rem" }}>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: "0.25rem",
-          }}
-        >
-          Today&apos;s Operational Snapshot
-        </div>
-        <div
-          style={{
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
-            marginBottom: "0.75rem",
-          }}
-        >
-          A quick view of bookings, assignments, payments, dispatch, and urgent actions.
-        </div>
         <TodayPriorityStrip
           bookingSummary={snapshot.bookingSummary}
           staffReadiness={snapshot.staffReadiness}
@@ -228,36 +191,36 @@ export default async function CrmTodayPage() {
         />
       </div>
 
-      {/* Main two-column layout */}
+      {/* ── Main two-column layout ── */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 320px",
+          gridTemplateColumns: "1fr 300px",
           gap: "1.25rem",
           alignItems: "start",
         }}
       >
-        {/* ── Left column: booking queue + system cards ── */}
+        {/* ── Left column: booking queue + emergency actions ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
           {/* Next appointment banner */}
           {nextAppt && (
             <div
               className="cs-card"
-              style={{ padding: "1rem 1.25rem", borderLeft: "3px solid var(--cs-sand)" }}
+              style={{ padding: "0.875rem 1.125rem", borderLeft: "3px solid var(--cs-sand)" }}
             >
               <div
                 style={{
                   fontSize: "0.6875rem", fontWeight: 600,
                   color: "var(--cs-sand)", textTransform: "uppercase",
-                  letterSpacing: "0.06em", marginBottom: 8,
+                  letterSpacing: "0.06em", marginBottom: 6,
                 }}
               >
                 Next Appointment
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
-                <div style={{ minWidth: 56, textAlign: "center" }}>
-                  <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--cs-text)", lineHeight: 1 }}>
+                <div style={{ minWidth: 52, textAlign: "center" }}>
+                  <div style={{ fontSize: "1.0625rem", fontWeight: 700, color: "var(--cs-text)", lineHeight: 1 }}>
                     {formatTime(nextAppt.start_time)}
                   </div>
                   <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
@@ -293,7 +256,7 @@ export default async function CrmTodayPage() {
               style={{
                 fontSize: "0.9375rem", fontWeight: 600,
                 color: "var(--cs-text)", fontFamily: "var(--font-display)",
-                marginBottom: "0.875rem",
+                marginBottom: "0.75rem",
               }}
             >
               Today&apos;s Booking Queue
@@ -305,8 +268,7 @@ export default async function CrmTodayPage() {
             />
           </div>
 
-          {/* System orientation cards */}
-          <TodaySystemMatchStatus />
+          {/* Emergency actions — compact, below the queue */}
           <TodayEmergencyActions />
         </div>
 

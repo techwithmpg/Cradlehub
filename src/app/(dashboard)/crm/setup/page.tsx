@@ -9,7 +9,8 @@ import { CrmSetupHealthCards } from "@/components/features/crm/setup/crm-setup-h
 import { CrmSetupWorkspaceTiles } from "@/components/features/crm/setup/crm-setup-workspace-tiles";
 import { CrmBookingFlowRules } from "@/components/features/crm/setup/crm-booking-flow-rules";
 import { CrmBookingImpactMatrix } from "@/components/features/crm/setup/crm-booking-impact-matrix";
-import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
+import { SystemReadinessBar } from "@/components/shared/system-readiness-bar";
+import { buildReadinessResult } from "@/types/readiness";
 
 // ── Auth + branch resolution ───────────────────────────────────────────────────
 
@@ -43,52 +44,11 @@ async function getSetupPageContext() {
   };
 }
 
-// ── Section wrapper ────────────────────────────────────────────────────────────
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <div>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: description ? "0.25rem" : 0,
-          }}
-        >
-          {title}
-        </div>
-        {description && (
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-            {description}
-          </div>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function CrmSetupPage() {
   const { branchId, branchName } = await getSetupPageContext();
 
-  // getCrmSetupHealth powers the health cards — it is the required query.
-  // getCrmReadiness powers the issues list and is fetched in parallel.
-  // If getCrmReadiness fails internally it already emits system:warning issues
-  // rather than throwing, so the .catch(() => null) guard is an extra safety net
-  // for unexpected throws (e.g. module-load errors in tests).
   let health: Awaited<ReturnType<typeof getCrmSetupHealth>>;
   let readiness: Awaited<ReturnType<typeof getCrmReadiness>> | null;
 
@@ -106,7 +66,7 @@ export default async function CrmSetupPage() {
       <section className="space-y-5">
         <PageHeader
           title="Rules & Setup Center"
-          description={`${branchName} · Review the rules CradleHub follows for online booking, walk-ins, home-service, staff schedules, services, and spaces`}
+          description="Configure the rules and data CradleHub uses for online bookings, walk-ins, home service, staff schedules, services, and spaces."
           icon="🛠️"
         />
         <Alert variant="destructive">
@@ -115,162 +75,105 @@ export default async function CrmSetupPage() {
             Failed to run the setup health check. Please refresh the page. If the issue persists, check your connection.
           </AlertDescription>
         </Alert>
-        {/* Still show informational sections even if health check fails */}
-        <Section
-          title="Booking Flow Rules"
-          description="How CradleHub uses system data differently for each booking type."
-        >
-          <CrmBookingFlowRules />
-        </Section>
-        <Section
-          title="What affects each booking type?"
-          description="Which data the booking engine reads depends on the booking source and delivery type."
-        >
-          <CrmBookingImpactMatrix />
-        </Section>
+        <CrmBookingFlowRules />
       </section>
     );
   }
 
-  // Use readiness counts for the summary banner when available — these reflect
-  // the full operational picture (setup + availability + dispatch + payment).
-  // Fall back to getCrmSetupHealth counts if getCrmReadiness unexpectedly failed.
-  const issueCount =
-    readiness !== null
-      ? readiness.issues.length
-      : health.issues.length;
-
-  const criticalCount =
-    readiness !== null
-      ? readiness.issues.filter((i) => i.severity === "critical").length
-      : health.issues.filter((i) => i.severity === "error").length;
-
-  const overallStatus = readiness?.status ?? (criticalCount > 0 ? "critical" : issueCount > 0 ? "warning" : "ok");
-
-  const statusBadgeColor =
-    overallStatus === "critical"
-      ? "var(--cs-error, #c0392b)"
-      : overallStatus === "warning"
-        ? "var(--cs-warning, #e67e22)"
-        : "var(--cs-success, #27ae60)";
-
-  const statusBadgeLabel =
-    overallStatus === "critical" ? "Critical" : overallStatus === "warning" ? "Warning" : "OK";
+  // getCrmReadiness already aggregates getCrmSetupHealth internally.
+  // When readiness is available (the common case), use its issues directly.
+  // When it failed, fall back to an empty list — health cards below still render.
+  const readinessResult = readiness ?? buildReadinessResult([]);
+  const readinessIssues = readinessResult.issues;
+  const readinessStatus = readinessResult.status;
 
   return (
     <section className="space-y-6">
+      {/* ── Compact system readiness bar — always first ── */}
+      <SystemReadinessBar
+        issues={readinessIssues}
+        status={readinessStatus}
+        label="System Readiness"
+      />
+
       <PageHeader
         title="Rules & Setup Center"
-        description={`${branchName} · Review the rules CradleHub follows for online booking, walk-ins, home-service, staff schedules, services, and spaces`}
+        description="Configure the rules and data CradleHub uses for online bookings, walk-ins, home service, staff schedules, services, and spaces."
         icon="🛠️"
       />
 
-      {/* ── Section 1: Booking Flow Rules ── */}
-      <Section
-        title="Booking Flow Rules"
-        description="How CradleHub uses system data differently for each booking type."
-      >
-        <CrmBookingFlowRules />
-      </Section>
-
-      {/* ── Section 2: Setup Health ── */}
-      {/* Readiness summary banner — shown when there are any issues */}
-      {issueCount > 0 && (
+      {/* ── Booking flow cards ── */}
+      <div>
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 14px",
-            backgroundColor: criticalCount > 0 ? "rgba(192,57,43,0.06)" : "rgba(230,126,34,0.06)",
-            border: `1px solid ${criticalCount > 0 ? "rgba(192,57,43,0.25)" : "rgba(230,126,34,0.25)"}`,
-            borderRadius: "var(--cs-r-sm, 8px)",
-            fontSize: "0.875rem",
-            color: "var(--cs-text-secondary)",
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            fontFamily: "var(--font-display)",
+            marginBottom: "0.75rem",
           }}
         >
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{criticalCount > 0 ? "⛔" : "⚠️"}</span>
-          <span style={{ flex: 1 }}>
-            <strong style={{ color: criticalCount > 0 ? "var(--cs-error, #c0392b)" : "var(--cs-warning, #e67e22)" }}>
-              {issueCount} readiness issue{issueCount !== 1 ? "s" : ""} detected
-            </strong>
-            {criticalCount > 0 && ` · ${criticalCount} require${criticalCount === 1 ? "s" : ""} immediate action`}
-            {" — review the checklist below."}
-          </span>
-          {/* Overall status badge */}
-          <span
-            style={{
-              fontSize: "0.6875rem",
-              fontWeight: 700,
-              color: statusBadgeColor,
-              background: `${statusBadgeColor}18`,
-              border: `1px solid ${statusBadgeColor}40`,
-              padding: "2px 8px",
-              borderRadius: 10,
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-            }}
-          >
-            {statusBadgeLabel}
-          </span>
+          Booking Flows
         </div>
-      )}
+        <CrmBookingFlowRules />
+      </div>
 
-      <Section
-        title="Setup Health"
-        description="Quick view of whether the system has enough setup data to run smoothly."
-      >
+      {/* ── Setup health KPIs ── */}
+      <div>
+        <div
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            fontFamily: "var(--font-display)",
+            marginBottom: "0.625rem",
+          }}
+        >
+          Setup Health
+        </div>
+        <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
+          Quick view of whether the system has enough data to run each workflow.
+        </div>
         <CrmSetupHealthCards data={health} />
-      </Section>
+      </div>
 
-      {/* ── Section 3: Readiness Issues (powered by getCrmReadiness) ── */}
-      <Section
-        title={
-          issueCount > 0
-            ? `Readiness Issues · ${issueCount} item${issueCount !== 1 ? "s" : ""}`
-            : "Readiness Issues · All clear"
-        }
-        description="Current setup and operational conditions that need attention. Includes setup, scheduling, dispatch, and payment signals."
-      >
-        {readiness !== null ? (
-          <ReadinessIssueList
-            issues={readiness.issues}
-            emptyTitle="No readiness issues found"
-            emptyDescription="The system has the required setup for this area."
-          />
-        ) : (
-          /* Fallback when getCrmReadiness unexpectedly failed after retries */
-          <div
-            style={{
-              padding: "1rem 1.125rem",
-              backgroundColor: "var(--cs-surface-raised)",
-              border: "1px solid var(--cs-border-soft)",
-              borderRadius: "var(--cs-r-sm, 8px)",
-              fontSize: "0.8125rem",
-              color: "var(--cs-text-muted)",
-              lineHeight: 1.5,
-            }}
-          >
-            Readiness issues could not be loaded. Open individual setup tools to continue configuration.
-          </div>
-        )}
-      </Section>
-
-      {/* ── Section 4: Setup Workspaces ── */}
-      <Section
-        title="Setup Workspaces"
-        description="Open the right tool to update services, schedules, rooms, rules, and availability."
-      >
+      {/* ── Setup workspaces ── */}
+      <div>
+        <div
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            fontFamily: "var(--font-display)",
+            marginBottom: "0.625rem",
+          }}
+        >
+          Setup Workspaces
+        </div>
+        <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
+          Open the right tool to update services, schedules, rooms, rules, and availability.
+        </div>
         <CrmSetupWorkspaceTiles />
-      </Section>
+      </div>
 
-      {/* ── Section 5: What affects each booking type? ── */}
-      <Section
-        title="What affects each booking type?"
-        description="Which data the booking engine reads depends on the booking source and delivery type."
-      >
+      {/* ── Booking impact matrix ── */}
+      <div>
+        <div
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--cs-text)",
+            fontFamily: "var(--font-display)",
+            marginBottom: "0.625rem",
+          }}
+        >
+          What affects each booking type?
+        </div>
+        <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
+          Which data the booking engine reads depends on the booking source and delivery type.
+        </div>
         <CrmBookingImpactMatrix />
-      </Section>
+      </div>
 
       {/* Footer */}
       <div

@@ -2308,3 +2308,58 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning)
 - `pnpm build`: ✅ Passing (99 routes)
+
+---
+
+### 2026-05-26 — Claude Code (FRONTDESK-UI-REDESIGN-001 — Front Desk Pages UI Redesign)
+
+**Task:** Redesign and simplify the overloaded Front Desk operational pages so main content appears above the fold, readiness warnings are accessible but not dominant, and each page reads like a focused professional tool.
+
+**Pages Fixed:**
+1. `/crm/today` — Daily Operations Center
+2. `/crm/setup` — Rules & Setup Center
+3. `/crm/availability` — Live Availability & Check-In Center
+
+**DO NOT TOUCH — Preserved Unchanged:**
+- `/crm/staff-availability` — Schedule Setup Center (no changes)
+
+**Files Created:**
+- `src/components/shared/system-readiness-bar.tsx` — Compact single-line horizontal bar showing total issue count, category breakdown (Critical: N · Warning: N), and a "Review issues →" button that opens a Sheet panel. Panel groups all issues by scope (Daily Ops, Schedule, Dispatch, Payment, Services, Spaces, Setup, System). Fully keyboard-accessible; closes on ESC. Client component — receives plain serializable `ReadinessIssue[]` props from server components.
+- `src/components/shared/page-help-disclosure.tsx` — Collapsible "How this page works" section. Defaults closed so it doesn't push main content down. Uses `aria-expanded` / `aria-controls` / `role="region"` for accessibility. Trigger shows ℹ️ icon + label + animated chevron.
+
+**Files Modified:**
+- `src/app/(dashboard)/crm/today/page.tsx`
+  - Removed `TodayReadinessStrip` (showed up to 3 full ReadinessIssueCards inline)
+  - Added `SystemReadinessBar` above the page header — single compact line
+  - Moved `TodayQuickActions` immediately after `PageHeader` (primary actions above the fold)
+  - Removed `TodayWorkflowStrip` (static step guide rarely needed after first day)
+  - Removed `TodayAttentionStrip` (notification strip replaced by readiness bar)
+  - Removed `TodaySystemMatchStatus` (orientation card; info now accessible via the review panel)
+  - Kept all data queries, server actions, booking queue, KPI strip, right rail, emergency actions unchanged
+
+- `src/app/(dashboard)/crm/setup/page.tsx`
+  - Removed verbose warning banner (the large colored alert block)
+  - Removed inline `ReadinessIssueList` (full list of issues was shown openly)
+  - Added `SystemReadinessBar` above the page header
+  - Kept `CrmBookingFlowRules`, `CrmSetupHealthCards`, `CrmSetupWorkspaceTiles`, `CrmBookingImpactMatrix`
+  - Readiness fallback: when `getCrmReadiness` fails, bar shows empty (All Clear) — health cards below still render
+
+- `src/app/(dashboard)/crm/availability/page.tsx`
+  - Moved `CheckInExplainer` (3-card explainer section) inside `PageHelpDisclosure` — collapsed by default
+  - Removed inline `ReadinessIssueList` between summary and board
+  - Added `SystemReadinessBar` above page header — derives issues from `buildAvailabilityReadinessIssues`
+  - Moved `CrmAvailabilityClient` (the 4-tab board) up — immediately after KPI summary
+  - Moved `StartDayChecklist` into a second `PageHelpDisclosure` — collapsed by default
+  - Kept `LiveAvailabilityImpactCard` and `AvailabilityRelatedTools` as informational footer
+
+**Design Decisions:**
+- `SystemReadinessBar` is a single slim bar (36px tall) — never pushes content down.
+- Full issue details are always accessible via "Review issues →" Sheet panel.
+- `PageHelpDisclosure` uses native `hidden` attribute (no animation flicker, SSR-safe).
+- All existing data queries, server actions, permissions, booking logic, and Schedule Setup page are unchanged.
+- No new npm packages installed.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
+- `pnpm build`: ✅ Passing (85/85 routes)

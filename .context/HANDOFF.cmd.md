@@ -1,8 +1,28 @@
 # HANDOFF — CradleHub
 
-> Last updated: 2026-05-25
+> Last updated: 2026-05-26
 
 ## Current Phase
+FRONTDESK-UI-REDESIGN-001 complete — Front Desk Pages UI Redesign (Today, Setup, Availability)
+
+## What Just Happened (Front Desk Pages Redesign)
+Refactored three CRM front-desk pages so main content is visible above the fold, readiness
+warnings are accessible but not dominant, and each page reads like a focused professional tool.
+
+**Shared components created:**
+- `src/components/shared/system-readiness-bar.tsx` — compact 36px-tall bar; opens a Sheet panel with full issue details grouped by scope
+- `src/components/shared/page-help-disclosure.tsx` — collapsible help section, defaults closed
+
+**Pages changed:**
+- `/crm/today` — SystemReadinessBar replaces TodayReadinessStrip; quick actions and KPI strip now appear immediately after the header; TodaySystemMatchStatus removed (info in panel); booking queue + right rail unchanged
+- `/crm/setup` — SystemReadinessBar replaces verbose banner + inline ReadinessIssueList; booking flow cards, health cards, workspace tiles, and impact matrix all preserved
+- `/crm/availability` — SystemReadinessBar added; CheckInExplainer collapsed into PageHelpDisclosure; StartDayChecklist collapsed into PageHelpDisclosure; 4-tab board moves up; KPI summary unchanged
+
+**Schedule Setup Center (`/crm/staff-availability`) is completely unchanged.**
+
+**Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (85/85 routes)
+
+## Previous Phase
 DISPATCH-CENTER-3TAB-001 complete — Build Complete Home-Service Dispatch Center with 3 Tabs
 
 ## What Just Happened (Dispatch Center 3-Tab Rebuild)

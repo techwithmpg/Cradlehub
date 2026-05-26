@@ -8,8 +8,10 @@ import { LiveAvailabilityImpactCard } from "@/components/features/crm/availabili
 import { AvailabilityRelatedTools } from "@/components/features/crm/availability/availability-related-tools";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getCrmAvailabilitySnapshot, type CrmAvailabilitySnapshot } from "@/lib/queries/crm-availability";
-import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
+import { SystemReadinessBar } from "@/components/shared/system-readiness-bar";
+import { PageHelpDisclosure } from "@/components/shared/page-help-disclosure";
 import { buildAvailabilityReadinessIssues } from "@/components/features/crm/availability/availability-readiness-utils";
+import { buildReadinessResult } from "@/types/readiness";
 
 function todayDateString(): string {
   const d = new Date();
@@ -42,15 +44,30 @@ export default async function CrmAvailabilityPage() {
   const branchId = await getManagerBranchId();
   const { snapshot, error } = await getPageData(branchId);
 
+  // Build readiness issues from the snapshot summary for the compact bar
+  const availabilityIssues = snapshot
+    ? buildAvailabilityReadinessIssues(snapshot.summary)
+    : [];
+  const availabilityReadiness = buildReadinessResult(availabilityIssues);
+
   return (
-    <section className="space-y-6">
-      <PageHeader
-        title="Live Availability & Check-In Center"
-        description="Manage same-day staff readiness, check-ins, check-outs, and live availability for walk-ins, in-house bookings, and dispatch operations."
+    <section className="space-y-5">
+      {/* ── Compact readiness bar ── */}
+      <SystemReadinessBar
+        issues={availabilityIssues}
+        status={availabilityReadiness.status}
+        label="Live Readiness"
       />
 
-      {/* How each booking flow uses availability and check-in data */}
-      <CheckInExplainer />
+      <PageHeader
+        title="Live Availability & Check-In Center"
+        description="Real-time staff readiness, check-ins, and availability."
+      />
+
+      {/* ── How this page works — collapsed by default ── */}
+      <PageHelpDisclosure title="How live availability works">
+        <CheckInExplainer />
+      </PageHelpDisclosure>
 
       {error || !snapshot ? (
         <Alert variant="destructive">
@@ -59,24 +76,18 @@ export default async function CrmAvailabilityPage() {
         </Alert>
       ) : (
         <>
-          {/* Quick-glance health stats (computed from snapshot — no extra query) */}
+          {/* KPI summary strip */}
           <CrmAvailabilitySummary summary={snapshot.summary} />
-
-          {/* Live readiness issues — shown when notCheckedIn / needsAttention / drivers-not-ready */}
-          <ReadinessIssueList
-            issues={buildAvailabilityReadinessIssues(snapshot.summary)}
-            compact
-            emptyTitle="Live availability looks ready"
-            emptyDescription="No urgent check-in or schedule issues were found right now."
-          />
 
           {/* 4-tab workspace: Live Board, Staff List, Schedule Issues, Driver Readiness */}
           <CrmAvailabilityClient snapshot={snapshot} />
         </>
       )}
 
-      {/* Start-of-day action checklist */}
-      <StartDayChecklist />
+      {/* Start-of-day checklist — below the board */}
+      <PageHelpDisclosure title="Start-of-day checklist">
+        <StartDayChecklist />
+      </PageHelpDisclosure>
 
       {/* What live check-in affects across booking flows */}
       <LiveAvailabilityImpactCard />
