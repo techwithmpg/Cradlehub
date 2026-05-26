@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { updateSession, isSupabaseConfigured } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
@@ -58,6 +58,11 @@ export async function proxy(request: NextRequest) {
   // own auth via the request-scoped Supabase client. Skip the session refresh
   // (a Supabase network call) so timeouts here don't block every API request.
   if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
+  // Skip auth entirely if Supabase is not configured (development mode without DB)
+  if (!isSupabaseConfigured()) {
     return NextResponse.next();
   }
 
