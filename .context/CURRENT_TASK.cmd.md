@@ -1,39 +1,56 @@
-# CURRENT TASK: Import 2026 spa day-off and opening schedule rules
+# CURRENT TASK: CRM Schedule Page Redesign
 
 ## Status
-PASS 1 COMPLETE — name matching UI live, awaiting manager review before import
+COMPLETE — CRM Schedule page redesigned with fixed-height board, density controls, collapsible groups, inline details panel, and PageHeader/SystemReadinessBar.
 
 ## Task ID
-schedule-import-2026
+crm-schedule-redesign-001
 
 ## Description
-The spa's 2026 paper schedule (day-offs + opening duty) has been encoded as structured data
-and wired to the Schedule Setup Center. Pass 1 (name matching review) is live.
-Pass 2 (apply import) is available once the manager confirms name matches.
+Redesign the CRM Schedule page so the page stays stable and only the schedule board scrolls internally.
+The final schedule page feels like a CRM command-center calendar, not a long table.
 
 ## What was done
-- `src/lib/schedule/manual-schedule-2026.ts` — all schedule data already encoded (pre-existing)
-- `src/components/features/staff-schedule/manual-schedule-import.tsx` — full interactive UI
-  with preview → name matching → apply flow (pre-existing)
-- `src/app/(dashboard)/crm/staff-availability/actions.ts` — `applyManualScheduleImportAction`
-  server action with idempotent upsert (pre-existing, fixed unused `ApplyImportInput` type)
-- `src/app/(dashboard)/crm/staff-availability/page.tsx` — **NEW**: wired `ManualScheduleImport`
-  into the Schedule Setup Center page (previously not rendered)
 
-## How to complete Pass 2
-1. Open CradleHub → CRM → Schedule Setup Center
-2. Expand "Current Manual Schedule Setup"
-3. Go to "Name Matching" tab — review matched/ambiguous/unmatched names
-4. Resolve ambiguous names using the dropdown selectors
-5. Skip any names that don't exist in the branch yet
-6. Go to "Times & Apply" tab — confirm shift times
-7. Click "Apply Schedule"
+### New Components
+- `src/components/features/schedule/schedule-density.tsx` — Density context (comfortable/compact/ultra-compact) + toggle UI
+- `src/components/features/schedule/schedule-staff-group.tsx` — Collapsible staff group headers (In Progress, Scheduled Today, Off Today)
+- `src/components/features/schedule/crm-schedule-details-panel.tsx` — Inline right-side panel showing staff details + booking details
 
-## Schedule data summary
-- Day-Off (regular): Mon–Fri rules for ~45 names
-- Salon Day-Off: 6 names across Mon/Tue/Thu/Fri/Sun
-- Opening Duty: 7-day rules for ~18 names
-- Source: MANUAL_DAY_OFF_2026, MANUAL_SALON_DAY_OFF_2026, MANUAL_OPENING_2026
+### Modified Components
+- `src/app/(dashboard)/crm/schedule/page.tsx` — Added PageHeader, SystemReadinessBar, consistent section wrapper
+- `src/components/features/schedule/schedule-workspace.tsx` — CRM layout uses inline right panel instead of Sheet; added density provider + toggle
+- `src/components/features/schedule/schedule-board-panel.tsx` — Added optional `showHeader` prop
+- `src/components/features/schedule/daily-schedule-board.tsx` — Fixed-height scrollable container (`maxHeight: calc(100vh - 380px)`), staff grouped by status
+- `src/components/features/schedule/schedule-time-header.tsx` — Density-aware header height
+- `src/components/features/schedule/schedule-staff-cell.tsx` — Density-aware padding, avatar size, font size
+- `src/components/features/schedule/schedule-staff-row.tsx` — Density-aware row height
+- `src/lib/utils/schedule-timeline.ts` — Added `getRowHeightPx()` and `getHeaderHeightPx()` density helpers
+
+### Key Behaviors
+- **Fixed-height board**: Schedule timeline scrolls internally; page does not grow with staff count
+- **Sticky staff column**: Already worked via `position: sticky; left: 0`
+- **Sticky time header**: Already worked via `position: sticky; top: 0`
+- **Density controls**: Comfortable (76px), Compact (56px, default), Ultra-compact (42px)
+- **Collapsible groups**: In Progress (expanded), Scheduled Today (expanded), Off Today (collapsed by default)
+- **Inline details panel**: Replaces Sheet for CRM context; shows staff info, today's schedule, assigned bookings, actions
+- **Owner/manager schedule unchanged**: Still uses Sheet-based booking details; no density controls
+
+## Acceptance criteria
+- [x] CRM Schedule page no longer becomes extremely tall with many staff
+- [x] Schedule board has internal scrolling
+- [x] Staff column is sticky on horizontal scroll
+- [x] Time header is sticky on vertical scroll
+- [x] Density controls exist and default to compact
+- [x] Staff are grouped into collapsible sections
+- [x] Off Today staff defaults collapsed
+- [x] Inline right-side details panel for CRM
+- [x] Day / Week / Staff view controls still exist
+- [x] Existing filters/search still work
+- [x] Existing booking/schedule data still renders correctly
+- [x] Owner/manager schedule pages untouched
+- [x] pnpm type-check passes
+- [x] pnpm build passes
 
 ## Agent
-Codex (E:/cradlehub)
+Kimi (E:/cradlehub)

@@ -509,6 +509,38 @@ CRM/in-house booking can use daily staff check-in and live resource readiness.
 Home-service booking keeps its dispatch/location workflow.
 All three flows share the scheduling/availability engine but apply it differently based on booking context.
 
+## Centered Task Modal Pilot (CRM Services only)
+- **File:** `src/components/features/crm/services/provider-assignment-sheet.tsx`
+- **Pattern:** Centered Dialog (`sm:max-w-3xl`, `max-h-[85vh]`) with `flex flex-col` layout
+  - `shrink-0` header + service summary
+  - `flex-1 min-h-0 overflow-y-auto` scrollable body
+  - `shrink-0` footer with action buttons
+- **Searchable list:** Replaced native `<select>` with filterable provider rows (search input + per-row Add button)
+- **Scope:** CRM Services page only. Manager/Owner pages untouched.
+- **If approved, apply the same pattern to:**
+  1. Staff profile/service capability selection (`staff-service-editor-sheet.tsx`)
+  2. Manager + Owner Services pages
+  3. Other task-heavy modals system-wide (booking edits, schedule edits, room/resource assignment)
+
+## CRM Sidebar Navigation Fix
+- **File:** `src/components/features/dashboard/nav-config.ts`
+- **New group structure (6 groups):**
+  - Main Operations: Today, Control Center, Bookings, Dispatch, Live Map, Schedule
+  - Daily Readiness: Staff Availability, Schedule Setup
+  - Customer Management: Customers, Repeats, Lapsed, Waitlist
+  - Service & Resource Setup: Rules & Setup, Services, Spaces & Rules
+  - Staff & Internal Work: Staff Applications, Notifications
+  - Finance / End-of-day: Reconciliation
+- **Fixed:** Workspace badge sublabel bug in `sidebar.tsx` — badge now shows workspace description instead of user role
+
+## CRM Schedule Page Redesign
+- **Fixed-height board:** `maxHeight: calc(100vh - 380px)` with internal scroll; page no longer grows with staff count
+- **Density controls:** Comfortable (76px), Compact (56px, default), Ultra-compact (42px)
+- **Collapsible groups:** In Progress · Scheduled Today · Off Today (collapsed by default)
+- **Inline details panel:** Right-side panel for CRM context (replaces Sheet); shows staff info, schedule, assigned bookings, booking details
+- **Owner/manager schedule:** Completely untouched — still uses Sheet-based booking details
+- **Key files:** `schedule-density.tsx`, `schedule-staff-group.tsx`, `crm-schedule-details-panel.tsx`, `daily-schedule-board.tsx`, `schedule-workspace.tsx`
+
 ## Known Limitations (carried forward)
 1. **Group schedule shift_type in Live Availability:** getCrmAvailabilitySnapshot populates shifts[] only from individual staff_schedules. Staff with group rules but no individual row get shift_type "single" for check-in.
 2. **Recommendation engine workload caps:** max_services_per_day / max_trips_per_day fetched but not used in scoring.

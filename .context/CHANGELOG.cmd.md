@@ -2366,6 +2366,40 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 
 ---
 
+### 2026-05-26 — Kimi (CRM-SCHEDULE-REDESIGN-001 — Fixed-Height Daily Timeline Board)
+
+**Task:** Redesign CRM Schedule page into a fixed-height daily timeline board with density controls, collapsible staff groups, and inline details panel.
+
+**Problem:** The schedule grid expanded vertically with every staff member. With 30+ staff, the page became an extremely long scroll page.
+
+**Files Created:**
+- `src/components/features/schedule/schedule-density.tsx` — Density context + toggle UI
+- `src/components/features/schedule/schedule-staff-group.tsx` — Collapsible staff group headers
+- `src/components/features/schedule/crm-schedule-details-panel.tsx` — Inline right-side details panel
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/schedule/page.tsx` — Added PageHeader, SystemReadinessBar, wrapper
+- `src/components/features/schedule/schedule-workspace.tsx` — CRM uses inline panel + density provider
+- `src/components/features/schedule/schedule-board-panel.tsx` — Added `showHeader` prop
+- `src/components/features/schedule/daily-schedule-board.tsx` — Fixed-height scroll container + staff groups
+- `src/components/features/schedule/schedule-time-header.tsx` — Density-aware height
+- `src/components/features/schedule/schedule-staff-cell.tsx` — Density-aware sizing
+- `src/components/features/schedule/schedule-staff-row.tsx` — Density-aware row height
+- `src/lib/utils/schedule-timeline.ts` — Added `getRowHeightPx()` and `getHeaderHeightPx()`
+
+**Behavior:**
+- Fixed-height board (`maxHeight: calc(100vh - 380px)`) with internal scroll
+- Sticky staff column + time header preserved
+- Density: Comfortable (76px), Compact (56px, default), Ultra-compact (42px)
+- Groups: In Progress (expanded), Scheduled Today (expanded), Off Today (collapsed)
+- Owner/manager schedule pages completely untouched
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
 ### 2026-05-26 — Claude (FRONTDESK-UI-REDESIGN-001 Phase 2 — Availability Board Deep Redesign)
 
 **Task:** The Live Availability board was still too sparse and wide after Phase 1 — still Kanban-style with tall cards. Deep redesign into a 4-column dense operations board/table hybrid matching the approved mockup direction.
@@ -2436,3 +2470,72 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Verification:**
 - `pnpm exec prettier --write docs/figma-crm-redesign`: ✅ Passing
 - Full app build not run by design because this was documentation-only.
+
+---
+
+### 2026-05-26 — Kimi (CRM-SIDEBAR-NAV-FIX-001 — Fix CRM Sidebar Navigation)
+
+**Task:** Fix CRM sidebar navigation grouping and workspace badge sublabel bug.
+
+**Problem 1:** Workspace badge showed user's role access level instead of workspace description.
+- Example: Owner viewing `/crm/today` saw "FRONT DESK WORKSPACE · Owner access" instead of "Front-desk access".
+- This was misleading for users and made it unclear which workspace they were actually in.
+
+**Problem 2:** CRM nav groups were not optimally organized.
+- "Availability" and "Schedule Setup" were in separate groups, making daily readiness tools hard to find.
+- "Schedule Setup" was under "Staff & Internal Work" instead of near other daily operations tools.
+
+**Files Changed:**
+- `src/components/features/dashboard/sidebar.tsx`
+  - Removed `roleMeta.sublabel` override in workspace badge `meta` object
+  - Badge now uses `pathMeta` directly so sublabel describes the current workspace
+  - All roles viewing any workspace now see the correct workspace description
+
+- `src/components/features/dashboard/nav-config.ts`
+  - Reorganized CRM_NAV_GROUPS from 5 groups → 6 groups
+  - New "Daily Readiness" group: Staff Availability (`/crm/availability`), Schedule Setup (`/crm/staff-availability`)
+  - "Main Operations" reordered: Today, Control Center, Bookings, Dispatch, Live Map, Schedule
+  - "Control" renamed to "Control Center"
+  - "Availability" renamed to "Staff Availability"
+  - CSR_HEAD_NAV_GROUPS and CSR_STAFF_NAV_GROUPS now use defensive spread `[...CRM_NAV_GROUPS]`
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm build`: ✅ Passing (85/85 routes)
+- Note: 3 pre-existing lint errors in committed code (unrelated to this change)
+
+---
+
+### 2026-05-26 — Kimi (CRM-SERVICES-MODAL-PILOT-001 — Centered Provider Assignment Modal)
+
+**Task:** Pilot the centered task modal pattern on the CRM Services provider assignment UI.
+
+**Files Changed:**
+- `src/components/features/crm/services/provider-assignment-sheet.tsx` (rewritten)
+  - Converted from side Sheet to centered Dialog (`sm:max-w-3xl`, `max-h-[85vh]`)
+  - Added fixed footer with "Done" button and assigned provider count summary
+  - Added `min-h-0` to scrollable body for proper flex overflow handling
+  - Replaced native `<select>` dropdown with searchable provider list:
+    - Search input filters eligible providers by name
+    - Each provider shown as a compact row (avatar, name, staff type badge, "Add" button)
+    - Immediate assign on click (calls existing `assignProviderToServiceAction`)
+    - Empty state for no search matches
+  - Assigned providers section unchanged (avatar, name, type badge, "Remove" button)
+  - Service summary bar preserved (name, category, duration, price, delivery type, visibility)
+  - Status messages and eligibility note preserved
+  - All server actions unchanged (`assignProviderToServiceAction`, `removeProviderFromServiceAction`)
+
+**Design Decisions:**
+- Footer stays visible while body scrolls — `shrink-0` header/summary/footer + `flex-1 min-h-0 overflow-y-auto` body
+- One-provider-at-a-time assignment preserved (no batch action needed)
+- Search state resets on modal close
+- Mobile: full-screen `max-sm:h-[100dvh]` with same scrollable body + sticky footer
+
+**Scope:**
+- CRM Services page only — Manager and Owner services pages untouched
+- No booking logic changed. No DB schema changed. No RBAC changed.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
+- `pnpm build`: ✅ Passing (85/85 routes)
