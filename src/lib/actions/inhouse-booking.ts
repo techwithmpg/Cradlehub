@@ -495,20 +495,25 @@ export async function createInhouseBookingMultiAction(
     }
 
     const isHomeService = deliveryType === "home_service";
+    const serviceNames = d.serviceIds
+      .map((id) => servicesById.get(id)?.name ?? "")
+      .filter(Boolean)
+      .join(", ");
     const notificationJobs: Promise<void>[] = [
       createNotification({
         branchId:         resolvedBranchId,
         targetWorkspace:  "staff",
         recipientStaffId: resolvedStaffId,
         type:             isHomeService ? "home_service_assigned" : "booking_assigned",
-        title:            isHomeService ? "Home Service booking confirmed" : "New confirmed booking",
-        body:             `You have a confirmed ${isHomeService ? "Home Service" : ""} booking on ${d.date} at ${d.startTime}.`,
+        title:            isHomeService ? `Home Service booking — ${d.fullName}` : `New booking — ${d.fullName}`,
+        body:             `${d.fullName} has a confirmed ${isHomeService ? "Home Service " : ""}booking for ${serviceNames} on ${d.date} at ${d.startTime}.`,
         entityType:       "booking",
         entityId:         insertedIds[0],
         actionHref:       "/staff-portal/schedule",
         priority:         isHomeService ? "high" : "normal",
         requiresAction:   isHomeService,
         metadata:         insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
+        dedupeKey:        `booking:${insertedIds[0]}:staff_assignment`,
       }),
       // No CRM payment_pending notification for in-house bookings — payment is already recorded.
     ];
@@ -519,13 +524,14 @@ export async function createInhouseBookingMultiAction(
           branchId: resolvedBranchId,
           targetWorkspace: "crm",
           type: "home_service_location_review",
-          title: "Home Service location needs review",
-          body: "A Home Service booking needs location or driver review.",
+          title: `Home Service location review needed — ${d.fullName}`,
+          body: `${d.fullName}'s Home Service booking on ${d.date} at ${d.startTime} needs location or driver review.`,
           entityType: "booking",
           entityId: insertedIds[0],
           actionHref: "/crm/today",
           priority: "high",
           requiresAction: true,
+          dedupeKey: `booking:${insertedIds[0]}:location_review`,
         })
       );
     }
@@ -536,18 +542,24 @@ export async function createInhouseBookingMultiAction(
           branchId: resolvedBranchId,
           targetWorkspace: "crm",
           type: "home_service_dispatch_conflict",
-          title: "Possible Home Service dispatch conflict",
-          body: "A Home Service booking may clash with another location or driver capacity.",
+          title: `Home Service dispatch conflict — ${d.fullName}`,
+          body: `${d.fullName}'s Home Service booking on ${d.date} at ${d.startTime} may clash with another location or driver capacity.`,
           entityType: "booking",
           entityId: insertedIds[0],
           actionHref: "/crm/today",
           priority: "high",
           requiresAction: true,
+          dedupeKey: `booking:${insertedIds[0]}:dispatch_conflict`,
         })
       );
     }
 
-    await Promise.all(notificationJobs);
+    // Notifications are best-effort; do not fail the booking if they error
+    try {
+      await Promise.all(notificationJobs);
+    } catch (notifyErr) {
+      logBookingError(logContext, notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr)));
+    }
 
     logBusinessEvent("booking.crm.created", {
       branchId: resolvedBranchId,

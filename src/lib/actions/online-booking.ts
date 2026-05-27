@@ -183,35 +183,22 @@ export async function createOnlineBookingAction(
       };
     }
 
-    // Notifications are best-effort; do not fail the booking if they error
+    // Notifications are best-effort; do not fail the booking if they error.
+    // Online booking is pending — notify CRM only; staff gets notified after payment is confirmed.
     try {
-      await Promise.all([
-        createNotification({
-          branchId: d.branchId,
-          targetWorkspace: "staff",
-          recipientStaffId: resolvedStaffId,
-          type: "booking_assigned",
-          title: "New booking assigned",
-          body: `You have a new booking on ${d.date} at ${d.startTime}.`,
-          entityType: "booking",
-          entityId: booking.id,
-          actionHref: "/staff-portal",
-          priority: "normal",
-          requiresAction: false,
-        }),
-        createNotification({
-          branchId: d.branchId,
-          targetWorkspace: "crm",
-          type: "payment_pending",
-          title: "Payment needs follow-up",
-          body: "A public booking payment is unpaid or pending confirmation.",
-          entityType: "booking",
-          entityId: booking.id,
-          actionHref: "/crm/bookings",
-          priority: "normal",
-          requiresAction: true,
-        }),
-      ]);
+      await createNotification({
+        branchId: d.branchId,
+        targetWorkspace: "crm",
+        type: "payment_pending",
+        title: `Payment confirmation needed — ${d.fullName}`,
+        body: `${d.fullName} booked a service on ${d.date} at ${d.startTime}. Confirm payment before notifying the assigned therapist.`,
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: `/crm/bookings?bookingId=${booking.id}`,
+        priority: "high",
+        requiresAction: true,
+        dedupeKey: `booking:${booking.id}:payment_pending`,
+      });
     } catch (notifyErr) {
       logBookingError(logContext, notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr)));
     }
@@ -493,32 +480,20 @@ export async function createOnlineBookingMultiAction(
     }
 
     const isHSMulti = deliveryType === "home_service";
+    // Online booking is pending — notify CRM only; staff gets notified after payment is confirmed.
     const notificationJobs: Promise<void>[] = [
-      createNotification({
-      branchId: d.branchId,
-      targetWorkspace: "staff",
-      recipientStaffId: resolvedStaffId,
-      type: isHSMulti ? "home_service_assigned" : "booking_assigned",
-      title: isHSMulti ? "Home Service booking assigned" : "New booking assigned",
-      body: `You have a ${isHSMulti ? "Home Service" : "new"} booking on ${d.date} at ${d.startTime}.`,
-      entityType: "booking",
-      entityId: insertedIds[0],
-      actionHref: "/staff-portal",
-      priority: isHSMulti ? "high" : "normal",
-      requiresAction: isHSMulti,
-      metadata: insertedIds.length > 1 ? { group_booking_ids: insertedIds } : {},
-      }),
       createNotification({
         branchId: d.branchId,
         targetWorkspace: "crm",
         type: "payment_pending",
-        title: "Payment needs follow-up",
-        body: "A public booking payment is unpaid or pending confirmation.",
+        title: `Payment confirmation needed — ${d.fullName}`,
+        body: `${d.fullName} booked ${isHSMulti ? "a Home Service" : "a service"} on ${d.date} at ${d.startTime}. Confirm payment before notifying the assigned therapist.`,
         entityType: "booking",
         entityId: insertedIds[0],
-        actionHref: "/crm/bookings",
-        priority: "normal",
+        actionHref: `/crm/bookings?bookingId=${insertedIds[0]}`,
+        priority: "high",
         requiresAction: true,
+        dedupeKey: `booking:${insertedIds[0]}:payment_pending`,
       }),
     ];
 
@@ -528,13 +503,14 @@ export async function createOnlineBookingMultiAction(
           branchId: d.branchId,
           targetWorkspace: "crm",
           type: "home_service_location_review",
-          title: "Home Service location needs review",
-          body: "A Home Service booking needs location or driver review.",
+          title: `Home Service location review needed — ${d.fullName}`,
+          body: `${d.fullName}'s Home Service booking on ${d.date} at ${d.startTime} needs location or driver review.`,
           entityType: "booking",
           entityId: insertedIds[0],
           actionHref: "/crm/today",
           priority: "high",
           requiresAction: true,
+          dedupeKey: `booking:${insertedIds[0]}:location_review`,
         })
       );
     }
@@ -545,13 +521,14 @@ export async function createOnlineBookingMultiAction(
           branchId: d.branchId,
           targetWorkspace: "crm",
           type: "home_service_dispatch_conflict",
-          title: "Possible Home Service dispatch conflict",
-          body: "A Home Service booking may clash with another location or driver capacity.",
+          title: `Home Service dispatch conflict — ${d.fullName}`,
+          body: `${d.fullName}'s Home Service booking on ${d.date} at ${d.startTime} may clash with another location or driver capacity.`,
           entityType: "booking",
           entityId: insertedIds[0],
           actionHref: "/crm/today",
           priority: "high",
           requiresAction: true,
+          dedupeKey: `booking:${insertedIds[0]}:dispatch_conflict`,
         })
       );
     }

@@ -52,6 +52,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     status: string;
     hold_expires_at: string | null;
     staff_id: string | null;
+    customer_id: string | null;
     booking_date: string;
     start_time: string;
     end_time: string | null;
@@ -68,7 +69,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
   const { data: fullBooking, error: fetchErr } = await supabase
     .from("bookings")
     .select(
-      "id, branch_id, status, hold_expires_at, staff_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+      "id, branch_id, status, hold_expires_at, staff_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -80,7 +81,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     const { data: fallback } = await supabase
       .from("bookings")
       .select(
-        "id, branch_id, status, staff_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+        "id, branch_id, status, staff_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -88,6 +89,19 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
   }
 
   if (!booking) return { success: false, error: "Booking not found" };
+
+  // Fetch customer name for the staff notification — best-effort, never blocks the action
+  let customerName = "the customer";
+  try {
+    if (booking.customer_id) {
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("full_name")
+        .eq("id", booking.customer_id)
+        .maybeSingle();
+      if (cust?.full_name) customerName = cust.full_name;
+    }
+  } catch { /* non-critical — fall back to generic label */ }
 
   // Branch guard (owner bypasses)
   if (me.system_role !== "owner" && me.branch_id !== "dev" && booking.branch_id !== me.branch_id) {
@@ -192,7 +206,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     }
   }
 
-  // Notify assigned staff (only after confirmed — Phase 5 requirement)
+  // Notify assigned staff (only after confirmed — payment confirmed before notifying)
   if (booking.staff_id) {
     const isHS = booking.delivery_type === "home_service" || booking.type === "home_service";
     await createNotification({
@@ -200,8 +214,8 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
       targetWorkspace:  "staff",
       recipientStaffId: booking.staff_id,
       type:             isHS ? "home_service_assigned" : "booking_assigned",
-      title:            isHS ? "Home Service booking confirmed" : "Booking confirmed and assigned",
-      body:             `Your booking on ${booking.booking_date} at ${booking.start_time} has been confirmed.`,
+      title:            isHS ? `Home Service booking confirmed — ${customerName}` : `Booking confirmed — ${customerName}`,
+      body:             `${customerName}'s ${isHS ? "Home Service " : ""}booking on ${booking.booking_date} at ${booking.start_time} has been confirmed and assigned to you.`,
       entityType:       "booking",
       entityId:         bookingId,
       actionHref:       getNotificationTargetPath({
@@ -211,6 +225,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
       }),
       priority:       isHS ? "high" : "normal",
       requiresAction: isHS,
+      dedupeKey:      `booking:${bookingId}:staff_assignment_confirmed`,
     });
   }
 

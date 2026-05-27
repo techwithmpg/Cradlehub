@@ -150,13 +150,16 @@ export async function POST(request: NextRequest) {
     branchId: d.branchId,
     targetWorkspace: "crm",
     type: "waitlist_request_submitted",
-    title: "New waitlist request",
-    body: `${d.customerName} joined the waitlist.`,
+    title: `New waitlist request — ${d.customerName}`,
+    body: d.preferredDate
+      ? `${d.customerName} joined the waitlist for ${d.preferredDate}${d.preferredTime ? ` at ${d.preferredTime}` : ""}.`
+      : `${d.customerName} joined the waitlist.`,
     entityType: "waitlist_request",
     entityId: data.id,
     actionHref: getNotificationTargetPath({ workspace: "crm", entityType: "waitlist_request", entityId: data.id }),
     priority: "normal",
     requiresAction: true,
+    dedupeKey: `waitlist:${data.id}:submitted`,
   });
 
   return NextResponse.json({ ok: true, requestId: data.id }, { status: 201 });
