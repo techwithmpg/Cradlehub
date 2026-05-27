@@ -51,6 +51,27 @@ export const MANUAL_OPENING_2026: Partial<Record<DayOfWeek, string[]>> = {
   6: ["JOHANNA", "JANET", "WENG", "NIKKI"],
 };
 
+// ── Known paper-name aliases ──────────────────────────────────────────────────
+/**
+ * Maps a paper schedule name (ALL_CAPS) to the name (or part of the name) as
+ * it is stored in the staff database record.
+ *
+ * Use this when auto-matching still leaves a name as "unmatched" because the
+ * paper nickname is too different from the stored full_name or nickname field.
+ *
+ * Keys must be ALL_CAPS exactly as they appear in the schedule lists above.
+ * Values are matched against the staff's full_name words AND nickname field.
+ *
+ * Examples (fill in with your actual staff names):
+ *   "MECK":  "Mercedes"   // paper nickname → real first name in DB
+ *   "WENG":  "Wendy"      // paper nickname → real first name in DB
+ *   "BENJIE": "Benjamin"  // shortened nickname → real first name
+ */
+export const PAPER_NAME_ALIASES: Record<string, string> = {
+  // Add entries here if auto-matching still leaves names unmatched.
+  // e.g. "MECK": "Mercedes"
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** All unique paper names across every schedule list. */

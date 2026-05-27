@@ -20,6 +20,7 @@ import {
   MANUAL_SALON_DAY_OFF_2026,
   MANUAL_OPENING_2026,
   detectOpeningOffConflicts,
+  PAPER_NAME_ALIASES,
 } from "@/lib/schedule/manual-schedule-2026";
 import type { DayOfWeek } from "@/lib/schedule/manual-schedule-2026";
 import { applyManualScheduleImportAction } from "@/app/(dashboard)/crm/staff-availability/actions";
@@ -49,35 +50,111 @@ function normName(s: string): string {
   return s.toLowerCase().trim();
 }
 
-function matchPaperName(paperName: string, staff: StaffOption[]): NameMatch {
-  const norm = normName(paperName);
+/**
+ * Levenshtein edit distance (insertions, deletions, substitutions).
+ * Space-optimised O(min(m,n)) implementation.
+ */
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  // Keep the shorter string in the inner loop
+  if (a.length > b.length) { const t = a; a = b; b = t; }
+  let prev = Array.from({ length: a.length + 1 }, (_, i) => i);
+  for (let j = 1; j <= b.length; j++) {
+    const curr: number[] = [j];
+    for (let i = 1; i <= a.length; i++) {
+      curr.push(
+        a[i - 1] === b[j - 1]
+          ? prev[i - 1]!
+          : 1 + Math.min(prev[i]!, curr[i - 1]!, prev[i - 1]!),
+      );
+    }
+    prev = curr;
+  }
+  return prev[a.length]!;
+}
 
-  const candidates = staff.filter((s) => {
-    // Exact full_name match
-    if (normName(s.full_name) === norm) return true;
-    // Nickname match
-    if (s.nickname && normName(s.nickname) === norm) return true;
-    // First name of full_name
-    const firstName = s.full_name.split(" ")[0];
-    if (firstName && normName(firstName) === norm) return true;
-    // Any word in full_name
-    const words = s.full_name.split(/\s+/);
-    return words.some((w) => normName(w) === norm);
+/** Resolve the effective search term for a paper name (respects alias overrides). */
+function resolveSearchNorm(paperName: string): string {
+  const alias = PAPER_NAME_ALIASES[paperName.toUpperCase()];
+  return alias ? normName(alias) : normName(paperName);
+}
+
+/** Words of a staff member's full name, lower-cased. */
+function nameWords(s: StaffOption): string[] {
+  return s.full_name.split(/\s+/).map((w) => normName(w));
+}
+
+/**
+ * Match a single paper name against the staff list using a tiered strategy:
+ *
+ *  Tier 1 – Exact:      full_name === search, nickname === search, or any name-word === search
+ *  Tier 2 – Prefix:     any name-word *starts with* search (min 3 chars); catches shortened nicknames
+ *  Tier 3 – Fuzzy:      edit distance ≤ 1 (names ≥ 4 chars) or ≤ 2 (names ≥ 6 chars);
+ *                        catches spelling variants like MELLROSE↔Melrose, SHIELA↔Sheila,
+ *                        JACQLYN↔Jacquelyn, EZRAH↔Ezra, RIZZA↔Riza
+ *
+ * If PAPER_NAME_ALIASES has an entry for the paper name, its value is used as the
+ * search term instead (useful for nicknames like MECK → Mercedes, WENG → Wendy).
+ *
+ * Each tier is evaluated in order; the first tier that finds at least one candidate
+ * is used. Multiple candidates at the same tier → "ambiguous" (user must pick).
+ */
+function matchPaperName(paperName: string, staff: StaffOption[]): NameMatch {
+  const searchNorm = resolveSearchNorm(paperName);
+
+  const makeResult = (found: StaffOption[]): NameMatch => ({
+    paperName,
+    status: found.length === 1 ? "matched" : "ambiguous",
+    candidates: found,
+    selectedId: found.length === 1 ? (found[0]?.id ?? null) : null,
   });
 
-  const status: MatchStatus =
-    candidates.length === 1
-      ? "matched"
-      : candidates.length > 1
-        ? "ambiguous"
-        : "unmatched";
+  // ── Tier 1: exact ──────────────────────────────────────────────────────────
+  let candidates = staff.filter((s) => {
+    const nick = s.nickname ? normName(s.nickname) : null;
+    return (
+      normName(s.full_name) === searchNorm ||
+      nick === searchNorm ||
+      nameWords(s).some((w) => w === searchNorm)
+    );
+  });
+  if (candidates.length > 0) return makeResult(candidates);
 
-  return {
-    paperName,
-    status,
-    candidates,
-    selectedId: candidates.length === 1 ? (candidates[0]?.id ?? null) : null,
-  };
+  // ── Tier 2: prefix (paper name is a prefix of a name word, min 3 chars) ──
+  if (searchNorm.length >= 3) {
+    candidates = staff.filter((s) =>
+      nameWords(s).some(
+        (w) => w.startsWith(searchNorm) && w.length > searchNorm.length,
+      ),
+    );
+    if (candidates.length > 0) return makeResult(candidates);
+  }
+
+  // ── Tier 3: fuzzy edit-distance ────────────────────────────────────────────
+  if (searchNorm.length >= 4) {
+    // Allow 1 edit for names ≥ 4 chars, 2 edits for names ≥ 6 chars.
+    // The length-difference guard prevents short names from matching much-longer ones.
+    const maxDist = searchNorm.length >= 6 ? 2 : 1;
+    candidates = staff.filter((s) => {
+      const words = nameWords(s);
+      const nick = s.nickname ? normName(s.nickname) : null;
+      const wordMatch = words.some(
+        (w) =>
+          Math.abs(w.length - searchNorm.length) <= maxDist &&
+          editDistance(w, searchNorm) <= maxDist,
+      );
+      const nickMatch =
+        nick != null &&
+        Math.abs(nick.length - searchNorm.length) <= maxDist &&
+        editDistance(nick, searchNorm) <= maxDist;
+      return wordMatch || nickMatch;
+    });
+    if (candidates.length > 0) return makeResult(candidates);
+  }
+
+  return { paperName, status: "unmatched", candidates: [], selectedId: null };
 }
 
 function computeMatches(
