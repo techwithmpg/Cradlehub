@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
   MANUAL_DAY_OFF_2026,
@@ -24,6 +25,7 @@ const IMPORT_ALLOWED_ROLES = new Set([
 ]);
 
 async function requireImportAccess(branchId: string) {
+  // Session client — used only for auth checks (respects RLS).
   const supabase = await createClient();
   const {
     data: { user },
@@ -31,7 +33,9 @@ async function requireImportAccess(branchId: string) {
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
-    return { supabase, userId: "dev-bypass" };
+    // Admin client bypasses the RLS policies that only cover manager/owner.
+    // The action's own branch+role checks already provide the necessary guard.
+    return { admin: createAdminClient(), userId: "dev-bypass" };
   }
 
   const { data: me } = await supabase
@@ -46,7 +50,10 @@ async function requireImportAccess(branchId: string) {
   // Non-owner must be on the same branch
   if (me.system_role !== "owner" && me.branch_id !== branchId) return null;
 
-  return { supabase, userId: me.id as string };
+  // Admin client bypasses staff_schedules RLS (INSERT/UPDATE policies only
+  // cover 'manager' and 'owner' roles). The auth gate above already verified
+  // that this user is an allowed role on this branch.
+  return { admin: createAdminClient(), userId: me.id as string };
 }
 
 // ── Input schema ──────────────────────────────────────────────────────────────
@@ -118,10 +125,10 @@ export async function applyManualScheduleImportAction(
   const ctx = await requireImportAccess(branchId);
   if (!ctx) return { ok: false, error: "Unauthorized" };
 
-  // Verify all staff IDs belong to this branch
+  // Verify all staff IDs belong to this branch (admin client — bypasses RLS)
   const staffIds = resolvedMatches.map((m) => m.staffId);
 
-  const { data: verifiedStaff, error: verifyErr } = await ctx.supabase
+  const { data: verifiedStaff, error: verifyErr } = await ctx.admin
     .from("staff")
     .select("id")
     .eq("branch_id", branchId)
@@ -228,16 +235,26 @@ export async function applyManualScheduleImportAction(
     return { ok: false, error: "No schedule rows to write" };
   }
 
-  // Batch upsert — safe to re-run, overwrites existing rows for same conflict key
-  const { error: upsertErr } = await ctx.supabase
+  // Batch upsert — safe to re-run, overwrites existing rows for same conflict key.
+  // Uses admin client to bypass RLS (INSERT/UPDATE policies only cover manager/owner;
+  // crm/csr_head are allowed at the action level above).
+  const { error: upsertErr } = await ctx.admin
     .from("staff_schedules")
     .upsert(rows, { onConflict: "staff_id,day_of_week,shift_type" });
 
   if (upsertErr) {
-    console.error("[schedule-import] upsert failed", upsertErr.message);
+    console.error("[schedule-import] upsert failed", {
+      code: upsertErr.code,
+      message: upsertErr.message,
+      details: upsertErr.details,
+      hint: upsertErr.hint,
+    });
     return {
       ok: false,
-      error: "Could not save schedule data. Please try again.",
+      error:
+        process.env.NODE_ENV === "development"
+          ? `Save failed: ${upsertErr.message}`
+          : "Could not save schedule data. Please try again.",
     };
   }
 
