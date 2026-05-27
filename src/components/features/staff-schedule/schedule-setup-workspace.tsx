@@ -44,33 +44,69 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Compact workflow strip */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: "0.75rem",
+          color: "var(--cs-text-muted)",
+          padding: "6px 10px",
+          background: "var(--cs-surface-warm)",
+          borderRadius: "var(--cs-r-sm)",
+          border: "1px solid var(--cs-border-soft)",
+          overflowX: "auto",
+        }}
+      >
+        <span style={{ fontWeight: 600, color: "var(--cs-text-secondary)", whiteSpace: "nowrap" }}>Setup Flow:</span>
+        {[
+          { label: "1. Group Rules", active: activeTab === "general" },
+          { label: "2. Individual Adjustments", active: activeTab === "individual" },
+          { label: "3. Overrides", active: activeTab === "overrides" },
+          { label: "4. Coverage Issues", active: activeTab === "coverage" },
+        ].map((step, idx) => (
+          <span key={step.label} style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+            <span
+              style={{
+                fontWeight: step.active ? 700 : 400,
+                color: step.active ? "var(--cs-sand)" : undefined,
+              }}
+            >
+              {step.label}
+            </span>
+            {idx < 3 && <span style={{ color: "var(--cs-border)" }}>→</span>}
+          </span>
+        ))}
+      </div>
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
         <TabsList
           variant="line"
-          className="h-11 min-w-max justify-start rounded-none border-b border-[var(--cs-border-soft)] p-0"
+          className="h-10 min-w-max justify-start rounded-none border-b border-[var(--cs-border-soft)] p-0"
         >
           <TabsTrigger
             value="general"
-            className="h-11 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
+            className="h-10 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
           >
             General Rules
           </TabsTrigger>
           <TabsTrigger
             value="individual"
-            className="h-11 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
+            className="h-10 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
           >
             Individual Adjustments
           </TabsTrigger>
           <TabsTrigger
             value="overrides"
-            className="h-11 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
+            className="h-10 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
           >
             Overrides
           </TabsTrigger>
           <TabsTrigger
             value="coverage"
-            className="h-11 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
+            className="h-10 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
           >
             Coverage Issues
           </TabsTrigger>
@@ -87,13 +123,12 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup }: Props) {
             onSelectGroup={setSelectedGroup}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
             <GroupScheduleRulesPanel
               key={selectedGroup}
               selectedGroup={selectedGroup}
               groupData={selectedGroupData}
               groupRules={selectedGroupRules}
-              groupItems={groupItems}
             />
             <div className="flex flex-col gap-4">
               <ScheduleSetupRightRail

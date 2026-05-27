@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import { STAFF_GROUPS } from "./schedule-group-cards";
 import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
@@ -90,25 +91,44 @@ export function ScheduleSetupRightRail({ selectedGroup, groupItems, groupRules }
     { label: "Scheduled", count: scheduledToday, total,                          color: "var(--cs-sand)" },
   ];
 
-  const QUICK_ACTIONS = [
-    "Copy schedule to another group",
-    "Apply rules to new staff",
-    "Export group schedule",
-    "View staff list",
-  ] as const;
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
 
-      {/* Group Overview */}
-      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "14px 16px" }}>
+      {/* Coverage Today */}
+      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "12px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <span style={{ fontSize: 14 }}>👥</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>Group Overview</span>
+          <span style={{ fontSize: 14 }}>🎯</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>Coverage Today</div>
+            <div style={{ fontSize: 10, color: "var(--cs-text-muted)" }}>{todayLabel()}</div>
+          </div>
         </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: "var(--cs-text)" }}>{groupLabel}</div>
-          <div style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>{total} Staff Member{total !== 1 ? "s" : ""}</div>
+        {total > 0 ? (
+          coverageBars.map((bar) => {
+            const fill = bar.total > 0 ? Math.min(100, Math.round((bar.count / bar.total) * 100)) : 0;
+            return (
+              <div key={bar.label} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>{bar.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-text)" }}>{bar.count} / {bar.total}</span>
+                </div>
+                <div style={{ height: 5, background: "var(--cs-border)", borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${fill}%`, background: bar.color, borderRadius: 3 }} />
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>No staff in this group.</div>
+        )}
+      </div>
+
+      {/* Group Status */}
+      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "12px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 14 }}>👥</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>{groupLabel}</span>
+          <span style={{ fontSize: 11, color: "var(--cs-text-muted)", marginLeft: "auto" }}>{total} staff</span>
         </div>
         {total > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -121,68 +141,69 @@ export function ScheduleSetupRightRail({ selectedGroup, groupItems, groupRules }
         )}
 
         {/* Group rules status */}
-        <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--cs-surface-warm)", borderRadius: "var(--cs-r-sm)", border: "1px solid var(--cs-border-soft)" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-text)", marginBottom: 3 }}>Group Rules</div>
+        <div style={{ marginTop: 8, padding: "6px 8px", background: "var(--cs-surface-warm)", borderRadius: "var(--cs-r-sm)", border: "1px solid var(--cs-border-soft)" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-text)", marginBottom: 2 }}>Group Rules</div>
           {hasGroupRules ? (
             <div style={{ fontSize: 11, color: "var(--cs-success)" }}>
-              {groupRuleDays} active rule{groupRuleDays !== 1 ? "s" : ""} configured
+              {groupRuleDays} active rule{groupRuleDays !== 1 ? "s" : ""}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>
-              No universal rules yet. Set the weekly pattern to create defaults.
+              No universal rules yet.
             </div>
           )}
         </div>
       </div>
 
-      {/* Coverage Insight */}
-      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "14px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 14 }}>🎯</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>Coverage Insight</div>
-            <div style={{ fontSize: 10, color: "var(--cs-text-muted)" }}>Today ({todayLabel()})</div>
-          </div>
-        </div>
-        {total > 0 ? (
-          coverageBars.map((bar) => {
-            const fill = bar.total > 0 ? Math.min(100, Math.round((bar.count / bar.total) * 100)) : 0;
-            return (
-              <div key={bar.label} style={{ marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>{bar.label}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-text)" }}>{bar.count} / {bar.total}</span>
-                </div>
-                <div style={{ height: 6, background: "var(--cs-border)", borderRadius: 3, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${fill}%`, background: bar.color, borderRadius: 3 }} />
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>Coverage rules ready for wiring.</div>
-        )}
-      </div>
-
-      {/* Quick Actions */}
-      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "14px 16px" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)", marginBottom: 10 }}>Quick Actions</div>
-        {QUICK_ACTIONS.map((label, idx) => (
-          <div
-            key={label}
+      {/* Quick Actions — only functional ones */}
+      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "12px 14px" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)", marginBottom: 8 }}>Quick Actions</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <Link
+            href="/crm/staff-availability?tab=coverage"
             style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "8px 0",
-              borderBottom: idx < QUICK_ACTIONS.length - 1 ? "1px solid var(--cs-border-soft)" : "none",
-              opacity: 0.55,
+              fontSize: 12,
+              color: "var(--cs-sand)",
+              textDecoration: "none",
+              padding: "5px 8px",
+              borderRadius: "var(--cs-r-sm)",
+              border: "1px solid var(--cs-border-soft)",
+              background: "var(--cs-surface-warm)",
+              display: "block",
             }}
           >
-            <span style={{ fontSize: 12, color: "var(--cs-text)" }}>{label}</span>
-            <span style={{ fontSize: 14, color: "var(--cs-text-muted)" }}>›</span>
-          </div>
-        ))}
-        <div style={{ marginTop: 8, fontSize: 10, color: "var(--cs-text-subtle)", fontStyle: "italic" }}>
-          Coming in the next implementation step.
+            View Coverage Issues ›
+          </Link>
+          <Link
+            href="/crm/staff-availability?tab=individual"
+            style={{
+              fontSize: 12,
+              color: "var(--cs-sand)",
+              textDecoration: "none",
+              padding: "5px 8px",
+              borderRadius: "var(--cs-r-sm)",
+              border: "1px solid var(--cs-border-soft)",
+              background: "var(--cs-surface-warm)",
+              display: "block",
+            }}
+          >
+            Open Individual Adjustments ›
+          </Link>
+          <Link
+            href="/crm/staff-availability?tab=overrides"
+            style={{
+              fontSize: 12,
+              color: "var(--cs-sand)",
+              textDecoration: "none",
+              padding: "5px 8px",
+              borderRadius: "var(--cs-r-sm)",
+              border: "1px solid var(--cs-border-soft)",
+              background: "var(--cs-surface-warm)",
+              display: "block",
+            }}
+          >
+            Open Overrides ›
+          </Link>
         </div>
       </div>
 

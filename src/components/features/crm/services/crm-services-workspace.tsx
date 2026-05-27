@@ -7,15 +7,13 @@
  * and manages tab state client-side.
  *
  * Tabs:
- *   1. Active Services       — existing ServicesOfferedTab
- *   2. Therapist Assignments — new CrmTherapistAssignmentTab
- *
- * Visiting /crm/services#therapist-assignments auto-selects Tab 2 on mount.
+ *   1. Services         — service-first workflow (CrmTherapistAssignmentTab)
+ *   2. Staff Capabilities — staff-first summary (CrmStaffCapabilitiesTab)
+ *   3. Readiness Issues — service readiness check (CrmServiceReadinessTab)
  */
 
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ServicesOfferedTab } from "@/components/features/manager-settings/services-offered-tab";
 import type {
   GlobalService,
   ServiceLite,
@@ -23,14 +21,17 @@ import type {
 import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import { CrmTherapistAssignmentTab } from "./crm-therapist-assignment-tab";
+import { CrmStaffCapabilitiesTab } from "./crm-staff-capabilities-tab";
+import { CrmServiceReadinessTab } from "./crm-service-readiness-tab";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type TabId = "active_services" | "therapist_assignments";
+type TabId = "services" | "staff_capabilities" | "readiness_issues";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "active_services",      label: "Active Services"      },
-  { id: "therapist_assignments", label: "Therapist Assignments" },
+  { id: "services",            label: "Services"            },
+  { id: "staff_capabilities",  label: "Staff Capabilities"  },
+  { id: "readiness_issues",    label: "Readiness Issues"    },
 ];
 
 export interface CrmServicesWorkspaceProps {
@@ -49,13 +50,11 @@ export interface CrmServicesWorkspaceProps {
 
 export function CrmServicesWorkspace({
   branchId,
-  services,
-  allServices,
   loadError,
   activeServices,
   providerStaff,
   providerAssignments,
-  initialTab = "active_services",
+  initialTab = "services",
 }: CrmServicesWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
 
@@ -100,16 +99,7 @@ export function CrmServicesWorkspace({
       </div>
 
       {/* ── Tab content ── */}
-      {activeTab === "active_services" && (
-        <ServicesOfferedTab
-          branchId={branchId}
-          services={services}
-          allServices={allServices}
-          loadError={loadError}
-        />
-      )}
-
-      {activeTab === "therapist_assignments" && (
+      {activeTab === "services" && (
         loadError ? (
           <Alert variant="destructive">
             <AlertTitle>Could not load provider data</AlertTitle>
@@ -121,6 +111,43 @@ export function CrmServicesWorkspace({
         ) : (
           <CrmTherapistAssignmentTab
             branchId={branchId}
+            services={activeServices}
+            staff={providerStaff}
+            assignments={providerAssignments}
+          />
+        )
+      )}
+
+      {activeTab === "staff_capabilities" && (
+        loadError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not load staff data</AlertTitle>
+            <AlertDescription>
+              Branch services failed to load so staff capabilities cannot be shown. Refresh the
+              page to try again.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <CrmStaffCapabilitiesTab
+            branchId={branchId}
+            services={activeServices}
+            staff={providerStaff}
+            assignments={providerAssignments}
+          />
+        )
+      )}
+
+      {activeTab === "readiness_issues" && (
+        loadError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not load service data</AlertTitle>
+            <AlertDescription>
+              Branch services failed to load so readiness issues cannot be shown. Refresh the
+              page to try again.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <CrmServiceReadinessTab
             services={activeServices}
             staff={providerStaff}
             assignments={providerAssignments}

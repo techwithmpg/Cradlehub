@@ -1,23 +1,10 @@
 /**
  * ScheduleSetupHealthSummary
  *
- * Quick-glance stat cards computed from the already-fetched items array.
+ * Compact KPI strip computed from the already-fetched items array.
  * No new queries — reads from StaffScheduleItem[] and StaffScheduleGroup[].
- *
- * Shows:
- *   - Total active staff
- *   - Staff with individual weekly schedule
- *   - Staff missing individual schedule (no active schedule rows)
- *   - Active schedule groups configured
- *   - Overrides this week
- *   - Blocked time this week
- *
- * A warning banner is shown when any staff have no individual schedule,
- * directing CRM to the Coverage Issues tab for full details.
  */
 
-import { ReadinessIssueCard } from "@/components/shared/readiness-issue-card";
-import { buildMissingScheduleIssue } from "./schedule-readiness-utils";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
 
@@ -25,14 +12,14 @@ import type { StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
 
 function getWeekBounds(): { weekStart: string; weekEnd: string } {
   const today = new Date();
-  const dow = today.getDay(); // 0 = Sunday
+  const dow = today.getDay();
   const start = new Date(today);
   start.setDate(today.getDate() - dow);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return {
     weekStart: start.toISOString().split("T")[0]!,
-    weekEnd:   end.toISOString().split("T")[0]!,
+    weekEnd: end.toISOString().split("T")[0]!,
   };
 }
 
@@ -83,35 +70,34 @@ function computeStats(
   };
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
+// ── Stat chip ─────────────────────────────────────────────────────────────────
 
-type StatCardProps = {
+type StatChipProps = {
   label: string;
   value: number;
-  valueColor?: string;
-  activeTint?: string;
-  note?: string;
+  color?: string;
 };
 
-function StatCard({ label, value, valueColor, activeTint, note }: StatCardProps) {
+function StatChip({ label, value, color }: StatChipProps) {
   return (
     <div
       className="cs-card"
       style={{
-        padding: "0.875rem 1rem",
+        padding: "0.625rem 0.875rem",
         display: "flex",
-        flexDirection: "column",
-        gap: "0.25rem",
-        background: activeTint ?? "var(--cs-surface)",
+        alignItems: "center",
+        gap: "0.5rem",
+        flex: 1,
+        minWidth: 120,
       }}
     >
       <div
         style={{
-          fontSize: "1.5rem",
+          fontSize: "1.125rem",
           fontWeight: 700,
           lineHeight: 1,
-          color: valueColor ?? "var(--cs-text)",
-          fontFamily: "var(--font-display)",
+          color: color ?? "var(--cs-text)",
+          fontVariantNumeric: "tabular-nums",
         }}
       >
         {value}
@@ -121,18 +107,11 @@ function StatCard({ label, value, valueColor, activeTint, note }: StatCardProps)
           fontSize: "0.6875rem",
           fontWeight: 600,
           color: "var(--cs-text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
           lineHeight: 1.3,
         }}
       >
         {label}
       </div>
-      {note && (
-        <div style={{ fontSize: "0.625rem", color: "var(--cs-text-muted)", fontStyle: "italic" }}>
-          {note}
-        </div>
-      )}
     </div>
   );
 }
@@ -149,63 +128,44 @@ export function ScheduleSetupHealthSummary({
   const stats = computeStats(items, groups);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      {/* Warning if staff missing individual schedules */}
-      {stats.missingSchedule > 0 && (
-        <ReadinessIssueCard issue={buildMissingScheduleIssue(stats.missingSchedule)} />
-      )}
-
-      {/* Stats grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-          gap: "0.625rem",
-        }}
-      >
-        <StatCard label="Active Staff" value={stats.totalActive} />
-        <StatCard
-          label="With Schedule"
-          value={stats.withSchedule}
-          valueColor={
-            stats.withSchedule === stats.totalActive
-              ? "var(--cs-success,#27ae60)"
-              : "var(--cs-text)"
-          }
-        />
-        <StatCard
-          label="Missing Schedule"
-          value={stats.missingSchedule}
-          valueColor={
-            stats.missingSchedule > 0 ? "var(--cs-warning,#e67e22)" : "var(--cs-text-muted)"
-          }
-          activeTint={
-            stats.missingSchedule > 0 ? "rgba(230,126,34,0.04)" : undefined
-          }
-          note="individual only — may have group rules"
-        />
-        <StatCard
-          label="Schedule Groups"
-          value={stats.groupCount}
-          valueColor={
-            stats.groupCount > 0 ? "var(--cs-info,#2980b9)" : "var(--cs-text-muted)"
-          }
-        />
-        <StatCard
-          label="Overrides This Week"
-          value={stats.overridesThisWeek}
-          valueColor={
-            stats.overridesThisWeek > 0 ? "var(--cs-sand)" : "var(--cs-text-muted)"
-          }
-        />
-        <StatCard
-          label="Blocked Time This Week"
-          value={stats.blockedThisWeek}
-          valueColor={
-            stats.blockedThisWeek > 0 ? "var(--cs-sand)" : "var(--cs-text-muted)"
-          }
-        />
-      </div>
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        overflowX: "auto",
+        paddingBottom: 4,
+      }}
+    >
+      <StatChip label="Active Staff" value={stats.totalActive} />
+      <StatChip
+        label="With Schedule"
+        value={stats.withSchedule}
+        color={
+          stats.withSchedule === stats.totalActive
+            ? "var(--cs-success,#27ae60)"
+            : undefined
+        }
+      />
+      <StatChip
+        label="Missing Schedule"
+        value={stats.missingSchedule}
+        color={stats.missingSchedule > 0 ? "var(--cs-warning,#e67e22)" : undefined}
+      />
+      <StatChip
+        label="Schedule Groups"
+        value={stats.groupCount}
+        color={stats.groupCount > 0 ? "var(--cs-info,#2980b9)" : undefined}
+      />
+      <StatChip
+        label="Overrides This Week"
+        value={stats.overridesThisWeek}
+        color={stats.overridesThisWeek > 0 ? "var(--cs-sand)" : undefined}
+      />
+      <StatChip
+        label="Blocked Time This Week"
+        value={stats.blockedThisWeek}
+        color={stats.blockedThisWeek > 0 ? "var(--cs-sand)" : undefined}
+      />
     </div>
   );
 }

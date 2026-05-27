@@ -17,13 +17,6 @@ function statusColor(s: CardStatus): string {
   return "var(--cs-text-muted)";
 }
 
-function statusBg(s: CardStatus): string {
-  if (s === "ready")   return "var(--cs-success-bg)";
-  if (s === "error")   return "rgba(192,57,43,0.08)";
-  if (s === "warning") return "rgba(230,126,34,0.08)";
-  return "var(--cs-surface-raised)";
-}
-
 function StatusDot({ status }: { status: CardStatus }) {
   return (
     <span
@@ -42,18 +35,17 @@ function StatusDot({ status }: { status: CardStatus }) {
 function HealthCardView({ card }: { card: HealthCard }) {
   return (
     <div
+      className="cs-card"
       style={{
-        backgroundColor: statusBg(card.status),
-        border: `1px solid ${statusColor(card.status)}33`,
-        borderRadius: "var(--cs-r-md, 10px)",
-        padding: "1rem 1.125rem",
+        padding: "0.875rem 1rem",
         display: "flex",
         flexDirection: "column",
-        gap: 6,
+        gap: 5,
+        borderLeft: `3px solid ${statusColor(card.status)}`,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 18 }}>{card.icon}</span>
+        <span style={{ fontSize: 16 }}>{card.icon}</span>
         <span
           style={{
             fontSize: "0.6875rem",
@@ -70,7 +62,7 @@ function HealthCardView({ card }: { card: HealthCard }) {
       </div>
       <div
         style={{
-          fontSize: "1.375rem",
+          fontSize: "1.25rem",
           fontWeight: 700,
           color: statusColor(card.status),
           lineHeight: 1,
@@ -114,30 +106,44 @@ function buildCards(d: CrmSetupHealthData): HealthCard[] {
   return [
     {
       icon: "👥",
-      label: "Service Staff",
+      label: "Staff Schedules",
       value: `${d.serviceStaffWithSchedule}/${d.serviceStaffTotal}`,
-      sub: "therapists with a schedule set up",
+      sub: d.serviceStaffTotal === 0
+        ? "no service staff at branch"
+        : d.serviceStaffWithSchedule === d.serviceStaffTotal
+        ? "all service staff have schedules"
+        : `${d.serviceStaffTotal - d.serviceStaffWithSchedule} need schedules`,
       status: staffStatus,
     },
     {
       icon: "✨",
-      label: "Active Services",
+      label: "Service Coverage",
       value: `${d.servicesWithStaff}/${d.activeServicesTotal}`,
-      sub: "services with therapists assigned",
+      sub: d.activeServicesTotal === 0
+        ? "no active services"
+        : d.servicesWithStaff === d.activeServicesTotal
+        ? "all services have providers"
+        : `${d.activeServicesTotal - d.servicesWithStaff} need providers`,
       status: servicesStatus,
     },
     {
       icon: "🏠",
       label: "Rooms & Resources",
       value: String(d.activeResourcesTotal),
-      sub: d.activeResourcesTotal === 1 ? "active resource" : "active resources",
+      sub: d.activeResourcesTotal === 0
+        ? "none configured"
+        : d.activeResourcesTotal === 1
+        ? "1 active resource"
+        : `${d.activeResourcesTotal} active resources`,
       status: resourcesStatus,
     },
     {
       icon: "📋",
       label: "Booking Rules",
       value: d.hasCustomRules ? "Custom" : "Defaults",
-      sub: d.hasCustomRules ? "custom rules are saved" : "using system defaults",
+      sub: d.hasCustomRules
+        ? "custom rules are saved"
+        : "using system defaults — optional review",
       status: rulesStatus,
     },
     {
@@ -151,11 +157,11 @@ function buildCards(d: CrmSetupHealthData): HealthCard[] {
     },
     {
       icon: "📅",
-      label: "Unassigned Today",
+      label: "Today's Assignments",
       value: String(d.unassignedTodayCount),
       sub: d.unassignedTodayCount === 0
-        ? "all confirmed bookings are assigned"
-        : "confirmed bookings need a therapist",
+        ? "all confirmed bookings assigned"
+        : `${d.unassignedTodayCount} need a therapist assigned`,
       status: unassignedStatus,
     },
   ];
@@ -167,8 +173,8 @@ export function CrmSetupHealthCards({ data }: { data: CrmSetupHealthData }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-        gap: "0.875rem",
+        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+        gap: "0.625rem",
       }}
     >
       {cards.map((card) => (

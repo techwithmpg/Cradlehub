@@ -304,7 +304,7 @@ export function ServiceAssignmentTableRow({
               }}
             >
               <span style={{ fontSize: 12 }}>⚙</span>
-              Manage
+              Manage Providers
             </button>
           ) : (
             <button
@@ -332,7 +332,7 @@ export function ServiceAssignmentTableRow({
               }}
             >
               <span style={{ fontWeight: 700 }}>+</span>
-              Assign Therapist
+              Assign Provider
             </button>
           )}
         </td>

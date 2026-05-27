@@ -3,8 +3,8 @@
 /**
  * ProviderAssignmentSheet
  *
- * Right-side drawer for managing all provider assignments for a single service.
- * Opens when CRM clicks Manage / Assign Therapist in the compact table row.
+ * Centered modal dialog for managing all provider assignments for a single service.
+ * Opens when CRM clicks Manage / Assign Provider in the compact table row.
  *
  * Contains:
  *   - Service summary (name, category, duration, price, delivery, visibility)
@@ -19,12 +19,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { STAFF_TYPE_LABELS } from "@/constants/staff-roles";
 import type { ServiceStaffType } from "@/constants/staff-roles";
 import {
@@ -189,6 +189,7 @@ function ServiceSummary({ row }: { row: ServiceTableRow }) {
 
   return (
     <div
+      className="shrink-0"
       style={{
         padding: "12px 16px",
         background: "var(--cs-surface-warm)",
@@ -318,7 +319,7 @@ export function ProviderAssignmentSheet({
   const hasProviders = row.assignedProviders.length > 0;
 
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(isOpen: boolean) => {
         if (!isOpen) {
@@ -328,35 +329,24 @@ export function ProviderAssignmentSheet({
         }
       }}
     >
-      <SheetContent
-        side="right"
-        showCloseButton
-        className="sm:max-w-[480px] p-0 gap-0 overflow-y-auto flex flex-col"
+      <DialogContent
+        className="sm:max-w-3xl max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col max-sm:max-w-none max-sm:rounded-none max-sm:h-[100dvh]"
       >
         {/* Header */}
-        <SheetHeader className="p-4 border-b border-[var(--cs-border-soft)] shrink-0">
-          <SheetTitle className="text-base">
+        <DialogHeader className="shrink-0 p-5 pb-4 border-b border-[var(--cs-border-soft)]">
+          <DialogTitle className="text-base">
             Manage Providers — {row.name}
-          </SheetTitle>
-          <SheetDescription>
+          </DialogTitle>
+          <DialogDescription>
             Assign or remove eligible service providers for this service.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
         {/* Service summary */}
         <ServiceSummary row={row} />
 
         {/* Body — scrollable */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "1rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "1.25rem",
-          }}
-        >
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
           {/* ── Assigned Providers ── */}
           <div>
             <div
@@ -509,7 +499,7 @@ export function ProviderAssignmentSheet({
             inactive staff, and staff from other branches are excluded automatically.
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

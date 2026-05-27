@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useTransition } from "react";
-import type { StaffScheduleItem } from "./staff-schedule-list";
 import { getGroupLabel } from "./schedule-group-cards";
 import {
   upsertStaffGroupScheduleRuleAction,
@@ -45,19 +44,6 @@ const SHIFT_STYLE: Record<string, { dot: string; badge: string; bg: string }> = 
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function formatDuration(start: string | null, end: string | null): string {
-  if (!start || !end) return "—";
-  const [sh, sm] = start.split(":").map(Number);
-  const [eh, em] = end.split(":").map(Number);
-  const startMin = (sh ?? 0) * 60 + (sm ?? 0);
-  const endMin = (eh ?? 0) * 60 + (em ?? 0);
-  const diff = endMin - startMin;
-  if (diff <= 0) return "—";
-  const h = Math.floor(diff / 60);
-  const m = diff % 60;
-  return `${h}h ${m}m`;
-}
 
 function dayAbbr(label: string): string {
   return label.slice(0, 3);
@@ -107,7 +93,6 @@ function patternToTemplates(pattern: Record<number, DayPattern>): Array<{
   durH: number;
   durM: number;
 }> {
-  // Derive templates from pattern — use defaults for now since we don't store templates separately
   const templates = [];
 
   const hasOpening = DAYS.some((d) => pattern[d.dow]?.opening);
@@ -133,10 +118,9 @@ type Props = {
   selectedGroup: string;
   groupData?: StaffScheduleGroup;
   groupRules: StaffGroupScheduleRule[];
-  groupItems: StaffScheduleItem[];
 };
 
-export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules, groupItems }: Props) {
+export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules }: Props) {
   const groupLabel = getGroupLabel(selectedGroup);
   const groupId = groupData?.id;
 
@@ -288,27 +272,20 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules, 
   const hasOverlap =
     DAYS.some((d) => pattern[d.dow]?.opening) && DAYS.some((d) => pattern[d.dow]?.closing);
 
-  // Real counts from existing individual schedules
-  const realOpeningCount = groupItems.filter((i) =>
-    i.schedules.some((s) => s.is_active && s.shift_type === "opening")
-  ).length;
-  const realClosingCount = groupItems.filter((i) =>
-    i.schedules.some((s) => s.is_active && s.shift_type === "closing")
-  ).length;
-
   const templates = patternToTemplates(pattern);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {/* ── Header + explainer cards ── */}
+      {/* ── Main card: header + weekly pattern + summary ── */}
       <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "16px 20px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
           <div>
             <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--cs-text)", margin: 0 }}>
-              {groupLabel} — Universal Schedule Rules
+              {groupLabel} — Weekly Rules
             </h2>
             <p style={{ fontSize: 12, color: "var(--cs-text-muted)", marginTop: 4, marginBottom: 0 }}>
-              Default rules for all {groupLabel.toLowerCase()} staff. Override individuals in the Individual Adjustments tab.
+              Default weekly pattern for this staff group. Use Individual Adjustments for special cases.
             </p>
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -336,21 +313,6 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules, 
                 </button>
               </>
             )}
-            {!dirty && (
-              <button
-                type="button"
-                disabled
-                title="Available in a future release"
-                style={{
-                  flexShrink: 0, padding: "6px 12px", fontSize: 11, fontWeight: 500,
-                  background: "var(--cs-surface-warm)", border: "1px solid var(--cs-border)",
-                  borderRadius: "var(--cs-r-sm)", cursor: "not-allowed", color: "var(--cs-text-muted)",
-                  opacity: 0.6,
-                }}
-              >
-                📅 Set Default Day Offs
-              </button>
-            )}
           </div>
         </div>
 
@@ -370,101 +332,40 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules, 
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-          {[
-            { icon: "📋", title: "Universal rules", desc: "Set once for this staff group." },
-            { icon: "🔧", title: "Individual overrides", desc: "Customize only special cases." },
-            { icon: "✅", title: "Final availability", desc: "Schedule + check-in + bookings." },
-          ].map((c) => (
-            <div key={c.title} style={{ background: "var(--cs-surface-warm)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-sm)", padding: "10px 12px" }}>
-              <div style={{ fontSize: 14, marginBottom: 4 }}>{c.icon}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-text)", marginBottom: 3 }}>{c.title}</div>
-              <div style={{ fontSize: 10, color: "var(--cs-text-muted)", lineHeight: 1.5 }}>{c.desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Shift Templates ── */}
-      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "16px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>Shift Templates</div>
-            <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginTop: 2 }}>
-              Default shifts for {groupLabel.toLowerCase()}.
-            </div>
-          </div>
-          <button
-            type="button"
-            disabled
-            title="Universal schedule persistence will be wired in the next implementation step."
-            style={{
-              padding: "5px 12px", fontSize: 11, fontWeight: 500,
-              background: "var(--cs-surface-warm)", border: "1px solid var(--cs-border)",
-              borderRadius: "var(--cs-r-sm)", cursor: "not-allowed", color: "var(--cs-text-muted)", opacity: 0.6,
-            }}
-          >
-            + Add Shift Template
-          </button>
-        </div>
-
-        <div style={{ fontSize: 10, color: "var(--cs-sand-dark)", background: "var(--cs-sand-mist)", borderRadius: "var(--cs-r-sm)", padding: "6px 10px", marginBottom: 12 }}>
-          {groupItems.length > 0 ? (
-            <span>
-              {realOpeningCount} of {groupItems.length} staff have opening schedules set individually.
-              {" "}{realClosingCount} have closing.
-            </span>
-          ) : (
-            <span>No staff in this group yet.</span>
-          )}
-        </div>
-
-        {templates.length === 0 ? (
-          <div style={{ fontSize: 12, color: "var(--cs-text-muted)", padding: "8px 0" }}>
-            No shift templates configured. Use the weekly pattern below to set default shifts.
-          </div>
-        ) : (
-          templates.map((tpl, idx) => {
-            const style = SHIFT_STYLE[tpl.type] ?? SHIFT_STYLE.regular!;
-            return (
-              <div
-                key={tpl.id}
-                style={{
-                  display: "grid", gridTemplateColumns: "1fr auto auto auto 28px",
-                  alignItems: "center", gap: 12,
-                  padding: "9px 0",
-                  borderBottom: idx < templates.length - 1 ? "1px solid var(--cs-border-soft)" : "none",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: style.dot, flexShrink: 0, display: "inline-block" }} />
-                  <span style={{ fontSize: 12, fontWeight: 500, color: "var(--cs-text)" }}>{tpl.label}</span>
+        {/* Shift templates compact row */}
+        {templates.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {templates.map((tpl) => {
+              const style = SHIFT_STYLE[tpl.type] ?? SHIFT_STYLE.regular!;
+              return (
+                <div
+                  key={tpl.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 10px",
+                    borderRadius: "var(--cs-r-sm)",
+                    background: style.bg,
+                    fontSize: 11,
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: style.dot, flexShrink: 0, display: "inline-block" }} />
+                  <span style={{ fontWeight: 600, color: style.badge }}>{tpl.label}</span>
+                  <span style={{ color: "var(--cs-text-muted)" }}>
+                    {formatTime12h(tpl.startTime)} – {formatTime12h(tpl.endTime)}
+                  </span>
                 </div>
-                <span style={{ display: "inline-block", padding: "2px 7px", borderRadius: 10, fontSize: 10, fontWeight: 600, background: style.bg, color: style.badge, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {tpl.type}
-                </span>
-                <span style={{ fontSize: 12, color: "var(--cs-text-muted)", whiteSpace: "nowrap" }}>
-                  {formatTime12h(tpl.startTime)} – {formatTime12h(tpl.endTime)}
-                </span>
-                <span style={{ fontSize: 11, color: "var(--cs-text-subtle)", whiteSpace: "nowrap" }}>
-                  🕐 {formatDuration(tpl.startTime, tpl.endTime)}
-                </span>
-                <span style={{ fontSize: 16, color: "var(--cs-text-muted)", textAlign: "right" }}>···</span>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* ── Weekly Pattern ── */}
-      <div style={{ background: "var(--cs-surface)", border: "1px solid var(--cs-border-soft)", borderRadius: "var(--cs-r-lg)", padding: "16px 20px" }}>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>Weekly Pattern</div>
-          <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginTop: 2 }}>
-            Set the default weekly schedule pattern for {groupLabel.toLowerCase()}.
+              );
+            })}
           </div>
+        )}
+
+        {/* Weekly Pattern */}
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)", marginBottom: 8 }}>Weekly Pattern</div>
           {dirty && (
-            <div style={{ fontSize: 10, color: "var(--cs-sand-dark)", background: "var(--cs-sand-mist)", borderRadius: "var(--cs-r-sm)", padding: "5px 10px", marginTop: 8, display: "inline-block" }}>
+            <div style={{ fontSize: 10, color: "var(--cs-sand-dark)", background: "var(--cs-sand-mist)", borderRadius: "var(--cs-r-sm)", padding: "5px 10px", marginBottom: 8, display: "inline-block" }}>
               You have unsaved changes. Click Save Rules to persist.
             </div>
           )}
@@ -472,8 +373,8 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules, 
 
         {/* Matrix */}
         <div style={{ overflowX: "auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr 1fr 1fr", minWidth: 380 }}>
-            {["Day", "Opening Shift", "Closing Shift", "Regular Shift", "Day Off"].map((h) => (
+          <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 1fr 1fr 1fr", minWidth: 380 }}>
+            {["Day", "Opening", "Closing", "Regular", "Day Off"].map((h) => (
               <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", padding: "6px 4px", borderBottom: "1px solid var(--cs-border)" }}>
                 {h}
               </div>
@@ -502,43 +403,42 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules, 
           </div>
         </div>
 
-        {/* Schedule Summary */}
-        <div style={{ marginTop: "1.25rem", padding: 14, background: "var(--cs-surface-warm)", borderRadius: "var(--cs-r-md)", border: "1px solid var(--cs-border-soft)" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cs-text)", marginBottom: 8 }}>Schedule Summary</div>
-          {summaryRows.map((row, idx) => (
-            <div
-              key={row.label}
-              style={{
-                display: "grid", gridTemplateColumns: "8px 1fr 80px 1fr",
-                alignItems: "center", gap: 10,
-                padding: "5px 0",
-                borderBottom: idx < summaryRows.length - 1 ? "1px solid var(--cs-border-soft)" : "none",
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: row.dot, display: "inline-block", flexShrink: 0 }} />
-              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--cs-text)" }}>{row.label}</span>
-              <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>{row.days}</span>
-              <span style={{ fontSize: 11, color: "var(--cs-text-subtle)" }}>{row.time}</span>
-            </div>
-          ))}
+        {/* Schedule Summary — compact */}
+        <div style={{ marginTop: "1rem", padding: 12, background: "var(--cs-surface-warm)", borderRadius: "var(--cs-r-md)", border: "1px solid var(--cs-border-soft)" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cs-text)", marginBottom: 6 }}>Schedule Summary</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {summaryRows.map((row, idx) => (
+              <div
+                key={row.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "3px 0",
+                  borderBottom: idx < summaryRows.length - 1 ? "1px solid var(--cs-border-soft)" : "none",
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: row.dot, display: "inline-block", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 500, color: "var(--cs-text)", width: 90 }}>{row.label}</span>
+                <span style={{ fontSize: 11, color: "var(--cs-text-muted)", flex: 1 }}>{row.days}</span>
+                <span style={{ fontSize: 11, color: "var(--cs-text-subtle)", whiteSpace: "nowrap" }}>{row.time}</span>
+              </div>
+            ))}
+          </div>
 
           {hasOverlap && (
-            <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--cs-success-bg)", borderRadius: "var(--cs-r-sm)", border: "1px solid rgba(90,138,106,0.2)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-success)" }}>Overlap Window</span>
-                <span style={{ fontSize: 10, color: "var(--cs-text-muted)" }}>When both opening and closing shifts are active.</span>
-              </div>
+            <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--cs-success-bg)", borderRadius: "var(--cs-r-sm)", border: "1px solid rgba(90,138,106,0.2)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 11, fontWeight: 500, color: "var(--cs-text)" }}>2:00 PM – 5:00 PM (3h)</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-success)" }}>Overlap Window</span>
                 <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", background: "var(--cs-success)", color: "#fff", borderRadius: "var(--cs-r-pill)" }}>
                   High Coverage
                 </span>
               </div>
+              <span style={{ fontSize: 11, color: "var(--cs-text)" }}>2:00 PM – 5:00 PM (3h)</span>
             </div>
           )}
         </div>
       </div>
-
     </div>
   );
 }

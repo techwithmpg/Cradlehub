@@ -189,8 +189,12 @@ export default async function CrmServicesPage({
   if (result.status === "unauthorized") redirect("/crm");
 
   // Determine initial tab from ?tab= query param
-  const initialTab =
-    params.tab === "assignments" ? ("therapist_assignments" as const) : ("active_services" as const);
+  const initialTab = ((): "services" | "staff_capabilities" | "readiness_issues" => {
+    if (params.tab === "assignments" || params.tab === "services") return "services";
+    if (params.tab === "staff" || params.tab === "capabilities") return "staff_capabilities";
+    if (params.tab === "readiness" || params.tab === "issues") return "readiness_issues";
+    return "services";
+  })();
 
   const description =
     result.status === "ready"

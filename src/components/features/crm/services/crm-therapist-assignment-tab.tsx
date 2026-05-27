@@ -29,14 +29,14 @@ import { ServiceAssignmentTableRow } from "./service-assignment-table-row";
 const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
 const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
 
-function isValidProvider(s: StaffForServicePanel): boolean {
+export function isValidProvider(s: StaffForServicePanel): boolean {
   if (HARD_EXCLUDED_SYSTEM_ROLES.has(s.system_role)) return false;
   return s.staff_type !== null && SERVICE_STAFF_TYPE_SET.has(s.staff_type);
 }
 
 // ── Build service table rows ──────────────────────────────────────────────────
 
-function buildServiceTableRows(
+export function buildServiceTableRows(
   services: ActiveBranchService[],
   staff: StaffForServicePanel[],
   assignments: ServiceAssignmentRow[]
@@ -330,10 +330,10 @@ export function CrmTherapistAssignmentTab({
 
   // KPI counts (from full unfiltered data)
   const eligibleProviderCount = useMemo(() => staff.filter(isValidProvider).length, [staff]);
-  const fullyAssignedCount    = useMemo(() => allRows.filter((r) => r.assignedProviders.length > 0).length, [allRows]);
   const missingCount          = allRows.filter((r) => r.assignedProviders.length === 0).length;
   const wellAssignedCount     = useMemo(() => allRows.filter((r) => r.assignedProviders.length >= 2).length, [allRows]);
   const lowCoverageCount      = useMemo(() => allRows.filter((r) => r.assignedProviders.length === 1).length, [allRows]);
+  const setupIssuesCount      = useMemo(() => allRows.filter((r) => r.isCritical || r.isWarning).length, [allRows]);
 
   // Pagination — safeCurrentPage auto-clamps when filters change (no useEffect needed)
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
@@ -384,13 +384,7 @@ export function CrmTherapistAssignmentTab({
       </div>
 
       {/* ── 4 KPI cards ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: "0.75rem",
-        }}
-      >
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard
           count={allRows.length}
           label="Active Services"
@@ -398,8 +392,16 @@ export function CrmTherapistAssignmentTab({
           icon="✨"
         />
         <StatCard
+          count={wellAssignedCount}
+          label="Ready for Booking"
+          caption="Well covered"
+          icon="✅"
+          accentColor="#065F46"
+          accentBg="#ECFDF5"
+        />
+        <StatCard
           count={missingCount}
-          label="Without Therapist"
+          label="Missing Providers"
           caption="Need attention"
           icon="⚠️"
           accentColor={missingCount > 0 ? "#92400E" : undefined}
@@ -414,12 +416,20 @@ export function CrmTherapistAssignmentTab({
           accentBg="#EFF6FF"
         />
         <StatCard
-          count={fullyAssignedCount}
-          label="Fully Assigned"
-          caption="Services with therapists"
-          icon="✅"
-          accentColor="#065F46"
-          accentBg="#ECFDF5"
+          count={lowCoverageCount}
+          label="Low Coverage"
+          caption="Only 1 provider"
+          icon="🔶"
+          accentColor={lowCoverageCount > 0 ? "#92400E" : undefined}
+          accentBg={lowCoverageCount > 0 ? "#FFF7ED" : undefined}
+        />
+        <StatCard
+          count={setupIssuesCount}
+          label="Setup Issues"
+          caption="Critical or warning"
+          icon="🔧"
+          accentColor={setupIssuesCount > 0 ? "#991B1B" : undefined}
+          accentBg={setupIssuesCount > 0 ? "#FEF2F2" : undefined}
         />
       </div>
 
@@ -557,7 +567,7 @@ export function CrmTherapistAssignmentTab({
               >
                 <thead>
                   <tr style={{ background: "var(--cs-surface-warm)", borderBottom: "1px solid var(--cs-border)" }}>
-                    {["Service", "Category", "Assigned Therapists", "Status", "Actions"].map((col) => (
+                    {["Service", "Category", "Assigned Providers", "Booking Readiness", "Actions"].map((col) => (
                       <th
                         key={col}
                         style={{

@@ -38,10 +38,9 @@ export function ScheduleGroupCards({ items, groups, selectedGroup, onSelectGroup
     <div
       style={{
         display: "flex",
-        gap: 8,
+        gap: 6,
         overflowX: "auto",
         paddingBottom: 4,
-        marginBottom: "1rem",
       }}
     >
       {STAFF_GROUPS.map((group) => {
@@ -58,46 +57,45 @@ export function ScheduleGroupCards({ items, groups, selectedGroup, onSelectGroup
             onClick={() => onSelectGroup(group.id)}
             style={{
               flexShrink: 0,
-              minWidth: 140,
-              padding: "11px 14px",
+              padding: "6px 12px",
               borderRadius: "var(--cs-r-md)",
               border: isActive
                 ? "2px solid var(--cs-sand)"
                 : "1px solid var(--cs-border-soft)",
               background: isActive ? "var(--cs-sand-tint)" : "var(--cs-surface)",
               cursor: "pointer",
-              textAlign: "left",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
             }}
           >
-            <div style={{ fontSize: 18, marginBottom: 6 }}>{group.icon}</div>
-            <div
+            <span style={{ fontSize: 14 }}>{group.icon}</span>
+            <span
               style={{
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: isActive ? 700 : 600,
                 color: isActive ? "var(--cs-sand-dark)" : "var(--cs-text)",
               }}
             >
               {group.label}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>
-                {count} Staff
+            </span>
+            <span style={{ fontSize: 11, color: "var(--cs-text-muted)", fontWeight: 500 }}>
+              {count}
+            </span>
+            {!hasGroupData && count > 0 && (
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  padding: "1px 5px",
+                  background: "var(--cs-error-bg)",
+                  color: "var(--cs-error)",
+                  borderRadius: "var(--cs-r-pill)",
+                }}
+              >
+                No rules
               </span>
-              {!hasGroupData && (
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 600,
-                    padding: "1px 5px",
-                    background: "var(--cs-error-bg)",
-                    color: "var(--cs-error)",
-                    borderRadius: "var(--cs-r-pill)",
-                  }}
-                >
-                  No rules
-                </span>
-              )}
-            </div>
+            )}
           </button>
         );
       })}

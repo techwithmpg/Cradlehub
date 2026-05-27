@@ -6,9 +6,8 @@ import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypas
 import { getCrmSetupHealth } from "@/lib/queries/crm-setup";
 import { getCrmReadiness } from "@/lib/queries/crm-readiness";
 import { CrmSetupHealthCards } from "@/components/features/crm/setup/crm-setup-health-cards";
+import { CrmSetupIssuesList } from "@/components/features/crm/setup/crm-setup-issues-list";
 import { CrmSetupWorkspaceTiles } from "@/components/features/crm/setup/crm-setup-workspace-tiles";
-import { CrmBookingFlowRules } from "@/components/features/crm/setup/crm-booking-flow-rules";
-import { CrmBookingImpactMatrix } from "@/components/features/crm/setup/crm-booking-impact-matrix";
 import { SystemReadinessBar } from "@/components/shared/system-readiness-bar";
 import { buildReadinessResult } from "@/types/readiness";
 
@@ -66,7 +65,7 @@ export default async function CrmSetupPage() {
       <section className="space-y-5">
         <PageHeader
           title="Rules & Setup Center"
-          description="Configure the rules and data CradleHub uses for online bookings, walk-ins, home service, staff schedules, services, and spaces."
+          description="Check what CradleHub needs for bookings, daily operations, services, schedules, rooms, and dispatch."
           icon="🛠️"
         />
         <Alert variant="destructive">
@@ -75,48 +74,28 @@ export default async function CrmSetupPage() {
             Failed to run the setup health check. Please refresh the page. If the issue persists, check your connection.
           </AlertDescription>
         </Alert>
-        <CrmBookingFlowRules />
       </section>
     );
   }
 
-  // getCrmReadiness already aggregates getCrmSetupHealth internally.
-  // When readiness is available (the common case), use its issues directly.
-  // When it failed, fall back to an empty list — health cards below still render.
   const readinessResult = readiness ?? buildReadinessResult([]);
   const readinessIssues = readinessResult.issues;
   const readinessStatus = readinessResult.status;
 
   return (
-    <section className="space-y-6">
-      {/* ── Compact system readiness bar — always first ── */}
+    <section className="space-y-5">
+      <PageHeader
+        title="Rules & Setup Center"
+        description="Check what CradleHub needs for bookings, daily operations, services, schedules, rooms, and dispatch."
+        icon="🛠️"
+      />
+
+      {/* ── Compact system readiness bar ── */}
       <SystemReadinessBar
         issues={readinessIssues}
         status={readinessStatus}
         label="System Readiness"
       />
-
-      <PageHeader
-        title="Rules & Setup Center"
-        description="Configure the rules and data CradleHub uses for online bookings, walk-ins, home service, staff schedules, services, and spaces."
-        icon="🛠️"
-      />
-
-      {/* ── Booking flow cards ── */}
-      <div>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: "0.75rem",
-          }}
-        >
-          Booking Flows
-        </div>
-        <CrmBookingFlowRules />
-      </div>
 
       {/* ── Setup health KPIs ── */}
       <div>
@@ -131,13 +110,10 @@ export default async function CrmSetupPage() {
         >
           Setup Health
         </div>
-        <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
-          Quick view of whether the system has enough data to run each workflow.
-        </div>
         <CrmSetupHealthCards data={health} />
       </div>
 
-      {/* ── Setup workspaces ── */}
+      {/* ── Grouped issues checklist ── */}
       <div>
         <div
           style={{
@@ -148,15 +124,12 @@ export default async function CrmSetupPage() {
             marginBottom: "0.625rem",
           }}
         >
-          Setup Workspaces
+          Issues & Actions
         </div>
-        <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
-          Open the right tool to update services, schedules, rooms, rules, and availability.
-        </div>
-        <CrmSetupWorkspaceTiles />
+        <CrmSetupIssuesList issues={health.issues} />
       </div>
 
-      {/* ── Booking impact matrix ── */}
+      {/* ── Fix shortcut tiles ── */}
       <div>
         <div
           style={{
@@ -167,12 +140,9 @@ export default async function CrmSetupPage() {
             marginBottom: "0.625rem",
           }}
         >
-          What affects each booking type?
+          Fix Shortcuts
         </div>
-        <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: "0.75rem" }}>
-          Which data the booking engine reads depends on the booking source and delivery type.
-        </div>
-        <CrmBookingImpactMatrix />
+        <CrmSetupWorkspaceTiles />
       </div>
 
       {/* Footer */}
@@ -184,7 +154,7 @@ export default async function CrmSetupPage() {
           color: "var(--cs-text-muted)",
         }}
       >
-        {branchName} · Health check runs on every page load against live data · Online booking remains schedule-based and is not affected by daily check-in status
+        {branchName} · Health check runs on every page load against live data · MVP booking uses schedules, service assignments, blocked time, and existing bookings
       </div>
     </section>
   );

@@ -1,48 +1,47 @@
 import Link from "next/link";
 
-type WorkspaceTile = {
+type ShortcutTile = {
   icon: string;
   label: string;
   description: string;
   href: string;
-  badge?: string;
 };
 
-const TILES: WorkspaceTile[] = [
+const TILES: ShortcutTile[] = [
   {
     icon: "✨",
-    label: "Services & Therapists",
-    description: "Control which services are active, where they are offered, and which therapists can perform them. Review or manage therapist-service assignments where available.",
+    label: "Fix Services",
+    description: "Assign providers to active services so customers can book.",
     href: "/crm/services",
   },
   {
     icon: "🗓️",
-    label: "Schedule Setup",
-    description: "Configure weekly schedules, split shifts, individual adjustments, overrides, and blocked time. Used by online booking and CRM operations.",
+    label: "Fix Schedules",
+    description: "Add weekly schedules, day-offs, and blocked time.",
     href: "/crm/staff-availability",
   },
   {
     icon: "🏠",
-    label: "Spaces & Rules",
-    description: "View and manage rooms, resources, in-spa service hours, home-service windows, slot intervals, and branch booking rules.",
+    label: "Fix Rooms & Rules",
+    description: "Review rooms, resources, booking hours, and home-service windows.",
     href: "/crm/spaces-rules",
   },
   {
-    icon: "✅",
-    label: "Live Availability",
-    description: "See who is scheduled, checked in, busy, or off today. Check in staff to mark them available for CRM in-house operations.",
-    href: "/crm/availability",
+    icon: "📋",
+    label: "Review Bookings",
+    description: "Process pending requests and assign today’s bookings.",
+    href: "/crm/control",
   },
   {
     icon: "🚗",
-    label: "Dispatch",
-    description: "Review home-service dispatch queue, driver readiness, active trips, and zone/location details for today's home-service bookings.",
+    label: "Open Dispatch",
+    description: "Review home-service trips and driver assignment.",
     href: "/crm/dispatch",
   },
   {
-    icon: "📋",
-    label: "Daily Operations Center",
-    description: "Return to today's front-desk view — booking queue, staff readiness, quick actions, and day progress.",
+    icon: "📊",
+    label: "Daily Operations",
+    description: "Return to today’s front-desk command center.",
     href: "/crm/today",
   },
 ];
@@ -52,8 +51,8 @@ export function CrmSetupWorkspaceTiles() {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-        gap: "0.875rem",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: "0.625rem",
       }}
     >
       {TILES.map((tile) => (
@@ -63,21 +62,21 @@ export function CrmSetupWorkspaceTiles() {
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: 6,
-            padding: "1rem 1.125rem",
+            gap: 4,
+            padding: "0.875rem 1rem",
             backgroundColor: "var(--cs-surface)",
-            border: "1px solid var(--cs-border)",
+            border: "1px solid var(--cs-border-soft)",
             borderRadius: "var(--cs-r-md, 10px)",
             textDecoration: "none",
             color: "var(--cs-text)",
             transition: "border-color 0.15s, background 0.15s",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 20 }}>{tile.icon}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>{tile.icon}</span>
             <span
               style={{
-                fontSize: "0.9375rem",
+                fontSize: "0.875rem",
                 fontWeight: 600,
                 color: "var(--cs-text)",
                 flex: 1,
@@ -87,7 +86,7 @@ export function CrmSetupWorkspaceTiles() {
             </span>
             <span style={{ color: "var(--cs-text-muted)", fontSize: 14 }}>›</span>
           </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", lineHeight: 1.5 }}>
+          <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", lineHeight: 1.5 }}>
             {tile.description}
           </div>
         </Link>
