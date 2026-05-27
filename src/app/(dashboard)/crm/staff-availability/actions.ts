@@ -188,17 +188,29 @@ export async function applyManualScheduleImportAction(
     shift_type: string;
   };
 
+  // Two different paper names may have been fuzzy-matched to the same staff ID
+  // (e.g. RIZA and RIZZA both resolving to the same person). Build a combined
+  // per-staff day pattern first so we never generate duplicate conflict keys.
+  // For each staff ID we union all the paper names they were matched from, then
+  // derive a single set of rows. Day-off wins: if ANY mapped name marks a day
+  // as off, the staff is off that day.
+  const staffPaperNames = new Map<string, string[]>();
+  for (const { paperName, staffId } of resolvedMatches) {
+    const names = staffPaperNames.get(staffId) ?? [];
+    names.push(paperName.toUpperCase());
+    staffPaperNames.set(staffId, names);
+  }
+
   const rows: ScheduleRow[] = [];
 
-  for (const { paperName, staffId } of resolvedMatches) {
-    const upper = paperName.toUpperCase();
-
+  for (const [staffId, paperNames] of staffPaperNames) {
     for (let day = 0 as DayOfWeek; day <= 6; day++) {
-      const isOff = dayOffMap.get(day)?.has(upper) ?? false;
-      const isOpening = openingMap.get(day)?.has(upper) ?? false;
+      // Union across all paper names matched to this staff member
+      const isOff     = paperNames.some((n) => dayOffMap.get(day)?.has(n) ?? false);
+      const isOpening = paperNames.some((n) => openingMap.get(day)?.has(n) ?? false);
 
       if (isOff) {
-        // Day off: write inactive record
+        // Day off: write inactive record (day-off takes precedence over opening)
         rows.push({
           staff_id: staffId,
           day_of_week: day,
@@ -266,5 +278,6 @@ export async function applyManualScheduleImportAction(
   revalidatePath("/book");
   invalidateCrmWorkspace(branchId);
 
-  return { ok: true, staffCount: resolvedMatches.length, rowsWritten: rows.length };
+  // staffCount = unique staff members (multiple paper names may map to one person)
+  return { ok: true, staffCount: staffPaperNames.size, rowsWritten: rows.length };
 }

@@ -334,6 +334,26 @@ export function ManualScheduleImport({
     [matchList]
   );
 
+  // Detect when multiple paper names resolve to the same staff ID
+  // (e.g. RIZA and RIZZA both fuzzy-matched to the same person).
+  // The server already merges them safely (union of day patterns, day-off wins),
+  // but we surface the overlap so the user can verify the pairing is intentional.
+  const duplicateStaffGroups = useMemo(() => {
+    const byId = new Map<string, string[]>();
+    for (const { paperName, staffId } of resolvedMatches) {
+      const names = byId.get(staffId) ?? [];
+      names.push(paperName);
+      byId.set(staffId, names);
+    }
+    return [...byId.entries()]
+      .filter(([, names]) => names.length > 1)
+      .map(([staffId, paperNames]) => ({
+        staffId,
+        staffName: staff.find((s) => s.id === staffId)?.full_name ?? staffId,
+        paperNames,
+      }));
+  }, [resolvedMatches, staff]);
+
   const openingOffConflictsInData = useMemo(
     () => detectOpeningOffConflicts(),
     []
@@ -618,6 +638,35 @@ export function ManualScheduleImport({
                   </strong>
                   {" These haven't been matched yet and will be skipped for this run — the staff who are already matched will still receive their schedule. "}
                   {"You can select the correct staff record from the dropdown and re-run at any time to catch up the remaining names."}
+                </div>
+              )}
+
+              {/* Duplicate-staff notice */}
+              {duplicateStaffGroups.length > 0 && (
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    background: "rgba(142,68,173,0.05)",
+                    border: "1px solid rgba(142,68,173,0.2)",
+                    borderRadius: 8,
+                    fontSize: "0.8125rem",
+                    color: "var(--cs-text-secondary)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.25rem",
+                  }}
+                >
+                  <strong style={{ color: "rgb(142,68,173)" }}>
+                    {duplicateStaffGroups.length} staff member{duplicateStaffGroups.length !== 1 ? "s" : ""} matched to multiple paper names:
+                  </strong>
+                  {duplicateStaffGroups.map(({ staffId, staffName, paperNames }) => (
+                    <span key={staffId} style={{ fontSize: "0.75rem" }}>
+                      <strong>{staffName}</strong>
+                      {" ← "}
+                      {paperNames.map((n) => n.charAt(0) + n.slice(1).toLowerCase()).join(" + ")}
+                      {" — day patterns will be merged (union). If this is wrong, correct one of the dropdowns."}
+                    </span>
+                  ))}
                 </div>
               )}
 
