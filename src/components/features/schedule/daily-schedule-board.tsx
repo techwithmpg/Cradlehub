@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { mutate } from "swr";
 import { createBrowserClient } from "@supabase/ssr";
 import {
   STAFF_CELL_WIDTH_PX,
@@ -11,8 +12,9 @@ import {
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
 import { ScheduleTimeHeader } from "./schedule-time-header";
-import { ScheduleStaffRow } from "./schedule-staff-row";
 import { ScheduleCurrentTimeIndicator } from "./schedule-current-time-indicator";
+import { ScheduleStaffGroup, classifyStaffGroup } from "./schedule-staff-group";
+import { useScheduleDensity } from "./schedule-density";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
@@ -25,6 +27,7 @@ type DailyScheduleBoardProps = {
   selectedBookingId?: string | null;
   onHoverEnter?: (bookingId: string, x: number, y: number) => void;
   onHoverLeave?: () => void;
+  onStaffClick?: (staffId: string) => void;
 };
 
 function useScheduleRealtime(branchId: string, date: string) {
@@ -47,6 +50,9 @@ function useScheduleRealtime(branchId: string, date: string) {
           filter: `branch_id=eq.${branchId}`,
         },
         () => {
+          // Invalidate SWR cache (used by CrmScheduleView)
+          void mutate(`/api/crm/schedule?date=${date}`);
+          // Also refresh Next.js router state for non-SWR pages (owner/manager)
           router.refresh();
         }
       )
@@ -67,8 +73,10 @@ export function DailyScheduleBoard({
   selectedBookingId,
   onHoverEnter,
   onHoverLeave,
+  onStaffClick,
 }: DailyScheduleBoardProps) {
   useScheduleRealtime(branchId, date);
+  useScheduleDensity();
 
   if (staffRows.length === 0) {
     return (
@@ -92,6 +100,18 @@ export function DailyScheduleBoard({
 
   const showCurrentTime = isToday(date);
 
+  // Group staff by operational status
+  const groups = {
+    in_progress: [] as DailyScheduleStaffRow[],
+    scheduled: [] as DailyScheduleStaffRow[],
+    off_today: [] as DailyScheduleStaffRow[],
+  };
+
+  for (const staff of staffRows) {
+    const key = classifyStaffGroup(staff);
+    groups[key].push(staff);
+  }
+
   return (
     <div
       className="cs-card"
@@ -99,12 +119,16 @@ export function DailyScheduleBoard({
         padding: 0,
         overflow: "hidden",
         borderRadius: "var(--cs-r-lg)",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
+      {/* Fixed-height scrollable board */}
       <div
         style={{
-          overflowX: "auto",
-          overflowY: "hidden",
+          overflow: "auto",
+          maxHeight: "calc(100vh - 480px)",
+          minHeight: 360,
         }}
       >
         <div style={{ minWidth: STAFF_CELL_WIDTH_PX + getTimelineTotalWidthPx() }}>
@@ -113,18 +137,44 @@ export function DailyScheduleBoard({
           <div style={{ position: "relative" }}>
             {showCurrentTime && <ScheduleCurrentTimeIndicator />}
 
-            {staffRows.map((staff) => (
-              <ScheduleStaffRow
-                key={staff.staff_id}
-                staff={staff}
-                branchResources={branchResources}
-                date={date}
-                onBookingClick={onBookingClick}
-                selectedBookingId={selectedBookingId}
-                onHoverEnter={onHoverEnter}
-                onHoverLeave={onHoverLeave}
-              />
-            ))}
+            <ScheduleStaffGroup
+              groupKey="in_progress"
+              staffList={groups.in_progress}
+              branchResources={branchResources}
+              date={date}
+              defaultExpanded={true}
+              onBookingClick={onBookingClick}
+              selectedBookingId={selectedBookingId}
+              onHoverEnter={onHoverEnter}
+              onHoverLeave={onHoverLeave}
+              onStaffClick={onStaffClick}
+            />
+
+            <ScheduleStaffGroup
+              groupKey="scheduled"
+              staffList={groups.scheduled}
+              branchResources={branchResources}
+              date={date}
+              defaultExpanded={true}
+              onBookingClick={onBookingClick}
+              selectedBookingId={selectedBookingId}
+              onHoverEnter={onHoverEnter}
+              onHoverLeave={onHoverLeave}
+              onStaffClick={onStaffClick}
+            />
+
+            <ScheduleStaffGroup
+              groupKey="off_today"
+              staffList={groups.off_today}
+              branchResources={branchResources}
+              date={date}
+              defaultExpanded={false}
+              onBookingClick={onBookingClick}
+              selectedBookingId={selectedBookingId}
+              onHoverEnter={onHoverEnter}
+              onHoverLeave={onHoverLeave}
+              onStaffClick={onStaffClick}
+            />
           </div>
         </div>
       </div>

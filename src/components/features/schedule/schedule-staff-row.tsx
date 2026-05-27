@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ROW_HEIGHT_PX,
   SLOT_WIDTH_PX,
   SLOT_MINUTES,
   TIMELINE_START_HOUR,
@@ -9,6 +8,7 @@ import {
   getTimelineTotalWidthPx,
   timeToMinutes,
 } from "@/lib/utils/schedule-timeline";
+import { useScheduleDensity } from "./schedule-density";
 import { ScheduleStaffCell } from "./schedule-staff-cell";
 import { ScheduleBookingBlock } from "./schedule-booking-block";
 import { ScheduleBlockedTimeBlock } from "./schedule-blocked-time-block";
@@ -25,10 +25,13 @@ type StaffRowProps = {
   selectedBookingId?: string | null;
   onHoverEnter?: (bookingId: string, x: number, y: number) => void;
   onHoverLeave?: () => void;
+  onStaffClick?: (staffId: string) => void;
 };
 
-export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick, selectedBookingId, onHoverEnter, onHoverLeave }: StaffRowProps) {
+export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick, selectedBookingId, onHoverEnter, onHoverLeave, onStaffClick }: StaffRowProps) {
+  const { metrics } = useScheduleDensity();
   const totalWidth = getTimelineTotalWidthPx();
+  const rowHeight = metrics.rowHeight;
   const isFullyOff = !staff.work_start || !staff.work_end;
 
   const workStartMin = staff.work_start ? timeToMinutes(staff.work_start) : null;
@@ -52,13 +55,16 @@ export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick,
 
   return (
     <div style={{ display: "flex" }}>
-      <ScheduleStaffCell staff={staff} />
+      <ScheduleStaffCell
+        staff={staff}
+        onClick={onStaffClick ? () => onStaffClick(staff.staff_id) : undefined}
+      />
 
       <div
         style={{
           position: "relative",
           width: totalWidth,
-          height: ROW_HEIGHT_PX,
+          height: rowHeight,
           flexShrink: 0,
           backgroundColor: "var(--cs-surface-warm)",
           borderBottom: "1px solid var(--cs-border)",

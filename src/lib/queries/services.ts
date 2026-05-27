@@ -4,6 +4,7 @@ import {
   PUBLIC_CATALOG_CATEGORY_NAMES,
   type PublicCatalogCategoryName,
 } from "@/lib/public/service-catalog-config";
+import { resolveServiceImage } from "@/lib/service-images";
 
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
 type CategoryRow = Pick<
@@ -51,6 +52,8 @@ export type PublicCatalogService = {
   isCatalogOnly: boolean;
   availableInSpa: boolean;
   availableHomeService: boolean;
+  imageUrl: string;
+  imageAlt: string;
 };
 
 const DEFAULT_CATALOG_DESCRIPTION =
@@ -219,6 +222,12 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
     const requiresConsultation =
       metadataBoolean(metadata, "requires_consultation") ||
       categoryName === "Spa Party Packages";
+    const serviceImage = resolveServiceImage({
+      id: service.id,
+      name: service.name,
+      imageUrl: service.image_url,
+      imageAlt: service.image_alt,
+    });
 
     return {
       id: service.id,
@@ -247,6 +256,8 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
       isCatalogOnly,
       availableInSpa: publicRows.some((row) => row.available_in_spa),
       availableHomeService: publicRows.some((row) => row.available_home_service),
+      imageUrl: serviceImage.imageUrl,
+      imageAlt: serviceImage.imageAlt,
     } satisfies PublicCatalogService;
   });
 

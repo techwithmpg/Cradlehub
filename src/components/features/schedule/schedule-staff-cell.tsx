@@ -2,13 +2,14 @@
 
 import {
   STAFF_CELL_WIDTH_PX,
-  ROW_HEIGHT_PX,
   formatScheduleTime,
 } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import { useScheduleDensity } from "./schedule-density";
 
 type StaffCellProps = {
   staff: DailyScheduleStaffRow;
+  onClick?: () => void;
 };
 
 function getInitials(name: string): string {
@@ -30,39 +31,49 @@ function formatStaffLabel(staff: DailyScheduleStaffRow): string {
   return staff.staff_tier.charAt(0).toUpperCase() + staff.staff_tier.slice(1);
 }
 
-export function ScheduleStaffCell({ staff }: StaffCellProps) {
+export function ScheduleStaffCell({ staff, onClick }: StaffCellProps) {
+  const { metrics } = useScheduleDensity();
+  const rowHeight = metrics.rowHeight;
   const isOff = !staff.work_start || !staff.work_end;
 
   return (
     <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
       style={{
         width: STAFF_CELL_WIDTH_PX,
-        height: ROW_HEIGHT_PX,
+        height: rowHeight,
         flexShrink: 0,
         backgroundColor: isOff ? "var(--cs-bg)" : "var(--cs-surface)",
         borderRight: "1px solid var(--cs-border)",
         borderBottom: "1px solid var(--cs-border)",
-        padding: "10px 12px",
+        padding: `${metrics.staffCellPadding}px ${metrics.gap + 4}px`,
         display: "flex",
         alignItems: "center",
-        gap: "0.625rem",
+        gap: `${metrics.gap}px`,
         position: "sticky",
         left: 0,
         zIndex: 4,
+        cursor: onClick ? "pointer" : "default",
+        transition: onClick ? "background 0.12s" : undefined,
       }}
+      onMouseEnter={onClick ? (e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = isOff ? "var(--cs-border-soft)" : "var(--cs-surface-warm)"; } : undefined}
+      onMouseLeave={onClick ? (e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = isOff ? "var(--cs-bg)" : "var(--cs-surface)"; } : undefined}
     >
       {/* Avatar */}
       <div
         style={{
-          width: 34,
-          height: 34,
+          width: metrics.avatarSize,
+          height: metrics.avatarSize,
           borderRadius: "50%",
           backgroundColor: isOff ? "#E5E0DB" : "#E8F5E9",
           color: isOff ? "#8A7A6A" : "#4A7C59",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "0.75rem",
+          fontSize: metrics.avatarSize > 30 ? "0.75rem" : "0.625rem",
           fontWeight: 700,
           flexShrink: 0,
           fontFamily: "var(--font-playfair, serif)",
@@ -75,7 +86,7 @@ export function ScheduleStaffCell({ staff }: StaffCellProps) {
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            fontSize: "0.8125rem",
+            fontSize: `${metrics.fontSize}rem`,
             fontWeight: 600,
             color: isOff ? "var(--cs-text-muted)" : "var(--cs-text)",
             whiteSpace: "nowrap",
@@ -88,9 +99,9 @@ export function ScheduleStaffCell({ staff }: StaffCellProps) {
         </div>
         <div
           style={{
-            fontSize: "0.6875rem",
+            fontSize: `${metrics.fontSize - 0.125}rem`,
             color: "var(--cs-text-muted)",
-            marginTop: 2,
+            marginTop: 1,
             lineHeight: 1.3,
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -104,7 +115,7 @@ export function ScheduleStaffCell({ staff }: StaffCellProps) {
             display: "flex",
             alignItems: "center",
             gap: 4,
-            marginTop: 4,
+            marginTop: metrics.avatarSize <= 24 ? 1 : 3,
           }}
         >
           <span
@@ -118,7 +129,7 @@ export function ScheduleStaffCell({ staff }: StaffCellProps) {
           />
           <span
             style={{
-              fontSize: "0.6875rem",
+              fontSize: `${metrics.fontSize - 0.125}rem`,
               color: isOff ? "var(--cs-text-muted)" : "#4A7C59",
               fontWeight: 500,
             }}

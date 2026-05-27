@@ -11,6 +11,8 @@ function isMissingBranchServiceColumnError(message: string): boolean {
       lower.includes("booking_visibility") ||
       lower.includes("public_title") ||
       lower.includes("public_description") ||
+      lower.includes("image_url") ||
+      lower.includes("image_alt") ||
       lower.includes("custom_duration_minutes") ||
       lower.includes("custom_image_url") ||
       lower.includes("is_featured") ||
@@ -52,6 +54,8 @@ const branchServicesManagementSelect = `
     description,
     is_active,
     duration_minutes,
+    image_url,
+    image_alt,
     price,
     buffer_before,
     buffer_after,
@@ -80,6 +84,8 @@ const branchServicesPublicModernSelect = `
     description,
     is_active,
     duration_minutes,
+    image_url,
+    image_alt,
     price,
     buffer_before,
     buffer_after,

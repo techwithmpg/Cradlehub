@@ -1,6 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Cache dynamic (auth-gated) page payloads in the client-side router for
+    // 2 minutes. Without this, every navigation re-fetches from the server
+    // even if you were on the page 5 seconds ago.
+    // Realtime subscriptions (router.refresh()) still invalidate the cache
+    // immediately when data changes, so live pages stay accurate.
+    staleTimes: {
+      dynamic: 120, // seconds — dynamic/auth pages
+      static: 300,  // seconds — fully-static pages
+    },
+  },
   async headers() {
     return [
       {

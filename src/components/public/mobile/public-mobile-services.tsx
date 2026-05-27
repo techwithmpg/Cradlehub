@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -13,6 +12,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import Image from "next/image";
+import { ServiceImage } from "@/components/public/service-image";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import {
@@ -141,9 +142,9 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
                   className="grid grid-cols-[72px_1fr_auto] gap-3 border-b border-[#E8DDCA] pb-3"
                 >
                   <div className="relative h-[72px] overflow-hidden rounded-[7px] bg-[#E9DDC8]">
-                    <Image
-                      src={categoryDetails.image}
-                      alt={`${service.name} at Cradle`}
+                    <ServiceImage
+                      src={service.imageUrl}
+                      alt={service.imageAlt}
                       fill
                       className="object-cover"
                       sizes="72px"

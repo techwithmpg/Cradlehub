@@ -53,13 +53,19 @@ const CRM_NAV_GROUPS: NavGroup[] = [
   {
     label: "Main Operations",
     items: [
-      { label: "Today",        href: "/crm/today",             icon: "LayoutDashboard" },
-      { label: "Control",      href: "/crm/control",           icon: "Monitor" },
-      { label: "Live Map",     href: "/crm/live-operations",   icon: "MapPin" },
-      { label: "Dispatch",     href: "/crm/dispatch",          icon: "Truck" },
-      { label: "Bookings",     href: "/crm/bookings",          icon: "ClipboardList" },
-      { label: "Schedule",     href: "/crm/schedule",          icon: "CalendarDays" },
-      { label: "Availability", href: "/crm/availability",       icon: "UserCheck" },
+      { label: "Today",          href: "/crm/today",           icon: "LayoutDashboard" },
+      { label: "Control Center", href: "/crm/control",         icon: "Monitor" },
+      { label: "Bookings",       href: "/crm/bookings",        icon: "ClipboardList" },
+      { label: "Dispatch",       href: "/crm/dispatch",        icon: "Truck" },
+      { label: "Live Map",       href: "/crm/live-operations", icon: "MapPin" },
+      { label: "Schedule",       href: "/crm/schedule",        icon: "CalendarDays" },
+    ],
+  },
+  {
+    label: "Daily Readiness",
+    items: [
+      { label: "Staff Availability", href: "/crm/availability",       icon: "UserCheck" },
+      { label: "Schedule Setup",     href: "/crm/staff-availability", icon: "CalendarClock" },
     ],
   },
   {
@@ -74,17 +80,16 @@ const CRM_NAV_GROUPS: NavGroup[] = [
   {
     label: "Service & Resource Setup",
     items: [
-      { label: "Rules & Setup",    href: "/crm/setup",        icon: "Wrench" },
-      { label: "Services",         href: "/crm/services",     icon: "Sparkles" },
-      { label: "Spaces & Rules",   href: "/crm/spaces-rules", icon: "Building2" },
+      { label: "Rules & Setup",  href: "/crm/setup",        icon: "Wrench" },
+      { label: "Services",       href: "/crm/services",     icon: "Sparkles" },
+      { label: "Spaces & Rules", href: "/crm/spaces-rules", icon: "Building2" },
     ],
   },
   {
     label: "Staff & Internal Work",
     items: [
-      { label: "Schedule Setup",     href: "/crm/staff-availability",  icon: "CalendarClock" },
-      { label: "Staff Applications", href: "/crm/staff-applications",  icon: "ClipboardCheck" },
-      { label: "Notifications",      href: "/crm/notifications",        icon: "Bell" },
+      { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
+      { label: "Notifications",      href: "/crm/notifications",      icon: "Bell" },
     ],
   },
   {
@@ -98,8 +103,8 @@ const CRM_NAV_GROUPS: NavGroup[] = [
 // CSR Head and CSR Staff share the same full CRM workspace nav.
 // All front-desk roles access all CRM pages — page-level edit permissions
 // still restrict specific actions (e.g. owner-only resource editing).
-const CSR_HEAD_NAV_GROUPS: NavGroup[] = CRM_NAV_GROUPS;
-const CSR_STAFF_NAV_GROUPS: NavGroup[] = CRM_NAV_GROUPS;
+const CSR_HEAD_NAV_GROUPS: NavGroup[] = [...CRM_NAV_GROUPS];
+const CSR_STAFF_NAV_GROUPS: NavGroup[] = [...CRM_NAV_GROUPS];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/staff-portal", icon: "LayoutDashboard" },

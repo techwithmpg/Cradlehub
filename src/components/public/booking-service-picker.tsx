@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import { Check, Plus } from "lucide-react";
 
+import { ServiceImage } from "@/components/public/service-image";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SPA_IMAGES } from "@/constants/spa-images";
 import type { VisitType } from "@/lib/bookings/visit-type-availability";
+import { resolveServiceImage } from "@/lib/service-images";
 
 type ServiceGridDensity = "featured" | "standard" | "compact";
 
@@ -27,6 +27,8 @@ export type BookingWizardService = {
   categorySortOrder?: number;
   availableInSpa?: boolean;
   availableHomeService?: boolean;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
 };
 
 type ServiceCategoryGroup = {
@@ -87,50 +89,20 @@ function groupServicesByCategory(services: BookingWizardService[]): ServiceCateg
     });
 }
 
-// ── Category → image mapping ──────────────────────────────────────────────────
-
-const CATEGORY_IMAGE_KEYWORDS: Array<[string, string]> = [
-  ["couples",      SPA_IMAGES.couples],
-  ["duo",          SPA_IMAGES.couples],
-  ["hot stone",    SPA_IMAGES.hotStone],
-  ["stone",        SPA_IMAGES.hotStone],
-  ["deep tissue",  SPA_IMAGES.deepTissue],
-  ["deep",         SPA_IMAGES.deepTissue],
-  ["aromatherapy", SPA_IMAGES.aromatherapy],
-  ["aroma",        SPA_IMAGES.aromatherapy],
-  ["reflexology",  SPA_IMAGES.reflexology],
-  ["foot",         SPA_IMAGES.reflexology],
-  ["nail",         SPA_IMAGES.about],
-  ["facial",       SPA_IMAGES.aboutSecondary],
-  ["skin",         SPA_IMAGES.aboutSecondary],
-  ["massage",      SPA_IMAGES.swedish],
-  ["body",         SPA_IMAGES.swedish],
-  ["wellness",     SPA_IMAGES.booking],
-];
-
-function getCategoryImage(categoryName: string): string {
-  const lower = categoryName.toLowerCase();
-  for (const [keyword, img] of CATEGORY_IMAGE_KEYWORDS) {
-    if (lower.includes(keyword)) return img;
-  }
-  return SPA_IMAGES.booking;
-}
-
 // ── Mobile service card: image-top + white text area below ────────────────────
 
 function MobileServiceCard({
   service,
-  categoryImage,
   isSelected,
   onToggle,
 }: {
   service: BookingWizardService;
-  categoryImage: string;
   isSelected: boolean;
   onToggle: () => void;
 }) {
   const priceLabel = formatCurrency(service.price);
   const durationLabel = `${service.durationMinutes} min`;
+  const serviceImage = resolveServiceImage(service);
 
   return (
     <button
@@ -146,9 +118,9 @@ function MobileServiceCard({
     >
       {/* Image */}
       <div className="relative aspect-[4/3] w-full overflow-hidden">
-        <Image
-          src={categoryImage}
-          alt={`${service.name} service`}
+        <ServiceImage
+          src={serviceImage.imageUrl}
+          alt={serviceImage.imageAlt}
           fill
           className="h-full w-full object-cover"
           sizes="(max-width: 390px) 50vw, (max-width: 520px) 33vw, 25vw"
@@ -191,15 +163,15 @@ function MobileServiceCard({
 
 function ServiceImageCard({
   service,
-  categoryImage,
   isSelected,
   onToggle,
 }: {
   service: BookingWizardService;
-  categoryImage: string;
   isSelected: boolean;
   onToggle: () => void;
 }) {
+  const serviceImage = resolveServiceImage(service);
+
   return (
     <button
       type="button"
@@ -212,9 +184,9 @@ function ServiceImageCard({
           : "ring-1 ring-[#EDE4D3] hover:ring-[#C8A96B]/60 hover:shadow-md"
       }`}
     >
-      <Image
-        src={categoryImage}
-        alt={`${service.name} service`}
+      <ServiceImage
+        src={serviceImage.imageUrl}
+        alt={serviceImage.imageAlt}
         fill
         className="object-cover transition-transform duration-500 group-hover:scale-105"
         sizes="(max-width: 1024px) 33vw, 25vw"
@@ -325,7 +297,6 @@ export function BookingServicePicker({
     );
   }
 
-  const categoryImage = activeCategory ? getCategoryImage(activeCategory.name) : SPA_IMAGES.booking;
   const density = getServiceGridDensity(activeCategory?.services.length ?? 0);
 
   const desktopGridClassName =
@@ -411,7 +382,6 @@ export function BookingServicePicker({
                 <MobileServiceCard
                   key={service.id}
                   service={service}
-                  categoryImage={categoryImage}
                   isSelected={selectedIds.has(service.id)}
                   onToggle={() => onToggle(service)}
                 />
@@ -463,7 +433,6 @@ export function BookingServicePicker({
                   <ServiceImageCard
                     key={service.id}
                     service={service}
-                    categoryImage={categoryImage}
                     isSelected={selectedIds.has(service.id)}
                     onToggle={() => onToggle(service)}
                   />

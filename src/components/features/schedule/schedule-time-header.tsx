@@ -5,11 +5,15 @@ import {
   TIMELINE_END_HOUR,
   SLOT_WIDTH_PX,
   STAFF_CELL_WIDTH_PX,
-  HEADER_HEIGHT_PX,
-  formatScheduleTime,
+  getHeaderHeightPx,
 } from "@/lib/utils/schedule-timeline";
+import { formatScheduleTime } from "@/lib/utils/schedule-timeline";
+import { useScheduleDensity } from "./schedule-density";
 
 export function ScheduleTimeHeader() {
+  const { density } = useScheduleDensity();
+  const headerHeight = getHeaderHeightPx(density);
+
   const slots: { label: string; isHour: boolean }[] = [];
   for (let h = TIMELINE_START_HOUR; h < TIMELINE_END_HOUR; h++) {
     slots.push({ label: formatScheduleTime(`${String(h).padStart(2, "0")}:00`), isHour: true });
@@ -21,7 +25,7 @@ export function ScheduleTimeHeader() {
     <div
       style={{
         display: "flex",
-        height: HEADER_HEIGHT_PX,
+        height: headerHeight,
         flexShrink: 0,
         position: "sticky",
         top: 0,

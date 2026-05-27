@@ -6,6 +6,28 @@ export const STAFF_CELL_WIDTH_PX = 200;
 export const ROW_HEIGHT_PX = 84;
 export const HEADER_HEIGHT_PX = 44;
 
+// ── Density-aware helpers ────────────────────────────────────────────────────
+
+import type { ScheduleDensity } from "@/components/features/schedule/schedule-density";
+
+export function getRowHeightPx(density: ScheduleDensity = "compact"): number {
+  switch (density) {
+    case "comfortable": return 76;
+    case "compact": return 56;
+    case "ultra-compact": return 42;
+    default: return 56;
+  }
+}
+
+export function getHeaderHeightPx(density: ScheduleDensity = "compact"): number {
+  switch (density) {
+    case "comfortable": return 48;
+    case "compact": return 40;
+    case "ultra-compact": return 32;
+    default: return 40;
+  }
+}
+
 export type TimeRange = {
   startTime: string;
   endTime: string;

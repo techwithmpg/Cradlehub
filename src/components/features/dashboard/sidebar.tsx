@@ -183,12 +183,8 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
       ? roleWorkspaceKey
       : pathWorkspaceKey ?? roleWorkspaceKey;
   const nav          = NAV_CONFIG[workspaceKey];
-  const pathMeta     = WORKSPACE_META[pathWorkspaceKey ?? ""] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
-  const roleMeta     = WORKSPACE_META[role] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
-  const meta         = {
-    ...pathMeta,
-    sublabel: roleMeta.sublabel,
-  };
+  const pathMeta = WORKSPACE_META[pathWorkspaceKey ?? ""] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
+  const meta     = pathMeta;
   if (!nav) return null;
 
   return (

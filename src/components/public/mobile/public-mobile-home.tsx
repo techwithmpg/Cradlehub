@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Star } from "lucide-react";
+import { ServiceImage } from "@/components/public/service-image";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
@@ -20,18 +21,6 @@ const TESTIMONIALS = [
   { text: "The space is clean, peaceful, and easy to relax in.", name: "Cradle Client" },
   { text: "A refreshing experience that makes self-care feel simple.", name: "Regular Guest" },
 ] as const;
-
-const CATEGORY_IMAGE: Record<string, string> = {
-  "Massage Services":        SPA_IMAGES.swedish,
-  "Salon Services":          SPA_IMAGES.contact,
-  "Skin Care Services":      SPA_IMAGES.aromatherapy,
-  "Divine Renewal Packages": SPA_IMAGES.couples,
-  "Spa Party Packages":      SPA_IMAGES.hotStone,
-};
-
-function serviceImg(categoryName: string): string {
-  return CATEGORY_IMAGE[categoryName] ?? SPA_IMAGES.ctaBanner;
-}
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -94,9 +83,9 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
                   className="w-[150px] shrink-0 overflow-hidden rounded-[14px] border border-[#E8DDCA] bg-white shadow-[0_4px_14px_rgba(2,35,22,0.07)]"
                 >
                   <div className="relative h-[94px]">
-                    <Image
-                      src={serviceImg(service.categoryName)}
-                      alt={service.name}
+                    <ServiceImage
+                      src={service.imageUrl}
+                      alt={service.imageAlt}
                       fill
                       className="object-cover"
                       sizes="150px"

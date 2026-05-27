@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllBranches, getBranchServices, getBranchServicesPublicCached } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefaultCached } from "@/lib/queries/branch-booking-rules";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
+import { resolveServiceImage } from "@/lib/service-images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
@@ -22,8 +23,15 @@ type BranchRow = Pick<
 
 type ServiceRow = Pick<
   Database["public"]["Tables"]["services"]["Row"],
-  "id" | "name" | "description" | "is_active" | "duration_minutes" | "price"
+  | "id"
+  | "name"
+  | "description"
+  | "is_active"
+  | "duration_minutes"
+  | "price"
 > & {
+  image_url?: string | null;
+  image_alt?: string | null;
   service_categories?: CategoryRelation;
 };
 
@@ -41,6 +49,7 @@ type BranchServiceRow = Pick<
   "id" | "custom_price" | "is_active" | "available_in_spa" | "available_home_service"
 > & {
   custom_duration_minutes?: number | null;
+  custom_image_url?: string | null;
   services: ServiceRelation;
 };
 
@@ -143,6 +152,12 @@ export async function GET(request: NextRequest) {
       const service = firstService(record.services);
       if (!service?.is_active) return null;
       const category = firstCategory(service.service_categories);
+      const serviceImage = resolveServiceImage({
+        id: service.id,
+        name: service.name,
+        imageUrl: record.custom_image_url ?? service.image_url,
+        imageAlt: service.image_alt,
+      });
 
       return {
         branchServiceId: record.id,
@@ -156,6 +171,8 @@ export async function GET(request: NextRequest) {
         categorySortOrder: category?.display_order ?? 999,
         availableInSpa: record.available_in_spa ?? true,
         availableHomeService: record.available_home_service ?? false,
+        imageUrl: serviceImage.imageUrl,
+        imageAlt: serviceImage.imageAlt,
       };
     })
     .filter((service): service is NonNullable<typeof service> => service !== null)

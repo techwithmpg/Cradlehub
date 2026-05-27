@@ -1339,6 +1339,8 @@ export type Database = {
           description: string | null
           duration_minutes: number
           id: string
+          image_alt: string | null
+          image_url: string | null
           is_active: boolean
           metadata: Json
           name: string
@@ -1353,6 +1355,8 @@ export type Database = {
           description?: string | null
           duration_minutes: number
           id?: string
+          image_alt?: string | null
+          image_url?: string | null
           is_active?: boolean
           metadata?: Json
           name: string
@@ -1367,6 +1371,8 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           id?: string
+          image_alt?: string | null
+          image_url?: string | null
           is_active?: boolean
           metadata?: Json
           name?: string

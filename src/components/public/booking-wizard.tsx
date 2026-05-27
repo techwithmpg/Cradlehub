@@ -109,6 +109,8 @@ type BookingContextService = {
   categorySortOrder?: number | null;
   availableInSpa?: boolean;
   availableHomeService?: boolean;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
 };
 
 type BookingContextStaff = {
@@ -466,6 +468,8 @@ export function BookingWizard({
             categorySortOrder: s.categorySortOrder ?? 999,
             availableInSpa: s.availableInSpa ?? true,
             availableHomeService: s.availableHomeService ?? false,
+            imageUrl: s.imageUrl ?? null,
+            imageAlt: s.imageAlt ?? null,
           })
         );
         setServices(svcs);

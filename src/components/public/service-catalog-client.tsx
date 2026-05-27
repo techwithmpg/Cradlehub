@@ -10,6 +10,7 @@ import {
   Sparkles,
   Store,
 } from "lucide-react";
+import { ServiceImage } from "@/components/public/service-image";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import {
   PUBLIC_CATALOG_CATEGORY_DETAILS,
@@ -214,10 +215,19 @@ export function ServiceCatalogClient({ services }: Props) {
                           return (
                             <article
                               key={service.id}
-                              className={`grid gap-4 p-4 sm:grid-cols-[1fr_auto] sm:items-center sm:p-5 ${
+                              className={`grid gap-4 p-4 sm:grid-cols-[112px_1fr_auto] sm:items-center sm:p-5 ${
                                 index < rows.length - 1 ? "border-b border-[#EDE4D3]" : ""
                               }`}
                             >
+                              <div className="relative aspect-[3/2] overflow-hidden rounded-[8px] bg-[#E9DDC8]">
+                                <ServiceImage
+                                  src={service.imageUrl}
+                                  alt={service.imageAlt}
+                                  fill
+                                  className="object-cover"
+                                  sizes="(max-width: 640px) 100vw, 112px"
+                                />
+                              </div>
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <h4 className="text-[15px] font-semibold text-[#163A2B]">

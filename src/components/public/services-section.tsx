@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
-import { SPA_IMAGES } from "@/constants/spa-images";
+import { ServiceImage } from "@/components/public/service-image";
 import { getAllServices } from "@/lib/queries/services";
+import { resolveServiceImage } from "@/lib/service-images";
 import type { Database } from "@/types/supabase";
 import { ScrollReveal } from "./scroll-reveal";
 
@@ -18,15 +18,6 @@ type ServiceWithCategory = ServiceRow & {
 const DEFAULT_DESCRIPTION =
   "A restorative wellness treatment designed to reduce stress, ease tension, and support full-body relaxation.";
 
-const IMAGE_CYCLE = [
-  SPA_IMAGES.swedish,
-  SPA_IMAGES.deepTissue,
-  SPA_IMAGES.aromatherapy,
-  SPA_IMAGES.hotStone,
-  SPA_IMAGES.reflexology,
-  SPA_IMAGES.couples,
-] as const;
-
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -40,28 +31,27 @@ function firstCategory(value: CategoryRelation | undefined): CategoryRow | null 
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function resolveServiceImage(name: string, index: number) {
-  const key = name.toLowerCase();
-  if (key.includes("swedish")) return SPA_IMAGES.swedish;
-  if (key.includes("deep")) return SPA_IMAGES.deepTissue;
-  if (key.includes("aroma")) return SPA_IMAGES.aromatherapy;
-  if (key.includes("stone")) return SPA_IMAGES.hotStone;
-  if (key.includes("reflex")) return SPA_IMAGES.reflexology;
-  if (key.includes("couple")) return SPA_IMAGES.couples;
-  return IMAGE_CYCLE[index % IMAGE_CYCLE.length]!;
-}
-
 export async function ServicesSection() {
   const services = (await getAllServices()) as ServiceWithCategory[];
-  const displayServices = services.map((service, index) => ({
-    id: service.id,
-    category: firstCategory(service.service_categories)?.name ?? "Wellness",
-    name: service.name,
-    description: service.description ?? DEFAULT_DESCRIPTION,
-    duration: `${service.duration_minutes} min`,
-    price: `From ${formatCurrency(Number(service.price))}`,
-    image: resolveServiceImage(service.name, index),
-  }));
+  const displayServices = services.map((service) => {
+    const serviceImage = resolveServiceImage({
+      id: service.id,
+      name: service.name,
+      imageUrl: service.image_url,
+      imageAlt: service.image_alt,
+    });
+
+    return {
+      id: service.id,
+      category: firstCategory(service.service_categories)?.name ?? "Wellness",
+      name: service.name,
+      description: service.description ?? DEFAULT_DESCRIPTION,
+      duration: `${service.duration_minutes} min`,
+      price: `From ${formatCurrency(Number(service.price))}`,
+      imageUrl: serviceImage.imageUrl,
+      imageAlt: serviceImage.imageAlt,
+    };
+  });
 
   return (
     <section style={{ background: "#FCFAF5" }}>
@@ -117,9 +107,9 @@ export async function ServicesSection() {
                   <div
                     className={`relative min-h-75 md:min-h-0 ${!isEven ? "md:order-2" : ""}`}
                   >
-                    <Image
-                      src={service.image}
-                      alt={service.name}
+                    <ServiceImage
+                      src={service.imageUrl}
+                      alt={service.imageAlt}
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 50vw"

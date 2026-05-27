@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getTodaysSchedule, getDailyPaymentSummary } from "@/lib/queries/bookings";
-import { BookingsWorkspace } from "@/components/features/bookings/bookings-workspace";
+import { CrmBookingsView } from "@/components/features/bookings/crm-bookings-view";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { confirmBookingPaymentAction } from "./actions";
@@ -58,28 +58,26 @@ export default async function CrmBookingsPage({
     if (ref?.booking_date) date = ref.booking_date;
   }
 
-  const [rawBookings, cashSummary] = await Promise.all([
+  const [bookings, cashSummary] = await Promise.all([
     getTodaysSchedule(branchId, date),
     getDailyPaymentSummary(branchId, date),
   ]);
 
-  let bookings = rawBookings as WorkspaceBookingRow[];
-  if (params.status) bookings = bookings.filter((b) => b.status === params.status);
-  if (params.type)   bookings = bookings.filter((b) => b.type   === params.type);
+  const initialData = {
+    branchId,
+    branchName,
+    role,
+    date,
+    // Cast: getTodaysSchedule returns metadata as unknown; WorkspaceBookingRow
+    // expects Record<string,unknown>|null|undefined. The values are compatible.
+    bookings: bookings as WorkspaceBookingRow[],
+    cashSummary,
+  };
 
   return (
-    <BookingsWorkspace
-      workspaceContext="crm"
-      viewerRole={role}
-      branchName={branchName}
-      date={date}
-      statusFilter={params.status}
-      typeFilter={params.type}
-      search={params.search}
-      bookings={bookings}
-      cashSummary={cashSummary}
+    <CrmBookingsView
+      initialData={initialData}
       paymentAction={updateBookingPaymentAction}
-      initialSelectedId={bookingId}
       confirmPaymentAction={confirmBookingPaymentAction}
     />
   );

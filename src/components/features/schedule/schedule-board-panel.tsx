@@ -23,6 +23,8 @@ type ScheduleBoardPanelProps = {
   onHoverEnter?: (bookingId: string, x: number, y: number) => void;
   onHoverLeave?: () => void;
   onScheduleAdjusted?: (feedback: { title: string; description?: string; variant?: "success" | "error" }) => void;
+  onStaffClick?: (staffId: string) => void;
+  showHeader?: boolean;
 };
 
 export function ScheduleBoardPanel({
@@ -38,6 +40,8 @@ export function ScheduleBoardPanel({
   onHoverEnter,
   onHoverLeave,
   onScheduleAdjusted,
+  onStaffClick,
+  showHeader = true,
 }: ScheduleBoardPanelProps) {
   return (
     <div
@@ -52,49 +56,51 @@ export function ScheduleBoardPanel({
       }}
     >
       {/* Panel header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.625rem 0.875rem",
-          borderBottom: "1px solid var(--cs-border)",
-          flexWrap: "wrap",
-          gap: "0.5rem",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>{branchName}</span>
-          <span style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
-            {new Date(date + "T00:00:00").toLocaleDateString("en-PH", {
-              weekday: "long",
-              month: "short",
-              day: "numeric",
-            })}
-          </span>
-          {viewMode === "day" && (
-            <span
-              style={{
-                fontSize: "0.625rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: "var(--cs-sand)",
-                backgroundColor: "var(--cs-bg)",
-                padding: "2px 8px",
-                borderRadius: 100,
-              }}
-            >
-              Daily timeline
+      {showHeader && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.625rem 0.875rem",
+            borderBottom: "1px solid var(--cs-border)",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>{branchName}</span>
+            <span style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
+              {new Date(date + "T00:00:00").toLocaleDateString("en-PH", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              })}
             </span>
-          )}
-        </div>
+            {viewMode === "day" && (
+              <span
+                style={{
+                  fontSize: "0.625rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  color: "var(--cs-sand)",
+                  backgroundColor: "var(--cs-bg)",
+                  padding: "2px 8px",
+                  borderRadius: 100,
+                }}
+              >
+                Daily timeline
+              </span>
+            )}
+          </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          {viewMode === "day" && <ScheduleLegend />}
-          <ScheduleModeSwitcher mode={viewMode} onChange={onViewModeChange} />
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {viewMode === "day" && <ScheduleLegend />}
+            <ScheduleModeSwitcher mode={viewMode} onChange={onViewModeChange} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Body — mode dependent */}
       {viewMode === "day" && (
@@ -108,6 +114,7 @@ export function ScheduleBoardPanel({
             selectedBookingId={selectedBookingId}
             onHoverEnter={onHoverEnter}
             onHoverLeave={onHoverLeave}
+            onStaffClick={onStaffClick}
           />
         </div>
       )}

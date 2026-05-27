@@ -3,20 +3,19 @@
 /**
  * ProviderAssignmentSheet
  *
- * Centered modal dialog for managing all provider assignments for a single service.
- * Opens when CRM clicks Manage / Assign Provider in the compact table row.
+ * Centered task modal for managing all provider assignments for a single service.
+ * Opens when CRM clicks Manage / Assign Provider in the service table row.
  *
- * Contains:
- *   - Service summary (name, category, duration, price, delivery, visibility)
- *   - Full assigned-providers list with per-row Remove button
- *   - Add Provider select + Assign button
- *   - Inline status feedback
- *   - Eligibility reminder footer
+ * Layout (flex column):
+ *   - Fixed header: title + description
+ *   - Fixed service summary bar
+ *   - Scrollable body: assigned providers + searchable add-provider list + status
+ *   - Fixed footer: assignment count + Done button
  *
  * Reuses existing server actions — no new mutations.
  */
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -24,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { STAFF_TYPE_LABELS } from "@/constants/staff-roles";
 import type { ServiceStaffType } from "@/constants/staff-roles";
@@ -52,7 +52,9 @@ const VISIBILITY_LABEL: Record<string, string> = {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function StaffTypeBadge({ staffType }: { staffType: string | null }) {
-  const style = staffType ? (STAFF_TYPE_COLOR[staffType] ?? { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" }) : { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" };
+  const style = staffType
+    ? (STAFF_TYPE_COLOR[staffType] ?? { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" })
+    : { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" };
   const label = staffType
     ? (STAFF_TYPE_LABELS[staffType as ServiceStaffType] ?? staffType)
     : "Unknown";
@@ -175,6 +177,91 @@ function AssignedProviderRow({
   );
 }
 
+// ── Eligible provider row (for add list) ──────────────────────────────────────
+
+function EligibleProviderRow({
+  member,
+  onAdd,
+  isPending,
+}: {
+  member: StaffForServicePanel;
+  onAdd: () => void;
+  isPending: boolean;
+}) {
+  const initials = member.full_name.slice(0, 2).toUpperCase();
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 0",
+        borderBottom: "1px solid var(--cs-border-soft)",
+      }}
+    >
+      {/* Avatar */}
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          background: "var(--cs-sand-mist)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "0.6875rem",
+          fontWeight: 700,
+          color: "var(--cs-sand)",
+          flexShrink: 0,
+        }}
+      >
+        {initials}
+      </div>
+
+      {/* Name + type */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: "var(--cs-text)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {member.full_name}
+        </div>
+        <StaffTypeBadge staffType={member.staff_type} />
+      </div>
+
+      {/* Add button */}
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={onAdd}
+        aria-label={`Assign ${member.full_name}`}
+        style={{
+          padding: "4px 12px",
+          borderRadius: 6,
+          border: "none",
+          background: isPending ? "var(--cs-border)" : "var(--cs-sand)",
+          color: isPending ? "var(--cs-text-muted)" : "#fff",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          cursor: isPending ? "not-allowed" : "pointer",
+          flexShrink: 0,
+          opacity: isPending ? 0.6 : 1,
+          whiteSpace: "nowrap",
+          transition: "background 0.15s",
+        }}
+      >
+        {isPending ? "Saving…" : "Add"}
+      </button>
+    </div>
+  );
+}
+
 // ── Service summary bar ───────────────────────────────────────────────────────
 
 function ServiceSummary({ row }: { row: ServiceTableRow }) {
@@ -276,8 +363,8 @@ export function ProviderAssignmentSheet({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [selectedStaffId, setSelectedStaffId] = useState("");
   const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [providerSearch, setProviderSearch] = useState("");
 
   function runAction(action: () => Promise<{ ok: boolean; message: string }>) {
     setStatus(null);
@@ -288,27 +375,30 @@ export function ProviderAssignmentSheet({
     });
   }
 
-  function handleAssign() {
-    if (!selectedStaffId) return;
+  function handleAssign(staffId: string) {
     if (!branchId) {
-      setStatus({ type: "error", text: "Branch information is missing. Please reload the page and try again." });
+      setStatus({
+        type: "error",
+        text: "Branch information is missing. Please reload the page and try again.",
+      });
       return;
     }
-    const id = selectedStaffId;
     runAction(async () => {
       const res = await assignProviderToServiceAction({
         branchId,
         serviceId: row.serviceId,
-        staffId: id,
+        staffId,
       });
-      if (res.ok) setSelectedStaffId("");
       return res;
     });
   }
 
   function handleRemove(staffId: string) {
     if (!branchId) {
-      setStatus({ type: "error", text: "Branch information is missing. Please reload the page and try again." });
+      setStatus({
+        type: "error",
+        text: "Branch information is missing. Please reload the page and try again.",
+      });
       return;
     }
     runAction(() =>
@@ -318,6 +408,15 @@ export function ProviderAssignmentSheet({
 
   const hasProviders = row.assignedProviders.length > 0;
 
+  // Searchable assignable providers
+  const searchQuery = providerSearch.toLowerCase().trim();
+  const filteredAssignable = useMemo(() => {
+    if (!searchQuery) return row.assignableProviders;
+    return row.assignableProviders.filter((p) =>
+      p.full_name.toLowerCase().includes(searchQuery)
+    );
+  }, [row.assignableProviders, searchQuery]);
+
   return (
     <Dialog
       open={open}
@@ -325,14 +424,14 @@ export function ProviderAssignmentSheet({
         if (!isOpen) {
           onClose();
           setStatus(null);
-          setSelectedStaffId("");
+          setProviderSearch("");
         }
       }}
     >
       <DialogContent
         className="sm:max-w-3xl max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col max-sm:max-w-none max-sm:rounded-none max-sm:h-[100dvh]"
       >
-        {/* Header */}
+        {/* ── Fixed header ── */}
         <DialogHeader className="shrink-0 p-5 pb-4 border-b border-[var(--cs-border-soft)]">
           <DialogTitle className="text-base">
             Manage Providers — {row.name}
@@ -342,11 +441,11 @@ export function ProviderAssignmentSheet({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Service summary */}
+        {/* ── Fixed service summary ── */}
         <ServiceSummary row={row} />
 
-        {/* Body — scrollable */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
+        {/* ── Scrollable body ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-5">
           {/* ── Assigned Providers ── */}
           <div>
             <div
@@ -396,7 +495,7 @@ export function ProviderAssignmentSheet({
             )}
           </div>
 
-          {/* ── Add Provider ── */}
+          {/* ── Add Provider (searchable list) ── */}
           <div>
             <div
               style={{
@@ -413,53 +512,68 @@ export function ProviderAssignmentSheet({
 
             {row.assignableProviders.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <select
-                  value={selectedStaffId}
-                  disabled={isPending}
-                  onChange={(e) => setSelectedStaffId(e.target.value)}
-                  aria-label="Select a provider to assign"
-                  style={{
-                    width: "100%",
-                    height: 38,
-                    padding: "0 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--cs-border)",
-                    background: "var(--cs-surface)",
-                    fontSize: "0.875rem",
-                    color: "var(--cs-text)",
-                    opacity: isPending ? 0.6 : 1,
-                    cursor: isPending ? "not-allowed" : "default",
-                  }}
-                >
-                  <option value="">Search eligible provider…</option>
-                  {row.assignableProviders.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name}
-                      {s.staff_type
-                        ? ` · ${STAFF_TYPE_LABELS[s.staff_type as ServiceStaffType] ?? s.staff_type}`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!selectedStaffId || isPending}
-                  onClick={handleAssign}
-                  style={{
-                    height: 38,
-                    borderRadius: 8,
-                    border: "none",
-                    background:
-                      selectedStaffId && !isPending ? "var(--cs-sand)" : "var(--cs-border)",
-                    color: selectedStaffId && !isPending ? "#fff" : "var(--cs-text-muted)",
-                    fontSize: "0.875rem",
-                    fontWeight: 600,
-                    cursor: selectedStaffId && !isPending ? "pointer" : "not-allowed",
-                    transition: "background 0.15s",
-                  }}
-                >
-                  {isPending ? "Saving…" : "Assign Provider"}
-                </button>
+                {/* Search input */}
+                <div style={{ position: "relative" }}>
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: 13,
+                      color: "var(--cs-text-muted)",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search eligible provider…"
+                    value={providerSearch}
+                    onChange={(e) => setProviderSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: 38,
+                      paddingLeft: 30,
+                      paddingRight: 10,
+                      borderRadius: 8,
+                      border: "1px solid var(--cs-border)",
+                      background: "var(--cs-surface)",
+                      fontSize: "0.875rem",
+                      color: "var(--cs-text)",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* Provider list */}
+                {filteredAssignable.length > 0 ? (
+                  <div>
+                    {filteredAssignable.map((member) => (
+                      <EligibleProviderRow
+                        key={member.id}
+                        member={member}
+                        isPending={isPending}
+                        onAdd={() => handleAssign(member.id)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: "0.875rem",
+                      borderRadius: 8,
+                      background: "var(--cs-surface-warm)",
+                      border: "1px solid var(--cs-border-soft)",
+                      fontSize: "0.8125rem",
+                      color: "var(--cs-text-muted)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No providers match “{providerSearch}”.
+                  </div>
+                )}
               </div>
             ) : (
               <div
@@ -499,6 +613,44 @@ export function ProviderAssignmentSheet({
             inactive staff, and staff from other branches are excluded automatically.
           </div>
         </div>
+
+        {/* ── Fixed footer ── */}
+        <DialogFooter
+          className="shrink-0 border-t border-[var(--cs-border-soft)] px-5 py-3 flex-row justify-between items-center sm:justify-between"
+          style={{ margin: 0 }}
+        >
+          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)" }}>
+            <strong style={{ color: "var(--cs-text)" }}>{row.assignedProviders.length}</strong>{" "}
+            provider{row.assignedProviders.length !== 1 ? "s" : ""} assigned
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              setStatus(null);
+              setProviderSearch("");
+            }}
+            style={{
+              padding: "6px 16px",
+              borderRadius: 8,
+              border: "1px solid var(--cs-border)",
+              background: "var(--cs-surface)",
+              color: "var(--cs-text-secondary)",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              cursor: "pointer",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--cs-surface-warm)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--cs-surface)";
+            }}
+          >
+            Done
+          </button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

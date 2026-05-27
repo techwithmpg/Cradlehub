@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, CalendarDays, Building2, Search, ListFilter, ClipboardList } from "lucide-react";
 
 export type ScheduleToolbarProps = {
@@ -40,6 +41,7 @@ export function ScheduleToolbar({
   onDateChange,
   viewBookingsHref,
 }: ScheduleToolbarProps) {
+  const router = useRouter();
   const today = new Date().toISOString().split("T")[0]!;
   const isToday = date === today;
   const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-PH", {
@@ -131,7 +133,7 @@ export function ScheduleToolbar({
               const params = new URLSearchParams(window.location.search);
               params.set("branchId", e.target.value);
               params.set("date", date);
-              window.location.search = params.toString();
+              router.push(`?${params.toString()}`);
             }}
             style={{
               height: 32,

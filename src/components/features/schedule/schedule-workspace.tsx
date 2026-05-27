@@ -10,6 +10,8 @@ import { ScheduleAlertsPanel } from "./schedule-alerts-panel";
 import { ScheduleBookingHoverCard, type BookingHoverPreview } from "./schedule-booking-hover-card";
 import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-toast";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { ScheduleDensityProvider, ScheduleDensityToggle } from "./schedule-density";
+import { CrmScheduleDetailsPanel } from "./crm-schedule-details-panel";
 import type { ScheduleViewMode } from "./schedule-mode-switcher";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
@@ -117,6 +119,7 @@ export function ScheduleWorkspace({
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ScheduleViewMode>("day");
   const [hoveredPreview, setHoveredPreview] = useState<BookingHoverPreview | null>(null);
@@ -127,6 +130,7 @@ export function ScheduleWorkspace({
   } | null>(null);
 
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCrm = workspaceContext === "crm";
 
   let filteredRows = staffRows;
 
@@ -155,6 +159,11 @@ export function ScheduleWorkspace({
     return null;
   })();
 
+  const selectedStaff = (() => {
+    if (!selectedStaffId) return null;
+    return filteredRows.find((s) => s.staff_id === selectedStaffId) ?? null;
+  })();
+
   const alertList = computeAlerts(filteredRows);
   const kpiData = {
     total: stats.total,
@@ -167,19 +176,37 @@ export function ScheduleWorkspace({
 
   const handleBookingClick = useCallback((bookingId: string) => {
     setSelectedBookingId(bookingId);
-    setIsSheetOpen(true);
+    if (isCrm) {
+      // In CRM mode, also select the owning staff so the details panel shows both
+      for (const staff of filteredRows) {
+        if (staff.bookings.find((b) => b.id === bookingId)) {
+          setSelectedStaffId(staff.staff_id);
+          break;
+        }
+      }
+    } else {
+      setIsSheetOpen(true);
+    }
+  }, [isCrm, filteredRows]);
+
+  const handleStaffClick = useCallback((staffId: string) => {
+    setSelectedStaffId(staffId);
+    setSelectedBookingId(null);
   }, []);
 
-  const handleCloseSheet = useCallback(() => {
+
+
+  const handleCloseDetails = useCallback(() => {
     setIsSheetOpen(false);
     setSelectedBookingId(null);
+    setSelectedStaffId(null);
   }, []);
 
   const handleDateChange = useCallback((nextDate: string) => {
     const params = new URLSearchParams(window.location.search);
     params.set("date", nextDate);
-    window.location.search = params.toString();
-  }, []);
+    router.push(`?${params.toString()}`);
+  }, [router]);
 
   // Hover card handlers — plain functions so they always close over current filteredRows/date
   function handleHoverEnter(bookingId: string, x: number, y: number) {
@@ -214,10 +241,12 @@ export function ScheduleWorkspace({
   const handleOpenDetailsFromHover = useCallback(() => {
     if (hoveredPreview) {
       setSelectedBookingId(hoveredPreview.booking.id);
-      setIsSheetOpen(true);
+      if (!isCrm) {
+        setIsSheetOpen(true);
+      }
       setHoveredPreview(null);
     }
-  }, [hoveredPreview]);
+  }, [hoveredPreview, isCrm]);
 
   const handleScheduleAdjusted = useCallback(
     (feedback: { title: string; description?: string; variant?: "success" | "error" }) => {
@@ -234,19 +263,21 @@ export function ScheduleWorkspace({
     [router]
   );
 
-  return (
+  const workspaceContent = (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ fontSize: "1.375rem", fontWeight: 700, color: "var(--cs-text)", fontFamily: "var(--font-display)", margin: 0 }}>
-            Schedule
-          </h1>
-          <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", margin: "0.25rem 0 0" }}>
-            Manage staff availability, bookings, and resources for today.
-          </p>
+      {/* Header — only shown in non-CRM context; CRM page renders its own PageHeader */}
+      {!isCrm && (
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+          <div>
+            <h1 style={{ fontSize: "1.375rem", fontWeight: 700, color: "var(--cs-text)", fontFamily: "var(--font-display)", margin: 0 }}>
+              Schedule
+            </h1>
+            <p style={{ fontSize: "0.875rem", color: "var(--cs-text-muted)", margin: "0.25rem 0 0" }}>
+              Manage staff availability, bookings, and resources for today.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Toolbar */}
       <ScheduleToolbar
@@ -268,44 +299,87 @@ export function ScheduleWorkspace({
       {/* KPI Cards */}
       <ScheduleKpiCards data={kpiData} />
 
-      {/* Full-width schedule board */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <ScheduleBoardPanel
-          branchId={branchId}
-          branchName={branchName}
-          date={date}
-          staffRows={filteredRows}
-          branchResources={branchResources}
-          onBookingClick={handleBookingClick}
-          selectedBookingId={selectedBookingId}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          onHoverEnter={handleHoverEnter}
-          onHoverLeave={handleHoverLeave}
-          onScheduleAdjusted={handleScheduleAdjusted}
-        />
+      {/* Board area */}
+      {isCrm ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "1rem", alignItems: "start" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>
+                {branchName} · {new Date(date + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "short", day: "numeric" })}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <ScheduleDensityToggle />
+              </div>
+            </div>
 
-        {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
-      </div>
+            <ScheduleBoardPanel
+              branchId={branchId}
+              branchName={branchName}
+              date={date}
+              staffRows={filteredRows}
+              branchResources={branchResources}
+              onBookingClick={handleBookingClick}
+              selectedBookingId={selectedBookingId}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
+              onScheduleAdjusted={handleScheduleAdjusted}
+              onStaffClick={handleStaffClick}
+            />
 
-      {/* Booking details — opens in a right-side sheet on click */}
-      <Sheet
-        open={isSheetOpen}
-        onOpenChange={(open: boolean) => { if (!open) handleCloseSheet(); }}
-      >
-        <SheetContent side="right" showCloseButton={false}>
-          <ScheduleDetailsPanel
+            {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
+          </div>
+
+          <CrmScheduleDetailsPanel
+            staff={selectedStaff}
             booking={selectedBookingWithStaff?.booking ?? null}
-            staffName={selectedBookingWithStaff?.staff.staff_name ?? ""}
             branchResources={branchResources}
             date={date}
-            viewerRole={viewerRole}
-            statusAction={statusAction}
-            paymentAction={paymentAction}
-            onClose={handleCloseSheet}
+            onClose={handleCloseDetails}
           />
-        </SheetContent>
-      </Sheet>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <ScheduleBoardPanel
+            branchId={branchId}
+            branchName={branchName}
+            date={date}
+            staffRows={filteredRows}
+            branchResources={branchResources}
+            onBookingClick={handleBookingClick}
+            selectedBookingId={selectedBookingId}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            onHoverEnter={handleHoverEnter}
+            onHoverLeave={handleHoverLeave}
+            onScheduleAdjusted={handleScheduleAdjusted}
+          />
+
+          {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
+        </div>
+      )}
+
+      {/* Booking details — opens in a right-side sheet on click (non-CRM only) */}
+      {!isCrm && (
+        <Sheet
+          open={isSheetOpen}
+          onOpenChange={(open: boolean) => { if (!open) handleCloseDetails(); }}
+        >
+          <SheetContent side="right" showCloseButton={false}>
+            <ScheduleDetailsPanel
+              booking={selectedBookingWithStaff?.booking ?? null}
+              staffName={selectedBookingWithStaff?.staff.staff_name ?? ""}
+              branchResources={branchResources}
+              date={date}
+              viewerRole={viewerRole}
+              statusAction={statusAction}
+              paymentAction={paymentAction}
+              onClose={handleCloseDetails}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Hover card — desktop only, appears near the booking block */}
       {hoveredPreview && (
@@ -324,5 +398,13 @@ export function ScheduleWorkspace({
         variant={adjustmentToast?.variant}
       />
     </div>
+  );
+
+  return isCrm ? (
+    <ScheduleDensityProvider defaultDensity="compact">
+      {workspaceContent}
+    </ScheduleDensityProvider>
+  ) : (
+    workspaceContent
   );
 }

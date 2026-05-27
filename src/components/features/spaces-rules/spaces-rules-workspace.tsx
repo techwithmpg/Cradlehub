@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { SpacesRulesHeader } from "./spaces-rules-header";
 import { SpacesRulesKpiCards } from "./spaces-rules-kpi-cards";
 import { SpacesRulesTabs } from "./spaces-rules-tabs";
@@ -48,6 +49,7 @@ export function SpacesRulesWorkspace({
   const canViewBookingRules = true;
   const showActiveRulesKpi = true;
 
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<SpacesRulesTab>("overview");
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
     null
@@ -60,9 +62,9 @@ export function SpacesRulesWorkspace({
     (nextBranchId: string) => {
       const params = new URLSearchParams(window.location.search);
       params.set("branchId", nextBranchId);
-      window.location.search = params.toString();
+      router.push(`?${params.toString()}`);
     },
-    []
+    [router]
   );
 
   const filteredResources = useMemo(() => {

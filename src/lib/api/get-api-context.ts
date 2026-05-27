@@ -1,0 +1,70 @@
+/**
+ * API route auth helper.
+ *
+ * Unlike getManagerContext() (which calls redirect()), this returns null when
+ * the user is unauthenticated so API routes can return a proper 401 response.
+ */
+
+import { createClient } from "@/lib/supabase/server";
+import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
+
+export type ApiUserContext = {
+  userId: string;
+  branchId: string;
+  branchName: string;
+  role: string;
+};
+
+export async function getApiContext(): Promise<ApiUserContext | null> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) return null;
+
+    // Super-admin shortcut
+    const superAdmin = await resolveSuperAdminContext(user.id);
+    if (superAdmin) {
+      return {
+        userId: user.id,
+        branchId: superAdmin.branch_id,
+        branchName: superAdmin.branches?.name ?? "Your Branch",
+        role: "owner",
+      };
+    }
+
+    const { data: me } = await supabase
+      .from("staff")
+      .select("branch_id, branches(name), system_role")
+      .eq("auth_user_id", user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    // Dev bypass
+    if (!me && isDevAuthBypassEnabled()) {
+      const mock = getDevBypassLayoutStaff();
+      return {
+        userId: user.id,
+        branchId: mock.branch_id,
+        branchName: (mock.branches as { name: string }).name,
+        role: mock.system_role,
+      };
+    }
+
+    if (!me?.branch_id) return null;
+
+    return {
+      userId: user.id,
+      branchId: me.branch_id as string,
+      branchName:
+        (me.branches as { name: string } | null)?.name ?? "Your Branch",
+      role: me.system_role,
+    };
+  } catch {
+    return null;
+  }
+}
