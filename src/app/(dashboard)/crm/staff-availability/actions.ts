@@ -79,8 +79,6 @@ const applyImportSchema = z
     path: ["openingEnd"],
   });
 
-type ApplyImportInput = z.infer<typeof applyImportSchema>;
-
 export type ApplyImportResult =
   | { ok: true; staffCount: number; rowsWritten: number }
   | { ok: false; error: string };

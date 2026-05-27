@@ -2403,3 +2403,36 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-26 — Codex (FIGMA-CRM-REDESIGN-CONTEXT-001 — Figma CRM Redesign Context Package)
+
+**Task:** Created the Figma UI/UX redesign context package for the CRM / Front Desk Workspace.
+
+**Files Created:**
+- `docs/figma-crm-redesign/README.md`
+- `docs/figma-crm-redesign/01-crm-page-map.md`
+- `docs/figma-crm-redesign/02-crm-ui-style-guide.md`
+- `docs/figma-crm-redesign/03-ui-redesign-rules.md`
+- `docs/figma-crm-redesign/04-existing-workflows-and-functions.md`
+- `docs/figma-crm-redesign/05-component-design-system-brief.md`
+- `docs/figma-crm-redesign/06-figma-ai-master-prompt.md`
+- `docs/figma-crm-redesign/07-page-by-page-figma-prompts.md`
+- `docs/figma-crm-redesign/screenshots/README.md`
+- `docs/figma-crm-redesign/screenshots/current/.gitkeep`
+- `docs/figma-crm-redesign/screenshots/approved-direction/.gitkeep`
+- `docs/figma-crm-redesign/screenshots/redesigned/.gitkeep`
+
+**Files Modified:**
+- `.context/CURRENT_TASK.cmd.md`
+- `.context/CHANGELOG.cmd.md`
+- `.context/HANDOFF.cmd.md`
+
+**Notes:**
+- Documentation/context only.
+- No application logic, routes, components, database queries, server actions, Supabase policies, RBAC, or UI source files changed.
+
+**Verification:**
+- `pnpm exec prettier --write docs/figma-crm-redesign`: ✅ Passing
+- Full app build not run by design because this was documentation-only.

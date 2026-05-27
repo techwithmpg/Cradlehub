@@ -3,6 +3,39 @@
 > Last updated: 2026-05-26
 
 ## Current Phase
+FIGMA-CRM-REDESIGN-CONTEXT-001 complete - Figma CRM redesign context package
+
+## What Just Happened (Figma CRM Redesign Context Package)
+
+Created a documentation-only context package at `docs/figma-crm-redesign/` for uploading structured CRM / Front Desk Workspace context into Figma before UI/UX redesign.
+
+**Files created:**
+- `docs/figma-crm-redesign/README.md`
+- `docs/figma-crm-redesign/01-crm-page-map.md`
+- `docs/figma-crm-redesign/02-crm-ui-style-guide.md`
+- `docs/figma-crm-redesign/03-ui-redesign-rules.md`
+- `docs/figma-crm-redesign/04-existing-workflows-and-functions.md`
+- `docs/figma-crm-redesign/05-component-design-system-brief.md`
+- `docs/figma-crm-redesign/06-figma-ai-master-prompt.md`
+- `docs/figma-crm-redesign/07-page-by-page-figma-prompts.md`
+- `docs/figma-crm-redesign/screenshots/README.md`
+- `docs/figma-crm-redesign/screenshots/current/.gitkeep`
+- `docs/figma-crm-redesign/screenshots/approved-direction/.gitkeep`
+- `docs/figma-crm-redesign/screenshots/redesigned/.gitkeep`
+
+**What was NOT changed:** App logic, routes, components, database queries, server actions, Supabase policies, RBAC, UI source files, booking logic, dispatch logic, payment logic, and schedule/availability logic.
+
+**Verification:** `pnpm exec prettier --write docs/figma-crm-redesign` passed. Full app build intentionally not run because this was docs-only.
+
+## Recommended Next Steps
+
+1. Take screenshots of all CRM pages.
+2. Add them to `docs/figma-crm-redesign/screenshots/current/`.
+3. Upload the folder/docs to Figma.
+4. Use `docs/figma-crm-redesign/06-figma-ai-master-prompt.md` first.
+5. Generate the design system before pages.
+
+## Previous Phase
 FRONTDESK-UI-REDESIGN-001 Phase 2 complete — Availability Board Deep Redesign
 
 ## What Just Happened (Availability Board Deep Redesign)

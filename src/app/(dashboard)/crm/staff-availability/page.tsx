@@ -1,8 +1,6 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/schedule-setup-workspace";
-import { ScheduleSetupExplainer } from "@/components/features/staff-schedule/schedule-setup-explainer";
 import { ScheduleSetupHealthSummary } from "@/components/features/staff-schedule/schedule-setup-health-summary";
-import { ScheduleRelatedTools } from "@/components/features/staff-schedule/schedule-related-tools";
 import { ManualScheduleImport } from "@/components/features/staff-schedule/manual-schedule-import";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
@@ -36,69 +34,57 @@ async function getPageData(branchId: string): Promise<{
   }
 }
 
-// ── Action buttons (disabled placeholders) ─────────────────────────────────
-
-function PageActions() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-      <button
-        type="button"
-        disabled
-        title="Coverage overview will be available in a future release"
-        className="cs-btn cs-btn-secondary cs-btn-sm"
-        style={{ opacity: 0.55, cursor: "not-allowed" }}
-      >
-        📊 Coverage Overview
-      </button>
-      <button
-        type="button"
-        disabled
-        title="Publish schedules will be available in a future release"
-        className="cs-btn cs-btn-primary cs-btn-sm"
-        style={{ opacity: 0.55, cursor: "not-allowed" }}
-      >
-        🚀 Publish Schedules
-      </button>
-    </div>
-  );
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default async function CrmStaffAvailabilityPage() {
   const branchId = await getManagerBranchId();
   const { items, groups, rulesByGroup, error } = await getPageData(branchId);
 
+  // Shape staff list for the manual import component (name matching only needs id/name/nickname/active)
+  const staffForImport = items.map((i) => ({
+    id: i.staff.id,
+    full_name: i.staff.full_name,
+    nickname: i.staff.nickname ?? null,
+    is_active: i.staff.is_active,
+  }));
+
   return (
-    <section className="space-y-6">
+    <section className="space-y-5">
       <PageHeader
         title="Schedule Setup Center"
-        description="Set the schedules, overrides, and blocked time the system uses for online booking, in-house bookings, and home-service planning."
-        action={<PageActions />}
+        description="Set staff schedules, day-offs, and blocked time used by online booking, walk-ins, and home-service planning."
       />
 
-      {/* How each layer works */}
-      <ScheduleSetupExplainer />
+      {/* Compact MVP info bar */}
+      {!error && (
+        <div
+          style={{
+            padding: "10px 14px",
+            borderRadius: "var(--cs-r-sm,8px)",
+            background: "rgba(41,128,185,0.05)",
+            border: "1px solid rgba(41,128,185,0.2)",
+            fontSize: "0.8125rem",
+            color: "var(--cs-text-secondary)",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "var(--cs-info,#2980b9)" }}>MVP Note:</strong>{" "}
+          Online booking follows saved schedules, blocked time, service assignments, existing bookings, and booking rules.
+          Daily staff check-in/check-out is paused for MVP.
+        </div>
+      )}
 
-      {/* Quick-glance health stats (computed from fetched data — no extra query) */}
+      {/* Quick-glance health stats */}
       {!error && (
         <ScheduleSetupHealthSummary items={items} groups={groups} />
       )}
 
-      {/* Current Manual Schedule Setup — 2026 import wizard */}
+      {/* 2026 manual paper schedule import — collapsible, match names then apply */}
       {!error && (
-        <ManualScheduleImport
-          branchId={branchId}
-          staff={items.map((item) => ({
-            id: item.staff.id,
-            full_name: item.staff.full_name,
-            nickname: item.staff.nickname ?? null,
-            is_active: item.staff.is_active,
-          }))}
-        />
+        <ManualScheduleImport branchId={branchId} staff={staffForImport} />
       )}
 
-      {/* Main workspace — 4-tab editor (unchanged) */}
+      {/* Main workspace — 4-tab editor */}
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Could not load staff data</AlertTitle>
@@ -107,9 +93,6 @@ export default async function CrmStaffAvailabilityPage() {
       ) : (
         <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} />
       )}
-
-      {/* Footer links to related CRM tools */}
-      <ScheduleRelatedTools />
     </section>
   );
 }
