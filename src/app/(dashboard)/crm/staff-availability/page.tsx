@@ -2,11 +2,42 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/schedule-setup-workspace";
 import { ScheduleSetupHealthSummary } from "@/components/features/staff-schedule/schedule-setup-health-summary";
 import { ManualScheduleImport } from "@/components/features/staff-schedule/manual-schedule-import";
+import { BranchSwitcher } from "@/components/features/staff-schedule/branch-switcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
+import { getAllBranches } from "@/lib/queries/branches";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
 import { getScheduleSetupOverview } from "@/lib/queries/staff-schedule-groups";
+import { createClient } from "@/lib/supabase/server";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Returns true for owners and super-admins — the only roles that can
+ * view and configure staff from branches other than their own.
+ */
+async function canSwitchBranches(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  if (isSuperAdmin(user.id)) return true;
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("system_role")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  return me?.system_role === "owner";
+}
 
 async function getPageData(branchId: string): Promise<{
   items: StaffScheduleItem[];
@@ -30,17 +61,46 @@ async function getPageData(branchId: string): Promise<{
       branchId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return { items: [], groups: [], rulesByGroup: {}, error: "Failed to load schedule setup data. Please refresh." };
+    return {
+      items: [],
+      groups: [],
+      rulesByGroup: {},
+      error: "Failed to load schedule setup data. Please refresh.",
+    };
   }
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
-export default async function CrmStaffAvailabilityPage() {
-  const branchId = await getManagerBranchId();
+export default async function CrmStaffAvailabilityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ branch?: string }>;
+}) {
+  const [params, defaultBranchId, ownerAccess] = await Promise.all([
+    searchParams,
+    getManagerBranchId(),
+    canSwitchBranches(),
+  ]);
+
+  // Owners may switch to any active branch via ?branch=<uuid>
+  let branchId = defaultBranchId;
+  let branches: { id: string; name: string }[] = [];
+
+  if (ownerAccess) {
+    branches = await getAllBranches();
+    const requested = params.branch;
+    if (
+      requested &&
+      UUID_RE.test(requested) &&
+      branches.some((b) => b.id === requested)
+    ) {
+      branchId = requested;
+    }
+  }
+
   const { items, groups, rulesByGroup, error } = await getPageData(branchId);
 
-  // Shape staff list for the manual import component (name matching only needs id/name/nickname/active)
   const staffForImport = items.map((i) => ({
     id: i.staff.id,
     full_name: i.staff.full_name,
@@ -54,6 +114,11 @@ export default async function CrmStaffAvailabilityPage() {
         title="Schedule Setup Center"
         description="Set staff schedules, day-offs, and blocked time used by online booking, walk-ins, and home-service planning."
       />
+
+      {/* Branch selector — only shown to owners when there are multiple branches */}
+      {ownerAccess && branches.length > 1 && (
+        <BranchSwitcher branches={branches} currentBranchId={branchId} />
+      )}
 
       {/* Compact MVP info bar */}
       {!error && (
@@ -69,29 +134,33 @@ export default async function CrmStaffAvailabilityPage() {
           }}
         >
           <strong style={{ color: "var(--cs-info,#2980b9)" }}>MVP Note:</strong>{" "}
-          Online booking follows saved schedules, blocked time, service assignments, existing bookings, and booking rules.
-          Daily staff check-in/check-out is paused for MVP.
+          Online booking follows saved schedules, blocked time, service assignments,
+          existing bookings, and booking rules. Daily staff check-in/check-out is
+          paused for MVP.
         </div>
       )}
 
       {/* Quick-glance health stats */}
-      {!error && (
-        <ScheduleSetupHealthSummary items={items} groups={groups} />
-      )}
+      {!error && <ScheduleSetupHealthSummary items={items} groups={groups} />}
 
-      {/* 2026 manual paper schedule import — collapsible, match names then apply */}
+      {/* 2026 manual paper schedule import */}
       {!error && (
         <ManualScheduleImport branchId={branchId} staff={staffForImport} />
       )}
 
-      {/* Main workspace — 4-tab editor */}
+      {/* Main workspace */}
       {error ? (
         <Alert variant="destructive">
           <AlertTitle>Could not load staff data</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : (
-        <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} branchId={branchId} />
+        <ScheduleSetupWorkspace
+          items={items}
+          groups={groups}
+          rulesByGroup={rulesByGroup}
+          branchId={branchId}
+        />
       )}
     </section>
   );
