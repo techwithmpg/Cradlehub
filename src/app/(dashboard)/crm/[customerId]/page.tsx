@@ -120,12 +120,21 @@ function mostBookedService(bookings: BookingHistoryItem[]): string | null {
   return name;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function CustomerProfilePage({
   params,
 }: {
   params: Promise<{ customerId: string }>;
 }) {
   const { customerId } = await params;
+
+  // Reject non-UUID segments immediately (e.g. /crm/payments, /crm/new)
+  // so we never send a garbage value to Postgres as a UUID.
+  if (!UUID_RE.test(customerId)) {
+    notFound();
+  }
+
   const [profileResult, allStaffResult] = await Promise.all([
     getCustomerProfileAction(customerId),
     getAllStaff(),

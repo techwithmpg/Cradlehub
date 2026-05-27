@@ -61,7 +61,7 @@ export function TodayPriorityStrip({
     {
       label: "Unpaid",
       value: payment?.unpaid_count ?? 0,
-      href: "/crm/payments",
+      href: "/crm/reconciliation",
       valueColor:
         (payment?.unpaid_count ?? 0) > 0 ? "var(--cs-error)" : "var(--cs-text-muted)",
       activeTint:
