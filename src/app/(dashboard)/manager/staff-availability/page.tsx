@@ -79,7 +79,7 @@ export default async function ManagerStaffAvailabilityPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : (
-        <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} />
+        <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} branchId={branchId} />
       )}
     </section>
   );

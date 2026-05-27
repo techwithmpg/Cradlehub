@@ -9,18 +9,20 @@ import { ScheduleCoverageIssues } from "./schedule-coverage-issues";
 import { ScheduleOverridesView } from "./schedule-overrides-view";
 import { ScheduleSetupHelperBar } from "./schedule-setup-helper-bar";
 import { StaffSchedulePageClient } from "./staff-schedule-page-client";
+import { StaffScheduleCard } from "./staff-schedule-card";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffScheduleGroup, StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
-type TabValue = "general" | "individual" | "overrides" | "coverage";
+type TabValue = "general" | "individual" | "overrides" | "coverage" | "staff-schedule";
 
 type Props = {
   items: StaffScheduleItem[];
   groups: StaffScheduleGroup[];
   rulesByGroup: Record<string, StaffGroupScheduleRule[]>;
+  branchId: string;
 };
 
-export function ScheduleSetupWorkspace({ items, groups, rulesByGroup }: Props) {
+export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }: Props) {
   const [activeTab, setActiveTab] = useState<TabValue>("general");
   const [selectedGroup, setSelectedGroup] = useState<string>("therapist");
 
@@ -59,23 +61,35 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup }: Props) {
           overflowX: "auto",
         }}
       >
-        <span style={{ fontWeight: 600, color: "var(--cs-text-secondary)", whiteSpace: "nowrap" }}>Setup Flow:</span>
+        <span
+          style={{
+            fontWeight: 600,
+            color: "var(--cs-text-secondary)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Setup Flow:
+        </span>
         {[
-          { label: "1. Group Rules", active: activeTab === "general" },
-          { label: "2. Individual Adjustments", active: activeTab === "individual" },
-          { label: "3. Overrides", active: activeTab === "overrides" },
-          { label: "4. Coverage Issues", active: activeTab === "coverage" },
+          { label: "1. Group Rules", tab: "general" as TabValue },
+          { label: "2. Individual Adjustments", tab: "individual" as TabValue },
+          { label: "3. Overrides", tab: "overrides" as TabValue },
+          { label: "4. Coverage Issues", tab: "coverage" as TabValue },
+          { label: "5. Staff Schedule", tab: "staff-schedule" as TabValue },
         ].map((step, idx) => (
-          <span key={step.label} style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+          <span
+            key={step.label}
+            style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
+          >
             <span
               style={{
-                fontWeight: step.active ? 700 : 400,
-                color: step.active ? "var(--cs-sand)" : undefined,
+                fontWeight: activeTab === step.tab ? 700 : 400,
+                color: activeTab === step.tab ? "var(--cs-sand)" : undefined,
               }}
             >
               {step.label}
             </span>
-            {idx < 3 && <span style={{ color: "var(--cs-border)" }}>→</span>}
+            {idx < 4 && <span style={{ color: "var(--cs-border)" }}>→</span>}
           </span>
         ))}
       </div>
@@ -109,6 +123,12 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup }: Props) {
             className="h-10 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
           >
             Coverage Issues
+          </TabsTrigger>
+          <TabsTrigger
+            value="staff-schedule"
+            className="h-10 flex-none rounded-none px-4 text-xs font-semibold text-[var(--cs-text-muted)] after:bg-[var(--cs-sand)] data-active:text-[var(--cs-sand-dark)]"
+          >
+            Staff Schedule
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -149,7 +169,17 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup }: Props) {
 
       {activeTab === "overrides" && <ScheduleOverridesView items={items} />}
 
-      {activeTab === "coverage" && <ScheduleCoverageIssues items={items} rulesByGroup={rulesByGroup} />}
+      {activeTab === "coverage" && (
+        <ScheduleCoverageIssues items={items} rulesByGroup={rulesByGroup} />
+      )}
+
+      {activeTab === "staff-schedule" && (
+        <StaffScheduleCard
+          items={items}
+          rulesByGroup={rulesByGroup}
+          branchId={branchId}
+        />
+      )}
     </div>
   );
 }

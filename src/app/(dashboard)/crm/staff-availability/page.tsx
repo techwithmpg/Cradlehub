@@ -91,7 +91,7 @@ export default async function CrmStaffAvailabilityPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : (
-        <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} />
+        <ScheduleSetupWorkspace items={items} groups={groups} rulesByGroup={rulesByGroup} branchId={branchId} />
       )}
     </section>
   );

@@ -281,3 +281,151 @@ export async function applyManualScheduleImportAction(
   // staffCount = unique staff members (multiple paper names may map to one person)
   return { ok: true, staffCount: staffPaperNames.size, rowsWritten: rows.length };
 }
+
+// ── Save Staff Weekly Schedule Action ─────────────────────────────────────────
+
+const dayPatternInputSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  opening: z.boolean(),
+  closing: z.boolean(),
+  regular: z.boolean(),
+  dayOff: z.boolean(),
+});
+
+const shiftTimesInputSchema = z.object({
+  opening: z.object({ start: timeStr, end: timeStr }),
+  closing: z.object({ start: timeStr, end: timeStr }),
+  regular: z.object({ start: timeStr, end: timeStr }),
+});
+
+const saveStaffWeeklyScheduleSchema = z
+  .object({
+    staffId: uuid,
+    branchId: uuid,
+    days: z
+      .array(dayPatternInputSchema)
+      .refine((a) => a.length === 7, "Must provide all 7 days (0–6)"),
+    times: shiftTimesInputSchema,
+  })
+  .refine((d) => d.times.opening.start < d.times.opening.end, {
+    message: "Opening shift start must be before end",
+    path: ["times", "opening", "end"],
+  })
+  .refine((d) => d.times.closing.start < d.times.closing.end, {
+    message: "Closing shift start must be before end",
+    path: ["times", "closing", "end"],
+  })
+  .refine((d) => d.times.regular.start < d.times.regular.end, {
+    message: "Regular shift start must be before end",
+    path: ["times", "regular", "end"],
+  });
+
+export type SaveStaffWeeklyScheduleResult =
+  | { ok: true; rowsWritten: number }
+  | { ok: false; error: string };
+
+/**
+ * Saves a staff member's full weekly schedule.
+ *
+ * Writes exactly 21 rows (7 days × 3 shift types) to staff_schedules:
+ *   - is_active=true  when that shift type is checked for that day (and not dayOff)
+ *   - is_active=false when unchecked or dayOff
+ *
+ * Uses upsert on (staff_id, day_of_week, shift_type) — safe to re-run.
+ */
+export async function saveStaffWeeklyScheduleAction(
+  rawInput: unknown
+): Promise<SaveStaffWeeklyScheduleResult> {
+  const parsed = saveStaffWeeklyScheduleSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const { staffId, branchId, days, times } = parsed.data;
+
+  const ctx = await requireImportAccess(branchId);
+  if (!ctx) return { ok: false, error: "Unauthorized" };
+
+  // Verify staff belongs to this branch
+  const { data: staffRecord, error: verifyErr } = await ctx.admin
+    .from("staff")
+    .select("id")
+    .eq("id", staffId)
+    .eq("branch_id", branchId)
+    .maybeSingle();
+
+  if (verifyErr) return { ok: false, error: "Could not verify staff record" };
+  if (!staffRecord) return { ok: false, error: "Staff member not found in this branch" };
+
+  // Build 21 rows (7 days × 3 shift types)
+  type ScheduleRow = {
+    staff_id: string;
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    is_active: boolean;
+    shift_type: string;
+  };
+
+  const rows: ScheduleRow[] = [];
+
+  for (const day of days) {
+    const { dayOfWeek, opening, closing, regular, dayOff } = day;
+
+    rows.push({
+      staff_id: staffId,
+      day_of_week: dayOfWeek,
+      start_time: times.regular.start,
+      end_time: times.regular.end,
+      is_active: !dayOff && regular,
+      shift_type: "single",
+    });
+
+    rows.push({
+      staff_id: staffId,
+      day_of_week: dayOfWeek,
+      start_time: times.opening.start,
+      end_time: times.opening.end,
+      is_active: !dayOff && opening,
+      shift_type: "opening",
+    });
+
+    rows.push({
+      staff_id: staffId,
+      day_of_week: dayOfWeek,
+      start_time: times.closing.start,
+      end_time: times.closing.end,
+      is_active: !dayOff && closing,
+      shift_type: "closing",
+    });
+  }
+
+  const { error: upsertErr } = await ctx.admin
+    .from("staff_schedules")
+    .upsert(rows, { onConflict: "staff_id,day_of_week,shift_type" });
+
+  if (upsertErr) {
+    console.error("[save-staff-weekly-schedule] upsert failed", {
+      code: upsertErr.code,
+      message: upsertErr.message,
+      details: upsertErr.details,
+      hint: upsertErr.hint,
+    });
+    return {
+      ok: false,
+      error:
+        process.env.NODE_ENV === "development"
+          ? `Save failed: ${upsertErr.message}`
+          : "Could not save schedule. Please try again.",
+    };
+  }
+
+  revalidatePath("/crm/staff-availability");
+  revalidatePath("/crm/availability");
+  revalidatePath("/crm/today");
+  revalidatePath("/crm/setup");
+  revalidatePath("/book");
+  invalidateCrmWorkspace(branchId);
+
+  return { ok: true, rowsWritten: rows.length };
+}
