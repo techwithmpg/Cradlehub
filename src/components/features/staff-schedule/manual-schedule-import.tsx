@@ -334,17 +334,6 @@ export function ManualScheduleImport({
     [matchList]
   );
 
-  const unresolvedCritical = useMemo(
-    () =>
-      matchList.filter(
-        (m) =>
-          m.status !== "skipped" &&
-          m.selectedId === null &&
-          (m.status === "ambiguous" || m.status === "unmatched")
-      ),
-    [matchList]
-  );
-
   const openingOffConflictsInData = useMemo(
     () => detectOpeningOffConflicts(),
     []
@@ -362,8 +351,10 @@ export function ManualScheduleImport({
     return conflicts;
   }, [matches, openingOffConflictsInData]);
 
+  // Apply is allowed as long as at least one name is matched and times are valid.
+  // Pending (ambiguous / not-found) names are simply skipped for this run.
+  // Only a data conflict (opening + off on same day for the same staff) blocks apply.
   const canApply =
-    unresolvedCritical.length === 0 &&
     staffConflicts.length === 0 &&
     resolvedMatches.length > 0 &&
     times.regularStart < times.regularEnd &&
@@ -428,10 +419,12 @@ export function ManualScheduleImport({
   }
 
   // ── Counts ───────────────────────────────────────────────────────────────
-  const countMatched = matchList.filter((m) => m.status === "matched" && m.selectedId).length;
+  const countMatched  = matchList.filter((m) => m.status === "matched" && m.selectedId).length;
   const countAmbiguous = matchList.filter((m) => m.status === "ambiguous" && !m.selectedId).length;
-  const countNotFound = matchList.filter((m) => m.status === "unmatched").length;
-  const countSkipped = matchList.filter((m) => m.status === "skipped").length;
+  const countNotFound  = matchList.filter((m) => m.status === "unmatched").length;
+  const countSkipped   = matchList.filter((m) => m.status === "skipped").length;
+  // Pending = ambiguous + not-found (unresolved; will be skipped for the current run)
+  const countPending   = countAmbiguous + countNotFound;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -510,7 +503,7 @@ export function ManualScheduleImport({
             {(["preview", "match", "apply"] as TabKey[]).map((tab) => {
               const labels: Record<TabKey, string> = {
                 preview: "📅 Schedule Preview",
-                match: `👤 Name Matching (${countMatched} matched${countAmbiguous > 0 ? `, ${countAmbiguous} need review` : ""})`,
+                match: `👤 Name Matching (${countMatched} matched${countPending > 0 ? `, ${countPending} pending` : ""})`,
                 apply: "✅ Times & Apply",
               };
               const isActive = activeTab === tab;
@@ -582,9 +575,13 @@ export function ManualScheduleImport({
               {/* Summary pills */}
               <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                 {[
-                  { label: `${countMatched} matched`, color: "var(--cs-success,#27ae60)", bg: "rgba(39,174,96,0.08)" },
-                  { label: `${countAmbiguous} need review`, color: "var(--cs-warning,#e67e22)", bg: "rgba(230,126,34,0.08)" },
-                  { label: `${countNotFound} not found`, color: "var(--cs-error,#e74c3c)", bg: "rgba(231,76,60,0.08)" },
+                  { label: `${countMatched} matched — will be applied`, color: "var(--cs-success,#27ae60)", bg: "rgba(39,174,96,0.08)" },
+                  ...(countAmbiguous > 0
+                    ? [{ label: `${countAmbiguous} ambiguous — pending`, color: "var(--cs-warning,#e67e22)", bg: "rgba(230,126,34,0.08)" }]
+                    : []),
+                  ...(countNotFound > 0
+                    ? [{ label: `${countNotFound} not found — pending`, color: "var(--cs-error,#e74c3c)", bg: "rgba(231,76,60,0.08)" }]
+                    : []),
                   { label: `${countSkipped} skipped`, color: "var(--cs-text-muted)", bg: "var(--cs-surface-warm)" },
                 ].map((pill) => (
                   <span
@@ -604,20 +601,23 @@ export function ManualScheduleImport({
                 ))}
               </div>
 
-              {/* Hint for unmatched */}
-              {(countAmbiguous > 0 || countNotFound > 0) && (
+              {/* Hint for pending names */}
+              {countPending > 0 && (
                 <div
                   style={{
                     padding: "8px 12px",
-                    background: "rgba(230,126,34,0.05)",
-                    border: "1px solid rgba(230,126,34,0.2)",
+                    background: "rgba(41,128,185,0.05)",
+                    border: "1px solid rgba(41,128,185,0.2)",
                     borderRadius: 8,
                     fontSize: "0.8125rem",
                     color: "var(--cs-text-secondary)",
                   }}
                 >
-                  <strong style={{ color: "var(--cs-warning,#e67e22)" }}>Review required:</strong>
-                  {" Select the correct staff record for ambiguous or not-found names, or skip them. Skipped names will not receive a schedule."}
+                  <strong style={{ color: "var(--cs-info,#2980b9)" }}>
+                    {countPending} pending name{countPending !== 1 ? "s" : ""}:
+                  </strong>
+                  {" These haven't been matched yet and will be skipped for this run — the staff who are already matched will still receive their schedule. "}
+                  {"You can select the correct staff record from the dropdown and re-run at any time to catch up the remaining names."}
                 </div>
               )}
 
@@ -769,16 +769,21 @@ export function ManualScheduleImport({
                 </table>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.75rem" }}>
+                {countPending > 0 && (
+                  <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                    {countPending} pending name{countPending !== 1 ? "s" : ""} will be skipped for now
+                  </span>
+                )}
                 <button
                   type="button"
                   className="cs-btn cs-btn-primary cs-btn-sm"
                   onClick={() => setActiveTab("apply")}
-                  disabled={unresolvedCritical.length > 0}
+                  disabled={resolvedMatches.length === 0}
                 >
-                  {unresolvedCritical.length > 0
-                    ? `Resolve ${unresolvedCritical.length} name(s) first`
-                    : "Continue to Apply →"}
+                  {resolvedMatches.length === 0
+                    ? "No matched staff yet"
+                    : `Continue to Apply (${resolvedMatches.length} matched) →`}
                 </button>
               </div>
             </div>
@@ -855,12 +860,25 @@ export function ManualScheduleImport({
                   fontSize: "0.8125rem",
                   color: "var(--cs-text-secondary)",
                   lineHeight: 1.55,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
                 }}
               >
-                <strong style={{ color: "var(--cs-text)" }}>Ready to apply:</strong>
-                {` ${resolvedMatches.length} staff member${resolvedMatches.length !== 1 ? "s" : ""} will receive a full 7-day weekly schedule. `}
-                {countSkipped > 0 && `${countSkipped} name(s) skipped. `}
-                {"Existing schedule rows for these staff will be overwritten."}
+                <div>
+                  <strong style={{ color: "var(--cs-text)" }}>Ready to apply:</strong>
+                  {` ${resolvedMatches.length} matched staff member${resolvedMatches.length !== 1 ? "s" : ""} will receive a full 7-day weekly schedule. Existing schedule rows for these staff will be overwritten.`}
+                </div>
+                {countPending > 0 && (
+                  <div style={{ color: "var(--cs-text-muted)" }}>
+                    {`⏳ ${countPending} pending name${countPending !== 1 ? "s" : ""} will be skipped for this run — return to Name Matching to resolve them and re-run.`}
+                  </div>
+                )}
+                {countSkipped > 0 && (
+                  <div style={{ color: "var(--cs-text-muted)" }}>
+                    {`${countSkipped} name${countSkipped !== 1 ? "s" : ""} explicitly skipped.`}
+                  </div>
+                )}
               </div>
 
               {/* Result feedback */}
