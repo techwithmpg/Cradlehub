@@ -1,6 +1,7 @@
 "use client";
 
 import type { CrmAvailabilitySummary } from "@/lib/queries/crm-availability";
+import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 
 type Props = {
   summary: CrmAvailabilitySummary;
@@ -75,13 +76,26 @@ export function CrmAvailabilitySummary({ summary }: Props) {
       color: "var(--cs-text)",
       dotColor: "#c8a96b",
     },
-    {
-      label: "Checked In",
-      value: summary.checkedIn,
-      color: "#2d9e63",
-      dotColor: "#2d9e63",
-      highlight: summary.checkedIn > 0,
-    },
+    // "Checked In" and "Not In" are hidden during MVP since all scheduled staff are
+    // synthetically treated as present — both chips would mirror "Scheduled" and 0.
+    ...(!MVP_CHECKIN_PAUSED
+      ? [
+          {
+            label: "Checked In",
+            value: summary.checkedIn,
+            color: "#2d9e63",
+            dotColor: "#2d9e63",
+            highlight: summary.checkedIn > 0,
+          } satisfies Chip,
+          {
+            label: "Not In",
+            value: summary.notCheckedIn,
+            color: summary.notCheckedIn > 0 ? "#b35b0a" : "var(--cs-text-muted)",
+            dotColor: summary.notCheckedIn > 0 ? "#c97a18" : "#b0b0b0",
+            highlight: summary.notCheckedIn > 0,
+          } satisfies Chip,
+        ]
+      : []),
     {
       label: "Available",
       value: summary.availableNow,
@@ -94,13 +108,6 @@ export function CrmAvailabilitySummary({ summary }: Props) {
       value: summary.busyNow,
       color: "#2471a3",
       dotColor: "#2471a3",
-    },
-    {
-      label: "Not In",
-      value: summary.notCheckedIn,
-      color: summary.notCheckedIn > 0 ? "#b35b0a" : "var(--cs-text-muted)",
-      dotColor: summary.notCheckedIn > 0 ? "#c97a18" : "#b0b0b0",
-      highlight: summary.notCheckedIn > 0,
     },
     {
       label: "Drivers",

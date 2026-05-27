@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CrmAvailabilityStaffRow, LiveStatus } from "@/lib/queries/crm-availability";
 import { checkInStaffForShiftAction, checkOutStaffForShiftAction } from "@/lib/actions/staff-checkins";
+import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 import { formatTime12h } from "@/lib/utils/time-format";
 
 // ── Avatar ─────────────────────────────────────────────────────────────────────
@@ -78,65 +79,88 @@ function CheckinAction({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const shiftType = (staff.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
+
+  // Check-in buttons are hidden while MVP_CHECKIN_PAUSED.
+  // Hooks must remain above this guard to satisfy Rules of Hooks.
+  if (MVP_CHECKIN_PAUSED) return null;
 
   if (staff.presenceStatus === "not_checked_in") {
     return (
-      <button
-        type="button"
-        aria-label={`Check in ${staff.staff_name}`}
-        disabled={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            const r = await checkInStaffForShiftAction({
-              staffId: staff.staff_id,
-              shiftDate,
-              shiftType,
-            });
-            if (r.ok) router.refresh();
-          })
-        }
-        style={{
-          padding: "2px 9px", fontSize: 10, fontWeight: 600,
-          background: "#2d9e63", color: "#fff",
-          border: "none", borderRadius: 5,
-          cursor: isPending ? "wait" : "pointer",
-          opacity: isPending ? 0.6 : 1,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {isPending ? "…" : "Check in"}
-      </button>
+      <div>
+        <button
+          type="button"
+          aria-label={`Check in ${staff.staff_name}`}
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null);
+              const r = await checkInStaffForShiftAction({
+                staffId: staff.staff_id,
+                shiftDate,
+                shiftType,
+              });
+              if (r.ok) router.refresh();
+              else setError(r.message);
+            })
+          }
+          style={{
+            padding: "2px 9px", fontSize: 10, fontWeight: 600,
+            background: "#2d9e63", color: "#fff",
+            border: "none", borderRadius: 5,
+            cursor: isPending ? "wait" : "pointer",
+            opacity: isPending ? 0.6 : 1,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isPending ? "…" : "Check in"}
+        </button>
+        {error && (
+          <span style={{ display: "block", fontSize: 9, color: "#c0392b", marginTop: 2, lineHeight: 1.3 }}>
+            {error}
+          </span>
+        )}
+      </div>
     );
   }
 
   if (staff.presenceStatus === "checked_in") {
     return (
-      <button
-        type="button"
-        aria-label={`Check out ${staff.staff_name}`}
-        disabled={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            const r = await checkOutStaffForShiftAction({
-              staffId: staff.staff_id,
-              shiftDate,
-              shiftType,
-            });
-            if (r.ok) router.refresh();
-          })
-        }
-        style={{
-          padding: "2px 9px", fontSize: 10, fontWeight: 500,
-          background: "transparent", color: "var(--cs-text-muted)",
-          border: "1px solid var(--cs-border-soft)", borderRadius: 5,
-          cursor: isPending ? "wait" : "pointer",
-          opacity: isPending ? 0.6 : 1,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {isPending ? "…" : "Check out"}
-      </button>
+      <div>
+        <button
+          type="button"
+          aria-label={`Check out ${staff.staff_name}`}
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null);
+              const r = await checkOutStaffForShiftAction({
+                staffId: staff.staff_id,
+                shiftDate,
+                shiftType,
+              });
+              if (r.ok) router.refresh();
+              else setError(r.message);
+            })
+          }
+          style={{
+            padding: "2px 9px", fontSize: 10, fontWeight: 500,
+            background: "transparent", color: "var(--cs-text-muted)",
+            border: "1px solid var(--cs-border-soft)", borderRadius: 5,
+            cursor: isPending ? "wait" : "pointer",
+            opacity: isPending ? 0.6 : 1,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isPending ? "…" : "Check out"}
+        </button>
+        {error && (
+          <span style={{ display: "block", fontSize: 9, color: "#c0392b", marginTop: 2, lineHeight: 1.3 }}>
+            {error}
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -397,12 +421,16 @@ type CrmAvailabilityBoardProps = {
 };
 
 export function CrmAvailabilityBoard({ staff, shiftDate }: CrmAvailabilityBoardProps) {
-  const notCheckedIn = staff.filter((s) => s.liveStatus === "not_checked_in");
-  const available    = staff.filter((s) => s.liveStatus === "available_now");
-  const busy         = staff.filter((s) => s.liveStatus === "busy_now");
-  const attention    = staff.filter((s) => s.needsAttention);
+  // When MVP_CHECKIN_PAUSED, all scheduled staff are synthetically checked-in, so the
+  // "Not Checked In" column is always empty. Show "Off Today" instead.
+  const col1       = MVP_CHECKIN_PAUSED
+    ? staff.filter((s) => s.scheduleStatus === "off_today")
+    : staff.filter((s) => s.liveStatus === "not_checked_in");
+  const available  = staff.filter((s) => s.liveStatus === "available_now");
+  const busy       = staff.filter((s) => s.liveStatus === "busy_now");
+  const attention  = staff.filter((s) => s.needsAttention);
 
-  const MAX_ROWS_NOT_CHECKED_IN = 12;
+  const MAX_ROWS_COL1 = 12;
 
   const colStyle: React.CSSProperties = {
     border: "1px solid var(--cs-border-soft)",
@@ -422,23 +450,23 @@ export function CrmAvailabilityBoard({ staff, shiftDate }: CrmAvailabilityBoardP
         gap: "0.75rem",
       }}
     >
-      {/* Column 1 — Not Checked In */}
+      {/* Column 1 — Off Today (MVP) or Not Checked In */}
       <div style={colStyle}>
         <ColumnHeader
-          title="Not Checked In"
-          count={notCheckedIn.length}
-          countColor="#c97a18"
-          helper="Scheduled but not present"
+          title={MVP_CHECKIN_PAUSED ? "Off Today" : "Not Checked In"}
+          count={col1.length}
+          countColor={MVP_CHECKIN_PAUSED ? "#95a5a6" : "#c97a18"}
+          helper={MVP_CHECKIN_PAUSED ? "Day-off or no schedule today" : "Scheduled but not present"}
         />
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {notCheckedIn.length === 0 ? (
-            <EmptyState message={"✓ All scheduled\nstaff are checked in"} />
+          {col1.length === 0 ? (
+            <EmptyState message={MVP_CHECKIN_PAUSED ? "No staff off today" : "✓ All scheduled\nstaff are checked in"} />
           ) : (
             <>
-              {notCheckedIn.slice(0, MAX_ROWS_NOT_CHECKED_IN).map((s) => (
-                <CompactStaffRow key={s.staff_id} staff={s} shiftDate={shiftDate} showAction />
+              {col1.slice(0, MAX_ROWS_COL1).map((s) => (
+                <CompactStaffRow key={s.staff_id} staff={s} shiftDate={shiftDate} showAction={!MVP_CHECKIN_PAUSED} />
               ))}
-              {notCheckedIn.length > MAX_ROWS_NOT_CHECKED_IN && (
+              {col1.length > MAX_ROWS_COL1 && (
                 <div
                   style={{
                     padding: "6px 10px",
@@ -446,7 +474,7 @@ export function CrmAvailabilityBoard({ staff, shiftDate }: CrmAvailabilityBoardP
                     borderTop: "1px solid var(--cs-border-soft)",
                   }}
                 >
-                  +{notCheckedIn.length - MAX_ROWS_NOT_CHECKED_IN} more — see Staff List
+                  +{col1.length - MAX_ROWS_COL1} more — see Staff List
                 </div>
               )}
             </>
@@ -460,7 +488,7 @@ export function CrmAvailabilityBoard({ staff, shiftDate }: CrmAvailabilityBoardP
           title="Available Now"
           count={available.length}
           countColor="#2d9e63"
-          helper="Checked in and free"
+          helper={MVP_CHECKIN_PAUSED ? "Scheduled and free" : "Checked in and free"}
         />
         <div style={{ flex: 1, overflowY: "auto" }}>
           {available.length === 0 ? (

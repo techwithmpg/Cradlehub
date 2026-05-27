@@ -4,6 +4,7 @@ import {
   staffTypeCanPerformService,
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
+import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,8 @@ const SCORE = {
   insideShift: 15,
   shiftAlignment: 10,
   lessWorkload: 10,
-  notCheckedIn: -50,
+  // MVP_CHECKIN_PAUSED: penalty is 0 while check-in is paused; restore to -50 when re-enabled.
+  notCheckedIn: MVP_CHECKIN_PAUSED ? 0 : -50,
   activeConflict: -50,
   blockedTime: -30,
   dayOff: -30,

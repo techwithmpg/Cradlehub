@@ -60,8 +60,8 @@ export default async function CrmAvailabilityPage() {
       />
 
       <PageHeader
-        title="Live Availability & Check-In Center"
-        description="Real-time staff readiness, check-ins, and availability."
+        title="Staff Availability"
+        description="Schedule-based staff availability and live booking readiness for today."
       />
 
       {/* ── How this page works — collapsed by default ── */}

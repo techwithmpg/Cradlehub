@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { CrmAvailabilityBoard } from "./crm-availability-board";
 import { ShiftTypeBadge } from "@/components/shared/shift-type-badge";
@@ -11,7 +11,11 @@ import { checkInStaffForShiftAction, checkOutStaffForShiftAction } from "@/lib/a
 import type { CrmAvailabilitySnapshot, CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
 import { ReadinessIssueCard } from "@/components/shared/readiness-issue-card";
 import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
-import { buildNoScheduleStaffIssue } from "./availability-readiness-utils";
+import {
+  buildServiceStaffNoScheduleIssue,
+  buildOpsStaffNoScheduleIssue,
+} from "./availability-readiness-utils";
+import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 
 type Tab = "live_board" | "staff_list" | "schedule_issues" | "driver_readiness";
 
@@ -175,7 +179,10 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
 
       {/* Footer note */}
       <div style={{ marginTop: "0.75rem", fontSize: 10, color: "var(--cs-text-muted)" }}>
-        As of {formatAsOf(snapshot.asOf)} · Availability requires staff to be scheduled and checked in
+        As of {formatAsOf(snapshot.asOf)}
+        {MVP_CHECKIN_PAUSED
+          ? " · Daily check-in is paused for MVP — availability is based on schedules and bookings"
+          : " · In-house & dispatch availability requires staff to be scheduled and checked in · Online booking follows saved schedules only"}
       </div>
     </div>
   );
@@ -195,6 +202,80 @@ const quickActionStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+// ── Per-row check-in/out actions (own error state per row) ───────────────────
+
+function StaffRowActions({
+  staff,
+  shiftDate,
+}: {
+  staff: CrmAvailabilityStaffRow;
+  shiftDate: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const shiftEnum = (staff.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
+
+  const handleCheckin = useCallback(() => {
+    startTransition(async () => {
+      setError(null);
+      const r = await checkInStaffForShiftAction({ staffId: staff.staff_id, shiftDate, shiftType: shiftEnum });
+      if (r.ok) router.refresh();
+      else setError(r.message);
+    });
+  }, [staff.staff_id, shiftDate, shiftEnum, router]);
+
+  const handleCheckout = useCallback(() => {
+    startTransition(async () => {
+      setError(null);
+      const r = await checkOutStaffForShiftAction({ staffId: staff.staff_id, shiftDate, shiftType: shiftEnum });
+      if (r.ok) router.refresh();
+      else setError(r.message);
+    });
+  }, [staff.staff_id, shiftDate, shiftEnum, router]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <PresenceStatusBadge status={staff.presenceStatus} />
+      {!MVP_CHECKIN_PAUSED && staff.presenceStatus === "not_checked_in" && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={handleCheckin}
+          style={{
+            padding: "2px 8px", fontSize: 10, fontWeight: 500,
+            background: "var(--cs-success)", color: "#fff",
+            border: "none", borderRadius: 5,
+            cursor: isPending ? "wait" : "pointer",
+            opacity: isPending ? 0.5 : 1, width: "fit-content",
+          }}
+        >
+          {isPending ? "…" : "Check in"}
+        </button>
+      )}
+      {!MVP_CHECKIN_PAUSED && staff.presenceStatus === "checked_in" && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={handleCheckout}
+          style={{
+            padding: "2px 8px", fontSize: 10, fontWeight: 500,
+            background: "transparent", color: "var(--cs-text-muted)",
+            border: "1px solid var(--cs-border-soft)", borderRadius: 5,
+            cursor: isPending ? "wait" : "pointer",
+            opacity: isPending ? 0.5 : 1, width: "fit-content",
+          }}
+        >
+          {isPending ? "…" : "Check out"}
+        </button>
+      )}
+      {error && (
+        <span style={{ fontSize: 9, color: "#c0392b", lineHeight: 1.3 }}>{error}</span>
+      )}
+    </div>
+  );
+}
+
 // ── Staff List tab ────────────────────────────────────────────────────────────
 
 function StaffListView({
@@ -204,9 +285,6 @@ function StaffListView({
   staff: CrmAvailabilityStaffRow[];
   shiftDate: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-
   return (
     <div
       style={{
@@ -241,7 +319,6 @@ function StaffListView({
       {staff.map((s) => {
         const primaryShift = s.shifts[0];
         const shiftType    = primaryShift?.shift_type ?? "single";
-        const shiftEnum    = (primaryShift?.shift_type ?? "single") as "single" | "opening" | "closing";
 
         return (
           <div
@@ -286,56 +363,8 @@ function StaffListView({
               )}
             </div>
 
-            {/* Presence + check-in/out action */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <PresenceStatusBadge status={s.presenceStatus} />
-              {s.presenceStatus === "not_checked_in" && (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const r = await checkInStaffForShiftAction({
-                        staffId: s.staff_id, shiftDate, shiftType: shiftEnum,
-                      });
-                      if (r.ok) router.refresh();
-                    });
-                  }}
-                  style={{
-                    padding: "2px 8px", fontSize: 10, fontWeight: 500,
-                    background: "var(--cs-success)", color: "#fff",
-                    border: "none", borderRadius: 5,
-                    cursor: pending ? "wait" : "pointer",
-                    opacity: pending ? 0.5 : 1, width: "fit-content",
-                  }}
-                >
-                  Check in
-                </button>
-              )}
-              {s.presenceStatus === "checked_in" && (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const r = await checkOutStaffForShiftAction({
-                        staffId: s.staff_id, shiftDate, shiftType: shiftEnum,
-                      });
-                      if (r.ok) router.refresh();
-                    });
-                  }}
-                  style={{
-                    padding: "2px 8px", fontSize: 10, fontWeight: 500,
-                    background: "transparent", color: "var(--cs-text-muted)",
-                    border: "1px solid var(--cs-border-soft)", borderRadius: 5,
-                    cursor: pending ? "wait" : "pointer",
-                    opacity: pending ? 0.5 : 1, width: "fit-content",
-                  }}
-                >
-                  Check out
-                </button>
-              )}
-            </div>
+            {/* Presence + check-in/out action (each row has its own error state) */}
+            <StaffRowActions staff={s} shiftDate={shiftDate} />
 
             {/* Active booking */}
             <div style={{ fontSize: 11 }}>
@@ -359,10 +388,50 @@ function StaffListView({
 
 // ── Schedule Issues tab ───────────────────────────────────────────────────────
 
-function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
-  const issues = staff.filter((s) => s.scheduleStatus === "no_schedule");
+function ScheduleStaffCard({
+  staff,
+  tagColor,
+  tagText,
+}: {
+  staff: CrmAvailabilityStaffRow;
+  tagColor: string;
+  tagText: string;
+}) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${tagColor}55`,
+        borderRadius: "var(--cs-r-md)",
+        padding: "10px 12px",
+        background: "var(--cs-surface)",
+      }}
+    >
+      <div style={{ fontWeight: 500, fontSize: 12, color: "var(--cs-text)" }}>{staff.staff_name}</div>
+      <div
+        style={{
+          fontSize: 10, color: "var(--cs-text-muted)", marginTop: 2, textTransform: "capitalize",
+        }}
+      >
+        {staff.staff_type.replace(/_/g, " ")}
+      </div>
+      <div
+        style={{
+          marginTop: 7, fontSize: 10, color: tagColor,
+          display: "flex", alignItems: "center", gap: 4,
+        }}
+      >
+        <span>⚠</span> {tagText}
+      </div>
+    </div>
+  );
+}
 
-  if (issues.length === 0) {
+function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
+  const allIssues       = staff.filter((s) => s.scheduleStatus === "no_schedule");
+  const serviceIssues   = allIssues.filter((s) => s.is_service_provider);
+  const opsIssues       = allIssues.filter((s) => !s.is_service_provider);
+
+  if (allIssues.length === 0) {
     return (
       <ReadinessIssueList
         issues={[]}
@@ -372,45 +441,144 @@ function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
     );
   }
 
+  const gridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: "0.625rem",
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <ReadinessIssueCard issue={buildNoScheduleStaffIssue(issues.length)} compact />
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-          gap: "0.625rem",
-        }}
-      >
-        {issues.map((s) => (
-          <div
-            key={s.staff_id}
-            style={{
-              border: "1px solid rgba(230,126,34,0.35)",
-              borderRadius: "var(--cs-r-md)",
-              padding: "10px 12px",
-              background: "var(--cs-surface)",
-            }}
-          >
-            <div style={{ fontWeight: 500, fontSize: 12, color: "var(--cs-text)" }}>{s.staff_name}</div>
-            <div
-              style={{
-                fontSize: 10, color: "var(--cs-text-muted)", marginTop: 2, textTransform: "capitalize",
-              }}
-            >
-              {s.staff_type.replace(/_/g, " ")}
-            </div>
-            <div
-              style={{
-                marginTop: 7, fontSize: 10, color: "#b35b0a",
-                display: "flex", alignItems: "center", gap: 4,
-              }}
-            >
-              <span>⚠</span> No weekly schedule set
-            </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {/* Service staff — affects online booking */}
+      {serviceIssues.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+          <ReadinessIssueCard issue={buildServiceStaffNoScheduleIssue(serviceIssues.length)} compact />
+          <div style={gridStyle}>
+            {serviceIssues.map((s) => (
+              <ScheduleStaffCard
+                key={s.staff_id}
+                staff={s}
+                tagColor="#b35b0a"
+                tagText="Not in online booking engine"
+              />
+            ))}
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Ops staff (drivers, CSR, utility) — affects live availability only */}
+      {opsIssues.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+          <ReadinessIssueCard issue={buildOpsStaffNoScheduleIssue(opsIssues.length)} compact />
+          <div style={gridStyle}>
+            {opsIssues.map((s) => (
+              <ScheduleStaffCard
+                key={s.staff_id}
+                staff={s}
+                tagColor="#6b7280"
+                tagText="No schedule for live board"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Driver card with own error state ─────────────────────────────────────────
+
+function DriverCard({
+  driver,
+  shiftDate,
+}: {
+  driver: CrmAvailabilityStaffRow;
+  shiftDate: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const isReady      = driver.liveStatus === "available_now";
+  const isCheckedIn  = driver.presenceStatus === "checked_in";
+  const notCheckedIn = driver.presenceStatus === "not_checked_in";
+  const shiftEnum    = (driver.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
+  const border       = isReady ? "rgba(39,174,96,0.4)" : (!MVP_CHECKIN_PAUSED && notCheckedIn) ? "rgba(230,126,34,0.4)" : "var(--cs-border-soft)";
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${border}`,
+        borderRadius: "var(--cs-r-md)",
+        padding: "10px 12px",
+        background: "var(--cs-surface)",
+      }}
+    >
+      <div style={{ fontWeight: 500, fontSize: 12, color: "var(--cs-text)" }}>{driver.staff_name}</div>
+      <div style={{ fontSize: 10, color: "var(--cs-text-muted)", marginTop: 2 }}>Driver</div>
+      {driver.work_start && driver.work_end && (
+        <div style={{ fontSize: 10, color: "var(--cs-text-subtle)", marginTop: 3 }}>
+          {formatTime12h(driver.work_start)} – {formatTime12h(driver.work_end)}
+        </div>
+      )}
+      <div style={{ marginTop: 7 }}>
+        <AvailabilityStatusBadge status={driver.liveStatus} />
       </div>
+      {!MVP_CHECKIN_PAUSED && notCheckedIn && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => {
+            startTransition(async () => {
+              setError(null);
+              const r = await checkInStaffForShiftAction({
+                staffId: driver.staff_id, shiftDate, shiftType: shiftEnum,
+              });
+              if (r.ok) router.refresh();
+              else setError(r.message);
+            });
+          }}
+          style={{
+            marginTop: 7,
+            padding: "3px 10px", fontSize: 10, fontWeight: 500,
+            background: "var(--cs-success)", color: "#fff",
+            border: "none", borderRadius: 5,
+            cursor: isPending ? "wait" : "pointer",
+            opacity: isPending ? 0.5 : 1,
+          }}
+        >
+          {isPending ? "…" : "Check in"}
+        </button>
+      )}
+      {!MVP_CHECKIN_PAUSED && isCheckedIn && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => {
+            startTransition(async () => {
+              setError(null);
+              const r = await checkOutStaffForShiftAction({
+                staffId: driver.staff_id, shiftDate, shiftType: shiftEnum,
+              });
+              if (r.ok) router.refresh();
+              else setError(r.message);
+            });
+          }}
+          style={{
+            marginTop: 7,
+            padding: "3px 10px", fontSize: 10, fontWeight: 500,
+            background: "transparent", color: "var(--cs-text-muted)",
+            border: "1px solid var(--cs-border-soft)", borderRadius: 5,
+            cursor: isPending ? "wait" : "pointer",
+            opacity: isPending ? 0.5 : 1,
+          }}
+        >
+          {isPending ? "…" : "Check out"}
+        </button>
+      )}
+      {error && (
+        <div style={{ marginTop: 4, fontSize: 9, color: "#c0392b", lineHeight: 1.3 }}>{error}</div>
+      )}
     </div>
   );
 }
@@ -424,9 +592,6 @@ function DriverReadinessView({
   staff: CrmAvailabilityStaffRow[];
   shiftDate: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-
   const drivers = staff.filter((s) => s.is_driver);
   if (drivers.length === 0) {
     return (
@@ -441,15 +606,26 @@ function DriverReadinessView({
     );
   }
 
-  const checkedIn = drivers.filter((s) => s.presenceStatus === "checked_in");
-  const ready     = drivers.filter((s) => s.liveStatus === "available_now");
+  const ready = drivers.filter((s) => s.liveStatus === "available_now");
 
   return (
     <div>
       <div style={{ marginBottom: "0.75rem", fontSize: 11, color: "var(--cs-text-muted)" }}>
-        {checkedIn.length} of {drivers.length} driver{drivers.length !== 1 ? "s" : ""} checked in
+        {drivers.length} driver{drivers.length !== 1 ? "s" : ""} on schedule
         {" · "}
-        {ready.length} ready to dispatch. Check-in required for dispatch readiness.
+        {ready.length} ready for dispatch.
+        {" "}
+        {MVP_CHECKIN_PAUSED ? (
+          <span style={{ color: "var(--cs-text-muted)" }}>
+            Daily check-in is paused for MVP. Availability is based on schedules and bookings.
+          </span>
+        ) : (
+          <span style={{ color: ready.length === 0 ? "#b35b0a" : "inherit" }}>
+            {ready.length === 0
+              ? "Home-service dispatch cannot start until at least one driver is checked in."
+              : "Check-in required for dispatch readiness."}
+          </span>
+        )}
       </div>
       <div
         style={{
@@ -458,84 +634,9 @@ function DriverReadinessView({
           gap: "0.625rem",
         }}
       >
-        {drivers.map((s) => {
-          const isReady      = s.liveStatus === "available_now";
-          const isCheckedIn  = s.presenceStatus === "checked_in";
-          const notCheckedIn = s.presenceStatus === "not_checked_in";
-          const shiftEnum    = (s.shifts[0]?.shift_type ?? "single") as "single" | "opening" | "closing";
-          const border       = isReady ? "rgba(39,174,96,0.4)" : notCheckedIn ? "rgba(230,126,34,0.4)" : "var(--cs-border-soft)";
-
-          return (
-            <div
-              key={s.staff_id}
-              style={{
-                border: `1px solid ${border}`,
-                borderRadius: "var(--cs-r-md)",
-                padding: "10px 12px",
-                background: "var(--cs-surface)",
-              }}
-            >
-              <div style={{ fontWeight: 500, fontSize: 12, color: "var(--cs-text)" }}>{s.staff_name}</div>
-              <div style={{ fontSize: 10, color: "var(--cs-text-muted)", marginTop: 2 }}>Driver</div>
-              {s.work_start && s.work_end && (
-                <div style={{ fontSize: 10, color: "var(--cs-text-subtle)", marginTop: 3 }}>
-                  {formatTime12h(s.work_start)} – {formatTime12h(s.work_end)}
-                </div>
-              )}
-              <div style={{ marginTop: 7 }}>
-                <AvailabilityStatusBadge status={s.liveStatus} />
-              </div>
-              {notCheckedIn && (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const r = await checkInStaffForShiftAction({
-                        staffId: s.staff_id, shiftDate, shiftType: shiftEnum,
-                      });
-                      if (r.ok) router.refresh();
-                    });
-                  }}
-                  style={{
-                    marginTop: 7,
-                    padding: "3px 10px", fontSize: 10, fontWeight: 500,
-                    background: "var(--cs-success)", color: "#fff",
-                    border: "none", borderRadius: 5,
-                    cursor: pending ? "wait" : "pointer",
-                    opacity: pending ? 0.5 : 1,
-                  }}
-                >
-                  {pending ? "…" : "Check in"}
-                </button>
-              )}
-              {isCheckedIn && (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    startTransition(async () => {
-                      const r = await checkOutStaffForShiftAction({
-                        staffId: s.staff_id, shiftDate, shiftType: shiftEnum,
-                      });
-                      if (r.ok) router.refresh();
-                    });
-                  }}
-                  style={{
-                    marginTop: 7,
-                    padding: "3px 10px", fontSize: 10, fontWeight: 500,
-                    background: "transparent", color: "var(--cs-text-muted)",
-                    border: "1px solid var(--cs-border-soft)", borderRadius: 5,
-                    cursor: pending ? "wait" : "pointer",
-                    opacity: pending ? 0.5 : 1,
-                  }}
-                >
-                  {pending ? "…" : "Check out"}
-                </button>
-              )}
-            </div>
-          );
-        })}
+        {drivers.map((s) => (
+          <DriverCard key={s.staff_id} driver={s} shiftDate={shiftDate} />
+        ))}
       </div>
     </div>
   );

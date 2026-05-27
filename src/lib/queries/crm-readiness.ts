@@ -31,6 +31,7 @@ import { getCrmSetupHealth, type SetupIssue } from "./crm-setup";
 import { getCrmTodaySnapshot } from "./crm-today";
 import type { CrmAvailabilitySummary } from "./crm-availability";
 import type { DispatchStats } from "./dispatch-queries";
+import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 import {
   buildReadinessResult,
   sortReadinessIssues,
@@ -410,13 +411,13 @@ async function getNoOpeningShiftIssue(
   return {
     id: "daily:no-opening-shift-today",
     scope: "schedule",
-    severity: "warning",
+    severity: "info",
     title: "No opening-shift staff configured for today",
     problem:
       "The system did not find any staff configured for opening-shift duty today.",
     impact:
-      "CRM may need to manually confirm who opens the branch before starting operations.",
-    fix: "Review the staff schedule and assign opening-shift duty for today, or update the schedule for this day of week.",
+      "Opening-shift duty designation is optional. CRM can manually confirm who opens the branch without this configuration.",
+    fix: "Optionally assign opening-shift duty in the schedule for clearer CRM visibility.",
     actionLabel: "Open Schedule Setup",
     actionHref: "/crm/staff-availability",
     source: "getCrmReadiness",
@@ -536,6 +537,9 @@ async function getAssignedDriverNotCheckedInIssue(
   branchId: string,
   today: string
 ): Promise<ReadinessIssue | null> {
+  // Check-in is paused for MVP — this check would create constant false positives.
+  if (MVP_CHECKIN_PAUSED) return null;
+
   const supabase = await createClient();
 
   // Active home-service bookings that already have a driver assigned.

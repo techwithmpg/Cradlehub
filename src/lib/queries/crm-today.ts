@@ -47,6 +47,8 @@ const DEFAULT_STAFF_READINESS: CrmAvailabilitySummary = {
   driversReady: 0,
   driversTotal: 0,
   needsAttention: 0,
+  serviceStaffNoSchedule: 0,
+  pendingOnlineBookings: 0,
 };
 
 const DEFAULT_DISPATCH_STATS: DispatchStats = {

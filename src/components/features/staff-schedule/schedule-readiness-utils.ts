@@ -82,20 +82,21 @@ export function buildNoActiveScheduleIssue(count: number): ReadinessIssue {
 }
 
 /**
- * Warning: staff scheduled today but with no opening shift type assigned.
+ * Info: staff scheduled today but with no opening shift type assigned.
+ * Downgraded to info — opening-shift duty designation is optional for MVP.
  */
 export function buildNoOpeningShiftIssue(count: number): ReadinessIssue {
   const s = count !== 1;
   return {
     id: "schedule:no-opening-shift-today",
     scope: "schedule",
-    severity: "warning",
-    title: `${count} scheduled staff member${s ? "s" : ""} ${s ? "have" : "has"} no opening shift today`,
+    severity: "info",
+    title: `${count} scheduled staff member${s ? "s" : ""} ${s ? "have" : "has"} no opening shift type assigned`,
     problem:
-      "These staff are scheduled to work today but have no opening shift type assigned.",
+      "These staff are scheduled to work today but have no opening shift type designated.",
     impact:
-      "Opening-shift coverage may be incomplete — CRM may need to manually confirm who opens the branch today.",
-    fix: "Review the opening-duty schedule or update the manual schedule import for today.",
+      "Opening-shift duty designation is optional. CRM can manually confirm who opens the branch without this configuration.",
+    fix: "Optionally review the manual schedule import and assign an opening shift type for clearer CRM visibility.",
     actionLabel: "Review Manual Schedule",
     actionHref: ACTION_HREF,
     source: "ScheduleCoverageIssues",
