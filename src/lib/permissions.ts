@@ -158,9 +158,9 @@ export function canManageStaff(role: string): boolean {
   return MANAGERS.includes(role);
 }
 
-/** Can approve staff onboarding applications (owner/manager/CSR for MVP) */
+/** Can approve staff onboarding applications (owner/manager/CRM/CSR for MVP) */
 export function canReviewStaffOnboarding(role: string): boolean {
-  return MANAGERS.includes(role) || CSR_ROLES.includes(role);
+  return MANAGERS.includes(role) || CSR_ROLES.includes(role) || CRM_ROLES.includes(role);
 }
 
 /** Can manage branches (owner/manager only) */
@@ -209,11 +209,12 @@ export const CSR_BLOCKED_PREFIXES = [
   "/manager/settings",
 ];
 
-/** CRM sub-routes blocked for front-desk staff (csr_staff + legacy csr) */
-export const CSR_STAFF_BLOCKED_CRM_PREFIXES = [
-  "/crm/repeats",
-  "/crm/lapsed",
-];
+/**
+ * CRM sub-routes blocked for front-desk staff (csr_staff + legacy csr).
+ * All /crm/* routes are now accessible to all CRM/front-desk roles.
+ * Page-level edit permissions still protect specific actions within each page.
+ */
+export const CSR_STAFF_BLOCKED_CRM_PREFIXES: readonly string[] = [];
 
 /** Check if a pathname is accessible by a CSR role */
 export function canCsrAccessPath(role: string, pathname: string): boolean {

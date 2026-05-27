@@ -21,6 +21,8 @@ const CRM_SPACES_ROLES = new Set([
   "store_manager",
   "crm",
   "csr_head",
+  "csr_staff",
+  "csr",
 ]);
 
 async function getCRMContext() {

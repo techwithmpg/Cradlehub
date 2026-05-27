@@ -21,7 +21,8 @@ type StaffContext = {
   branches: BranchRelation;
 };
 
-// All roles that may manage services from the CRM workspace.
+// All roles that may access services from the CRM workspace.
+// Page-level edit actions remain protected by server-side guards within each action.
 const CRM_SERVICE_ROLES = new Set([
   "owner",
   "manager",
@@ -29,6 +30,8 @@ const CRM_SERVICE_ROLES = new Set([
   "store_manager",
   "crm",
   "csr_head",
+  "csr_staff",
+  "csr",
 ]);
 
 function firstBranchName(branches: BranchRelation) {
