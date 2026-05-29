@@ -3256,3 +3256,43 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
 - Browser: ⚠️ In-app browser could not reach the local CRM route (`ERR_CONNECTION_REFUSED` after redirect to `/login`), while PowerShell confirmed the route responds with HTTP 200. Authenticated visual click-through still needs a reachable local browser session.
+
+---
+
+### 2026-05-30 — Claude (CRM-BACKEND-STAB-001 — CRM/CSR Operational Backend Stabilization)
+
+**Task:** Full backend/RLS audit and stabilization so CRM/CSR can run daily operations without hidden DB failures.
+
+**Phase 1 — Silent failure fixes (code only, no DB changes):**
+- `crm/actions.ts` `updateCustomerAction`: added `.select("id")` + 0-row detection
+- `crm/bookings/actions.ts` `confirmBookingPaymentAction`: added `.select("id")` on primary + 42703-fallback booking update paths
+- `crm/waitlist/actions.ts` `updateWaitlistStatusAction`: added `.select("id")` + 0-row detection
+- `crm/reconciliation/actions.ts` `approveReconciliationAction`: added `.select("id")` + 0-row detection
+
+**Phase 2 — RLS migrations (created and applied to live DB):**
+- `20260530000001_crm_operational_rls_bookings.sql` — `crm` role INSERT+UPDATE on bookings (branch-scoped)
+- `20260530000002_crm_operational_rls_customers.sql` — `crm`+`csr_*` UPDATE on customers (scoped via bookings)
+- `20260530000003_crm_operational_rls_resources.sql` — fix `branch_resources` cross-branch read; add crm+csr_head UPDATE
+- `20260530000004_crm_operational_rls_misc.sql` — public→authenticated tightening; csr_staff booking_events read; crm onboarding read
+
+**Phase 3 — Guard fixes:**
+- `lib/actions/crm-schedule-availability.ts`: `getScheduleEditContext` now returns typed specific error per failure mode; branch UUID comparison now case-insensitive (fixes Zod v4 `z.guid()` case preservation)
+- `lib/actions/crm-staff-services.ts`: `z.string().uuid()` → `z.guid()` for Zod v4 compat
+
+**Browser verification:**
+- Staff profile edit (csr_staff): ✅ PASS
+- Service assignment (csr_staff): ✅ PASS
+- Schedule update (csr_staff): ✅ PASS
+- Customer update (csr_staff): ✅ PASS
+- Booking operations (csr_staff): ✅ PASS
+- Owner regression: ✅ PASS
+
+**Remaining deferred:**
+- `booking_payment_logs` broad access: business decision, intentional
+- `departments` table: separate cleanup needed (backup + FK check)
+- Unused schedule helper tables: candidates for archival, do NOT drop without approval
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)

@@ -79,6 +79,28 @@
 
 ---
 
+## 2026-05-30 - CRM-BACKEND-STABILIZATION-001 root causes and resolutions
+
+### Silent failure pattern (Supabase .update() without .select())
+- **Symptom:** Server actions returned `{success:true}` or `{ok:true}` even when RLS blocked the DB write.
+- **Root cause:** Supabase client `.update().eq(...)` without `.select()` returns `error:null, status:204` on RLS block — indistinguishable from a successful 0-row update.
+- **Resolution:** All CRM mutation actions now chain `.select("id")` and check `data.length === 0`.
+- **Files fixed:** `crm/actions.ts`, `crm/bookings/actions.ts`, `crm/waitlist/actions.ts`, `crm/reconciliation/actions.ts`, `owner/staff/actions.ts`
+
+### "Unauthorized" from schedule weekly save — case-insensitive UUID mismatch
+- **Symptom:** `updateCrmStaffWeeklyAvailabilityAction` returned `{ok:false,error:"Unauthorized"}` for csr_staff even though the role was in `SCHEDULE_EDIT_ROLES`.
+- **Root cause:** `getScheduleEditContext` compared `me.branch_id !== branchId` using JavaScript `!==` which is case-sensitive. Zod v4's `z.guid()` preserves input case without normalising to lowercase, while PostgreSQL UUIDs from the DB are lowercase. Any case difference in the branch ID string caused the branch-scope check to fail.
+- **Resolution:** Changed comparison to `.toLowerCase()` on both sides. Also changed generic null → "Unauthorized" return to specific typed error messages per failure path.
+- **File:** `src/lib/actions/crm-schedule-availability.ts`
+
+### Zod v4 z.string().uuid("msg") compatibility
+- **Symptom:** `updateStaffServicesFromCrmAction` returned `{ok:false,message:"Invalid service ID"}` for all inputs including valid UUIDs.
+- **Root cause:** Zod v4 changed how `z.string().uuid("rawString")` interprets the raw string argument vs `z.guid("msg")` which is Zod v4 native.
+- **Resolution:** Changed `z.array(z.string().uuid("Invalid service ID"))` to `z.array(z.guid("Invalid service ID"))`.
+- **File:** `src/lib/actions/crm-staff-services.ts`
+
+---
+
 ## 2026-05-30 - CRM-EDIT-STAFF-PROFILE-TABBED browser verification limitation
 
 - **Symptom:** Browser verification for `/crm/staff?tab=management` could not complete in the in-app browser.

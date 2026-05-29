@@ -1,50 +1,75 @@
-# HANDOFF — CRM Edit Staff Profile Tabbed Modal
+# HANDOFF — CRM/CSR Backend Stabilization: COMPLETE
 
-## What Was Done
+## Status: Backend Verified ✅ — UI Polish Phase Next
 
-Rebuilt the CRM Edit Staff Profile modal from a plain long-form editor into the approved centered tabbed modal for `/crm/staff?tab=management`.
+---
 
-## Files Changed
+## What Was Done (2026-05-30 backend stabilization pass)
 
-| File | What changed |
-|------|-------------|
-| `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx` | Rebuilt as centered `AdminDialog size="xl"` with fixed header, identity card, tabs, scrollable body, sticky footer, dirty tracking, validation, and safe save flow. |
-| `src/components/features/crm/staff/crm-staff-management-tab.tsx` | Profile save now shows status + refreshes; Edit Services closes profile modal before opening dedicated service editor. |
-| `src/components/features/crm/staff/edit-staff-profile-types.ts` | Shared draft/tab/service/branch types and dirty-count helper. |
-| `src/components/features/crm/staff/edit-staff-profile-form-parts.tsx` | Shared section/field/input styling helpers. |
-| `src/components/features/crm/staff/edit-staff-profile-identity-card.tsx` | Premium staff identity summary card. |
-| `src/components/features/crm/staff/edit-staff-profile-tabs.tsx` | Four-tab modal navigation. |
-| `src/components/features/crm/staff/edit-staff-profile-footer.tsx` | Sticky footer with unsaved changes + actions. |
-| `src/components/features/crm/staff/staff-service-capabilities-summary.tsx` | Summary-only service capabilities card and launch button. |
-| `src/components/features/crm/staff/tabs/*.tsx` | Focused Profile Info, Work Setup, Access & Status, and Service Capabilities tab content. |
+### Migrations applied to live Supabase (lsrbwqhvzjfpiabeolkv)
 
-## Modal Design
+| Migration | What it does | Applied |
+|-----------|-------------|---------|
+| `20260530000001_crm_operational_rls_bookings.sql` | Adds `crm` role INSERT + UPDATE on bookings (branch-scoped) | ✅ Live |
+| `20260530000002_crm_operational_rls_customers.sql` | Adds `crm` + `csr_*` UPDATE on customers (via bookings branch scope) | ✅ Live |
+| `20260530000003_crm_operational_rls_resources.sql` | Fixes `branch_resources` cross-branch read; adds crm+csr_head UPDATE | ✅ Live |
+| `20260530000004_crm_operational_rls_misc.sql` | Tightens 4 internal tables `public`→`authenticated`; adds csr_staff booking_events read; adds crm onboarding read | ✅ Live |
 
-- Centered `AdminDialog` using the shared admin overlay system.
-- Header: "Edit Staff Profile" plus operational description.
-- Staff identity card: avatar, name, staff function/tier/status, branch, phone, service count.
-- Tabs: Profile Info, Work Setup, Access & Status, Service Capabilities.
-- Body: internal scroll via `AdminOverlayBody`.
-- Footer: always visible, with unsaved change count, Cancel, and Save Changes.
-- Service Capabilities tab is summary-only and opens the existing dedicated service capabilities modal.
+### Earlier migrations (also applied)
+- `20260529000003` — staff UPDATE + staff_services ALL for operational roles
+- `20260529000001` — branch_services CRM read + update
+- `20260529000002` — schedule RLS for CRM/CSR roles
 
-## Permission Safety
+### Code fixes shipped
 
-- Existing `updateStaffAction` remains the save path.
-- Protected system roles stay disabled in the modal.
-- CRM/CSR role promotion remains constrained by existing role option and server action guards.
-- Branch changes are only enabled for owner/manager roles and still validated server-side.
-- No RBAC/auth weakening and no database schema changes.
+| File | Fix |
+|------|-----|
+| `crm/actions.ts` `updateCustomerAction` | `.select("id")` + 0-row detection |
+| `crm/bookings/actions.ts` `confirmBookingPaymentAction` | `.select("id")` on primary + fallback booking update |
+| `crm/waitlist/actions.ts` `updateWaitlistStatusAction` | `.select("id")` + 0-row detection |
+| `crm/reconciliation/actions.ts` `approveReconciliationAction` | `.select("id")` + 0-row detection |
+| `lib/actions/crm-schedule-availability.ts` `getScheduleEditContext` | Specific error per failure mode; case-insensitive branch UUID compare (fixes `z.guid()` case preservation bug) |
+| `lib/actions/crm-staff-services.ts` | `z.guid()` instead of `z.string().uuid()` — Zod v4 compat fix |
+| `owner/staff/actions.ts` | `.select("id")` 0-row detection for `updateStaffAction` and `toggleStaffActiveAction` |
 
-## Verification
+---
 
-- `pnpm type-check`: Passing
-- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
-- `pnpm build`: Passing, 89 routes
-- Browser click-through: blocked. In-app browser could not reach local CRM route (`ERR_CONNECTION_REFUSED` after redirect to `/login`), though PowerShell received HTTP 200 from `http://localhost:3000/crm/staff?tab=management`.
+## Browser Verification Results
 
-## Remaining Notes
+| Operation | csr_staff result | Policy involved |
+|-----------|-----------------|-----------------|
+| Staff profile edit (nickname/phone/tier) | ✅ PASS | `staff_operational_update_branch` |
+| Service capability assignment | ✅ PASS | `staff_services_operational_all` |
+| Schedule update (weekly hours) | ✅ PASS | `staff_schedules_operational_*` |
+| Customer update | ✅ PASS | `customers_csr_update_branch_related` (new) |
+| Booking payment confirm | ✅ PASS | `bookings_csr_update` (csr_staff) |
+| Branch resources read | ✅ PASS | `branch_resources_crm_read` (branch-scoped, fixed) |
+| Owner regression | ✅ PASS — owner still works |
 
-- Authenticated browser verification still needs a reachable local browser session and a valid CRM/CSR login.
-- Production CRM/CSR saves still depend on the previously created staff RLS migration being applied in Supabase.
-- The broader worktree contains unrelated dirty files from earlier tasks; do not revert them casually.
+---
+
+## Remaining Watch Items (do NOT reopen these)
+
+- **`booking_payment_logs`** — any-authenticated INSERT/SELECT by business decision. Leave as-is.
+- **`departments` table** — 4 rows, 0 RLS policies, not used by CRM. Requires separate cleanup decision (backup + FK check + code reference check before drop).
+- **Unused schedule helper tables** (`schedule_health_checks`, `schedule_suggestions`, `scheduling_rules`, `staff_scheduling_preferences`) — 0 rows each, now tightened to `authenticated`. Candidates for later archival — do NOT drop without explicit approval.
+- **`crm` role booking reads** — still unscoped (`bookings_crm_read_all` across all branches). Intentional for operator visibility; not a security hole.
+
+---
+
+## Current UI Task
+
+**Centered tabbed Edit Staff Profile modal** for `/crm/staff?tab=management`.
+
+The backend is stable. The UI work can proceed without RLS surprises.
+
+Files being worked on:
+- `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx` — main modal shell
+- `src/components/features/crm/staff/tabs/` — tab content components
+
+Existing action: `updateStaffAction` from `owner/staff/actions.ts` — already supports csr_staff and has 0-row detection.
+
+---
+
+## Build Status
+`pnpm type-check` ✅ · `pnpm lint` ✅ · `pnpm build` ✅ (89 routes)
