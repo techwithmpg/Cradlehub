@@ -55,14 +55,19 @@ export type GlobalService = {
 
 const VISIBILITY_LABELS: Record<string, string> = {
   public:   "Public",
-  csr_only: "CSR Only",
-  vip:      "VIP",
+  internal: "Internal",
+  hidden:   "Hidden",
+  // Legacy aliases kept for display-only backward compat
+  csr_only: "Internal",
+  vip:      "Internal",
 };
 
 const VISIBILITY_COLORS: Record<string, { bg: string; color: string; border: string }> = {
   public:   { bg: "#ECFDF5", color: "#065F46", border: "#059669" },
+  internal: { bg: "#EFF6FF", color: "#1E40AF", border: "#3B82F6" },
+  hidden:   { bg: "#FEF2F2", color: "#991B1B", border: "#F87171" },
   csr_only: { bg: "#EFF6FF", color: "#1E40AF", border: "#3B82F6" },
-  vip:      { bg: "#FDF4FF", color: "#6B21A8", border: "#A855F7" },
+  vip:      { bg: "#EFF6FF", color: "#1E40AF", border: "#3B82F6" },
 };
 
 function getServiceName(service: ServiceLite) {
@@ -145,7 +150,7 @@ function VisibilitySelect({
       disabled={isPending}
       title="Booking visibility"
       onChange={(e) => {
-        const next = e.target.value as "public" | "csr_only" | "vip";
+        const next = e.target.value as "public" | "internal" | "hidden";
         startTransition(async () => {
           await updateBranchServiceVisibilityAction(branchId, serviceId, next);
         });
@@ -163,8 +168,8 @@ function VisibilitySelect({
       }}
     >
       <option value="public">Public</option>
-      <option value="csr_only">CSR Only</option>
-      <option value="vip">VIP</option>
+      <option value="internal">Internal</option>
+      <option value="hidden">Hidden</option>
     </select>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -44,8 +44,8 @@ type ServiceFilter =
   | "in_spa"
   | "home_service"
   | "public"
-  | "csr_only"
-  | "vip";
+  | "internal"
+  | "hidden";
 
 type ActionStatus = {
   type: "success" | "error";
@@ -56,14 +56,17 @@ type BranchServiceActionResult =
   | { success: true }
   | { success: false; error?: string };
 
-type BranchServiceVisibility = "public" | "csr_only" | "vip";
+// Schema CHECK: visibility IN ('public', 'internal', 'hidden')
+type BranchServiceVisibility = "public" | "internal" | "hidden";
 
 function isActiveService(service: ServiceLite): service is ActiveBranchService {
   return service.is_active && service.services !== null;
 }
 
 function toBranchServiceVisibility(value: string): BranchServiceVisibility {
-  if (value === "csr_only" || value === "vip") return value;
+  if (value === "internal" || value === "hidden") return value;
+  // Legacy aliases: map old values to new schema
+  if (value === "csr_only" || value === "vip") return "internal";
   return "public";
 }
 
@@ -93,9 +96,9 @@ function getServiceCategory(service: ActiveBranchService) {
 function getVisibilityOptions(service: ActiveBranchService) {
   const value = getServiceVisibility(service);
   const options: Array<{ value: BranchServiceVisibility; label: string }> = [
-    { value: "public", label: "Public" },
-    { value: "csr_only", label: "CSR only" },
-    { value: "vip", label: "VIP" },
+    { value: "public",   label: "Public"   },
+    { value: "internal", label: "Internal" },
+    { value: "hidden",   label: "Hidden"   },
   ];
 
   if (!options.some((option) => option.value === value)) {
@@ -125,10 +128,14 @@ export function ServicesOfferedTab({
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [status, setStatus] = useState<ActionStatus | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [localServices, setLocalServices] = useState<ServiceLite[]>(services);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setLocalServices(services); }, [services]);
 
   const activeServices = useMemo(
-    () => services.filter(isActiveService),
-    [services]
+    () => localServices.filter(isActiveService),
+    [localServices]
   );
   const activeCatalogIds = useMemo(
     () =>
@@ -166,23 +173,22 @@ export function ServicesOfferedTab({
 
   function runServiceAction(
     label: string,
-    action: () => Promise<BranchServiceActionResult>
+    action: () => Promise<BranchServiceActionResult>,
+    { skipRefresh }: { skipRefresh?: boolean } = {}
   ) {
     setStatus(null);
-    startTransition(() => {
-      void (async () => {
-        const result = await action();
-        if (result.success) {
-          setStatus({ type: "success", message: label });
-          router.refresh();
-          return;
-        }
+    startTransition(async () => {
+      const result = await action();
+      if (result.success) {
+        setStatus({ type: "success", message: label });
+        if (!skipRefresh) router.refresh();
+        return;
+      }
 
-        setStatus({
-          type: "error",
-          message: result.error ?? "Service action failed.",
-        });
-      })();
+      setStatus({
+        type: "error",
+        message: result.error ?? "Service action failed.",
+      });
     });
   }
 
@@ -212,18 +218,44 @@ export function ServicesOfferedTab({
     field: "spa" | "home",
     checked: boolean
   ) {
-    const nextInSpa = field === "spa" ? checked : service.available_in_spa;
-    const nextHome =
-      field === "home" ? checked : service.available_home_service;
+    const serviceId = service.service_id ?? service.services.id;
+    const previousInSpa = service.available_in_spa ?? true;
+    const previousHome = service.available_home_service ?? false;
 
-    runServiceAction("Service availability updated.", () =>
-      updateBranchServiceEligibilityAction(
-        branchId,
-        service.service_id ?? service.services.id,
-        nextInSpa ?? true,
-        nextHome ?? false
-      )
+    const nextInSpa = field === "spa" ? checked : previousInSpa;
+    const nextHome = field === "home" ? checked : previousHome;
+
+    // Optimistic update — apply immediately so the toggle reflects the click
+    // before the server responds. Rolled back below if the action fails.
+    setLocalServices((current) =>
+      current.map((item) => {
+        const itemId = item.service_id ?? item.services?.id;
+        if (itemId !== serviceId) return item;
+        return { ...item, available_in_spa: nextInSpa, available_home_service: nextHome };
+      })
     );
+
+    runServiceAction("Service availability updated.", async () => {
+      const result = await updateBranchServiceEligibilityAction(
+        branchId,
+        serviceId,
+        nextInSpa,
+        nextHome
+      );
+
+      if (!result.success) {
+        // Roll back to the value before the click.
+        setLocalServices((current) =>
+          current.map((item) => {
+            const itemId = item.service_id ?? item.services?.id;
+            if (itemId !== serviceId) return item;
+            return { ...item, available_in_spa: previousInSpa, available_home_service: previousHome };
+          })
+        );
+      }
+
+      return result;
+    }, { skipRefresh: true });
   }
 
   function handlePriceChange(service: ActiveBranchService, value: string) {
@@ -304,8 +336,8 @@ export function ServicesOfferedTab({
                 <option value="in_spa">In-spa</option>
                 <option value="home_service">Home service</option>
                 <option value="public">Public</option>
-                <option value="csr_only">CSR only</option>
-                <option value="vip">VIP</option>
+                <option value="internal">Internal</option>
+                <option value="hidden">Hidden</option>
               </select>
             </label>
 

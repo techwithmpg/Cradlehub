@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -13,13 +14,15 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { updateBranchServiceEligibilityAction } from "@/app/(dashboard)/owner/branches/actions";
+import { updateBranchServiceHomeServiceByIdAction } from "@/app/(dashboard)/owner/branches/actions";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { CustomizationRow } from "./customization-rows";
 import type { DeliveryMode } from "./service-customization-tab";
-import { updateBranchServiceDeliveryModeAction } from "@/app/(dashboard)/owner/branches/actions";
-import { updateBranchServiceVisibilityAction } from "@/app/(dashboard)/owner/branches/actions";
+import {
+  updateBranchServiceDeliveryModeAction,
+  updateBranchServiceVisibilityAction,
+} from "@/app/(dashboard)/owner/branches/actions";
 
 export function SelectedServiceEditorRail({
   branchId,
@@ -196,6 +199,7 @@ function DeliveryModeSection({ branchId, row }: { branchId: string; row: Customi
 // ── Home Service Toggle ───────────────────────────────────────────────────────
 
 function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: CustomizationRow }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [localValue, setLocalValue] = useState(row.isHomeService);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -204,16 +208,20 @@ function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: Cu
     setSaveError(null);
     setLocalValue(checked);
     startTransition(async () => {
-      const res = await updateBranchServiceEligibilityAction(
+      // Use PK (branchServiceId) for unambiguous matching
+      const res = await updateBranchServiceHomeServiceByIdAction(
         branchId,
-        row.serviceId,
-        row.isInSpa,
+        row.branchServiceId,
         checked
       );
       if (!res.success) {
         setSaveError(res.error ?? "Update failed. Please try again.");
-        setLocalValue(!checked);
+        setLocalValue(!checked); // revert
+        return;
       }
+      // Sync to what DB actually saved, then reload server data
+      setLocalValue(res.savedAvailableHomeService);
+      router.refresh();
     });
   };
 
@@ -253,7 +261,7 @@ function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: Cu
 
       {showVisibilityWarning && (
         <p className="mt-1.5 rounded-lg border border-[#FDE68A] bg-[var(--cs-warning-bg)] px-3 py-2 text-xs text-[var(--cs-warning-text)]">
-          ⚠️ This service is set to <strong>{row.visibility === "csr_only" ? "CSR Only" : row.visibility}</strong>. Enable <strong>Public Booking</strong> above for customers to see it online.
+          ⚠️ This service is set to <strong>{row.visibility === "internal" ? "Internal" : row.visibility === "hidden" ? "Hidden" : row.visibility}</strong>. Enable <strong>Public Booking</strong> above for customers to see it online.
         </p>
       )}
     </section>
@@ -263,17 +271,24 @@ function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: Cu
 // ── Public Visibility ─────────────────────────────────────────────────────────
 
 function PublicVisibilitySection({ branchId, row }: { branchId: string; row: CustomizationRow }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [localPublic, setLocalPublic] = useState(row.visibility === "public" && row.isActive);
+  const [saveErrorVis, setSaveErrorVis] = useState<string | null>(null);
 
   const handleToggle = (checked: boolean) => {
     setLocalPublic(checked);
-    const nextVisibility: "public" | "csr_only" = checked ? "public" : "csr_only";
+    // Schema CHECK: visibility IN ('public', 'internal', 'hidden')
+    // 'internal' = visible only in CRM/inhouse booking (was 'csr_only' before schema clarification)
+    const nextVisibility: "public" | "internal" = checked ? "public" : "internal";
     startTransition(async () => {
       const res = await updateBranchServiceVisibilityAction(branchId, row.serviceId, nextVisibility);
       if (!res.success) {
-        console.error("[visibility] update failed", res.error);
+        setSaveErrorVis(res.error ?? "Visibility update failed");
         setLocalPublic(!checked);
+      } else {
+        setSaveErrorVis(null);
+        router.refresh();
       }
     });
   };
@@ -299,6 +314,9 @@ function PublicVisibilitySection({ branchId, row }: { branchId: string; row: Cus
           <p className="m-0 text-xs text-[var(--cs-warning-text)]">
             Service must be active before it can be made public.
           </p>
+        )}
+        {saveErrorVis && (
+          <p className="m-0 text-xs text-[var(--cs-error-text)]">{saveErrorVis}</p>
         )}
       </div>
     </section>

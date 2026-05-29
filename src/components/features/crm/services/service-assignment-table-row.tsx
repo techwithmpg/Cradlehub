@@ -127,10 +127,12 @@ export function ServiceAssignmentTableRow({
   const [localVisibility, setLocalVisibility] = useState<string>(row.visibility);
 
   function handleToggleVisibility() {
-    const next = localVisibility === "public" ? "csr_only" : "public";
+    // Schema CHECK: visibility IN ('public', 'internal', 'hidden')
+    // Toggle between 'public' and 'internal' (was 'csr_only' before schema clarification)
+    const next: "public" | "internal" = localVisibility === "public" ? "internal" : "public";
     setLocalVisibility(next);
     startVisibilityTransition(async () => {
-      await updateBranchServiceVisibilityAction(branchId, row.serviceId, next as "public" | "csr_only" | "vip");
+      await updateBranchServiceVisibilityAction(branchId, row.serviceId, next);
       router.refresh();
     });
   }
@@ -303,7 +305,7 @@ export function ServiceAssignmentTableRow({
                   }}
                 >
                   <span>{isPublic ? "🌐" : "🔒"}</span>
-                  {isPublic ? "Public" : "CSR Only"}
+                  {isPublic ? "Public" : "Internal"}
                 </button>
               </div>
             );

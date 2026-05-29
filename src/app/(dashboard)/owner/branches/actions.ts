@@ -59,15 +59,6 @@ async function requireOwnerOrBranchManager(branchId: string) {
   return null;
 }
 
-function isMissingBranchServiceVisibilityColumnError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    (lower.includes("visibility") || lower.includes("booking_visibility")) &&
-    (lower.includes("does not exist") ||
-      lower.includes("schema cache") ||
-      lower.includes("could not find"))
-  );
-}
 
 export async function createBranchAction(rawInput: unknown) {
   const parsed = createBranchSchema.safeParse(rawInput);
@@ -243,36 +234,30 @@ export async function updateBranchServiceEligibilityAction(
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
 
-  // Use a plain update without .select().maybeSingle() to avoid false failures.
-  // The admin client bypasses RLS so if the row exists it will be updated.
   const admin = createAdminClient();
-  const { error } = await admin
+
+  // Use UPDATE + RETURNING via .select() so we can:
+  // a) confirm a row was actually matched (not 0 rows), and
+  // b) return the saved values so callers can verify the write.
+  const { data: updated, error } = await admin
     .from("branch_services")
     .update({ available_in_spa: availableInSpa, available_home_service: availableHomeService })
     .eq("branch_id", branchId)
-    .eq("service_id", serviceId);
-
-  if (error) return { success: false, error: error.message };
-
-  // Verify the row exists to provide a clear error if nothing was actually updated.
-  const { data: existing, error: checkErr } = await admin
-    .from("branch_services")
-    .select("id, available_home_service, available_in_spa")
-    .eq("branch_id", branchId)
     .eq("service_id", serviceId)
+    .select("id, available_home_service, available_in_spa")
     .maybeSingle();
 
-  if (checkErr) return { success: false, error: checkErr.message };
-  if (!existing) {
+  if (error) return { success: false as const, error: error.message };
+
+  if (!updated) {
     return {
-      success: false,
-      error: "No branch service row found for this service. The service may not have been added to this branch yet.",
+      success: false as const,
+      error: "No branch_services row matched (branch_id, service_id). Verify the service is added to this branch.",
     };
   }
 
   const { revalidatePath } = await import("next/cache");
   invalidateTag(cacheTags.branchServices(branchId));
-  // Revalidate public routes so the booking wizard picks up the change
   revalidatePath("/");
   revalidatePath("/services");
   revalidatePath("/book");
@@ -280,7 +265,66 @@ export async function updateBranchServiceEligibilityAction(
   revalidatePath("/manager/services");
   revalidatePath("/crm/services");
   logBusinessEvent("branch_service.eligibility_updated", { branchId, serviceId, availableInSpa, availableHomeService });
-  return { success: true };
+  return {
+    success: true as const,
+    savedAvailableHomeService: updated.available_home_service,
+    savedAvailableInSpa: updated.available_in_spa,
+  };
+}
+
+// ── Update per-branch service eligibility by PK (CRM home-service toggle) ──
+// Uses branch_services.id (PK) for unambiguous matching.
+// Returns the actually-saved value so the UI can verify the write succeeded.
+export async function updateBranchServiceHomeServiceByIdAction(
+  branchId: string,
+  branchServiceId: string,
+  availableHomeService: boolean
+): Promise<
+  | { success: true; savedAvailableHomeService: boolean }
+  | { success: false; error: string }
+> {
+  const auth = await requireOwnerOrBranchManager(branchId);
+  if (!auth) return { success: false, error: "Unauthorized" };
+
+  const admin = createAdminClient();
+
+  const { data: updated, error } = await admin
+    .from("branch_services")
+    .update({ available_home_service: availableHomeService })
+    .eq("id", branchServiceId)      // Match by PK — unambiguous
+    .eq("branch_id", branchId)      // Branch scope guard
+    .select("id, available_home_service")
+    .maybeSingle();
+
+  if (error) return { success: false, error: error.message };
+
+  if (!updated) {
+    return {
+      success: false,
+      error: `No branch_services row found with id=${branchServiceId} for branch ${branchId}.`,
+    };
+  }
+
+  if (updated.available_home_service !== availableHomeService) {
+    return {
+      success: false,
+      error: `DB did not save the expected value. Expected available_home_service=${String(availableHomeService)}, got ${String(updated.available_home_service)}.`,
+    };
+  }
+
+  const { revalidatePath } = await import("next/cache");
+  invalidateTag(cacheTags.branchServices(branchId));
+  revalidatePath("/");
+  revalidatePath("/services");
+  revalidatePath("/book");
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/setup");
+  logBusinessEvent("branch_service.home_service_toggled", {
+    branchId,
+    branchServiceId,
+    availableHomeService,
+  });
+  return { success: true, savedAvailableHomeService: updated.available_home_service };
 }
 
 // ── Update per-branch service price ───────────────────────────────────────
@@ -309,34 +353,26 @@ export async function updateBranchServicePriceAction(
   return { success: true };
 }
 
-// ── Update per-branch service booking visibility ──────────────────────────
-// 'public' = shown in public wizard; 'csr_only' = CRM only; 'vip' = VIP only.
-// CRM and CSR operational roles may toggle visibility for their own branch
-// (owner retains cross-branch access via requireOwnerOrBranchManager).
+// ── Update per-branch service visibility ─────────────────────────────────
+// Schema: branch_services.visibility CHECK ('public' | 'internal' | 'hidden')
+// 'public'   = shown in public booking wizard
+// 'internal' = CRM/inhouse only (previously 'csr_only' — renamed to match schema)
+// 'hidden'   = not shown anywhere
+// CRM and CSR operational roles may toggle visibility for their own branch.
 export async function updateBranchServiceVisibilityAction(
   branchId: string,
   serviceId: string,
-  visibility: "public" | "csr_only" | "vip"
+  visibility: "public" | "internal" | "hidden"
 ) {
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
 
   const admin = createAdminClient();
-  const modern = await admin
+  const { error } = await admin
     .from("branch_services")
     .update({ visibility })
     .eq("branch_id", branchId)
     .eq("service_id", serviceId);
-
-  let error = modern.error;
-  if (error && isMissingBranchServiceVisibilityColumnError(error.message)) {
-    const legacy = await admin
-      .from("branch_services")
-      .update({ booking_visibility: visibility })
-      .eq("branch_id", branchId)
-      .eq("service_id", serviceId);
-    error = legacy.error;
-  }
 
   if (error) return { success: false, error: error.message };
 

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { CustomizationRow } from "./customization-rows";
 import type { DeliveryMode } from "./service-customization-tab";
-import { updateBranchServiceEligibilityAction } from "@/app/(dashboard)/owner/branches/actions";
+import { updateBranchServiceHomeServiceByIdAction } from "@/app/(dashboard)/owner/branches/actions";
 
 const PAGE_SIZES = [10, 25, 50];
 
@@ -172,49 +173,67 @@ function TableRow({
 }
 
 function HomeServiceToggle({ branchId, row }: { branchId: string; row: CustomizationRow }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [localValue, setLocalValue] = useState(row.isHomeService);
-  const [hasError, setHasError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleToggle = (checked: boolean) => {
-    setHasError(false);
+    setErrorMsg(null);
     setLocalValue(checked);
     startTransition(async () => {
-      const res = await updateBranchServiceEligibilityAction(
+      // Use PK (branchServiceId) for unambiguous matching
+      const res = await updateBranchServiceHomeServiceByIdAction(
         branchId,
-        row.serviceId,
-        row.isInSpa,
+        row.branchServiceId,
         checked
       );
       if (!res.success) {
-        setHasError(true);
-        setLocalValue(!checked);
+        setErrorMsg(res.error);
+        setLocalValue(!checked); // revert
+        return;
       }
+      // Sync local state to what DB actually saved
+      setLocalValue(res.savedAvailableHomeService);
+      // Refresh server data so page re-renders with accurate state
+      router.refresh();
     });
   };
 
   // Warn if ON but service won't appear publicly
   const showWarning = localValue && (!row.isActive || row.visibility !== "public");
+  const hasError = errorMsg !== null;
 
   return (
-    <div className="inline-flex flex-col items-center gap-1" title={
-      showWarning
-        ? !row.isActive
-          ? "Service is inactive — use Delivery Mode to activate"
-          : "Service is not public — enable Public Booking for it to appear online"
-        : undefined
-    }>
+    <div
+      className="inline-flex flex-col items-center gap-1"
+      title={
+        hasError
+          ? errorMsg ?? "Save failed"
+          : showWarning
+          ? !row.isActive
+            ? "Service is inactive — use Delivery Mode to activate"
+            : "Service is not public — enable Public Booking for it to appear online"
+          : undefined
+      }
+    >
       <Switch
         checked={localValue}
         onCheckedChange={handleToggle}
         disabled={isPending}
       />
-      <span className={[
-        "text-[0.625rem] font-medium",
-        hasError ? "text-[var(--cs-error-text)]" :
-        showWarning ? "text-[var(--cs-warning-text)]" :
-        localValue ? "text-[var(--cs-success-text)]" : "text-[var(--cs-text-muted)]",
-      ].join(" ")}>
+      <span
+        className={[
+          "text-[0.625rem] font-medium",
+          hasError
+            ? "text-[var(--cs-error-text)]"
+            : showWarning
+            ? "text-[var(--cs-warning-text)]"
+            : localValue
+            ? "text-[var(--cs-success-text)]"
+            : "text-[var(--cs-text-muted)]",
+        ].join(" ")}
+      >
         {isPending ? "…" : hasError ? "ERR" : showWarning ? "⚠ ON" : localValue ? "ON" : "OFF"}
       </span>
     </div>
