@@ -12,8 +12,10 @@ import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ScheduleDensityProvider, ScheduleDensityToggle } from "./schedule-density";
 import { CrmScheduleDetailsPanel } from "./crm-schedule-details-panel";
+import { EditAvailabilityModal } from "@/components/features/crm/schedule/edit-availability-modal";
 import type { ScheduleViewMode } from "./schedule-mode-switcher";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 import type { Database } from "@/types/supabase";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
@@ -29,6 +31,7 @@ export type ScheduleWorkspaceProps = {
   date: string;
   branches?: { id: string; name: string }[];
   staffRows: DailyScheduleStaffRow[];
+  availabilityItems?: StaffScheduleItem[];
   branchResources: ResourceRow[];
   stats: {
     total: number;
@@ -111,6 +114,7 @@ export function ScheduleWorkspace({
   date,
   branches,
   staffRows,
+  availabilityItems = [],
   branchResources,
   stats,
   viewBookingsHref,
@@ -126,6 +130,7 @@ export function ScheduleWorkspace({
   const [typeFilter, setTypeFilter] = useState("");
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [editingAvailabilityStaffId, setEditingAvailabilityStaffId] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ScheduleViewMode>("day");
   const [hoveredPreview, setHoveredPreview] = useState<BookingHoverPreview | null>(null);
@@ -168,6 +173,19 @@ export function ScheduleWorkspace({
   const selectedStaff = (() => {
     if (!selectedStaffId) return null;
     return filteredRows.find((s) => s.staff_id === selectedStaffId) ?? null;
+  })();
+
+  const availabilityItemForSelectedStaff = selectedStaff
+    ? availabilityItems.find((item) => item.staff.id === selectedStaff.staff_id) ?? null
+    : null;
+
+  const selectedAvailabilityItem = (() => {
+    if (!editingAvailabilityStaffId) return null;
+    return (
+      availabilityItems.find(
+        (item) => item.staff.id === editingAvailabilityStaffId
+      ) ?? null
+    );
   })();
 
   const alertList = computeAlerts(filteredRows);
@@ -269,6 +287,19 @@ export function ScheduleWorkspace({
     [router]
   );
 
+  const handleAvailabilitySaved = useCallback(
+    (message?: string) => {
+      setAdjustmentToast({
+        title: "Saved",
+        description: message ?? "Staff availability updated.",
+        variant: "success",
+      });
+      window.setTimeout(() => setAdjustmentToast(null), 3500);
+      router.refresh();
+    },
+    [router]
+  );
+
   const workspaceContent = (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Header — only shown in non-CRM context; CRM page renders its own PageHeader */}
@@ -346,6 +377,12 @@ export function ScheduleWorkspace({
               branchResources={branchResources}
               date={date}
               onClose={handleCloseDetails}
+              canEditAvailability={availabilityItemForSelectedStaff !== null}
+              onEditAvailability={() => {
+                if (availabilityItemForSelectedStaff) {
+                  setEditingAvailabilityStaffId(availabilityItemForSelectedStaff.staff.id);
+                }
+              }}
             />
             {rightRailExtras}
           </div>
@@ -401,6 +438,21 @@ export function ScheduleWorkspace({
           onMouseLeave={handleHoverCardMouseLeave}
         />
       )}
+
+      {isCrm ? (
+        <EditAvailabilityModal
+          open={editingAvailabilityStaffId !== null}
+          item={selectedAvailabilityItem}
+          branchId={branchId}
+          branchName={branchName}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              setEditingAvailabilityStaffId(null);
+            }
+          }}
+          onSaved={handleAvailabilitySaved}
+        />
+      ) : null}
 
       <PremiumSuccessToast
         open={adjustmentToast !== null}

@@ -1,2 +1,2 @@
-Task: Fix booking wizard same-day time selection so past time slots are hidden.
+Task: Build centralized CRM Edit Availability modal from Schedule side panel.
 Status: COMPLETE

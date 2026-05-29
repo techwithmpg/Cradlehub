@@ -1,37 +1,62 @@
-# 🤝 HANDOFF — Booking Wizard Same-Day Past Slot Fix
+# 🤝 HANDOFF — CRM Schedule Edit Availability Modal
 
 ## What Was Done
 
-### Root Cause
-`isPastSlot` in `src/lib/engine/slot-time.ts` built a slot datetime via
-`new Date(y, m-1, d, hh, mm, ss)` — using the **server's local timezone** (UTC
-on cloud hosting). Slot times represent **branch local time** (Philippines =
-UTC+8). A "13:00" Manila slot was treated as 13:00 UTC = 21:00 Manila, so it
-appeared to be hours in the future and was never filtered, even when 2 PM
-Manila had already passed.
+Built a centered, in-place Edit Availability modal for CRM schedule workflows.
 
-### Files Changed
+The modal now opens from:
+- `/crm/schedule` Daily Timeline right-side staff details panel
+- `/crm/schedule?tab=staff` Staff Schedule list
+
+CRM stays on the Schedule page; the action no longer redirects to `/crm/staff-availability`.
+
+## Files Changed
 
 | File | What changed |
 |------|-------------|
-| `src/lib/engine/slot-time.ts` | Added `BRANCH_TIMEZONE = "Asia/Manila"` export. Added private `getBranchTime(now, timezone)` helper using `Intl.DateTimeFormat`. Updated `isPastSlot` and `filterPastSlotsForDate` to accept optional `timezone` — uses branch-local time when provided, server-local time for backward compatibility (existing tests unaffected). |
-| `src/lib/engine/availability.ts` | Imports `BRANCH_TIMEZONE`. Passes `timezone: BRANCH_TIMEZONE` to `filterPastSlotsForDate` in `getAvailableSlots`. In `getAvailableSlotsMulti` (2+ services path): stores `filterSlotsForQualifiedProviders` result, then applies `filterPastSlotsForDate` with timezone as a belt-and-suspenders final pass. |
-| `src/lib/actions/online-booking.ts` | Imports `isPastSlot` + `BRANCH_TIMEZONE`. In `createOnlineBookingMultiAction`: explicit past-slot guard after the rules check — returns `SLOT_IN_PAST` with "That time is no longer available. Please choose a later time." before attempting staff assignment. |
-| `src/components/public/booking-wizard.tsx` | Imports `isPastSlot` + `BRANCH_TIMEZONE`. In `handleSubmit`: checks if selected slot is past in branch timezone before submitting — clears `selectedSlot`, shows "That time has already passed. Please select a later time.", navigates back to the date/time step. |
+| `src/components/shared/overlays/admin-dialog.tsx` | Added `placement="center"` support while keeping top placement as the default. |
+| `src/components/features/crm/schedule/*` | Added focused modal, header, summary, weekly table, override tab, block-time tab, footer, types, and utils. |
+| `src/lib/actions/crm-schedule-availability.ts` | Added CRM weekly availability save action with auth, branch scope, Zod validation, `staff_schedules` upsert, and revalidation. |
+| `src/app/(dashboard)/crm/schedule/page.tsx` | Loads staff availability data alongside daily schedule data. |
+| `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` | Passes availability data into Daily Timeline and Staff Schedule tabs. |
+| `src/components/features/schedule/tabs/daily-timeline-tab.tsx` | Passes availability data into the schedule workspace. |
+| `src/components/features/schedule/schedule-workspace.tsx` | Owns selected availability staff state, opens modal, refreshes after save, shows success toast. |
+| `src/components/features/schedule/crm-schedule-details-panel.tsx` | Replaced Edit Availability navigation link with modal trigger button. |
+| `src/components/features/schedule/tabs/staff-schedule-tab.tsx` | Passes branch context and SWR refresh callback into the staff schedule client. |
+| `src/components/features/staff-schedule/staff-schedule-page-client.tsx` | Replaced side sheet with the centralized centered modal. |
+| `src/components/features/staff-schedule/schedule-setup-workspace.tsx` | Supplies branch context to the reused staff schedule client. |
+| `src/app/(dashboard)/manager/staff/actions.ts` | Added CRM/manager schedule revalidation for existing schedule, override, and block-time actions. |
 
-### Key Design Decisions
-- No DB schema changes.
-- No new npm dependencies — uses native `Intl.DateTimeFormat`.
-- `BRANCH_TIMEZONE` is a single exported constant in `slot-time.ts`; update there when branches get a per-branch timezone column.
-- Legacy `isPastSlot` / `filterPastSlotsForDate` callers that don't pass `timezone` keep the server-local-time behavior — all existing tests still pass.
-- The UI empty state "No more available slots today. Please choose another date." was already in place (line 1652 of booking-wizard.tsx).
+## Behavior Notes
 
-## Build Status
-`pnpm type-check` ✅ · `pnpm lint` ✅ (0 errors, 2 pre-existing script warnings) · `pnpm build` ✅ (89/89 routes)
+- Weekly Hours uses a direct editable table for Sunday through Saturday.
+- Break column is intentionally omitted because the existing weekly schedule schema/data model has no break field.
+- Day Overrides and Block Time reuse the existing manager/staff schedule actions; no new schema or business rules were added.
+- Unsaved weekly/form changes are protected with `ConfirmUnsavedChangesDialog`.
+- Save closes the modal after successful weekly-hours save and refreshes schedule data.
+- Day override and block-time add/remove actions keep the modal open and refresh schedule data.
 
-## Recommended Next Steps
-1. **Browser verify** — open `/book`, pick today, confirm slots earlier than current Manila time are hidden.
-2. **Stale-slot test** — select a slot close to the current minute, wait for it to pass, click Confirm — confirm error appears and slot is cleared.
-3. **Home service** — repeat with home-service visit type.
-4. **Future date** — pick tomorrow, confirm morning slots are visible normally.
-5. When the `branches` table gets a `timezone` column, pass it into `filterPastSlotsForDate` and `isPastSlot` instead of the constant.
+## Verification
+
+`pnpm type-check` ✅
+
+`pnpm lint` ✅  
+Known warnings remain in `scripts/generate-service-image-assets.mjs` for unused script variables.
+
+`pnpm build` ✅  
+Next.js build completed successfully, 89/89 routes generated.
+
+## Browser Verification
+
+Attempted:
+- `http://localhost:3000/crm/schedule`
+- `http://localhost:3000/crm/schedule?tab=staff`
+
+Both redirected to `/login` in the currently running local dev server. Full authenticated click-through verification still needs a valid local session.
+
+## Remaining Notes
+
+- No database schema changes.
+- No RBAC/auth changes.
+- No new dependencies.
+- Public booking wizard was not touched.

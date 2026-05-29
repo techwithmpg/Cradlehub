@@ -48,6 +48,7 @@ function TabSkeleton({ rows = 4 }: { rows?: number }) {
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 
 const TAB_PARAM = "tab";
 const DEFAULT_TAB: ScheduleTabKey = "daily";
@@ -104,6 +105,7 @@ export function ScheduleWorkspaceShell({
   branchName,
   date,
   staffRows,
+  availabilityItems,
   branchResources,
   stats,
   readiness,
@@ -112,6 +114,7 @@ export function ScheduleWorkspaceShell({
   branchName: string;
   date: string;
   staffRows: DailyScheduleStaffRow[];
+  availabilityItems: StaffScheduleItem[];
   branchResources: ResourceRow[];
   stats: { total: number; confirmed: number; in_progress: number; completed: number; cancelled: number; no_show: number };
   readiness: ReadinessResult | null;
@@ -219,6 +222,7 @@ export function ScheduleWorkspaceShell({
             branchName={branchName}
             date={date}
             staffRows={staffRows}
+            availabilityItems={availabilityItems}
             branchResources={branchResources}
             stats={stats}
           />
@@ -230,7 +234,13 @@ export function ScheduleWorkspaceShell({
       case "coverage":
         return <CoverageIssuesTab branchId={branchId} />;
       case "staff":
-        return <StaffScheduleTab branchId={branchId} />;
+        return (
+          <StaffScheduleTab
+            branchId={branchId}
+            branchName={branchName}
+            initialItems={availabilityItems}
+          />
+        );
       default:
         return null;
     }

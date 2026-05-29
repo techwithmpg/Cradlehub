@@ -5,6 +5,7 @@ import { ScheduleWorkspace } from "../schedule-workspace";
 import { DailyTimelineRightRail } from "./daily-timeline-right-rail";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
@@ -69,6 +70,7 @@ export function DailyTimelineTab({
   branchName,
   date,
   staffRows,
+  availabilityItems,
   branchResources,
   stats,
 }: {
@@ -76,6 +78,7 @@ export function DailyTimelineTab({
   branchName: string;
   date: string;
   staffRows: DailyScheduleStaffRow[];
+  availabilityItems: StaffScheduleItem[];
   branchResources: ResourceRow[];
   stats: { total: number; confirmed: number; in_progress: number; completed: number; cancelled: number; no_show: number };
 }) {
@@ -90,6 +93,7 @@ export function DailyTimelineTab({
       date={date}
       branches={[{ id: branchId, name: branchName }]}
       staffRows={staffRows}
+      availabilityItems={availabilityItems}
       branchResources={branchResources}
       stats={stats}
       viewBookingsHref="/crm/bookings"

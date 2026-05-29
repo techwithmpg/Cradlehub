@@ -55,7 +55,9 @@ export async function setStaffScheduleAction(rawInput: unknown) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/schedule");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/crm/staff-availability");
   invalidateCrmWorkspace(ctx.me.branch_id);
   invalidateManagerWorkspace(ctx.me.branch_id);
@@ -86,6 +88,9 @@ export async function createScheduleOverrideAction(rawInput: unknown) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/schedule");
+  revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/crm/staff-availability");
   invalidateCrmWorkspace(ctx.me.branch_id);
   invalidateManagerWorkspace(ctx.me.branch_id);
@@ -112,7 +117,9 @@ export async function createBlockedTimeAction(rawInput: unknown) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/schedule");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/crm/staff-availability");
   invalidateCrmWorkspace(ctx.me.branch_id);
   invalidateManagerWorkspace(ctx.me.branch_id);
@@ -142,7 +149,9 @@ export async function deleteBlockedTimeAction(blockedTimeId: string) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/schedule");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/crm/staff-availability");
   invalidateCrmWorkspace(ctx.me.branch_id);
   invalidateManagerWorkspace(ctx.me.branch_id);
@@ -171,7 +180,11 @@ export async function deleteScheduleOverrideAction(overrideId: string) {
 
   if (error) return { success: false, error: error.message };
   revalidatePath("/manager/staff");
+  revalidatePath("/manager/schedule");
   revalidatePath("/manager/staff-availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/crm/staff-availability");
+  invalidateCrmWorkspace(ctx.me.branch_id);
+  invalidateManagerWorkspace(ctx.me.branch_id);
   return { success: true };
 }

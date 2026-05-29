@@ -26,6 +26,8 @@ type CrmScheduleDetailsPanelProps = {
   branchResources: ResourceRow[];
   date: string;
   onClose: () => void;
+  canEditAvailability?: boolean;
+  onEditAvailability?: () => void;
 };
 
 function getInitials(name: string): string {
@@ -65,6 +67,8 @@ export function CrmScheduleDetailsPanel({
   booking,
   date,
   onClose,
+  canEditAvailability = false,
+  onEditAvailability,
 }: CrmScheduleDetailsPanelProps) {
   if (!staff && !booking) {
     return (
@@ -238,7 +242,11 @@ export function CrmScheduleDetailsPanel({
       {staff && (
         <PanelSection label="Actions" icon={<User size={12} />}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <ActionLink href={`/crm/staff-availability`} label="Edit Availability" />
+            <ActionButton
+              label="Edit Availability"
+              onClick={onEditAvailability}
+              disabled={!canEditAvailability}
+            />
             <ActionLink href={`/crm/schedule?date=${date}`} label="View Full Schedule" />
           </div>
         </PanelSection>
@@ -310,28 +318,30 @@ function ActionLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "6px 10px",
-        borderRadius: 6,
-        border: "1px solid var(--cs-border)",
-        background: "var(--cs-surface)",
-        color: "var(--cs-text-secondary)",
-        fontSize: "0.75rem",
-        fontWeight: 500,
-        textDecoration: "none",
-        transition: "background 0.15s",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLAnchorElement).style.background = "var(--cs-surface-warm)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLAnchorElement).style.background = "var(--cs-surface)";
-      }}
+      className="flex items-center justify-center rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--cs-text-secondary)] no-underline transition hover:bg-[var(--cs-surface-warm)]"
     >
       {label}
     </Link>
+  );
+}
+
+function ActionButton({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center justify-center rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {label}
+    </button>
   );
 }

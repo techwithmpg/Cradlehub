@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { StaffScheduleToolbar } from "./staff-schedule-toolbar";
 import { StaffScheduleList, type StaffScheduleItem } from "./staff-schedule-list";
-import { StaffScheduleDetailPanel } from "./staff-schedule-detail-panel";
+import { EditAvailabilityModal } from "@/components/features/crm/schedule/edit-availability-modal";
 import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-toast";
 import { isScheduled } from "@/lib/utils/staff-schedule-summary";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -13,8 +13,11 @@ import { Users, CalendarCheck, CalendarX, AlertTriangle, ShieldAlert, UserX } fr
 import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
 type Props = {
+  branchId: string;
+  branchName: string;
   items: StaffScheduleItem[];
   rulesByGroup?: Record<string, StaffGroupScheduleRule[]>;
+  onDataRefresh?: () => void;
 };
 
 const TIER_ORDER: Record<string, number> = {
@@ -87,13 +90,20 @@ function StatChip({
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function StaffSchedulePageClient({ items, rulesByGroup }: Props) {
+export function StaffSchedulePageClient({
+  branchId,
+  branchName,
+  items,
+  rulesByGroup,
+  onDataRefresh,
+}: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ScheduleFilter>("all");
   const [sort, setSort] = useState<ScheduleSort>("name");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [savedStaffName, setSavedStaffName] = useState<string | null>(null);
+  const [savedDescription, setSavedDescription] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
 
   // Summary stats (computed from full list, not filtered)
@@ -165,13 +175,16 @@ export function StaffSchedulePageClient({ items, rulesByGroup }: Props) {
   );
 
   // Called by editors on successful save — shows a global success toast
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback((message?: string) => {
     if (selectedItem) {
       setSavedStaffName(getStaffAdminName(selectedItem.staff));
     }
+    setSavedDescription(message ?? null);
     setShowToast(true);
     window.setTimeout(() => setShowToast(false), 3500);
-  }, [selectedItem]);
+    router.refresh();
+    onDataRefresh?.();
+  }, [onDataRefresh, router, selectedItem]);
 
   return (
     <div className="space-y-4">
@@ -229,28 +242,27 @@ export function StaffSchedulePageClient({ items, rulesByGroup }: Props) {
         onManage={(staffId) => setSelectedStaffId(staffId)}
       />
 
-      <StaffScheduleDetailPanel
-        staff={selectedItem?.staff ?? null}
-        schedules={selectedItem?.schedules ?? []}
-        overrides={selectedItem?.overrides ?? []}
-        blockedTimes={selectedItem?.blockedTimes ?? []}
+      <EditAvailabilityModal
+        item={selectedItem}
         open={selectedStaffId !== null}
+        branchId={branchId}
+        branchName={branchName}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedStaffId(null);
-            router.refresh();
           }
         }}
-        onSave={handleSave}
+        onSaved={handleSave}
       />
 
       <PremiumSuccessToast
         open={showToast}
         title="Saved"
         description={
-          savedStaffName
+          savedDescription ??
+          (savedStaffName
             ? `Availability updated for ${savedStaffName}.`
-            : "Staff availability updated."
+            : "Staff availability updated.")
         }
         variant="success"
       />

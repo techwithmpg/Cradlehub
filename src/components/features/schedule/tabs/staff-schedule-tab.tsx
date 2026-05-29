@@ -19,11 +19,23 @@ async function fetcher(url: string): Promise<StaffScheduleData> {
   return res.json();
 }
 
-export function StaffScheduleTab({ branchId }: { branchId: string }) {
-  const { data, isLoading } = useSWR<StaffScheduleData>(
+export function StaffScheduleTab({
+  branchId,
+  branchName,
+  initialItems,
+}: {
+  branchId: string;
+  branchName: string;
+  initialItems: StaffScheduleItem[];
+}) {
+  const { data, isLoading, mutate } = useSWR<StaffScheduleData>(
     `/api/crm/staff-schedule/overview?branchId=${branchId}`,
     fetcher,
-    { revalidateOnFocus: true, dedupingInterval: 30_000 }
+    {
+      fallbackData: { items: initialItems, rulesByGroup: {} },
+      revalidateOnFocus: true,
+      dedupingInterval: 30_000,
+    }
   );
 
   if (isLoading) {
@@ -59,8 +71,13 @@ export function StaffScheduleTab({ branchId }: { branchId: string }) {
 
   return (
     <StaffSchedulePageClient
+      branchId={branchId}
+      branchName={branchName}
       items={data.items}
       rulesByGroup={data.rulesByGroup}
+      onDataRefresh={() => {
+        void mutate();
+      }}
     />
   );
 }

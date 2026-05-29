@@ -3032,3 +3032,41 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-29 — Codex (CRM-SCHEDULE-AVAILABILITY-001 — Centered Edit Availability Modal)
+
+**Task:** Build a centralized, centered CRM Edit Availability modal from the Schedule page staff details panel and Staff Schedule tab.
+
+**What Changed:**
+- Added a centered `AdminDialog` placement while preserving the existing top-anchored default for other admin overlays.
+- Added CRM schedule availability modal components:
+  - `edit-availability-modal.tsx`
+  - `edit-availability-header.tsx`
+  - `edit-availability-summary.tsx`
+  - `weekly-hours-editor-table.tsx`
+  - `day-overrides-editor-tab.tsx`
+  - `block-time-editor-tab.tsx`
+  - `edit-availability-footer.tsx`
+  - shared types/utils
+- Loaded branch staff availability on `/crm/schedule` and passed it into both:
+  - Daily Timeline staff details panel
+  - `/crm/schedule?tab=staff`
+- Replaced the Daily Timeline `Edit Availability` link to `/crm/staff-availability` with an in-place modal trigger.
+- Replaced the Staff Schedule tab side sheet with the same centered modal.
+- Added focused weekly-hours batch server action for CRM schedule editing:
+  - Authenticates the user.
+  - Allows existing operational schedule roles.
+  - Verifies branch scope and staff branch membership.
+  - Validates seven weekly rows with Zod.
+  - Upserts only `staff_schedules` rows for `shift_type = "single"`.
+  - Revalidates CRM/manager schedule and availability paths.
+- Preserved existing day override and block-time logic by reusing current create/delete actions.
+- Expanded existing schedule action revalidation to include `/crm/schedule` and `/manager/schedule`.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: ✅ Passing (89/89 routes)
+- Browser: ⚠️ Local authenticated CRM routes redirect to `/login` in the currently running dev server, so modal click-through could not be completed without a valid session.

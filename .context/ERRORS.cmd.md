@@ -13,3 +13,11 @@
   - Only active category services render in the right panel.
   - Removed all inline styles; everything uses Tailwind utilities.
   - Replaced `baselineRef` (read in `useMemo`) with `baselineIds` state to avoid React ref-in-render errors.
+
+---
+
+## 2026-05-29 - CRM-SCHEDULE-AVAILABILITY-001 verification notes
+
+- **Lint issue found and fixed:** Initial `pnpm lint` failed on `react-hooks/set-state-in-effect` in the new modal tabs and modal shell. Refactored prop-derived state into mount-time state with keyed modal content, removing synchronous state resets from effects.
+- **Browser verification blocked:** `/crm/schedule` and `/crm/schedule?tab=staff` both redirected to `/login` on the currently running local dev server. Authenticated modal click-through still needs a valid local CRM session.
+- **Pre-flight file note:** Root `ROADMAP.md`, `PROJECT_CONTEXT.md`, and `AGENT_RULES.md` were not present at the repository root. Read available equivalents in `docs/` / `.claude/worktrees/.../docs/` plus `CLAUDE.md` and `AGENTS.md`.

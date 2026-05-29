@@ -177,7 +177,12 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
       )}
 
       {activeTab === "individual" && (
-        <StaffSchedulePageClient items={items} rulesByGroup={rulesByGroup} />
+        <StaffSchedulePageClient
+          branchId={branchId}
+          branchName="Assigned branch"
+          items={items}
+          rulesByGroup={rulesByGroup}
+        />
       )}
 
       {activeTab === "overrides" && <ScheduleOverridesView items={items} />}
