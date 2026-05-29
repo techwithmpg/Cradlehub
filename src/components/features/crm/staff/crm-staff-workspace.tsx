@@ -50,6 +50,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           branches={props.branches}
           activeServices={props.activeServices}
           providerAssignments={props.providerAssignments}
+          reviewerSystemRole={props.reviewerSystemRole}
         />
       );
     case "assignments":

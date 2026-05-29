@@ -1,62 +1,50 @@
-# 🤝 HANDOFF — CRM Schedule Edit Availability Modal
+# HANDOFF — CRM Edit Staff Profile Tabbed Modal
 
 ## What Was Done
 
-Built a centered, in-place Edit Availability modal for CRM schedule workflows.
-
-The modal now opens from:
-- `/crm/schedule` Daily Timeline right-side staff details panel
-- `/crm/schedule?tab=staff` Staff Schedule list
-
-CRM stays on the Schedule page; the action no longer redirects to `/crm/staff-availability`.
+Rebuilt the CRM Edit Staff Profile modal from a plain long-form editor into the approved centered tabbed modal for `/crm/staff?tab=management`.
 
 ## Files Changed
 
 | File | What changed |
 |------|-------------|
-| `src/components/shared/overlays/admin-dialog.tsx` | Added `placement="center"` support while keeping top placement as the default. |
-| `src/components/features/crm/schedule/*` | Added focused modal, header, summary, weekly table, override tab, block-time tab, footer, types, and utils. |
-| `src/lib/actions/crm-schedule-availability.ts` | Added CRM weekly availability save action with auth, branch scope, Zod validation, `staff_schedules` upsert, and revalidation. |
-| `src/app/(dashboard)/crm/schedule/page.tsx` | Loads staff availability data alongside daily schedule data. |
-| `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` | Passes availability data into Daily Timeline and Staff Schedule tabs. |
-| `src/components/features/schedule/tabs/daily-timeline-tab.tsx` | Passes availability data into the schedule workspace. |
-| `src/components/features/schedule/schedule-workspace.tsx` | Owns selected availability staff state, opens modal, refreshes after save, shows success toast. |
-| `src/components/features/schedule/crm-schedule-details-panel.tsx` | Replaced Edit Availability navigation link with modal trigger button. |
-| `src/components/features/schedule/tabs/staff-schedule-tab.tsx` | Passes branch context and SWR refresh callback into the staff schedule client. |
-| `src/components/features/staff-schedule/staff-schedule-page-client.tsx` | Replaced side sheet with the centralized centered modal. |
-| `src/components/features/staff-schedule/schedule-setup-workspace.tsx` | Supplies branch context to the reused staff schedule client. |
-| `src/app/(dashboard)/manager/staff/actions.ts` | Added CRM/manager schedule revalidation for existing schedule, override, and block-time actions. |
+| `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx` | Rebuilt as centered `AdminDialog size="xl"` with fixed header, identity card, tabs, scrollable body, sticky footer, dirty tracking, validation, and safe save flow. |
+| `src/components/features/crm/staff/crm-staff-management-tab.tsx` | Profile save now shows status + refreshes; Edit Services closes profile modal before opening dedicated service editor. |
+| `src/components/features/crm/staff/edit-staff-profile-types.ts` | Shared draft/tab/service/branch types and dirty-count helper. |
+| `src/components/features/crm/staff/edit-staff-profile-form-parts.tsx` | Shared section/field/input styling helpers. |
+| `src/components/features/crm/staff/edit-staff-profile-identity-card.tsx` | Premium staff identity summary card. |
+| `src/components/features/crm/staff/edit-staff-profile-tabs.tsx` | Four-tab modal navigation. |
+| `src/components/features/crm/staff/edit-staff-profile-footer.tsx` | Sticky footer with unsaved changes + actions. |
+| `src/components/features/crm/staff/staff-service-capabilities-summary.tsx` | Summary-only service capabilities card and launch button. |
+| `src/components/features/crm/staff/tabs/*.tsx` | Focused Profile Info, Work Setup, Access & Status, and Service Capabilities tab content. |
 
-## Behavior Notes
+## Modal Design
 
-- Weekly Hours uses a direct editable table for Sunday through Saturday.
-- Break column is intentionally omitted because the existing weekly schedule schema/data model has no break field.
-- Day Overrides and Block Time reuse the existing manager/staff schedule actions; no new schema or business rules were added.
-- Unsaved weekly/form changes are protected with `ConfirmUnsavedChangesDialog`.
-- Save closes the modal after successful weekly-hours save and refreshes schedule data.
-- Day override and block-time add/remove actions keep the modal open and refresh schedule data.
+- Centered `AdminDialog` using the shared admin overlay system.
+- Header: "Edit Staff Profile" plus operational description.
+- Staff identity card: avatar, name, staff function/tier/status, branch, phone, service count.
+- Tabs: Profile Info, Work Setup, Access & Status, Service Capabilities.
+- Body: internal scroll via `AdminOverlayBody`.
+- Footer: always visible, with unsaved change count, Cancel, and Save Changes.
+- Service Capabilities tab is summary-only and opens the existing dedicated service capabilities modal.
+
+## Permission Safety
+
+- Existing `updateStaffAction` remains the save path.
+- Protected system roles stay disabled in the modal.
+- CRM/CSR role promotion remains constrained by existing role option and server action guards.
+- Branch changes are only enabled for owner/manager roles and still validated server-side.
+- No RBAC/auth weakening and no database schema changes.
 
 ## Verification
 
-`pnpm type-check` ✅
-
-`pnpm lint` ✅  
-Known warnings remain in `scripts/generate-service-image-assets.mjs` for unused script variables.
-
-`pnpm build` ✅  
-Next.js build completed successfully, 89/89 routes generated.
-
-## Browser Verification
-
-Attempted:
-- `http://localhost:3000/crm/schedule`
-- `http://localhost:3000/crm/schedule?tab=staff`
-
-Both redirected to `/login` in the currently running local dev server. Full authenticated click-through verification still needs a valid local session.
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 89 routes
+- Browser click-through: blocked. In-app browser could not reach local CRM route (`ERR_CONNECTION_REFUSED` after redirect to `/login`), though PowerShell received HTTP 200 from `http://localhost:3000/crm/staff?tab=management`.
 
 ## Remaining Notes
 
-- No database schema changes.
-- No RBAC/auth changes.
-- No new dependencies.
-- Public booking wizard was not touched.
+- Authenticated browser verification still needs a reachable local browser session and a valid CRM/CSR login.
+- Production CRM/CSR saves still depend on the previously created staff RLS migration being applied in Supabase.
+- The broader worktree contains unrelated dirty files from earlier tasks; do not revert them casually.

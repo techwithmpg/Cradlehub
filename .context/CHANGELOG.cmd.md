@@ -3070,3 +3070,189 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: ✅ Passing (89/89 routes)
 - Browser: ⚠️ Local authenticated CRM routes redirect to `/login` in the currently running dev server, so modal click-through could not be completed without a valid session.
+
+---
+
+### 2026-05-29 — Kimi (CRM-SCHEDULE-AVAILABILITY-002 — Unblock CRM Edit Availability Modal)
+
+**Task:** Diagnose and fix why the CRM Edit Availability modal was blocked for operational staff schedule editing.
+
+**Root Causes Identified:**
+1. **RLS policies too strict:** Existing RLS on `staff_schedules`, `schedule_overrides`, `blocked_times`, and `staff` only allowed `manager` and `owner`. CRM, CSR Head, CSR Staff, CSR, assistant_manager, and store_manager had no write (and CRM/CSR had no read) access to branch staff schedules. This caused:
+   - `getStaffWithAvailability` to return only the CRM user's own record (because `staff` table had no CRM branch-read policy).
+   - Day Overrides and Block Time tab saves to fail silently because they reuse `manager/staff/actions.ts` which uses the regular Supabase client subject to RLS.
+2. **Permission guards too narrow:** `SCHEDULE_EDIT_ROLES` in both `crm-schedule-availability.ts` and `manager/staff/actions.ts` excluded `csr_staff` and `csr`.
+3. **CRM weekly action bypassed RLS:** `updateCrmStaffWeeklyAvailabilityAction` used `createAdminClient()` (service role) instead of the regular client. This masked the RLS problem for weekly hours but created an inconsistency and reduced defense-in-depth.
+
+**Files Changed:**
+- `supabase/migrations/20260529000002_crm_csr_schedule_rls.sql` (NEW)
+  - Added `staff_operational_read_branch` policy so CRM/CSR/assistant_manager/store_manager can read branch staff.
+  - Replaced manager-only `staff_schedules` policies with `staff_schedules_operational_read/insert/update` covering all operational roles.
+  - Replaced manager-only `schedule_overrides_manager_all` with `schedule_overrides_operational_all`.
+  - Replaced manager-only `blocked_times_manager_all` with `blocked_times_operational_all`.
+- `src/lib/actions/crm-schedule-availability.ts`
+  - Expanded `SCHEDULE_EDIT_ROLES` to include `csr_staff` and `csr`.
+  - Switched from `createAdminClient()` to `createClient()` for defense-in-depth (RLS now enforces branch scope as a second layer).
+- `src/app/(dashboard)/manager/staff/actions.ts`
+  - Expanded `SCHEDULE_EDIT_ROLES` to include `csr_staff` and `csr`.
+- `src/lib/permissions.ts`
+  - Updated `canAdjustStaffSchedule()` to include `isCsrStaff(role)` (`csr_staff` + `csr`).
+
+**Behavior:**
+- CRM and all front-desk roles can now read all branch staff and their schedules through RLS.
+- CRM/CSR/assistant_manager/store_manager can create/update `staff_schedules`, `schedule_overrides`, and `blocked_times` for staff in their assigned branch.
+- Weekly Hours, Day Overrides, and Block Time tabs all use the same permission model and RLS enforcement.
+- Owner and manager access remain unchanged.
+- No database schema changes (only RLS policy additions/replacements).
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-29 — Kimi (CRM-STAFF-PROFILE-SAVE-002 — Final Fix)
+
+**Task:** Diagnose and fix why CRM/CSR user `86ce597a-2e35-4741-8394-fa84fc21c00e` could not save staff profile edits.
+
+**Root Causes Identified:**
+1. **RLS migration not applied:** The `staff_operational_update_branch` UPDATE policy did not exist in production. The previous migration file was modified but `supabase db push` could not connect, so the policy was never applied. CRM/CSR `UPDATE` on `staff` was silently blocked by RLS (no error, just 0 rows affected).
+2. **Silent failure in server action:** `updateStaffAction` used `.update().eq("id", staffId)` without `.select()`. When RLS blocks an UPDATE, Supabase returns `error: null, status: 204`, so the action returned `{ success: true }` even though nothing was saved.
+3. **Missing `nickname` field:** The server action's `updatePayload` did not include `nickname`, so even when updates worked, nickname changes were silently dropped.
+4. **Same silent-failure pattern in `toggleStaffActiveAction`:** Also lacked `.select()` and 0-row detection.
+
+**Affected User Verified:**
+- Staff ID: `74e12b49-e011-492d-8da5-23aa293454f3`
+- Auth user ID: `86ce597a-2e35-4741-8394-fa84fc21c00e` ✅ correctly linked
+- Role: `csr_staff` ✅ operational role
+- Branch: `c1000000-0000-0000-0000-000000000001` (Cradle Massage & Wellness Spa) ✅ present
+- is_active: `true` ✅
+
+**Files Changed:**
+- `supabase/migrations/20260529000003_crm_csr_staff_update_rls.sql` (NEW)
+  - Idempotent migration adding `staff_operational_update_branch` UPDATE policy for operational roles on staff in their branch.
+  - Idempotent migration adding `staff_services_operational_all` ALL policy for operational roles on `staff_services`, replacing `staff_services_manager_all`.
+- `src/app/(dashboard)/owner/staff/actions.ts`
+  - Fixed `updateStaffAction` to chain `.select("id")` after `.update()` and verify `data.length > 0`. RLS blocks now return a clear error instead of fake success.
+  - Added `nickname` to the `updatePayload` (was completely missing).
+  - Added `driver` and `utility` to `MANAGER_SAFE_ROLES`.
+  - Fixed `toggleStaffActiveAction` with the same `.select("id")` + 0-row detection pattern.
+
+**Behavior:**
+- CRM/CSR operational roles can now UPDATE staff records in their branch through RLS (after migration is applied).
+- Server actions return real errors when RLS blocks an update or the row is missing.
+- Nickname changes are now persisted.
+- `driver` and `utility` role assignments are no longer blocked for managers/CRM.
+- Owner and manager access remain unchanged.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+- **Migration applied:** Pending — requires `npx supabase db push --linked` or Supabase Dashboard SQL Editor (see HANDOFF notes).
+
+---
+
+### 2026-05-29 — Kimi (CRM-EDIT-STAFF-PROFILE-MODAL — Drawer to Modal Conversion)
+
+**Task:** Convert the CRM Edit Staff Profile drawer into a centered modal matching the newer centralized modal style, and ensure CRM-safe staff profile saving works end-to-end.
+
+**Root Causes Identified:**
+1. **UI was a right-side drawer:** `CrmStaffManagementTab` used `AdminDrawer` for Edit Profile, inconsistent with the newer centered modal pattern used for Edit Availability.
+2. **Inline styles throughout:** `StaffEditForm` had extensive inline `style={{}}` props violating project rules.
+3. **Silent failure on RLS block:** `updateStaffAction` returned `{ success: true }` even when RLS silently blocked the UPDATE (0 rows affected, no error from Supabase client).
+4. **Missing `nickname` field:** The server action's `updatePayload` did not include `nickname`, so nickname edits were silently dropped.
+5. **Validation schema too narrow:** `updateStaffSchema` excluded valid manager-assignable roles `service_head`, `service_staff`, and `utility`.
+6. **Migration not applied:** `staff_operational_update_branch` RLS policy never reached production because `supabase db push` timed out.
+
+**Files Changed:**
+- `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx` (NEW)
+  - Centered `AdminDialog` with `placement="center"`, `size="lg"`.
+  - Staff identity summary card with `UserAvatar`, name, role, tier, status, branch.
+  - Sectioned form layout: Basic Information, Work Setup, Access & Status, Service Capabilities.
+  - 2-column grid on desktop (`sm:grid-cols-2`).
+  - Tailwind-only styling, zero inline styles.
+  - `useActionState` with `updateStaffAction`, keyed `ModalContent` (remounts per staff ID) to reset form state cleanly.
+  - Unsaved changes protection with `ConfirmUnsavedChangesDialog`.
+  - Edit Services integration: warns about unsaved changes before opening the dedicated Service Capabilities modal.
+  - Protected role detection: disables all fields for sensitive system roles with a clear warning banner.
+  - Branch field disabled for CRM with explanatory text.
+  - System role dropdown uses `getSystemRoleOptionsForAssigner(reviewerSystemRole)` for safe role assignment.
+- `src/components/features/crm/staff/crm-staff-management-tab.tsx`
+  - Replaced `AdminDrawer` + `StaffEditForm` with `CrmEditStaffProfileModal`.
+  - Removed unused overlay imports (`AdminDrawer`, `AdminOverlayHeader`, etc.).
+  - Cleaned up state management for the modal flow.
+- `src/components/features/crm/staff/crm-staff-workspace.tsx`
+  - Passed `reviewerSystemRole` prop through to `CrmStaffManagementTab`.
+- `src/lib/validations/staff.ts`
+  - Expanded `systemRole` enum in both `createStaffSchema` and `updateStaffSchema` to include `service_head`, `service_staff`, and `utility`.
+- `src/app/(dashboard)/owner/staff/actions.ts`
+  - Added `.select("id")` after `.update()` in `updateStaffAction` and `toggleStaffActiveAction`.
+  - Added 0-row detection: returns explicit error when RLS blocks the update.
+  - Added missing `nickname` to `updatePayload`.
+  - Added `driver` and `utility` to `MANAGER_SAFE_ROLES`.
+- `supabase/migrations/20260529000003_crm_csr_staff_update_rls.sql` (NEW)
+  - Idempotent migration adding `staff_operational_update_branch` UPDATE policy.
+  - Idempotent migration adding `staff_services_operational_all` ALL policy for `staff_services`.
+
+**Behavior:**
+- CRM/CSR opens a centered Edit Staff Profile modal from `/crm/staff?tab=management`.
+- Modal has fixed header, scrollable body, sticky footer.
+- All fields use Tailwind classes; no inline styles.
+- CRM can edit: full_name, nickname, phone, staff_type, tier, is_head, is_active.
+- CRM can assign only manager-safe system roles (uses `getSystemRoleOptionsForAssigner`).
+- CRM cannot edit branch (disabled with explanation).
+- CRM cannot edit protected accounts (owner, manager, etc.) — fields disabled with red banner.
+- Service capabilities show summary only; Edit Services opens the existing `StaffServiceEditorSheet`.
+- Unsaved changes trigger a confirmation dialog on close or Edit Services click.
+- Save failures surface real errors inline; success closes modal and refreshes staff table.
+- Server actions return explicit errors on RLS blocks instead of fake success.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+- **Migration applied to production:** ⏳ Pending user action (apply `20260529000003_crm_csr_staff_update_rls.sql` via Supabase Dashboard SQL Editor)
+
+---
+
+### 2026-05-30 — Codex (CRM-EDIT-STAFF-PROFILE-TABBED — Approved Tabbed Modal Rebuild)
+
+**Task:** Rebuild the CRM Edit Staff Profile modal on `/crm/staff?tab=management` to match the approved centered tabbed mockup.
+
+**Files Created:**
+- `src/components/features/crm/staff/edit-staff-profile-types.ts` — Shared draft/tab/service/branch types and dirty-count helpers.
+- `src/components/features/crm/staff/edit-staff-profile-form-parts.tsx` — Shared section, field, input, and checkbox styling helpers.
+- `src/components/features/crm/staff/edit-staff-profile-identity-card.tsx` — Premium staff identity summary card.
+- `src/components/features/crm/staff/edit-staff-profile-tabs.tsx` — Four-tab navigation for Profile Info, Work Setup, Access & Status, and Service Capabilities.
+- `src/components/features/crm/staff/edit-staff-profile-footer.tsx` — Sticky footer with unsaved changes, Cancel, and Save Changes controls.
+- `src/components/features/crm/staff/staff-service-capabilities-summary.tsx` — Service summary/chip view with dedicated editor launch button.
+- `src/components/features/crm/staff/tabs/edit-staff-profile-info-tab.tsx` — Profile Info tab fields.
+- `src/components/features/crm/staff/tabs/edit-staff-work-setup-tab.tsx` — Work Setup tab fields.
+- `src/components/features/crm/staff/tabs/edit-staff-access-status-tab.tsx` — Access & Status tab fields and access warning.
+- `src/components/features/crm/staff/tabs/edit-staff-service-capabilities-tab.tsx` — Service Capabilities summary-only tab.
+
+**Files Changed:**
+- `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx`
+  - Rebuilt from a plain long-form modal into a centered `AdminDialog size="xl"` tabbed editor.
+  - Added fixed header, identity card, tab navigation, internally scrollable body, sticky footer, field validation, and dirty tracking across tabs.
+  - Kept the existing `updateStaffAction` save path and existing `StaffServiceEditorSheet` service-capabilities editor.
+  - Service Capabilities tab now renders a summary only; no full checkbox list is duplicated inside the profile modal.
+- `src/components/features/crm/staff/crm-staff-management-tab.tsx`
+  - Edit Services now closes the profile modal before opening the dedicated service capabilities modal.
+  - Profile save success now shows a short status message and refreshes the CRM staff table.
+
+**Behavior:**
+- Edit Profile opens a centered tabbed modal with the approved CRM visual structure.
+- Tabs: Profile Info, Work Setup, Access & Status, Service Capabilities.
+- CRM/CSR protected role restrictions remain enforced by the existing action and UI guards.
+- Unsaved changes are counted and protected on close, outside click, Escape, Cancel, and Edit Service Capabilities.
+- Save failures remain inline and do not fake success.
+- No database schema changes, no new dependencies, no RBAC/auth weakening.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+- Browser: ⚠️ In-app browser could not reach the local CRM route (`ERR_CONNECTION_REFUSED` after redirect to `/login`), while PowerShell confirmed the route responds with HTTP 200. Authenticated visual click-through still needs a reachable local browser session.

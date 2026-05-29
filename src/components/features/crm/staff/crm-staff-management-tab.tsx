@@ -2,16 +2,9 @@
 
 import { useState, useCallback, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  AdminDrawer,
-  AdminOverlayHeader,
-  AdminOverlayBody,
-  AdminOverlayFooter,
-  ConfirmUnsavedChangesDialog,
-} from "@/components/shared/overlays";
 import { StaffManagementWorkspace } from "@/components/features/staff/staff-management-workspace";
-import { StaffEditForm } from "@/components/features/staff/staff-edit-form";
 import { StaffServiceEditorSheet } from "@/components/features/staff/staff-service-editor-sheet";
+import { CrmEditStaffProfileModal } from "./crm-edit-staff-profile-modal";
 import { toggleStaffActiveAction } from "@/app/(dashboard)/owner/staff/actions";
 import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-services";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
@@ -27,9 +20,8 @@ type Props = {
   branches: BranchLite[];
   activeServices: ServiceLite[];
   providerAssignments: ServiceAssignmentRow[];
+  reviewerSystemRole: string;
 };
-
-const STAFF_EDIT_FORM_ID = "staff-edit-form";
 
 export function CrmStaffManagementTab({
   allStaff,
@@ -37,6 +29,7 @@ export function CrmStaffManagementTab({
   branches,
   activeServices,
   providerAssignments,
+  reviewerSystemRole,
 }: Props) {
   const router = useRouter();
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
@@ -44,9 +37,6 @@ export function CrmStaffManagementTab({
   const [servicesDraft, setServicesDraft] = useState<string[]>([]);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
-  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
-  const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null);
-  const [editSheetDirty, setEditSheetDirty] = useState(false);
 
   const serviceRows = useMemo(
     () => toCrmStaffServiceRows(activeServices),
@@ -63,7 +53,7 @@ export function CrmStaffManagementTab({
 
   const handleEditStaff = useCallback((staff: StaffMember) => {
     setEditingStaff(staff);
-    setEditSheetDirty(false);
+    setSaveStatus(null);
   }, []);
 
   const handleManageServices = useCallback(
@@ -120,6 +110,15 @@ export function CrmStaffManagementTab({
     [servicesStaff, router]
   );
 
+  const handleEditSuccess = useCallback(() => {
+    setSaveStatus("Staff profile updated.");
+    setEditingStaff(null);
+    router.refresh();
+    setTimeout(() => {
+      setSaveStatus(null);
+    }, 1800);
+  }, [router]);
+
   return (
     <>
       <StaffManagementWorkspace
@@ -132,94 +131,25 @@ export function CrmStaffManagementTab({
         onToggleActive={handleToggleActive}
       />
 
-      {/* Staff Edit Drawer */}
-      <AdminDrawer
+      <CrmEditStaffProfileModal
         open={editingStaff !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            if (editSheetDirty) {
-              setPendingCloseAction(() => () => {
-                setEditingStaff(null);
-                setEditSheetDirty(false);
-              });
-              setShowDiscardDialog(true);
-              return;
-            }
+          if (!open) setEditingStaff(null);
+        }}
+        staffMember={editingStaff}
+        branches={branches}
+        services={serviceRows}
+        staffServiceIds={editingStaff ? getCurrentServiceIds(editingStaff.id) : []}
+        reviewerSystemRole={reviewerSystemRole}
+        onEditServices={() => {
+          if (editingStaff) {
+            handleManageServices(editingStaff);
             setEditingStaff(null);
           }
         }}
-        size="md"
-      >
-        <AdminOverlayHeader
-          title="Edit Staff Profile"
-          description="Update operational profile fields. Changes take effect immediately."
-        />
-
-        <AdminOverlayBody>
-          {editingStaff && (
-            <StaffEditForm
-              staffMember={editingStaff}
-              branches={branches}
-              services={serviceRows}
-              staffServiceIds={getCurrentServiceIds(editingStaff.id)}
-              workspaceContext="crm"
-              onEditServices={() => {
-                if (editingStaff) {
-                  handleManageServices(editingStaff);
-                }
-              }}
-              formId={STAFF_EDIT_FORM_ID}
-              compact
-              onDirtyChange={setEditSheetDirty}
-              onSuccess={() => {
-                setEditSheetDirty(false);
-                router.refresh();
-              }}
-            />
-          )}
-        </AdminOverlayBody>
-
-        <AdminOverlayFooter className="flex flex-row gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (editSheetDirty) {
-                setPendingCloseAction(() => () => {
-                  setEditingStaff(null);
-                  setEditSheetDirty(false);
-                });
-                setShowDiscardDialog(true);
-                return;
-              }
-              setEditingStaff(null);
-            }}
-            className="px-4 py-2.5 rounded-lg text-sm font-medium border border-[var(--cs-border)] bg-transparent cursor-pointer"
-            style={{ color: "var(--cs-text)" }}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            form={STAFF_EDIT_FORM_ID}
-            disabled={isSaving}
-            className="px-4 py-2.5 rounded-lg text-sm font-bold border-none cursor-pointer disabled:opacity-60"
-            style={{ backgroundColor: "var(--cs-sand)", color: "#fff" }}
-          >
-            {isSaving ? "Saving…" : "Save Changes"}
-          </button>
-        </AdminOverlayFooter>
-      </AdminDrawer>
-
-      <ConfirmUnsavedChangesDialog
-        open={showDiscardDialog}
-        onOpenChange={setShowDiscardDialog}
-        onConfirm={() => {
-          pendingCloseAction?.();
-          setPendingCloseAction(null);
-        }}
+        onSuccess={handleEditSuccess}
       />
 
-      {/* Service Capabilities Sheet */}
       <StaffServiceEditorSheet
         open={servicesStaff !== null}
         services={serviceRows}

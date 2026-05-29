@@ -171,6 +171,8 @@ const MANAGER_SAFE_ROLES = new Set([
   "csr_head",
   "crm",
   "csr",
+  "driver",
+  "utility",
 ]);
 
 // ── Update staff profile (owner or manager) ───────────────────────────────
@@ -227,6 +229,7 @@ export async function updateStaffAction(rawInput: unknown) {
 
   const updatePayload = {
     ...(updates.fullName   !== undefined && { full_name:    updates.fullName }),
+    ...(updates.nickname   !== undefined && { nickname:     updates.nickname }),
     ...(updates.phone      !== undefined && { phone:        updates.phone }),
     ...(updates.tier       !== undefined && { tier:         updates.tier }),
     ...(updates.systemRole !== undefined && { system_role:  updates.systemRole }),
@@ -239,7 +242,8 @@ export async function updateStaffAction(rawInput: unknown) {
   let updateResult = await ctx.supabase
     .from("staff")
     .update(updatePayload)
-    .eq("id", staffId);
+    .eq("id", staffId)
+    .select("id");
 
   // Backward compatibility: if staff_type/is_head columns don't exist yet
   if (updateResult.error && isMissingStaffOrgColumnsError(updateResult.error.message)) {
@@ -251,10 +255,18 @@ export async function updateStaffAction(rawInput: unknown) {
     updateResult = await ctx.supabase
       .from("staff")
       .update(legacyPayload)
-      .eq("id", staffId);
+      .eq("id", staffId)
+      .select("id");
   }
 
   if (updateResult.error) return { success: false, error: updateResult.error.message };
+
+  // Defensive: if no rows were returned, the UPDATE was silently blocked by RLS
+  // or the row no longer exists. Without .select() Supabase returns 204/OK even
+  // when RLS prevents the update, so we must verify via the returned row set.
+  if (!updateResult.data || updateResult.data.length === 0) {
+    return { success: false, error: "No rows were updated. The staff record may be inaccessible or does not exist." };
+  }
 
   if (serviceIds !== undefined) {
     try {
@@ -304,12 +316,17 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
     }
   }
 
-  const { error } = await ctx.supabase
+  const updateResult = await ctx.supabase
     .from("staff")
     .update({ is_active: isActive })
-    .eq("id", staffId);
+    .eq("id", staffId)
+    .select("id");
 
-  if (error) return { success: false, error: error.message } as const;
+  if (updateResult.error) return { success: false, error: updateResult.error.message } as const;
+
+  if (!updateResult.data || updateResult.data.length === 0) {
+    return { success: false, error: "No rows were updated. The staff record may be inaccessible or does not exist." } as const;
+  }
 
   revalidatePath("/owner/staff");
   revalidatePath("/manager/staff");

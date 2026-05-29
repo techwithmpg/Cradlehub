@@ -1,2 +1,2 @@
-Task: CRM/CSR backend stabilization — silent failure fixes and operational RLS hardening.
-Status: IN_PROGRESS
+Task: Rebuild CRM Edit Staff Profile modal to match approved tabbed mockup.
+Status: COMPLETE
