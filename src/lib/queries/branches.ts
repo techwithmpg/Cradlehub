@@ -424,6 +424,55 @@ export async function getBranchesOverview() {
   }));
 }
 
+// ── Branch services — uncached public variant (used by booking-context API) ──
+// Always hits the DB fresh. Used where CRM changes (home-service toggle,
+// visibility) must be immediately visible to customers without waiting for
+// cache invalidation.
+export async function getBranchServicesForPublicBooking(branchId: string) {
+  const supabase = createAdminClient();
+
+  const modern = await supabase
+    .from("branch_services")
+    .select(branchServicesPublicModernSelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (!modern.error) {
+    return normalizeBranchServiceVisibility(modern.data ?? []).filter(isPublicBranchService);
+  }
+
+  if (!isMissingBranchServiceColumnError(modern.error.message)) {
+    throw new Error(modern.error.message);
+  }
+
+  const legacy = await supabase
+    .from("branch_services")
+    .select(branchServicesLegacySelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("id", { ascending: true });
+
+  if (!legacy.error) {
+    return normalizeBranchServiceVisibility(legacy.data ?? []).filter(isPublicBranchService);
+  }
+
+  if (!isMissingBranchServiceColumnError(legacy.error.message)) {
+    throw new Error(legacy.error.message);
+  }
+
+  const fallback = await supabase
+    .from("branch_services")
+    .select(branchServicesMinimalSelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("id");
+
+  if (fallback.error) throw new Error(fallback.error.message);
+  return normalizeBranchServiceVisibility(fallback.data ?? []).filter(isPublicBranchService);
+}
+
 // ── Branch services — public-only cached variant ──────────────────────────
 // Uses admin client (no cookie dependency) so the result can be safely cached
 // across requests. Only caches the publicOnly=true view used by the booking wizard.
