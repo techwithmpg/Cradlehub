@@ -58,7 +58,8 @@
       "Bash(node -e \"const s = require\\('swr'\\); console.log\\('swr ok, keys:', Object.keys\\(s\\).slice\\(0,6\\).join\\(', '\\)\\)\")",
       "Bash(ls \"E:\\\\mpg-church-system\")",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

@@ -1,2 +1,2 @@
-Task: Fix CRM modal internal scrolling and viewport containment for service capability modal.
+Task: Fix booking wizard same-day time selection so past time slots are hidden.
 Status: COMPLETE

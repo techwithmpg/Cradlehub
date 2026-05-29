@@ -46,6 +46,7 @@ import {
   type ExistingHsBooking,
   type SlotDispatchStatus,
 } from "@/lib/bookings/dispatch-slot-filter";
+import { isPastSlot, BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
 import {
   VISIT_TYPE_OPTIONS,
   VISIT_TYPE_ORDER,
@@ -625,6 +626,24 @@ export function BookingWizard({
       setStep(isHomeService ? 5 : 4);
       return;
     }
+    // Guard: reject if the selected slot has already passed in the branch
+    // timezone. This catches stale selections where the customer loaded the
+    // page, waited, and the chosen slot expired before they submitted.
+    if (
+      isPastSlot({
+        selectedDate: toLocalYmd(selectedDate),
+        slotStartTime: selectedSlot.slot_time,
+        timezone: BRANCH_TIMEZONE,
+      })
+    ) {
+      setSelectedSlot(null);
+      setFormError(
+        "That time has already passed. Please select a later time."
+      );
+      setStep(isHomeService ? 5 : 4);
+      return;
+    }
+
     if (!form.fullName.trim() || !form.phone.trim()) {
       setFormError("Please enter your full name and phone number.");
       return;

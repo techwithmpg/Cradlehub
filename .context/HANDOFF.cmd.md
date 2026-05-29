@@ -1,50 +1,37 @@
-# 🤝 HANDOFF — CRM Modal System + Scroll Fix
+# 🤝 HANDOFF — Booking Wizard Same-Day Past Slot Fix
 
 ## What Was Done
 
-### Central Overlay Components (in `src/components/shared/overlays/`)
+### Root Cause
+`isPastSlot` in `src/lib/engine/slot-time.ts` built a slot datetime via
+`new Date(y, m-1, d, hh, mm, ss)` — using the **server's local timezone** (UTC
+on cloud hosting). Slot times represent **branch local time** (Philippines =
+UTC+8). A "13:00" Manila slot was treated as 13:00 UTC = 21:00 Manila, so it
+appeared to be hours in the future and was never filtered, even when 2 PM
+Manila had already passed.
 
-| Component | Purpose |
-|-----------|---------|
-| `AdminDialog` | Wraps base-ui `DialogPrimitive` with size variants (`sm` through `full`). Now top-anchored (`top-6`) with explicit `h-auto max-h-[calc(100dvh-3rem)]` and `flex flex-col overflow-hidden`. |
-| `AdminDrawer` | Wraps base-ui `SheetPrimitive` with size variants. Right-side drawer with `h-[100dvh] flex flex-col overflow-hidden`. |
-| `AdminOverlayHeader` | Fixed header slot: `shrink-0 border-b px-5 py-4`. |
-| `AdminOverlayToolbar` | Optional toolbar slot: `shrink-0 border-b px-5 py-3`. |
-| `AdminOverlayBody` | Scrollable body slot: `min-h-0 flex-1 overflow-y-auto` by default. Can be overridden to `overflow-hidden` for split-pane layouts. |
-| `AdminOverlayFooter` | Fixed footer slot: `shrink-0 border-t px-5 py-4`. |
-| `ConfirmUnsavedChangesDialog` | Reusable AlertDialog for discard confirmation. |
+### Files Changed
 
-### Refactored CRM Popups
+| File | What changed |
+|------|-------------|
+| `src/lib/engine/slot-time.ts` | Added `BRANCH_TIMEZONE = "Asia/Manila"` export. Added private `getBranchTime(now, timezone)` helper using `Intl.DateTimeFormat`. Updated `isPastSlot` and `filterPastSlotsForDate` to accept optional `timezone` — uses branch-local time when provided, server-local time for backward compatibility (existing tests unaffected). |
+| `src/lib/engine/availability.ts` | Imports `BRANCH_TIMEZONE`. Passes `timezone: BRANCH_TIMEZONE` to `filterPastSlotsForDate` in `getAvailableSlots`. In `getAvailableSlotsMulti` (2+ services path): stores `filterSlotsForQualifiedProviders` result, then applies `filterPastSlotsForDate` with timezone as a belt-and-suspenders final pass. |
+| `src/lib/actions/online-booking.ts` | Imports `isPastSlot` + `BRANCH_TIMEZONE`. In `createOnlineBookingMultiAction`: explicit past-slot guard after the rules check — returns `SLOT_IN_PAST` with "That time is no longer available. Please choose a later time." before attempting staff assignment. |
+| `src/components/public/booking-wizard.tsx` | Imports `isPastSlot` + `BRANCH_TIMEZONE`. In `handleSubmit`: checks if selected slot is past in branch timezone before submitting — clears `selectedSlot`, shows "That time has already passed. Please select a later time.", navigates back to the date/time step. |
 
-1. **Edit Service Capabilities** (`staff-service-editor-sheet.tsx`)
-   - Uses `AdminDialog size="wide"` (1080px)
-   - Split-pane layout: category rail (220px) + scrollable service list
-   - Only selected category renders in the right panel
-   - Search mode shows all matches grouped by category
-   - Selected mode shows only selected services grouped by category
-   - Footer has Cancel + Save buttons
-   - Zero inline styles; all Tailwind via `cn()`
-
-2. **Provider Assignment** (`provider-assignment-sheet.tsx`)
-   - Uses `AdminDialog size="lg"`
-   - Uses standard overlay anatomy (header/body/footer)
-
-3. **Edit Staff Profile** (`crm-staff-management-tab.tsx`)
-   - Uses `AdminDrawer size="md"`
-   - Uses standard overlay anatomy (header/body/footer)
-   - Unsaved changes guarded by `ConfirmUnsavedChangesDialog`
+### Key Design Decisions
+- No DB schema changes.
+- No new npm dependencies — uses native `Intl.DateTimeFormat`.
+- `BRANCH_TIMEZONE` is a single exported constant in `slot-time.ts`; update there when branches get a per-branch timezone column.
+- Legacy `isPastSlot` / `filterPastSlotsForDate` callers that don't pass `timezone` keep the server-local-time behavior — all existing tests still pass.
+- The UI empty state "No more available slots today. Please choose another date." was already in place (line 1652 of booking-wizard.tsx).
 
 ## Build Status
-pnpm type-check ✅ · pnpm lint ✅ (0 errors, 2 pre-existing script warnings) · pnpm build ✅ (89/89 routes)
+`pnpm type-check` ✅ · `pnpm lint` ✅ (0 errors, 2 pre-existing script warnings) · `pnpm build` ✅ (89/89 routes)
 
 ## Recommended Next Steps
-1. **Browser verification** — `/crm/staff?tab=management` → open Edit Staff Profile → click Edit Service Capabilities
-   - Confirm category rail is visible on the left
-   - Click a large category (e.g., Salon Services)
-   - Scroll the right panel to the bottom and confirm the last service is reachable
-   - Confirm the Save footer stays visible
-   - Search for a service near the bottom and confirm results scroll
-   - Switch to Selected tab and confirm selected services scroll
-   - Close with unsaved changes and confirm discard dialog appears
-2. **Resize test** — shrink browser height and verify modal still fits viewport
-3. **Provider modal** — `/crm/services?tab=providers` → click Manage Providers, confirm lg modal scrolls properly
+1. **Browser verify** — open `/book`, pick today, confirm slots earlier than current Manila time are hidden.
+2. **Stale-slot test** — select a slot close to the current minute, wait for it to pass, click Confirm — confirm error appears and slot is cleared.
+3. **Home service** — repeat with home-service visit type.
+4. **Future date** — pick tomorrow, confirm morning slots are visible normally.
+5. When the `branches` table gets a `timezone` column, pass it into `filterPastSlotsForDate` and `isPastSlot` instead of the constant.

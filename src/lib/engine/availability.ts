@@ -7,6 +7,7 @@ import {
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
 import {
+  BRANCH_TIMEZONE,
   filterPastSlotsForDate,
   rangesOverlap,
   timeToMinutes,
@@ -560,6 +561,7 @@ export async function getAvailableSlots(params: {
   return filterPastSlotsForDate({
     selectedDate: params.date,
     slots,
+    timezone: BRANCH_TIMEZONE,
   });
 }
 
@@ -675,11 +677,20 @@ export async function getAvailableSlotsMulti(params: {
     branchId,
   });
 
-  return filterSlotsForQualifiedProviders({
+  const qualifiedSlots = await filterSlotsForQualifiedProviders({
     branchId,
     serviceIds,
     slots: workingSlots,
     serviceTimings,
+  });
+
+  // Belt-and-suspenders: ensure same-day past slots are never returned even if
+  // they somehow survived the baseSlots filter (e.g. clock skew between the RPC
+  // call and this post-filter, or a future code path that bypasses getAvailableSlots).
+  return filterPastSlotsForDate({
+    selectedDate: date,
+    slots: qualifiedSlots,
+    timezone: BRANCH_TIMEZONE,
   });
 }
 

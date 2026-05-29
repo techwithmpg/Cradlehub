@@ -2991,3 +2991,44 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-29 — Claude (BOOKING-PASTSLOT-001 — Same-Day Past Slot Filtering)
+
+**Task:** Fix booking wizard showing past time slots when customer selects today.
+
+**Root Cause:**
+`isPastSlot` constructed slot datetimes via `new Date(y, m-1, d, hh, mm, ss)` using
+the server's OS timezone (UTC on cloud hosts). Slot times represent branch local time
+(Philippines = UTC+8). A "13:00" Manila slot was treated as 13:00 UTC = 9 PM Manila —
+far in the future — so it was never filtered even when 2 PM Manila had already passed.
+
+**Files Changed:**
+- `src/lib/engine/slot-time.ts`
+  - Added `BRANCH_TIMEZONE = "Asia/Manila"` export.
+  - Added private `getBranchTime(now, timezone)` using `Intl.DateTimeFormat`.
+  - Updated `isPastSlot` and `filterPastSlotsForDate` to accept optional `timezone`.
+  - Legacy callers without `timezone` keep existing server-local-time behavior; all tests pass.
+- `src/lib/engine/availability.ts`
+  - Imports `BRANCH_TIMEZONE`.
+  - `getAvailableSlots`: passes `timezone: BRANCH_TIMEZONE` to `filterPastSlotsForDate`.
+  - `getAvailableSlotsMulti`: stores qualified slots, then applies `filterPastSlotsForDate` with timezone as final pass.
+- `src/lib/actions/online-booking.ts`
+  - `createOnlineBookingMultiAction`: explicit `isPastSlot` guard after rules check — returns `SLOT_IN_PAST` with clear error message before attempting staff assignment.
+- `src/components/public/booking-wizard.tsx`
+  - `handleSubmit`: client-side `isPastSlot` guard — clears selection, shows error, navigates back to date/time step.
+
+**Acceptance criteria met:**
+- Past slots hidden for today (server-side, timezone-correct).
+- Future slots visible normally.
+- Past dates return empty slot list.
+- Home-service and in-spa both use the same engine path.
+- Stale-slot submission rejected server-side with clear error.
+- Stale-slot caught client-side before submission, with selection cleared.
+- No DB schema changes. No new dependencies. TypeScript strict.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)

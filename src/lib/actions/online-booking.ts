@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isPastSlot, BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
 import type { Json } from "@/types/supabase";
 import {
   createOnlineBookingSchema,
@@ -261,6 +262,25 @@ export async function createOnlineBookingMultiAction(
         ok: false,
         code: "BOOKING_RULES_ERROR",
         message: rulesCheck.message,
+      };
+    }
+
+    // Guard: reject if the customer is submitting a time that has already passed
+    // in the branch's local timezone (Asia/Manila). This catches stale-slot
+    // submissions where the UI was loaded earlier and the slot expired while the
+    // customer was filling in the form.
+    if (
+      isPastSlot({
+        selectedDate: d.date,
+        slotStartTime: d.startTime,
+        timezone: BRANCH_TIMEZONE,
+      })
+    ) {
+      return {
+        ok: false,
+        code: "SLOT_IN_PAST",
+        message:
+          "That time is no longer available. Please choose a later time.",
       };
     }
 
