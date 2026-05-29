@@ -7,20 +7,25 @@ import { cacheTags } from "@/lib/cache/cache-tags";
 function isMissingBranchServiceColumnError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
-    (lower.includes("visibility") ||
-      lower.includes("booking_visibility") ||
-      lower.includes("public_title") ||
-      lower.includes("public_description") ||
-      lower.includes("image_url") ||
-      lower.includes("image_alt") ||
-      lower.includes("custom_duration_minutes") ||
-      lower.includes("custom_image_url") ||
-      lower.includes("is_featured") ||
+    (// Optional modern columns (may not exist in all deployed schemas)
       lower.includes("sort_order") ||
+      lower.includes("is_featured") ||
       lower.includes("customer_tier_required") ||
       lower.includes("requires_senior_staff") ||
       lower.includes("requires_special_setup") ||
       lower.includes("setup_notes") ||
+      // Legacy column name for visibility (replaced by `visibility` column)
+      lower.includes("booking_visibility") ||
+      // Older schemas that never had image or metadata columns
+      lower.includes("image_url") ||
+      lower.includes("image_alt") ||
+      lower.includes("public_title") ||
+      lower.includes("public_description") ||
+      lower.includes("custom_duration_minutes") ||
+      lower.includes("custom_image_url") ||
+      // Visibility (very old schemas before visibility column)
+      lower.includes("visibility") ||
+      // Eligibility flags (very old schemas before eligibility migration)
       lower.includes("available_in_spa") ||
       lower.includes("available_home_service")) &&
     (lower.includes("does not exist") ||
@@ -108,6 +113,39 @@ const branchServicesLegacySelect = `
     description,
     is_active,
     duration_minutes,
+    price,
+    buffer_before,
+    buffer_after,
+    service_categories ( id, name, display_order )
+  )
+`;
+
+// ── Core select: columns confirmed in current production schema ─────────────
+// Falls back to this when the modern select fails due to optional columns
+// (sort_order, is_featured, booking_visibility) being absent.
+// Crucially includes available_home_service and visibility so the
+// public booking wizard can correctly filter home-service services.
+const branchServicesCoreSelect = `
+  id,
+  branch_id,
+  service_id,
+  custom_price,
+  is_active,
+  available_in_spa,
+  available_home_service,
+  visibility,
+  public_title,
+  public_description,
+  custom_duration_minutes,
+  custom_image_url,
+  services (
+    id,
+    name,
+    description,
+    is_active,
+    duration_minutes,
+    image_url,
+    image_alt,
     price,
     buffer_before,
     buffer_after,
@@ -258,6 +296,23 @@ export async function getBranchServices(
     throw new Error(modern.error.message);
   }
 
+  // Core: confirmed schema columns — available_home_service + visibility, no sort_order
+  const core = await supabase
+    .from("branch_services")
+    .select(branchServicesCoreSelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("id", { ascending: true });
+
+  if (!core.error) {
+    const rows = normalizeBranchServiceVisibility(core.data ?? []);
+    return options?.publicOnly ? rows.filter(isPublicBranchService) : rows;
+  }
+
+  if (!isMissingBranchServiceColumnError(core.error.message)) {
+    throw new Error(core.error.message);
+  }
+
   const legacy = await supabase
     .from("branch_services")
     .select(branchServicesLegacySelect)
@@ -303,6 +358,21 @@ export async function getBranchServicesForManagement(branchId: string) {
 
   if (!isMissingBranchServiceColumnError(modern.error.message)) {
     throw new Error(modern.error.message);
+  }
+
+  // Core: confirmed schema columns (available_home_service + visibility, no sort_order)
+  const core = await supabase
+    .from("branch_services")
+    .select(branchServicesCoreSelect)
+    .eq("branch_id", branchId)
+    .order("id", { ascending: true });
+
+  if (!core.error) {
+    return normalizeBranchServiceVisibility(core.data ?? []);
+  }
+
+  if (!isMissingBranchServiceColumnError(core.error.message)) {
+    throw new Error(core.error.message);
   }
 
   const legacy = await supabase
@@ -431,6 +501,7 @@ export async function getBranchesOverview() {
 export async function getBranchServicesForPublicBooking(branchId: string) {
   const supabase = createAdminClient();
 
+  // ── Step 1: full modern select (sort_order, is_featured, all columns) ────
   const modern = await supabase
     .from("branch_services")
     .select(branchServicesPublicModernSelect)
@@ -447,6 +518,24 @@ export async function getBranchServicesForPublicBooking(branchId: string) {
     throw new Error(modern.error.message);
   }
 
+  // ── Step 2: core select (confirmed current schema — no sort_order/booking_visibility)
+  // Crucially includes available_home_service and visibility.
+  const core = await supabase
+    .from("branch_services")
+    .select(branchServicesCoreSelect)
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("id", { ascending: true });
+
+  if (!core.error) {
+    return normalizeBranchServiceVisibility(core.data ?? []).filter(isPublicBranchService);
+  }
+
+  if (!isMissingBranchServiceColumnError(core.error.message)) {
+    throw new Error(core.error.message);
+  }
+
+  // ── Step 3: legacy select (booking_visibility, no visibility column) ─────
   const legacy = await supabase
     .from("branch_services")
     .select(branchServicesLegacySelect)
@@ -462,6 +551,7 @@ export async function getBranchServicesForPublicBooking(branchId: string) {
     throw new Error(legacy.error.message);
   }
 
+  // ── Step 4: absolute minimum (very old schemas, no eligibility columns) ──
   const fallback = await supabase
     .from("branch_services")
     .select(branchServicesMinimalSelect)
