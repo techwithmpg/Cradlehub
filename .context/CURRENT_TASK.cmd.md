@@ -1,22 +1,14 @@
-# CURRENT TASK: CRM Operational Staff/Service Management
+# CURRENT TASK: Fix Public Booking Wizard Not Showing CRM-Enabled Home-Service Services
 
 ## Status
 DONE
 
 ## Task ID
-CRM-OPS-STAFF-SVC-001
+CRM-HOME-SVC-FIX-001
 
-## Description
-CRM workspace is now fully operational for staff and service management.
-
-## What was done
-1. ✅ `updateStaffAction` expanded to CRM/CSR roles (branch-scoped, same as manager)
-2. ✅ `toggleStaffActiveAction` added — CRM can activate/deactivate staff
-3. ✅ `updateStaffServicesFromCrmAction` created in `src/lib/actions/crm-staff-services.ts`
-4. ✅ `StaffPreviewPanel` shows CRM quick actions (Edit Profile, Manage Services, Activate/Deactivate)
-5. ✅ `CrmStaffManagementTab` orchestrates StaffEditForm Sheet + StaffServiceEditorSheet
-6. ✅ `CrmStaffAssignmentsTab` has Manage button per row wired to service editor
-7. ✅ `updateBranchServiceVisibilityAction` now allows CRM roles (was owner-only)
-8. ✅ `ServiceAssignmentTableRow` has visibility toggle button (🌐 Public / 🔒 CSR Only)
-9. ✅ CRM permission helpers updated in `crm-permissions.ts`
-10. ✅ Setup Center shortcuts already pointed to /crm/* (no changes needed)
+## Root Causes Found & Fixed
+1. **`updateBranchServiceEligibilityAction` silent failures** — `.select().maybeSingle()` returned null data even when update succeeded in some scenarios. Fixed: removed the select dependency; now does update + separate existence check.
+2. **Missing public route revalidation** — action only revalidated CRM/owner/manager paths, not `/`, `/services`, `/book`. Fixed: added public path revalidation.
+3. **No `Cache-Control: no-store` on booking-context API** — browser could cache old API response. Fixed: added header + `export const dynamic = "force-dynamic"`.
+4. **Home Service toggle shows no warning for inactive/CSR-only services** — users toggled home service ON but service was inactive or not public, so nothing appeared. Fixed: contextual warnings added in both table toggle and editor rail.
+5. **Readiness checklist had no fix notes** — users didn't know how to fix "Active service" or "Public visibility enabled" failures. Fixed: added guidance notes.

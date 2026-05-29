@@ -7,6 +7,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
 
+// Force this route to always run dynamically — prevents any edge/CDN caching
+// that would serve stale service data after a CRM home-service toggle.
+export const dynamic = "force-dynamic";
+
 const INHOUSE_CONTEXT_ROLES = new Set([
   "owner",
   "manager",
@@ -214,15 +218,25 @@ export async function GET(request: NextRequest) {
       avatarUrl: member.avatar_url,
     }));
 
-  return NextResponse.json({
-    branches,
-    selectedBranchId,
-    services: branchServices,
-    staff,
-    serviceEligibility: serviceIds.map((serviceId) => ({
-      serviceId,
-      hasStaffMappings: serviceIdsWithStaffMappings.has(serviceId),
-    })),
-    bookingRules,
-  });
+  return NextResponse.json(
+    {
+      branches,
+      selectedBranchId,
+      services: branchServices,
+      staff,
+      serviceEligibility: serviceIds.map((serviceId) => ({
+        serviceId,
+        hasStaffMappings: serviceIdsWithStaffMappings.has(serviceId),
+      })),
+      bookingRules,
+    },
+    {
+      headers: {
+        // Prevent browser and CDN from caching service availability data.
+        // CRM changes (home-service toggle, visibility) must be immediately
+        // visible to customers in the public booking wizard.
+        "Cache-Control": "no-store, must-revalidate",
+      },
+    }
+  );
 }

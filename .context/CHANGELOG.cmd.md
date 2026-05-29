@@ -2747,6 +2747,32 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 
 ---
 
+### 2026-05-29 — Claude (CRM-HOME-SVC-FIX-001 — Fix Home-Service Services Not Showing in Public Booking Wizard)
+
+**Task:** Fix the bug where CRM enabling a service for Home Service did not result in it appearing in the public booking wizard.
+
+**Root causes:**
+1. `updateBranchServiceEligibilityAction` used `.select().maybeSingle()` and returned failure when 0 rows matched or data was null — causing UI to silently revert the toggle while the DB may not have been updated.
+2. The action only revalidated CRM/owner/manager paths, not the public booking routes (`/`, `/services`, `/book`).
+3. The `/api/public/booking-context` route had no `Cache-Control: no-store` header — browser could cache stale service data.
+4. The Home Service toggle had no warning when the service was inactive or CSR-only, causing confusing "nothing shows up" after toggling.
+5. Readiness checklist items had no guidance notes on how to fix failures.
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/branches/actions.ts`
+  - `updateBranchServiceEligibilityAction`: replaced `.select().maybeSingle()` with a plain update + separate existence check; added `/`, `/services`, `/book` revalidation
+  - `updateBranchServiceDeliveryModeAction`: added `/`, `/services`, `/book` revalidation
+- `src/app/api/public/booking-context/route.ts` — added `export const dynamic = "force-dynamic"` and `Cache-Control: no-store, must-revalidate` response header
+- `src/components/features/crm/services/selected-service-editor-rail.tsx` — `HomeServiceToggleSection` now shows contextual warnings when service is inactive or not public; readiness checklist items show guidance notes
+- `src/components/features/crm/services/service-customization-table.tsx` — `HomeServiceToggle` shows ⚠ indicator and tooltip when service is ON but won't appear publicly
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
 ### 2026-05-29 — Claude (CRM-OPS-STAFF-SVC-001 — CRM Operational Staff/Service Management)
 
 **Task:** Make CRM fully operational for staff editing, service assignments, and service visibility control. Remove Manager workspace dependency for daily operations.
@@ -2771,3 +2797,62 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing (90/90 routes)
+
+---
+
+### 2026-05-29 — Claude (CRM-SVC-CUSTOM-001 — CRM Service Customization Tab)
+
+**Task:** Build the dedicated Service Customization tab inside the CRM Services workspace.
+
+**Files Created:**
+- `src/components/features/crm/services/service-customization-tab.tsx` — Main tab shell with metric grid, filter bar, table, and editor rail layout
+- `src/components/features/crm/services/customization-rows.ts` — `buildCustomizationRows()` helper: enriches ServiceLite with deliveryMode, readinessIssues, providerCount, isReady
+- `src/components/features/crm/services/service-customization-metric-grid.tsx` — 6 KPI cards: Total, Public, In-Spa, Home-Service, Hidden, Needs Setup
+- `src/components/features/crm/services/service-customization-filter-bar.tsx` — Search + category + delivery mode + status filters with clear button
+- `src/components/features/crm/services/service-customization-table.tsx` — Compact table with service thumbnail, category, delivery mode badge, public status, readiness, actions; client-side pagination
+- `src/components/features/crm/services/selected-service-editor-rail.tsx` — Right-side sticky editor rail: service header, delivery mode selector (4 card buttons), public visibility toggle, readiness checklist, quick actions
+- `src/components/ui/switch.tsx` — Custom toggle switch component (no new dependencies)
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/services/page.tsx` — Updated tab routing to support customization/providers/issues; passes branchName and services to workspace; updated page description
+- `src/components/features/crm/services/crm-services-workspace.tsx` — Added 4th tab "Service Customization"; renamed "Staff Capabilities" → "Provider Assignments"; receives branchName + full services list
+- `src/components/features/crm/crm-tab-nav.tsx` — Added `CRM_SERVICES_TABS` with 4 tab links using `?tab=` query params
+- `src/app/(dashboard)/owner/branches/actions.ts` — Added `updateBranchServiceDeliveryModeAction()` (in_spa / home_service / both / hidden) mapped to existing `available_in_spa` + `available_home_service` + `is_active` fields; CRM roles allowed via `requireOwnerOrBranchManager()`
+- `src/components/features/setup-center/setup-health-content.tsx` — "Assign Therapists" fix link → `/crm/services?tab=providers`
+- `src/components/features/crm/services/crm-service-readiness-tab.tsx` — Fix links updated to `/crm/services?tab=providers` or `/crm/services?tab=customization`
+- `src/components/features/crm/services/crm-service-therapist-panel.tsx` — Updated old `?tab=assignments` links → `?tab=services`
+- `src/components/features/crm/services/provider-assignment-card.tsx` — Updated old links → `?tab=services`
+
+**Schema / Data Mapping:**
+- No new database columns added. Delivery mode maps to existing fields:
+  - In-Spa Only: `available_in_spa=true, available_home_service=false, is_active=true`
+  - Home-Service: `available_in_spa=false, available_home_service=true, is_active=true`
+  - Both: `available_in_spa=true, available_home_service=true, is_active=true`
+  - Hidden: `is_active=false`
+- Public visibility maps to existing `visibility` field (`public` vs `csr_only`)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing (91/91 routes)
+
+---
+
+### 2026-05-29 — Claude (CRM-SVC-HOME-TOGGLE-001 — Home Service Toggle in CRM Services Table)
+
+**Task:** Add a compact Home Service toggle column to the CRM Service Customization table.
+
+**Files Changed:**
+- `src/components/features/crm/services/service-customization-table.tsx` — Added "Home Service" column with compact Switch toggle + ON/OFF label; uses `updateBranchServiceEligibilityAction` with optimistic UI and error revert
+- `src/components/features/crm/services/selected-service-editor-rail.tsx` — Added standalone "Home Service" toggle row in the editor rail (below Delivery Mode cards)
+- `src/components/features/crm/services/service-customization-tab.tsx` — Passes `branchId` prop down to `ServiceCustomizationTable`
+
+**Data / Integration:**
+- Reuses existing `branch_services.available_home_service` boolean field (no migration)
+- Reuses existing `updateBranchServiceEligibilityAction()` server action (no new action)
+- Public booking wizard (`src/components/public/booking-wizard.tsx`) already filters services by `availableHomeService` when `isHomeService=true`
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing (91/91 routes)

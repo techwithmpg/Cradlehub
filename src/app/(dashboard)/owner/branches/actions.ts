@@ -243,30 +243,44 @@ export async function updateBranchServiceEligibilityAction(
   const auth = await requireOwnerOrBranchManager(branchId);
   if (!auth) return { success: false, error: "Unauthorized" };
 
-  const { data, error } = await createAdminClient()
+  // Use a plain update without .select().maybeSingle() to avoid false failures.
+  // The admin client bypasses RLS so if the row exists it will be updated.
+  const admin = createAdminClient();
+  const { error } = await admin
     .from("branch_services")
     .update({ available_in_spa: availableInSpa, available_home_service: availableHomeService })
     .eq("branch_id", branchId)
-    .eq("service_id", serviceId)
-    .select("id, available_in_spa, available_home_service")
-    .maybeSingle();
+    .eq("service_id", serviceId);
 
   if (error) return { success: false, error: error.message };
 
-  if (!data) {
+  // Verify the row exists to provide a clear error if nothing was actually updated.
+  const { data: existing, error: checkErr } = await admin
+    .from("branch_services")
+    .select("id, available_home_service, available_in_spa")
+    .eq("branch_id", branchId)
+    .eq("service_id", serviceId)
+    .maybeSingle();
+
+  if (checkErr) return { success: false, error: checkErr.message };
+  if (!existing) {
     return {
       success: false,
-      error: "Service availability was not updated. No matching branch service row was found or your role cannot update it.",
+      error: "No branch service row found for this service. The service may not have been added to this branch yet.",
     };
   }
 
   const { revalidatePath } = await import("next/cache");
   invalidateTag(cacheTags.branchServices(branchId));
+  // Revalidate public routes so the booking wizard picks up the change
+  revalidatePath("/");
+  revalidatePath("/services");
+  revalidatePath("/book");
   revalidatePath(`/owner/branches/${branchId}`);
   revalidatePath("/manager/services");
   revalidatePath("/crm/services");
   logBusinessEvent("branch_service.eligibility_updated", { branchId, serviceId, availableInSpa, availableHomeService });
-  return { success: true, data };
+  return { success: true };
 }
 
 // ── Update per-branch service price ───────────────────────────────────────
@@ -333,6 +347,51 @@ export async function updateBranchServiceVisibilityAction(
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   logBusinessEvent("branch_service.visibility_updated", { branchId, serviceId, visibility });
+  return { success: true };
+}
+
+// ── Update per-branch service delivery mode ───────────────────────────────
+// Maps a high-level delivery mode to the underlying branch_services flags.
+//   'in_spa'       → available_in_spa=true,  available_home_service=false, is_active=true
+//   'home_service' → available_in_spa=false, available_home_service=true,  is_active=true
+//   'both'         → available_in_spa=true,  available_home_service=true,  is_active=true
+//   'hidden'       → is_active=false (preserves spa/home settings)
+// CRM and CSR operational roles may update for their own branch.
+export async function updateBranchServiceDeliveryModeAction(
+  branchId: string,
+  serviceId: string,
+  mode: "in_spa" | "home_service" | "both" | "hidden"
+) {
+  const auth = await requireOwnerOrBranchManager(branchId);
+  if (!auth) return { success: false, error: "Unauthorized" };
+
+  const updates: { is_active: boolean; available_in_spa?: boolean; available_home_service?: boolean } =
+    mode === "hidden"
+      ? { is_active: false }
+      : {
+          is_active: true,
+          available_in_spa: mode === "in_spa" || mode === "both",
+          available_home_service: mode === "home_service" || mode === "both",
+        };
+
+  const { error } = await createAdminClient()
+    .from("branch_services")
+    .update(updates)
+    .eq("branch_id", branchId)
+    .eq("service_id", serviceId);
+
+  if (error) return { success: false, error: error.message };
+
+  const { revalidatePath } = await import("next/cache");
+  invalidateTag(cacheTags.branchServices(branchId));
+  // Revalidate public routes so the booking wizard picks up the change
+  revalidatePath("/");
+  revalidatePath("/services");
+  revalidatePath("/book");
+  revalidatePath(`/owner/branches/${branchId}`);
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/setup");
+  logBusinessEvent("branch_service.delivery_mode_updated", { branchId, serviceId, mode });
   return { success: true };
 }
 
