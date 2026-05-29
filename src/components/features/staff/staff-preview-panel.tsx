@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   Phone,
   ShieldCheck,
+  Sparkles,
   UserCheck,
   UserCog,
   UserRoundX,
@@ -37,12 +38,27 @@ import {
 type StaffPreviewPanelProps = {
   staff: StaffMember | null;
   onClearSelection: () => void;
-  workspaceContext?: "owner" | "manager";
+  workspaceContext?: "owner" | "manager" | "crm";
+  /** CRM-only: open the inline staff edit sheet */
+  onEditStaff?: (staff: StaffMember) => void;
+  /** CRM-only: open the inline service capability editor */
+  onManageServices?: (staff: StaffMember) => void;
+  /** CRM-only: toggle active/inactive status */
+  onToggleActive?: (staff: StaffMember) => void;
 };
 
-export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = "owner" }: StaffPreviewPanelProps) {
+export function StaffPreviewPanel({
+  staff,
+  onClearSelection,
+  workspaceContext = "owner",
+  onEditStaff,
+  onManageServices,
+  onToggleActive,
+}: StaffPreviewPanelProps) {
   const isOwner = workspaceContext === "owner";
-  const basePath = `/${workspaceContext}/staff`;
+  const isCrm = workspaceContext === "crm";
+  const basePath = isCrm ? "#" : `/${workspaceContext}/staff`;
+  const hasCrmActions = isCrm && (onEditStaff ?? onManageServices ?? onToggleActive);
 
   if (!staff) {
     return (
@@ -79,12 +95,26 @@ export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = 
               }
             />
             <DropdownMenuContent align="end" className="min-w-44">
-              <DropdownMenuItem>
-                <Link href={`${basePath}/${staff.id}`} className="flex w-full items-center gap-2">
+              {!isCrm && (
+                <DropdownMenuItem>
+                  <Link href={`${basePath}/${staff.id}`} className="flex w-full items-center gap-2">
+                    <UserCog className="size-4" aria-hidden="true" />
+                    Edit profile
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {isCrm && onEditStaff && (
+                <DropdownMenuItem onSelect={() => onEditStaff(staff)}>
                   <UserCog className="size-4" aria-hidden="true" />
                   Edit profile
-                </Link>
-              </DropdownMenuItem>
+                </DropdownMenuItem>
+              )}
+              {isCrm && onManageServices && (
+                <DropdownMenuItem onSelect={() => onManageServices(staff)}>
+                  <Sparkles className="size-4" aria-hidden="true" />
+                  Manage services
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <button
@@ -124,31 +154,88 @@ export function StaffPreviewPanel({ staff, onClearSelection, workspaceContext = 
           <DetailRow Icon={CalendarDays} label="Joined" value={formatStaffDate(staff.created_at)} />
         </dl>
 
-        <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
-          <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
-          <div className="mt-3 grid gap-2">
-            {canApprove && (
-              <Button
-                asChild
-                size="lg"
-                className="justify-start bg-[var(--cs-sand-dark)] text-white hover:bg-[var(--cs-sand)]"
-              >
-                <Link href={`${basePath}/${staff.id}`}>
-                  <UserCheck className="size-4" aria-hidden="true" />
-                  Approve Staff
-                </Link>
-              </Button>
-            )}
-            <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
-            {isOwner && (
-              <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
-            )}
-            <QuickAction href={`${basePath}/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
-            {status === "active" && (
-              <QuickAction href={`${basePath}/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
-            )}
+        {!isCrm && (
+          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+            <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
+            <div className="mt-3 grid gap-2">
+              {canApprove && (
+                <Button
+                  asChild
+                  size="lg"
+                  className="justify-start bg-[var(--cs-sand-dark)] text-white hover:bg-[var(--cs-sand)]"
+                >
+                  <Link href={`${basePath}/${staff.id}`}>
+                    <UserCheck className="size-4" aria-hidden="true" />
+                    Approve Staff
+                  </Link>
+                </Button>
+              )}
+              <QuickAction href={`${basePath}/${staff.id}`} label={profileActionLabel} Icon={UserCog} />
+              {isOwner && (
+                <QuickAction href={`${basePath}/${staff.id}`} label="Assign Branch" Icon={MapPin} />
+              )}
+              <QuickAction href={`${basePath}/${staff.id}`} label="Change Role" Icon={ShieldCheck} />
+              {status === "active" && (
+                <QuickAction href={`${basePath}/${staff.id}`} label="Deactivate Staff" Icon={UserRoundX} danger />
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {hasCrmActions && (
+          <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+            <h3 className="m-0 text-sm font-semibold text-[var(--cs-text)]">Quick Actions</h3>
+            <div className="mt-3 grid gap-2">
+              {onEditStaff && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-sand-tint)]"
+                  onClick={() => onEditStaff(staff)}
+                >
+                  <UserCog className="size-4" aria-hidden="true" />
+                  Edit Profile
+                </Button>
+              )}
+              {onManageServices && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="justify-start border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:bg-[var(--cs-sand-tint)]"
+                  onClick={() => onManageServices(staff)}
+                >
+                  <Sparkles className="size-4" aria-hidden="true" />
+                  Manage Services
+                </Button>
+              )}
+              {onToggleActive && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className={[
+                    "justify-start border-[var(--cs-border)] bg-[var(--cs-surface)]",
+                    staff.is_active
+                      ? "text-[var(--cs-error-text)] hover:bg-[var(--cs-error-bg)]"
+                      : "text-[var(--cs-success-text)] hover:bg-[var(--cs-success-bg)]",
+                  ].join(" ")}
+                  onClick={() => onToggleActive(staff)}
+                >
+                  {staff.is_active ? (
+                    <>
+                      <UserRoundX className="size-4" aria-hidden="true" />
+                      Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="size-4" aria-hidden="true" />
+                      Activate
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

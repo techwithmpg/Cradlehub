@@ -25,7 +25,13 @@ type StaffManagementWorkspaceProps = {
   allStaff: StaffMember[];
   pendingStaff: StaffMember[];
   initialTab: StaffTab;
-  workspaceContext?: "owner" | "manager";
+  workspaceContext?: "owner" | "manager" | "crm";
+  /** CRM-only: callback to open inline staff edit sheet */
+  onEditStaff?: (staff: StaffMember) => void;
+  /** CRM-only: callback to open inline service capability editor */
+  onManageServices?: (staff: StaffMember) => void;
+  /** CRM-only: callback to toggle staff active/inactive */
+  onToggleActive?: (staff: StaffMember) => void;
 };
 
 const initialFilters: StaffFilters = {
@@ -40,9 +46,13 @@ export function StaffManagementWorkspace({
   pendingStaff,
   initialTab,
   workspaceContext = "owner",
+  onEditStaff,
+  onManageServices,
+  onToggleActive,
 }: StaffManagementWorkspaceProps) {
   const isOwner = workspaceContext === "owner";
-  const basePath = `/${workspaceContext}/staff`;
+  const isCrm = workspaceContext === "crm";
+  const basePath = isCrm ? "#" : `/${workspaceContext}/staff`;
 
   const [activeTab, setActiveTab] = useState<StaffTab>(initialTab);
   const [filters, setFilters] = useState<StaffFilters>(initialFilters);
@@ -202,6 +212,9 @@ export function StaffManagementWorkspace({
           staff={selectedStaff}
           onClearSelection={() => setSelectedStaffId("")}
           workspaceContext={workspaceContext}
+          onEditStaff={onEditStaff}
+          onManageServices={onManageServices}
+          onToggleActive={onToggleActive}
         />
       </div>
     </div>

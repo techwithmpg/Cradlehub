@@ -8,7 +8,7 @@ import { STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff";
 import type { Database } from "@/types/supabase";
 import type { StaffMember } from "./staff-management-utils";
 
-type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
+type BranchLite = { id: string; name: string };
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
@@ -80,12 +80,12 @@ export function StaffEditForm({
   workspaceContext = "owner",
 }: {
   staffMember: StaffMember;
-  branches: BranchRow[];
+  branches: BranchLite[];
   services: ServiceRow[];
   staffServiceIds: string[];
-  workspaceContext?: "owner" | "manager";
+  workspaceContext?: "owner" | "manager" | "crm";
 }) {
-  const isManager = workspaceContext === "manager";
+  const isManager = workspaceContext === "manager" || workspaceContext === "crm";
   const isProtected = isManager && SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
   const roleOptions = isManager ? MANAGER_ROLE_OPTIONS : OWNER_ROLE_OPTIONS;
 

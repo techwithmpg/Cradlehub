@@ -2539,3 +2539,235 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
 - `pnpm build`: ✅ Passing (85/85 routes)
+
+---
+
+### 2026-05-28 — Claude (SERVICE-MGMT-BUGFIX-001 — Service management bug fixes)
+
+**Task:** Fix three service-management bugs identified via static code inspection of src.zip.
+
+**Files Changed:**
+
+`src/components/features/staff/staff-service-editor-sheet.tsx` (updated):
+- `DialogContent` height: `max-h-[85vh]` → `h-[90dvh] max-h-[90dvh]`; added `max-sm:max-h-[100dvh]`
+- Scrollable body: added `min-h-0` and `overscroll-contain`; added `pb-24` bottom padding
+- Fixes: service list items below the viewport were unreachable on desktop
+
+`src/app/(dashboard)/crm/services/actions.ts` (updated):
+- `CRM_SETUP_ROLES`: added `"csr_staff"` and `"csr"` so CSR staff who can open the page can also call assign/remove actions
+- Updated file-level MVP comment to name the full role set
+- Added `revalidatePath("/manager/services")` to both `assignProviderToServiceAction` and `removeProviderFromServiceAction`
+
+`src/app/(dashboard)/owner/branches/actions.ts` (updated):
+- `requireOwnerOrBranchManager`: added `isSuperAdmin(user.id)` check before staff lookup
+- Added `"csr_staff"` and `"csr"` to branch-scoped roles
+- `updateBranchServiceEligibilityAction`: chained `.select("id, available_in_spa, available_home_service").maybeSingle()` — now returns `success: false` when no row is updated
+
+`src/components/features/manager-settings/services-offered-tab.tsx` (updated):
+- Added `localServices` state + `useEffect` to sync from `services` prop
+- `activeServices` derived from `localServices` so optimistic updates render immediately
+- `handleEligibilityChange` updates `localServices` on success before `router.refresh()`
+
+**Intentionally Unchanged:** Booking logic, scheduling, public booking flow, DB schema.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm build`: ✅ Passing (all routes)
+
+---
+
+### 2026-05-28 — Claude (MVP-ROUTING-001 — Soft-pause Owner/Manager Workspaces, CRM as Main Command Center)
+
+**Task:** Route all admin/management roles to /crm for MVP. Soft-pause /owner and /manager routes. Create typed CRM permission helpers. Hide Owner/Manager from workspace nav.
+
+**Files Changed:**
+
+`src/proxy.ts` (updated):
+- `resolveWorkspace()`: owner, manager, assistant_manager, store_manager now resolve to `/crm` instead of `/owner`/`/manager`
+- Access guard: owner/manager/assistant_manager/store_manager redirected to `/crm` if not on a `/crm` path (they no longer have cross-workspace bypass)
+
+`src/lib/permissions.ts` (updated):
+- `getDefaultDashboardPath()`: owner and management roles now return `/crm`; staff/therapist/masseuse/service_provider variants explicitly return `/staff-portal`
+
+`src/app/(auth)/login/actions.ts` (updated):
+- Dev bypass redirect changed from `/owner` to `/crm`
+
+`src/app/(dashboard)/owner/layout.tsx` (updated):
+- Replaced prefetch layout with a single `redirect("/crm")` — all /owner/* routes silently redirect to /crm. Files preserved.
+
+`src/app/(dashboard)/manager/layout.tsx` (updated):
+- Replaced prefetch layout with a single `redirect("/crm")` — all /manager/* routes silently redirect to /crm. Files preserved.
+
+`src/lib/auth/crm-permissions.ts` (created):
+- `CRM_WORKSPACE_ROLES` const and `CrmWorkspaceRole` type
+- `canAccessCrmWorkspace`, `canManageCrmSetup`, `canManageServices`, `canManageBookings`, `canConfirmPayments`, `canManageCustomers`, `canManageStaffAssignments`, `canManageResources`, `canManageDispatch` — all typed helpers with MVP-correct access levels
+
+`src/components/features/dashboard/nav-config.ts` (updated):
+- `WorkspaceNav` type: added `mvpHidden?: boolean` flag
+- Owner and Manager workspace entries marked `mvpHidden: true`
+- `resolveWorkspaceKeyFromRole()`: owner/manager/assistant_manager/store_manager now resolve to `"crm"` (CRM nav and badge)
+
+`src/components/features/dashboard/sidebar.tsx` (updated):
+- Minor comment on `isManagerRoute` to note /manager now redirects (no logic change needed — role→workspace resolution already updated in nav-config)
+
+**Behavior:**
+- owner, manager, assistant_manager, store_manager → /crm on login and on any direct URL attempt
+- /owner/* and /manager/* all silently redirect to /crm via layout.tsx
+- Sidebar shows CRM nav and workspace badge for management roles
+- Owner/Manager workspace nav entries exist but are `mvpHidden: true` (rendering layer can filter)
+- CRM permission helpers available for new feature gates
+
+**Intentionally NOT changed:**
+- /owner/* and /manager/* page components (preserved for future restoration)
+- Public booking flow
+- Staff portal, driver portal
+- Supabase schema, RLS, database queries
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 new errors; 4 pre-existing errors in services-offered-tab.tsx, staff-schedule-card.tsx, service-image.tsx not introduced by this task)
+- `pnpm build`: ✅ Passing (87/87 routes)
+
+---
+
+### 2026-05-28 — Kimi (Schedule Setup + Staff Schedule Tab Enhancement)
+
+**Task:** Enhance CRM Schedule Setup and Staff Schedule tabs while preserving existing schedule editing workflows.
+
+**Files Created:**
+- `src/components/features/schedule/tabs/daily-timeline-right-rail.tsx` — contextual right rail for Daily Timeline tab
+- `src/app/api/crm/availability/route.ts` — API route for live availability data
+- `src/app/api/crm/staff-schedule/overview/route.ts` — API route for staff schedule overview data
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/schedule/page.tsx` — Updated to use `ScheduleWorkspaceShell`
+- `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` — Unified shell with header, tabs, status chips, metric grid
+- `src/components/features/schedule/tabs/schedule-setup-tab.tsx` — Now renders actual `ScheduleSetupWorkspace` via SWR
+- `src/components/features/schedule/tabs/staff-schedule-tab.tsx` — Now renders actual `StaffSchedulePageClient` via SWR
+- `src/components/features/schedule/schedule-workspace.tsx` — Added `showToolbar`, `showKpiCards`, `rightRailExtras` props (backward-compatible)
+- `src/components/features/staff-schedule/schedule-group-cards.tsx` — Enhanced active state styling (forest green), improved spacing
+- `src/components/features/staff-schedule/schedule-setup-right-rail.tsx` — Enhanced card styling with icon circles, consistent typography
+- `src/components/features/staff-schedule/schedule-setup-workspace.tsx` — Enhanced container grid, clickable setup flow breadcrumb
+- `src/components/features/staff-schedule/staff-schedule-page-client.tsx` — Stat strip now uses responsive grid
+
+**Behavior:**
+- `/crm/schedule?tab=setup` renders the full `ScheduleSetupWorkspace` (group tabs, weekly rules editor, right rail)
+- `/crm/schedule?tab=staff` renders the full `StaffSchedulePageClient` (stat strip, toolbar, staff list, detail sheet)
+- `/crm/staff-availability` continues to render `ScheduleSetupWorkspace` directly (unchanged page structure)
+- Both tabs fetch data via SWR from new API routes
+- Old routes `/crm/availability` and `/crm/staff-availability` preserved
+
+**Build Status:** ✅ Passing | **Type-check:** ✅ Passing | **Lint:** ✅ Passing (0 errors, 0 warnings)
+
+---
+
+### 2026-05-28 — Kimi (READINESS-HEADER-001 — Replace Full-Width System Readiness Banner With Compact Header Indicator)
+
+**Task:** Remove the persistent full-width System Readiness warning banner from workspace page content and replace it with a compact, premium readiness indicator in the shared header/topbar.
+
+**Files Created:**
+- `src/components/features/dashboard/workspace-readiness-indicator.tsx` — compact rounded-full chip with icon, status text, issue count; opens a popover with full issue list, scope icons, problem descriptions, and action links; supports ok/warning/critical/unavailable states; keyboard accessible (Escape closes)
+
+**Files Changed:**
+- `src/components/features/dashboard/header.tsx` — added optional `readiness?: ReadinessResult | null` prop; renders `WorkspaceReadinessIndicator` between date and notification bell
+- `src/app/(dashboard)/layout.tsx` — fetches `getCrmReadiness(branchId)` failure-safely and passes to `Header`; readiness query now runs once per dashboard layout render instead of per CRM page
+- `src/app/(dashboard)/crm/layout.tsx` — removed `CrmReadinessBadgeWrapper` and old readiness banner from CRM content flow; layout now only renders route prefetcher
+- `src/app/(dashboard)/crm/setup/page.tsx` — removed `SystemReadinessBar` import and render; removed now-unused `getCrmReadiness` call and readiness-derived variables; setup page content starts immediately after tab nav
+- `src/app/(dashboard)/crm/availability/page.tsx` — removed `SystemReadinessBar` import and render; removed `buildAvailabilityReadinessIssues` and `buildReadinessResult` imports; removed availability-specific readiness variables; page content starts immediately after tab nav
+
+**Behavior:**
+- All CRM pages (`/crm/today`, `/crm/schedule`, `/crm/setup`, `/crm/availability`, `/crm/bookings`, `/crm/dispatch`, `/crm/services`, `/crm/spaces-rules`, `/crm/customers`, `/crm/staff-applications`, `/crm/staff-availability`) no longer have a full-width readiness banner pushing content down.
+- A compact 32px-tall rounded-full chip appears in the shared header next to the notification bell.
+- Chip states:
+  - `System Ready` (green, ✅) when no issues
+  - `System: N issues` (amber, ⚠️) when warnings exist
+  - `Critical: N issues` (red, ⛔) when critical issues exist
+  - `Unavailable` (muted, ⚠️) when readiness query fails
+- Clicking the chip opens a popover listing every readiness issue with scope icon, title, problem description, count badge, and direct action link.
+- Popover footer has an "Open Setup Center ›" link to `/crm/setup`.
+- Accessibility: native `<button>` trigger, `aria-expanded`, `aria-controls`, `aria-label`, keyboard focusable, Escape closes popover.
+- Readiness detection logic (`getCrmReadiness`, `getCrmReadinessIssues`, all mappers) is completely unchanged.
+- Business logic, RBAC, and auth are unchanged.
+
+**Intentionally NOT changed:**
+- `src/components/shared/system-readiness-bar.tsx` — component preserved (may be referenced by other unused components)
+- `src/components/features/crm/readiness/crm-readiness-badge.tsx` — preserved but no longer imported
+- `src/components/features/crm/readiness/crm-readiness-badge-wrapper.tsx` — preserved but no longer imported
+- `src/components/features/schedule/crm-schedule-view.tsx` — still imports `SystemReadinessBar` but component is unused
+- `src/components/features/crm/today/today-readiness-strip.tsx` — page-specific inline readiness strip on `/crm/today` is preserved (allowed by design rules)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 new errors; 4 pre-existing warnings in unrelated files)
+- `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-28 — Kimi (SETUP-CENTER-UI-002 — Setup Center UI Redesign)
+
+**Task:** Redesign CRM Setup Center UI to match approved premium mockup quality.
+
+**Files Created:**
+- `src/components/features/setup-center/setup-shell.tsx` — shared layout wrapper
+- `src/components/features/setup-center/setup-progress-ring.tsx` — circular SVG progress ring with percentage label
+- `src/components/features/setup-center/setup-status-card.tsx` — compact status card with left accent border, icon, value, status dot, action button
+- `src/components/features/setup-center/setup-action-row.tsx` — action row with severity-colored background, icon circle, title, description, CTA button
+- `src/components/features/setup-center/setup-shortcut-card.tsx` — hover-lift action card with icon, label, description, chevron
+- `src/components/features/setup-center/setup-section-title.tsx` — section header with optional count badge
+- `src/components/features/setup-center/setup-health-content.tsx` — complete Setup Health tab composition
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/setup/page.tsx` — redesigned with new SetupHealthContent; title changed to "Setup Center"; removed old health cards, issues list, workspace tiles
+- `src/app/(dashboard)/crm/services/page.tsx` — cleaner header description
+- `src/app/(dashboard)/crm/spaces-rules/page.tsx` — removed duplicated SpacesRulesHealthSummary and text-heavy SpacesRulesAccessNotice; now only shows tab nav + workspace
+- `src/components/features/crm/services/crm-therapist-assignment-tab.tsx` — simplified intro card to compact strip; redesigned StatCard with rounded-2xl and Tailwind; redesigned RightRail with sticky positioning, cleaner styling, Tailwind classes
+
+**Setup Health Layout:**
+- Top row: 3-column grid (Overall Setup Progress | Critical Actions | Setup Tips)
+- Overall Progress: 110px circular ring + status text + "View all issues" CTA
+- Critical Actions: up to 3 top issues with severity-colored rows and action buttons
+- Setup Tips: lightbulb icon + compact bullet list + guide link
+- Setup Area Status: 6 compact cards with left accent borders (green/amber/red)
+- Quick Fix Shortcuts: 6 hover-lift action cards
+
+**Services Improvements:**
+- Intro card reduced from verbose paragraph to one-line compact strip
+- KPI cards restyled with rounded-2xl, softer shadows
+- Right rail made sticky on desktop, cleaner badge styling
+
+**Spaces & Rules Improvements:**
+- Removed page-level SpacesRulesHealthSummary (8 cards) — workspace already has its own KPIs
+- Removed large SpacesRulesAccessNotice text block
+- Page now shows clean header → tab nav → workspace only
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 new errors; 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-29 — Claude (CRM-OPS-STAFF-SVC-001 — CRM Operational Staff/Service Management)
+
+**Task:** Make CRM fully operational for staff editing, service assignments, and service visibility control. Remove Manager workspace dependency for daily operations.
+
+**Files Created:**
+- `src/lib/actions/crm-staff-services.ts` — `updateStaffServicesFromCrmAction`: CRM-safe server action to replace all staff service capability assignments (branch-scoped, CRM operational roles allowed)
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/staff/actions.ts` — Added `STAFF_OPERATIONAL_ROLES` const; expanded `requireOwnerOrManager()` to include crm/csr_head/csr_staff/csr; changed `isManager` to `isBranchScoped`; added `/crm/staff` revalidation; added new exported `toggleStaffActiveAction` (CRM-accessible activate/deactivate)
+- `src/app/(dashboard)/owner/branches/actions.ts` — Changed `updateBranchServiceVisibilityAction` from `requireOwner()` to `requireOwnerOrBranchManager(branchId)`; added `/crm/services` + `/crm/setup` revalidation
+- `src/lib/auth/crm-permissions.ts` — Added `canManageOperationalStaff`, `canManageStaffServices`, `canUpdateServiceVisibility`; updated `canManageStaffAssignments` to include crm+csr_head
+- `src/components/features/staff/staff-edit-form.tsx` — Changed branch type to `BranchLite`; added `"crm"` to `workspaceContext` (behaves like manager)
+- `src/components/features/staff/staff-service-editor-sheet.tsx` — Added `onSave?(ids)` and `saving` props; Done button calls `onSave` when provided
+- `src/components/features/staff/staff-preview-panel.tsx` — Added `onEditStaff`, `onManageServices`, `onToggleActive` CRM callback props; CRM quick actions section; Sparkles import
+- `src/components/features/staff/staff-management-workspace.tsx` — Added and threads CRM action callbacks to `StaffPreviewPanel`
+- `src/components/features/crm/staff/crm-staff-management-tab.tsx` — Full rewrite: StaffEditForm Sheet + StaffServiceEditorSheet with save action; handles toggle active; accepts branches/services/assignments
+- `src/components/features/crm/staff/crm-staff-workspace.tsx` — Passes branches/activeServices/providerAssignments to CrmStaffManagementTab
+- `src/components/features/crm/staff/crm-staff-assignments-tab.tsx` — Full rewrite: added Manage button per row; StaffServiceEditorSheet with CRM save action
+- `src/components/features/crm/services/service-assignment-table-row.tsx` — Added visibility toggle button (🌐 Public / 🔒 CSR Only) in status cell; wired to `updateBranchServiceVisibilityAction` with optimistic UI
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
+- `pnpm build`: ✅ Passing (90/90 routes)

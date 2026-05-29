@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
@@ -24,6 +25,18 @@ async function requireOwner() {
   return { supabase, admin: createAdminClient() };
 }
 
+/** Roles allowed to update operational staff fields. CRM roles are branch-scoped (same as manager). */
+const STAFF_OPERATIONAL_ROLES = [
+  "owner",
+  "manager",
+  "assistant_manager",
+  "store_manager",
+  "crm",
+  "csr_head",
+  "csr_staff",
+  "csr",
+] as const;
+
 async function requireOwnerOrManager() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -36,8 +49,8 @@ async function requireOwnerOrManager() {
   const { data: me } = await supabase
     .from("staff").select("id, branch_id, system_role").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
   if (!me) return { error: "No active staff record linked to this account" } as const;
-  if (!["owner", "manager", "assistant_manager", "store_manager"].includes(me.system_role)) {
-    return { error: "Owner or manager access required" } as const;
+  if (!(STAFF_OPERATIONAL_ROLES as readonly string[]).includes(me.system_role)) {
+    return { error: "Access requires owner, manager, or CRM role" } as const;
   }
   return { supabase, admin: createAdminClient(), me };
 }
@@ -184,10 +197,11 @@ export async function updateStaffAction(rawInput: unknown) {
   if ("error" in ctx) return { success: false, error: ctx.error };
 
   const { staffId, serviceIds, ...updates } = parsed.data;
-  const isManager = ["manager", "assistant_manager", "store_manager"].includes(ctx.me.system_role);
+  // All non-owner roles are branch-scoped (managers and CRM operational roles alike)
+  const isBranchScoped = ctx.me.system_role !== "owner";
 
-  // Non-owner managers: branch scope + protected account + role safety checks
-  if (isManager) {
+  // Branch-scoped roles: branch scope + protected account + role safety checks
+  if (isBranchScoped) {
     const { data: target } = await ctx.supabase
       .from("staff")
       .select("branch_id, system_role")
@@ -254,7 +268,54 @@ export async function updateStaffAction(rawInput: unknown) {
   revalidatePath(`/owner/staff/${staffId}`);
   revalidatePath("/manager/staff");
   revalidatePath(`/manager/staff/${staffId}`);
+  revalidatePath("/crm/staff");
   return { success: true };
+}
+
+// ── Toggle staff active/inactive (CRM-accessible) ────────────────────────
+
+const toggleActiveSchema = z.object({
+  staffId: z.string().uuid("Invalid staff ID"),
+  isActive: z.boolean(),
+});
+
+export async function toggleStaffActiveAction(rawInput: unknown) {
+  const parsed = toggleActiveSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" } as const;
+  }
+  const { staffId, isActive } = parsed.data;
+
+  const ctx = await requireOwnerOrManager();
+  if ("error" in ctx) return { success: false, error: ctx.error } as const;
+
+  const isBranchScoped = ctx.me.system_role !== "owner";
+  if (isBranchScoped) {
+    const { data: target } = await ctx.supabase
+      .from("staff")
+      .select("branch_id, system_role")
+      .eq("id", staffId)
+      .maybeSingle();
+    if (!target || target.branch_id !== ctx.me.branch_id) {
+      return { success: false, error: "You can only manage staff in your branch." } as const;
+    }
+    if (SENSITIVE_SYSTEM_ROLES.has(target.system_role as string)) {
+      return { success: false, error: "This action requires owner approval." } as const;
+    }
+  }
+
+  const { error } = await ctx.supabase
+    .from("staff")
+    .update({ is_active: isActive })
+    .eq("id", staffId);
+
+  if (error) return { success: false, error: error.message } as const;
+
+  revalidatePath("/owner/staff");
+  revalidatePath("/manager/staff");
+  revalidatePath("/crm/staff");
+  revalidatePath("/crm/availability");
+  return { success: true } as const;
 }
 
 // ── Invite-link onboarding: staff claims a pre-created record ─────────────

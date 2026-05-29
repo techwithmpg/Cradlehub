@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { isSuperAdmin, resolveSuperAdminContext } from "@/lib/auth/super-admin";
 import { createBranchSchema, updateBranchSchema } from "@/lib/validations/branch";
@@ -28,15 +29,16 @@ async function requireOwner() {
   return supabase;
 }
 
-// Returns supabase client if caller is owner OR is a manager for the given branch.
+// Returns supabase client if caller is owner OR is a branch-scoped manager/CRM role for the given branch.
 async function requireOwnerOrBranchManager(branchId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  if (isDevAuthBypassEnabled()) {
-    return supabase;
-  }
+  // Super-admin gets owner-level access on any branch.
+  if (isSuperAdmin(user.id)) return supabase;
+
+  if (isDevAuthBypassEnabled()) return supabase;
 
   const { data: me } = await supabase
     .from("staff")
@@ -48,7 +50,10 @@ async function requireOwnerOrBranchManager(branchId: string) {
   if (!me) return null;
   if (me.system_role === "owner") return supabase;
   if (
-    ["manager", "assistant_manager", "store_manager", "crm", "csr_head"].includes(me.system_role) &&
+    [
+      "manager", "assistant_manager", "store_manager",
+      "crm", "csr_head", "csr_staff", "csr",
+    ].includes(me.system_role) &&
     me.branch_id === branchId
   ) return supabase;
   return null;
@@ -174,10 +179,10 @@ export async function toggleBranchActiveAction(branchId: string, isActive: boole
 // ── Remove a service from a branch (set is_active = false) ───────────────
 // Named explicitly — cleaner than using setBranchServiceAction with isActive:false.
 export async function removeBranchServiceAction(branchId: string, serviceId: string) {
-  const supabase = await requireOwnerOrBranchManager(branchId);
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireOwnerOrBranchManager(branchId);
+  if (!auth) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase
+  const { error } = await createAdminClient()
     .from("branch_services")
     .update({ is_active: false })
     .eq("branch_id", branchId)
@@ -201,10 +206,10 @@ export async function addBranchServiceAction(
   serviceId: string,
   customPrice?: number
 ) {
-  const supabase = await requireOwnerOrBranchManager(branchId);
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireOwnerOrBranchManager(branchId);
+  if (!auth) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase
+  const { error } = await createAdminClient()
     .from("branch_services")
     .upsert(
       {
@@ -235,16 +240,25 @@ export async function updateBranchServiceEligibilityAction(
   availableInSpa: boolean,
   availableHomeService: boolean
 ) {
-  const supabase = await requireOwnerOrBranchManager(branchId);
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireOwnerOrBranchManager(branchId);
+  if (!auth) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase
+  const { data, error } = await createAdminClient()
     .from("branch_services")
     .update({ available_in_spa: availableInSpa, available_home_service: availableHomeService })
     .eq("branch_id", branchId)
-    .eq("service_id", serviceId);
+    .eq("service_id", serviceId)
+    .select("id, available_in_spa, available_home_service")
+    .maybeSingle();
 
   if (error) return { success: false, error: error.message };
+
+  if (!data) {
+    return {
+      success: false,
+      error: "Service availability was not updated. No matching branch service row was found or your role cannot update it.",
+    };
+  }
 
   const { revalidatePath } = await import("next/cache");
   invalidateTag(cacheTags.branchServices(branchId));
@@ -252,7 +266,7 @@ export async function updateBranchServiceEligibilityAction(
   revalidatePath("/manager/services");
   revalidatePath("/crm/services");
   logBusinessEvent("branch_service.eligibility_updated", { branchId, serviceId, availableInSpa, availableHomeService });
-  return { success: true };
+  return { success: true, data };
 }
 
 // ── Update per-branch service price ───────────────────────────────────────
@@ -263,10 +277,10 @@ export async function updateBranchServicePriceAction(
   serviceId: string,
   customPrice: number | null
 ) {
-  const supabase = await requireOwner();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireOwner();
+  if (!auth) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase
+  const { error } = await createAdminClient()
     .from("branch_services")
     .update({ custom_price: customPrice })
     .eq("branch_id", branchId)
@@ -283,25 +297,26 @@ export async function updateBranchServicePriceAction(
 
 // ── Update per-branch service booking visibility ──────────────────────────
 // 'public' = shown in public wizard; 'csr_only' = CRM only; 'vip' = VIP only.
-// Owner-only: visibility is a catalog-level decision, not a per-branch op config.
+// CRM and CSR operational roles may toggle visibility for their own branch
+// (owner retains cross-branch access via requireOwnerOrBranchManager).
 export async function updateBranchServiceVisibilityAction(
   branchId: string,
   serviceId: string,
   visibility: "public" | "csr_only" | "vip"
 ) {
-  const supabase = await requireOwner();
-  if (!supabase) return { success: false, error: "Unauthorized" };
+  const auth = await requireOwnerOrBranchManager(branchId);
+  if (!auth) return { success: false, error: "Unauthorized" };
 
-  const modernUpdate = { visibility };
-  const modern = await supabase
+  const admin = createAdminClient();
+  const modern = await admin
     .from("branch_services")
-    .update(modernUpdate)
+    .update({ visibility })
     .eq("branch_id", branchId)
     .eq("service_id", serviceId);
 
   let error = modern.error;
   if (error && isMissingBranchServiceVisibilityColumnError(error.message)) {
-    const legacy = await supabase
+    const legacy = await admin
       .from("branch_services")
       .update({ booking_visibility: visibility })
       .eq("branch_id", branchId)
@@ -315,6 +330,8 @@ export async function updateBranchServiceVisibilityAction(
   // Visibility change affects the public booking wizard's service list.
   invalidateTag(cacheTags.branchServices(branchId));
   revalidatePath(`/owner/branches/${branchId}`);
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/setup");
   logBusinessEvent("branch_service.visibility_updated", { branchId, serviceId, visibility });
   return { success: true };
 }

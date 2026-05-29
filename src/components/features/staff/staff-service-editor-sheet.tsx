@@ -97,12 +97,18 @@ export function StaffServiceEditorSheet({
   selectedIds,
   onToggle,
   onClose,
+  onSave,
+  saving,
 }: {
   open: boolean;
   services: ServiceRow[];
   selectedIds: string[];
   onToggle: (id: string) => void;
   onClose: () => void;
+  /** Optional: called when Done is clicked, with the current selected IDs. Enables save-on-done. */
+  onSave?: (ids: string[]) => void;
+  /** Shows saving state on Done button */
+  saving?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -165,7 +171,7 @@ export function StaffServiceEditorSheet({
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-3xl max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col max-sm:max-w-none max-sm:rounded-none max-sm:h-[100dvh]"
+        className="sm:max-w-3xl h-[90dvh] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col max-sm:max-w-none max-sm:rounded-none max-sm:h-[100dvh] max-sm:max-h-[100dvh]"
       >
         {/* ── Header ── */}
         <DialogHeader className="shrink-0 p-5 pb-4 border-b border-[var(--cs-border)]">
@@ -235,7 +241,7 @@ export function StaffServiceEditorSheet({
         </DialogHeader>
 
         {/* ── Body ── */}
-        <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-2">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-3 flex flex-col gap-2 pb-24">
           {displayGroups.length === 0 && (
             <div
               className="text-center py-12 px-4"
@@ -359,14 +365,23 @@ export function StaffServiceEditorSheet({
         {/* ── Footer ── */}
         <DialogFooter className="shrink-0 border-t border-[var(--cs-border)] p-4 mx-0 mb-0 bg-popover">
           <button
-            onClick={onClose}
-            className="w-full py-2.5 px-4 rounded-lg font-bold text-[0.9375rem] cursor-pointer border-none"
+            onClick={() => {
+              if (onSave) {
+                onSave(selectedIds);
+              } else {
+                onClose();
+              }
+            }}
+            disabled={saving}
+            className="w-full py-2.5 px-4 rounded-lg font-bold text-[0.9375rem] cursor-pointer border-none disabled:opacity-60"
             style={{
               backgroundColor: "var(--cs-sand)",
               color: "#fff",
             }}
           >
-            Done — {selectedIds.length} service{selectedIds.length !== 1 ? "s" : ""} selected
+            {saving
+              ? "Saving…"
+              : `Done — ${selectedIds.length} service${selectedIds.length !== 1 ? "s" : ""} selected`}
           </button>
         </DialogFooter>
       </DialogContent>

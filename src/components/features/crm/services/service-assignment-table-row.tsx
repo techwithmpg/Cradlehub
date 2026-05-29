@@ -9,12 +9,15 @@
  * "+N more" badge and total count. Full management opens in a right-side sheet.
  *
  * Clicking Manage or + Assign Therapist opens ProviderAssignmentSheet.
+ * Visibility toggle (Public / CSR Only) updates branch_services.visibility.
  */
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { ServiceTableRow } from "./types";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
 import { ProviderAssignmentSheet } from "./provider-assignment-sheet";
+import { updateBranchServiceVisibilityAction } from "@/app/(dashboard)/owner/branches/actions";
 
 // ── Assignment status helper ──────────────────────────────────────────────────
 
@@ -118,7 +121,19 @@ export function ServiceAssignmentTableRow({
   row: ServiceTableRow;
   branchId: string;
 }) {
+  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [visibilityPending, startVisibilityTransition] = useTransition();
+  const [localVisibility, setLocalVisibility] = useState<string>(row.visibility);
+
+  function handleToggleVisibility() {
+    const next = localVisibility === "public" ? "csr_only" : "public";
+    setLocalVisibility(next);
+    startVisibilityTransition(async () => {
+      await updateBranchServiceVisibilityAction(branchId, row.serviceId, next as "public" | "csr_only" | "vip");
+      router.refresh();
+    });
+  }
 
   const hasProviders = row.assignedProviders.length > 0;
   const preview = row.assignedProviders.slice(0, MAX_PREVIEW);
@@ -244,12 +259,13 @@ export function ServiceAssignmentTableRow({
           )}
         </td>
 
-        {/* ── Status ── */}
+        {/* ── Status + Visibility ── */}
         <td style={{ padding: "0.625rem 1rem", verticalAlign: "middle", whiteSpace: "nowrap" }}>
           {(() => {
             const s = getAssignmentStatus(row);
+            const isPublic = localVisibility === "public";
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <span
                   style={{
                     display: "inline-block",
@@ -264,9 +280,31 @@ export function ServiceAssignmentTableRow({
                 >
                   {s.label}
                 </span>
-                <span style={{ fontSize: "0.625rem", color: "var(--cs-text-muted)" }}>
-                  {s.caption}
-                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleVisibility}
+                  disabled={visibilityPending}
+                  title={isPublic ? "Click to hide from public booking" : "Click to make publicly bookable"}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "2px 7px",
+                    borderRadius: 12,
+                    border: `1px solid ${isPublic ? "#BBF7D0" : "#FDE68A"}`,
+                    background: isPublic ? "#F0FDF4" : "#FFFBEB",
+                    color: isPublic ? "#065F46" : "#92400E",
+                    fontSize: "0.625rem",
+                    fontWeight: 700,
+                    cursor: visibilityPending ? "wait" : "pointer",
+                    whiteSpace: "nowrap",
+                    opacity: visibilityPending ? 0.6 : 1,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <span>{isPublic ? "🌐" : "🔒"}</span>
+                  {isPublic ? "Public" : "CSR Only"}
+                </button>
               </div>
             );
           })()}
