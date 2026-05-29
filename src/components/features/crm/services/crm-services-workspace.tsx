@@ -23,15 +23,17 @@ import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/c
 import { CrmTherapistAssignmentTab } from "./crm-therapist-assignment-tab";
 import { CrmStaffCapabilitiesTab } from "./crm-staff-capabilities-tab";
 import { CrmServiceReadinessTab } from "./crm-service-readiness-tab";
+import { ServiceCustomizationTab } from "./service-customization-tab";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type TabId = "services" | "staff_capabilities" | "readiness_issues";
+type TabId = "services" | "customization" | "providers" | "readiness_issues";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "services",            label: "Services"            },
-  { id: "staff_capabilities",  label: "Staff Capabilities"  },
-  { id: "readiness_issues",    label: "Readiness Issues"    },
+  { id: "services",       label: "Services"            },
+  { id: "customization",  label: "Service Customization" },
+  { id: "providers",      label: "Provider Assignments"  },
+  { id: "readiness_issues", label: "Readiness Issues"    },
 ];
 
 export interface CrmServicesWorkspaceProps {
@@ -42,6 +44,7 @@ export interface CrmServicesWorkspaceProps {
   activeServices: ActiveBranchService[];
   providerStaff: StaffForServicePanel[];
   providerAssignments: ServiceAssignmentRow[];
+  branchName: string;
   /** Pre-selected tab — passed from page via ?tab= search param. */
   initialTab?: TabId;
 }
@@ -50,7 +53,9 @@ export interface CrmServicesWorkspaceProps {
 
 export function CrmServicesWorkspace({
   branchId,
+  branchName,
   loadError,
+  services,
   activeServices,
   providerStaff,
   providerAssignments,
@@ -118,12 +123,33 @@ export function CrmServicesWorkspace({
         )
       )}
 
-      {activeTab === "staff_capabilities" && (
+      {activeTab === "customization" && (
+        loadError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not load service data</AlertTitle>
+            <AlertDescription>
+              Branch services failed to load so service customization cannot be shown. Refresh the
+              page to try again.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <ServiceCustomizationTab
+            branchId={branchId}
+            branchName={branchName}
+            services={services}
+            activeServices={activeServices}
+            staff={providerStaff}
+            assignments={providerAssignments}
+          />
+        )
+      )}
+
+      {activeTab === "providers" && (
         loadError ? (
           <Alert variant="destructive">
             <AlertTitle>Could not load staff data</AlertTitle>
             <AlertDescription>
-              Branch services failed to load so staff capabilities cannot be shown. Refresh the
+              Branch services failed to load so provider assignments cannot be shown. Refresh the
               page to try again.
             </AlertDescription>
           </Alert>

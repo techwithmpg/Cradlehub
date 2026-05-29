@@ -1,25 +1,12 @@
 /**
  * Manager Route Layout
  *
- * Wraps all /manager/* routes with workspace route prefetching so navigation
- * between manager pages feels instant.
- *
- * This layout is nested inside (dashboard)/layout.tsx, which already renders
- * the sidebar, header, and main scroll container.
+ * MVP: The Manager workspace is soft-paused. All /manager/* requests redirect to /crm.
+ * The workspace files are preserved for future restoration.
  */
 
-import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
-import { MANAGER_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
+import { redirect } from "next/navigation";
 
-export default async function ManagerLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <>
-      <WorkspaceRoutePrefetcher config={MANAGER_PREFETCH} />
-      {children}
-    </>
-  );
+export default function ManagerLayout() {
+  redirect("/crm");
 }

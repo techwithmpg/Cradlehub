@@ -11,6 +11,7 @@ import { getScheduleSetupOverview } from "@/lib/queries/staff-schedule-groups";
 import { createClient } from "@/lib/supabase/server";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+import { CrmTabNav, SCHEDULE_TABS } from "@/components/features/crm/crm-tab-nav";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,8 @@ export default async function CrmStaffAvailabilityPage({
         title="Schedule Setup Center"
         description="Set staff schedules, day-offs, and blocked time used by online booking, walk-ins, and home-service planning."
       />
+
+      <CrmTabNav tabs={SCHEDULE_TABS} activeHref="/crm/staff-availability" />
 
       {/* Branch selector — only shown to owners when there are multiple branches */}
       {ownerAccess && branches.length > 1 && (

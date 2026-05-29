@@ -351,6 +351,8 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
 export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps) {
   const pathname        = usePathname();
   const [open, setOpen] = useState(false);
+  // /manager routes now redirect to /crm (MVP soft-pause), but keep the check
+  // for safety in case a direct navigation somehow reaches this component.
   const isManagerRoute     = pathname.startsWith("/manager");
   const isStaffPortalRoute = pathname.startsWith("/staff-portal");
   const isDriverRoute      = pathname.startsWith("/driver");

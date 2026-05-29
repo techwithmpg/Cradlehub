@@ -10,6 +10,7 @@ import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { ControlConsolePage } from "@/components/features/control-console/control-console-page";
 import { updateBookingPaymentAction, updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { CrmTabNav, TODAY_TABS } from "@/components/features/crm/crm-tab-nav";
 
 async function getCrmContext() {
   const supabase = await createClient();
@@ -23,7 +24,7 @@ async function getCrmContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
 
   if (!me && isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();
@@ -127,18 +128,21 @@ export default async function CrmControlPage() {
   });
 
   return (
-    <ControlConsolePage
-      branchName={branchName}
-      todayLabel={todayLabel}
-      viewerRole={role}
-      workspaceLabel="Front-desk Operations"
-      bookings={bookings}
-      paymentAction={updateBookingPaymentAction}
-      statusAction={updateBookingStatusAction}
-      assignDriverAction={assignBookingDriverAction}
-      availableDrivers={availableDrivers}
-      getTrackingLinkAction={getOrCreateCustomerTrackingLinkAction}
-      refreshEtaAction={refreshHomeServiceEtaAction}
-    />
+    <>
+      <CrmTabNav tabs={TODAY_TABS} activeHref="/crm/control" />
+      <ControlConsolePage
+        branchName={branchName}
+        todayLabel={todayLabel}
+        viewerRole={role}
+        workspaceLabel="Front-desk Operations"
+        bookings={bookings}
+        paymentAction={updateBookingPaymentAction}
+        statusAction={updateBookingStatusAction}
+        assignDriverAction={assignBookingDriverAction}
+        availableDrivers={availableDrivers}
+        getTrackingLinkAction={getOrCreateCustomerTrackingLinkAction}
+        refreshEtaAction={refreshHomeServiceEtaAction}
+      />
+    </>
   );
 }

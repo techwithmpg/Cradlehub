@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 
-const CRM_ROLES = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+const CRM_ROLES = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
 
 export async function getCrmContext() {
   const supabase = await createClient();

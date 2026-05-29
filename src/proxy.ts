@@ -7,14 +7,14 @@ import { logError } from "@/lib/logger";
 
 /** Maps system_role → default dashboard workspace prefix */
 function resolveWorkspace(systemRole: string): string {
-  if (systemRole === "owner") return "/owner";
-
+  // MVP: owner, manager, and all management variants route to /crm
   if (
+    systemRole === "owner" ||
     systemRole === "manager" ||
     systemRole === "assistant_manager" ||
     systemRole === "store_manager"
   ) {
-    return "/manager";
+    return "/crm";
   }
 
   if (
@@ -116,8 +116,17 @@ export async function proxy(request: NextRequest) {
     console.debug("[proxy] workspace route", { pathname, systemRole });
   }
 
-  // Owner can access all workspaces for oversight/testing.
-  if (systemRole === "owner") {
+  // MVP: owner/manager roles are routed to /crm — they no longer have
+  // cross-workspace bypass. They are treated as CRM-level users for routing.
+  if (
+    systemRole === "owner" ||
+    systemRole === "manager" ||
+    systemRole === "assistant_manager" ||
+    systemRole === "store_manager"
+  ) {
+    if (!pathname.startsWith("/crm")) {
+      return NextResponse.redirect(new URL("/crm", request.url));
+    }
     return response;
   }
 

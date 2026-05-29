@@ -6,6 +6,7 @@ import { getLapsedCustomers } from "@/lib/queries/customers";
 import { getCrmContext } from "@/lib/queries/crm-context";
 import { formatDate } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
+import { CrmTabNav, CUSTOMERS_TABS } from "@/components/features/crm/crm-tab-nav";
 
 type LapsedCustomerItem = Pick<
   Database["public"]["Tables"]["customers"]["Row"],
@@ -17,12 +18,6 @@ function daysSince(dateStr: string | null): number {
   const diff = Date.now() - new Date(dateStr).getTime();
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
-
-const TAB_ITEMS = [
-  { href: "/crm/customers", label: "All Customers" },
-  { href: "/crm/repeats", label: "Repeat Clients" },
-  { href: "/crm/lapsed", label: "Lapsed Clients" },
-];
 
 export default async function LapsedPage() {
   const { branchId } = await getCrmContext();
@@ -62,29 +57,7 @@ export default async function LapsedPage() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
-        {TAB_ITEMS.map((tab) => {
-          const isActive = tab.href === "/crm/lapsed";
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              style={{
-                padding: "5px 14px",
-                borderRadius: 6,
-                border: "1px solid var(--cs-border)",
-                backgroundColor: isActive ? "var(--cs-sand-mist)" : "var(--cs-surface)",
-                color: isActive ? "var(--cs-sand)" : "var(--cs-text-muted)",
-                fontSize: "0.8125rem",
-                textDecoration: "none",
-                fontWeight: isActive ? 600 : 400,
-              }}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </div>
+      <CrmTabNav tabs={CUSTOMERS_TABS} activeHref="/crm/lapsed" />
 
       {customers.length === 0 ? (
         <EmptyState

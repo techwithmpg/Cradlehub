@@ -6,6 +6,7 @@ import { CrmBookingsView } from "@/components/features/bookings/crm-bookings-vie
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { confirmBookingPaymentAction } from "./actions";
+import { CrmTabNav, BOOKINGS_TABS } from "@/components/features/crm/crm-tab-nav";
 
 async function getCrmContext() {
   const supabase = await createClient();
@@ -19,7 +20,7 @@ async function getCrmContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
 
   if (!me && isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();
@@ -75,10 +76,13 @@ export default async function CrmBookingsPage({
   };
 
   return (
-    <CrmBookingsView
-      initialData={initialData}
-      paymentAction={updateBookingPaymentAction}
-      confirmPaymentAction={confirmBookingPaymentAction}
-    />
+    <>
+      <CrmTabNav tabs={BOOKINGS_TABS} activeHref="/crm/bookings" />
+      <CrmBookingsView
+        initialData={initialData}
+        paymentAction={updateBookingPaymentAction}
+        confirmPaymentAction={confirmBookingPaymentAction}
+      />
+    </>
   );
 }

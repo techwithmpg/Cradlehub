@@ -14,6 +14,8 @@ export type WorkspaceNav = {
   label: string;
   items?: NavItem[];
   groups?: NavGroup[];
+  /** When true, this workspace is hidden from the nav/switcher during MVP. */
+  mvpHidden?: boolean;
 };
 
 const OWNER_NAV_ITEMS: NavItem[] = [
@@ -47,64 +49,31 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Settings", href: "/manager/settings", icon: "Settings" },
 ];
 
-// ── CRM / front-desk grouped navigation ──────────────────────────────────────
+// ── CRM / front-desk navigation ───────────────────────────────────────────────
+// 7 top-level items only. Related pages become tabs inside each section.
+// Routes removed from nav are NOT deleted — they stay live and will be
+// redirected to tab URLs in Phase 3:
+//   /crm/control           → /crm/today?tab=control
+//   /crm/reconciliation    → /crm/today?panel=reconciliation
+//   /crm/waitlist          → /crm/bookings?tab=waitlist
+//   /crm/availability      → /crm/schedule?tab=availability
+//   /crm/staff-availability → /crm/schedule?tab=setup
+//   /crm/repeats           → /crm/customers?tab=repeats
+//   /crm/lapsed            → /crm/customers?tab=lapsed
+//   /crm/services          → /crm/setup?tab=services
+//   /crm/spaces-rules      → /crm/setup?tab=spaces-rules
+//   /crm/live-operations   → /crm/dispatch?tab=live-map
+//   /crm/notifications     → header bell / action center
 
-const CRM_NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Main Operations",
-    items: [
-      { label: "Today",          href: "/crm/today",           icon: "LayoutDashboard" },
-      { label: "Control Center", href: "/crm/control",         icon: "Monitor" },
-      { label: "Bookings",       href: "/crm/bookings",        icon: "ClipboardList" },
-      { label: "Dispatch",       href: "/crm/dispatch",        icon: "Truck" },
-      { label: "Live Map",       href: "/crm/live-operations", icon: "MapPin" },
-      { label: "Schedule",       href: "/crm/schedule",        icon: "CalendarDays" },
-    ],
-  },
-  {
-    label: "Daily Readiness",
-    items: [
-      { label: "Staff Availability", href: "/crm/availability",       icon: "UserCheck" },
-      { label: "Schedule Setup",     href: "/crm/staff-availability", icon: "CalendarClock" },
-    ],
-  },
-  {
-    label: "Customer Management",
-    items: [
-      { label: "Customers", href: "/crm/customers", icon: "Users" },
-      { label: "Repeats",   href: "/crm/repeats",   icon: "Heart" },
-      { label: "Lapsed",    href: "/crm/lapsed",    icon: "ClockAlert" },
-      { label: "Waitlist",  href: "/crm/waitlist",  icon: "UserPlus" },
-    ],
-  },
-  {
-    label: "Service & Resource Setup",
-    items: [
-      { label: "Rules & Setup",  href: "/crm/setup",        icon: "Wrench" },
-      { label: "Services",       href: "/crm/services",     icon: "Sparkles" },
-      { label: "Spaces & Rules", href: "/crm/spaces-rules", icon: "Building2" },
-    ],
-  },
-  {
-    label: "Staff & Internal Work",
-    items: [
-      { label: "Staff Applications", href: "/crm/staff-applications", icon: "ClipboardCheck" },
-      { label: "Notifications",      href: "/crm/notifications",      icon: "Bell" },
-    ],
-  },
-  {
-    label: "Finance / End-of-day",
-    items: [
-      { label: "Reconciliation", href: "/crm/reconciliation", icon: "BarChart2" },
-    ],
-  },
+const CRM_NAV_ITEMS: NavItem[] = [
+  { label: "Today",        href: "/crm/today",              icon: "LayoutDashboard" },
+  { label: "Bookings",     href: "/crm/bookings",           icon: "ClipboardList"   },
+  { label: "Schedule",     href: "/crm/schedule",           icon: "CalendarDays"    },
+  { label: "Customers",    href: "/crm/customers",          icon: "Users"           },
+  { label: "Setup Center", href: "/crm/setup",              icon: "Wrench"          },
+  { label: "Staff",        href: "/crm/staff",              icon: "UserCheck"       },
+  { label: "Dispatch",     href: "/crm/dispatch",           icon: "Truck"           },
 ];
-
-// CSR Head and CSR Staff share the same full CRM workspace nav.
-// All front-desk roles access all CRM pages — page-level edit permissions
-// still restrict specific actions (e.g. owner-only resource editing).
-const CSR_HEAD_NAV_GROUPS: NavGroup[] = [...CRM_NAV_GROUPS];
-const CSR_STAFF_NAV_GROUPS: NavGroup[] = [...CRM_NAV_GROUPS];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/staff-portal", icon: "LayoutDashboard" },
@@ -130,26 +99,30 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
     role: "owner",
     label: "Owner",
     items: OWNER_NAV_ITEMS,
+    // MVP: owner workspace is soft-paused; owner users are routed to CRM.
+    mvpHidden: true,
   },
   manager: {
     role: "manager",
     label: "Manager",
     items: MANAGER_NAV_ITEMS,
+    // MVP: manager workspace is soft-paused; manager users are routed to CRM.
+    mvpHidden: true,
   },
   crm: {
     role: "crm",
     label: "CRM",
-    groups: CRM_NAV_GROUPS,
+    items: CRM_NAV_ITEMS,
   },
   csr_head: {
     role: "csr_head",
     label: "CSR Head",
-    groups: CSR_HEAD_NAV_GROUPS,
+    items: CRM_NAV_ITEMS,
   },
   csr_staff: {
     role: "csr_staff",
     label: "CSR Staff",
-    groups: CSR_STAFF_NAV_GROUPS,
+    items: CRM_NAV_ITEMS,
   },
   staff: {
     role: "staff",
@@ -184,6 +157,15 @@ export function resolveWorkspaceKeyFromPath(pathname: string): string | null {
 }
 
 export function resolveWorkspaceKeyFromRole(role: string): string {
+  // MVP: owner + management roles use the CRM workspace nav
+  if (
+    role === "owner" ||
+    role === "manager" ||
+    role === "assistant_manager" ||
+    role === "store_manager"
+  ) {
+    return "crm";
+  }
   if (role === "csr_head") {
     return "csr_head";
   }
@@ -191,8 +173,6 @@ export function resolveWorkspaceKeyFromRole(role: string): string {
     return "csr_staff";
   }
   if (
-    role === "owner" ||
-    role === "manager" ||
     role === "crm" ||
     role === "staff" ||
     role === "driver" ||

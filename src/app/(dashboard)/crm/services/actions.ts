@@ -3,9 +3,9 @@
 /**
  * CRM Service Provider Assignment Actions
  *
- * MVP Note: CRM setup roles (owner, manager, crm, csr_head) are permitted to
- * manage service-provider assignments so daily operations can start immediately.
- * Once the system is stable, this permission can be tightened to manager/owner only.
+ * MVP Note: CRM setup roles (owner, manager, crm, csr_head, csr_staff, csr) are
+ * permitted to manage service-provider assignments so daily operations can start
+ * immediately. Once the system is stable, this can be tightened to manager/owner only.
  *
  * Architecture: updates the existing staff_services junction table.
  * Does NOT create a duplicate assignment system.
@@ -14,8 +14,13 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
+import {
+  cacheTags,
+  invalidateCrmWorkspace,
+  invalidateTag,
+} from "@/lib/cache/cache-tags";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { SERVICE_STAFF_TYPES } from "@/constants/staff-roles";
 
@@ -35,6 +40,8 @@ const CRM_SETUP_ROLES = new Set([
   "store_manager",
   "crm",
   "csr_head",
+  "csr_staff",
+  "csr",
 ]);
 
 /**
@@ -202,6 +209,17 @@ const removeSchema = z.object({
   staffId:   uuidField("Staff ID is required.", "staffId"),
 });
 
+const homeServiceAvailabilitySchema = z.object({
+  branchId: uuidField(
+    "Branch ID is missing — please reload the Services page and try again.",
+    "branchId"
+  ),
+  serviceId: uuidField("Service ID is required.", "serviceId"),
+  availableHomeService: z.boolean({
+    error: "Home Service availability must be true or false.",
+  }),
+});
+
 // ── Helper: is a staff row a valid service provider? ──────────────────────────
 
 type StaffEligibility = {
@@ -343,9 +361,95 @@ export async function assignProviderToServiceAction(
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   revalidatePath("/crm/today");
+  revalidatePath("/manager/services");
   invalidateCrmWorkspace(branchId);
 
   return { ok: true, message: "Provider assigned successfully." };
+}
+
+export async function updateBranchServiceHomeServiceAvailabilityAction(
+  rawInput: unknown
+): Promise<
+  | {
+      success: true;
+      savedAvailableHomeService: boolean;
+      branchService: {
+        id: string;
+        branch_id: string;
+        service_id: string;
+        available_home_service: boolean;
+      };
+    }
+  | { success: false; error: string }
+> {
+  const parsed = homeServiceAvailabilitySchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid Home Service input.",
+    };
+  }
+
+  const { branchId, serviceId, availableHomeService } = parsed.data;
+
+  const ctx = await requireCrmSetupAccess();
+  if (!ctx) {
+    return {
+      success: false,
+      error:
+        "Unauthorized. CRM setup access is required to update service availability.",
+    };
+  }
+
+  const scopeError = await checkBranchScope(ctx, branchId);
+  if (scopeError) {
+    return { success: false, error: scopeError.message };
+  }
+
+  const admin = createAdminClient();
+  const { data: updated, error } = await admin
+    .from("branch_services")
+    .update({
+      available_home_service: availableHomeService,
+    })
+    .eq("branch_id", branchId)
+    .eq("service_id", serviceId)
+    .select("id, branch_id, service_id, available_home_service")
+    .maybeSingle();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  if (!updated) {
+    return {
+      success: false,
+      error: "No branch service row found for this branch and service.",
+    };
+  }
+
+  if (updated.available_home_service !== availableHomeService) {
+    return {
+      success: false,
+      error: `Database did not save the expected value. Expected available_home_service=${String(
+        availableHomeService
+      )}, got ${String(updated.available_home_service)}.`,
+    };
+  }
+
+  invalidateTag(cacheTags.branchServices(branchId));
+  invalidateCrmWorkspace(branchId);
+  revalidatePath("/crm/services");
+  revalidatePath("/crm/setup");
+  revalidatePath("/book");
+  revalidatePath("/services");
+  revalidatePath("/");
+
+  return {
+    success: true,
+    savedAvailableHomeService: updated.available_home_service,
+    branchService: updated,
+  };
 }
 
 /**
@@ -464,6 +568,7 @@ export async function removeProviderFromServiceAction(
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   revalidatePath("/crm/today");
+  revalidatePath("/manager/services");
   invalidateCrmWorkspace(branchId);
 
   return { ok: true, message: "Provider removed." };

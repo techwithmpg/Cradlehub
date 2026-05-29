@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   CheckCircle2,
   EyeOff,
@@ -14,7 +15,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { updateBranchServiceHomeServiceByIdAction } from "@/app/(dashboard)/owner/branches/actions";
+import { updateBranchServiceHomeServiceAvailabilityAction } from "@/app/(dashboard)/crm/services/actions";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { CustomizationRow } from "./customization-rows";
@@ -48,7 +49,11 @@ export function SelectedServiceEditorRail({
       <RailHeader row={row} onClose={onClose} />
       <div className="space-y-5 p-5">
         <DeliveryModeSection branchId={branchId} row={row} />
-        <HomeServiceToggleSection branchId={branchId} row={row} />
+        <HomeServiceToggleSection
+          key={`${row.branchServiceId}:${String(row.isHomeService)}`}
+          branchId={branchId}
+          row={row}
+        />
         <PublicVisibilitySection branchId={branchId} row={row} />
         <ReadinessChecklist row={row} />
         <QuickActions row={row} />
@@ -205,22 +210,29 @@ function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: Cu
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleToggle = (checked: boolean) => {
+    const previousValue = localValue;
     setSaveError(null);
     setLocalValue(checked);
     startTransition(async () => {
-      // Use PK (branchServiceId) for unambiguous matching
-      const res = await updateBranchServiceHomeServiceByIdAction(
+      const res = await updateBranchServiceHomeServiceAvailabilityAction({
         branchId,
-        row.branchServiceId,
-        checked
-      );
+        serviceId: row.serviceId,
+        availableHomeService: checked,
+      });
       if (!res.success) {
-        setSaveError(res.error ?? "Update failed. Please try again.");
-        setLocalValue(!checked); // revert
+        const message = res.error ?? "Update failed. Please try again.";
+        setSaveError(message);
+        setLocalValue(previousValue);
+        toast.error("Home Service not saved", { description: message });
         return;
       }
       // Sync to what DB actually saved, then reload server data
       setLocalValue(res.savedAvailableHomeService);
+      toast.success("Home Service updated", {
+        description: `${row.name} is ${
+          res.savedAvailableHomeService ? "available" : "not available"
+        } for Home Service.`,
+      });
       router.refresh();
     });
   };

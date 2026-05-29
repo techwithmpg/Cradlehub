@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getActiveTripsForOpsMap } from "@/lib/actions/live-ops-actions";
 import { LiveOpsPage } from "@/components/features/ops-map/live-ops-page";
+import { CrmTabNav, DISPATCH_TABS } from "@/components/features/crm/crm-tab-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ async function getCrmContext() {
   const allowedRoles = [
     "owner",
     "manager",
+    "assistant_manager",
+    "store_manager",
     "crm",
     "csr",
     "csr_head",
@@ -52,11 +55,14 @@ export default async function CrmLiveOperationsPage() {
   });
 
   return (
-    <LiveOpsPage
-      branchName={branchName}
-      todayLabel={todayLabel}
-      initialTrips={initialTrips}
-      controlPath="/crm/control"
-    />
+    <>
+      <CrmTabNav tabs={DISPATCH_TABS} activeHref="/crm/live-operations" />
+      <LiveOpsPage
+        branchName={branchName}
+        todayLabel={todayLabel}
+        initialTrips={initialTrips}
+        controlPath="/crm/control"
+      />
+    </>
   );
 }

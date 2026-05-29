@@ -6,7 +6,7 @@ import { getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { getReconciliationsAction } from "./actions";
 import { ReconciliationForm } from "./reconciliation-form";
 
-const ALLOWED_ROLES = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+const ALLOWED_ROLES = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   draft:     { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" },

@@ -13,7 +13,7 @@ type StaffBranchSectionProps = {
   isExpanded: boolean;
   onSelectStaff: (staff: StaffMember) => void;
   onToggleExpanded: (branchId: string) => void;
-  workspaceContext?: "owner" | "manager";
+  workspaceContext?: "owner" | "manager" | "crm";
 };
 
 export function StaffBranchSection({

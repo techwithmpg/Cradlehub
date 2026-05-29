@@ -21,7 +21,7 @@ const schema = z.object({
 function isMissingServiceVisibilityError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
-    lower.includes("booking_visibility") &&
+    (lower.includes("visibility") || lower.includes("booking_visibility")) &&
     (lower.includes("does not exist") ||
       lower.includes("schema cache") ||
       lower.includes("could not find"))
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   if (d.serviceId) {
     let serviceQuery = await supabase
       .from("branch_services")
-      .select("service_id, available_in_spa, available_home_service, booking_visibility")
+      .select("service_id, available_in_spa, available_home_service, visibility")
       .eq("branch_id", d.branchId)
       .eq("service_id", d.serviceId)
       .eq("is_active", true)
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     if (serviceQuery.error && isMissingServiceVisibilityError(serviceQuery.error.message)) {
       serviceQuery = await supabase
         .from("branch_services")
-        .select("service_id, available_in_spa, available_home_service")
+        .select("service_id, available_in_spa, available_home_service, booking_visibility")
         .eq("branch_id", d.branchId)
         .eq("service_id", d.serviceId)
         .eq("is_active", true)
@@ -101,10 +101,11 @@ export async function POST(request: NextRequest) {
     const service = serviceQuery.data as {
       available_in_spa: boolean | null;
       available_home_service: boolean | null;
+      visibility?: string | null;
       booking_visibility?: string | null;
     };
 
-    if (service.booking_visibility && service.booking_visibility !== "public") {
+    if ((service.visibility ?? service.booking_visibility ?? "public") !== "public") {
       return NextResponse.json(
         { error: "Selected service is not available for public waitlist requests." },
         { status: 400 }

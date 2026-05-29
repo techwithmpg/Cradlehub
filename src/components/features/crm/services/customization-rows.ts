@@ -37,7 +37,11 @@ export function buildCustomizationRows(
   const staffById = new Map(staff.map((s) => [s.id, s]));
 
   return services.map((svc) => {
-    const serviceId = svc.service_id ?? svc.services?.id ?? svc.id;
+    // Supabase may return nested relations as arrays; handle both shapes.
+    const nestedService = Array.isArray(svc.services)
+      ? svc.services[0] ?? null
+      : svc.services ?? null;
+    const serviceId = svc.service_id ?? nestedService?.id ?? svc.id;
     const assignedIds = assignMap.get(serviceId) ?? new Set<string>();
     const assignedProviders = Array.from(assignedIds)
       .map((id) => staffById.get(id))
@@ -69,7 +73,7 @@ export function buildCustomizationRows(
       assignedProviders.length > 0 &&
       visibility === "public";
 
-    const catRel = svc.services?.service_categories;
+    const catRel = nestedService?.service_categories;
     const category =
       catRel === null || catRel === undefined
         ? null
@@ -80,12 +84,12 @@ export function buildCustomizationRows(
     return {
       branchServiceId: svc.id,
       serviceId,
-      name: svc.public_title?.trim() || svc.services?.name || "Unnamed Service",
+      name: svc.public_title?.trim() || nestedService?.name || "Unnamed Service",
       category,
-      description: svc.public_description?.trim() || svc.services?.description || null,
-      duration: svc.custom_duration_minutes ?? svc.services?.duration_minutes ?? 0,
-      price: svc.custom_price ?? svc.services?.price ?? 0,
-      imageUrl: svc.custom_image_url ?? (svc.services as Record<string, unknown> | null | undefined)?.image_url as string | null ?? null,
+      description: svc.public_description?.trim() || nestedService?.description || null,
+      duration: svc.custom_duration_minutes ?? nestedService?.duration_minutes ?? 0,
+      price: svc.custom_price ?? nestedService?.price ?? 0,
+      imageUrl: svc.custom_image_url ?? (nestedService as Record<string, unknown> | null)?.image_url as string | null ?? null,
       isActive,
       isInSpa,
       isHomeService,

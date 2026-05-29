@@ -57,40 +57,68 @@ export function ScheduleGroupCards({ items, groups, selectedGroup, onSelectGroup
             onClick={() => onSelectGroup(group.id)}
             style={{
               flexShrink: 0,
-              padding: "6px 12px",
-              borderRadius: "var(--cs-r-md)",
+              padding: "8px 14px",
+              borderRadius: "var(--cs-r-lg)",
               border: isActive
-                ? "2px solid var(--cs-sand)"
+                ? "1.5px solid var(--cs-crm-accent)"
                 : "1px solid var(--cs-border-soft)",
-              background: isActive ? "var(--cs-sand-tint)" : "var(--cs-surface)",
+              background: isActive ? "rgba(90,138,106,0.08)" : "var(--cs-surface)",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              gap: 8,
+              transition: "all 150ms ease",
+              boxShadow: isActive ? "var(--cs-shadow-xs)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                (e.currentTarget as HTMLElement).style.background = "var(--cs-surface-warm)";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--cs-border)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                (e.currentTarget as HTMLElement).style.background = "var(--cs-surface)";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--cs-border-soft)";
+              }
             }}
           >
-            <span style={{ fontSize: 14 }}>{group.icon}</span>
+            <span style={{ fontSize: 15, lineHeight: 1 }}>{group.icon}</span>
             <span
               style={{
-                fontSize: 12,
+                fontSize: "0.8125rem",
                 fontWeight: isActive ? 700 : 600,
-                color: isActive ? "var(--cs-sand-dark)" : "var(--cs-text)",
+                color: isActive ? "var(--cs-crm-accent)" : "var(--cs-text)",
+                letterSpacing: "0.01em",
               }}
             >
               {group.label}
             </span>
-            <span style={{ fontSize: 11, color: "var(--cs-text-muted)", fontWeight: 500 }}>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                color: isActive ? "var(--cs-crm-accent)" : "var(--cs-text-muted)",
+                fontWeight: 700,
+                background: isActive ? "rgba(90,138,106,0.12)" : "var(--cs-surface-warm)",
+                padding: "1px 7px",
+                borderRadius: "var(--cs-r-pill)",
+                minWidth: 20,
+                textAlign: "center",
+              }}
+            >
               {count}
             </span>
             {!hasGroupData && count > 0 && (
               <span
                 style={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  padding: "1px 5px",
+                  fontSize: "0.625rem",
+                  fontWeight: 700,
+                  padding: "2px 6px",
                   background: "var(--cs-error-bg)",
                   color: "var(--cs-error)",
                   borderRadius: "var(--cs-r-pill)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
                 }}
               >
                 No rules

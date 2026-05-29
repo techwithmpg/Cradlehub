@@ -6,17 +6,12 @@ import { getRepeatCustomers } from "@/lib/queries/customers";
 import { getCrmContext } from "@/lib/queries/crm-context";
 import { formatDate } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
+import { CrmTabNav, CUSTOMERS_TABS } from "@/components/features/crm/crm-tab-nav";
 
 type RepeatCustomerItem = Pick<
   Database["public"]["Tables"]["customers"]["Row"],
   "id" | "full_name" | "phone" | "email" | "total_bookings" | "last_booking_date" | "first_booking_date"
 >;
-
-const TAB_ITEMS = [
-  { href: "/crm/customers", label: "All Customers" },
-  { href: "/crm/repeats", label: "Repeat Clients" },
-  { href: "/crm/lapsed", label: "Lapsed Clients" },
-];
 
 export default async function RepeatsPage({
   searchParams,
@@ -56,29 +51,7 @@ export default async function RepeatsPage({
         Repeat clients typically spend more and are easier to rebook.
       </div>
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
-        {TAB_ITEMS.map((tab) => {
-          const isActive = tab.href === "/crm/repeats";
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              style={{
-                padding: "5px 14px",
-                borderRadius: 6,
-                border: "1px solid var(--cs-border)",
-                backgroundColor: isActive ? "var(--cs-sand-mist)" : "var(--cs-surface)",
-                color: isActive ? "var(--cs-sand)" : "var(--cs-text-muted)",
-                fontSize: "0.8125rem",
-                textDecoration: "none",
-                fontWeight: isActive ? 600 : 400,
-              }}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </div>
+      <CrmTabNav tabs={CUSTOMERS_TABS} activeHref="/crm/repeats" />
 
       {rows.length === 0 ? (
         <EmptyState

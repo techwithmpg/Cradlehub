@@ -1,22 +1,13 @@
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { getTodaysSchedule } from "@/lib/queries/bookings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
 import { getCrmTodaySnapshot } from "@/lib/queries/crm-today";
-import { CrmBookingQueuePanel } from "@/components/features/crm/today/crm-booking-queue-panel";
-import { TodaySideRail } from "@/components/features/crm/today/today-side-rail";
-import { TodayPriorityStrip } from "@/components/features/crm/today/today-priority-strip";
-import { TodayStaffReadiness } from "@/components/features/crm/today/today-staff-readiness";
-import { TodayDispatchSnapshot } from "@/components/features/crm/today/today-dispatch-snapshot";
-import { TodayQuickActions } from "@/components/features/crm/today/today-quick-actions";
-import { TodayEmergencyActions } from "@/components/features/crm/today/today-emergency-actions";
-import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { getCrmReadiness } from "@/lib/queries/crm-readiness";
-import { SystemReadinessBar } from "@/components/shared/system-readiness-bar";
 import { buildReadinessResult } from "@/types/readiness";
+import { CrmTodayShell } from "@/components/features/crm/today/crm-today-shell";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -47,19 +38,6 @@ function first<T>(v: Relation<T>): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
-function toMins(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
-}
-
-function formatTime(t: string): string {
-  const [h, m] = t.split(":").map(Number);
-  const hr = h ?? 0;
-  const ampm = hr >= 12 ? "PM" : "AM";
-  const display = hr % 12 === 0 ? 12 : hr % 12;
-  return `${display}:${String(m ?? 0).padStart(2, "0")}${ampm}`;
-}
-
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
 async function getCsrContext() {
@@ -74,7 +52,7 @@ async function getCsrContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
   const devBypass = isDevAuthBypassEnabled();
 
   if (!me && devBypass) {
@@ -96,7 +74,6 @@ async function getCsrContext() {
 export default async function CrmTodayPage() {
   const { branchId, branchName, role } = await getCsrContext();
   const today   = new Date().toISOString().split("T")[0]!;
-  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
 
   const [rawBookings, snapshot, actionNotifications, readiness] = await Promise.all([
     getTodaysSchedule(branchId, today),
@@ -139,166 +116,36 @@ export default async function CrmTodayPage() {
     };
   });
 
-  const upcoming  = bookings.filter((b) => b.status === "confirmed" && toMins(b.start_time) > nowMins);
-  const inProgBks = bookings.filter((b) => b.status === "in_progress");
-  const completed = bookings.filter((b) => b.status === "completed");
-  const cancelled = bookings.filter((b) => b.status === "cancelled" || b.status === "no_show");
-
-  const nextAppt = [...upcoming].sort((a, b) => toMins(a.start_time) - toMins(b.start_time))[0];
+  const upcoming = bookings.filter((b) => b.status === "confirmed");
+  const nextAppt = [...upcoming].sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
 
   const roleLabel =
-    role === "csr_head" ? "CSR Head"
-    : role === "owner"   ? "Owner"
-    : role === "manager" ? "Manager"
+    role === "owner"             ? "Owner"
+    : role === "manager"         ? "Manager"
+    : role === "assistant_manager" ? "Asst. Manager"
+    : role === "store_manager"   ? "Store Manager"
+    : role === "csr_head"        ? "CSR Head"
     : "CSR Staff";
 
-  // Derived readiness props for the compact bar
   const readinessResult = readiness ?? buildReadinessResult([]);
   const readinessIssues = readinessResult.issues;
   const readinessStatus = readinessResult.status;
 
+  const dateLabel = new Date().toLocaleDateString("en-PH", {
+    weekday: "long", month: "long", day: "numeric",
+  });
+
   return (
-    <div>
-      {/* ── Compact system readiness bar ── */}
-      <div style={{ marginBottom: "0.875rem" }}>
-        <SystemReadinessBar
-          issues={readinessIssues}
-          status={readinessStatus}
-          label="System Readiness"
-        />
-      </div>
-
-      <PageHeader
-        title="Daily Operations Center"
-        description={`${branchName} · ${new Date().toLocaleDateString("en-PH", {
-          weekday: "long", month: "long", day: "numeric",
-        })} · Front-desk operations`}
-      />
-
-      {/* ── Primary actions ── */}
-      <div style={{ marginBottom: "1rem" }}>
-        <TodayQuickActions />
-      </div>
-
-      {/* ── KPI snapshot strip ── */}
-      <div style={{ marginBottom: "1.25rem" }}>
-        <TodayPriorityStrip
-          bookingSummary={snapshot.bookingSummary}
-          staffReadiness={snapshot.staffReadiness}
-          dispatchStats={snapshot.dispatchStats}
-          payment={snapshot.payment}
-          urgentCount={actionNotifications.length}
-        />
-      </div>
-
-      {/* ── Main two-column layout ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 300px",
-          gap: "1.25rem",
-          alignItems: "start",
-        }}
-      >
-        {/* ── Left column: booking queue + emergency actions ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-
-          {/* Next appointment banner */}
-          {nextAppt && (
-            <div
-              className="cs-card"
-              style={{ padding: "0.875rem 1.125rem", borderLeft: "3px solid var(--cs-sand)" }}
-            >
-              <div
-                style={{
-                  fontSize: "0.6875rem", fontWeight: 600,
-                  color: "var(--cs-sand)", textTransform: "uppercase",
-                  letterSpacing: "0.06em", marginBottom: 6,
-                }}
-              >
-                Next Appointment
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
-                <div style={{ minWidth: 52, textAlign: "center" }}>
-                  <div style={{ fontSize: "1.0625rem", fontWeight: 700, color: "var(--cs-text)", lineHeight: 1 }}>
-                    {formatTime(nextAppt.start_time)}
-                  </div>
-                  <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}>
-                    {first(nextAppt.services)?.duration_minutes ?? "—"} min
-                  </div>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--cs-text)" }}>
-                    {first(nextAppt.customers)?.full_name ?? "—"}
-                  </div>
-                  <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>
-                    {first(nextAppt.services)?.name ?? "Service"}
-                    {" · "}
-                    {first(nextAppt.staff) ? getStaffAdminName(first(nextAppt.staff)!) : "Unassigned"}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.6875rem", fontWeight: 700, padding: "3px 8px",
-                    borderRadius: 12, backgroundColor: "var(--cs-sand-mist)", color: "var(--cs-sand)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {nextAppt.type === "home_service" ? "Home" : nextAppt.type === "walk_in" ? "Walk-in" : "Online"}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Booking queue */}
-          <div>
-            <div
-              style={{
-                fontSize: "0.9375rem", fontWeight: 600,
-                color: "var(--cs-text)", fontFamily: "var(--font-display)",
-                marginBottom: "0.75rem",
-              }}
-            >
-              Today&apos;s Booking Queue
-            </div>
-            <CrmBookingQueuePanel
-              bookings={queueData}
-              nextApptId={nextAppt?.id}
-              paymentAction={updateBookingPaymentAction}
-            />
-          </div>
-
-          {/* Emergency actions — compact, below the queue */}
-          <TodayEmergencyActions />
-        </div>
-
-        {/* ── Right rail ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <TodayStaffReadiness summary={snapshot.staffReadiness} />
-          <TodayDispatchSnapshot stats={snapshot.dispatchStats} />
-          <TodaySideRail
-            completed={completed.length}
-            inProgress={inProgBks.length}
-            upcoming={upcoming.length}
-            cancelledNS={cancelled.length}
-            paymentSummary={snapshot.payment}
-          />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div
-        style={{
-          marginTop: "1.5rem",
-          paddingTop: "0.75rem",
-          borderTop: "1px solid var(--cs-border-soft)",
-          fontSize: "0.6875rem",
-          color: "var(--cs-text-muted)",
-          lineHeight: 1.5,
-        }}
-      >
-        Signed in as {roleLabel} · {branchName}
-      </div>
-    </div>
+    <CrmTodayShell
+      branchName={branchName}
+      dateLabel={dateLabel}
+      roleLabel={roleLabel}
+      queueData={queueData}
+      snapshot={snapshot}
+      actionNotifications={actionNotifications}
+      readinessIssues={readinessIssues}
+      readinessStatus={readinessStatus}
+      nextApptId={nextAppt?.id}
+    />
   );
 }

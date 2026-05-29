@@ -4,16 +4,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getCrmSetupHealth } from "@/lib/queries/crm-setup";
-import { getCrmReadiness } from "@/lib/queries/crm-readiness";
-import { CrmSetupHealthCards } from "@/components/features/crm/setup/crm-setup-health-cards";
-import { CrmSetupIssuesList } from "@/components/features/crm/setup/crm-setup-issues-list";
-import { CrmSetupWorkspaceTiles } from "@/components/features/crm/setup/crm-setup-workspace-tiles";
-import { SystemReadinessBar } from "@/components/shared/system-readiness-bar";
-import { buildReadinessResult } from "@/types/readiness";
+import { SetupHealthContent } from "@/components/features/setup-center/setup-health-content";
+import { CrmTabNav, SETUP_TABS } from "@/components/features/crm/crm-tab-nav";
 
 // ── Auth + branch resolution ───────────────────────────────────────────────────
 
-const ALLOWED_ROLES = new Set(["owner", "manager", "crm", "csr", "csr_head", "csr_staff"]);
+const ALLOWED_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"]);
 
 async function getSetupPageContext() {
   const supabase = await createClient();
@@ -49,13 +45,9 @@ export default async function CrmSetupPage() {
   const { branchId, branchName } = await getSetupPageContext();
 
   let health: Awaited<ReturnType<typeof getCrmSetupHealth>>;
-  let readiness: Awaited<ReturnType<typeof getCrmReadiness>> | null;
 
   try {
-    [health, readiness] = await Promise.all([
-      getCrmSetupHealth(branchId),
-      getCrmReadiness(branchId).catch(() => null),
-    ]);
+    health = await getCrmSetupHealth(branchId);
   } catch (err) {
     console.error("[crm/setup] health check failed", {
       branchId,
@@ -64,8 +56,8 @@ export default async function CrmSetupPage() {
     return (
       <section className="space-y-5">
         <PageHeader
-          title="Rules & Setup Center"
-          description="Check what CradleHub needs for bookings, daily operations, services, schedules, rooms, and dispatch."
+          title="Setup Center"
+          description="Everything you need to keep bookings, schedules, services, rooms, and dispatch running smoothly."
           icon="🛠️"
         />
         <Alert variant="destructive">
@@ -78,83 +70,21 @@ export default async function CrmSetupPage() {
     );
   }
 
-  const readinessResult = readiness ?? buildReadinessResult([]);
-  const readinessIssues = readinessResult.issues;
-  const readinessStatus = readinessResult.status;
-
   return (
     <section className="space-y-5">
       <PageHeader
-        title="Rules & Setup Center"
-        description="Check what CradleHub needs for bookings, daily operations, services, schedules, rooms, and dispatch."
+        title="Setup Center"
+        description="Everything you need to keep bookings, schedules, services, rooms, and dispatch running smoothly."
         icon="🛠️"
       />
 
-      {/* ── Compact system readiness bar ── */}
-      <SystemReadinessBar
-        issues={readinessIssues}
-        status={readinessStatus}
-        label="System Readiness"
-      />
+      <CrmTabNav tabs={SETUP_TABS} activeHref="/crm/setup" />
 
-      {/* ── Setup health KPIs ── */}
-      <div>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: "0.625rem",
-          }}
-        >
-          Setup Health
-        </div>
-        <CrmSetupHealthCards data={health} />
-      </div>
-
-      {/* ── Grouped issues checklist ── */}
-      <div>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: "0.625rem",
-          }}
-        >
-          Issues & Actions
-        </div>
-        <CrmSetupIssuesList issues={health.issues} />
-      </div>
-
-      {/* ── Fix shortcut tiles ── */}
-      <div>
-        <div
-          style={{
-            fontSize: "0.9375rem",
-            fontWeight: 600,
-            color: "var(--cs-text)",
-            fontFamily: "var(--font-display)",
-            marginBottom: "0.625rem",
-          }}
-        >
-          Fix Shortcuts
-        </div>
-        <CrmSetupWorkspaceTiles />
-      </div>
+      <SetupHealthContent data={health} />
 
       {/* Footer */}
-      <div
-        style={{
-          paddingTop: "0.75rem",
-          borderTop: "1px solid var(--cs-border-soft)",
-          fontSize: "0.6875rem",
-          color: "var(--cs-text-muted)",
-        }}
-      >
-        {branchName} · Health check runs on every page load against live data · MVP booking uses schedules, service assignments, blocked time, and existing bookings
+      <div className="border-t border-[var(--cs-border-soft)] pt-3 text-[0.6875rem] text-[var(--cs-text-muted)]">
+        {branchName} · Health check runs on every page load against live data
       </div>
     </section>
   );

@@ -41,6 +41,9 @@ export type ScheduleWorkspaceProps = {
   viewBookingsHref: string;
   statusAction?: ActionFn;
   paymentAction?: ActionFn;
+  showToolbar?: boolean;
+  showKpiCards?: boolean;
+  rightRailExtras?: React.ReactNode;
 };
 
 function computeAlerts(staffRows: DailyScheduleStaffRow[]): import("./schedule-alerts-panel").ScheduleAlert[] {
@@ -113,6 +116,9 @@ export function ScheduleWorkspace({
   viewBookingsHref,
   statusAction,
   paymentAction,
+  showToolbar = true,
+  showKpiCards = true,
+  rightRailExtras,
 }: ScheduleWorkspaceProps) {
   const router = useRouter();
   const [staffSearch, setStaffSearch] = useState("");
@@ -280,24 +286,26 @@ export function ScheduleWorkspace({
       )}
 
       {/* Toolbar */}
-      <ScheduleToolbar
-        workspaceContext={workspaceContext}
-        branchId={branchId}
-        branchName={branchName}
-        date={date}
-        branches={branches}
-        staffSearch={staffSearch}
-        statusFilter={statusFilter}
-        typeFilter={typeFilter}
-        onStaffSearchChange={setStaffSearch}
-        onStatusFilterChange={setStatusFilter}
-        onTypeFilterChange={setTypeFilter}
-        onDateChange={handleDateChange}
-        viewBookingsHref={viewBookingsHref}
-      />
+      {showToolbar && (
+        <ScheduleToolbar
+          workspaceContext={workspaceContext}
+          branchId={branchId}
+          branchName={branchName}
+          date={date}
+          branches={branches}
+          staffSearch={staffSearch}
+          statusFilter={statusFilter}
+          typeFilter={typeFilter}
+          onStaffSearchChange={setStaffSearch}
+          onStatusFilterChange={setStatusFilter}
+          onTypeFilterChange={setTypeFilter}
+          onDateChange={handleDateChange}
+          viewBookingsHref={viewBookingsHref}
+        />
+      )}
 
       {/* KPI Cards */}
-      <ScheduleKpiCards data={kpiData} />
+      {showKpiCards && <ScheduleKpiCards data={kpiData} />}
 
       {/* Board area */}
       {isCrm ? (
@@ -331,13 +339,16 @@ export function ScheduleWorkspace({
             {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
           </div>
 
-          <CrmScheduleDetailsPanel
-            staff={selectedStaff}
-            booking={selectedBookingWithStaff?.booking ?? null}
-            branchResources={branchResources}
-            date={date}
-            onClose={handleCloseDetails}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", minWidth: 0 }}>
+            <CrmScheduleDetailsPanel
+              staff={selectedStaff}
+              booking={selectedBookingWithStaff?.booking ?? null}
+              branchResources={branchResources}
+              date={date}
+              onClose={handleCloseDetails}
+            />
+            {rightRailExtras}
+          </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>

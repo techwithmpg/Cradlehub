@@ -22,11 +22,18 @@ type BranchServiceCatalogRow = Pick<
   | "custom_price"
   | "available_in_spa"
   | "available_home_service"
-  | "booking_visibility"
->;
+  | "visibility"
+> & {
+  booking_visibility?: string | null;
+};
 type LegacyBranchServiceCatalogRow = Pick<
   Database["public"]["Tables"]["branch_services"]["Row"],
-  "service_id" | "is_active" | "custom_price"
+  | "service_id"
+  | "is_active"
+  | "custom_price"
+  | "available_in_spa"
+  | "available_home_service"
+  | "booking_visibility"
 >;
 
 export type PublicCatalogService = {
@@ -109,7 +116,8 @@ function formatCurrency(amount: number) {
 function isMissingBranchServiceCatalogColumnError(message: string) {
   const lower = message.toLowerCase();
   return (
-    (lower.includes("booking_visibility") ||
+    (lower.includes("visibility") ||
+      lower.includes("booking_visibility") ||
       lower.includes("available_in_spa") ||
       lower.includes("available_home_service")) &&
     (lower.includes("does not exist") ||
@@ -172,7 +180,7 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
     supabase
       .from("branch_services")
       .select(
-        "service_id, is_active, custom_price, available_in_spa, available_home_service, booking_visibility"
+        "service_id, is_active, custom_price, available_in_spa, available_home_service, visibility"
       ),
   ]);
 
@@ -184,20 +192,37 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
       throw new Error(branchServicesResult.error.message);
     }
 
-    const fallback = await supabase
+    const legacy = await supabase
       .from("branch_services")
-      .select("service_id, is_active, custom_price");
+      .select(
+        "service_id, is_active, custom_price, available_in_spa, available_home_service, booking_visibility"
+      );
 
-    if (fallback.error) throw new Error(fallback.error.message);
+    if (!legacy.error) {
+      branchServicesData = ((legacy.data ?? []) as LegacyBranchServiceCatalogRow[]).map(
+        (row) => ({
+          ...row,
+          visibility: row.booking_visibility ?? "public",
+        })
+      );
+    } else if (!isMissingBranchServiceCatalogColumnError(legacy.error.message)) {
+      throw new Error(legacy.error.message);
+    } else {
+      const fallback = await supabase
+        .from("branch_services")
+        .select("service_id, is_active, custom_price");
 
-    branchServicesData = ((fallback.data ?? []) as LegacyBranchServiceCatalogRow[]).map(
-      (row) => ({
-        ...row,
-        available_in_spa: true,
-        available_home_service: false,
-        booking_visibility: "public",
-      })
-    );
+      if (fallback.error) throw new Error(fallback.error.message);
+
+      branchServicesData = ((fallback.data ?? []) as Array<Pick<LegacyBranchServiceCatalogRow, "service_id" | "is_active" | "custom_price">>).map(
+        (row) => ({
+          ...row,
+          available_in_spa: true,
+          available_home_service: false,
+          visibility: "public",
+        })
+      );
+    }
   }
 
   const branchRowsByService = new Map<string, BranchServiceCatalogRow[]>();
@@ -212,12 +237,14 @@ export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]>
     const categoryName = category?.name ?? "Wellness";
     const metadata = metadataObject(service.metadata);
     const branchRows = (branchRowsByService.get(service.id) ?? []).filter((row) => row.is_active);
-    const publicRows = branchRows.filter((row) => row.booking_visibility === "public");
+    const publicRows = branchRows.filter((row) => row.visibility === "public");
     const isPublicBookable = publicRows.length > 0;
     const isCsrOnly =
-      !isPublicBookable && branchRows.some((row) => row.booking_visibility === "csr_only");
+      !isPublicBookable &&
+      branchRows.some((row) => (row.visibility ?? row.booking_visibility) === "internal");
     const isVip =
-      !isPublicBookable && branchRows.some((row) => row.booking_visibility === "vip");
+      !isPublicBookable &&
+      branchRows.some((row) => (row.visibility ?? row.booking_visibility) === "vip");
     const isCatalogOnly = branchRows.length === 0;
     const requiresConsultation =
       metadataBoolean(metadata, "requires_consultation") ||

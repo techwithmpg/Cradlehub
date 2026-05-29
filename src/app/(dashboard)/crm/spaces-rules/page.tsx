@@ -1,9 +1,5 @@
 import { redirect } from "next/navigation";
 import { SpacesRulesWorkspace } from "@/components/features/spaces-rules/spaces-rules-workspace";
-import { SpacesRulesExplainer } from "@/components/features/spaces-rules/spaces-rules-explainer";
-import { SpacesRulesHealthSummary } from "@/components/features/spaces-rules/spaces-rules-health-summary";
-import { SpacesRulesAccessNotice } from "@/components/features/spaces-rules/spaces-rules-access-notice";
-import { SpacesRulesRelatedTools } from "@/components/features/spaces-rules/spaces-rules-related-tools";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getBranchWithFullDetail } from "@/lib/queries/branches";
@@ -11,25 +7,18 @@ import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rul
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { CrmTabNav, SETUP_TABS } from "@/components/features/crm/crm-tab-nav";
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 
 const CRM_SPACES_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
+  "owner", "manager", "assistant_manager", "store_manager",
+  "crm", "csr_head", "csr_staff", "csr",
 ]);
 
 async function getCRMContext() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: me } = await supabase
@@ -53,8 +42,7 @@ async function getCRMContext() {
 
   return {
     branchId: me.branch_id as string,
-    branchName:
-      (me.branches as { name: string } | null)?.name ?? "Your Branch",
+    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
     role: me.system_role as string,
   };
 }
@@ -117,35 +105,20 @@ export default async function CRMSpacesRulesPage() {
     };
   });
 
-  // ── Permission flags ─────────────────────────────────────────────────────────
-  // canManageResources: CRM can add/edit/toggle rooms for daily ops.
-  // Server-side guard in resources-actions.ts validates role + branch_id.
   const canManageResources = CRM_SPACES_ROLES.has(role);
-
-  // canEditRules: Booking rules control online booking time windows,
-  // home-service availability, and advance-booking limits.
-  // These are higher-risk settings — kept manager/owner-only.
-  // CRM can VIEW rules (read-only) but cannot save changes.
   const canEditRules = ["owner", "manager", "assistant_manager", "store_manager"].includes(role);
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-5">
       <PageHeader
-        title="Spaces & Booking Rules Center"
-        description={`${branchName} · Set up the rooms, resources, and booking rules the system uses for in-spa, in-house, and home-service operations.`}
+        title="Spaces & Rules"
+        description="Are rooms, resources, and booking rules ready?"
         icon="🏢"
       />
 
-      {/* How each flow uses spaces and rules */}
-      <SpacesRulesExplainer />
+      <CrmTabNav tabs={SETUP_TABS} activeHref="/crm/spaces-rules" />
 
-      {/* Quick-glance health stats */}
-      <SpacesRulesHealthSummary resources={detail.resources} rules={rules} />
-
-      {/* MVP access notice — what CRM can and cannot configure */}
-      <SpacesRulesAccessNotice />
-
-      {/* Alert if resources failed to load */}
+      {/* Alert if no resources */}
       {detail.resources.length === 0 && (
         <Alert>
           <AlertTitle>No resources found</AlertTitle>
@@ -156,7 +129,6 @@ export default async function CRMSpacesRulesPage() {
         </Alert>
       )}
 
-      {/* Existing SpacesRulesWorkspace — preserved unchanged */}
       <SpacesRulesWorkspace
         workspaceContext="crm"
         viewerRole={role}
@@ -170,9 +142,6 @@ export default async function CRMSpacesRulesPage() {
         canManageResources={canManageResources}
         canEditRules={canEditRules}
       />
-
-      {/* Footer links to related CRM tools */}
-      <SpacesRulesRelatedTools />
     </section>
   );
 }

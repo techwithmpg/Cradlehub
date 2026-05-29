@@ -11,14 +11,17 @@ async function logoutAction() {
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { NotificationBell } from "@/components/features/notifications/notification-bell";
 import { WorkspaceBreadcrumb } from "./workspace-breadcrumb";
+import { WorkspaceReadinessIndicator } from "./workspace-readiness-indicator";
+import type { ReadinessResult } from "@/types/readiness";
 
 type HeaderProps = {
   role:      string;
   fullName:  string;
   avatarUrl?: string | null;
+  readiness?: ReadinessResult | null;
 };
 
-export function Header({ role, fullName, avatarUrl }: HeaderProps) {
+export function Header({ role, fullName, avatarUrl, readiness }: HeaderProps) {
   return (
     <header style={{
       height:          52,
@@ -49,6 +52,10 @@ export function Header({ role, fullName, avatarUrl }: HeaderProps) {
             weekday: "short", month: "short", day: "numeric",
           })}
         </div>
+
+        <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
+
+        <WorkspaceReadinessIndicator readiness={readiness ?? null} />
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
 

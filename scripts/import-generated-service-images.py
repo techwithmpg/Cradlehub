@@ -43,6 +43,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use the newest PNG files instead of the earliest ones in the source folder.",
     )
+    parser.add_argument(
+        "--sort",
+        choices=("mtime", "name"),
+        default="mtime",
+        help="How to order source files before mapping them to manifest services.",
+    )
     return parser.parse_args()
 
 
@@ -54,7 +60,7 @@ def load_batch(manifest_path: Path, batch: int) -> list[dict[str, str]]:
     return batch_services
 
 
-def get_sources(source_dir: Path, expected_count: int, latest: bool) -> list[Path]:
+def get_sources(source_dir: Path, expected_count: int, latest: bool, sort_mode: str) -> list[Path]:
     sources = sorted(
         [
             *source_dir.glob("*.png"),
@@ -62,7 +68,7 @@ def get_sources(source_dir: Path, expected_count: int, latest: bool) -> list[Pat
             *source_dir.glob("*.jpeg"),
             *source_dir.glob("*.webp"),
         ],
-        key=lambda path: path.stat().st_mtime,
+        key=lambda path: path.name.lower() if sort_mode == "name" else path.stat().st_mtime,
     )
     if len(sources) < expected_count:
         raise SystemExit(
@@ -75,7 +81,10 @@ def get_sources(source_dir: Path, expected_count: int, latest: bool) -> list[Pat
             file=sys.stderr,
         )
     selected = sources[-expected_count:] if latest else sources[:expected_count]
-    return sorted(selected, key=lambda path: path.stat().st_mtime)
+    return sorted(
+        selected,
+        key=lambda path: path.name.lower() if sort_mode == "name" else path.stat().st_mtime,
+    )
 
 
 def convert_image(source: Path, destination: Path, quality: int, overwrite: bool) -> Image.Image:
@@ -120,7 +129,7 @@ def make_contact_sheet(images: list[tuple[Image.Image, str]], output_path: Path)
 def main() -> int:
     args = parse_args()
     services = load_batch(args.manifest, args.batch)
-    sources = get_sources(args.source_dir, len(services), args.latest)
+    sources = get_sources(args.source_dir, len(services), args.latest, args.sort)
     output_dir = args.output_dir
     contact_sheet = args.contact_sheet or DEFAULT_ARTIFACT_DIR / f"batch-{args.batch:02d}-contact-sheet.jpg"
 

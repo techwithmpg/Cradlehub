@@ -6,6 +6,7 @@ import { getCustomersPage } from "@/lib/queries/customers";
 import type { CustomerPageRow } from "@/lib/queries/customers";
 import { getCrmContext } from "@/lib/queries/crm-context";
 import { formatDate } from "@/lib/utils";
+import { CrmTabNav, CUSTOMERS_TABS } from "@/components/features/crm/crm-tab-nav";
 
 type CustomerListItem = CustomerPageRow;
 
@@ -73,6 +74,8 @@ export default async function CrmCustomersPage({
         }
       />
 
+      <CrmTabNav tabs={CUSTOMERS_TABS} activeHref="/crm/customers" />
+
       {/* Search bar */}
       <form
         method="GET"
@@ -126,86 +129,6 @@ export default async function CrmCustomersPage({
           </Link>
         )}
       </form>
-
-      {/* Quick action cards — hidden when searching */}
-      {!search && <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "0.75rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <Link
-          href="/crm/repeats"
-          className="cs-card"
-          style={{
-            padding: "1rem",
-            textDecoration: "none",
-            color: "var(--cs-text)",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              backgroundColor: "var(--cs-sand-mist)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 18,
-              flexShrink: 0,
-            }}
-          >
-            💛
-          </div>
-          <div>
-            <div style={{ fontSize: "0.875rem", fontWeight: 600 }}>Repeat Clients</div>
-            <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-              2+ bookings · Loyal guests
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href="/crm/lapsed"
-          className="cs-card"
-          style={{
-            padding: "1rem",
-            textDecoration: "none",
-            color: "var(--cs-text)",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              backgroundColor: "#FEF3C7",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 18,
-              flexShrink: 0,
-            }}
-          >
-            🔔
-          </div>
-          <div>
-            <div style={{ fontSize: "0.875rem", fontWeight: 600 }}>Lapsed Clients</div>
-            <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-              30+ days since last visit
-            </div>
-          </div>
-        </Link>
-      </div>}
 
       {rows.length === 0 ? (
         <EmptyState

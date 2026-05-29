@@ -4,11 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { CustomizationRow } from "./customization-rows";
 import type { DeliveryMode } from "./service-customization-tab";
-import { updateBranchServiceHomeServiceByIdAction } from "@/app/(dashboard)/owner/branches/actions";
+import { updateBranchServiceHomeServiceAvailabilityAction } from "@/app/(dashboard)/crm/services/actions";
 
 const PAGE_SIZES = [10, 25, 50];
 
@@ -149,7 +150,11 @@ function TableRow({
         <DeliveryModeBadge mode={row.deliveryMode} />
       </td>
       <td className="px-4 py-3 align-middle text-center">
-        <HomeServiceToggle branchId={branchId} row={row} />
+        <HomeServiceToggle
+          key={`${row.branchServiceId}:${String(row.isHomeService)}`}
+          branchId={branchId}
+          row={row}
+        />
       </td>
       <td className="px-4 py-3 align-middle">
         <PublicStatusBadge row={row} />
@@ -179,22 +184,29 @@ function HomeServiceToggle({ branchId, row }: { branchId: string; row: Customiza
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleToggle = (checked: boolean) => {
+    const previousValue = localValue;
     setErrorMsg(null);
     setLocalValue(checked);
     startTransition(async () => {
-      // Use PK (branchServiceId) for unambiguous matching
-      const res = await updateBranchServiceHomeServiceByIdAction(
+      const res = await updateBranchServiceHomeServiceAvailabilityAction({
         branchId,
-        row.branchServiceId,
-        checked
-      );
+        serviceId: row.serviceId,
+        availableHomeService: checked,
+      });
       if (!res.success) {
-        setErrorMsg(res.error);
-        setLocalValue(!checked); // revert
+        const message = res.error ?? "Home Service update failed.";
+        setErrorMsg(message);
+        setLocalValue(previousValue);
+        toast.error("Home Service not saved", { description: message });
         return;
       }
       // Sync local state to what DB actually saved
       setLocalValue(res.savedAvailableHomeService);
+      toast.success("Home Service updated", {
+        description: `${row.name} is ${
+          res.savedAvailableHomeService ? "available" : "not available"
+        } for Home Service.`,
+      });
       // Refresh server data so page re-renders with accurate state
       router.refresh();
     });
@@ -207,6 +219,7 @@ function HomeServiceToggle({ branchId, row }: { branchId: string; row: Customiza
   return (
     <div
       className="inline-flex flex-col items-center gap-1"
+      onClick={(event) => event.stopPropagation()}
       title={
         hasError
           ? errorMsg ?? "Save failed"

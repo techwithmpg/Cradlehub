@@ -23,7 +23,7 @@ type StaffTableRowProps = {
   activeTab: StaffTab;
   isSelected: boolean;
   onSelectStaff: (staff: StaffMember) => void;
-  workspaceContext?: "owner" | "manager";
+  workspaceContext?: "owner" | "manager" | "crm";
 };
 
 export function StaffTableRow({
@@ -142,6 +142,7 @@ function StaffRowActions({
   onSelectStaff: (staff: StaffMember) => void;
   basePath: string;
 }) {
+  const hasEditLink = basePath !== "#";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -160,12 +161,14 @@ function StaffRowActions({
           <UserCheck className="mr-2 size-4" aria-hidden="true" />
           View in panel
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Link href={`${basePath}/${member.id}`} className="flex w-full items-center gap-2">
-            <Pencil className="size-4" aria-hidden="true" />
-            {activeTab === "pending" ? "Review profile" : "Edit profile"}
-          </Link>
-        </DropdownMenuItem>
+        {hasEditLink && (
+          <DropdownMenuItem>
+            <Link href={`${basePath}/${member.id}`} className="flex w-full items-center gap-2">
+              <Pencil className="size-4" aria-hidden="true" />
+              {activeTab === "pending" ? "Review profile" : "Edit profile"}
+            </Link>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

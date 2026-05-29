@@ -11,6 +11,7 @@ import { getBranchServicesForManagement } from "@/lib/queries/branches";
 import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
 import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import { createClient } from "@/lib/supabase/server";
+import { CrmTabNav, CRM_SERVICES_TABS } from "@/components/features/crm/crm-tab-nav";
 
 // ── Auth helpers ───────────────────────────────────────────────────────────────
 
@@ -21,17 +22,9 @@ type StaffContext = {
   branches: BranchRelation;
 };
 
-// All roles that may access services from the CRM workspace.
-// Page-level edit actions remain protected by server-side guards within each action.
 const CRM_SERVICE_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
+  "owner", "manager", "assistant_manager", "store_manager",
+  "crm", "csr_head", "csr_staff", "csr",
 ]);
 
 function firstBranchName(branches: BranchRelation) {
@@ -40,8 +33,6 @@ function firstBranchName(branches: BranchRelation) {
     ? (branches[0]?.name ?? "your assigned branch")
     : branches.name;
 }
-
-// ── Type guard ─────────────────────────────────────────────────────────────────
 
 function isActiveBranchService(s: ServiceLite): s is ActiveBranchService {
   return s.is_active && s.services !== null;
@@ -63,9 +54,7 @@ async function getAllActiveServices(): Promise<GlobalService[]> {
 
 async function getCrmServicesPageData() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) return { status: "unauthorized" as const };
 
@@ -107,7 +96,6 @@ async function getCrmServicesPageData() {
 
   const branchId = me.branch_id;
 
-  // ── Parallel fetch: branch services + global catalog ──
   const [servicesResult, allServicesResult] = await Promise.allSettled([
     getBranchServicesForManagement(branchId),
     getAllActiveServices(),
@@ -122,10 +110,9 @@ async function getCrmServicesPageData() {
     loadError = "Unable to load branch services.";
     console.error("[crm/services] branch services query failed", {
       branchId,
-      error:
-        servicesResult.reason instanceof Error
-          ? servicesResult.reason.message
-          : String(servicesResult.reason),
+      error: servicesResult.reason instanceof Error
+        ? servicesResult.reason.message
+        : String(servicesResult.reason),
     });
   }
 
@@ -135,15 +122,12 @@ async function getCrmServicesPageData() {
   } else {
     console.error("[crm/services] catalog services query failed", {
       branchId,
-      error:
-        allServicesResult.reason instanceof Error
-          ? allServicesResult.reason.message
-          : String(allServicesResult.reason),
+      error: allServicesResult.reason instanceof Error
+        ? allServicesResult.reason.message
+        : String(allServicesResult.reason),
     });
   }
 
-  // ── Fetch staff + assignment data for the provider panel ──
-  // Collect the global service IDs for all active branch services.
   const activeServices = services.filter(isActiveBranchService);
   const activeServiceIds = activeServices.map(
     (s) => s.service_id ?? s.services.id
@@ -157,7 +141,6 @@ async function getCrmServicesPageData() {
     providerStaff = pa.staff;
     providerAssignments = pa.assignments;
   } catch (err) {
-    // Non-fatal — panel will show with empty assignments
     console.error("[crm/services] provider assignment fetch failed", {
       branchId,
       error: err instanceof Error ? err.message : String(err),
@@ -177,7 +160,7 @@ async function getCrmServicesPageData() {
   };
 }
 
-// ── Page (tabbed workspace — Active Services + Therapist Assignments) ─────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function CrmServicesPage({
   searchParams,
@@ -191,26 +174,23 @@ export default async function CrmServicesPage({
 
   if (result.status === "unauthorized") redirect("/crm");
 
-  // Determine initial tab from ?tab= query param
-  const initialTab = ((): "services" | "staff_capabilities" | "readiness_issues" => {
-    if (params.tab === "assignments" || params.tab === "services") return "services";
-    if (params.tab === "staff" || params.tab === "capabilities") return "staff_capabilities";
+  const initialTab = ((): "services" | "customization" | "providers" | "readiness_issues" => {
+    if (params.tab === "services" || params.tab === "assignments") return "services";
+    if (params.tab === "customization") return "customization";
+    if (params.tab === "providers" || params.tab === "staff" || params.tab === "capabilities") return "providers";
     if (params.tab === "readiness" || params.tab === "issues") return "readiness_issues";
     return "services";
   })();
 
-  const description =
-    result.status === "ready"
-      ? `${result.branchName} · Manage the service menu and review which therapists are assigned to each service`
-      : "Manage the service menu for your branch.";
-
   return (
-    <section className="space-y-6">
+    <section className="space-y-5">
       <PageHeader
-        title="Services & Therapist Setup"
-        description={description}
+        title="Services"
+        description="Manage and customize your services for in-spa and home-service."
         icon="✨"
       />
+
+      <CrmTabNav tabs={CRM_SERVICES_TABS} activeHref={`/crm/services?tab=${initialTab === "services" ? "services" : initialTab === "customization" ? "customization" : initialTab === "providers" ? "providers" : "issues"}`} />
 
       {result.status === "missing_branch" ? (
         <Alert variant="destructive">
@@ -223,6 +203,7 @@ export default async function CrmServicesPage({
       ) : (
         <CrmServicesWorkspace
           branchId={result.branchId}
+          branchName={result.branchName}
           services={result.services}
           allServices={result.allServices}
           loadError={result.loadError}

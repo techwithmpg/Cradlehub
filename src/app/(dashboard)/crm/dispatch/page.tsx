@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { logInfo } from "@/lib/logger";
+import { CrmTabNav, DISPATCH_TABS } from "@/components/features/crm/crm-tab-nav";
 
 export const metadata: Metadata = { title: "Home Service Dispatch — CRM" };
 
@@ -39,5 +40,10 @@ export default async function CrmDispatchPage() {
     count: data.items.length,
   });
 
-  return <HomeServiceDispatchWorkspace role="crm" data={data} />;
+  return (
+    <>
+      <CrmTabNav tabs={DISPATCH_TABS} activeHref="/crm/dispatch" />
+      <HomeServiceDispatchWorkspace role="crm" data={data} />
+    </>
+  );
 }

@@ -246,7 +246,7 @@ function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
                   marginLeft: 6,
                 }}
               >
-                "{item.staff.nickname}"
+                &ldquo;{item.staff.nickname}&rdquo;
               </span>
             ) : null}
           </h3>

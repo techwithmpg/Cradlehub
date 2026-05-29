@@ -8,10 +8,8 @@ import { LiveAvailabilityImpactCard } from "@/components/features/crm/availabili
 import { AvailabilityRelatedTools } from "@/components/features/crm/availability/availability-related-tools";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getCrmAvailabilitySnapshot, type CrmAvailabilitySnapshot } from "@/lib/queries/crm-availability";
-import { SystemReadinessBar } from "@/components/shared/system-readiness-bar";
 import { PageHelpDisclosure } from "@/components/shared/page-help-disclosure";
-import { buildAvailabilityReadinessIssues } from "@/components/features/crm/availability/availability-readiness-utils";
-import { buildReadinessResult } from "@/types/readiness";
+import { CrmTabNav, SCHEDULE_TABS } from "@/components/features/crm/crm-tab-nav";
 
 function todayDateString(): string {
   const d = new Date();
@@ -44,25 +42,14 @@ export default async function CrmAvailabilityPage() {
   const branchId = await getManagerBranchId();
   const { snapshot, error } = await getPageData(branchId);
 
-  // Build readiness issues from the snapshot summary for the compact bar
-  const availabilityIssues = snapshot
-    ? buildAvailabilityReadinessIssues(snapshot.summary)
-    : [];
-  const availabilityReadiness = buildReadinessResult(availabilityIssues);
-
   return (
     <section className="space-y-5">
-      {/* ── Compact readiness bar ── */}
-      <SystemReadinessBar
-        issues={availabilityIssues}
-        status={availabilityReadiness.status}
-        label="Live Readiness"
-      />
-
       <PageHeader
         title="Staff Availability"
         description="Schedule-based staff availability and live booking readiness for today."
       />
+
+      <CrmTabNav tabs={SCHEDULE_TABS} activeHref="/crm/availability" />
 
       {/* ── How this page works — collapsed by default ── */}
       <PageHelpDisclosure title="How live availability works">

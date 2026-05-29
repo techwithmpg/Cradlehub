@@ -40,4 +40,6 @@ Preferred image spec:
 
 The app resolves images in this order: database `image_url`, branch `custom_image_url` where available, generated service-id manifest, then the fallback spa image.
 
-Batch 1 has been generated and imported. Batches 2 through 10 already have prompts and manifest entries ready for generation.
+All 10 service image batches have been generated and imported into `public/images/services/`.
+
+Generated source PNGs are staged under `docs/service-images/generated-batches/batch-XX/`, and review contact sheets are in `docs/service-images/artifacts/`.

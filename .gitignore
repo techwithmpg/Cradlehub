@@ -62,3 +62,16 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 .claude/
+
+# python
+__pycache__/
+*.py[cod]
+
+# temp
+src.zip
+
+
+# generated service image artifacts
+docs/service-images/artifacts/
+docs/service-images/generated-batches/
+

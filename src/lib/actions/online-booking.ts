@@ -99,20 +99,18 @@ export async function createOnlineBookingAction(
     // Verify service eligibility for this booking type
     const { data: eligRow } = await supabase
       .from("branch_services")
-      .select("available_in_spa, available_home_service")
+      .select("available_in_spa, available_home_service, visibility")
       .eq("branch_id", d.branchId)
       .eq("service_id", d.serviceId)
       .eq("is_active", true)
       .maybeSingle();
 
-    if (eligRow) {
-      if (!eligRow.available_in_spa) {
-        return {
-          ok: false,
-          code: "SERVICE_INELIGIBLE",
-          message: "This service is not available for this booking type.",
-        };
-      }
+    if (!eligRow || eligRow.visibility !== "public" || !eligRow.available_in_spa) {
+      return {
+        ok: false,
+        code: "SERVICE_INELIGIBLE",
+        message: "This service is not available for this booking type.",
+      };
     }
 
     let resolvedStaffId: string;
@@ -271,22 +269,31 @@ export async function createOnlineBookingMultiAction(
     // Verify each service is eligible for this booking type
     const { data: eligibilityRows } = await supabase
       .from("branch_services")
-      .select("service_id, available_in_spa, available_home_service")
+      .select("service_id, available_in_spa, available_home_service, visibility")
       .eq("branch_id", d.branchId)
       .in("service_id", d.serviceIds)
       .eq("is_active", true);
 
-    if (eligibilityRows) {
-      const needsInSpa = deliveryType !== "home_service";
-      for (const row of eligibilityRows) {
-        const eligible = needsInSpa ? row.available_in_spa : row.available_home_service;
-        if (!eligible) {
-          return {
-            ok: false,
-            code: "SERVICE_INELIGIBLE",
-            message: "One or more selected services are not available for this booking type.",
-          };
-        }
+    const uniqueServiceIds = new Set(d.serviceIds);
+    if (!eligibilityRows || eligibilityRows.length !== uniqueServiceIds.size) {
+      return {
+        ok: false,
+        code: "SERVICE_INELIGIBLE",
+        message: "One or more selected services are not available for public booking.",
+      };
+    }
+
+    const needsInSpa = deliveryType !== "home_service";
+    for (const row of eligibilityRows) {
+      const eligible =
+        row.visibility === "public" &&
+        (needsInSpa ? row.available_in_spa : row.available_home_service);
+      if (!eligible) {
+        return {
+          ok: false,
+          code: "SERVICE_INELIGIBLE",
+          message: "One or more selected services are not available for this booking type.",
+        };
       }
     }
 

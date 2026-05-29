@@ -1,25 +1,12 @@
 /**
  * Owner Route Layout
  *
- * Wraps all /owner/* routes with workspace route prefetching so navigation
- * between owner pages feels instant.
- *
- * This layout is nested inside (dashboard)/layout.tsx, which already renders
- * the sidebar, header, and main scroll container.
+ * MVP: The Owner workspace is soft-paused. All /owner/* requests redirect to /crm.
+ * The workspace files are preserved for future restoration.
  */
 
-import { WorkspaceRoutePrefetcher } from "@/components/features/workspace/workspace-route-prefetcher";
-import { OWNER_PREFETCH } from "@/components/features/workspace/workspace-prefetch-config";
+import { redirect } from "next/navigation";
 
-export default async function OwnerLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <>
-      <WorkspaceRoutePrefetcher config={OWNER_PREFETCH} />
-      {children}
-    </>
-  );
+export default function OwnerLayout() {
+  redirect("/crm");
 }

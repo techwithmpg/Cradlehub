@@ -245,13 +245,32 @@ export function canCrmAccessPath(pathname: string): boolean {
 
 // ── Workspace resolution ────────────────────────────────────────────────────
 
-/** Default dashboard path for each role */
+/** Default dashboard path for each role.
+ * MVP: owner, manager, and all management variants land at /crm.
+ */
 export function getDefaultDashboardPath(role: string): string {
-  if (isOwner(role)) return "/owner";
-  if (isManager(role)) return "/manager";
+  // MVP: owner + management roles → CRM (owner/manager workspaces soft-paused)
+  if (
+    role === "owner" ||
+    role === "manager" ||
+    role === "assistant_manager" ||
+    role === "store_manager"
+  ) {
+    return "/crm";
+  }
   if (isCsr(role)) return "/crm";
   if (role === "crm") return "/crm";
   if (role === "driver") return "/driver";
   if (role === "utility") return "/utility";
-  return "/staff-portal";  // staff, service_head, service_staff
+  if (
+    role === "staff" ||
+    role === "therapist" ||
+    role === "masseuse" ||
+    role === "service_provider" ||
+    role === "service_head" ||
+    role === "service_staff"
+  ) {
+    return "/staff-portal";
+  }
+  return "/staff-portal";
 }

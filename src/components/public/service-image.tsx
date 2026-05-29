@@ -25,9 +25,8 @@ export function ServiceImage({
   const initialSrc = cleanSrc(src);
   const [currentSrc, setCurrentSrc] = useState(initialSrc);
 
-  useEffect(() => {
-    setCurrentSrc(cleanSrc(src));
-  }, [src]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setCurrentSrc(cleanSrc(src)); }, [src]);
 
   function handleError(event: SyntheticEvent<HTMLImageElement, Event>) {
     if (currentSrc !== fallbackSrc) {

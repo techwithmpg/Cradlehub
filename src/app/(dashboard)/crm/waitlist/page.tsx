@@ -4,8 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getWaitlistAction } from "./actions";
 import { WaitlistQueue }    from "./waitlist-queue";
+import { CrmTabNav, BOOKINGS_TABS } from "@/components/features/crm/crm-tab-nav";
 
-const ALLOWED_ROLES = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+const ALLOWED_ROLES = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
 
 async function getContext() {
   const supabase = await createClient();
@@ -63,6 +64,8 @@ export default async function WaitlistPage() {
           ) : undefined
         }
       />
+
+      <CrmTabNav tabs={BOOKINGS_TABS} activeHref="/crm/waitlist" />
 
       <WaitlistQueue initialRows={rows} />
     </div>

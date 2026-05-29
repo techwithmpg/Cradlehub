@@ -76,11 +76,11 @@ export async function loginAction(
     };
   }
 
-  // Dev bypass: if no staff record but dev mode is on, send to owner overview
+  // Dev bypass: if no staff record but dev mode is on, send to CRM
   const { isDevAuthBypassEnabled } = await import("@/lib/dev-bypass");
   if (!staffRecord) {
     if (isDevAuthBypassEnabled()) {
-      redirect("/owner");
+      redirect("/crm");
     }
 
     // Check if this user has a pending onboarding request

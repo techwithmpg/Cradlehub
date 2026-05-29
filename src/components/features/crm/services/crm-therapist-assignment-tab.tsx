@@ -147,40 +147,24 @@ function StatCard({
   accentBg?: string;
 }) {
   return (
-    <div className="cs-card" style={{ padding: "1rem 1.125rem" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+    <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-sm">
+      <div className="flex items-center gap-3">
         <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
-            background: accentBg ?? "var(--cs-sand-mist)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-            flexShrink: 0,
-          }}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
+          style={{ background: accentBg ?? "var(--cs-sand-mist)" }}
         >
           {icon}
         </div>
         <div>
-          <div
-            style={{
-              fontSize: "1.375rem",
-              fontWeight: 700,
-              color: accentColor ?? "var(--cs-text)",
-              lineHeight: 1,
-            }}
-          >
+          <div className="text-xl font-bold leading-none" style={{ color: accentColor ?? "var(--cs-text)" }}>
             {count}
           </div>
-          <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cs-text-secondary)", marginTop: 1 }}>
+          <div className="mt-0.5 text-xs font-semibold text-[var(--cs-text-secondary)]">
             {label}
           </div>
         </div>
       </div>
-      <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", marginTop: 6 }}>
+      <div className="mt-2 text-[0.6875rem] text-[var(--cs-text-muted)]">
         {caption}
       </div>
     </div>
@@ -199,78 +183,57 @@ function RightRail({
   noTherapist: number;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-
+    <div className="flex flex-col gap-3 lg:sticky lg:top-20 lg:self-start">
       {/* Who can be assigned */}
-      <div className="cs-card" style={{ padding: "0.875rem" }}>
-        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)", marginBottom: 8 }}>
-          Who can be assigned?
-        </div>
-        {(["Therapists", "Nail Technicians", "Aestheticians", "Salon Heads", "Other eligible provider staff"] as const).map(
-          (label) => (
-            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", marginBottom: 3 }}>
-              <span style={{ color: "var(--cs-success,#27ae60)", fontWeight: 700, flexShrink: 0 }}>✓</span>
-              <span style={{ color: "var(--cs-text-secondary)" }}>{label}</span>
+      <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-sm">
+        <p className="text-xs font-bold text-[var(--cs-text)]">Who can be assigned?</p>
+        <div className="mt-2.5 space-y-1.5">
+          {["Therapists", "Nail Technicians", "Aestheticians", "Salon Heads"].map((label) => (
+            <div key={label} className="flex items-center gap-2 text-xs text-[var(--cs-text-secondary)]">
+              <span className="text-[#5A8A6A] font-bold">✓</span>
+              {label}
             </div>
-          )
-        )}
-        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)", marginTop: 12, marginBottom: 8 }}>
-          Excluded
+          ))}
         </div>
-        {(["Drivers", "Utility Staff", "CRM / Front Desk Staff", "Inactive Staff"] as const).map(
-          (label) => (
-            <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", marginBottom: 3 }}>
-              <span style={{ color: "var(--cs-error,#c0392b)", fontWeight: 700, flexShrink: 0 }}>✕</span>
-              <span style={{ color: "var(--cs-text-muted)" }}>{label}</span>
+        <p className="mt-3 text-xs font-bold text-[var(--cs-text)]">Excluded</p>
+        <div className="mt-2.5 space-y-1.5">
+          {["Drivers", "Utility Staff", "Inactive Staff"].map((label) => (
+            <div key={label} className="flex items-center gap-2 text-xs text-[var(--cs-text-muted)]">
+              <span className="text-[var(--cs-error)] font-bold">✕</span>
+              {label}
             </div>
-          )
-        )}
+          ))}
+        </div>
       </div>
 
       {/* Assignment Overview */}
-      <div className="cs-card" style={{ padding: "0.875rem" }}>
-        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)", marginBottom: 10 }}>
-          Assignment Overview
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-sm">
+        <p className="text-xs font-bold text-[var(--cs-text)]">Assignment Overview</p>
+        <div className="mt-3 space-y-2">
           {[
-            { count: wellAssigned, label: "Well Assigned",   color: "#065F46", bg: "#ECFDF5", dot: "#059669" },
-            { count: lowCoverage,  label: "Low Coverage",    color: "#92400E", bg: "#FFF7ED", dot: "#D97706" },
-            { count: noTherapist,  label: "No Therapist",    color: "#991B1B", bg: "#FEF2F2", dot: "#DC2626" },
+            { count: wellAssigned, label: "Well Assigned", color: "text-[#5A8A6A]", bg: "bg-[#f6f9f7]", dot: "bg-[#5A8A6A]" },
+            { count: lowCoverage,  label: "Low Coverage",  color: "text-[#A67B5B]", bg: "bg-[#fdfbf8]", dot: "bg-[#A67B5B]" },
+            { count: noTherapist,  label: "No Therapist",  color: "text-[#c0392b]", bg: "bg-[#fdf6f5]", dot: "bg-[#c0392b]" },
           ].map(({ count, label, color, bg, dot }) => (
-            <div
-              key={label}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "5px 8px",
-                borderRadius: 6,
-                background: bg,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, flexShrink: 0, display: "inline-block" }} />
-                <span style={{ fontSize: "0.75rem", color, fontWeight: 500 }}>{label}</span>
+            <div key={label} className={`flex items-center justify-between rounded-lg ${bg} px-2.5 py-1.5`}>
+              <div className="flex items-center gap-2">
+                <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+                <span className={`text-xs font-medium ${color}`}>{label}</span>
               </div>
-              <span style={{ fontSize: "0.875rem", fontWeight: 700, color }}>{count}</span>
+              <span className={`text-sm font-bold ${color}`}>{count}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Tip */}
-      <div
-        className="cs-card"
-        style={{ padding: "0.875rem", background: "rgba(230,126,34,0.04)", borderColor: "rgba(230,126,34,0.2)" }}
-      >
-        <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text-secondary)", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+        <p className="flex items-center gap-1.5 text-xs font-bold text-[var(--cs-text-secondary)]">
           <span>💡</span> Tip
-        </div>
-        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", lineHeight: 1.6 }}>
-          Assign at least one therapist or eligible provider to each active service so customers
-          can book online and CRM can assign staff confidently.
-        </div>
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-[var(--cs-text-muted)]">
+          Assign at least one eligible provider to each active service so customers can book online.
+        </p>
       </div>
     </div>
   );
@@ -345,42 +308,14 @@ export function CrmTherapistAssignmentTab({
   return (
     <div id="therapist-assignments" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
-      {/* ── Intro card ── */}
-      <div
-        style={{
-          padding: "0.875rem 1.125rem",
-          borderRadius: 10,
-          background: "rgba(41,128,185,0.04)",
-          border: "1px solid rgba(41,128,185,0.18)",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.875rem",
-        }}
-      >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: "rgba(41,128,185,0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-            flexShrink: 0,
-          }}
-        >
+      {/* ── Compact info strip ── */}
+      <div className="flex items-center gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-sm">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--cs-surface-warm)] text-lg">
           👥
-        </div>
-        <div>
-          <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--cs-text)" }}>
-            Assign Therapists to Services
-          </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.5, marginTop: 2 }}>
-            Each active service should have at least one eligible provider assigned.
-            Provider assignments affect who appears in the booking wizard and CRM booking flow.
-          </div>
-        </div>
+        </span>
+        <p className="text-sm text-[var(--cs-text-secondary)]">
+          <span className="font-semibold text-[var(--cs-text)]">Assign providers</span> so customers can book and CRM can assign staff.
+        </p>
       </div>
 
       {/* ── 4 KPI cards ── */}

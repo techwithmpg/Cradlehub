@@ -177,12 +177,8 @@ export function StaffSchedulePageClient({ items, rulesByGroup }: Props) {
     <div className="space-y-4">
       {/* Stat strip */}
       <div
-        style={{
-          display: "flex",
-          gap: 8,
-          overflowX: "auto",
-          paddingBottom: 4,
-        }}
+        style={{ display: "grid", gap: "0.75rem", marginBottom: "0.5rem" }}
+        className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
       >
         <StatChip icon={<Users size={15} />} label="Total Staff" value={stats.total} color="var(--cs-sand)" />
         <StatChip
@@ -213,7 +209,7 @@ export function StaffSchedulePageClient({ items, rulesByGroup }: Props) {
           icon={<UserX size={15} />}
           label="Inactive"
           value={stats.inactiveCount}
-          color="var(--cs-neutral)"
+          color="var(--cs-text-muted)"
         />
       </div>
 

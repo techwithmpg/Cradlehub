@@ -45,51 +45,61 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
   }, [rulesByGroup, selectedGroup]);
 
   return (
-    <div className="space-y-4">
-      {/* Compact workflow strip */}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+      }}
+    >
+      {/* Setup flow breadcrumb — subtle and compact */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 4,
-          fontSize: "0.75rem",
+          gap: 2,
+          fontSize: "0.6875rem",
           color: "var(--cs-text-muted)",
-          padding: "6px 10px",
+          padding: "5px 12px",
           background: "var(--cs-surface-warm)",
-          borderRadius: "var(--cs-r-sm)",
+          borderRadius: "var(--cs-r-lg)",
           border: "1px solid var(--cs-border-soft)",
           overflowX: "auto",
+          scrollbarWidth: "none",
         }}
       >
-        <span
-          style={{
-            fontWeight: 600,
-            color: "var(--cs-text-secondary)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Setup Flow:
+        <span style={{ fontWeight: 600, color: "var(--cs-text-secondary)", whiteSpace: "nowrap", marginRight: 4 }}>
+          Setup Flow
         </span>
         {[
-          { label: "1. Group Rules", tab: "general" as TabValue },
-          { label: "2. Individual Adjustments", tab: "individual" as TabValue },
-          { label: "3. Overrides", tab: "overrides" as TabValue },
-          { label: "4. Coverage Issues", tab: "coverage" as TabValue },
-          { label: "5. Staff Schedule", tab: "staff-schedule" as TabValue },
+          { label: "Group Rules", tab: "general" as TabValue },
+          { label: "Individual", tab: "individual" as TabValue },
+          { label: "Overrides", tab: "overrides" as TabValue },
+          { label: "Coverage", tab: "coverage" as TabValue },
+          { label: "Staff Schedule", tab: "staff-schedule" as TabValue },
         ].map((step, idx) => (
           <span
             key={step.label}
             style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
           >
-            <span
+            <button
+              type="button"
+              onClick={() => setActiveTab(step.tab)}
               style={{
                 fontWeight: activeTab === step.tab ? 700 : 400,
-                color: activeTab === step.tab ? "var(--cs-sand)" : undefined,
+                color: activeTab === step.tab ? "var(--cs-crm-accent)" : "inherit",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "2px 4px",
+                borderRadius: "var(--cs-r-sm)",
+                transition: "color 120ms ease",
+                fontSize: "inherit",
               }}
             >
               {step.label}
-            </span>
-            {idx < 4 && <span style={{ color: "var(--cs-border)" }}>→</span>}
+            </button>
+            {idx < 4 && <span style={{ color: "var(--cs-border)", opacity: 0.6 }}>/</span>}
           </span>
         ))}
       </div>
@@ -135,7 +145,7 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
 
       {/* Tab content */}
       {activeTab === "general" && (
-        <div className="flex flex-col gap-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <ScheduleGroupCards
             items={items}
             groups={groups}
@@ -143,20 +153,23 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
             onSelectGroup={setSelectedGroup}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">
+          <div
+            style={{ display: "grid", gap: "1.25rem", alignItems: "start" }}
+            className="grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_320px]"
+          >
             <GroupScheduleRulesPanel
               key={selectedGroup}
               selectedGroup={selectedGroup}
               groupData={selectedGroupData}
               groupRules={selectedGroupRules}
             />
-            <div className="flex flex-col gap-4">
+            <aside style={{ display: "flex", flexDirection: "column", gap: "0.875rem", minWidth: 0 }}>
               <ScheduleSetupRightRail
                 selectedGroup={selectedGroup}
                 groupItems={groupItems}
                 groupRules={selectedGroupRules}
               />
-            </div>
+            </aside>
           </div>
 
           <ScheduleSetupHelperBar groupName={groupLabel} />
