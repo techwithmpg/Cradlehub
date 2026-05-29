@@ -76,10 +76,14 @@ async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
 }
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
+// Use z.guid() — the Zod v4-native UUID validator — consistent with the rest of
+// the codebase (branch.ts, booking.ts). z.string().uuid("msg") had a Zod v4
+// compatibility issue where the raw string error argument was misinterpreted,
+// causing valid PostgreSQL UUID strings to fail validation.
 
 const updateStaffServicesSchema = z.object({
-  staffId: z.string().uuid("Invalid staff ID"),
-  serviceIds: z.array(z.string().uuid("Invalid service ID")),
+  staffId: z.guid("Invalid staff ID"),
+  serviceIds: z.array(z.guid("Invalid service ID")),
 });
 
 // ── Action ─────────────────────────────────────────────────────────────────────
@@ -101,7 +105,10 @@ export async function updateStaffServicesFromCrmAction(
 ): Promise<CrmStaffServicesResult> {
   const parsed = updateStaffServicesSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input" };
+    const first = parsed.error.issues[0];
+    // Provide the path so future debugging is instant (e.g. "serviceIds[2]: Invalid service ID")
+    const path = first?.path.length ? `${first.path.join(".")}: ` : "";
+    return { ok: false, message: `${path}${first?.message ?? "Invalid input"}` };
   }
   const { staffId, serviceIds } = parsed.data;
 
