@@ -19,6 +19,14 @@ Fixed the bug where CRM enabling a service for Home Service didn't result in it 
 
 **Build Status:** pnpm type-check ✅ · pnpm lint ✅ · pnpm build ✅ (89/89 routes)
 
+## Follow-up Fix (same session)
+
+**Root cause confirmed**: `unstable_cache` in `getBranchServicesPublicCached` was NOT being reliably busted by `revalidateTag` in Next.js 16.2.4. The cache served stale `available_home_service: false` data even after CRM toggle updated the DB.
+
+**Definitive fix**: Added `getBranchServicesForPublicBooking()` — same query as the cached variant but using `createAdminClient()` with NO cache. `/api/public/booking-context` now uses this for the `publicOnly=true` path, so every booking page load fetches fresh service availability from the DB. Cache-Control: no-store header also added so browser doesn't cache either.
+
+**Files:** `src/lib/queries/branches.ts` (new function), `src/app/api/public/booking-context/route.ts` (swap cached → uncached)
+
 ## Previous Phase
 CRM-SVC-HOME-TOGGLE-001 complete — Home Service toggle added to CRM Service Customization table
 
