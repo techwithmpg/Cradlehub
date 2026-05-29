@@ -63,7 +63,7 @@ export async function updateWaitlistStatusAction(rawInput: unknown) {
   const d = parsed.data;
   const now = new Date().toISOString();
 
-  const { error } = await ctx.supabase
+  const { data: updatedRows, error } = await ctx.supabase
     .from("waitlist_requests")
     .update({
       status:                   d.status,
@@ -72,9 +72,16 @@ export async function updateWaitlistStatusAction(rawInput: unknown) {
       converted_to_booking_id:  d.convertedToBookingId ?? undefined,
       updated_at:               now,
     })
-    .eq("id", d.requestId);
+    .eq("id", d.requestId)
+    .select("id");
 
   if (error) return { ok: false as const, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return {
+      ok: false as const,
+      error: "Waitlist request could not be updated. It may belong to a different branch or no longer exist.",
+    };
+  }
 
   if (d.status !== "waiting") {
     await resolveNotificationsForEntity("waitlist_request", d.requestId, "crm");

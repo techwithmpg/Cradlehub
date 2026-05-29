@@ -1,2 +1,2 @@
-Task: Build centralized CRM Edit Availability modal from Schedule side panel.
-Status: COMPLETE
+Task: CRM/CSR backend stabilization — silent failure fixes and operational RLS hardening.
+Status: IN_PROGRESS

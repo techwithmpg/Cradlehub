@@ -85,7 +85,7 @@ export async function updateCustomerAction(rawInput: unknown) {
 
   const { customerId, ...updates } = parsed.data;
 
-  const { error } = await ctx.supabase
+  const { data: updatedRows, error } = await ctx.supabase
     .from("customers")
     .update({
       ...(updates.fullName            !== undefined && { full_name:             updates.fullName }),
@@ -99,9 +99,16 @@ export async function updateCustomerAction(rawInput: unknown) {
       ...(updates.birthday            !== undefined && { birthday:              updates.birthday }),
       ...(updates.loyaltyTier         !== undefined && { loyalty_tier:          updates.loyaltyTier }),
     })
-    .eq("id", customerId);
+    .eq("id", customerId)
+    .select("id");
 
   if (error) return { success: false, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return {
+      success: false,
+      error: "Customer record could not be updated. You may not have permission to edit this customer, or the record no longer exists.",
+    };
+  }
   revalidatePath("/crm/customers");
   revalidatePath(`/crm/${customerId}`);
   if (ctx.branchId) invalidateTag(cacheTags.crmWorkspace(ctx.branchId));

@@ -122,13 +122,20 @@ export async function approveReconciliationAction(reconciliationId: string) {
   const ctx = await requireCrmStaff();
   if (!ctx) return { ok: false as const, error: "Unauthorized" };
 
-  const { error } = await ctx.supabase
+  const { data: updatedRows, error } = await ctx.supabase
     .from("daily_cash_reconciliations")
     .update({ status: "approved", updated_at: new Date().toISOString() })
     .eq("id", reconciliationId)
-    .eq("branch_id", ctx.branchId);
+    .eq("branch_id", ctx.branchId)
+    .select("id");
 
   if (error) return { ok: false as const, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return {
+      ok: false as const,
+      error: "Reconciliation record could not be approved. It may belong to a different branch or no longer exist.",
+    };
+  }
 
   await resolveNotificationsForEntity("reconciliation", reconciliationId);
 

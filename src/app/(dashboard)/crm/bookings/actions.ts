@@ -179,11 +179,12 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     hold_expires_at:   null,
   };
 
-  const { error: updateErr } = await supabase
+  const { data: updatedBooking, error: updateErr } = await supabase
     .from("bookings")
     .update(updatePayload)
     .eq("id", bookingId)
-    .eq("branch_id", booking.branch_id);
+    .eq("branch_id", booking.branch_id)
+    .select("id");
 
   if (updateErr) {
     if (updateErr.code === "42703") {
@@ -195,15 +196,27 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
         payment_reference: paymentReference ?? null,
         amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
       };
-      const { error: fallbackErr } = await supabase
+      const { data: fallbackRows, error: fallbackErr } = await supabase
         .from("bookings")
         .update(payloadNoHold)
         .eq("id", bookingId)
-        .eq("branch_id", booking.branch_id);
+        .eq("branch_id", booking.branch_id)
+        .select("id");
       if (fallbackErr) return { success: false, error: fallbackErr.message };
+      if (!fallbackRows || fallbackRows.length === 0) {
+        return {
+          success: false,
+          error: "Booking could not be confirmed. You may not have permission to update this booking. Contact your manager.",
+        };
+      }
     } else {
       return { success: false, error: updateErr.message };
     }
+  } else if (!updatedBooking || updatedBooking.length === 0) {
+    return {
+      success: false,
+      error: "Booking could not be confirmed. You may not have permission to update this booking. Contact your manager.",
+    };
   }
 
   // Notify assigned staff (only after confirmed — payment confirmed before notifying)
