@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { upsertReconciliationAction } from "./actions";
 
 type PaymentSummary = {
@@ -97,8 +98,14 @@ export function ReconciliationForm({
       });
       if (result.ok) {
         setSaved(status);
+        toast.success(
+          status === "submitted"
+            ? "Reconciliation submitted."
+            : "Reconciliation saved as draft."
+        );
       } else {
         setServerError(result.error ?? "Something went wrong");
+        toast.error(result.error ?? "Could not save reconciliation.");
       }
     });
   }

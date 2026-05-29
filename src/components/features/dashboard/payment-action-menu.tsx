@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/validations/booking";
 
@@ -73,6 +74,7 @@ export function PaymentActionMenu({
         showFeedback(result.error ?? "Failed to update payment");
         return;
       }
+      toast.success("Payment confirmed.");
       onUpdate?.();
       router.refresh();
     });
@@ -98,6 +100,7 @@ export function PaymentActionMenu({
         showFeedback(result.error ?? "Failed to update payment");
         return;
       }
+      toast.success("Marked as unpaid.");
       setReason("");
       onUpdate?.();
       router.refresh();
@@ -131,6 +134,7 @@ export function PaymentActionMenu({
         showFeedback(result.error ?? "Failed to update payment");
         return;
       }
+      toast.success("Payment updated.");
       setReason("");
       onUpdate?.();
       router.refresh();

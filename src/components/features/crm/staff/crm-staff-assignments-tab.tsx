@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Search, Settings2, Sparkles, UserCheck, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,6 @@ export function CrmStaffAssignmentsTab({
   const [search, setSearch] = useState("");
   const [editingStaff, setEditingStaff] = useState<StaffForServicePanel | null>(null);
   const [servicesDraft, setServicesDraft] = useState<string[]>([]);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
 
   const serviceRows = useMemo(
@@ -104,7 +104,6 @@ export function CrmStaffAssignmentsTab({
     (staff: StaffForServicePanel, currentIds: string[]) => {
       setServicesDraft(currentIds);
       setEditingStaff(staff);
-      setSaveStatus(null);
     },
     []
   );
@@ -123,13 +122,12 @@ export function CrmStaffAssignmentsTab({
           staffId: editingStaff.id,
           serviceIds: ids,
         });
-        setSaveStatus(result.message);
         if (result.ok) {
+          toast.success("Service capabilities updated.");
           router.refresh();
-          setTimeout(() => {
-            setEditingStaff(null);
-            setSaveStatus(null);
-          }, 1200);
+          setTimeout(() => setEditingStaff(null), 1200);
+        } else {
+          toast.error(result.message ?? "Could not update service capabilities.");
         }
       });
     },
@@ -250,11 +248,6 @@ export function CrmStaffAssignmentsTab({
         staffName={editingStaff?.full_name}
       />
 
-      {saveStatus && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 text-sm shadow-lg">
-          {saveStatus}
-        </div>
-      )}
     </div>
   );
 }

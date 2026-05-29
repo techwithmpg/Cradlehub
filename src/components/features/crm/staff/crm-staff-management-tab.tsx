@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { StaffManagementWorkspace } from "@/components/features/staff/staff-management-workspace";
 import { StaffServiceEditorSheet } from "@/components/features/staff/staff-service-editor-sheet";
 import { CrmEditStaffProfileModal } from "./crm-edit-staff-profile-modal";
@@ -35,7 +36,6 @@ export function CrmStaffManagementTab({
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [servicesStaff, setServicesStaff] = useState<StaffMember | null>(null);
   const [servicesDraft, setServicesDraft] = useState<string[]>([]);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
 
   const serviceRows = useMemo(
@@ -53,7 +53,6 @@ export function CrmStaffManagementTab({
 
   const handleEditStaff = useCallback((staff: StaffMember) => {
     setEditingStaff(staff);
-    setSaveStatus(null);
   }, []);
 
   const handleManageServices = useCallback(
@@ -61,7 +60,6 @@ export function CrmStaffManagementTab({
       const ids = getCurrentServiceIds(staff.id);
       setServicesDraft(ids);
       setServicesStaff(staff);
-      setSaveStatus(null);
     },
     [getCurrentServiceIds]
   );
@@ -74,9 +72,10 @@ export function CrmStaffManagementTab({
           isActive: !staff.is_active,
         });
         if (result.success) {
+          toast.success("Staff status updated.");
           router.refresh();
         } else {
-          setSaveStatus(result.error ?? "Failed to update status.");
+          toast.error(result.error ?? "Failed to update status.");
         }
       });
     },
@@ -97,13 +96,12 @@ export function CrmStaffManagementTab({
           staffId: servicesStaff.id,
           serviceIds: ids,
         });
-        setSaveStatus(result.message);
         if (result.ok) {
+          toast.success("Service capabilities updated.");
           router.refresh();
-          setTimeout(() => {
-            setServicesStaff(null);
-            setSaveStatus(null);
-          }, 1200);
+          setTimeout(() => setServicesStaff(null), 1200);
+        } else {
+          toast.error(result.message ?? "Could not update service capabilities.");
         }
       });
     },
@@ -111,12 +109,9 @@ export function CrmStaffManagementTab({
   );
 
   const handleEditSuccess = useCallback(() => {
-    setSaveStatus("Staff profile updated.");
+    toast.success("Staff profile updated.");
     setEditingStaff(null);
     router.refresh();
-    setTimeout(() => {
-      setSaveStatus(null);
-    }, 1800);
   }, [router]);
 
   return (
@@ -161,11 +156,6 @@ export function CrmStaffManagementTab({
         staffName={servicesStaff?.full_name}
       />
 
-      {saveStatus && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 text-sm shadow-lg">
-          {saveStatus}
-        </div>
-      )}
     </>
   );
 }

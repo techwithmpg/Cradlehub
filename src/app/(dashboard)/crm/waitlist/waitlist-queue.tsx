@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { updateWaitlistStatusAction } from "./actions";
 
 type WaitlistRow = {
@@ -47,9 +48,22 @@ function StatusButton({
 }) {
   const [isPending, startTransition] = useTransition();
 
+  const STATUS_LABELS: Record<string, string> = {
+    contacted: "Marked as contacted.",
+    converted: "Customer converted.",
+    expired:   "Request expired.",
+    cancelled: "Request cancelled.",
+    waiting:   "Moved back to waiting.",
+  };
+
   function handleClick() {
     startTransition(async () => {
-      await updateWaitlistStatusAction({ requestId, status: target });
+      const result = await updateWaitlistStatusAction({ requestId, status: target });
+      if (result.ok) {
+        toast.success(STATUS_LABELS[target] ?? "Waitlist updated.");
+      } else {
+        toast.error(result.error ?? "Could not update waitlist request.");
+      }
     });
   }
 
