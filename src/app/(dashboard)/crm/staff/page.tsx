@@ -13,6 +13,10 @@ import type {
   ServiceLite,
 } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
+import {
+  getCrmStaffNestedService,
+  getCrmStaffServiceId,
+} from "@/components/features/crm/staff/service-row-adapter";
 import { canReviewStaffOnboarding } from "@/lib/permissions";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 
@@ -134,9 +138,20 @@ export default async function CrmStaffPage({
 
   if (servicesResult.status === "fulfilled") {
     const services = servicesResult.value as ServiceLite[];
-    const eligible = services.filter((s) => s.is_active && s.services !== null);
+    const eligible = services.filter(
+      (s) =>
+        s.is_active &&
+        getCrmStaffNestedService(s) !== null &&
+        getCrmStaffServiceId(s) !== null
+    );
     activeServices = eligible;
-    const activeServiceIds = eligible.map((s) => s.service_id ?? s.services!.id);
+    const activeServiceIds = Array.from(
+      new Set(
+        eligible
+          .map(getCrmStaffServiceId)
+          .filter((id): id is string => id !== null)
+      )
+    );
 
     if (activeServiceIds.length > 0) {
       try {

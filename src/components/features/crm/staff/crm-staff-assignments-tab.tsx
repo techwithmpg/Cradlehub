@@ -7,14 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
-import type { Database } from "@/types/supabase";
 import { isValidProvider } from "@/components/features/crm/services/crm-therapist-assignment-tab";
 import { StaffServiceEditorSheet } from "@/components/features/staff/staff-service-editor-sheet";
 import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-services";
-
-type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
-  service_categories: { id: string; name: string } | null;
-};
+import {
+  getCrmStaffServiceId,
+  getCrmStaffServiceName,
+  toCrmStaffServiceRows,
+} from "./service-row-adapter";
 
 type Props = {
   branchId: string;
@@ -22,30 +22,6 @@ type Props = {
   providerStaff: StaffForServicePanel[];
   providerAssignments: ServiceAssignmentRow[];
 };
-
-function toServiceRows(activeServices: ServiceLite[]): ServiceRow[] {
-  const rows: ServiceRow[] = [];
-  for (const svc of activeServices) {
-    if (!svc.services) continue;
-    const catRel = svc.services.service_categories;
-    const category =
-      catRel === null || catRel === undefined
-        ? null
-        : Array.isArray(catRel)
-        ? (catRel[0] ? { id: catRel[0].id, name: catRel[0].name } : null)
-        : { id: catRel.id, name: catRel.name };
-    rows.push({
-      id: svc.services.id,
-      name: svc.services.name,
-      description: svc.services.description ?? null,
-      is_active: svc.is_active,
-      duration_minutes: svc.services.duration_minutes,
-      price: svc.services.price,
-      service_categories: category,
-    } as unknown as ServiceRow);
-  }
-  return rows;
-}
 
 export function CrmStaffAssignmentsTab({
   activeServices,
@@ -59,7 +35,10 @@ export function CrmStaffAssignmentsTab({
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
 
-  const serviceRows = useMemo(() => toServiceRows(activeServices), [activeServices]);
+  const serviceRows = useMemo(
+    () => toCrmStaffServiceRows(activeServices),
+    [activeServices]
+  );
 
   const { staffRows, stats } = useMemo(() => {
     const assignMap = new Map<string, Set<string>>();
@@ -69,12 +48,14 @@ export function CrmStaffAssignmentsTab({
       assignMap.set(a.staff_id, set);
     }
 
-    const serviceById = new Map(
-      activeServices.map((s) => [
-        s.service_id ?? s.services!.id,
-        s.public_title?.trim() || s.services!.name,
-      ])
-    );
+    const serviceById = new Map<string, string>();
+    for (const service of activeServices) {
+      const serviceId = getCrmStaffServiceId(service);
+      const serviceName = getCrmStaffServiceName(service);
+      if (serviceId && serviceName) {
+        serviceById.set(serviceId, serviceName);
+      }
+    }
 
     const eligibleStaff = providerStaff.filter(isValidProvider);
 

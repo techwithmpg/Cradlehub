@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useTransition } from "react";
+import { useState, useCallback, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   AdminDrawer,
@@ -17,11 +17,7 @@ import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-servic
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { ServiceAssignmentRow } from "@/lib/queries/crm-services";
-import type { Database } from "@/types/supabase";
-
-type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
-  service_categories: { id: string; name: string } | null;
-};
+import { toCrmStaffServiceRows } from "./service-row-adapter";
 
 type BranchLite = { id: string; name: string };
 
@@ -32,31 +28,6 @@ type Props = {
   activeServices: ServiceLite[];
   providerAssignments: ServiceAssignmentRow[];
 };
-
-function toServiceRows(activeServices: ServiceLite[]): ServiceRow[] {
-  const rows: ServiceRow[] = [];
-  for (const svc of activeServices) {
-    if (!svc.services) continue;
-    const catRel = svc.services.service_categories;
-    const category =
-      catRel === null || catRel === undefined
-        ? null
-        : Array.isArray(catRel)
-        ? (catRel[0] ? { id: catRel[0].id, name: catRel[0].name } : null)
-        : { id: catRel.id, name: catRel.name };
-
-    rows.push({
-      id: svc.services.id,
-      name: svc.services.name,
-      description: svc.services.description ?? null,
-      is_active: svc.is_active,
-      duration_minutes: svc.services.duration_minutes,
-      price: svc.services.price,
-      service_categories: category,
-    } as unknown as ServiceRow);
-  }
-  return rows;
-}
 
 const STAFF_EDIT_FORM_ID = "staff-edit-form";
 
@@ -77,7 +48,10 @@ export function CrmStaffManagementTab({
   const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null);
   const [editSheetDirty, setEditSheetDirty] = useState(false);
 
-  const serviceRows = toServiceRows(activeServices);
+  const serviceRows = useMemo(
+    () => toCrmStaffServiceRows(activeServices),
+    [activeServices]
+  );
 
   const getCurrentServiceIds = useCallback(
     (staffId: string): string[] =>
