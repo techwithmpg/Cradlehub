@@ -9,10 +9,8 @@ import {
   Leaf,
   Home,
   Plus,
-  CreditCard,
   CalendarDays,
   Users,
-  Moon,
   Zap,
   AlertCircle,
   ChevronRight,
@@ -27,11 +25,34 @@ import { CrmPanel } from "./crm-panel";
 import { CrmDrawer } from "./crm-drawer";
 import { useCrmDrawer } from "./crm-drawer";
 import { CrmQuickActionGrid } from "./crm-quick-action-grid";
-import { TodayOverviewTab } from "./tabs/today-overview-tab";
-import { TodayControlCenterTab } from "./tabs/today-control-center-tab";
-import { TodayPaymentsPendingTab } from "./tabs/today-payments-pending-tab";
-import { TodayActionRequiredTab } from "./tabs/today-action-required-tab";
-import { TodayEndOfDayTab } from "./tabs/today-end-of-day-tab";
+import dynamic from "next/dynamic";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const TodayOverviewTab = dynamic(() => import("./tabs/today-overview-tab").then((m) => m.TodayOverviewTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+const TodayControlCenterTab = dynamic(() => import("./tabs/today-control-center-tab").then((m) => m.TodayControlCenterTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+const TodayPaymentsPendingTab = dynamic(() => import("./tabs/today-payments-pending-tab").then((m) => m.TodayPaymentsPendingTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+const TodayActionRequiredTab = dynamic(() => import("./tabs/today-action-required-tab").then((m) => m.TodayActionRequiredTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+const TodayEndOfDayTab = dynamic(() => import("./tabs/today-end-of-day-tab").then((m) => m.TodayEndOfDayTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+
+function TabSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-20 rounded-xl" />
+      ))}
+    </div>
+  );
+}
 import type { BookingListItemData } from "./crm-booking-list-item";
 import type { CrmTodaySnapshot } from "@/lib/queries/crm-today";
 import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";

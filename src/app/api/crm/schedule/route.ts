@@ -3,7 +3,7 @@ import { getApiContext } from "@/lib/api/get-api-context";
 import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
-import { getCrmReadiness } from "@/lib/queries/crm-readiness";
+import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 
 export async function GET(req: NextRequest) {
   const ctx = await getApiContext();
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
         .eq("branch_id", ctx.branchId)
         .eq("is_active", true)
         .order("sort_order"),
-      getCrmReadiness(ctx.branchId).catch(() => null),
+      getCrmReadinessCached(ctx.branchId).catch(() => null),
     ]);
 
     return NextResponse.json(

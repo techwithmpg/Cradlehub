@@ -17,11 +17,34 @@ import { ScheduleMetricGrid, type ScheduleMetricItem } from "./schedule-metric-g
 import { ScheduleContentGrid } from "./schedule-content-grid";
 import { SchedulePanel } from "./schedule-panel";
 import { ScheduleActionTile } from "./schedule-action-tile";
-import { DailyTimelineTab } from "../tabs/daily-timeline-tab";
-import { LiveAvailabilityTab } from "../tabs/live-availability-tab";
-import { ScheduleSetupTab } from "../tabs/schedule-setup-tab";
-import { CoverageIssuesTab } from "../tabs/coverage-issues-tab";
-import { StaffScheduleTab } from "../tabs/staff-schedule-tab";
+import dynamic from "next/dynamic";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const DailyTimelineTab = dynamic(() => import("../tabs/daily-timeline-tab").then((m) => m.DailyTimelineTab), {
+  loading: () => <TabSkeleton rows={6} />,
+});
+const LiveAvailabilityTab = dynamic(() => import("../tabs/live-availability-tab").then((m) => m.LiveAvailabilityTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+const ScheduleSetupTab = dynamic(() => import("../tabs/schedule-setup-tab").then((m) => m.ScheduleSetupTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+const CoverageIssuesTab = dynamic(() => import("../tabs/coverage-issues-tab").then((m) => m.CoverageIssuesTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+const StaffScheduleTab = dynamic(() => import("../tabs/staff-schedule-tab").then((m) => m.StaffScheduleTab), {
+  loading: () => <TabSkeleton rows={4} />,
+});
+
+function TabSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-20 rounded-xl" />
+      ))}
+    </div>
+  );
+}
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";

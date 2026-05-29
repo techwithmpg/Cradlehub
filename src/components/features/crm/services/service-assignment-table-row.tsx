@@ -14,6 +14,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { ServiceTableRow } from "./types";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
 import { ProviderAssignmentSheet } from "./provider-assignment-sheet";
@@ -130,10 +131,21 @@ export function ServiceAssignmentTableRow({
     // Schema CHECK: visibility IN ('public', 'internal', 'hidden')
     // Toggle between 'public' and 'internal' (was 'csr_only' before schema clarification)
     const next: "public" | "internal" = localVisibility === "public" ? "internal" : "public";
+    const previous = localVisibility;
     setLocalVisibility(next);
     startVisibilityTransition(async () => {
-      await updateBranchServiceVisibilityAction(branchId, row.serviceId, next);
-      router.refresh();
+      try {
+        await updateBranchServiceVisibilityAction(branchId, row.serviceId, next);
+        toast.success("Visibility updated", {
+          description: `${row.name} is now ${next === "public" ? "public" : "internal"}.`,
+        });
+        router.refresh();
+      } catch {
+        setLocalVisibility(previous);
+        toast.error("Visibility not saved", {
+          description: "Something went wrong. Please try again.",
+        });
+      }
     });
   }
 

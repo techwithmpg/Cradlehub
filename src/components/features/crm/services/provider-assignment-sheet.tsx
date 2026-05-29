@@ -18,13 +18,11 @@
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  AdminDialog,
+  AdminOverlayHeader,
+  AdminOverlayBody,
+  AdminOverlayFooter,
+} from "@/components/shared/overlays";
 import { STAFF_TYPE_LABELS } from "@/constants/staff-roles";
 import type { ServiceStaffType } from "@/constants/staff-roles";
 import {
@@ -418,7 +416,7 @@ export function ProviderAssignmentSheet({
   }, [row.assignableProviders, searchQuery]);
 
   return (
-    <Dialog
+    <AdminDialog
       open={open}
       onOpenChange={(isOpen: boolean) => {
         if (!isOpen) {
@@ -427,25 +425,17 @@ export function ProviderAssignmentSheet({
           setProviderSearch("");
         }
       }}
+      size="lg"
     >
-      <DialogContent
-        className="sm:max-w-3xl max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col max-sm:max-w-none max-sm:rounded-none max-sm:h-[100dvh]"
-      >
-        {/* ── Fixed header ── */}
-        <DialogHeader className="shrink-0 p-5 pb-4 border-b border-[var(--cs-border-soft)]">
-          <DialogTitle className="text-base">
-            Manage Providers — {row.name}
-          </DialogTitle>
-          <DialogDescription>
-            Assign or remove eligible service providers for this service.
-          </DialogDescription>
-        </DialogHeader>
+      <AdminOverlayHeader
+        title={`Manage Providers — ${row.name}`}
+        description="Assign or remove eligible service providers for this service."
+      />
 
-        {/* ── Fixed service summary ── */}
-        <ServiceSummary row={row} />
+      {/* ── Fixed service summary ── */}
+      <ServiceSummary row={row} />
 
-        {/* ── Scrollable body ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-5">
+      <AdminOverlayBody className="flex flex-col gap-5">
           {/* ── Assigned Providers ── */}
           <div>
             <div
@@ -612,13 +602,9 @@ export function ProviderAssignmentSheet({
             Only eligible provider staff are shown. Drivers, utility staff, CRM/front-desk staff,
             inactive staff, and staff from other branches are excluded automatically.
           </div>
-        </div>
+        </AdminOverlayBody>
 
-        {/* ── Fixed footer ── */}
-        <DialogFooter
-          className="shrink-0 border-t border-[var(--cs-border-soft)] px-5 py-3 flex-row justify-between items-center sm:justify-between"
-          style={{ margin: 0 }}
-        >
+        <AdminOverlayFooter className="flex flex-row justify-between items-center">
           <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)" }}>
             <strong style={{ color: "var(--cs-text)" }}>{row.assignedProviders.length}</strong>{" "}
             provider{row.assignedProviders.length !== 1 ? "s" : ""} assigned
@@ -650,8 +636,7 @@ export function ProviderAssignmentSheet({
           >
             Done
           </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+        </AdminOverlayFooter>
+      </AdminDialog>
+    );
 }

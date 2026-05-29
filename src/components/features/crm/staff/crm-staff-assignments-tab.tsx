@@ -266,6 +266,7 @@ export function CrmStaffAssignmentsTab({
         onClose={() => setEditingStaff(null)}
         onSave={handleSave}
         saving={isSaving}
+        staffName={editingStaff?.full_name}
       />
 
       {saveStatus && (

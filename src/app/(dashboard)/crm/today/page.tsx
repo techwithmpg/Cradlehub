@@ -5,7 +5,7 @@ import { getStaffAdminName } from "@/lib/staff/display-name";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
 import { getCrmTodaySnapshot } from "@/lib/queries/crm-today";
-import { getCrmReadiness } from "@/lib/queries/crm-readiness";
+import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { buildReadinessResult } from "@/types/readiness";
 import { CrmTodayShell } from "@/components/features/crm/today/crm-today-shell";
 
@@ -79,7 +79,7 @@ export default async function CrmTodayPage() {
     getTodaysSchedule(branchId, today),
     getCrmTodaySnapshot({ branchId, date: today }),
     getActionRequiredNotificationsAction(3),
-    getCrmReadiness(branchId).catch(() => null),
+    getCrmReadinessCached(branchId).catch(() => null),
   ]);
 
   const bookings = rawBookings as BookingRow[];

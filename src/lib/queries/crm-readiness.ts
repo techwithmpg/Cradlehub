@@ -27,8 +27,8 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { getCrmSetupHealth, type SetupIssue } from "./crm-setup";
-import { getCrmTodaySnapshot } from "./crm-today";
+import { type SetupIssue } from "./crm-setup";
+import { getCrmTodaySnapshotCached, getCrmSetupHealthCached } from "./workspace-cached";
 import type { CrmAvailabilitySummary } from "./crm-availability";
 import type { DispatchStats } from "./dispatch-queries";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
@@ -787,8 +787,8 @@ export async function getCrmReadinessIssues(
   // a redundant second call to getCrmAvailabilitySnapshot.
   const [setupResult, todayResult, dailyOpsResult, dispatchMissingResult] =
     await Promise.allSettled([
-      getCrmSetupHealth(branchId),
-      getCrmTodaySnapshot({ branchId, date: today }),
+      getCrmSetupHealthCached(branchId),
+      getCrmTodaySnapshotCached(branchId, today),
       getDailyOperationsReadinessIssues(branchId, today, dayOfWeek),
       getDispatchMissingReadinessIssues(branchId, today),
     ]);
@@ -886,4 +886,26 @@ export async function getCrmReadiness(
 ): Promise<ReadinessResult> {
   const issues = await getCrmReadinessIssues(branchId);
   return buildReadinessResult(issues);
+}
+
+// ── Cached variant ────────────────────────────────────────────────────────────
+
+import { unstable_cache } from "next/cache";
+import { cacheTags } from "@/lib/cache/cache-tags";
+
+/**
+ * Cross-request cached variant of getCrmReadiness.
+ *
+ * TTL: 60 seconds — readiness is relatively stable but should reflect
+ * recent mutations within a reasonable window.
+ *
+ * Invalidated via `invalidateTag(cacheTags.crmSetup(branchId))` or
+ * `invalidateCrmWorkspace(branchId)`.
+ */
+export function getCrmReadinessCached(branchId: string): Promise<ReadinessResult> {
+  return unstable_cache(
+    async () => getCrmReadiness(branchId),
+    ["crm-readiness", branchId],
+    { tags: [cacheTags.crmSetup(branchId)], revalidate: 60 }
+  )();
 }

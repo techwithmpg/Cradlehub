@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
@@ -78,12 +78,22 @@ export function StaffEditForm({
   services,
   staffServiceIds,
   workspaceContext = "owner",
+  onEditServices,
+  formId,
+  compact = false,
+  onDirtyChange,
+  onSuccess,
 }: {
   staffMember: StaffMember;
   branches: BranchLite[];
   services: ServiceRow[];
   staffServiceIds: string[];
   workspaceContext?: "owner" | "manager" | "crm";
+  onEditServices?: () => void;
+  formId?: string;
+  compact?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  onSuccess?: () => void;
 }) {
   const isManager = workspaceContext === "manager" || workspaceContext === "crm";
   const isProtected = isManager && SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
@@ -124,6 +134,12 @@ export function StaffEditForm({
     initialState
   );
 
+  useEffect(() => {
+    if (state.success) {
+      onSuccess?.();
+    }
+  }, [state.success, onSuccess]);
+
   const groupedServices = services.reduce<Record<string, ServiceRow[]>>((acc, s) => {
     const catName = s.service_categories?.name ?? "Uncategorized";
     const list = acc[catName] ?? [];
@@ -132,15 +148,17 @@ export function StaffEditForm({
     return acc;
   }, {});
 
-  return (
-    <div
-      style={{
+  const wrapperStyle: React.CSSProperties = compact
+    ? {}
+    : {
         backgroundColor: "var(--cs-surface)",
         border: "1px solid var(--cs-border)",
         borderRadius: 12,
         padding: "1.5rem",
-      }}
-    >
+      };
+
+  return (
+    <div style={wrapperStyle}>
       {isProtected ? (
         <div
           style={{
@@ -155,7 +173,12 @@ export function StaffEditForm({
           This action requires owner approval.
         </div>
       ) : (
-        <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <form
+          id={formId}
+          action={formAction}
+          onChange={() => onDirtyChange?.(true)}
+          style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+        >
           {state.error && (
             <div
               style={{
@@ -246,62 +269,83 @@ export function StaffEditForm({
             <option value="n/a">N/A</option>
           </SelectField>
 
-          <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
-            <legend
-              style={{
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                color: "var(--cs-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "0.5rem",
-              }}
-            >
-              Service capabilities
-            </legend>
-            <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0 0 0.75rem" }}>
-              If left empty, this staff member will temporarily remain available under the legacy
-              scheduling behavior until service specialization is fully configured.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {Object.entries(groupedServices).map(([category, catServices]) => (
-                <div key={category}>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "var(--cs-text-muted)",
-                      marginBottom: "0.375rem",
-                    }}
-                  >
-                    {category}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
-                    {catServices.map((s) => (
-                      <label
-                        key={s.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.375rem",
-                          fontSize: "0.8125rem",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          name="serviceIds"
-                          value={s.id}
-                          defaultChecked={staffServiceIds.includes(s.id)}
-                        />
-                        {s.name}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+          {onEditServices ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <span
+                style={{
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  color: "var(--cs-text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Service Capabilities
+              </span>
+              <ServiceCapabilitySummary
+                services={services}
+                staffServiceIds={staffServiceIds}
+                onEditServices={onEditServices}
+              />
             </div>
-          </fieldset>
+          ) : (
+            <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+              <legend
+                style={{
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  color: "var(--cs-text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Service capabilities
+              </legend>
+              <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0 0 0.75rem" }}>
+                If left empty, this staff member will temporarily remain available under the legacy
+                scheduling behavior until service specialization is fully configured.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {Object.entries(groupedServices).map(([category, catServices]) => (
+                  <div key={category}>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--cs-text-muted)",
+                        marginBottom: "0.375rem",
+                      }}
+                    >
+                      {category}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
+                      {catServices.map((s) => (
+                        <label
+                          key={s.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.375rem",
+                            fontSize: "0.8125rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            name="serviceIds"
+                            value={s.id}
+                            defaultChecked={staffServiceIds.includes(s.id)}
+                          />
+                          {s.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
           <label
             htmlFor="is-active"
@@ -311,19 +355,106 @@ export function StaffEditForm({
             Active staff member
           </label>
 
-          <Button
-            type="submit"
-            disabled={pending}
-            style={{
-              backgroundColor: "var(--cs-sand)",
-              color: "#fff",
-              border: "none",
-              opacity: pending ? 0.7 : 1,
-            }}
-          >
-            {pending ? "Saving…" : "Save Staff"}
-          </Button>
+          {!compact && (
+            <Button
+              type="submit"
+              disabled={pending}
+              style={{
+                backgroundColor: "var(--cs-sand)",
+                color: "#fff",
+                border: "none",
+                opacity: pending ? 0.7 : 1,
+              }}
+            >
+              {pending ? "Saving…" : "Save Staff"}
+            </Button>
+          )}
         </form>
+      )}
+    </div>
+  );
+}
+
+function ServiceCapabilitySummary({
+  services,
+  staffServiceIds,
+  onEditServices,
+}: {
+  services: ServiceRow[];
+  staffServiceIds: string[];
+  onEditServices: () => void;
+}) {
+  const assigned = services.filter((s) => staffServiceIds.includes(s.id));
+  const topFive = assigned.slice(0, 5);
+  const remaining = assigned.length - topFive.length;
+
+  return (
+    <div
+      style={{
+        borderRadius: 8,
+        border: "1px solid var(--cs-border)",
+        padding: "0.75rem",
+        backgroundColor: "var(--cs-surface-warm)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.5rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)" }}>
+          {assigned.length > 0
+            ? `Can perform ${assigned.length} service${assigned.length !== 1 ? "s" : ""}`
+            : "No services assigned yet"}
+        </span>
+        <button
+          type="button"
+          onClick={onEditServices}
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "var(--cs-sand)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            textDecoration: "underline",
+          }}
+        >
+          Edit Services
+        </button>
+      </div>
+      {topFive.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+          {topFive.map((s) => (
+            <span
+              key={s.id}
+              style={{
+                fontSize: "0.6875rem",
+                padding: "0.15rem 0.5rem",
+                borderRadius: 999,
+                backgroundColor: "var(--cs-sand)",
+                color: "#fff",
+                fontWeight: 500,
+              }}
+            >
+              {s.name}
+            </span>
+          ))}
+          {remaining > 0 && (
+            <span
+              style={{
+                fontSize: "0.6875rem",
+                padding: "0.15rem 0.5rem",
+                borderRadius: 999,
+                backgroundColor: "var(--cs-surface)",
+                color: "var(--cs-text-muted)",
+                fontWeight: 500,
+                border: "1px solid var(--cs-border)",
+              }}
+            >
+              +{remaining} more
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

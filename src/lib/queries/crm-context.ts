@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 
 const CRM_ROLES = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
 
-export async function getCrmContext() {
+export const getCrmContext = cache(async function getCrmContext() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -35,4 +36,4 @@ export async function getCrmContext() {
     role: me.system_role,
     branchId: me.system_role === "owner" ? null : me.branch_id,
   };
-}
+});

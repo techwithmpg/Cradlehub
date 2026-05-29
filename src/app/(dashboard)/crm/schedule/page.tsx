@@ -1,7 +1,7 @@
 import { ScheduleWorkspaceShell } from "@/components/features/schedule/workspace/schedule-workspace-shell";
 import { getDailySchedule } from "@/lib/queries/schedule";
 import { getManagerDashboardStats } from "@/lib/queries/bookings";
-import { getCrmReadiness } from "@/lib/queries/crm-readiness";
+import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { createClient } from "@/lib/supabase/server";
 import { getManagerContext } from "@/lib/queries/manager-context";
 
@@ -17,7 +17,7 @@ export default async function CrmSchedulePage({
   const supabase = await createClient();
 
   const [staffRows, stats, resourcesResult, readiness] = await Promise.all([
-    getDailySchedule({ branchId, date: selectedDate }),
+    getDailySchedule({ branchId, date: selectedDate }).catch(() => []),
     getManagerDashboardStats(branchId, selectedDate),
     supabase
       .from("branch_resources")
@@ -25,7 +25,7 @@ export default async function CrmSchedulePage({
       .eq("branch_id", branchId)
       .eq("is_active", true)
       .order("sort_order"),
-    getCrmReadiness(branchId).catch(() => null),
+    getCrmReadinessCached(branchId).catch(() => null),
   ]);
 
   return (

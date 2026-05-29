@@ -2856,3 +2856,138 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing (91/91 routes)
+
+---
+
+### 2026-05-28 — Kimi (PERF-WORKSPACE-001 — Performance Speed Pass for CRM, Staff Portal, Driver)
+
+**Task:** Audit and implement performance improvements for CRM, Staff Portal, and Driver Portal workspaces.
+
+**Files Created:**
+- `src/app/(dashboard)/staff-portal/layout.tsx` — mounts WorkspaceRoutePrefetcher for staff portal
+- `src/app/(dashboard)/driver/layout.tsx` — mounts WorkspaceRoutePrefetcher for driver portal
+- `src/app/(dashboard)/driver/loading.tsx` — driver portal skeleton loading state
+- `src/app/(dashboard)/driver/error.tsx` — driver portal error boundary
+- `src/app/(dashboard)/crm/services/loading.tsx` — CRM services skeleton
+- `src/app/(dashboard)/crm/staff/loading.tsx` — CRM staff skeleton
+- `src/app/(dashboard)/crm/setup/loading.tsx` — CRM setup skeleton
+- `src/app/(dashboard)/crm/control/loading.tsx` — CRM control console skeleton
+- `src/app/(dashboard)/crm/dispatch/loading.tsx` — CRM dispatch skeleton
+- `src/app/(dashboard)/crm/availability/loading.tsx` — CRM availability skeleton
+- `src/app/(dashboard)/crm/staff-applications/loading.tsx` — CRM staff applications skeleton
+- `src/app/(dashboard)/staff-portal/today/loading.tsx` — staff today skeleton
+- `src/app/(dashboard)/staff-portal/week/loading.tsx` — staff week skeleton
+- `src/app/(dashboard)/staff-portal/dispatch/loading.tsx` — staff dispatch skeleton
+- `src/app/(dashboard)/staff-portal/profile/loading.tsx` — staff profile skeleton
+- `src/app/(dashboard)/staff-portal/notifications/loading.tsx` — staff notifications skeleton
+- `src/app/(dashboard)/staff-portal/stats/loading.tsx` — staff stats skeleton
+
+**Files Changed:**
+- `src/components/features/crm/today/crm-today-shell.tsx` — lazy-loaded all 5 tab panels with `next/dynamic` + tab skeletons; removed unused imports
+- `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` — lazy-loaded all 5 tab panels with `next/dynamic` + tab skeletons
+- `src/lib/queries/crm-context.ts` — wrapped `getCrmContext` with `React.cache` for request-level deduplication
+- `src/lib/queries/crm-readiness.ts` — updated `getCrmReadinessIssues` to use cached variants (`getCrmSetupHealthCached`, `getCrmTodaySnapshotCached`); added `getCrmReadinessCached` with 60s TTL
+- `src/app/(dashboard)/layout.tsx` — dashboard layout now uses `getCrmReadinessCached` instead of uncached `getCrmReadiness`
+- `src/app/(dashboard)/crm/today/page.tsx` — uses `getCrmReadinessCached`
+- `src/app/(dashboard)/crm/schedule/page.tsx` — uses `getCrmReadinessCached`
+- `src/app/api/crm/schedule/route.ts` — uses `getCrmReadinessCached`
+- `src/components/features/crm/services/service-assignment-table-row.tsx` — visibility toggle now reverts on error + shows toast feedback
+
+**Performance Improvements:**
+- Staff Portal and Driver now have workspace-level route prefetching (was missing)
+- CRM Today tabs and Schedule tabs are code-split — only the active tab downloads
+- `getCrmReadiness` is cached with 60s TTL — eliminates repeated computation on every page navigation
+- `getCrmContext` is `React.cache`-wrapped — deduplicates within a request
+- 16 new skeleton loading states replace blank screens across CRM, Staff Portal, and Driver
+- Driver portal now has error boundary
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in scripts)
+- `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-28 — Kimi (CRM-STAFF-UI-002 — Optimize Staff Popups, Drawers, and Service Capability Modals)
+
+**Task:** Optimize all staff-related overlays in the CRM workspace: Edit Staff Profile drawer, Edit Service Capabilities modal, and staff service assignment popups.
+
+**Files Changed:**
+- `src/components/features/staff/staff-edit-form.tsx` — Added `onEditServices`, `formId`, `compact`, `onDirtyChange`, `onSuccess` props. Service checkbox grid is now hidden when `onEditServices` is provided; instead shows a compact summary (count + top 5 chips + "Edit Services" button). Inline Save button hidden in compact mode. Form gets `id` attribute for external footer submit.
+- `src/components/features/crm/staff/crm-staff-management-tab.tsx` — Sheet restructured with fixed header, scrollable body (`flex-1 overflow-y-auto`), sticky footer with Cancel/Save buttons. Width narrowed to `sm:max-w-lg`. Added unsaved changes `AlertDialog` for the staff edit sheet. Passes `onEditServices` to open the service editor from the drawer. Tracks `editSheetDirty` state via `onDirtyChange`/`onSuccess`.
+- `src/components/features/staff/staff-service-editor-sheet.tsx` — Service chips replaced with checkbox grid (1-col mobile, 2-col desktop). Each checkbox item shows service name + duration. Added `staffName` prop shown in header. Footer button text changed from "Done — N services selected" to "Save N services". Added unsaved changes `AlertDialog` when closing with modified selections. Added `onOpenChange` handler that captures baseline selections on open and checks for changes on close.
+- `src/components/features/crm/staff/crm-staff-assignments-tab.tsx` — Passes `staffName` prop to `StaffServiceEditorSheet`.
+
+**Behavior:**
+- Staff Profile drawer is now narrow (max-w-lg), scrollable, with sticky footer. It no longer contains the full service checklist.
+- Service capability editing opens in the dedicated wider modal with category accordions, search, and Selected tab.
+- Closing either overlay with unsaved changes shows a confirmation dialog.
+- Owner page (`owner/staff/[staffId]`) is unaffected — still shows full service checkboxes inline.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-28 — Kimi (CRM-MODAL-SYS-001 — Build Central CRM Modal System and Refactor CRM Page Popups)
+
+**Task:** Create a central reusable CRM overlay system (AdminDialog, AdminDrawer, header/body/footer subcomponents) and refactor priority CRM page popups to use it.
+
+**Files Created:**
+- `src/components/shared/overlays/admin-dialog.tsx` — Central dialog shell wrapping `@base-ui/react/dialog` primitives. Size variants: sm/md/lg/xl/wide/full. Backdrop: `bg-black/35`. Max-height: `min(90vh, calc(100dvh - 48px))`. Flex column with `overflow-hidden`.
+- `src/components/shared/overlays/admin-drawer.tsx` — Central drawer shell wrapping `@base-ui/react/dialog` primitives. Size variants: sm/md/lg. Right-side drawer, `h-[100dvh]`, flex column.
+- `src/components/shared/overlays/admin-overlay-header.tsx` — Fixed/sticky header with title + description + optional children slot.
+- `src/components/shared/overlays/admin-overlay-toolbar.tsx` — Optional shrink-0 toolbar with border-bottom.
+- `src/components/shared/overlays/admin-overlay-body.tsx` — Scrollable body with `min-h-0 flex-1 overflow-y-auto` and optional padding.
+- `src/components/shared/overlays/admin-overlay-footer.tsx` — Sticky footer with border-top + backdrop blur.
+- `src/components/shared/overlays/confirm-unsaved-changes-dialog.tsx` — Reusable AlertDialog wrapper for "Discard changes?" confirmation.
+- `src/components/shared/overlays/index.ts` — Barrel export for all overlay components.
+
+**Files Changed:**
+- `src/components/features/staff/staff-service-editor-sheet.tsx` — Replaced `Dialog`/`DialogContent`/`DialogHeader`/`DialogFooter` with `AdminDialog` + `AdminOverlayHeader`/`AdminOverlayToolbar`/`AdminOverlayBody`/`AdminOverlayFooter`. Size: `xl`. Replaced inline `AlertDialog` with `ConfirmUnsavedChangesDialog`.
+- `src/components/features/crm/services/provider-assignment-sheet.tsx` — Replaced `Dialog`/`DialogContent`/`DialogHeader`/`DialogTitle`/`DialogDescription`/`DialogFooter` with `AdminDialog` + overlay subcomponents. Size: `lg`.
+- `src/components/features/crm/staff/crm-staff-management-tab.tsx` — Replaced `Sheet`/`SheetContent`/`SheetHeader`/`SheetTitle`/`SheetDescription`/`SheetFooter` with `AdminDrawer` + overlay subcomponents. Size: `md`. Replaced inline `AlertDialog` with `ConfirmUnsavedChangesDialog`.
+
+**Overlay Inventory (CRM page-level):**
+- ✅ Refactored: Edit Staff Profile drawer, Edit Service Capabilities modal, Provider Assignment modal
+- ⏭️ Not touched (excluded per task): notification bell popovers, readiness chip popovers, readiness horizontal bars, sidebar/mobile nav drawers, toast overlays, hover cards, dropdown menus, command/search popovers
+- ⏭️ Not CRM: Booking details sheet (schedule workspace, hidden in CRM context), staff approval workspace (owner context)
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-28 — Kimi (CRM-MODAL-002 — Fix Service Capability Modal Scrolling)
+
+**Task:** Fix the Edit Service Capabilities modal so all services are reachable by internal scroll, the footer never covers content, and the page behind the modal does not scroll.
+
+**Root Cause:**
+1. `AdminDialog` was vertically centered with `top-1/2 left-1/2 translate-x/y-1/2`. For tall content, centering caused the popup to push against viewport edges and the inner flex body's `overflow-y-auto` scrollbar to be clipped or ineffective.
+2. `staff-service-editor-sheet.tsx` used a stacked accordion layout where every category rendered into the same scroll column. When one category with 50+ services expanded, the scrollable body became taller than the allocated flex space, but the scrollbar was not reliably usable because the flex parent height was not definite.
+3. The body had `pb-24` padding-bottom hack attempting to clear a footer that was already `shrink-0` in the flex column, meaning the padding was unnecessary and browser handling of bottom padding in overflow containers is inconsistent.
+4. Dozens of inline `style={{...}}` props throughout the file made layout debugging fragile and violated project style rules.
+
+**Files Changed:**
+- `src/components/shared/overlays/admin-dialog.tsx` — Changed positioning from `top-1/2 left-1/2 translate-x/y-1/2` to `top-6 left-1/2 translate-x-1/2`. Added explicit `h-auto max-h-[calc(100dvh-3rem)]` so the flex column has a definite, viewport-safe height. Close button remains absolute.
+- `src/components/features/staff/staff-service-editor-sheet.tsx` — Complete rewrite of internal layout:
+  - Replaced stacked accordion with split-pane layout: fixed 220px category rail on the left, scrollable service list panel on the right.
+  - `AdminOverlayBody` now uses `overflow-hidden p-0 flex flex-col`. Inside it, a responsive flex/grid wrapper (`flex flex-1 min-h-0 flex-col sm:grid sm:grid-cols-[220px_1fr]`) creates the split.
+  - Category rail: `shrink-0 sm:min-h-0 overflow-x-auto sm:overflow-y-auto` with selection badges.
+  - Service list panel: `min-h-0 flex-1 overflow-y-auto` with two-column checkbox grid.
+  - Only the active category's services render in the right panel (not all categories at once).
+  - Search mode bypasses the rail and shows all matching services grouped by category in the right panel.
+  - Selected mode shows only selected services grouped by category in the right panel.
+  - Added Cancel button to footer alongside Save button.
+  - Replaced `baselineRef` (ref read in render) with `baselineIds` state to avoid React ref-in-render errors.
+  - Removed all inline `style={{...}}` props; everything now uses Tailwind utilities via `cn()`.
+  - Size changed from `xl` to `wide` (1080px) to give the split pane adequate horizontal room.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
+- `pnpm build`: ✅ Passing (89/89 routes)

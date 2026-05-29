@@ -1,29 +1,25 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  AdminDialog,
+  AdminOverlayHeader,
+  AdminOverlayToolbar,
+  AdminOverlayBody,
+  AdminOverlayFooter,
+  ConfirmUnsavedChangesDialog,
+} from "@/components/shared/overlays";
 import type { Database } from "@/types/supabase";
 
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 type CategoryGroup = {
   category: string;
   services: ServiceRow[];
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const INITIAL_LIMIT = 8;
 
 function groupByCategory(services: ServiceRow[]): CategoryGroup[] {
   const map = new Map<string, ServiceRow[]>();
@@ -38,7 +34,10 @@ function groupByCategory(services: ServiceRow[]): CategoryGroup[] {
     .map(([category, svcList]) => ({ category, services: svcList }));
 }
 
-function sortGroupServices(services: ServiceRow[], selectedSet: Set<string>): ServiceRow[] {
+function sortGroupServices(
+  services: ServiceRow[],
+  selectedSet: Set<string>
+): ServiceRow[] {
   return [...services].sort((a, b) => {
     const aS = selectedSet.has(a.id) ? 0 : 1;
     const bS = selectedSet.has(b.id) ? 0 : 1;
@@ -46,50 +45,6 @@ function sortGroupServices(services: ServiceRow[], selectedSet: Set<string>): Se
     return a.name.localeCompare(b.name);
   });
 }
-
-// ── Chip styles ───────────────────────────────────────────────────────────────
-
-function filterChipStyle(active: boolean): React.CSSProperties {
-  return {
-    fontSize: "0.8125rem",
-    padding: "0.25rem 0.75rem",
-    borderRadius: 999,
-    border: `1px solid ${active ? "var(--cs-sand)" : "var(--cs-border)"}`,
-    backgroundColor: active ? "var(--cs-sand)" : "transparent",
-    color: active ? "#fff" : "var(--cs-text-muted)",
-    cursor: "pointer",
-    fontWeight: active ? 600 : 400,
-    whiteSpace: "nowrap",
-  };
-}
-
-function serviceChipStyle(selected: boolean): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "0.25rem",
-    fontSize: "0.8125rem",
-    padding: "0.25rem 0.625rem",
-    borderRadius: 999,
-    border: `1px solid ${selected ? "var(--cs-sand)" : "var(--cs-border)"}`,
-    backgroundColor: selected ? "var(--cs-sand)" : "transparent",
-    color: selected ? "#fff" : "var(--cs-text)",
-    cursor: "pointer",
-    fontWeight: selected ? 600 : 400,
-  };
-}
-
-const quickActionBtn: React.CSSProperties = {
-  fontSize: "0.75rem",
-  color: "var(--cs-text-muted)",
-  background: "none",
-  border: "none",
-  cursor: "pointer",
-  padding: 0,
-  textDecoration: "underline",
-};
-
-// ── Main export ───────────────────────────────────────────────────────────────
 
 export function StaffServiceEditorSheet({
   open,
@@ -99,21 +54,22 @@ export function StaffServiceEditorSheet({
   onClose,
   onSave,
   saving,
+  staffName,
 }: {
   open: boolean;
   services: ServiceRow[];
   selectedIds: string[];
   onToggle: (id: string) => void;
   onClose: () => void;
-  /** Optional: called when Done is clicked, with the current selected IDs. Enables save-on-done. */
   onSave?: (ids: string[]) => void;
-  /** Shows saving state on Done button */
   saving?: boolean;
+  staffName?: string;
 }) {
   const [search, setSearch] = useState("");
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [showMoreMap, setShowMoreMap] = useState<Record<string, number>>({});
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<"all" | "selected">("all");
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [baselineIds, setBaselineIds] = useState<string[]>([]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const grouped = useMemo(() => groupByCategory(services), [services]);
@@ -122,13 +78,51 @@ export function StaffServiceEditorSheet({
   const isSearchMode = searchQuery.length > 0;
   const isSelectedMode = filterMode === "selected" && !isSearchMode;
 
-  // Which groups to display
+  const handleDialogOpenChange = (o: boolean) => {
+    if (o) {
+      setBaselineIds([...selectedIds]);
+      setSearch("");
+      setFilterMode("all");
+      setActiveCategory(grouped[0]?.category ?? null);
+    } else {
+      const hasChanges =
+        baselineIds.length !== selectedIds.length ||
+        baselineIds.some((id) => !selectedIds.includes(id)) ||
+        selectedIds.some((id) => !baselineIds.includes(id));
+      if (hasChanges) {
+        setShowDiscardDialog(true);
+        return;
+      }
+      onClose();
+    }
+  };
+
+  const handleCancel = () => handleDialogOpenChange(false);
+
+  const handleSave = () => {
+    if (onSave) {
+      onSave(selectedIds);
+    } else {
+      onClose();
+    }
+  };
+
+  const hasChanges = useMemo(() => {
+    return (
+      baselineIds.length !== selectedIds.length ||
+      baselineIds.some((id) => !selectedIds.includes(id)) ||
+      selectedIds.some((id) => !baselineIds.includes(id))
+    );
+  }, [baselineIds, selectedIds]);
+
   const displayGroups = useMemo<CategoryGroup[]>(() => {
     if (isSearchMode) {
       return grouped
         .map(({ category, services: s }) => ({
           category,
-          services: s.filter((svc) => svc.name.toLowerCase().includes(searchQuery)),
+          services: s.filter((svc) =>
+            svc.name.toLowerCase().includes(searchQuery)
+          ),
         }))
         .filter((g) => g.services.length > 0);
     }
@@ -143,13 +137,7 @@ export function StaffServiceEditorSheet({
     return grouped;
   }, [grouped, isSearchMode, isSelectedMode, searchQuery, selectedSet]);
 
-  const getLimit = (cat: string) => showMoreMap[cat] ?? INITIAL_LIMIT;
-
-  const expandMore = (cat: string, total: number) =>
-    setShowMoreMap((p) => ({ ...p, [cat]: total }));
-
-  const toggleExpanded = (cat: string) =>
-    setExpandedCategory((p) => (p === cat ? null : cat));
+  const activeGroup = grouped.find((g) => g.category === activeCategory) ?? null;
 
   const selectAll = (cat: string) => {
     const g = grouped.find((g) => g.category === cat);
@@ -168,223 +156,341 @@ export function StaffServiceEditorSheet({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent
-        showCloseButton={false}
-        className="sm:max-w-3xl h-[90dvh] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col max-sm:max-w-none max-sm:rounded-none max-sm:h-[100dvh] max-sm:max-h-[100dvh]"
+    <>
+      <AdminDialog
+        open={open}
+        onOpenChange={handleDialogOpenChange}
+        size="wide"
       >
-        {/* ── Header ── */}
-        <DialogHeader className="shrink-0 p-5 pb-4 border-b border-[var(--cs-border)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <DialogTitle className="text-base font-bold text-[var(--cs-text)]">
-                Edit Service Capabilities
-              </DialogTitle>
-              <p className="mt-0.5 text-[0.8125rem] text-[var(--cs-text-muted)]">
-                {selectedIds.length > 0
-                  ? `${selectedIds.length} service${selectedIds.length !== 1 ? "s" : ""} selected`
-                  : "No services assigned yet"}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="flex items-center justify-center w-[30px] h-[30px] rounded-[6px] border border-[var(--cs-border)] bg-transparent cursor-pointer text-[var(--cs-text-muted)] text-sm shrink-0 mt-0.5"
-            >
-              ✕
-            </button>
-          </div>
+        <AdminOverlayHeader
+          title="Edit Service Capabilities"
+          description={`${staffName ? `${staffName} · ` : ""}${
+            selectedIds.length > 0
+              ? `${selectedIds.length} service${selectedIds.length !== 1 ? "s" : ""} selected`
+              : "No services assigned yet"
+          }`}
+        />
 
-          {/* Search */}
-          <div className="mt-3 relative">
-            <span
-              aria-hidden
-              className="absolute left-[10px] top-1/2 -translate-y-1/2 text-sm text-[var(--cs-text-muted)] pointer-events-none"
-            >
-              🔍
-            </span>
-            <input
-              aria-label="Search services"
-              placeholder="Search services…"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setFilterMode("all"); }}
-              className="w-full h-9 pl-8 pr-2 rounded-md border border-[var(--cs-border)] text-sm bg-[var(--cs-surface)] text-[var(--cs-text)] box-border"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-none border-none cursor-pointer text-[var(--cs-text-muted)] text-xs py-0.5 px-1"
+        <AdminOverlayToolbar>
+          <div className="flex flex-col gap-2">
+            <div className="relative">
+              <span
+                aria-hidden
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[var(--cs-text-muted)] pointer-events-none"
               >
-                ✕
+                🔍
+              </span>
+              <input
+                aria-label="Search services"
+                placeholder="Search services…"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setFilterMode("all");
+                }}
+                className="w-full h-9 pl-8 pr-2 rounded-md border border-[var(--cs-border)] text-sm bg-[var(--cs-surface)] text-[var(--cs-text)] box-border"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-[var(--cs-text-muted)] text-xs py-0.5 px-1"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              <button
+                onClick={() => {
+                  setFilterMode("all");
+                  setSearch("");
+                }}
+                aria-pressed={filterMode === "all" && !isSearchMode}
+                className={cn(
+                  "text-[0.8125rem] px-3 rounded-full border cursor-pointer font-medium whitespace-nowrap transition",
+                  filterMode === "all" && !isSearchMode
+                    ? "border-[var(--cs-sand)] bg-[var(--cs-sand)] text-white"
+                    : "border-[var(--cs-border)] bg-transparent text-[var(--cs-text-muted)]"
+                )}
+              >
+                All services
               </button>
-            )}
+              <button
+                onClick={() => {
+                  setFilterMode("selected");
+                  setSearch("");
+                }}
+                aria-pressed={filterMode === "selected"}
+                className={cn(
+                  "text-[0.8125rem] px-3 rounded-full border cursor-pointer font-medium whitespace-nowrap transition",
+                  filterMode === "selected"
+                    ? "border-[var(--cs-sand)] bg-[var(--cs-sand)] text-white"
+                    : "border-[var(--cs-border)] bg-transparent text-[var(--cs-text-muted)]"
+                )}
+              >
+                Selected ({selectedIds.length})
+              </button>
+            </div>
           </div>
+        </AdminOverlayToolbar>
 
-          {/* Filter chips */}
-          <div className="flex gap-1.5 mt-2 flex-wrap">
-            <button
-              onClick={() => { setFilterMode("all"); setSearch(""); }}
-              aria-pressed={filterMode === "all" && !isSearchMode}
-              style={filterChipStyle(filterMode === "all" && !isSearchMode)}
-            >
-              All services
-            </button>
-            <button
-              onClick={() => { setFilterMode("selected"); setSearch(""); }}
-              aria-pressed={filterMode === "selected"}
-              style={filterChipStyle(filterMode === "selected")}
-            >
-              Selected ({selectedIds.length})
-            </button>
-          </div>
-        </DialogHeader>
-
-        {/* ── Body ── */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-3 flex flex-col gap-2 pb-24">
-          {displayGroups.length === 0 && (
-            <div
-              className="text-center py-12 px-4"
-              style={{ color: "var(--cs-text-muted)" }}
-            >
+        <AdminOverlayBody className="overflow-hidden p-0 flex flex-col">
+          {displayGroups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center flex-1 px-4 text-[var(--cs-text-muted)]">
               <p className="text-2xl mb-2">🔍</p>
-              <p className="text-sm">
+              <p className="text-sm text-center">
                 {isSearchMode
                   ? `No services match "${search}"`
-                  : "No services assigned yet."}
+                  : isSelectedMode
+                    ? "No services selected yet. Choose services from All Services."
+                    : "No services available."}
               </p>
             </div>
-          )}
+          ) : (
+            <div className="flex flex-1 min-h-0 flex-col sm:grid sm:grid-cols-[220px_1fr]">
+              {/* Category rail */}
+              <aside className="shrink-0 sm:min-h-0 overflow-x-auto sm:overflow-y-auto border-b sm:border-b-0 sm:border-r border-[var(--cs-border)] bg-[var(--cs-bg)] px-3 py-2 sm:py-3 flex sm:flex-col gap-1">
+                {grouped.map(({ category, services: catSvcs }) => {
+                  const selCount = catSvcs.filter((s) =>
+                    selectedSet.has(s.id)
+                  ).length;
+                  const totalCount = catSvcs.length;
+                  const isActive = activeCategory === category;
+                  const hasMatch =
+                    isSearchMode || isSelectedMode
+                      ? displayGroups.some((g) => g.category === category)
+                      : true;
 
-          {displayGroups.map(({ category, services: catSvcs }) => {
-            const isExpanded = isSearchMode || isSelectedMode || expandedCategory === category;
-            const selCount = catSvcs.filter((s) => selectedSet.has(s.id)).length;
-            const totalCount = catSvcs.length;
-            const sorted = sortGroupServices(catSvcs, selectedSet);
-            const limit = getLimit(category);
-            const visible = isSearchMode || isSelectedMode ? sorted : sorted.slice(0, limit);
-            const hasMore = !isSearchMode && !isSelectedMode && sorted.length > limit;
+                  if ((isSearchMode || isSelectedMode) && !hasMatch) {
+                    return null;
+                  }
 
-            return (
-              <div
-                key={category}
-                className="border border-[var(--cs-border)] rounded-lg overflow-hidden"
-              >
-                {/* Category row header */}
-                <button
-                  onClick={() => {
-                    if (!isSearchMode && !isSelectedMode) toggleExpanded(category);
-                  }}
-                  aria-expanded={isExpanded}
-                  aria-label={`${category}, ${selCount} selected of ${totalCount}`}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 border-none text-left"
-                  style={{
-                    backgroundColor: isExpanded ? "var(--cs-bg)" : "var(--cs-surface)",
-                    cursor: isSearchMode || isSelectedMode ? "default" : "pointer",
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold text-[var(--cs-text)]">
-                      {category}
-                    </span>
-                    <span className="text-[0.8125rem] text-[var(--cs-text-muted)] ml-2">
-                      {selCount > 0 ? `${selCount} / ${totalCount}` : `${totalCount} available`}
-                    </span>
-                  </div>
-                  {selCount > 0 && (
-                    <span
-                      className="text-[0.7rem] font-bold rounded-full py-[0.1rem] px-[0.45rem] shrink-0"
-                      style={{
-                        backgroundColor: "var(--cs-sand)",
-                        color: "#fff",
-                      }}
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => setActiveCategory(category)}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition whitespace-nowrap sm:whitespace-normal",
+                        isActive
+                          ? "bg-[var(--cs-sand)] text-white"
+                          : "bg-transparent text-[var(--cs-text)] hover:bg-[var(--cs-surface)]"
+                      )}
                     >
-                      {selCount}
-                    </span>
-                  )}
-                  {!isSearchMode && !isSelectedMode && (
-                    <span className="text-[0.7rem] text-[var(--cs-text-muted)] shrink-0">
-                      {isExpanded ? "▲" : "▼"}
-                    </span>
-                  )}
-                </button>
-
-                {/* Expanded body */}
-                {isExpanded && (
-                  <div
-                    className="px-3.5 py-2.5 border-t border-[var(--cs-border)]"
-                    style={{ backgroundColor: "var(--cs-surface)" }}
-                  >
-                    {/* Quick actions (accordion only) */}
-                    {!isSearchMode && !isSelectedMode && (
-                      <div className="flex gap-3.5 mb-2.5">
-                        <button onClick={() => selectAll(category)} style={quickActionBtn}>
-                          Select all
-                        </button>
-                        <button onClick={() => clearAll(category)} style={quickActionBtn}>
-                          Clear
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Service chips */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {visible.map((s) => {
-                        const isSel = selectedSet.has(s.id);
-                        return (
-                          <button
-                            key={s.id}
-                            onClick={() => onToggle(s.id)}
-                            aria-pressed={isSel}
-                            style={serviceChipStyle(isSel)}
-                          >
-                            {isSel && <span aria-hidden className="text-[0.625rem]">✓</span>}
-                            {s.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Show more */}
-                    {hasMore && (
-                      <button
-                        onClick={() => expandMore(category, sorted.length)}
-                        className="mt-2 block"
-                        style={quickActionBtn}
+                      <span className="flex-1 min-w-0 truncate">
+                        {category}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[0.7rem] font-bold rounded-full py-0.5 px-1.5 shrink-0",
+                          selCount > 0
+                            ? isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-[var(--cs-sand)] text-white"
+                            : isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-[var(--cs-border)] text-[var(--cs-text-muted)]"
+                        )}
                       >
-                        Show {sorted.length - limit} more in {category}
-                      </button>
+                        {selCount > 0
+                          ? `${selCount} / ${totalCount}`
+                          : totalCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </aside>
+
+              {/* Service list */}
+              <section className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                {isSearchMode && (
+                  <div className="flex flex-col gap-4">
+                    {displayGroups.map(({ category, services: catSvcs }) => {
+                      const sorted = sortGroupServices(catSvcs, selectedSet);
+                      return (
+                        <div key={category}>
+                          <h3 className="text-sm font-semibold text-[var(--cs-text)] mb-2">
+                            {category}
+                          </h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {sorted.map((s) => (
+                              <ServiceCheckbox
+                                key={s.id}
+                                service={s}
+                                selected={selectedSet.has(s.id)}
+                                onToggle={() => onToggle(s.id)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {isSelectedMode && (
+                  <div className="flex flex-col gap-4">
+                    {displayGroups.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-[var(--cs-text-muted)]">
+                        <p className="text-2xl mb-2">🔍</p>
+                        <p className="text-sm text-center">
+                          No services selected yet. Choose services from All
+                          Services.
+                        </p>
+                      </div>
+                    ) : (
+                      displayGroups.map(({ category, services: catSvcs }) => {
+                        const sorted = sortGroupServices(catSvcs, selectedSet);
+                        return (
+                          <div key={category}>
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-sm font-semibold text-[var(--cs-text)]">
+                                {category}
+                              </h3>
+                              <button
+                                onClick={() => clearAll(category)}
+                                className="text-[0.75rem] text-[var(--cs-text-muted)] underline cursor-pointer bg-transparent border-none p-0"
+                              >
+                                Remove all
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {sorted.map((s) => (
+                                <ServiceCheckbox
+                                  key={s.id}
+                                  service={s}
+                                  selected={selectedSet.has(s.id)}
+                                  onToggle={() => onToggle(s.id)}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 )}
-              </div>
-            );
-          })}
-        </div>
 
-        {/* ── Footer ── */}
-        <DialogFooter className="shrink-0 border-t border-[var(--cs-border)] p-4 mx-0 mb-0 bg-popover">
+                {!isSearchMode && !isSelectedMode && activeGroup && (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-[var(--cs-text)]">
+                          {activeGroup.category}
+                        </h3>
+                        <p className="text-[0.8125rem] text-[var(--cs-text-muted)]">
+                          {
+                            activeGroup.services.filter((s) =>
+                              selectedSet.has(s.id)
+                            ).length
+                          }{" "}
+                          of {activeGroup.services.length} selected
+                        </p>
+                      </div>
+                      <div className="flex gap-3.5">
+                        <button
+                          onClick={() => selectAll(activeGroup.category)}
+                          className="text-[0.75rem] text-[var(--cs-text-muted)] underline cursor-pointer bg-transparent border-none p-0"
+                        >
+                          Select all
+                        </button>
+                        <button
+                          onClick={() => clearAll(activeGroup.category)}
+                          className="text-[0.75rem] text-[var(--cs-text-muted)] underline cursor-pointer bg-transparent border-none p-0"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {sortGroupServices(
+                        activeGroup.services,
+                        selectedSet
+                      ).map((s) => (
+                        <ServiceCheckbox
+                          key={s.id}
+                          service={s}
+                          selected={selectedSet.has(s.id)}
+                          onToggle={() => onToggle(s.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!isSearchMode && !isSelectedMode && !activeGroup && (
+                  <div className="flex flex-col items-center justify-center h-full text-[var(--cs-text-muted)]">
+                    <p className="text-sm">Select a category to view services.</p>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+        </AdminOverlayBody>
+
+        <AdminOverlayFooter className="flex flex-row justify-end gap-3">
           <button
-            onClick={() => {
-              if (onSave) {
-                onSave(selectedIds);
-              } else {
-                onClose();
-              }
-            }}
-            disabled={saving}
-            className="w-full py-2.5 px-4 rounded-lg font-bold text-[0.9375rem] cursor-pointer border-none disabled:opacity-60"
-            style={{
-              backgroundColor: "var(--cs-sand)",
-              color: "#fff",
-            }}
+            type="button"
+            onClick={handleCancel}
+            className="px-4 py-2.5 rounded-lg text-sm font-medium border border-[var(--cs-border)] bg-transparent cursor-pointer text-[var(--cs-text)]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+            className="px-4 py-2.5 rounded-lg text-sm font-bold border-none cursor-pointer disabled:opacity-60 bg-[var(--cs-sand)] text-white"
           >
             {saving
               ? "Saving…"
-              : `Done — ${selectedIds.length} service${selectedIds.length !== 1 ? "s" : ""} selected`}
+              : `Save ${selectedIds.length} service${selectedIds.length !== 1 ? "s" : ""}`}
           </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AdminOverlayFooter>
+      </AdminDialog>
+
+      <ConfirmUnsavedChangesDialog
+        open={showDiscardDialog}
+        onOpenChange={setShowDiscardDialog}
+        onConfirm={onClose}
+        description="You have unsaved service selections. If you close now, your changes will be lost."
+      />
+    </>
+  );
+}
+
+function ServiceCheckbox({
+  service,
+  selected,
+  onToggle,
+}: {
+  service: ServiceRow;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex items-center gap-2.5 px-2.5 py-2 rounded-md border cursor-pointer transition",
+        selected
+          ? "border-[var(--cs-sand)] bg-[rgba(200,169,107,0.08)]"
+          : "border-[var(--cs-border)] bg-[var(--cs-surface)]"
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggle}
+        className="shrink-0 accent-[var(--cs-sand)]"
+      />
+      <span className="text-[0.8125rem] text-[var(--cs-text)] leading-tight">
+        {service.name}
+      </span>
+      {service.duration_minutes ? (
+        <span className="ml-auto text-[0.6875rem] text-[var(--cs-text-muted)] shrink-0">
+          {service.duration_minutes}m
+        </span>
+      ) : null}
+    </label>
   );
 }
