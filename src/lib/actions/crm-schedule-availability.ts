@@ -5,7 +5,6 @@ import { z } from "zod";
 import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { isOwner } from "@/lib/permissions";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const uuid = z.guid("Invalid ID");
@@ -38,6 +37,14 @@ type ScheduleActionResult =
   | { ok: true; rowsWritten: number }
   | { ok: false; error: string };
 
+type ScheduleEditContext = {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  actorBranchId: string | null;
+  actorRole: string;
+};
+
+type ScheduleEditFailure = { error: string };
+
 const SCHEDULE_EDIT_ROLES = new Set([
   "owner",
   "manager",
@@ -45,22 +52,22 @@ const SCHEDULE_EDIT_ROLES = new Set([
   "store_manager",
   "crm",
   "csr_head",
+  "csr_staff",
+  "csr",
 ]);
 
-async function getScheduleEditContext(branchId: string) {
+async function getScheduleEditContext(
+  branchId: string
+): Promise<ScheduleEditContext | ScheduleEditFailure> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (!user) return { error: "You must be logged in to edit schedules." };
 
   if (isDevAuthBypassEnabled()) {
-    return {
-      admin: createAdminClient(),
-      actorBranchId: branchId,
-      actorRole: "owner",
-    };
+    return { supabase, actorBranchId: branchId, actorRole: "owner" };
   }
 
   const { data: me, error } = await supabase
@@ -70,15 +77,25 @@ async function getScheduleEditContext(branchId: string) {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error || !me) return null;
-  if (!SCHEDULE_EDIT_ROLES.has(me.system_role)) return null;
-  if (!isOwner(me.system_role) && me.branch_id !== branchId) return null;
+  if (error) {
+    return { error: `Session error: ${error.message}` };
+  }
+  if (!me) {
+    return { error: "No active staff record is linked to your account. Contact your manager." };
+  }
+  if (!SCHEDULE_EDIT_ROLES.has(me.system_role)) {
+    return { error: `Your role (${me.system_role}) does not have permission to edit schedules.` };
+  }
+  if (!isOwner(me.system_role)) {
+    // Compare case-insensitively — UUIDs are case-insensitive but JS !== is not.
+    const actorBranch = (me.branch_id ?? "").toLowerCase();
+    const targetBranch = branchId.toLowerCase();
+    if (actorBranch !== targetBranch) {
+      return { error: "You can only edit schedules for staff in your assigned branch." };
+    }
+  }
 
-  return {
-    admin: createAdminClient(),
-    actorBranchId: me.branch_id,
-    actorRole: me.system_role,
-  };
+  return { supabase, actorBranchId: me.branch_id, actorRole: me.system_role };
 }
 
 function revalidateSchedulePaths(branchId: string) {
@@ -105,10 +122,11 @@ export async function updateCrmStaffWeeklyAvailabilityAction(
   }
 
   const { branchId, staffId, days } = parsed.data;
-  const ctx = await getScheduleEditContext(branchId);
-  if (!ctx) return { ok: false, error: "Unauthorized" };
+  const ctxResult = await getScheduleEditContext(branchId);
+  if ("error" in ctxResult) return { ok: false, error: ctxResult.error };
+  const ctx = ctxResult;
 
-  const { data: staff, error: staffError } = await ctx.admin
+  const { data: staff, error: staffError } = await ctx.supabase
     .from("staff")
     .select("id, branch_id")
     .eq("id", staffId)
@@ -129,11 +147,16 @@ export async function updateCrmStaffWeeklyAvailabilityAction(
     shift_type: "single",
   }));
 
-  const { error } = await ctx.admin
+  const { error } = await ctx.supabase
     .from("staff_schedules")
     .upsert(rows, { onConflict: "staff_id,day_of_week,shift_type" });
 
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    return {
+      ok: false,
+      error: `Schedule could not be saved: ${error.message}. Check that your role has permission to edit this staff member's schedule.`,
+    };
+  }
 
   revalidateSchedulePaths(branchId);
   return { ok: true, rowsWritten: rows.length };

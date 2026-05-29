@@ -1,2 +1,2 @@
-Task: Rebuild CRM Edit Staff Profile modal to match approved tabbed mockup.
-Status: COMPLETE
+Task: Fix CRM modal save Unauthorized server action guard.
+Status: IN_PROGRESS
