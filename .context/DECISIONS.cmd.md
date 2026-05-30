@@ -262,3 +262,20 @@ duration 0.22–0.26 s, stagger 0.05 s, spring stiffness 340, damping 30, mass 0
 CSS-only animations lack stagger coordination and spring physics. `motion` provides both without adding weight to the bundle beyond what it tree-shakes. The `motion/react` entry point is React-19 compatible.
 
 **@number-flow/react decision:** Deferred. CountUpNumber is adequate for static server-fetched KPIs. Install only if KPIs become live-updating or decimal animation becomes noticeably rough.
+
+### DEC-CRM-LOADER-001: Kokonut loader used only for CRM full-section / heavy loading states
+**Status:** ACCEPTED — 2026-05-30
+
+**Decision:**
+The Kokonut loader (wrapped as CrmPremiumLoader) is used exclusively for:
+- Full CRM route loading (route-level loading.tsx)
+- Setup readiness scans
+- Heavy section loading where data preparation takes noticeable time
+
+It is NOT used for:
+- Button/row save actions → CrmInlineActionButton with spinner
+- Toggle / modal save → local spinner
+- Any small inline action that must feel fast
+
+**Rationale:**
+Big waits feel premium with the animated ring loader. Small actions must feel fast — showing a full loader for a 200ms save is disorienting and makes the app feel slow. The skeleton shimmer system handles structural layout loading; the premium loader adds the "actively working" signal on top of it.

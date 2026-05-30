@@ -3396,3 +3396,33 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings in scripts)
 - pnpm build: Passing, 89 routes
+
+---
+
+### 2026-05-30 — Claude (CRM-LOADER-001 — Kokonut Loader integration into CRM premium system)
+
+**Task:** Install Kokonut loader via shadcn CLI, adapt it to CradleHub theme, and integrate as a premium full-section loader working alongside (not replacing) the existing skeleton shimmer system.
+
+**Install:**
+- `pnpm dlx shadcn@latest add @kokonutui/loader` → created `src/components/kokonutui/loader.tsx`
+- No new npm dependency added (motion already installed)
+
+**Files Created:**
+- `src/components/features/crm/premium/crm-premium-loader.tsx` — CRM-themed wrapper around Kokonut loader. Changes from source: all ring conic-gradient colors use var(--cs-sand/--cs-sand-dark/--cs-border); 4 dark:block ring duplicates removed; text uses var(--cs-text/--cs-text-muted); useReducedMotion respected (static border rings fallback); role="status" + aria-live="polite"; inline styles kept only for conic-gradient + radial-gradient mask (cannot be expressed as Tailwind)
+- `src/components/features/crm/premium/crm-loading-state.tsx` — combined CrmPremiumLoader + optional CrmLoadingShimmer below it. Props: title, subtitle, loaderSize, shimmer ("kpi-row"|"table"|"rail"|"card-grid"|"none"), rows, cols
+
+**Files Changed:**
+- `src/components/features/crm/premium/index.ts` — exports CrmPremiumLoader, CrmPremiumLoaderProps, CrmLoadingState, CrmLoadingStateProps
+- `src/app/(dashboard)/crm/setup/loading.tsx` — now uses CrmLoadingState (title: "Checking setup readiness...", shimmer: card-grid, cols: 4)
+- `src/app/(dashboard)/crm/loading.tsx` — now uses CrmLoadingState (title: "Preparing CRM workspace...", shimmer: kpi-row, cols: 4)
+- `src/app/(dashboard)/crm/customers/loading.tsx` — warm skeleton preserved; small CrmPremiumLoader (size="sm") added between KPI shimmer and table shimmer
+
+**Small actions NOT touched:**
+- CrmInlineActionButton unchanged
+- All row/button/toggle/modal save loading patterns unchanged
+- PremiumSuccessToast unchanged
+
+**Verification:**
+- pnpm type-check: Passing (0 errors)
+- pnpm lint: Passing (0 errors, 2 pre-existing warnings)
+- pnpm build: Passing, 89 routes

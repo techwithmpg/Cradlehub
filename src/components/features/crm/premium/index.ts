@@ -1,4 +1,8 @@
 export * from "./variants";
+export { CrmPremiumLoader } from "./crm-premium-loader";
+export type { CrmPremiumLoaderProps } from "./crm-premium-loader";
+export { CrmLoadingState } from "./crm-loading-state";
+export type { CrmLoadingStateProps } from "./crm-loading-state";
 export { CrmMotionSection } from "./crm-motion-section";
 export { CrmKpiCard } from "./crm-kpi-card";
 export { CrmSegmentTabs } from "./crm-segment-tabs";

@@ -1,2 +1,2 @@
-Task: Install motion library and upgrade CRM premium component layer with real Framer Motion animations.
+Task: Add Kokonut loader and integrate it with CRM skeleton loading states.
 Status: DONE
