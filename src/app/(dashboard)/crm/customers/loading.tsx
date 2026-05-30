@@ -1,25 +1,38 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { CrmLoadingShimmer } from "@/components/features/crm/premium/crm-loading-shimmer";
 
+/**
+ * Warm skeleton loading state for /crm/customers.
+ * Uses CrmLoadingShimmer with spa-themed colours.
+ */
 export default function CrmCustomersLoading() {
   return (
-    <div className="space-y-5 p-5">
-      <div className="space-y-2">
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-4 w-56" />
+    <div className="space-y-5">
+      {/* Page header skeleton */}
+      <div className="space-y-1.5">
+        <div className="crm-shimmer-wrap h-6 w-28 rounded-md" />
+        <div className="crm-shimmer-wrap h-4 w-52 rounded-md" />
       </div>
-      {/* Search + filters */}
+
+      {/* Tab bar skeleton */}
+      <div className="flex items-end gap-0 border-b border-[var(--cs-border-soft)]">
+        <div className="crm-shimmer-wrap h-9 w-28 rounded-t-md" />
+        <div className="crm-shimmer-wrap h-9 w-24 rounded-t-md" />
+        <div className="crm-shimmer-wrap h-9 w-24 rounded-t-md" />
+        <div className="crm-shimmer-wrap h-9 w-32 rounded-t-md" />
+      </div>
+
+      {/* KPI row skeleton */}
+      <CrmLoadingShimmer variant="kpi-row" cols={5} />
+
+      {/* Toolbar skeleton */}
       <div className="flex gap-3">
-        <Skeleton className="h-9 w-72 rounded-lg" />
-        <Skeleton className="h-9 w-32 rounded-lg" />
-        <Skeleton className="h-9 w-28 rounded-lg" />
+        <div className="crm-shimmer-wrap h-9 w-72 max-w-sm flex-1 rounded-lg" />
+        <div className="crm-shimmer-wrap h-9 w-20 rounded-lg" />
+        <div className="crm-shimmer-wrap h-9 w-20 rounded-lg" />
       </div>
-      {/* Table rows */}
-      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-        <Skeleton className="h-10 w-full rounded-none" />
-        {Array.from({ length: 10 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-none border-t border-neutral-100 dark:border-neutral-800/60" />
-        ))}
-      </div>
+
+      {/* Table skeleton */}
+      <CrmLoadingShimmer variant="table" rows={8} />
     </div>
   );
 }

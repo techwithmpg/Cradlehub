@@ -1,356 +1,112 @@
-import Link from "next/link";
-import { PageHeader } from "@/components/features/dashboard/page-header";
-import { CustomerSegmentBadge } from "@/components/features/crm/customer-segment-badge";
-import { EmptyState } from "@/components/features/dashboard/empty-state";
-import { getCustomersPage } from "@/lib/queries/customers";
-import type { CustomerPageRow } from "@/lib/queries/customers";
 import { getCrmContext } from "@/lib/queries/crm-context";
-import { formatDate } from "@/lib/utils";
-import { CrmTabNav, CUSTOMERS_TABS } from "@/components/features/crm/crm-tab-nav";
+import {
+  getCustomersPage,
+  getRepeatCustomers,
+  getLapsedCustomers,
+  getCrmStats,
+} from "@/lib/queries/customers";
+import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
+import { CustomersWorkspace } from "@/components/features/crm/customers/customers-workspace";
+import type { CustomerTab } from "@/components/features/crm/customers/customer-segment-tabs";
+import type { CustomerListItem } from "@/components/features/crm/customers/lib/customer-segments";
+import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
+import type { KpiData } from "@/components/features/crm/customers/customer-kpi-row";
+import { isThisMonth, isToday, isThisWeek, daysSinceDate } from "@/components/features/crm/customers/lib/customer-segments";
 
-type CustomerListItem = CustomerPageRow;
+const VALID_TABS: CustomerTab[] = ["all", "repeat", "lapsed", "followup"];
 
-function firstRelation<T>(relation: T | T[] | null | undefined): T | null {
-  if (!relation) return null;
-  return Array.isArray(relation) ? (relation[0] ?? null) : relation;
-}
-
-function computeSegment(customer: CustomerListItem): "new" | "repeat" | "lapsed" | null {
-  if (customer.total_bookings === 1) return "new";
-  if (customer.total_bookings >= 2) {
-    if (customer.last_booking_date) {
-      const daysSince = Math.floor(
-        (Date.now() - new Date(customer.last_booking_date).getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (daysSince >= 30) return "lapsed";
-    }
-    return "repeat";
-  }
-  return null;
-}
-
-function daysSince(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+function parseTab(raw: string | undefined): CustomerTab {
+  if (raw && VALID_TABS.includes(raw as CustomerTab)) return raw as CustomerTab;
+  return "all";
 }
 
 export default async function CrmCustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string; q?: string }>;
 }) {
   const { branchId } = await getCrmContext();
-  const resolvedSearchParams = await searchParams;
-  const pageParam = Number(resolvedSearchParams.page ?? "1");
-  const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
-  const search = resolvedSearchParams.q?.trim() || undefined;
+  const sp = await searchParams;
+  const tab = parseTab(sp.tab);
+  const search = sp.q?.trim() || undefined;
 
-  const result = await getCustomersPage({ branchId, search, page, pageSize: 25 });
-  const rows = result.data as CustomerListItem[];
-  const total = result.total;
-  const totalPages = result.pageCount;
+  const pageParam = Number(sp.page ?? "1");
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+
+  let allCustomers: CustomerListItem[] = [];
+  let repeatCustomers: CustomerListItem[] = [];
+  let lapsedCustomers: CustomerListItem[] = [];
+  let waitlistRows: WaitlistRow[] = [];
+  let totalPages = 1;
+
+  // Fetch tab-specific data
+  if (tab === "all") {
+    const result = await getCustomersPage({ branchId, search, page, pageSize: 25 });
+    allCustomers = result.data as CustomerListItem[];
+    totalPages = result.pageCount;
+  } else if (tab === "repeat") {
+    const result = await getRepeatCustomers(2, page, 25, branchId);
+    repeatCustomers = (result.customers as unknown as CustomerListItem[]) ?? [];
+    totalPages = Math.max(1, Math.ceil(result.total / 25));
+  } else if (tab === "lapsed") {
+    const result = await getLapsedCustomers(30, 50, branchId);
+    lapsedCustomers = (result as unknown as CustomerListItem[]) ?? [];
+    totalPages = 1;
+  } else if (tab === "followup") {
+    const result = await getWaitlistAction(branchId ?? "");
+    if (result.ok) {
+      waitlistRows = (result.data as WaitlistRow[]) ?? [];
+    }
+  }
+
+  // Base stats
+  const stats = await getCrmStats(branchId);
+
+  // Compute KPI data
+  const kpiData: KpiData = {
+    totalCustomers: stats.total,
+    repeatClients: stats.repeat,
+    lapsedClients: stats.lapsed,
+    newThisMonth: stats.newThisMonth,
+    totalVisits: stats.totalVisits,
+  };
+
+  if (tab === "repeat") {
+    const totalVisitsRepeat = repeatCustomers.reduce((s, c) => s + (c.total_bookings ?? 0), 0);
+    kpiData.repeatClients = repeatCustomers.length;
+    kpiData.avgVisits = repeatCustomers.length > 0 ? Math.round((totalVisitsRepeat / repeatCustomers.length) * 10) / 10 : 0;
+    kpiData.mostBookedService = null; // Would need bookings data per customer
+    kpiData.returningThisMonth = repeatCustomers.filter((c) => c.last_booking_date && isThisMonth(c.last_booking_date)).length;
+    kpiData.avgSpend = null;
+  }
+
+  if (tab === "lapsed") {
+    kpiData.lapsedClients = lapsedCustomers.length;
+    kpiData.inactive30Plus = lapsedCustomers.filter((c) => c.last_booking_date && daysSinceDate(c.last_booking_date) >= 30).length;
+    kpiData.inactive60Plus = lapsedCustomers.filter((c) => c.last_booking_date && daysSinceDate(c.last_booking_date) >= 60).length;
+    kpiData.followUpsNeeded = lapsedCustomers.length;
+    kpiData.recoveryBookings = null;
+  }
+
+  if (tab === "followup") {
+    kpiData.onWaitlist = waitlistRows.filter((r) => r.status === "waiting").length;
+    kpiData.followUpToday = waitlistRows.filter((r) => r.preferred_date && isToday(r.preferred_date)).length;
+    kpiData.thisWeek = waitlistRows.filter((r) => r.preferred_date && isThisWeek(r.preferred_date)).length;
+    kpiData.convertedThisMonth = waitlistRows.filter((r) => r.status === "converted" && isThisMonth(r.created_at)).length;
+    kpiData.highPriority = waitlistRows.filter((r) => r.status === "waiting" && daysSinceDate(r.created_at) > 3).length;
+  }
 
   return (
-    <div>
-      <PageHeader
-        title="Customers"
-        description="Search, view, and manage guest records."
-        icon="👥"
-        action={
-          <Link
-            href="/crm/bookings/new"
-            style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              backgroundColor: "var(--cs-sand)",
-              color: "#fff",
-              fontSize: "0.8125rem",
-              fontWeight: 500,
-              textDecoration: "none",
-            }}
-          >
-            ➕ New Booking
-          </Link>
-        }
-      />
-
-      <CrmTabNav tabs={CUSTOMERS_TABS} activeHref="/crm/customers" />
-
-      {/* Search bar */}
-      <form
-        method="GET"
-        action="/crm/customers"
-        style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}
-      >
-        <input
-          name="q"
-          type="search"
-          defaultValue={search ?? ""}
-          placeholder="Search by name or phone…"
-          style={{
-            flex: 1,
-            padding: "7px 12px",
-            borderRadius: 7,
-            border: "1px solid var(--cs-border)",
-            backgroundColor: "var(--cs-surface)",
-            color: "var(--cs-text)",
-            fontSize: "0.875rem",
-          }}
-        />
-        <button
-          type="submit"
-          style={{
-            padding: "7px 14px",
-            borderRadius: 7,
-            border: "1px solid var(--cs-border)",
-            backgroundColor: "var(--cs-sand-mist)",
-            color: "var(--cs-sand)",
-            fontSize: "0.875rem",
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          Search
-        </button>
-        {search && (
-          <Link
-            href="/crm/customers"
-            style={{
-              padding: "7px 12px",
-              borderRadius: 7,
-              border: "1px solid var(--cs-border)",
-              backgroundColor: "var(--cs-surface)",
-              color: "var(--cs-text-muted)",
-              fontSize: "0.875rem",
-              textDecoration: "none",
-            }}
-          >
-            Clear
-          </Link>
-        )}
-      </form>
-
-      {rows.length === 0 ? (
-        <EmptyState
-          title={search ? "No customers match your search" : "No customer records yet"}
-          description={search ? `No results for "${search}". Try a different name or phone number.` : "Customers will appear here automatically after bookings are created."}
-          icon="🌿"
-        />
-      ) : (
-        <>
-          <div
-            style={{
-              backgroundColor: "var(--cs-surface)",
-              border: "1px solid var(--cs-border)",
-              borderRadius: 10,
-              overflow: "hidden",
-            }}
-          >
-            {rows.map((customer, i) => {
-              const segment = computeSegment(customer);
-              const preferredStaff = firstRelation(customer.staff);
-              const ds = daysSince(customer.last_booking_date);
-
-              return (
-                <div
-                  key={customer.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.875rem",
-                    padding: "0.875rem 1rem",
-                    borderBottom: i < rows.length - 1 ? "1px solid var(--cs-border)" : "none",
-                  }}
-                >
-                  {/* Avatar */}
-                  <div
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: "50%",
-                      backgroundColor: "var(--cs-border)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                      color: "var(--cs-text-muted)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {customer.full_name.charAt(0).toUpperCase()}
-                  </div>
-
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginBottom: 2,
-                      }}
-                    >
-                      <Link
-                        href={`/crm/${customer.id}`}
-                        style={{
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                          color: "var(--cs-text)",
-                          textDecoration: "none",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {customer.full_name}
-                      </Link>
-                      {segment && <CustomerSegmentBadge segment={segment} />}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                      {customer.phone}
-                      {customer.email && (
-                        <span style={{ marginLeft: 8 }}>{customer.email}</span>
-                      )}
-                    </div>
-                    {customer.notes && (
-                      <div
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--cs-text-muted)",
-                          marginTop: 2,
-                          fontStyle: "italic",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        &ldquo;{customer.notes}&rdquo;
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Meta */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                        {customer.total_bookings} visit{customer.total_bookings !== 1 ? "s" : ""}
-                      </div>
-                      {customer.last_booking_date && (
-                        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                          Last: {formatDate(customer.last_booking_date)}
-                          {ds !== null && ds >= 30 && (
-                            <span style={{ color: "#92400E", marginLeft: 4 }}>({ds}d)</span>
-                          )}
-                        </div>
-                      )}
-                      {preferredStaff && (
-                        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                          Prefers {preferredStaff.full_name}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <Link
-                        href={`/crm/${customer.id}`}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 6,
-                          border: "1px solid var(--cs-border)",
-                          backgroundColor: "var(--cs-surface)",
-                          color: "var(--cs-text-secondary)",
-                          fontSize: "0.75rem",
-                          textDecoration: "none",
-                          fontWeight: 500,
-                        }}
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={`/crm/bookings/new?customerId=${customer.id}`}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 6,
-                          border: "1px solid var(--cs-border)",
-                          backgroundColor: "var(--cs-sand-mist)",
-                          color: "var(--cs-sand)",
-                          fontSize: "0.75rem",
-                          textDecoration: "none",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Book
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {total > 25 && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                gap: "0.5rem",
-                marginTop: "1rem",
-              }}
-            >
-              {page > 1 && (
-                <Link
-                  href={`/crm/customers?page=${page - 1}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 6,
-                    border: "1px solid var(--cs-border)",
-                    backgroundColor: "var(--cs-surface)",
-                    color: "var(--cs-text-muted)",
-                    fontSize: "0.8125rem",
-                    textDecoration: "none",
-                  }}
-                >
-                  &larr; Prev
-                </Link>
-              )}
-              <span
-                style={{
-                  padding: "5px 12px",
-                  fontSize: "0.8125rem",
-                  color: "var(--cs-text-muted)",
-                }}
-              >
-                Page {page} of {totalPages}
-              </span>
-              {page < totalPages && (
-                <Link
-                  href={`/crm/customers?page=${page + 1}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 6,
-                    border: "1px solid var(--cs-border)",
-                    backgroundColor: "var(--cs-surface)",
-                    color: "var(--cs-text-muted)",
-                    fontSize: "0.8125rem",
-                    textDecoration: "none",
-                  }}
-                >
-                  Next &rarr;
-                </Link>
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </div>
+    <CustomersWorkspace
+      tab={tab}
+      allCustomers={allCustomers}
+      repeatCustomers={repeatCustomers}
+      lapsedCustomers={lapsedCustomers}
+      waitlistRows={waitlistRows}
+      kpiData={kpiData}
+      page={page}
+      totalPages={totalPages}
+      search={search}
+    />
   );
 }

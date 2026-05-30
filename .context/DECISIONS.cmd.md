@@ -229,3 +229,36 @@ Owner and Manager workspaces are soft-paused for MVP. CRM is the main admin/oper
 - Soft-pausing avoids confusion from two near-identical workspaces during early operations.
 - Files are preserved — re-activation is a small routing change, not a rebuild.
 - All CRM permission helpers (`src/lib/auth/crm-permissions.ts`) are typed and ready for granular feature gates.
+
+### DEC-CRM-PREMIUM-001: CRM premium component layer — CSS-only animations, no external motion library
+**Status:** ACCEPTED — 2026-05-30
+
+**Decision:**
+The CRM premium work-area component layer uses CSS-only animations (custom keyframes in `globals.css`) rather than `motion` or `framer-motion`. The premium component folder lives at `src/components/features/crm/premium/` and exports 12 reusable components via `index.ts`.
+
+**Rationale:**
+- The project has no `motion` or `framer-motion` installed. Adding them requires user approval.
+- CSS keyframes (`crm-fade-up`, `crm-row-enter`, `crm-shimmer-sweep`) are sufficient for the required entrance/stagger/shimmer effects.
+- `prefers-reduced-motion` is respected via `@media` rule in globals.css — no runtime hook needed.
+- Selected table row left border is implemented via `inset box-shadow` on `td:first-child` using the `.crm-row-selected` global CSS class, because `border-l` does not work on `<tr>` elements in standard table layout.
+- The pattern is proven on Customers and can be applied to other CRM workspaces (Staff, Services, Schedule, Today, Bookings).
+
+### DEC-CRM-MOTION-001: Use motion (Framer Motion) for CRM premium animations
+**Status:** ACCEPTED — 2026-05-30
+
+**Decision:**
+`motion` 12 is the approved animation library for CRM premium work-area components. Import path: `motion/react`. All motion code calls `useReducedMotion()` and renders plain HTML fallbacks when `prefers-reduced-motion: reduce` is set.
+
+**Approved motion targets:**
+KPI card entrance (stagger), KPI card hover lift (y:-2), tab indicator slide (spring layoutId), preview rail slide-in (spring AnimatePresence), empty state entrance, table row stagger entrance.
+
+**Not animated:**
+global sidebar/header, large backgrounds, table cell content, every row field, page transitions, shimmer loaders.
+
+**Motion settings:**
+duration 0.22–0.26 s, stagger 0.05 s, spring stiffness 340, damping 30, mass 0.8.
+
+**Rationale:**
+CSS-only animations lack stagger coordination and spring physics. `motion` provides both without adding weight to the bundle beyond what it tree-shakes. The `motion/react` entry point is React-19 compatible.
+
+**@number-flow/react decision:** Deferred. CountUpNumber is adequate for static server-fetched KPIs. Install only if KPIs become live-updating or decimal animation becomes noticeably rough.

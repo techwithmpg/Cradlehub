@@ -26,7 +26,7 @@ async function getManagerContext() {
     .eq("is_active", true)
     .maybeSingle();
   const SCHEDULE_EDIT_ROLES = new Set([
-    "owner", "manager", "assistant_manager", "store_manager", "crm", "csr_head",
+    "owner", "manager", "assistant_manager", "store_manager", "crm", "csr_head", "csr_staff", "csr",
   ]);
   if (!me || !SCHEDULE_EDIT_ROLES.has(me.system_role)) return null;
   return { supabase, me };

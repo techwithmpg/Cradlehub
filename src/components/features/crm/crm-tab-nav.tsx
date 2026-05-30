@@ -18,7 +18,6 @@ export const TODAY_TABS: CrmTabItem[] = [
 export const BOOKINGS_TABS: CrmTabItem[] = [
   { label: "Today's Bookings", href: "/crm/bookings"     },
   { label: "New Booking",      href: "/crm/bookings/new" },
-  { label: "Waitlist",         href: "/crm/waitlist"     },
 ];
 
 export const SCHEDULE_TABS: CrmTabItem[] = [
@@ -28,9 +27,10 @@ export const SCHEDULE_TABS: CrmTabItem[] = [
 ];
 
 export const CUSTOMERS_TABS: CrmTabItem[] = [
-  { label: "All Customers",  href: "/crm/customers" },
-  { label: "Repeat Clients", href: "/crm/repeats"   },
-  { label: "Lapsed Clients", href: "/crm/lapsed"    },
+  { label: "All Customers",      href: "/crm/customers" },
+  { label: "Repeat Clients",     href: "/crm/repeats"   },
+  { label: "Lapsed Clients",     href: "/crm/lapsed"    },
+  { label: "Waitlist / Follow-up", href: "/crm/waitlist"  },
 ];
 
 export const SETUP_TABS: CrmTabItem[] = [

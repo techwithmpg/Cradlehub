@@ -517,3 +517,65 @@ a:focus-visible,
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* ── CRM Premium work-area entrance animations ────────────── */
+@keyframes crm-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes crm-row-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.crm-fade-up {
+  animation: crm-fade-up 0.28s var(--cs-ease) both;
+}
+
+.crm-row-enter {
+  animation: crm-row-enter 0.22s var(--cs-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-fade-up,
+  .crm-row-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Selected CRM table row: inset left border on first cell */
+.crm-row-selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--cs-sand);
+}
+
+/* ── CRM warm shimmer loader ─────────────────────────────── */
+@keyframes crm-shimmer-sweep {
+  0%   { transform: translateX(-150%); }
+  100% { transform: translateX(150%); }
+}
+
+.crm-shimmer-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--cs-border-soft);
+}
+
+.crm-shimmer-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--cs-surface-warm) 50%,
+    transparent 100%
+  );
+  animation: crm-shimmer-sweep 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-shimmer-wrap::after { display: none; }
+}

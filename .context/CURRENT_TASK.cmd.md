@@ -1,2 +1,2 @@
-Task: Standardize green success toast feedback across CRM modals and actions.
-Status: IN_PROGRESS
+Task: Install motion library and upgrade CRM premium component layer with real Framer Motion animations.
+Status: DONE

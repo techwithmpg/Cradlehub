@@ -3296,3 +3296,103 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
+
+---
+
+### 2026-05-30 — Kimi (CRM-CUSTOMERS-REDESIGN-001 — Premium Customers Workspace)
+
+**Task:** Redesign `/crm/customers` into a unified CRM customer command center with premium tabs, KPI cards, tables, and a right preview rail.
+
+**Files Created:**
+- `src/components/features/crm/customers/lib/customer-segments.ts` — shared segment computation, date helpers, initials
+- `src/components/features/crm/customers/lib/customer-formatters.ts` — safe date/currency/days formatters
+- `src/components/features/crm/customers/customer-segment-tabs.tsx` — premium tab bar with forest-green active state
+- `src/components/features/crm/customers/customer-kpi-row.tsx` — tab-specific KPI cards (All, Repeat, Lapsed, Follow-up)
+- `src/components/features/crm/customers/customer-toolbar.tsx` — search + filters + export toolbar
+- `src/components/features/crm/customers/all-customers-table.tsx` — All Customers table with row selection
+- `src/components/features/crm/customers/repeat-clients-table.tsx` — Repeat Clients table with suggested actions
+- `src/components/features/crm/customers/lapsed-clients-table.tsx` — Lapsed Clients table with recovery status
+- `src/components/features/crm/customers/waitlist-followup-table.tsx` — Waitlist/Follow-up table with inline status actions
+- `src/components/features/crm/customers/customer-preview-rail.tsx` — right preview rail with contact, stats, activity, notes
+- `src/components/features/crm/customers/customers-workspace.tsx` — main workspace orchestrator
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/customers/page.tsx` — unified server component fetching tab-specific data + KPIs
+- `src/app/(dashboard)/crm/repeats/page.tsx` — redirect to `/crm/customers?tab=repeat`
+- `src/app/(dashboard)/crm/lapsed/page.tsx` — redirect to `/crm/customers?tab=lapsed`
+- `src/app/(dashboard)/crm/waitlist/page.tsx` — redirect to `/crm/customers?tab=followup`
+- `src/components/features/crm/crm-tab-nav.tsx` — updated `CUSTOMERS_TABS` to 4 tabs; removed waitlist from `BOOKINGS_TABS`
+
+**Design Decisions:**
+- Single workspace at `/crm/customers?tab={all|repeat|lapsed|followup}` with server-side data fetching per tab.
+- Old routes (`/crm/repeats`, `/crm/lapsed`, `/crm/waitlist`) redirect to unified tab URLs.
+- Right preview rail fetches full customer profile + bookings on selection via existing `getCustomerProfileAction`.
+- Notes can be saved inline in the rail via existing `updateCustomerAction` with green success toast.
+- Waitlist actions use existing `updateWaitlistStatusAction` with `useTransition` for inline loading and `sonner` toasts.
+- Mobile rail renders as a Sheet; desktop rail is a sticky 340px sidebar.
+- No inline styles — all components use Tailwind + `cn()`.
+- KPI data is derived safely from existing customer/bookings/waitlist queries.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing (0 errors)
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in scripts)
+- `pnpm build`: ✅ Passing
+
+
+---
+
+### 2026-05-30 — Claude (CRM-PREMIUM-001 — Premium CRM Work-Area Component Layer + Customers Upgrade)
+
+**Task:** Build a reusable premium CRM work-area component layer and apply it to the Customers workspace.
+
+**Files Created:** 12 premium components in `src/components/features/crm/premium/` (crm-motion-section, crm-kpi-card, crm-segment-tabs, crm-table-row, crm-preview-rail-shell, crm-empty-state, crm-status-badge, crm-loading-shimmer, crm-inline-action-button, crm-filter-bar, crm-table-shell, index.ts)
+
+**Files Changed:**
+- `src/app/globals.css` — crm-fade-up, crm-row-enter, .crm-row-selected, .crm-shimmer-wrap keyframes and classes
+- `src/components/features/crm/customers/customer-kpi-row.tsx` — CrmMotionSection + CrmKpiCard
+- `src/components/features/crm/customers/customer-segment-tabs.tsx` — delegates to CrmSegmentTabs
+- `src/components/features/crm/customers/all-customers-table.tsx` — CrmTableShell + CrmTableRow + CrmEmptyState + CrmStatusBadge
+- `src/components/features/crm/customers/customer-preview-rail.tsx` — CrmPreviewRailShell + CrmStatusBadge + CrmLoadingShimmer
+- `src/components/features/crm/customers/customers-workspace.tsx` — CrmMotionSection delay=80ms wrapper
+- `src/app/(dashboard)/crm/customers/loading.tsx` — warm shimmer skeleton
+
+**Notes:** No motion library installed. CSS-only animations. Scope: Customers only. No sidebar/auth/RLS changes.
+
+**Verification:**
+- pnpm type-check: Passing (0 errors)
+- pnpm lint: Passing (0 errors, 2 pre-existing warnings)
+- pnpm build: Passing, 89 routes
+
+---
+
+### 2026-05-30 — Claude (CRM-MOTION-001 — Install motion + real animation layer for CRM premium components)
+
+**Task:** Install motion 12 (modern Framer Motion), create shared variants, and upgrade CRM premium components from CSS-only animations to proper motion.
+
+**Dependency added:**
+- `motion` 12.40.0 — import path `motion/react`
+
+**Files Created:**
+- `src/components/features/crm/premium/variants.ts` — shared motion variants (sectionVariants, itemVariants, railVariants, emptyStateVariants, TAB_INDICATOR_SPRING, CS_EASE) + reduced-motion "still" counterparts
+
+**Files Changed:**
+- `src/components/features/crm/premium/crm-motion-section.tsx` — motion.div + real staggerChildren; useReducedMotion; falls back to plain div
+- `src/components/features/crm/premium/crm-kpi-card.tsx` — motion.div stagger child (itemVariants); whileHover y:-2 lift; useReducedMotion
+- `src/components/features/crm/premium/crm-segment-tabs.tsx` — motion.span with layoutId="crm-tab-indicator" spring slide; LayoutGroup scoped per instance via useId(); useReducedMotion fallback to plain span
+- `src/components/features/crm/premium/crm-preview-rail-shell.tsx` — AnimatePresence + motion.aside spring slide-in/exit (railVariants); useReducedMotion
+- `src/components/features/crm/premium/crm-empty-state.tsx` — motion.div fade-up entrance; useReducedMotion
+- `src/components/features/crm/premium/crm-table-row.tsx` — motion.tr per-row entrance delay (40ms × index, capped 280ms); useReducedMotion
+- `src/components/features/crm/premium/index.ts` — re-exports variants.ts
+
+**Design Decisions:**
+- `@number-flow/react` skipped — CountUpNumber is adequate for static server-fetched KPIs (values don't change after page load, Math.round issue only appears on value-change animations which don't occur here).
+- All shadcn/ui components needed (button, sheet, dropdown-menu, etc.) were already installed. Zero new shadcn installs needed.
+- CSS classes `crm-fade-up` and `crm-row-enter` remain in globals.css as non-breaking legacy — they are no longer used by the premium components but do not cause any issues.
+- Stagger works correctly: CrmMotionSection sets staggerChildren on its motion.div, CrmKpiCard uses itemVariants as a stagger child. When CrmKpiCard is a direct child of CrmMotionSection, each card animates 50ms after the previous one.
+- LayoutGroup per CrmSegmentTabs instance (useId()) prevents cross-component layoutId conflicts when multiple tab bars exist on the same page.
+- All motion code respects useReducedMotion() — reduced-motion users get instant/no animation with identical visual result.
+
+**Verification:**
+- pnpm type-check: Passing (0 errors)
+- pnpm lint: Passing (0 errors, 2 pre-existing warnings in scripts)
+- pnpm build: Passing, 89 routes
