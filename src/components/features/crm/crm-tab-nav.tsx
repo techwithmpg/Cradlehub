@@ -33,10 +33,15 @@ export const CUSTOMERS_TABS: CrmTabItem[] = [
   { label: "Waitlist / Follow-up", href: "/crm/waitlist"  },
 ];
 
+/**
+ * SETUP_TABS — retained for backward compatibility with any code that still
+ * references it. New links should go directly to /crm/setup?tab=...
+ * Old routes /crm/services and /crm/spaces-rules now redirect to Setup Center.
+ */
 export const SETUP_TABS: CrmTabItem[] = [
-  { label: "Setup Health",   href: "/crm/setup"        },
-  { label: "Services",       href: "/crm/services"     },
-  { label: "Spaces & Rules", href: "/crm/spaces-rules" },
+  { label: "Setup Health",   href: "/crm/setup?tab=health"  },
+  { label: "Services",       href: "/crm/setup?tab=services" },
+  { label: "Spaces & Rules", href: "/crm/setup?tab=spaces"  },
 ];
 
 export const CRM_SERVICES_TABS: CrmTabItem[] = [
@@ -44,13 +49,6 @@ export const CRM_SERVICES_TABS: CrmTabItem[] = [
   { label: "Service Customization", href: "/crm/services?tab=customization"  },
   { label: "Provider Assignments",  href: "/crm/services?tab=providers"      },
   { label: "Readiness Issues",      href: "/crm/services?tab=issues"         },
-];
-
-export const STAFF_TABS: CrmTabItem[] = [
-  { label: "Applications",        href: "/crm/staff?tab=applications" },
-  { label: "Staff Management",    href: "/crm/staff?tab=management"   },
-  { label: "Service Assignments", href: "/crm/staff?tab=assignments"  },
-  { label: "Staff Status",        href: "/crm/staff?tab=status"       },
 ];
 
 export const DISPATCH_TABS: CrmTabItem[] = [

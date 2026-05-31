@@ -6,7 +6,6 @@ import { getAllBranches } from "@/lib/queries/branches";
 import { getStaffByBranchWithBranches, getPendingStaffByBranch } from "@/lib/queries/staff";
 import { getBranchServicesForManagement } from "@/lib/queries/branches";
 import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
-import { CrmTabNav, STAFF_TABS } from "@/components/features/crm/crm-tab-nav";
 import { CrmStaffWorkspace } from "@/components/features/crm/staff/crm-staff-workspace";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type {
@@ -89,7 +88,7 @@ export default async function CrmStaffPage({
 
   if (ctx.status === "unauthorized") redirect("/crm");
 
-  const activeTab = ((): "applications" | "management" | "assignments" | "status" => {
+  const initialTab = ((): "applications" | "management" | "assignments" | "status" => {
     if (params.tab === "applications") return "applications";
     if (params.tab === "management") return "management";
     if (params.tab === "assignments") return "assignments";
@@ -105,7 +104,6 @@ export default async function CrmStaffPage({
           description="Manage applications, review team roster, check service assignments, and monitor staff status."
           icon="👥"
         />
-        <CrmTabNav tabs={STAFF_TABS} activeHref="/crm/staff?tab=applications" />
         <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 text-sm text-[var(--cs-text-muted)]">
           Your profile is not linked to an active branch. Contact your manager or owner to assign you to a branch.
         </div>
@@ -174,9 +172,10 @@ export default async function CrmStaffPage({
     });
   }
 
-  // Onboarding requests (only fetch if applications tab is active to save work)
+  // Onboarding requests stay permission-gated, but are preloaded so the
+  // Applications panel can switch internally without a route fetch.
   let onboardingRequests: Awaited<ReturnType<typeof fetchOnboardingRequests>> = [];
-  if (activeTab === "applications" && ctx.canReviewOnboarding) {
+  if (ctx.canReviewOnboarding) {
     onboardingRequests = await fetchOnboardingRequests(ctx.me.system_role, ctx.me.branch_id);
   }
 
@@ -188,12 +187,9 @@ export default async function CrmStaffPage({
         icon="👥"
       />
 
-      <CrmTabNav tabs={STAFF_TABS} activeHref={`/crm/staff?tab=${activeTab}`} />
-
       <CrmStaffWorkspace
-        activeTab={activeTab}
+        initialTab={initialTab}
         branchId={branchId}
-        branchName={ctx.branchName}
         allStaff={allStaff}
         pendingStaff={pendingStaff}
         branches={branches.map((b) => ({ id: b.id, name: b.name }))}

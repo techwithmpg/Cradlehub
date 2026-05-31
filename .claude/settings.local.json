@@ -59,7 +59,19 @@
       "Bash(ls \"E:\\\\mpg-church-system\")",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
       "Bash(git commit *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__get_logs",
+      "mcp__supabase__apply_migration",
+      "Bash(node -e \"const m = require\\('./node_modules/motion/package.json'\\); console.log\\(m.version, m.exports ? Object.keys\\(m.exports\\).slice\\(0,8\\).join\\(', '\\) : 'no exports'\\)\")",
+      "Bash(pnpm dlx *)",
+      "Bash(git log *)",
+      "Bash(awk '/^\\\\s+staff: \\\\{/,/^\\\\s+\\\\}$/' src/types/supabase.ts)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

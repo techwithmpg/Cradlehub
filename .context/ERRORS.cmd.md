@@ -107,3 +107,19 @@
 - **Observed behavior:** PowerShell `Invoke-WebRequest` returned HTTP 200 for the route, but the in-app browser reported `ERR_CONNECTION_REFUSED` after the route redirected toward `/login`.
 - **Impact:** Type-check, lint, and production build passed, but authenticated visual click-through of the modal still needs a reachable local browser session and valid CRM/CSR login.
 - **Resolution:** No code change required for this limitation. Re-run browser verification once the local browser can reach `localhost:3000` and a CRM/CSR session is available.
+
+---
+
+## 2026-05-31 - CRM route-tab audit fragile dependencies
+
+- **Bookings deep-link mismatch:** Multiple CRM components link to `/crm/bookings?highlight=<bookingId>`, but the Bookings workspace currently selects/open rows from `bookingId`, not `highlight`. Impact: deep links from Today/action queues may land on Bookings without selecting the intended booking. Mitigation: normalize links to `bookingId` or teach Bookings to consume `highlight` before converting booking filters.
+- **Staff availability tab param ignored:** Links to `/crm/staff-availability?tab=coverage|individual|overrides` exist, but `/crm/staff-availability` does not read `tab`. Impact: deep links from Schedule right rails can land on the wrong default panel. Mitigation: preserve and implement initial tab support or redirect those links to the future canonical Schedule tab.
+- **Waitlist stale followup risk:** Waitlist followup is reached through `/crm/customers?tab=followup`, while waitlist status updates revalidate `/crm/waitlist`. Impact: after status changes, the Customers followup tab can show stale rows. Mitigation: revalidate `/crm/customers` and/or apply local optimistic removal when this tab is converted.
+
+---
+
+## 2026-05-31 - CRM-STAFF-TABS-001 browser verification limitation
+
+- **Symptom:** Browser route checks for `/crm/staff` and each Staff `?tab=` deep link redirected to `/login` in the in-app browser.
+- **Impact:** Authenticated click-through could not verify Staff Management rendering, Service Assignments rendering, Status rendering, Applications review behavior, edit profile save, service capabilities save, activate/deactivate, or green success toasts.
+- **Resolution:** Code-level verification, type-check, lint, and production build passed. Re-run browser verification with a valid local CRM/CSR session.

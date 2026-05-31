@@ -31,6 +31,8 @@ export type SpacesRulesWorkspaceProps = {
   canSwitchBranch: boolean;
   canManageResources: boolean;
   canEditRules: boolean;
+  /** Optional starting tab — used when embedded inside Setup Center workspace. */
+  initialTab?: SpacesRulesTab;
 };
 
 export function SpacesRulesWorkspace({
@@ -44,13 +46,14 @@ export function SpacesRulesWorkspace({
   canSwitchBranch,
   canManageResources,
   canEditRules,
+  initialTab,
 }: SpacesRulesWorkspaceProps) {
   // All contexts can view booking rules (read-only for CRM — canEditRules gate handles edit access).
   const canViewBookingRules = true;
   const showActiveRulesKpi = true;
 
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<SpacesRulesTab>("overview");
+  const [activeTab, setActiveTab] = useState<SpacesRulesTab>(initialTab ?? "overview");
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
     null
   );

@@ -327,3 +327,37 @@ Next.js `router.replace` triggers soft-navigation, which re-renders server compo
 - /crm/bookings — `date` and `bookingId` are URL-driven; deep links need normalization first
 - /crm/schedule — already uses `useSearchParams` + `router.replace` with correct pattern
 - /crm/today — already uses internal panels correctly
+
+### DEC-CRM-SETUP-001: /crm/setup is the unified configuration workspace
+**Status:** ACCEPTED — 2026-05-31
+
+**Decision:**
+/crm/setup is now the single unified Setup Center with 7 instant internal tabs:
+1. Setup Health — readiness overview
+2. Services — service list & customization
+3. Providers — provider/staff assignment
+4. Spaces & Rules — rooms & resources
+5. Booking Rules — branch booking configuration
+6. Staff Readiness — staff schedule & service assignment status
+7. Public Booking — public booking readiness check
+
+Old routes /crm/services and /crm/spaces-rules are preserved as compatibility redirects (not deleted) so existing deep links, action hrefs, and bookmarks continue to work.
+
+**Pattern:** Same window.history.replaceState URL sync as DEC-CRM-TABS-001. Data loaded server-side in parallel (health + services + spaces in a single server render). SetupHealthContent passed as RSC slot to avoid Server Component import restrictions in the client workspace.
+
+**revalidatePath:** Existing actions revalidate /crm/services and /crm/setup — both paths remain valid routes (one redirects, one is the unified page). No action changes needed.
+
+### DEC-CRM-STAFF-TABS-001: Staff uses in-page workspace tabs for shared staff data
+**Status:** ACCEPTED — 2026-05-31
+
+**Decision:**
+CRM Staff Management, Service Assignments, Applications, and Status now use true in-page workspace tabs. Deep links are preserved through `?tab=`, but tab switching no longer uses route-link navigation.
+
+**Pattern:**
+- Server page reads `searchParams.tab` and passes a validated `initialTab` to `CrmStaffWorkspace`.
+- `CrmStaffWorkspace` owns local tab state with `useState`.
+- Tab clicks use `CrmSegmentTabs` button tabs and `window.history.replaceState`.
+- Core Staff panels stay mounted and hidden when inactive so tab switching preserves local state.
+
+**Rationale:**
+The Staff page already preloads the shared staff/service assignment data required by Management, Assignments, and Status. Keeping tab switching client-side removes route loading while preserving existing server actions and refresh behavior.

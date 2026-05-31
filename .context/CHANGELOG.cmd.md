@@ -3492,3 +3492,60 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
+
+---
+
+### 2026-05-31 — Claude (CRM-SETUP-UNIFIED-001 — Unified Setup Center in-page workspace)
+
+**Task:** Convert /crm/setup, /crm/services, /crm/spaces-rules into one unified in-page workspace at /crm/setup with instant tab switching.
+
+**Files Created:**
+- `src/components/features/crm/setup/crm-setup-workspace.tsx` — Client orchestrator. 7 tabs: health, services, providers, spaces, booking_rules, staff_readiness, public_readiness. Uses CrmSegmentTabs + window.history.replaceState. No full page reload on tab switch.
+- `src/components/features/crm/setup/crm-staff-readiness-panel.tsx` — Simple staff readiness summary panel using preloaded health data.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/setup/page.tsx` — Major rewrite. Loads all data (health + services + staff-assignments + branch-detail + booking-rules + bookings) in parallel. Passes data as props to CrmSetupWorkspace. SetupHealthContent passed as a `healthSlot` RSC slot. Added `resolveTab()` mapping old URL params to internal SetupTab values.
+- `src/app/(dashboard)/crm/services/page.tsx` — Converted to compatibility redirect. Maps old ?tab= params to /crm/setup?tab=... (services/customization→services, providers→providers, issues→public_readiness).
+- `src/app/(dashboard)/crm/spaces-rules/page.tsx` — Converted to compatibility redirect. Always redirects to /crm/setup?tab=spaces.
+- `src/components/features/spaces-rules/spaces-rules-workspace.tsx` — Added optional `initialTab?: SpacesRulesTab` prop. `useState` now uses `initialTab ?? "overview"`.
+- `src/components/features/crm/crm-tab-nav.tsx` — SETUP_TABS updated to point directly to /crm/setup?tab=... (avoids extra redirect hop).
+
+**Design decisions:**
+- `SetupHealthContent` is a Server Component; passed as `healthSlot: React.ReactNode` from the server page to the client workspace — the standard Next.js RSC slot pattern.
+- Services-related tabs (services, providers, public_readiness) each mount `CrmServicesWorkspace` with `key={activeTab}` to force remount and start on correct inner tab.
+- Spaces-related tabs (spaces, booking_rules) each mount `SpacesRulesWorkspace` with `key={activeTab}` and `initialTab`.
+- `allServices` prop in CrmServicesWorkspace is confirmed unused — passed as `[]` to avoid extra query.
+- Old route files kept as redirects (not deleted) to preserve deep links from notifications, today queue, setup health cards, nav links, etc.
+- revalidatePath calls in actions still revalidate /crm/services and /crm/setup — those paths still exist as real routes (one redirects, one is the unified page). Both revalidations remain correct.
+
+**Verification:**
+- pnpm type-check: Passing (0 errors)
+- pnpm lint: Passing (0 errors, 2 pre-existing warnings)
+- pnpm build: Passing, 89 routes
+- Browser verification: awaiting CRM session
+
+---
+
+### 2026-05-31 — Codex (CRM-STAFF-TABS-001 — Fast internal Staff workspace tabs)
+
+**Task:** Convert `/crm/staff` from route-link tabs to true in-page workspace tabs.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/staff/page.tsx`
+- `src/components/features/crm/staff/crm-staff-workspace.tsx`
+- `src/components/features/crm/crm-tab-nav.tsx`
+
+**Behavior:**
+- Removed Staff's rendered `CrmTabNav` route-link tab bar.
+- `CrmStaffWorkspace` now owns `activeTab` client-side and uses `CrmSegmentTabs` button tabs.
+- Tab switches update `?tab=` via `window.history.replaceState`, preserving unrelated URL params without triggering Next.js route navigation.
+- Direct deep links still resolve through the server page's `searchParams.tab` and pass `initialTab` into the workspace.
+- Management, Service Assignments, Status, and Applications panels stay mounted and are hidden when inactive.
+- Onboarding requests are still permission-gated, but now preload for users who can review onboarding so the Applications tab can switch internally.
+- Existing Staff profile edit modal, service capabilities sheet, activate/deactivate action, `router.refresh()`, and success toasts were preserved.
+
+**Verification:**
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 89 routes
+- Browser route checks for `/crm/staff`, `/crm/staff?tab=applications`, `/crm/staff?tab=management`, `/crm/staff?tab=assignments`, `/crm/staff?tab=status`, `/crm/customers`, and `/crm/services` reached `/login` because no local CRM session was available.
