@@ -11,7 +11,6 @@ import { getBranchServicesForManagement } from "@/lib/queries/branches";
 import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services";
 import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import { createClient } from "@/lib/supabase/server";
-import { CrmTabNav, CRM_SERVICES_TABS } from "@/components/features/crm/crm-tab-nav";
 
 // ── Auth helpers ───────────────────────────────────────────────────────────────
 
@@ -190,8 +189,6 @@ export default async function CrmServicesPage({
         description="Manage and customize your services for in-spa and home-service."
         icon="✨"
       />
-
-      <CrmTabNav tabs={CRM_SERVICES_TABS} activeHref={`/crm/services?tab=${initialTab === "services" ? "services" : initialTab === "customization" ? "customization" : initialTab === "providers" ? "providers" : "issues"}`} />
 
       {result.status === "missing_branch" ? (
         <Alert variant="destructive">

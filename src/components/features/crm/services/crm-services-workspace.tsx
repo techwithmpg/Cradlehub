@@ -31,6 +31,8 @@ import type { StaffMember } from "@/components/features/staff/staff-management-u
 import type { StaffProfileBranch } from "@/components/features/crm/staff/edit-staff-profile-types";
 import { CrmEditStaffProfileModal } from "@/components/features/crm/staff/crm-edit-staff-profile-modal";
 import { toCrmStaffServiceRows } from "@/components/features/crm/staff/service-row-adapter";
+import { CrmSegmentTabs } from "@/components/features/crm/premium/crm-segment-tabs";
+import type { CrmSegmentTab } from "@/components/features/crm/premium/crm-segment-tabs";
 import { CrmTherapistAssignmentTab } from "./crm-therapist-assignment-tab";
 import { CrmStaffCapabilitiesTab } from "./crm-staff-capabilities-tab";
 import { CrmServiceReadinessTab } from "./crm-service-readiness-tab";
@@ -40,11 +42,23 @@ import { ServiceCustomizationTab } from "./service-customization-tab";
 
 type TabId = "services" | "customization" | "providers" | "readiness_issues";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "services",         label: "Services"             },
-  { id: "customization",    label: "Service Customization" },
-  { id: "providers",        label: "Provider Assignments"  },
-  { id: "readiness_issues", label: "Readiness Issues"      },
+/**
+ * Maps each internal TabId to the canonical ?tab= URL param value so that
+ * window.history.replaceState stays consistent with what the server page reads.
+ * Mirrors the aliases in page.tsx's initialTab resolver.
+ */
+const TAB_URL_PARAM: Record<TabId, string> = {
+  services:         "services",
+  customization:    "customization",
+  providers:        "providers",
+  readiness_issues: "issues",
+};
+
+const SEGMENT_TABS: CrmSegmentTab[] = [
+  { key: "services",         label: "Services"              },
+  { key: "customization",    label: "Service Customization"  },
+  { key: "providers",        label: "Provider Assignments"   },
+  { key: "readiness_issues", label: "Readiness Issues"       },
 ];
 
 export interface CrmServicesWorkspaceProps {
@@ -114,6 +128,23 @@ export function CrmServicesWorkspace({
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [editingStaff, setEditingStaff] = useState<StaffForServicePanel | null>(null);
 
+  /**
+   * Switch active tab instantly (no full page reload) and update the URL
+   * search param so deep links, browser back, and sharing all work.
+   *
+   * window.history.replaceState is used instead of router.replace to avoid
+   * triggering Next.js soft-navigation, which would refetch server data.
+   */
+  const handleTabChange = useCallback((nextTab: string) => {
+    const tab = nextTab as TabId;
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", TAB_URL_PARAM[tab]);
+      window.history.replaceState(null, "", url.toString());
+    }
+  }, []);
+
   // Service rows for the modal (same adapter used by CrmStaffManagementTab)
   const serviceRows = useMemo(
     () => toCrmStaffServiceRows(activeServices),
@@ -150,43 +181,14 @@ export function CrmServicesWorkspace({
 
   return (
     <div>
-      {/* ── Tab bar ── */}
-      <div
-        style={{
-          display: "flex",
-          borderBottom: "1px solid var(--cs-border)",
-          marginBottom: "1.5rem",
-          gap: 0,
-        }}
-      >
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: "0.75rem 1.25rem",
-                fontSize: "0.9375rem",
-                fontWeight: isActive ? 600 : 400,
-                whiteSpace: "nowrap",
-                background: "none",
-                border: "none",
-                borderBottom: isActive
-                  ? "2px solid var(--cs-sand)"
-                  : "2px solid transparent",
-                marginBottom: -1,
-                color: isActive ? "var(--cs-text)" : "var(--cs-text-secondary)",
-                cursor: "pointer",
-                transition: "color 0.15s, border-color 0.15s",
-              }}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Tab bar — instant switching, URL sync via replaceState ── */}
+      <CrmSegmentTabs
+        tabs={SEGMENT_TABS}
+        activeKey={activeTab}
+        onSelect={handleTabChange}
+        variant="underline"
+        className="mb-6"
+      />
 
       {/* ── Tab content ── */}
       {activeTab === "services" && (

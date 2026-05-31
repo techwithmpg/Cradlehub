@@ -3455,3 +3455,40 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
+
+---
+
+### 2026-05-31 — Claude (CRM-SERVICES-TABS-001 — Convert Services route-link tabs to internal workspace tabs)
+
+**Task:** Convert /crm/services from route-link tabs (CrmTabNav) to instant internal workspace tabs without changing backend, auth, or data fetching.
+
+**Root cause:** page.tsx was rendering CrmTabNav (route-link pills) ABOVE CrmServicesWorkspace, which already had its own internal button tab bar. Clicking the CrmTabNav pills triggered full Next.js soft-navigation → full page reload + loading.tsx flash. The internal workspace tabs were already instant but not exposed as the primary UI.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/services/page.tsx`
+  - Removed `import { CrmTabNav, CRM_SERVICES_TABS }` — no longer needed
+  - Removed `<CrmTabNav ...>` JSX — the route-link pills are gone
+  - `initialTab` resolver kept intact — deep links still work via server `searchParams`
+
+- `src/components/features/crm/services/crm-services-workspace.tsx`
+  - Removed hand-rolled inline `<div>` + `<button>` tab bar
+  - Added `CrmSegmentTabs` from the CRM premium layer (underline variant, consistent with Customers workspace)
+  - Added `SEGMENT_TABS: CrmSegmentTab[]` config and `TAB_URL_PARAM` map
+  - Added `handleTabChange(nextTab)` callback: sets `activeTab` state instantly + calls `window.history.replaceState` to update URL without triggering Next.js navigation
+  - `onSelect={handleTabChange}` wired to `CrmSegmentTabs`
+
+**URL sync approach:** `window.history.replaceState` (not `router.replace`) because `router.replace` triggers Next.js soft-navigation which would refetch server data. The `TAB_URL_PARAM` map ensures the canonical `?tab=` values match what the server's `initialTab` resolver expects:
+  - `readiness_issues` → `?tab=issues` (consistent with existing deep links in codebase)
+
+**Deep links:** All `?tab=` params continue to work. Server reads `searchParams.tab`, computes `initialTab`, passes it to `CrmServicesWorkspace` as the initial `useState` value. After page load, tab switches are instant via client state.
+
+**Preserved:**
+- ProviderAssignmentSheet, service toggles, provider assignment save actions
+- CrmEditStaffProfileModal (wired at workspace level in previous task)
+- All actionHref links in readiness/provider components pointing to `/crm/services?tab=...`
+- router.refresh() after saves (reloads data after mutations — acceptable)
+
+**Verification:**
+- pnpm type-check: Passing (0 errors)
+- pnpm lint: Passing (0 errors, 2 pre-existing warnings)
+- pnpm build: Passing, 89 routes

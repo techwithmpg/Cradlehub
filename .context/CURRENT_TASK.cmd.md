@@ -1,2 +1,2 @@
-Task: Wire existing CRM Edit Staff Profile modal into Services Provider Assignment tab.
+Task: Convert CRM Services route-link tabs into internal workspace tabs.
 Status: DONE

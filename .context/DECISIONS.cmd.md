@@ -279,3 +279,51 @@ It is NOT used for:
 
 **Rationale:**
 Big waits feel premium with the animated ring loader. Small actions must feel fast — showing a full loader for a 200ms save is disorienting and makes the app feel slow. The skeleton shimmer system handles structural layout loading; the premium loader adds the "actively working" signal on top of it.
+
+### DEC-CRM-TABS-001: CRM high-use operational tabs should become in-page workspace tabs where shared data can be safely loaded once
+**Status:** PROPOSED — 2026-05-30
+
+**Decision:**
+- Pages where all tab data is already preloaded server-side (**Services**, **Staff**) should convert to internal tabs immediately.
+- Pages where tabs have mutually exclusive heavy queries (**Customers**) should implement lazy-loading first, then convert.
+- Pages already using internal tabs (**Today**, **Schedule**) require no changes.
+- Pages that are not true tab pages (**Bookings**, **Setup**) should remain route-based.
+- Deep links with `?tab=` must be preserved by reading `searchParams` on server render and passing `initialTab` to the workspace.
+- `router.refresh()` remains acceptable during transition; replace with SWR revalidation or optimistic updates as follow-up.
+- Modals must be lifted to workspace level before tab content is allowed to unmount on switch.
+
+**Rationale:**
+- Services and Staff already fetch all tab data on every page load, yet the user only sees one tab. Route-based switching causes unnecessary full-page reloads.
+- The existing `CrmServicesWorkspace` and `CrmStaffWorkspace` components are structurally ready — they just need tab navigation changed from Links to buttons.
+- Customers has 4 distinct queries (paginated customers, repeat customers, lapsed customers, waitlist). Preloading all four would hurt initial load time. A hybrid approach (preload default + lazy-load others) is safer.
+- Today and Schedule prove the internal-tab pattern works well in this codebase.
+
+**2026-05-31 audit refinement:**
+- Treat Schedule as **partial conversion**, not already complete. `/crm/schedule` uses internal panels, but tab URL sync still uses `router.replace()` and the page awaits `searchParams`, so tab-only changes can still route-navigate and refetch server data.
+- Treat Staff as **partial conversion first** if including the Applications tab. Management, Assignments, and Status can share preloaded data; Applications should stay lazy-loaded until onboarding review reload behavior is cleaned up.
+- Keep `/crm/control`, `/crm/dispatch`, `/crm/live-operations`, `/crm/spaces-rules`, and `/crm/reconciliation` route-based until explicit lazy panel designs exist.
+
+### DEC-CRM-TABS-001: CRM in-page workspace tabs for high-use operational pages
+**Status:** ACCEPTED — 2026-05-31
+
+**Decision:**
+CRM pages with multiple tabs and pre-loaded shared data should use true in-page workspace tabs (client state + window.history.replaceState) rather than route-link tabs (CrmTabNav with Next.js Links). Services is the first approved implementation.
+
+**Pattern:**
+- Server page reads `searchParams.tab` → passes validated `initialTab` to workspace
+- Workspace uses `useState<TabId>(initialTab)` for instant tab switching
+- `handleTabChange` calls `window.history.replaceState` to keep URL in sync (NOT `router.replace` — that triggers data refetch)
+- `TAB_URL_PARAM` map converts internal TabId to canonical `?tab=` value
+
+**Why NOT router.replace:**
+Next.js `router.replace` triggers soft-navigation, which re-renders server components and refetches data. For tab switching where all data is already loaded, this causes unnecessary loading states. `window.history.replaceState` updates the URL without any Next.js involvement.
+
+**Approved pages for this pattern (in priority order):**
+1. ✅ /crm/services — implemented (all data pre-loaded, safest conversion)
+2. /crm/staff — low risk, management/assignments/status data preloaded
+3. /crm/customers — needs lazy-loading strategy first (each tab has different heavy query)
+
+**Not applicable for:**
+- /crm/bookings — `date` and `bookingId` are URL-driven; deep links need normalization first
+- /crm/schedule — already uses `useSearchParams` + `router.replace` with correct pattern
+- /crm/today — already uses internal panels correctly
