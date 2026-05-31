@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Bell } from "lucide-react";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   getRecentNotificationsAction,
   getUnreadCountAction,
@@ -32,6 +40,22 @@ export function NotificationBell({ role }: { role: string }) {
 
   const href = WORKSPACE_HREF[role] ?? "/owner/notifications";
 
+  const refreshNotifications = useCallback(async () => {
+    setFetching(true);
+    try {
+      const [notifications, unreadCount] = await Promise.all([
+        getRecentNotificationsAction(20),
+        getUnreadCountAction(),
+      ]);
+      setItems(notifications);
+      setCount(unreadCount);
+    } catch {
+      setItems([]);
+    } finally {
+      setFetching(false);
+    }
+  }, []);
+
   // Initial badge count
   useEffect(() => {
     getUnreadCountAction().then(setCount).catch(() => {});
@@ -40,51 +64,66 @@ export function NotificationBell({ role }: { role: string }) {
   // Refresh badge count periodically when closed; pause while the tab is hidden.
   useEffect(() => {
     if (open) return;
-    const poll = () => { getUnreadCountAction().then(setCount).catch(() => {}); };
+
+    const poll = () => {
+      getUnreadCountAction().then(setCount).catch(() => {});
+    };
     let id: ReturnType<typeof setInterval> | undefined;
-    const start = () => { id = setInterval(poll, 60_000); };
-    const stop  = () => { if (id !== undefined) { clearInterval(id); id = undefined; } };
-    const handleVisibility = () => { if (document.hidden) { stop(); } else { poll(); start(); } };
+    const start = () => {
+      id = setInterval(poll, 60_000);
+    };
+    const stop = () => {
+      if (id !== undefined) {
+        clearInterval(id);
+        id = undefined;
+      }
+    };
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stop();
+        return;
+      }
+      poll();
+      start();
+    };
+
     start();
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => { stop(); document.removeEventListener("visibilitychange", handleVisibility); };
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [open]);
 
-  const toggleOpen = useCallback(async () => {
-    const nextOpen = !open;
-    setOpen(nextOpen);
-
-    if (nextOpen) {
-      setFetching(true);
-      try {
-        const [notifications, unreadCount] = await Promise.all([
-          getRecentNotificationsAction(20),
-          getUnreadCountAction(),
-        ]);
-        setItems(notifications);
-        setCount(unreadCount);
-      } catch {
-        setItems([]);
-      } finally {
-        setFetching(false);
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      if (nextOpen) {
+        void refreshNotifications();
       }
-    }
-  }, [open]);
+    },
+    [refreshNotifications]
+  );
 
   const remove = useCallback((id: string) => {
     const target = items.find((item) => item.id === id);
     setItems((prev) => prev.filter((item) => item.id !== id));
     if (target?.status === "unread") {
-      setCount((prev) => Math.max(0, prev - 1));
+      setCount((current) => Math.max(0, current - 1));
     }
   }, [items]);
 
   const markRead = useCallback((id: string) => {
+    const target = items.find((item) => item.id === id);
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: "read" as const } : item))
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "read" as const } : item
+      )
     );
-    setCount((prev) => Math.max(0, prev - 1));
-  }, []);
+    if (target?.status === "unread") {
+      setCount((current) => Math.max(0, current - 1));
+    }
+  }, [items]);
 
   const markAllRead = useCallback(() => {
     setItems((prev) =>
@@ -95,123 +134,56 @@ export function NotificationBell({ role }: { role: string }) {
     setCount(0);
   }, []);
 
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-notification-bell]")) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
   return (
-    <div data-notification-bell style={{ position: "relative", flexShrink: 0 }}>
-      {SOUND_ROLES.has(role) && <BookingNotificationSound />}
-      <button
-        type="button"
-        onClick={toggleOpen}
-        aria-expanded={open ? "true" : "false"}
-        aria-label={
-          count > 0
-            ? `${count} unread notification${count === 1 ? "" : "s"}`
-            : "Notifications"
-        }
-        title={
-          count > 0
-            ? `${count} unread notification${count === 1 ? "" : "s"}`
-            : "Notifications"
-        }
-        style={{
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 30,
-          height: 30,
-          borderRadius: "var(--cs-r-xs)",
-          color: count > 0 ? "var(--cs-text)" : "var(--cs-text-muted)",
-          background: open ? "var(--cs-surface-raised)" : "transparent",
-          border: "none",
-          cursor: "pointer",
-          flexShrink: 0,
-        }}
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <div data-notification-bell className="relative shrink-0">
+        {SOUND_ROLES.has(role) && <BookingNotificationSound />}
+
+        <PopoverTrigger
+          aria-expanded={open}
+          aria-label={
+            count > 0
+              ? `${count} unread notification${count === 1 ? "" : "s"}`
+              : "Notifications"
+          }
+          title={
+            count > 0
+              ? `${count} unread notification${count === 1 ? "" : "s"}`
+              : "Notifications"
+          }
+          className={cn(
+            "relative flex size-[30px] shrink-0 items-center justify-center rounded-[var(--cs-r-xs)] border-0 bg-transparent text-[var(--cs-text-muted)] transition-colors",
+            "hover:bg-[var(--cs-surface-raised)] hover:text-[var(--cs-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]/30",
+            open && "bg-[var(--cs-surface-raised)] text-[var(--cs-text)]",
+            count > 0 && "text-[var(--cs-text)]"
+          )}
         >
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
+          <Bell className="size-4" aria-hidden="true" />
 
-        {count > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: 1,
-              right: 1,
-              background: "var(--cs-sand)",
-              color: "#fff",
-              borderRadius: "9999px",
-              fontSize: 9,
-              fontWeight: 700,
-              minWidth: 14,
-              height: 14,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0 3px",
-              lineHeight: 1,
-              letterSpacing: "0.02em",
-            }}
-          >
-            {count > 99 ? "99+" : count}
-          </span>
-        )}
-      </button>
+          {count > 0 ? (
+            <span className="absolute right-px top-px flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--cs-sand)] px-1 text-[9px] font-bold leading-none text-white">
+              {count > 99 ? "99+" : count}
+            </span>
+          ) : null}
+        </PopoverTrigger>
 
-      {open && (
-        <NotificationBellDropdown
-          items={items}
-          roleHref={href}
-          onMarkRead={markRead}
-          onDismiss={remove}
-          onMarkAllRead={markAllRead}
-        />
-      )}
-
-      {fetching && !items.length && open && (
-        <div
-          style={{
-            position: "absolute",
-            top: 38,
-            right: 0,
-            width: "min(380px, calc(100vw - 32px))",
-            padding: "18px 8px",
-            fontSize: 12,
-            color: "var(--cs-text-muted)",
-            textAlign: "center",
-            background: "var(--cs-surface)",
-            border: "1px solid var(--cs-border)",
-            borderRadius: "var(--cs-r-md)",
-            boxShadow: "var(--cs-shadow-lg)",
-            zIndex: 50,
-          }}
+        <PopoverContent
+          align="end"
+          side="bottom"
+          sideOffset={8}
+          className="!w-[calc(100vw-2rem)] !max-w-[420px] gap-0 overflow-hidden rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-0 text-[var(--cs-text)] shadow-[var(--cs-shadow-lg)] ring-0 sm:!w-[420px]"
         >
-          Loading…
-        </div>
-      )}
-    </div>
+          <NotificationBellDropdown
+            items={items}
+            roleHref={href}
+            unreadCount={count}
+            isLoading={fetching}
+            onMarkRead={markRead}
+            onDismiss={remove}
+            onMarkAllRead={markAllRead}
+          />
+        </PopoverContent>
+      </div>
+    </Popover>
   );
 }

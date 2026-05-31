@@ -1,2 +1,2 @@
-Task: Convert CRM Staff page route-link tabs into fast internal workspace tabs.
-Status: DONE - type-check, lint, and build passed; authenticated browser click-through blocked by login
+Task: Simplify notification bell popover into one business-readable notification list.
+Status: DONE - type-check and build passed; lint passed with 2 pre-existing script warnings; authenticated browser click-through blocked by login

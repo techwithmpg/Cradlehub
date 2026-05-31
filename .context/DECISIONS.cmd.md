@@ -361,3 +361,18 @@ CRM Staff Management, Service Assignments, Applications, and Status now use true
 
 **Rationale:**
 The Staff page already preloads the shared staff/service assignment data required by Management, Assignments, and Status. Keeping tab switching client-side removes route loading while preserving existing server actions and refresh behavior.
+
+### DEC-NOTIF-BELL-001: Notification bell popover uses one business-readable list
+**Status:** ACCEPTED — 2026-05-31
+
+**Decision:**
+Notification bell popover now uses one simple business-readable list instead of categorized tabs. Categories may remain for the full notification center later, but the bell must prioritize immediate clarity and action.
+
+**Pattern:**
+- Bell popover shows newest notifications first.
+- Each bell row maps raw notification data through `getNotificationDisplay()` before rendering.
+- The mapper uses `notification.type` first, metadata when present, and existing title/body/action href as safe fallbacks.
+- The full notification center can keep category/section components; the bell no longer imports or renders `NotificationTabs`.
+
+**Rationale:**
+CRM staff need the bell to answer what happened, who/what is affected, when it happened, and what to do next without deciding between Action Required, Updates, Resolved, and Activity categories.

@@ -3549,3 +3549,32 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 89 routes
 - Browser route checks for `/crm/staff`, `/crm/staff?tab=applications`, `/crm/staff?tab=management`, `/crm/staff?tab=assignments`, `/crm/staff?tab=status`, `/crm/customers`, and `/crm/services` reached `/login` because no local CRM session was available.
+
+---
+
+### 2026-05-31 — Codex (NOTIF-BELL-READABLE-001 — Business-readable bell popover)
+
+**Task:** Simplify the notification bell popover into one business-readable notification list.
+
+**Files Created:**
+- `src/components/features/notifications/notification-display.ts` — Display mapper that turns raw workspace notifications into title, detail, meta, action label, tone, href, and icon metadata.
+- `src/components/features/notifications/notification-popover-row.tsx` — Bell-only notification row with Lucide icons, unread dot, primary action, mark-read, and dismiss controls.
+
+**Files Changed:**
+- `src/components/features/notifications/notification-bell.tsx` — Replaced manual absolute dropdown/outside-click shell with existing Popover primitive; preserved unread count polling, visibility pause behavior, fetch-on-open behavior, and `BookingNotificationSound`.
+- `src/components/features/notifications/notification-popover.tsx` — Removed category tabs from the bell popover; replaced Action Required/Updates/Resolved/Activity buckets with one newest-first scrollable list, unread badge, Mark all read, warm skeleton rows, empty state, and footer link.
+- `.context/CURRENT_TASK.cmd.md` — Marked task in progress, then done.
+- `.context/DECISIONS.cmd.md` — Added notification bell list decision.
+- `.context/HANDOFF.cmd.md` — Added implementation and verification notes.
+
+**Behavior:**
+- Bell popover now shows one list, newest first.
+- Rows explain what happened, who/what is affected, when it happened, and the next action using safe metadata/body fallbacks.
+- Existing notification creation, database schema, RLS, auth, notification queries/actions, unread count, mark-read, mark-all-read, dismiss behavior, and notification sound were preserved.
+- Full notification pages were not redesigned; `notification-tabs.tsx`, `notification-row.tsx`, `notification-card.tsx`, and `notification-list-client.tsx` remain available for the notification center.
+
+**Verification:**
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 89 routes
+- Browser route checks for `/crm/today`, `/crm/customers`, `/crm/staff`, and `/crm/services` all redirected to `/login` in the in-app browser because no authenticated CRM/CSR session was available.

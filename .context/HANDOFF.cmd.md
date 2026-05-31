@@ -132,3 +132,28 @@
 - `pnpm lint`: pass with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: pass, 89 routes
 - Browser route checks redirected to `/login` for Staff, Customers, and Services because the in-app browser did not have an authenticated CRM session.
+
+---
+
+## 2026-05-31 - Notification Bell Business List
+
+**Task:** Simplify the notification bell popover into one business-readable notification list.
+
+**Status:** Complete. Type-check and build passed. Lint passed with the same 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`.
+
+**Implementation notes:**
+- `NotificationBell` now uses the existing `Popover` primitive instead of a manual absolute dropdown and outside-click listener.
+- Badge polling remains on `getUnreadCountAction()` and still pauses while the popover is open or the document is hidden.
+- Opening the bell still fetches `getRecentNotificationsAction(20)` and `getUnreadCountAction()` in parallel.
+- `BookingNotificationSound` remains mounted for the same role set.
+- `NotificationPopover` no longer imports `NotificationTabs` or `NotificationRow`; the bell popover renders one newest-first list.
+- `notification-display.ts` maps raw notifications into business display fields with safe metadata/title/body fallbacks.
+- `notification-popover-row.tsx` is bell-specific, so the full notification center's category sections and existing row/card components are untouched.
+- Mark read, mark all read, and dismiss use the existing notification actions. Dismiss updates local UI only after the action resolves; thrown failures show a Sonner error toast.
+
+**Verification notes:**
+- `pnpm type-check`: pass
+- `pnpm lint`: pass with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: pass, 89 routes
+- Static check confirmed `NotificationTabs`, `Action Required`, `Updates`, `Resolved`, and `Activity` are no longer present in the bell popover files.
+- Browser route checks for `/crm/today`, `/crm/customers`, `/crm/staff`, and `/crm/services` redirected to `/login` in the in-app browser because no authenticated CRM/CSR session was available. Re-run authenticated click-through once a CRM/CSR browser session is available.
