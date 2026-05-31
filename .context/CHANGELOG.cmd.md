@@ -3426,3 +3426,32 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
+
+---
+
+### 2026-05-30 — Claude (CRM-SERVICES-EDIT-001 — Reuse Edit Staff Profile modal in Services Provider Assignment)
+
+**Task:** Wire the existing CrmEditStaffProfileModal (from Staff Management) into the Services Provider Assignments tab so staff profiles can be edited from both places using the same modal.
+
+**Audit findings:**
+- Existing modal: `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx`
+- Already used by: `CrmStaffManagementTab` via `handleEditStaff` / `onEditStaff` pattern
+- Provider Assignment tab: `CrmStaffCapabilitiesTab` (tab id "providers") had `<Link href="/manager/staff/${id}">Edit Profile ›</Link>` — navigated away from the CRM
+- `StaffForServicePanel` type was missing: nickname, phone, branch_id, tier, is_head, is_active, avatar_url, branches
+
+**Files Changed:**
+- `src/lib/queries/crm-services.ts` — Extended `StaffForServicePanel` type with modal-required fields; extended SELECT to fetch `nickname, phone, branch_id, tier, is_head, is_active, avatar_url, branches(id, name)`; used `as unknown as StaffForServicePanel[]` cast (Supabase inferred type for the complex select string doesn't overlap directly)
+- `src/components/features/crm/services/crm-staff-capabilities-tab.tsx` — Removed `import Link from "next/link"`; added optional `onEditProfile?: (member: StaffForServicePanel) => void` prop; replaced `<Link>` with `<button>` that calls `onEditProfile(member)` (renders null if prop not provided)
+- `src/components/features/crm/services/crm-services-workspace.tsx` — Added `reviewerSystemRole: string` prop; added `editingStaff` state; added `toStaffMember` mapper (StaffForServicePanel → StaffMember with null defaults for unused fields); added `serviceRows` useMemo (toCrmStaffServiceRows); added `branchOptions` useMemo (single branch); added `editingStaffServiceIds` computed from providerAssignments; added `handleEditProfile` and `handleEditSuccess` callbacks; renders `CrmEditStaffProfileModal` once; passes `onEditProfile` to `CrmStaffCapabilitiesTab`
+- `src/app/(dashboard)/crm/services/page.tsx` — Added `reviewerSystemRole: me.system_role` to return value; passed to `CrmServicesWorkspace`
+
+**Design decisions:**
+- Modal lifted to `CrmServicesWorkspace` — same pattern as `CrmStaffManagementTab` (tab fires callback, parent orchestrator manages modal)
+- `onEditServices` in the modal closes the modal (user is already on Services page, can manage assignments directly)
+- Single branch passed to modal — CRM/CSR cannot change branches (modal hides branch dropdown for non-owner/manager reviewers)
+- No new server actions, no new modal component, no RLS/auth changes
+
+**Verification:**
+- pnpm type-check: Passing (0 errors)
+- pnpm lint: Passing (0 errors, 2 pre-existing warnings)
+- pnpm build: Passing, 89 routes

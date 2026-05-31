@@ -7,12 +7,19 @@
  * and manages tab state client-side.
  *
  * Tabs:
- *   1. Services         — service-first workflow (CrmTherapistAssignmentTab)
- *   2. Staff Capabilities — staff-first summary (CrmStaffCapabilitiesTab)
- *   3. Readiness Issues — service readiness check (CrmServiceReadinessTab)
+ *   1. Services             — service-first workflow (CrmTherapistAssignmentTab)
+ *   2. Service Customization — per-service customization (ServiceCustomizationTab)
+ *   3. Provider Assignments  — staff-first summary (CrmStaffCapabilitiesTab)
+ *   4. Readiness Issues      — service readiness check (CrmServiceReadinessTab)
+ *
+ * The CrmEditStaffProfileModal is lifted here so it is mounted once and can
+ * be opened from CrmStaffCapabilitiesTab via the onEditProfile callback.
+ * This is the same pattern used by CrmStaffManagementTab.
  */
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type {
   GlobalService,
@@ -20,6 +27,10 @@ import type {
 } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
+import type { StaffMember } from "@/components/features/staff/staff-management-utils";
+import type { StaffProfileBranch } from "@/components/features/crm/staff/edit-staff-profile-types";
+import { CrmEditStaffProfileModal } from "@/components/features/crm/staff/crm-edit-staff-profile-modal";
+import { toCrmStaffServiceRows } from "@/components/features/crm/staff/service-row-adapter";
 import { CrmTherapistAssignmentTab } from "./crm-therapist-assignment-tab";
 import { CrmStaffCapabilitiesTab } from "./crm-staff-capabilities-tab";
 import { CrmServiceReadinessTab } from "./crm-service-readiness-tab";
@@ -30,23 +41,60 @@ import { ServiceCustomizationTab } from "./service-customization-tab";
 type TabId = "services" | "customization" | "providers" | "readiness_issues";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "services",       label: "Services"            },
-  { id: "customization",  label: "Service Customization" },
-  { id: "providers",      label: "Provider Assignments"  },
-  { id: "readiness_issues", label: "Readiness Issues"    },
+  { id: "services",         label: "Services"             },
+  { id: "customization",    label: "Service Customization" },
+  { id: "providers",        label: "Provider Assignments"  },
+  { id: "readiness_issues", label: "Readiness Issues"      },
 ];
 
 export interface CrmServicesWorkspaceProps {
   branchId: string;
+  branchName: string;
   services: ServiceLite[];
   allServices: GlobalService[];
   loadError: string | null;
   activeServices: ActiveBranchService[];
   providerStaff: StaffForServicePanel[];
   providerAssignments: ServiceAssignmentRow[];
-  branchName: string;
+  /** System role of the logged-in CRM/CSR user — passed to the edit modal. */
+  reviewerSystemRole: string;
   /** Pre-selected tab — passed from page via ?tab= search param. */
   initialTab?: TabId;
+}
+
+// ── Mapper ────────────────────────────────────────────────────────────────────
+
+/**
+ * Convert a StaffForServicePanel (fetched with the extended select) into the
+ * StaffMember shape expected by CrmEditStaffProfileModal.
+ *
+ * Fields not available in the services-panel query (auth_user_id, created_at,
+ * updated_at, avatar_path, email, job_title) are set to safe null/empty values.
+ * The modal either doesn't read them or handles null gracefully.
+ */
+function toStaffMember(s: StaffForServicePanel): StaffMember {
+  return {
+    id:           s.id,
+    full_name:    s.full_name,
+    system_role:  s.system_role,
+    staff_type:   s.staff_type ?? "therapist",
+    nickname:     s.nickname ?? null,
+    phone:        s.phone ?? null,
+    branch_id:    s.branch_id ?? null,
+    tier:         s.tier ?? "n/a",
+    is_head:      s.is_head ?? false,
+    is_active:    s.is_active ?? true,
+    avatar_url:   s.avatar_url ?? null,
+    avatar_path:  null,
+    auth_user_id: null,
+    created_at:   "",
+    updated_at:   "",
+    // branches — identity card uses this to display branch name
+    branches: s.branches ?? null,
+    // optional StaffMember fields
+    email:     null,
+    job_title: null,
+  };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -59,9 +107,46 @@ export function CrmServicesWorkspace({
   activeServices,
   providerStaff,
   providerAssignments,
+  reviewerSystemRole,
   initialTab = "services",
 }: CrmServicesWorkspaceProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [editingStaff, setEditingStaff] = useState<StaffForServicePanel | null>(null);
+
+  // Service rows for the modal (same adapter used by CrmStaffManagementTab)
+  const serviceRows = useMemo(
+    () => toCrmStaffServiceRows(activeServices),
+    [activeServices]
+  );
+
+  // Single branch entry — CRM users cannot change branches (the modal hides
+  // the branch dropdown for non-owner/manager reviewers)
+  const branchOptions = useMemo<StaffProfileBranch[]>(
+    () => [{ id: branchId, name: branchName }],
+    [branchId, branchName]
+  );
+
+  // Service IDs currently assigned to the staff member being edited
+  const editingStaffServiceIds = useMemo(
+    () =>
+      editingStaff
+        ? providerAssignments
+            .filter((a) => a.staff_id === editingStaff.id)
+            .map((a) => a.service_id)
+        : [],
+    [editingStaff, providerAssignments]
+  );
+
+  const handleEditProfile = useCallback((member: StaffForServicePanel) => {
+    setEditingStaff(member);
+  }, []);
+
+  const handleEditSuccess = useCallback(() => {
+    toast.success("Staff profile updated.");
+    setEditingStaff(null);
+    router.refresh();
+  }, [router]);
 
   return (
     <div>
@@ -159,6 +244,7 @@ export function CrmServicesWorkspace({
             services={activeServices}
             staff={providerStaff}
             assignments={providerAssignments}
+            onEditProfile={handleEditProfile}
           />
         )
       )}
@@ -180,6 +266,25 @@ export function CrmServicesWorkspace({
           />
         )
       )}
+
+      {/* ── Edit Staff Profile modal — reuses the same modal as Staff Management ── */}
+      <CrmEditStaffProfileModal
+        open={editingStaff !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingStaff(null);
+        }}
+        staffMember={editingStaff !== null ? toStaffMember(editingStaff) : null}
+        branches={branchOptions}
+        services={serviceRows}
+        staffServiceIds={editingStaffServiceIds}
+        reviewerSystemRole={reviewerSystemRole}
+        onEditServices={() => {
+          // Close the profile modal — the user can manage service assignments
+          // directly on this page using the Services and Provider Assignments tabs.
+          setEditingStaff(null);
+        }}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   );
 }

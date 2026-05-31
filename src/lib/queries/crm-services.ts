@@ -9,11 +9,31 @@ import { createClient } from "@/lib/supabase/server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Staff shape used by service-panel components (assignment chips, eligible
+ * provider lists) AND by the CrmEditStaffProfileModal when opened from the
+ * Provider Assignments tab.
+ *
+ * The extra fields (nickname … branches) are fetched by
+ * getBranchStaffAndServiceAssignments so the edit-profile modal can open
+ * without a second round-trip.  Existing callers that only used id / full_name
+ * / staff_type / system_role continue to work unchanged.
+ */
 export type StaffForServicePanel = {
   id: string;
   full_name: string;
   staff_type: string | null;
   system_role: string;
+  // Additional fields required by CrmEditStaffProfileModal
+  nickname: string | null;
+  phone: string | null;
+  branch_id: string | null;
+  tier: string;
+  is_head: boolean;
+  is_active: boolean;
+  avatar_url: string | null;
+  /** Branch relation — used by the identity card in the edit-profile modal. */
+  branches: { id: string; name: string } | null;
 };
 
 export type ServiceAssignmentRow = {
@@ -46,7 +66,11 @@ export async function getBranchStaffAndServiceAssignments(
   const [staffRes, assignRes] = await Promise.all([
     supabase
       .from("staff")
-      .select("id, full_name, staff_type, system_role")
+      .select(
+        "id, full_name, staff_type, system_role, " +
+        "nickname, phone, branch_id, tier, is_head, is_active, avatar_url, " +
+        "branches(id, name)"
+      )
       .eq("branch_id", branchId)
       .eq("is_active", true)
       .order("full_name"),
@@ -59,7 +83,10 @@ export async function getBranchStaffAndServiceAssignments(
   if (staffRes.error) throw new Error(staffRes.error.message);
 
   return {
-    staff: (staffRes.data ?? []) as StaffForServicePanel[],
+    // Two-step cast: the Supabase inferred type for the extended select string
+    // does not overlap directly with StaffForServicePanel, but the runtime
+    // shape is correct (every selected column matches the type definition).
+    staff: (staffRes.data ?? []) as unknown as StaffForServicePanel[],
     // Don't throw if assignment query fails — treat as empty (no assignments)
     assignments: assignRes.error
       ? []

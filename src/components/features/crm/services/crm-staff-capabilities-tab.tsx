@@ -13,7 +13,6 @@
  */
 
 import { useMemo } from "react";
-import Link from "next/link";
 import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import { SERVICE_STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff-roles";
@@ -56,11 +55,14 @@ export function CrmStaffCapabilitiesTab({
   services,
   staff,
   assignments,
+  onEditProfile,
 }: {
   branchId: string;
   services: ActiveBranchService[];
   staff: StaffForServicePanel[];
   assignments: ServiceAssignmentRow[];
+  /** Opens the Edit Staff Profile modal for the given staff member. */
+  onEditProfile?: (member: StaffForServicePanel) => void;
 }) {
   const eligibleStaff = useMemo(() => staff.filter(isEligibleProvider), [staff]);
 
@@ -188,22 +190,34 @@ export function CrmStaffCapabilitiesTab({
                       </span>
                     </div>
                   </div>
-                  <Link
-                    href={`/manager/staff/${member.id}`}
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "var(--cs-sand)",
-                      textDecoration: "none",
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: "1px solid var(--cs-border)",
-                      background: "var(--cs-surface)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Edit Profile ›
-                  </Link>
+                  {onEditProfile ? (
+                    <button
+                      type="button"
+                      onClick={() => onEditProfile(member)}
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--cs-sand)",
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        border: "1px solid var(--cs-border)",
+                        background: "var(--cs-surface)",
+                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                        transition: "background 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--cs-sand-mist)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--cs-surface)";
+                      }}
+                    >
+                      Edit Profile ›
+                    </button>
+                  ) : null}
                 </div>
 
                 {assignedServices.length > 0 && (

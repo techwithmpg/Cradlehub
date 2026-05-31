@@ -151,6 +151,7 @@ async function getCrmServicesPageData() {
     status: "ready" as const,
     branchId,
     branchName: firstBranchName(me.branches),
+    reviewerSystemRole: me.system_role,
     services,
     allServices,
     loadError,
@@ -210,6 +211,7 @@ export default async function CrmServicesPage({
           activeServices={result.activeServices}
           providerStaff={result.providerStaff}
           providerAssignments={result.providerAssignments}
+          reviewerSystemRole={result.reviewerSystemRole}
           initialTab={initialTab}
         />
       )}

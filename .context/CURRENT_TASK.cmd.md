@@ -1,2 +1,2 @@
-Task: Add Kokonut loader and integrate it with CRM skeleton loading states.
+Task: Wire existing CRM Edit Staff Profile modal into Services Provider Assignment tab.
 Status: DONE
