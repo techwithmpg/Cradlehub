@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Save } from "lucide-react";
@@ -29,10 +29,41 @@ export function StaffProfileDetailsForm({
   staffType,
   tierLabel,
 }: StaffProfileDetailsFormProps) {
+  const normalizedSystemRole = isSystemRole(systemRole) ? systemRole : "";
+  const normalizedStaffType = staffType && isStaffType(staffType) ? staffType : "";
+  const formKey = [fullName, nickname ?? "", normalizedSystemRole, normalizedStaffType, tierLabel].join("|");
+
+  return (
+    <StaffProfileDetailsFormFields
+      key={formKey}
+      fullName={fullName}
+      nickname={nickname}
+      normalizedSystemRole={normalizedSystemRole}
+      normalizedStaffType={normalizedStaffType}
+      tierLabel={tierLabel}
+    />
+  );
+}
+
+function StaffProfileDetailsFormFields({
+  fullName,
+  nickname,
+  normalizedSystemRole,
+  normalizedStaffType,
+  tierLabel,
+}: {
+  fullName: string;
+  nickname: string | null;
+  normalizedSystemRole: string;
+  normalizedStaffType: string;
+  tierLabel: string;
+}) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(updateMyProfileDetailsAction, initialState);
-  const systemRoleValue = isSystemRole(systemRole) ? systemRole : "";
-  const staffTypeValue = staffType && isStaffType(staffType) ? staffType : "";
+  const [fullNameValue, setFullNameValue] = useState(fullName);
+  const [nicknameValue, setNicknameValue] = useState(nickname ?? "");
+  const [systemRoleValue, setSystemRoleValue] = useState(normalizedSystemRole);
+  const [staffTypeValue, setStaffTypeValue] = useState(normalizedStaffType);
 
   useEffect(() => {
     if (state.success) {
@@ -69,7 +100,8 @@ export function StaffProfileDetailsForm({
             id="fullName"
             name="fullName"
             label="Full Name"
-            defaultValue={fullName}
+            value={fullNameValue}
+            onChange={setFullNameValue}
             disabled={pending}
             error={state.fieldErrors?.fullName?.[0]}
             required
@@ -78,7 +110,8 @@ export function StaffProfileDetailsForm({
             id="nickname"
             name="nickname"
             label="Nickname"
-            defaultValue={nickname ?? ""}
+            value={nicknameValue}
+            onChange={setNicknameValue}
             disabled={pending}
             error={state.fieldErrors?.nickname?.[0]}
           />
@@ -89,7 +122,8 @@ export function StaffProfileDetailsForm({
             id="systemRole"
             name="systemRole"
             label="System Role"
-            defaultValue={systemRoleValue}
+            value={systemRoleValue}
+            onChange={setSystemRoleValue}
             disabled={pending}
             error={state.fieldErrors?.systemRole?.[0]}
             options={SYSTEM_ROLE_OPTIONS}
@@ -98,7 +132,8 @@ export function StaffProfileDetailsForm({
             id="staffType"
             name="staffType"
             label="Staff Role"
-            defaultValue={staffTypeValue}
+            value={staffTypeValue}
+            onChange={setStaffTypeValue}
             disabled={pending}
             error={state.fieldErrors?.staffType?.[0]}
             options={STAFF_TYPE_OPTIONS}
@@ -130,7 +165,8 @@ function EditableField({
   id,
   name,
   label,
-  defaultValue,
+  value,
+  onChange,
   disabled,
   error,
   required,
@@ -138,7 +174,8 @@ function EditableField({
   id: string;
   name: string;
   label: string;
-  defaultValue: string;
+  value: string;
+  onChange: (value: string) => void;
   disabled: boolean;
   error?: string;
   required?: boolean;
@@ -151,7 +188,8 @@ function EditableField({
       <Input
         id={id}
         name={name}
-        defaultValue={defaultValue}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
         required={required}
         aria-invalid={error ? "true" : undefined}
@@ -166,7 +204,8 @@ function SelectField({
   id,
   name,
   label,
-  defaultValue,
+  value,
+  onChange,
   disabled,
   error,
   options,
@@ -174,7 +213,8 @@ function SelectField({
   id: string;
   name: string;
   label: string;
-  defaultValue: string;
+  value: string;
+  onChange: (value: string) => void;
   disabled: boolean;
   error?: string;
   options: Array<{ value: string; label: string }>;
@@ -187,7 +227,8 @@ function SelectField({
       <select
         id={id}
         name={name}
-        defaultValue={defaultValue}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
         aria-invalid={error ? "true" : undefined}
         className="h-10 w-full rounded-lg border border-border-soft bg-surface px-2.5 py-1 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
