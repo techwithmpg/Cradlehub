@@ -13,7 +13,6 @@ import {
   Play,
   ReceiptText,
   UserX,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PaymentStatusBadge } from "@/components/features/dashboard/payment-status-badge";
@@ -31,7 +30,7 @@ import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import { BookingFollowupModal, type BookingFollowupResult } from "./booking-followup-modal";
 import { CustomerArrivedModal } from "./customer-arrived-modal";
 import { RoomAssignmentModal } from "./room-assignment-modal";
-import { ServiceCountdownChip } from "./service-countdown-chip";
+import { HybridSelectedBookingCard } from "./hybrid-selected-booking-card";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 
 type OneOrMany<T> = T | T[] | null;
@@ -685,87 +684,125 @@ function BookingDetailsPanel({
   onOpenRoomAssignment: (booking: WorkspaceBookingRow) => void;
   onBookingsChanged?: () => void;
 }) {
+  const router = useRouter();
+  const [isStarting,   startStartTransition]    = useTransition();
+  const [isCompleting, startCompleteTransition] = useTransition();
+
   const customer = readFirst(booking.customers);
-  const service = readFirst(booking.services);
-  const staff = readFirst(booking.staff);
+  const service  = readFirst(booking.services);
+  const staff    = readFirst(booking.staff);
   const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
-  const branch = readFirst(booking.branches);
+  const branch   = readFirst(booking.branches);
   const resource = readFirst(booking.branch_resources);
-  const price = readPricePaid(booking.metadata);
-  const balance = price > 0 ? Math.max(0, price - booking.amount_paid) : 0;
-  const notes = (booking.metadata as Record<string, unknown> | null)?.["customer_notes"];
+  const price    = readPricePaid(booking.metadata);
+  const balance  = price > 0 ? Math.max(0, price - booking.amount_paid) : 0;
+  const notes    = (booking.metadata as Record<string, unknown> | null)?.["customer_notes"];
   const durationMinutes = service?.duration_minutes;
-  const addOns = readAddOns(booking.metadata);
+  const addOns   = readAddOns(booking.metadata);
   const isHomeService = isHomeServiceBooking(booking);
   const roomLabel = resource?.name ?? (isHomeService ? "Home service" : "Room TBD");
   const operationalStatus = getOperationalStatus(booking);
 
+  // Determine active-service state for hybrid card logic
+  const progress        = booking.booking_progress_status ?? null;
+  const isServiceActive = booking.status === "in_progress" || progress === "session_started";
+  const isCheckedIn     = progress === "checked_in";
+  const resourceAssigned = Boolean(booking.resource_id);
+
+  // Eligible for Start Service when checked-in with a room (and not home service)
+  const canStartService = !isHomeService && isCheckedIn && resourceAssigned && !isServiceActive;
+
+  function afterServiceMutation() {
+    onBookingsChanged?.();
+    router.refresh();
+  }
+
+  function handleStartService() {
+    startStartTransition(async () => {
+      const callAction = statusAction ?? updateBookingStatusAction;
+      const result = await callAction({ bookingId: booking.id, status: "in_progress" });
+      if (!result.success) {
+        toast.error(result.error ?? "Could not start service.");
+        return;
+      }
+      toast.success("Service started.");
+      afterServiceMutation();
+    });
+  }
+
+  function handleCompleteService() {
+    startCompleteTransition(async () => {
+      const callAction = statusAction ?? updateBookingStatusAction;
+      const result = await callAction({ bookingId: booking.id, status: "completed" });
+      if (!result.success) {
+        toast.error(result.error ?? "Could not complete service.");
+        return;
+      }
+      toast.success("Service completed.");
+      afterServiceMutation();
+    });
+  }
+
   return (
     <aside className="sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto rounded-3xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-sm)]">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      {/* Panel title row */}
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
             Selected Booking
           </div>
-          <div className="mt-1 font-mono text-[11px] text-[var(--cs-text-muted)]">
+          <div className="mt-0.5 font-mono text-[11px] text-[var(--cs-text-muted)]">
             #{booking.id.slice(0, 8).toUpperCase()}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-muted)] transition-colors hover:text-[var(--cs-text)]"
-          aria-label="Close booking details"
-        >
-          <X size={15} />
-        </button>
-      </div>
-
-      <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--cs-sand-mist)] text-sm font-bold text-[var(--cs-sand-dark)]">
-            {customerInitials(customer?.full_name)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <OperationalStatusPill booking={booking} />
-              <SourcePill booking={booking} />
-            </div>
-            <h2 className="mt-3 truncate text-lg font-semibold leading-tight text-[var(--cs-text)]" title={customer?.full_name ?? undefined}>
-              {customer?.full_name ?? "Customer"}
-            </h2>
-            <div className="mt-1 text-sm leading-5 text-[var(--cs-text-secondary)]">
-              {service?.name ?? "Service"} / {formatTime(booking.start_time)}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium text-[var(--cs-text-muted)]">
-              {branch ? <span>{branch.name}</span> : null}
-              <span>{roomLabel}</span>
-            </div>
-          </div>
+        {/* Status pills next to the ID */}
+        <div className="flex items-center gap-2">
+          <OperationalStatusPill booking={booking} />
+          <SourcePill booking={booking} />
         </div>
       </div>
 
-      <div className="mt-4 space-y-4">
-        <ServiceCountdownChip
-          status={booking.status}
-          progressStatus={booking.booking_progress_status}
-          checkedInAt={booking.checked_in_at}
-          sessionStartedAt={booking.session_started_at}
-          sessionCompletedAt={booking.session_completed_at}
-          durationMinutes={durationMinutes}
-          resourceId={booking.resource_id}
-          isHomeService={isHomeService}
-        />
+      {/* Hybrid card — replaces old hero card + ServiceCountdownChip */}
+      <HybridSelectedBookingCard
+        booking={{
+          id:                        booking.id,
+          booking_code:              `#${booking.id.slice(0, 8).toUpperCase()}`,
+          customer_name:             customer?.full_name,
+          service_name:              service?.name,
+          staff_name:                staffName,
+          resource_name:             resource?.name,
+          start_time:                booking.start_time,
+          end_time:                  booking.end_time,
+          status:                    booking.status,
+          booking_progress_status:   booking.booking_progress_status,
+          session_started_at:        booking.session_started_at,
+          session_completed_at:      booking.session_completed_at,
+          service_duration:          durationMinutes,
+          type:                      booking.type,
+        }}
+        onClose={onClose}
+        onStartService={canStartService ? handleStartService : undefined}
+        onCompleteService={isServiceActive && !isHomeService ? handleCompleteService : undefined}
+        isStarting={isStarting}
+        isCompleting={isCompleting}
+      />
 
-        <CrmNextActionsPanel
-          booking={booking}
-          statusAction={statusAction}
-          dispatchHref={dispatchHref}
-          onOpenFollowup={onOpenFollowup}
-          onOpenArrival={onOpenArrival}
-          onOpenRoomAssignment={onOpenRoomAssignment}
-          onBookingsChanged={onBookingsChanged}
-        />
+      <div className="mt-4 space-y-4">
+        {/* CrmNextActionsPanel handles all non-service workflow.
+            When service is active, the hybrid card owns Complete Service
+            so we skip the panel to avoid duplicate buttons. */}
+        {!isServiceActive ? (
+          <CrmNextActionsPanel
+            booking={booking}
+            statusAction={statusAction}
+            dispatchHref={dispatchHref}
+            onOpenFollowup={onOpenFollowup}
+            onOpenArrival={onOpenArrival}
+            onOpenRoomAssignment={onOpenRoomAssignment}
+            onBookingsChanged={onBookingsChanged}
+          />
+        ) : null}
+
 
         <PanelSection label="Booking Details">
           <PanelRow

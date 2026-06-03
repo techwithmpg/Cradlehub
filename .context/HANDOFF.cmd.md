@@ -1,4 +1,4 @@
-# HANDOFF — Staff Service Progress Workflow: COMPLETE
+# HANDOFF — Hybrid Selected Booking Card: COMPLETE
 
 ## Status: ✅ Build verified (89 routes · type-check ✅ · lint ✅ · build ✅)
 
@@ -6,54 +6,62 @@
 
 ## What Was Done (2026-06-03)
 
-### New components
+### New: `src/components/features/bookings/hybrid-selected-booking-card.tsx`
 
-| File | Purpose |
-|------|---------|
-| `src/lib/bookings/service-session.ts` | Shared timing: `computeServiceTimerState`, `fmtServiceSecs`, phase types |
-| `src/components/features/staff-portal/service-session-countdown.tsx` | 36px bold countdown widget for modal (6 phases, fires `onDue` callback) |
-| `src/components/features/staff-portal/service-progress-modal.tsx` | Bottom sheet: booking header + countdown + full progress actions + auto-complete |
-| `supabase/migrations/20260603000001_staff_direct_session_start.sql` | RPC: allow `not_started → session_started` for in_spa bookings |
+`HybridSelectedBookingCard` — a client component that replaces the old separate hero card + `ServiceCountdownChip` in the CRM Bookings right panel.
 
-### Changed files
+**Two modes, same component instance:**
 
-| File | What changed |
-|------|-------------|
-| `src/lib/bookings/progress.ts` | `IN_SPA_TRANSITIONS.not_started` now includes `session_started` |
-| `src/app/(dashboard)/staff-portal/actions.ts` | Fixed `delivery_type` routing; added CRM revalidation; added `autoCompleteDueSessionAction` |
-| `src/components/features/staff-portal/booking-progress-actions.tsx` | Added `onSuccess?: () => void` prop |
-| `src/components/features/staff-portal/staff-appointment-card.tsx` | Now `"use client"`; compact trigger button + `ServiceProgressModal` |
+| State | What renders |
+|-------|-------------|
+| Normal (pending / confirmed / checked_in) | Avatar + name + service + room header, detail rows, `Start Service` if eligible |
+| Active service (`in_progress` or `session_started` + `session_started_at`) | Same header + live `CountdownZone`, detail rows, `Complete Service` |
 
----
+**`CountdownZone`** (internal sub-component):
+- Big `N min remaining` label + `MM:SS` countdown (or `+MM:SS` overtime)
+- `of N min` denominator
+- Segmented green progress bar (transitions smoothly via CSS)
+- "Started HH:MM · Staff · Room" meta row
 
-## Key Decisions
+**Activation rule:**
+```ts
+const isServiceActive =
+  booking.status === "in_progress" ||
+  booking.booking_progress_status === "session_started";
 
-- **Direct session start**: `not_started → session_started` is now valid for in_spa bookings (RPC + TypeScript both updated). CRM check-in remains an optional intermediate step, not a requirement.
-- **`delivery_type` as routing key**: The RPC and TypeScript transition validator now both use `delivery_type` (not `type`). Fixes a bug where `online` bookings were validated against wrong transitions.
-- **onDue in `useEffect`**: The `react-hooks/refs` lint rule forbids ref reads during render. `onDue` fires inside `useEffect([currentPhase])` — safe.
-- **Auto-complete is server-validated**: `autoCompleteDueSessionAction` independently checks `NOW() >= session_started_at + duration_minutes` using server time. Client timer expiry is a soft signal only.
-- **CRM revalidation**: Every staff progress update now calls `revalidateOperationalBookingSurfaces(branchId)` (CRM + manager paths) + staff portal paths.
-
----
-
-## Pending: DB migration
-
-The migration `20260603000001_staff_direct_session_start.sql` is written but needs to be pushed to the live DB:
-
-```bash
-supabase db push
+const shouldShowCountdown =
+  isServiceActive && Boolean(booking.session_started_at) && tick !== null;
 ```
 
-Until then, direct `not_started → session_started` will fail at the RPC level even though TypeScript allows it.
+---
+
+### Changed: `BookingDetailsPanel` in `bookings-table.tsx`
+
+- `BookingDetailsPanel` now has two `useTransition` hooks (`isStarting`, `isCompleting`) and uses `useRouter` for direct start/complete actions.
+- `handleStartService` / `handleCompleteService` call `statusAction` (or `updateBookingStatusAction` fallback), show a Sonner toast, and call `afterServiceMutation()` (revalidates + refreshes).
+- Old hero card + `ServiceCountdownChip` replaced by `HybridSelectedBookingCard` with a flat view-model mapped from `WorkspaceBookingRow`.
+- `CrmNextActionsPanel` suppressed when `isServiceActive` (it would only show "Complete Service" — handled by the hybrid card). Active for all other states.
+- Panel title row: compact "SELECTED BOOKING" + `#ID` + status pills in one row.
+- `X` icon import removed (close button now inside hybrid card).
+
+---
+
+## Key decisions
+
+- **`CountdownZone` is a sub-component** (not its own file) because it's only used here and prevents the main file from exceeding 200 lines in logic.
+- **`TickState | null`** pattern: both `mountMs` and first `nowMs` set from `setTimeout(..., 0)` callback — never directly in the effect body, satisfying `react-hooks/set-state-in-effect`.
+- **No auto-complete in this component** — `Complete Service` is a manual button per the task spec. `autoCompleteDueSessionAction` from the staff-portal actions is available for future wiring if desired.
+- **Home service suppression**: `onStartService` and `onCompleteService` are not passed for home-service bookings; `CrmNextActionsPanel` stays visible for dispatch flow.
+- **"Edit Booking" is a disabled placeholder** — no edit booking route exists in scope yet.
 
 ---
 
 ## What's Next
 
-- Push migration to production (`supabase db push`)
-- Authenticated staff-portal browser click-through verification
-- Apply premium layer to remaining CRM workspaces (Schedule, Services)
-- Optional: `NextAppointmentCard` — add "Service Progress" trigger for the next-up appointment card
+- Apply `supabase db push` for migration `20260603000001_staff_direct_session_start.sql`
+- Authenticated browser click-through to verify countdown activates when CRM or staff starts service
+- Optional: wire `autoCompleteDueSessionAction` to `HybridSelectedBookingCard` for server-validated auto-complete
+- Optional: implement Edit Booking functionality
 
 ---
 

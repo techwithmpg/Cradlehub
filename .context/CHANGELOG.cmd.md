@@ -3724,3 +3724,37 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: ✅ Passing, 89 routes
 - Migration `20260603000001_staff_direct_session_start.sql` needs `supabase db push` to reach production.
 - Authenticated browser click-through still needs a valid local staff-portal session.
+
+---
+
+### 2026-06-03 — Claude Code (Hybrid Selected Booking Card)
+
+**Task:** Integrate service countdown directly into the CRM Bookings selected-booking right panel hero card instead of as a separate section below.
+
+**Files Created:**
+- `src/components/features/bookings/hybrid-selected-booking-card.tsx` — `HybridSelectedBookingCard` client component.
+  - **Normal mode**: hero (avatar + customer + service + room), detail rows (Customer/Service/Staff/Room/Time), and `Start Service` button when booking is checked-in with a room.
+  - **Active service mode** (triggered by `status === "in_progress"` OR `booking_progress_status === "session_started"` AND `session_started_at != null`): same hero, plus integrated `CountdownZone` (minutes remaining, MM:SS timer, `of N min` total, segmented progress bar, "Started HH:MM · Staff · Room" meta row), and `Complete Service` button.
+  - Uses `TickState | null` pattern (setState from callbacks only — no direct setState in effect body, no refs during render).
+  - Exported `HybridBookingViewModel` type for the flat view-model passed from the panel.
+
+**Files Changed:**
+- `src/components/features/bookings/bookings-table.tsx`:
+  - Swapped `ServiceCountdownChip` import for `HybridSelectedBookingCard`.
+  - Removed `X` icon import (close button now lives inside `HybridSelectedBookingCard`).
+  - `BookingDetailsPanel` gains two `useTransition` hooks (`isStarting`, `isCompleting`) and `useRouter` for direct start/complete service actions.
+  - `handleStartService` / `handleCompleteService` helpers call the existing `statusAction` (or `updateBookingStatusAction` fallback), show a Sonner toast, then revalidate.
+  - Old hero card block + `ServiceCountdownChip` replaced by `HybridSelectedBookingCard` mapped from the `WorkspaceBookingRow`.
+  - `CrmNextActionsPanel` is suppressed when `isServiceActive` to avoid duplicate "Complete Service" buttons; it remains active for all other workflow states (pending confirmation, arrival, dispatch, room assignment, etc.).
+  - Panel title row simplified: booking code + status pills shown as a compact header row.
+
+**Behavior:**
+- Pending / confirmed / not-started bookings: clean detail card, `Start Service` only when `checked_in + resource assigned` (non-home-service).
+- In-progress / session-started bookings: same card but the countdown zone appears, showing live `N min remaining`, `MM:SS` timer, segmented bar, and `Complete Service` button.
+- Home-service bookings: countdown and Start/Complete buttons are suppressed; `CrmNextActionsPanel` handles dispatch flow.
+- Both CRM and staff portal write to the same `booking_progress_status` / `session_started_at` fields; CRM auto-refreshes after progress updates from either source.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 89 routes
