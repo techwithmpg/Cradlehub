@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
+import type { CSSProperties } from "react";
 import type { DriverMonthlyStats } from "@/app/(dashboard)/staff-portal/actions";
 
 type DriverStatsPageProps = {
@@ -10,7 +10,7 @@ type DriverStatsPageProps = {
   isFuture: boolean;
 };
 
-const NAV_LINK: React.CSSProperties = {
+const NAV_LINK: CSSProperties = {
   padding: "5px 14px", borderRadius: 8, border: "1px solid var(--cs-border)",
   backgroundColor: "var(--cs-surface-warm)", color: "var(--cs-text-muted)",
   fontSize: "0.8rem", textDecoration: "none", display: "inline-flex",
@@ -55,7 +55,7 @@ export function DriverStatsPage({ stats, monthLabel, prevHref, nextHref, isFutur
   ];
 
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem", position: "sticky", top: 0, zIndex: 30 }}>
         <h1 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cs-text)" }}>My Stats</h1>
         <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--cs-text-muted)" }}>{monthLabel}</p>
@@ -73,8 +73,6 @@ export function DriverStatsPage({ stats, monthLabel, prevHref, nextHref, isFutur
           : <EmptyState />
         }
       </div>
-
-      <DriverMobileBottomNav />
     </div>
   );
 }

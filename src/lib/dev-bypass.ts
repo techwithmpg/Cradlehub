@@ -24,6 +24,7 @@ export function isDevAuthBypassEnabled(): boolean {
  */
 export function getDevBypassLayoutStaff(): {
   full_name: string;
+  nickname: string | null;
   system_role: string;
   branch_id: string;
   branches: { name: string };
@@ -31,6 +32,7 @@ export function getDevBypassLayoutStaff(): {
 } {
   return {
     full_name: process.env.DEV_BYPASS_USER_NAME ?? "Dev User",
+    nickname: null,
     system_role: "owner",
     branch_id: "00000000-0000-0000-0000-000000000000",
     branches: { name: process.env.DEV_BYPASS_BRANCH_NAME ?? "Dev Branch" },

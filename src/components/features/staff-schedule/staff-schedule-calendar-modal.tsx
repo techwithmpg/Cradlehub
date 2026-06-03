@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatShiftTimeRange, formatTime12h } from "@/lib/utils/time-format";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import {
   getStaffFullScheduleAction,
   type StaffFullScheduleData,
@@ -762,6 +763,7 @@ function StaffScheduleCalendarModalContent({
   }, [open, staff.id, range.startDate, range.endDate]);
 
   const staffDisplay = data?.staff ?? staff;
+  const displayName = staffDisplay ? getStaffAdminName(staffDisplay) : "Staff member";
   const effectiveBranchName = data?.staff.branch_name ?? staff?.branch_name ?? branchName ?? "Assigned branch";
 
   const visibleDates = useMemo(() => {
@@ -849,18 +851,13 @@ function StaffScheduleCalendarModalContent({
               />
             ) : (
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--cs-sand-mist)] text-sm font-bold text-[var(--cs-sand-dark)]">
-                {staffInitials(staffDisplay?.full_name ?? staff.full_name)}
+                {staffInitials(displayName)}
               </div>
             )}
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-[var(--cs-text)]">
-                {staffDisplay?.full_name ?? staff.full_name}
+                {displayName}
               </div>
-              {staffDisplay?.nickname ? (
-                <div className="truncate text-xs text-[var(--cs-text-muted)]">
-                  {staffDisplay.nickname}
-                </div>
-              ) : null}
               <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-[var(--cs-text-secondary)]">
                 <span className="rounded-full bg-[var(--cs-surface)] px-2 py-0.5">
                   {humanize(staffDisplay?.staff_type)}

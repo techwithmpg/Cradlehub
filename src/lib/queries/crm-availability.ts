@@ -4,6 +4,7 @@ import { getStaffByBranch } from "./staff";
 import { isServiceStaffType } from "@/constants/staff-roles";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 import { CRM_PENDING_BOOKING_STATUSES } from "@/lib/bookings/crm-booking-status";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule";
 
@@ -250,7 +251,7 @@ export async function getCrmAvailabilitySnapshot(params: {
 
     return {
       staff_id: member.id,
-      staff_name: member.full_name,
+      staff_name: getStaffAdminName(member),
       staff_type: staffType,
       system_role: systemRole,
       is_driver: isDriver,

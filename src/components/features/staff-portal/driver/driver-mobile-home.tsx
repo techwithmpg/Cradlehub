@@ -1,4 +1,3 @@
-import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
 import { DriverHeader } from "./driver-header";
 import { DriverGreetingCard } from "./driver-greeting-card";
 import { DriverTodayOverviewCard } from "./driver-today-overview-card";
@@ -15,7 +14,7 @@ type DriverMobileHomeProps = {
 
 export function DriverMobileHome({ staff, items, stats }: DriverMobileHomeProps) {
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       <DriverHeader staff={staff} />
 
       <div
@@ -35,7 +34,6 @@ export function DriverMobileHome({ staff, items, stats }: DriverMobileHomeProps)
         <DriverQuickActions />
       </div>
 
-      <DriverMobileBottomNav />
     </div>
   );
 }

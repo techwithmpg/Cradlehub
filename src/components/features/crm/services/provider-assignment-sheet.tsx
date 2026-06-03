@@ -31,6 +31,7 @@ import {
 } from "@/app/(dashboard)/crm/services/actions";
 import type { ServiceTableRow } from "./types";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
 
@@ -102,7 +103,8 @@ function AssignedProviderRow({
   onRemove: () => void;
   isPending: boolean;
 }) {
-  const initials = member.full_name.slice(0, 2).toUpperCase();
+  const displayName = getStaffAdminName(member);
+  const initials = displayName.slice(0, 2).toUpperCase();
   return (
     <div
       style={{
@@ -144,7 +146,7 @@ function AssignedProviderRow({
             whiteSpace: "nowrap",
           }}
         >
-          {member.full_name}
+          {displayName}
         </div>
         <StaffTypeBadge staffType={member.staff_type} />
       </div>
@@ -154,7 +156,7 @@ function AssignedProviderRow({
         type="button"
         disabled={isPending}
         onClick={onRemove}
-        aria-label={`Remove ${member.full_name}`}
+        aria-label={`Remove ${displayName}`}
         style={{
           padding: "4px 10px",
           borderRadius: 6,
@@ -186,7 +188,8 @@ function EligibleProviderRow({
   onAdd: () => void;
   isPending: boolean;
 }) {
-  const initials = member.full_name.slice(0, 2).toUpperCase();
+  const displayName = getStaffAdminName(member);
+  const initials = displayName.slice(0, 2).toUpperCase();
   return (
     <div
       style={{
@@ -228,7 +231,7 @@ function EligibleProviderRow({
             whiteSpace: "nowrap",
           }}
         >
-          {member.full_name}
+          {displayName}
         </div>
         <StaffTypeBadge staffType={member.staff_type} />
       </div>
@@ -238,7 +241,7 @@ function EligibleProviderRow({
         type="button"
         disabled={isPending}
         onClick={onAdd}
-        aria-label={`Assign ${member.full_name}`}
+        aria-label={`Assign ${displayName}`}
         style={{
           padding: "4px 12px",
           borderRadius: 6,
@@ -411,7 +414,7 @@ export function ProviderAssignmentSheet({
   const filteredAssignable = useMemo(() => {
     if (!searchQuery) return row.assignableProviders;
     return row.assignableProviders.filter((p) =>
-      p.full_name.toLowerCase().includes(searchQuery)
+      getStaffAdminName(p).toLowerCase().includes(searchQuery)
     );
   }, [row.assignableProviders, searchQuery]);
 

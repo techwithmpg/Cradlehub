@@ -21,6 +21,7 @@ import {
   removeProviderFromServiceAction,
 } from "@/app/(dashboard)/crm/services/actions";
 import { ReadinessIssueCard } from "@/components/shared/readiness-issue-card";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { ReadinessIssue } from "@/types/readiness";
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
@@ -166,6 +167,8 @@ function ProviderChip({
   onRemove: () => void;
   isPending: boolean;
 }) {
+  const displayName = getStaffAdminName(member);
+
   return (
     <span
       style={{
@@ -196,16 +199,16 @@ function ProviderChip({
           flexShrink: 0,
         }}
       >
-        {member.full_name.charAt(0).toUpperCase()}
+        {displayName.charAt(0).toUpperCase()}
       </span>
-      <span style={{ fontWeight: 500 }}>{member.full_name}</span>
+      <span style={{ fontWeight: 500 }}>{displayName}</span>
       <StaffTypeBadge staffType={member.staff_type} />
       <button
         type="button"
         disabled={isPending}
         onClick={onRemove}
-        aria-label={`Remove ${member.full_name} as provider`}
-        title={`Remove ${member.full_name}`}
+        aria-label={`Remove ${displayName} as provider`}
+        title={`Remove ${displayName}`}
         style={{
           marginLeft: 2,
           padding: "1px 5px",
@@ -403,7 +406,7 @@ export function ProviderAssignmentCard({
             <option value="">Select provider to add…</option>
             {row.assignableProviders.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.full_name}
+                {getStaffAdminName(s)}
                 {s.staff_type
                   ? ` · ${STAFF_TYPE_LABELS[s.staff_type as ServiceStaffType] ?? s.staff_type}`
                   : ""}

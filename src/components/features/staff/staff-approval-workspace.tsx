@@ -9,6 +9,7 @@ import {
   getStaffStatusLabel,
   readBranchName,
   getInitials,
+  getStaffInternalName,
 } from "./staff-management-utils";
 import { StaffServiceEditorSheet } from "./staff-service-editor-sheet";
 import { ActionableWarning } from "@/components/shared/actionable-warning";
@@ -153,6 +154,7 @@ function PageHeader({
 }) {
   const status = getStaffStatus(staffMember);
   const branchName = readBranchName(staffMember.branches);
+  const displayName = getStaffInternalName(staffMember);
 
   return (
     <div style={{ marginBottom: "1.25rem" }}>
@@ -192,7 +194,7 @@ function PageHeader({
             flexShrink: 0,
           }}
         >
-          {getInitials(staffMember.full_name)}
+          {getInitials(displayName)}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -206,7 +208,7 @@ function PageHeader({
                 lineHeight: 1.3,
               }}
             >
-              {staffMember.full_name}
+              {displayName}
             </h1>
             <StatusBadge status={status} />
             {isDirty && (

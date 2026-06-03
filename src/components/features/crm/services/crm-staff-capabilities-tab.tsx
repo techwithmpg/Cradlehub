@@ -17,6 +17,7 @@ import type { ActiveBranchService } from "@/components/features/manager-settings
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import { SERVICE_STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff-roles";
 import type { ServiceStaffType } from "@/constants/staff-roles";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 const HARD_EXCLUDED_SYSTEM_ROLES = new Set(["driver", "utility"]);
 const SERVICE_STAFF_TYPE_SET = new Set<string>(SERVICE_STAFF_TYPES);
@@ -150,6 +151,7 @@ export function CrmStaffCapabilitiesTab({
           {eligibleStaff.map((member) => {
             const assignedCount = assignmentCountByStaff.get(member.id) ?? 0;
             const assignedServiceIds = assignedServiceIdsByStaff.get(member.id) ?? [];
+            const displayName = getStaffAdminName(member);
             const assignedServices = assignedServiceIds
               .map((id) => serviceNamesById.get(id))
               .filter((name): name is string => !!name)
@@ -177,11 +179,11 @@ export function CrmStaffCapabilitiesTab({
                       flexShrink: 0,
                     }}
                   >
-                    {member.full_name.slice(0, 2).toUpperCase()}
+                    {displayName.slice(0, 2).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)" }}>
-                      {member.full_name}
+                      {displayName}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                       <StaffTypeBadge staffType={member.staff_type} />

@@ -11,6 +11,7 @@ import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/c
 import { isValidProvider } from "@/components/features/crm/services/crm-therapist-assignment-tab";
 import { StaffServiceEditorSheet } from "@/components/features/staff/staff-service-editor-sheet";
 import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-services";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 import {
   getCrmStaffServiceId,
   getCrmStaffServiceName,
@@ -76,7 +77,7 @@ export function CrmStaffAssignmentsTab({
     const sorted = rows.sort((a, b) => {
       if (a.assignmentCount === 0 && b.assignmentCount > 0) return -1;
       if (a.assignmentCount > 0 && b.assignmentCount === 0) return 1;
-      return a.staff.full_name.localeCompare(b.staff.full_name);
+      return getStaffAdminName(a.staff).localeCompare(getStaffAdminName(b.staff));
     });
 
     const unassignedCount = rows.filter((r) => r.assignmentCount === 0).length;
@@ -95,7 +96,7 @@ export function CrmStaffAssignmentsTab({
     if (!q) return staffRows;
     return staffRows.filter(
       (r) =>
-        r.staff.full_name.toLowerCase().includes(q) ||
+        getStaffAdminName(r.staff).toLowerCase().includes(q) ||
         r.assignedServices.some((s) => s.toLowerCase().includes(q))
     );
   }, [staffRows, search]);
@@ -186,7 +187,7 @@ export function CrmStaffAssignmentsTab({
                 >
                   <td className="px-4 py-3 align-middle">
                     <span className="block text-sm font-semibold text-[var(--cs-text)]">
-                      {row.staff.full_name}
+                      {getStaffAdminName(row.staff)}
                     </span>
                     {row.assignmentCount === 0 && (
                       <span className="mt-0.5 block text-xs text-[var(--cs-error-text)]">Needs assignment</span>
@@ -245,7 +246,7 @@ export function CrmStaffAssignmentsTab({
         onClose={() => setEditingStaff(null)}
         onSave={handleSave}
         saving={isSaving}
-        staffName={editingStaff?.full_name}
+        staffName={editingStaff ? getStaffAdminName(editingStaff) : undefined}
       />
 
     </div>

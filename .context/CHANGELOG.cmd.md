@@ -4098,3 +4098,35 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Basic Staff Portal and Therapist Portal completely untouched
 
 **Verification:** tsc PASS, lint PASS (0 errors, 2 pre-existing warnings), build PASS (96 routes), zero TypeScript `any`
+
+---
+
+## 2026-06-03 — Driver Staff Portal Mobile Shell + Safe Profile Refinement
+
+**Task:** Refine the driver staff mobile portal so navigation/profile editing match the approved mobile-first flow and staff identity edits stay safe.
+
+**New/updated driver components:**
+- `driver-mobile-shell.tsx` — shared mobile shell for driver staff; owns persistent bottom nav and profile sheet.
+- `driver-mobile-bottom-nav.tsx` — bottom nav is now Home, Dispatch, Map, Jobs, Profile; Profile opens the sheet instead of routing to a separate More tab.
+- `driver-profile-sheet.tsx` — mobile bottom sheet reusing safe profile/photo actions; staff can edit only full name, nickname, and avatar.
+- `driver-schedule-page.tsx` — mobile driver schedule grouped by week days and assigned trips.
+- `driver-route-bottom-card.tsx`, `driver-status-badge.tsx`, `driver-empty-state.tsx` — shared route/status/empty-state UI helpers.
+
+**Modified behavior:**
+- `/staff-portal/layout.tsx` wraps only driver-mode staff in `DriverMobileShell`, preserving existing Basic and Therapist mobile portals.
+- Driver screens no longer render duplicated fixed bottom navs.
+- `/staff-portal/schedule` now renders `DriverSchedulePage` on mobile for driver staff and keeps the desktop schedule on desktop.
+- `updateBookingProgressAction` now treats `staff_type="driver"` as driver authority for assigned travel/arrival transitions, not only `system_role="driver"`.
+- Staff profile lookup now includes branch relation data for read-only profile context.
+- Staff/booking revalidation includes driver routes (`dispatch`, `map`, `jobs`, `jobs/active`, `stats`, `more`) and operational CRM dispatch/live surfaces.
+
+**Safety notes:**
+- Staff Portal profile details action remains restricted to `full_name` and `nickname`.
+- System role, staff role/type, tier, branch, active status, permissions, services, schedules, and assignments are read-only or unavailable to staff self-edit flows.
+- Profile photo update continues through the existing `updateStaffProfilePhotoAction`.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 96 routes
+- Local unauthenticated route smoke checks for `/staff-portal`, `/dispatch`, `/map`, `/jobs`, `/jobs/active`, `/schedule`, `/stats`, `/more`, `/profile` returned 307 -> `/login` as expected.

@@ -58,6 +58,7 @@ function statusLabel(status: string): string {
 
 function TopBar({ staff }: { staff: StaffPortalStaff }) {
   const roleLabel = STAFF_TYPE_LABELS[staff.staff_type as keyof typeof STAFF_TYPE_LABELS] ?? "Staff";
+  const displayName = getStaffDisplayName(staff);
 
   return (
     <div
@@ -125,7 +126,7 @@ function TopBar({ staff }: { staff: StaffPortalStaff }) {
           aria-label="Profile"
         >
           <UserAvatar
-            name={staff.full_name}
+            name={displayName}
             imageUrl={staff.avatar_url}
             size="sm"
             className="size-9 border border-[--cs-border-soft] shadow-xs"

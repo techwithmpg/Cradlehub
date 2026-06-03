@@ -7,8 +7,10 @@ export type LayoutStaffContext = {
   user: { id: string };
   me: {
     full_name: string;
+    nickname: string | null;
     system_role: string;
     branch_id: string;
+    avatar_url: string | null;
     branches: { name: string } | { name: string }[] | null;
   } | null;
 };
@@ -30,8 +32,10 @@ export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext 
       user: { id: user.id },
       me: {
         full_name: superAdmin.full_name,
+        nickname: null,
         system_role: "owner",
         branch_id: superAdmin.branch_id,
+        avatar_url: null,
         branches: superAdmin.branches,
       },
     };
@@ -39,7 +43,7 @@ export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext 
 
   const { data: me, error } = await supabase
     .from("staff")
-    .select("full_name, system_role, branch_id, branches(name)")
+    .select("full_name, nickname, system_role, branch_id, avatar_url, branches(name)")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();

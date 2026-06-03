@@ -13,6 +13,7 @@ import { StaffRoleBadge, StaffStatusBadge } from "./staff-badges";
 import {
   getStaffDisplayMeta,
   getInitials,
+  getStaffInternalName,
   getStaffStatus,
   type StaffMember,
   type StaffTab,
@@ -35,7 +36,7 @@ export function StaffTableRow({
 }: StaffTableRowProps) {
   const status = getStaffStatus(member);
   const meta = getStaffDisplayMeta(member);
-  const displayName = status === "invited" ? "Invite link generated" : member.full_name;
+  const displayName = status === "invited" ? "Invite link generated" : getStaffInternalName(member);
   const position =
     status === "invited"
       ? "Pending invitation"
@@ -150,7 +151,7 @@ function StaffRowActions({
           <button
             type="button"
             className="flex size-8 items-center justify-center rounded-lg text-[var(--cs-text-muted)] transition hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
-            aria-label={`Open actions for ${member.full_name}`}
+            aria-label={`Open actions for ${getStaffInternalName(member)}`}
           >
             <MoreHorizontal className="size-4" aria-hidden="true" />
           </button>

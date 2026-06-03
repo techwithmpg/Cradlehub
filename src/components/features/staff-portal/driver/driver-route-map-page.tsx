@@ -1,21 +1,8 @@
 import Link from "next/link";
-import { MapPin, Navigation, Clock, ChevronLeft } from "lucide-react";
+import { MapPin, Clock, ChevronLeft } from "lucide-react";
 import { formatTime12h } from "@/lib/utils/time-format";
-import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
+import { DriverRouteBottomCard } from "./driver-route-bottom-card";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
-
-function getNavUrl(item: RealDispatchItem): string {
-  if (item.lat !== null && item.lng !== null) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}&travelmode=driving`;
-  }
-  if (item.formattedAddress) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.formattedAddress)}`;
-  }
-  if (item.area) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.area)}`;
-  }
-  return "https://www.google.com/maps";
-}
 
 function getNextStop(items: RealDispatchItem[]): RealDispatchItem | null {
   const active = items.filter((i) => !["completed", "cancelled"].includes(i.dispatchStatus));
@@ -72,11 +59,10 @@ function StopRow({ item, index }: { item: RealDispatchItem; index: number }) {
 
 export function DriverRouteMapPage({ items }: { items: RealDispatchItem[] }) {
   const nextStop = getNextStop(items);
-  const navUrl = nextStop ? getNavUrl(nextStop) : null;
   const hasRoute = items.length > 0;
 
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       {/* Header */}
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem", position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", gap: "0.75rem" }}>
         <Link href="/staff-portal" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--cs-border-soft)", backgroundColor: "var(--cs-surface-warm)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cs-text-muted)", textDecoration: "none" }}>
@@ -98,34 +84,7 @@ export function DriverRouteMapPage({ items }: { items: RealDispatchItem[] }) {
           </div>
         </div>
 
-        {/* Next stop card */}
-        {nextStop && (
-          <div style={{ backgroundColor: "#fff", borderRadius: 16, border: "1px solid var(--cs-border-soft)", padding: "1rem 1.125rem", boxShadow: "var(--cs-shadow-xs)" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--cs-text-muted)", marginBottom: "0.5rem" }}>Next Stop</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--cs-text)" }}>{nextStop.customerName}</div>
-            {(nextStop.formattedAddress ?? nextStop.area) && (
-              <div style={{ fontSize: 13, color: "var(--cs-text-muted)", marginTop: 4 }}>
-                {nextStop.formattedAddress ?? nextStop.area}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", fontSize: 12, color: "var(--cs-text-muted)" }}>
-              {nextStop.etaMinutes && <span>{nextStop.etaMinutes} min</span>}
-              <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Clock size={11} />{formatTime12h(nextStop.startTime)}</span>
-            </div>
-
-            {navUrl && (
-              <a
-                href={navUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: "0.75rem", padding: "0.625rem", borderRadius: 12, backgroundColor: "var(--cs-staff-accent)", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700 }}
-              >
-                <Navigation size={15} />
-                Start Navigation
-              </a>
-            )}
-          </div>
-        )}
+        {nextStop ? <DriverRouteBottomCard nextStop={nextStop} /> : null}
 
         {/* Route stops list */}
         {hasRoute && (
@@ -141,8 +100,6 @@ export function DriverRouteMapPage({ items }: { items: RealDispatchItem[] }) {
           </div>
         )}
       </div>
-
-      <DriverMobileBottomNav />
     </div>
   );
 }

@@ -281,3 +281,11 @@ Per latest user request, updated the Staff Portal profile form so `system_role` 
 ## Follow-up fix: Staff Portal visible save button
 
 Moved the Staff Portal profile `Save Changes` button into the `Account Details` card header so staff can see it immediately. The button now uses a dedicated submit component with React DOM `useFormStatus()` so the inline `Loader2` spinner and `Saving` label reflect the active form submission. Verified with `npx tsc --noEmit --pretty false`, `pnpm lint`, and `pnpm build`; local route reachability still redirects unauthenticated traffic to `/login`, so final visual save confirmation needs a logged-in staff session.
+
+## Follow-up fix: Driver Staff Portal persistent nav + safe profile sheet
+
+Implemented the driver mobile shell refinement. Driver staff now get a single persistent mobile bottom nav from `/staff-portal/layout.tsx` with Home, Dispatch, Map, Jobs, and Profile. Profile opens a bottom sheet instead of the old More-route nav item. The sheet reuses `StaffProfilePhotoUploader` and `updateMyProfileDetailsAction`; it only submits `fullName` and `nickname`, while Staff Role, System Role, Tier, Branch, Active Status, and Permissions are read-only/admin-managed.
+
+Driver mobile pages no longer render duplicated fixed navs. `/staff-portal/schedule` now has a driver mobile schedule page showing week-day trip cards while desktop keeps `StaffSchedulePage`. `updateBookingProgressAction` now authorizes assigned drivers by `system_role="driver"` or `staff_type="driver"`, matching the workspace mode resolver. Revalidation now includes driver staff routes and CRM dispatch/live-operation surfaces.
+
+Verification: `pnpm type-check` PASS, `pnpm lint` PASS (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`), `pnpm build` PASS (96 routes). Local unauthenticated route checks for the staff portal driver route set returned 307 -> `/login`; authenticated mobile visual verification still needs a valid driver staff session.

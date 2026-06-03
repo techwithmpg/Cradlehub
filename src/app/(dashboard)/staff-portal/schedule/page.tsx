@@ -1,9 +1,10 @@
 import { StaffSchedulePage } from "@/components/features/staff-portal/staff-schedule-page";
 import { BasicStaffMobileSchedule } from "@/components/features/staff-portal/basic/basic-staff-mobile-schedule";
+import { DriverSchedulePage } from "@/components/features/staff-portal/driver/driver-schedule-page";
 import { TherapistScheduleList } from "@/components/features/staff-portal/therapist/therapist-schedule-list";
 import { getWeekNavigation, buildStaffWeekPlanner, type WeekResult } from "@/lib/staff-portal/week";
 import { buildWeekEvents } from "@/lib/staff-portal/schedule";
-import { getMyWeekAction } from "../actions";
+import { getMyDriverJobsAction, getMyWeekAction } from "../actions";
 import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 
 export default async function SchedulePage({
@@ -33,6 +34,7 @@ export default async function SchedulePage({
   const mode = getStaffPortalMode(result.staff);
   const isBasic = isBasicStaffMode(mode);
   const isTherapist = mode === "therapist";
+  const isDriver = mode === "driver";
 
   const planner = buildStaffWeekPlanner({
     days: nav.days,
@@ -46,6 +48,26 @@ export default async function SchedulePage({
     bookings: result.bookings,
     blocks: result.blocks,
   });
+
+  if (isDriver) {
+    const driverJobResults = await Promise.all(
+      nav.days.map((date) => getMyDriverJobsAction(date))
+    );
+    const driverJobs = driverJobResults.flatMap((driverResult) =>
+      "error" in driverResult ? [] : driverResult.items
+    );
+
+    return (
+      <>
+        <div className="hidden md:block">
+          <StaffSchedulePage nav={nav} days={planner.days} summary={planner.summary} eventsByDate={eventsByDate} />
+        </div>
+        <div className="block md:hidden">
+          <DriverSchedulePage nav={nav} days={planner.days} jobs={driverJobs} />
+        </div>
+      </>
+    );
+  }
 
   if (isBasic) {
     return (

@@ -17,6 +17,7 @@ import { STAFF_GROUPS } from "./schedule-group-cards";
 import { saveStaffWeeklyScheduleAction } from "@/app/(dashboard)/crm/staff-availability/actions";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -236,19 +237,7 @@ function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
       >
         <div>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--cs-text)", margin: 0 }}>
-            {item.staff.full_name}
-            {item.staff.nickname ? (
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 400,
-                  color: "var(--cs-text-muted)",
-                  marginLeft: 6,
-                }}
-              >
-                &ldquo;{item.staff.nickname}&rdquo;
-              </span>
-            ) : null}
+            {getStaffAdminName(item.staff)}
           </h3>
           <p
             style={{ fontSize: 12, color: "var(--cs-text-muted)", marginTop: 4, marginBottom: 0 }}
@@ -743,8 +732,7 @@ export function StaffScheduleCard({ items, rulesByGroup, branchId }: Props) {
     if (!q) return items;
     return items.filter(
       (i) =>
-        i.staff.full_name.toLowerCase().includes(q) ||
-        (i.staff.nickname ?? "").toLowerCase().includes(q)
+        getStaffAdminName(i.staff).toLowerCase().includes(q)
     );
   }, [items, search]);
 
@@ -830,8 +818,7 @@ export function StaffScheduleCard({ items, rulesByGroup, branchId }: Props) {
             <option value="">— Select staff member —</option>
             {filteredItems.map((i) => (
               <option key={i.staff.id} value={i.staff.id}>
-                {i.staff.full_name}
-                {i.staff.nickname ? ` (${i.staff.nickname})` : ""}
+                {getStaffAdminName(i.staff)}
                 {!i.staff.is_active ? " [inactive]" : ""}
               </option>
             ))}

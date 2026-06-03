@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole, type NavGroup, type NavItem } from "./nav-config";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { getStaffAdminName, getStaffDisplayName } from "@/lib/staff/display-name";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
   LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
@@ -161,6 +162,7 @@ function NavLink({ item, pathname, accent, onNav }: NavLinkProps) {
 type SidebarProps = {
   role:        string;
   fullName:    string;
+  nickname?:   string | null;
   avatarUrl?:  string | null;
   branchName?: string;
 };
@@ -170,13 +172,16 @@ type SidebarContentProps = SidebarProps & {
   onNav?:   () => void;
 };
 
-function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav }: SidebarContentProps) {
+function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathname, onNav }: SidebarContentProps) {
   const roleWorkspaceKey = resolveWorkspaceKeyFromRole(role);
   const pathWorkspaceKey = resolveWorkspaceKeyFromPath(pathname);
   const workspaceKey = pathWorkspaceKey ?? roleWorkspaceKey;
   const nav          = NAV_CONFIG[workspaceKey];
   const pathMeta = WORKSPACE_META[pathWorkspaceKey ?? ""] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
   const meta     = pathMeta;
+  const displayName = pathname.startsWith("/staff-portal")
+    ? getStaffDisplayName({ full_name: fullName, nickname })
+    : getStaffAdminName({ full_name: fullName, nickname });
   if (!nav) return null;
 
   return (
@@ -309,7 +314,7 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <UserAvatar
-            name={fullName}
+            name={displayName}
             imageUrl={avatarUrl}
             size="md"
             className="size-8 border border-border-soft"
@@ -324,7 +329,7 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
               overflow:     "hidden",
               textOverflow: "ellipsis",
             }}>
-              {fullName}
+              {displayName}
             </div>
             <div style={{
               fontSize:  10,
@@ -340,7 +345,7 @@ function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav
   );
 }
 
-export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps) {
+export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: SidebarProps) {
   const pathname        = usePathname();
   const [open, setOpen] = useState(false);
   // /manager routes now redirect to /crm (MVP soft-pause), but keep the check
@@ -353,7 +358,14 @@ export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps)
     <>
       {/* Desktop */}
       <div className="hidden md:flex" style={{ position: "sticky", top: 0, height: "100vh", flexShrink: 0 }}>
-        <SidebarContent role={role} fullName={fullName} avatarUrl={avatarUrl} branchName={branchName} pathname={pathname} />
+        <SidebarContent
+          role={role}
+          fullName={fullName}
+          nickname={nickname}
+          avatarUrl={avatarUrl}
+          branchName={branchName}
+          pathname={pathname}
+        />
       </div>
 
       {/* Mobile hamburger — hidden on routes that have their own mobile nav (manager, staff-portal, driver) */}
@@ -409,6 +421,7 @@ export function Sidebar({ role, fullName, avatarUrl, branchName }: SidebarProps)
             <SidebarContent
               role={role}
               fullName={fullName}
+              nickname={nickname}
               avatarUrl={avatarUrl}
               branchName={branchName}
               pathname={pathname}

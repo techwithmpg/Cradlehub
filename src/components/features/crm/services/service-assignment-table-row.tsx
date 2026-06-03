@@ -19,6 +19,7 @@ import type { ServiceTableRow } from "./types";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
 import { ProviderAssignmentSheet } from "./provider-assignment-sheet";
 import { updateBranchServiceVisibilityAction } from "@/app/(dashboard)/owner/branches/actions";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 // ── Assignment status helper ──────────────────────────────────────────────────
 
@@ -46,10 +47,15 @@ const MAX_PREVIEW = 3;
 // ── Mini provider chip (no remove button, read-only preview) ─────────────────
 
 function MiniChip({ member }: { member: StaffForServicePanel }) {
-  const initials = member.full_name.charAt(0).toUpperCase();
+  const displayName = getStaffAdminName(member);
+  const initials = displayName.charAt(0).toUpperCase();
+  const compactName = displayName.includes("(")
+    ? displayName
+    : `${displayName.split(" ")[0]}${displayName.includes(" ") ? ` ${displayName.split(" ")[1]?.charAt(0)}.` : ""}`;
+
   return (
     <span
-      title={member.full_name}
+      title={displayName}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -81,9 +87,7 @@ function MiniChip({ member }: { member: StaffForServicePanel }) {
         {initials}
       </span>
       <span style={{ fontWeight: 500 }}>
-        {/* First name only to stay compact */}
-        {member.full_name.split(" ")[0]}
-        {member.full_name.includes(" ") ? ` ${member.full_name.split(" ")[1]?.charAt(0)}.` : ""}
+        {compactName}
       </span>
     </span>
   );

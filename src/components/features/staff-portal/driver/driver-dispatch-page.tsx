@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Truck } from "lucide-react";
-import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
 import { DriverDispatchCard } from "./driver-dispatch-card";
+import { DriverEmptyState } from "./driver-empty-state";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 
 type Tab = "upcoming" | "history";
@@ -15,13 +15,11 @@ type DriverDispatchPageProps = {
 
 function EmptyUpcoming() {
   return (
-    <div style={{ backgroundColor: "#fff", borderRadius: 16, border: "1px solid var(--cs-border-soft)", padding: "2.5rem 1.5rem", textAlign: "center", boxShadow: "var(--cs-shadow-xs)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.625rem" }}>
-      <Truck size={30} color="var(--cs-text-muted)" style={{ opacity: 0.35 }} />
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--cs-text)" }}>No dispatch assigned</div>
-      <div style={{ fontSize: 12.5, color: "var(--cs-text-muted)", lineHeight: 1.5 }}>
-        CRM-assigned jobs will appear here once dispatched.
-      </div>
-    </div>
+    <DriverEmptyState
+      icon={Truck}
+      title="No dispatch assigned"
+      description="CRM-assigned jobs will appear here once dispatched."
+    />
   );
 }
 
@@ -38,7 +36,7 @@ export function DriverDispatchPage({ upcoming, history }: DriverDispatchPageProp
   const upCount = upcoming.length;
 
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", position: "sticky", top: 0, zIndex: 30 }}>
         <div style={{ padding: "0.875rem 1rem 0" }}>
           <h1 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cs-text)" }}>Dispatch</h1>
@@ -66,8 +64,6 @@ export function DriverDispatchPage({ upcoming, history }: DriverDispatchPageProp
           : history.map((item) => <DriverDispatchCard key={item.id} item={item} />)
         }
       </div>
-
-      <DriverMobileBottomNav />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { BriefcaseBusiness, CheckCircle2, Phone } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   getStaffDisplayMeta,
+  getStaffInternalName,
   readBranchName,
 } from "@/components/features/staff/staff-management-utils";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ export function EditStaffProfileIdentityCard({
   serviceCount: number;
 }) {
   const meta = getStaffDisplayMeta(staffMember);
+  const displayName = getStaffInternalName(staffMember);
   const branchName = readBranchName(staffMember.branches);
   const statusLabel = staffMember.is_active ? "Active" : "Inactive";
   const roleLine = [
@@ -32,7 +34,7 @@ export function EditStaffProfileIdentityCard({
           <div className="flex min-w-0 items-center gap-3">
             <div className="relative shrink-0">
               <UserAvatar
-                name={staffMember.full_name}
+                name={displayName}
                 imageUrl={staffMember.avatar_url}
                 size="lg"
                 className="size-14 border border-[#bdd7c2] bg-[#e5f4ea] text-base text-[#276143]"
@@ -47,7 +49,7 @@ export function EditStaffProfileIdentityCard({
             </div>
             <div className="min-w-0">
               <h3 className="truncate text-lg font-bold text-[var(--cs-text)]">
-                {staffMember.full_name}
+                {displayName}
               </h3>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--cs-text-secondary)]">
                 <span>{roleLine.join(" · ") || meta.roleLabel}</span>

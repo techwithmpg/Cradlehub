@@ -20,6 +20,7 @@ async function logoutAction() {
 type HeaderProps = {
   role:      string;
   fullName:  string;
+  displayName?: string;
   avatarUrl?: string | null;
   readiness?: ReadinessResult | null;
   workspaces?: WorkspaceAccess[];
@@ -39,8 +40,9 @@ function settingsHref(role: string): string {
   return "/crm/setup";
 }
 
-export function Header({ role, fullName, avatarUrl, readiness, workspaces = [] }: HeaderProps) {
+export function Header({ role, fullName, displayName, avatarUrl, readiness, workspaces = [] }: HeaderProps) {
   const canSwitchWorkspace = workspaces.length > 1;
+  const headerName = displayName ?? fullName;
 
   return (
     <header style={{
@@ -86,7 +88,7 @@ export function Header({ role, fullName, avatarUrl, readiness, workspaces = [] }
         <details className="group relative">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg px-1.5 py-1 outline-none transition hover:bg-[var(--cs-surface-warm)] focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30">
             <UserAvatar
-              name={fullName}
+              name={headerName}
               imageUrl={avatarUrl}
               size="sm"
               className="border border-border-soft"
@@ -95,14 +97,17 @@ export function Header({ role, fullName, avatarUrl, readiness, workspaces = [] }
               className="hidden sm:block"
               style={{ fontSize: 12.5, color: "var(--cs-text-secondary)" }}
             >
-              {fullName.split(" ")[0]}
+              {headerName.split(" ")[0]}
             </span>
             <ChevronDown className="size-3.5 text-[var(--cs-text-muted)] transition group-open:rotate-180" />
           </summary>
 
           <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-2 shadow-xl shadow-black/10">
             <div className="px-2.5 py-2">
-              <p className="truncate text-sm font-semibold text-[var(--cs-text)]">{fullName}</p>
+              <p className="truncate text-sm font-semibold text-[var(--cs-text)]">{headerName}</p>
+              {headerName !== fullName ? (
+                <p className="truncate text-xs text-[var(--cs-text-muted)]">{fullName}</p>
+              ) : null}
               <p className="text-xs capitalize text-[var(--cs-text-muted)]">{role.replace(/_/g, " ")}</p>
             </div>
             <div className="my-1 h-px bg-[var(--cs-border-soft)]" />

@@ -8,6 +8,7 @@ import {
   buildNoOpeningShiftIssue,
   buildOnLeaveTodayIssue,
 } from "./schedule-readiness-utils";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 type Props = { items: StaffScheduleItem[]; rulesByGroup?: Record<string, StaffGroupScheduleRule[]> };
 
@@ -167,7 +168,7 @@ function IssueCard({
       borderRadius: "var(--cs-r-md)",
       padding: "11px 13px",
     }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: "var(--cs-text)" }}>{item.staff.full_name}</div>
+      <div style={{ fontSize: 12, fontWeight: 500, color: "var(--cs-text)" }}>{getStaffAdminName(item.staff)}</div>
       <div style={{ fontSize: 10, color: "var(--cs-text-muted)", marginTop: 2, textTransform: "capitalize" }}>
         {(item.staff.staff_type ?? "staff").replace("_", " ")}
         {item.staff.tier ? ` · ${item.staff.tier}` : ""}

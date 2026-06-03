@@ -5,31 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MapPin, Clock, Navigation, ChevronLeft } from "lucide-react";
 import { formatTime12h } from "@/lib/utils/time-format";
-import { DriverMobileBottomNav } from "./driver-mobile-bottom-nav";
 import { DriverJobStatusStepper } from "./driver-job-status-stepper";
+import { DriverStatusBadge } from "./driver-status-badge";
 import { updateBookingProgressAction } from "@/app/(dashboard)/staff-portal/actions";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import type { DispatchStatus } from "@/features/dispatch/types";
-
-const STATUS_LABEL: Record<DispatchStatus, string> = {
-  awaiting_driver: "Unassigned",
-  ready: "Assigned",
-  in_route: "On the Way",
-  arrived_at_customer: "Arrived",
-  service_started: "In Progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
-
-const STATUS_STYLE: Record<DispatchStatus, { bg: string; color: string }> = {
-  awaiting_driver: { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" },
-  ready: { bg: "rgba(251,191,36,0.12)", color: "#92700A" },
-  in_route: { bg: "var(--cs-success-bg)", color: "var(--cs-success)" },
-  arrived_at_customer: { bg: "rgba(59,130,246,0.1)", color: "#2563EB" },
-  service_started: { bg: "rgba(139,92,246,0.1)", color: "#7C3AED" },
-  completed: { bg: "var(--cs-success-bg)", color: "var(--cs-success)" },
-  cancelled: { bg: "rgba(239,68,68,0.08)", color: "#DC2626" },
-};
 
 type JobDetailItem = RealDispatchItem & { durationMinutes: number | null; notes: string | null };
 
@@ -60,8 +40,6 @@ function getNavUrl(item: RealDispatchItem): string | null {
 export function DriverJobDetailsPage({ job }: { job: JobDetailItem }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const { bg, color } = STATUS_STYLE[job.dispatchStatus];
-  const statusLabel = STATUS_LABEL[job.dispatchStatus];
   const action = getDriverAction(job.dispatchStatus);
   const navUrl = getNavUrl(job);
   const address = job.formattedAddress ?? job.area;
@@ -74,7 +52,7 @@ export function DriverJobDetailsPage({ job }: { job: JobDetailItem }) {
   }
 
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       {/* Header */}
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem", position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", gap: "0.75rem" }}>
         <Link href="/staff-portal/jobs" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--cs-border-soft)", backgroundColor: "var(--cs-surface-warm)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cs-text-muted)", textDecoration: "none" }}>
@@ -83,9 +61,7 @@ export function DriverJobDetailsPage({ job }: { job: JobDetailItem }) {
         <div style={{ flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: 19, fontWeight: 700, color: "var(--cs-text)" }}>Job Details</h1>
         </div>
-        <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 100, backgroundColor: bg, color }}>
-          {statusLabel}
-        </span>
+        <DriverStatusBadge status={job.dispatchStatus} />
       </div>
 
       <div style={{ padding: "0.875rem 1rem", display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>
@@ -151,8 +127,6 @@ export function DriverJobDetailsPage({ job }: { job: JobDetailItem }) {
           </button>
         )}
       </div>
-
-      <DriverMobileBottomNav />
     </div>
   );
 }

@@ -8,6 +8,7 @@ export type StaffPortalStaff = {
   system_role: string;
   staff_type: string | null;
   branch_id: string | null;
+  branches?: { name: string | null } | { name: string | null }[] | null;
   avatar_url?: string | null;
   avatar_path?: string | null;
 };

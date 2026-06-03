@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { getMyProfileAction } from "../actions";
 import { StaffProfileDetailsForm } from "@/components/features/staff-portal/staff-profile-details-form";
 import { StaffProfilePhotoUploader } from "@/components/features/staff-portal/staff-profile-photo-uploader";
-import { getStaffNickname } from "@/lib/staff/display-name";
+import { getStaffDisplayName, getStaffNickname } from "@/lib/staff/display-name";
 
 function formatToken(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
@@ -27,10 +27,11 @@ export default async function StaffProfilePage() {
 
   const { staff } = result;
   const nickname = getStaffNickname(staff);
+  const displayName = getStaffDisplayName(staff);
   const tierLabel = formatToken(staff.tier, "N/A");
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="mx-auto max-w-2xl px-4 pb-24 sm:px-0 sm:pb-0">
       <PageHeader
         title="Profile Settings"
         description="Manage your personal information and profile photo."
@@ -41,7 +42,7 @@ export default async function StaffProfilePage() {
         <section>
           <StaffProfilePhotoUploader
             staffId={staff.id}
-            fullName={staff.full_name}
+            fullName={displayName}
             initialAvatarUrl={staff.avatar_url}
           />
         </section>

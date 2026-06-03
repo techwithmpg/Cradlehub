@@ -50,7 +50,7 @@ export function StaffSummaryCard({ staff, totalAppointments, nextAppointmentTime
       }}
     >
       <UserAvatar
-        name={staff.full_name}
+        name={preferredName}
         imageUrl={staff.avatar_url}
         size="md"
         className="size-12 border-2 border-background shadow-sm"

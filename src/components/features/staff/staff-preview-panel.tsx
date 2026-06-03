@@ -29,6 +29,7 @@ import {
   formatStaffDate,
   getStaffDisplayMeta,
   getInitials,
+  getStaffInternalName,
   getStaffStatus,
   getStaffStatusLabel,
   readBranchName,
@@ -72,7 +73,7 @@ export function StaffPreviewPanel({
   const meta = getStaffDisplayMeta(staff);
   const nickname = getStaffNickname(staff);
   const branchName = readBranchName(staff.branches);
-  const displayName = status === "invited" ? "Invite link generated" : staff.full_name;
+  const displayName = status === "invited" ? "Invite link generated" : getStaffInternalName(staff);
   const displayPosition = status === "invited" ? "Pending invitation" : meta.subtitle;
   const canApprove = status === "awaiting";
   const profileActionLabel = status === "active" ? "Edit Profile" : "Review Profile";

@@ -6,6 +6,7 @@ import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypas
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { getUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
+import { getStaffDisplayName } from "@/lib/staff/display-name";
 
 // force-dynamic is NOT set here — the layout is already dynamic because
 // createClient() calls cookies() from next/headers, which inherently opts
@@ -26,6 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Fetch CRM readiness for the header indicator (failure-safe).
   const branchId = resolvedMe.branch_id ?? null;
+  const displayName = getStaffDisplayName(resolvedMe);
   const readiness = branchId
     ? await getCrmReadinessCached(branchId).catch(() => null)
     : null;
@@ -40,7 +42,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <Sidebar
         role={resolvedMe.system_role}
         fullName={resolvedMe.full_name}
-        avatarUrl={null}
+        nickname={resolvedMe.nickname}
+        avatarUrl={resolvedMe.avatar_url}
         branchName={(resolvedMe.branches as { name: string } | null)?.name}
       />
 
@@ -54,7 +57,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Header
             role={resolvedMe.system_role}
             fullName={resolvedMe.full_name}
-            avatarUrl={null}
+            displayName={displayName}
+            avatarUrl={resolvedMe.avatar_url}
             readiness={readiness}
             workspaces={workspaces}
           />

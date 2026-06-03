@@ -6,6 +6,7 @@ import { ScheduleEmptyState } from "../workspace/schedule-empty-state";
 import { ScheduleActionTile } from "../workspace/schedule-action-tile";
 import { Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
 import type { StaffAvailabilityItem } from "@/lib/queries/staff";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 type CoverageData = {
   items: StaffAvailabilityItem[];
@@ -133,7 +134,7 @@ export function CoverageIssuesTab({ branchId }: { branchId: string }) {
                   border: "1px solid var(--cs-info)",
                 }}
               >
-                {i.staff.full_name}
+                {getStaffAdminName(i.staff)}
               </span>
             ))}
           </div>

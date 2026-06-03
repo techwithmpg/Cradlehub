@@ -12,6 +12,7 @@ import type { StaffMember } from "@/components/features/staff/staff-management-u
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import { toCrmStaffServiceRows } from "./service-row-adapter";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 type BranchLite = { id: string; name: string };
 
@@ -153,7 +154,7 @@ export function CrmStaffManagementTab({
         onClose={() => setServicesStaff(null)}
         onSave={handleSaveServices}
         saving={isSaving}
-        staffName={servicesStaff?.full_name}
+        staffName={servicesStaff ? getStaffAdminName(servicesStaff) : undefined}
       />
 
     </>

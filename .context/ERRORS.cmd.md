@@ -171,3 +171,11 @@
 - **Symptom:** The in-app browser reached `http://localhost:3000/staff-portal/profile`, but unauthenticated traffic redirected to `http://localhost:3000/login`.
 - **Impact:** Type-check, lint, production build, and protected-route reachability passed, but the authenticated Staff Portal profile edit/save flow still needs a valid local staff session.
 - **Resolution:** No code change required for this limitation. Re-run browser verification after logging in locally as a staff or CSR+staff user, edit Full Name/Nickname, save, and confirm role/tier fields remain locked.
+
+---
+
+## 2026-06-03 - DRIVER-STAFF-PORTAL-MOBILE-001 browser/auth verification limitation
+
+- **Symptom:** The existing local dev server at `http://localhost:3000` responded, but unauthenticated staff portal routes redirected to `/login`. Tool discovery did not expose an in-app browser navigation/screenshot tool in this thread.
+- **Impact:** Code-level checks, production build, and protected-route smoke checks passed, but the authenticated mobile visual flow still needs a valid driver staff session to confirm the persistent bottom nav, Profile sheet save/photo controls, schedule cards, and driver job actions in-browser.
+- **Resolution:** No code change required for this limitation. Re-run authenticated browser verification after logging in locally as a driver staff user, then check `/staff-portal`, `/staff-portal/dispatch`, `/staff-portal/map`, `/staff-portal/jobs`, `/staff-portal/schedule`, `/staff-portal/stats`, and the Profile bottom sheet.

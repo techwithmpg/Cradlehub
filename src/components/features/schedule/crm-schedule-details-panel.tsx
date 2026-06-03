@@ -272,7 +272,7 @@ export function CrmScheduleDetailsPanel({
           staff
             ? {
                 id: staff.staff_id,
-                full_name: staff.staff_name,
+                full_name: availabilityItem?.staff.full_name ?? staff.staff_name,
                 nickname: availabilityItem?.staff.nickname ?? null,
                 avatar_url: null,
                 staff_type: availabilityItem?.staff.staff_type ?? null,

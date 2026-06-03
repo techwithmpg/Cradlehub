@@ -21,8 +21,14 @@ import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
   "/staff-portal/today",
+  "/staff-portal/dispatch",
+  "/staff-portal/map",
+  "/staff-portal/jobs",
+  "/staff-portal/jobs/active",
   "/staff-portal/schedule",
   "/staff-portal/week",
+  "/staff-portal/stats",
+  "/staff-portal/more",
   "/staff-portal/profile",
 ] as const;
 
@@ -56,6 +62,9 @@ function revalidateStaffAndOperationalSurfaces(branchId?: string | null): void {
     revalidatePath(path);
   }
   revalidateOperationalBookingSurfaces(branchId);
+  revalidatePath("/crm/dispatch");
+  revalidatePath("/crm/live-operations");
+  revalidatePath("/crm/live-map");
 }
 
 function isMissingStaffProfileColumnError(message: string): boolean {
@@ -81,7 +90,7 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
 
   const primary = await supabase
     .from("staff")
-    .select("id, full_name, nickname, tier, system_role, staff_type, branch_id, avatar_url, avatar_path")
+    .select("id, full_name, nickname, tier, system_role, staff_type, branch_id, avatar_url, avatar_path, branches(name)")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -92,7 +101,7 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   if (primary.error && isMissingStaffProfileColumnError(primary.error.message)) {
     const fallback = await supabase
       .from("staff")
-      .select("id, full_name, nickname, tier, system_role, branch_id")
+      .select("id, full_name, nickname, tier, system_role, branch_id, branches(name)")
       .eq("auth_user_id", user.id)
       .eq("is_active", true)
       .maybeSingle();
@@ -594,7 +603,7 @@ export async function updateBookingProgressAction({
     (booking as { driver_id?: string | null }).driver_id === me.id;
   const isManager = ["owner", "manager"].includes(me.system_role);
   const isCsr = ["csr", "csr_head", "csr_staff"].includes(me.system_role);
-  const isDriver = me.system_role === "driver";
+  const isDriver = me.system_role === "driver" || me.staff_type === "driver";
 
   // Categorize the requested action
   const therapistActions: BookingProgressStatus[] = [
