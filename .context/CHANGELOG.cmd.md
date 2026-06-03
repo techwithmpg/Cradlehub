@@ -3578,3 +3578,114 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 89 routes
 - Browser route checks for `/crm/today`, `/crm/customers`, `/crm/staff`, and `/crm/services` all redirected to `/login` in the in-app browser because no authenticated CRM/CSR session was available.
+
+---
+
+### 2026-06-03 - Codex (CRM-BOOKINGS-WORKFLOW-001 - Booking workflow tabs, modals, and callback follow-up)
+
+**Task:** Convert CRM Bookings into an operational workflow surface with in-page tabs, centralized booking action modals, room assignment actions, and embedded callback follow-up.
+
+**Files Created:**
+- `src/components/features/bookings/booking-followup-modal.tsx` - centralized Booking Follow-up modal.
+- `src/components/features/bookings/customer-arrived-modal.tsx` - Customer Arrived confirmation modal.
+- `src/components/features/bookings/room-assignment-modal.tsx` - Assign Room / Change Room modal using branch resource availability.
+- `src/components/features/bookings/callback-followup-panel.tsx` - Bookings callback follow-up tab wrapper around the existing waitlist table.
+- `src/lib/bookings/crm-booking-status.ts` - shared CRM booking status grouping helpers.
+- `src/lib/bookings/revalidate-booking-surfaces.ts` - shared booking surface/cache revalidation helper.
+- `tests/lib/bookings/crm-booking-status.test.ts` - focused coverage for CRM booking status grouping.
+
+**Files Changed:**
+- `src/components/features/bookings/bookings-workspace.tsx` - added workflow tabs: Needs Confirmation, Confirmed, Waiting / Arrived, In Service, Completed, Callback Follow-up.
+- `src/components/features/bookings/bookings-table.tsx` - lifted booking actions into centralized modals and added next-action panel behavior.
+- `src/components/features/bookings/crm-bookings-view.tsx` - added SWR tab payload handling, `bookingId`/legacy `highlight` deep-link support, and mutation refresh.
+- `src/app/(dashboard)/crm/bookings/actions.ts` - added CRM confirm/follow-up/arrival/room assignment server actions.
+- `src/app/(dashboard)/crm/bookings/page.tsx` and `src/app/api/crm/bookings/route.ts` - added tab-aware fetching and callback follow-up data.
+- `src/lib/queries/bookings.ts` and `src/lib/queries/booking-resources.ts` - added delivery/branch/resource details and pending queue support.
+- `src/app/(dashboard)/crm/waitlist/actions.ts` - branch-guarded waitlist updates and broader CRM revalidation.
+- `src/app/(dashboard)/crm/today/page.tsx` and CRM Today components - added pending/incoming queue visibility and canonical booking deep links.
+- Booking creation/status/payment actions - moved booking surface revalidation through the shared helper.
+
+**Behavior:**
+- CRM Bookings now opens as an operational workflow with tab-level counts and URL-synced `?tab=`.
+- Pending/incoming bookings include `pending`, `pending_payment`, and `pending_crm_confirmation`.
+- Booking Follow-up supports Confirmed, No Answer, Reschedule, Confirm Later, note capture, follow-up time, and cancellation.
+- Customer Arrived marks in-spa bookings as `booking_progress_status = "checked_in"`.
+- Room assignment uses the existing resource availability engine and excludes closed/home-service bookings.
+- Callback Follow-up is available directly inside Bookings and reuses the existing waitlist follow-up table.
+- Today queue links now use `bookingId` instead of `highlight`; legacy `highlight` still resolves in Bookings.
+
+**Verification:**
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm test -- tests/lib/bookings/crm-booking-status.test.ts`: Passing, 2 tests
+- `pnpm build`: Passing, 89 routes
+- Route smoke checks for `/crm/bookings?tab=needs-confirmation`, `/crm/bookings?tab=confirmed`, and `/crm/bookings?tab=callback-followup`: HTTP 200
+- API unauthenticated smoke check for `/api/crm/bookings?tab=confirmed`: expected `{"error":"Unauthorized"}`
+- Authenticated browser click-through remains pending until a local CRM/CSR session is available.
+
+---
+
+### 2026-06-03 - Codex (CRM-BOOKINGS-COMMAND-CENTER-001 - Premium Bookings UI)
+
+**Task:** Redesign the CRM Bookings page into a premium Bookings Command Center without removing existing booking workflow logic.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/bookings/page.tsx` - loads unified command-center booking rows, cash summary, and callback follow-up rows.
+- `src/app/api/crm/bookings/route.ts` - returns the same command-center payload and replaces direct console logging with `logError`.
+- `src/lib/queries/bookings.ts` - added `getCrmBookingsCommandCenterRows()` to merge today's schedule with the pending/incoming CRM queue.
+- `src/components/features/bookings/bookings-workspace.tsx` - rebuilt the page shell with title/subtitle, KPI cards, exact six workflow tabs, tab hints, filters, and callback follow-up placement.
+- `src/components/features/bookings/bookings-table.tsx` - rebuilt the list/detail layout with command-center table columns, selected-row styling, right-side Selected Booking panel, compact payment confirmation, and next-best action buttons.
+- `src/components/features/bookings/callback-followup-panel.tsx` - restyled callback summary cards to match the command-center surface.
+- `src/components/shared/overlays/admin-dialog.tsx` - added dim blurred modal backdrop.
+
+**Behavior:**
+- CRM Bookings now opens as `Bookings Command Center` with the requested subtitle and primary `Refresh` / `New Booking` controls.
+- Workflow tabs are in-page and count-backed: Needs Confirmation, Confirmed, Waiting / Arrived, In Service, Completed, Callback Follow-up.
+- The booking table now shows Customer, Service, Time, Source/Type, Status, Payment, Amount, and Next Action.
+- The selected booking rail centralizes booking details, payment status, confirmation hold/payment confirmation, next best action, recommendations, and secondary menus.
+- Home-service travel states stay visible in the workflow instead of falling between tabs.
+
+**Verification:**
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 89 routes
+- In-app browser reached `http://localhost:3000/crm/bookings` but redirected to `/login`; authenticated visual click-through still needs a CRM/CSR browser session.
+
+---
+
+### 2026-06-03 — Claude Code (Service Countdown Timer Chip)
+
+**Task:** Add a compact live service timer to the CRM selected booking right panel.
+
+**Files Created:**
+- `src/components/features/bookings/service-countdown-chip.tsx` — new `ServiceCountdownChip` client component.
+
+**Files Changed:**
+- `src/components/features/bookings/bookings-table.tsx` — imported `ServiceCountdownChip` and inserted it as the first item in the `BookingDetailsPanel` sections container, between the compact hero card and `CrmNextActionsPanel`.
+
+**Implementation:**
+- Six timer phases: `buffer` (start buffer), `delayed` (start overdue), `running` (service in progress), `grace` (wrap-up window), `overtime` (past grace), `done` (completed tiny chip).
+- Phase logic:
+  - `checked_in` + `resourceId` set → 5-minute start buffer counting down from `checkedInAt` (or mount time as fallback).
+  - `session_started` / `in_progress` → countdown from `sessionStartedAt + durationMinutes`; transitions to grace then overtime automatically.
+  - `completed` → tiny one-line "Completed · Service finished" chip.
+  - Pending, cancelled, no_show, home service → returns `null` (no chip rendered).
+- Hydration safety: `tick` state is `null` on first render; both `mountMs` and first `nowMs` are set inside a `setTimeout(..., 0)` callback so setState is never called directly in the effect body (avoids `react-hooks/set-state-in-effect`). `mountMs` is stored in state (not a ref) to avoid `react-hooks/refs` read-during-render error.
+- Progress bar animates with `transition-[width] duration-700 ease-linear` using CSS variable design tokens.
+- Icons: `Clock` (buffer), `AlertTriangle` (delayed/overtime), `Timer` (running), `Hourglass` (grace), `CheckCircle2` (done).
+- Color scheme: sand/gold for buffer+grace, green for running, soft red for delayed+overtime, neutral for done — all CSS variables only.
+
+**Visual order in right panel:**
+```
+[compact hero card]
+[ServiceCountdownChip — service timer]  ← new
+[CrmNextActionsPanel — Next Best Action]
+[Booking Details]
+[Payment / Confirmation]
+```
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: ✅ Passing, 89 routes
+- Authenticated visual click-through still needs a valid local CRM/CSR browser session.

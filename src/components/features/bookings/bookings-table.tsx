@@ -1,19 +1,37 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
-import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  CalendarClock,
+  CheckCircle2,
+  Copy,
+  DoorOpen,
+  Home,
+  MapPin,
+  Phone,
+  Play,
+  ReceiptText,
+  UserX,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 import { PaymentStatusBadge } from "@/components/features/dashboard/payment-status-badge";
 import { PaymentMethodBadge } from "@/components/features/dashboard/payment-method-badge";
 import { BookingActionMenu } from "@/components/features/dashboard/booking-action-menu";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { getStaffAdminName } from "@/lib/staff/display-name";
-import { formatTime, formatCurrency } from "@/lib/utils";
+import { cn, formatTime, formatCurrency } from "@/lib/utils";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
+import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import { BookingFollowupModal, type BookingFollowupResult } from "./booking-followup-modal";
+import { CustomerArrivedModal } from "./customer-arrived-modal";
+import { RoomAssignmentModal } from "./room-assignment-modal";
+import { ServiceCountdownChip } from "./service-countdown-chip";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 
 type OneOrMany<T> = T | T[] | null;
@@ -31,6 +49,149 @@ function readPricePaid(metadata: Record<string, unknown> | null | undefined): nu
   if (!metadata) return 0;
   const n = Number(metadata["price_paid"] ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+function isHomeServiceBooking(booking: WorkspaceBookingRow): boolean {
+  return (
+    booking.delivery_type === "home_service" ||
+    booking.type === "home_service" ||
+    booking.metadata?.delivery_type === "home_service" ||
+    booking.metadata?.type === "home_service"
+  );
+}
+
+function isClosedOperationalBooking(booking: WorkspaceBookingRow): boolean {
+  return (
+    booking.status === "completed" ||
+    booking.status === "cancelled" ||
+    booking.status === "no_show" ||
+    booking.booking_progress_status === "completed" ||
+    booking.booking_progress_status === "no_show"
+  );
+}
+
+function canUseRoomAssignment(booking: WorkspaceBookingRow): boolean {
+  return !isHomeServiceBooking(booking) && !isClosedOperationalBooking(booking);
+}
+
+function isNotStartedProgress(status: string | null | undefined): boolean {
+  return !status || status === "not_started";
+}
+
+function formatBookingDate(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatLongBookingDate(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function sourceLabel(booking: WorkspaceBookingRow): string {
+  if (isHomeServiceBooking(booking)) return "Home Service";
+  if (booking.type === "online") return "Online";
+  if (booking.type === "walkin") return "Walk-in";
+  return booking.type || "Booking";
+}
+
+function customerInitials(name: string | null | undefined): string {
+  if (!name) return "CH";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "CH";
+  const first = parts[0]?.[0] ?? "";
+  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  return `${first}${second}`.toUpperCase() || "CH";
+}
+
+function getOperationalStatus(booking: WorkspaceBookingRow): { label: string; tone: "pending" | "confirmed" | "waiting" | "service" | "completed" | "neutral" | "danger" } {
+  const progress = booking.booking_progress_status ?? null;
+  if (isCrmPendingBookingStatus(booking.status)) return { label: "Pending Call", tone: "pending" };
+  if (booking.status === "cancelled") return { label: "Cancelled", tone: "danger" };
+  if (booking.status === "no_show" || progress === "no_show") return { label: "No Show", tone: "danger" };
+  if (booking.status === "completed" || progress === "completed") return { label: "Completed", tone: "completed" };
+  if (booking.status === "in_progress" || progress === "session_started") return { label: "In Service", tone: "service" };
+  if (progress === "travel_started") return { label: "Travel Started", tone: "service" };
+  if (progress === "arrived") return { label: "Arrived", tone: "waiting" };
+  if (progress === "checked_in") return { label: "Checked In", tone: "waiting" };
+  if (booking.status === "confirmed") return { label: "Confirmed", tone: "confirmed" };
+  return { label: booking.status.replaceAll("_", " "), tone: "neutral" };
+}
+
+function getNextActionLabel(booking: WorkspaceBookingRow): string {
+  const progress = booking.booking_progress_status ?? null;
+  const isHomeService = isHomeServiceBooking(booking);
+  if (isClosedOperationalBooking(booking)) return "Review summary";
+  if (isCrmPendingBookingStatus(booking.status)) return "Call to confirm";
+  if (isHomeService) {
+    if (booking.status === "confirmed" && isNotStartedProgress(progress)) return "Coordinate dispatch";
+    if (progress === "travel_started") return "Track travel";
+    if (progress === "arrived") return "Start service";
+  }
+  if (booking.status === "confirmed" && isNotStartedProgress(progress)) return "Awaiting arrival";
+  if (progress === "checked_in" && !booking.resource_id) return "Assign room";
+  if (progress === "checked_in") return "Start service";
+  if (booking.status === "in_progress" || progress === "session_started") return "Complete service";
+  return "Follow up";
+}
+
+function statusToneClass(tone: ReturnType<typeof getOperationalStatus>["tone"]): string {
+  switch (tone) {
+    case "pending":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    case "confirmed":
+      return "border-[var(--cs-success-bg)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]";
+    case "waiting":
+      return "border-[var(--cs-sand-mist)] bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]";
+    case "service":
+      return "border-[var(--cs-info-bg)] bg-[var(--cs-info-bg)] text-[var(--cs-info-text)]";
+    case "completed":
+      return "border-[var(--cs-success-bg)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]";
+    case "danger":
+      return "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]";
+    case "neutral":
+      return "border-[var(--cs-neutral-bg)] bg-[var(--cs-neutral-bg)] text-[var(--cs-neutral-text)]";
+  }
+}
+
+function OperationalStatusPill({ booking }: { booking: WorkspaceBookingRow }) {
+  const status = getOperationalStatus(booking);
+  return (
+    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize", statusToneClass(status.tone))}>
+      {status.label}
+    </span>
+  );
+}
+
+function SourcePill({ booking }: { booking: WorkspaceBookingRow }) {
+  const isHomeService = isHomeServiceBooking(booking);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cs-text-secondary)]">
+      {isHomeService ? <Home size={12} /> : <MapPin size={12} />}
+      {sourceLabel(booking)}
+    </span>
+  );
+}
+
+function readAddOns(metadata: Record<string, unknown> | null | undefined): string | null {
+  const raw = metadata?.addons ?? metadata?.add_ons;
+  if (!Array.isArray(raw)) return null;
+  const labels = raw
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object" && "name" in item) {
+        const name = (item as { name?: unknown }).name;
+        return typeof name === "string" ? name : null;
+      }
+      return null;
+    })
+    .filter((item): item is string => Boolean(item));
+  return labels.length > 0 ? labels.join(", ") : null;
 }
 
 function getPageIndexes(totalPages: number, currentPage: number): number[] {
@@ -52,22 +213,34 @@ type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }
 type BookingsTableProps = {
   bookings: WorkspaceBookingRow[];
   viewerRole: string;
+  dispatchHref?: string;
   search?: string;
   statusAction?: ActionFn;
   paymentAction?: ActionFn;
   initialSelectedId?: string;
   confirmPaymentAction?: ActionFn;
+  onBookingsChanged?: () => void;
 };
+
+type BookingModalState =
+  | { type: "followup"; booking: WorkspaceBookingRow; initialResult: BookingFollowupResult }
+  | { type: "arrival"; booking: WorkspaceBookingRow }
+  | { type: "room"; booking: WorkspaceBookingRow }
+  | null;
 
 export function BookingsTable({
   bookings,
   viewerRole,
+  dispatchHref,
   search,
   statusAction,
   paymentAction,
   initialSelectedId,
   confirmPaymentAction,
+  onBookingsChanged,
 }: BookingsTableProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const filtered = search
     ? bookings.filter((booking) => {
         const customer = readFirst(booking.customers);
@@ -83,6 +256,14 @@ export function BookingsTable({
       })
     : bookings;
 
+  const requestedBookingId =
+    searchParams.get("bookingId") ?? searchParams.get("highlight") ?? initialSelectedId ?? null;
+  const shouldOpenRoomAssignment = searchParams.get("openRoomAssignment") === "1";
+  const initialRoomBooking =
+    shouldOpenRoomAssignment && requestedBookingId
+      ? filtered.find((booking) => booking.id === requestedBookingId && canUseRoomAssignment(booking) && !booking.resource_id) ?? null
+      : null;
+
   const [selectedId, setSelectedId] = useState<string | null>(() => initialSelectedId ?? null);
   const [pageIndex, setPageIndex] = useState(() => {
     if (!initialSelectedId) return 0;
@@ -90,6 +271,17 @@ export function BookingsTable({
     return idx >= 0 ? Math.floor(idx / DEFAULT_ROWS_PER_PAGE) : 0;
   });
   const [rowsPerPage, setRowsPerPage] = useState<number>(DEFAULT_ROWS_PER_PAGE);
+  const [modalState, setModalState] = useState<BookingModalState>(() =>
+    initialRoomBooking ? { type: "room", booking: initialRoomBooking } : null
+  );
+
+  useEffect(() => {
+    if (!shouldOpenRoomAssignment) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("openRoomAssignment");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, [shouldOpenRoomAssignment]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
@@ -113,6 +305,25 @@ export function BookingsTable({
     setPageIndex(0);
   }
 
+  function handleBookingsChanged() {
+    onBookingsChanged?.();
+    router.refresh();
+  }
+
+  function handleArrivedSuccess() {
+    if (modalState?.type !== "arrival") return;
+    const arrivedBooking = {
+      ...modalState.booking,
+      booking_progress_status: "checked_in",
+    };
+    handleBookingsChanged();
+    if (canUseRoomAssignment(arrivedBooking) && !arrivedBooking.resource_id) {
+      setModalState({ type: "room", booking: arrivedBooking });
+      return;
+    }
+    setModalState(null);
+  }
+
   if (filtered.length === 0) {
     return (
       <EmptyState
@@ -130,61 +341,76 @@ export function BookingsTable({
   return (
     <>
       <style>{`
-        .bw-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        .bw-th { font-size: 0.6875rem; font-weight: 600; color: var(--cs-text-muted);
-          text-transform: uppercase; letter-spacing: 0.05em; padding: 0.5rem 0.625rem;
-          background: var(--cs-surface-warm); border-bottom: 1px solid var(--cs-border);
-          white-space: nowrap; text-align: left; }
-        .bw-td { padding: 0.625rem 0.625rem; vertical-align: middle; border-bottom: 1px solid var(--cs-border); }
+        .bw-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        .bw-th { padding: 0.75rem 0.875rem; text-align: left; font-size: 0.66rem; font-weight: 700;
+          text-transform: uppercase; letter-spacing: 0.06em; color: var(--cs-text-muted);
+          background: var(--cs-surface-warm); border-bottom: 1px solid var(--cs-border-soft); white-space: nowrap; }
+        .bw-td { padding: 0.8rem 0.875rem; vertical-align: middle; border-bottom: 1px solid var(--cs-border-soft);
+          background: var(--cs-surface); }
+        .bw-row { cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease; }
+        .bw-row:hover .bw-td { background: var(--cs-sand-tint); }
+        .bw-row-selected .bw-td { background: var(--cs-sand-tint); }
+        .bw-row-selected .bw-td:first-child { box-shadow: inset 4px 0 0 var(--cs-sand); }
         .bw-row:last-child .bw-td { border-bottom: none; }
-        .bw-row { cursor: pointer; transition: background-color 0.12s ease; }
-        .bw-row:hover .bw-td { background-color: var(--cs-surface-warm); }
-        .bw-row-selected .bw-td { background-color: var(--cs-sand-mist); }
         .bw-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .bw-col-id { width: 92px; font-family: var(--font-mono, monospace); white-space: nowrap; }
-        .bw-col-customer { width: 164px; }
-        .bw-col-type { width: 86px; }
-        .bw-col-time { width: 82px; white-space: nowrap; }
-        .bw-col-status { width: 108px; }
-        .bw-col-payment { width: 88px; }
-        .bw-col-amount { width: 92px; }
-        .bw-col-actions { width: 42px; white-space: nowrap; text-align: right; }
-        .bw-pagination { border-top: 1px solid var(--cs-border); background: var(--cs-surface);
+        .bw-col-customer { width: 190px; }
+        .bw-col-service { width: 190px; }
+        .bw-col-time { width: 106px; }
+        .bw-col-source { width: 118px; }
+        .bw-col-status { width: 128px; }
+        .bw-col-payment { width: 104px; }
+        .bw-col-amount { width: 98px; }
+        .bw-col-next { width: 140px; }
+        .bw-col-actions { width: 54px; white-space: nowrap; text-align: right; }
+        .bw-pagination { border-top: 1px solid var(--cs-border-soft); background: var(--cs-surface-warm);
           display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-          flex-wrap: wrap; padding: 0.75rem; }
+          flex-wrap: wrap; padding: 0.875rem; }
         .bw-page-controls { display: flex; align-items: center; justify-content: center; gap: 0.25rem; flex-wrap: wrap; }
-        .bw-page-button { height: 30px; min-width: 30px; border-radius: 6px; border: 1px solid var(--cs-border);
+        .bw-page-button { height: 31px; min-width: 31px; border-radius: 999px; border: 1px solid var(--cs-border);
           background: var(--cs-surface); color: var(--cs-text); font-size: 0.75rem; cursor: pointer;
-          display: inline-flex; align-items: center; justify-content: center; padding: 0 0.55rem; }
+          display: inline-flex; align-items: center; justify-content: center; padding: 0 0.65rem; }
         .bw-page-button:disabled { opacity: 0.45; cursor: not-allowed; }
-        .bw-page-button-active { background: var(--cs-sand-mist); border-color: var(--cs-sand); color: var(--cs-text); font-weight: 700; }
-        @media (max-width: 1100px) {
+        .bw-page-button-active { background: var(--cs-crm-text); border-color: var(--cs-crm-text); color: var(--cs-text-inverse); font-weight: 700; }
+        .bw-mobile-list { display: none; }
+        @media (max-width: 1180px) {
           .bw-shell { grid-template-columns: 1fr !important; }
-          .bw-panel { display: none; }
+          .bw-panel { display: block; }
         }
-        @media (max-width: 900px) {
-          .bw-col-type, .bw-col-amount { display: none; }
+        @media (max-width: 980px) {
+          .bw-col-source, .bw-col-amount { display: none; }
         }
-        @media (max-width: 640px) {
-          .bw-col-payment, .bw-col-service { display: none; }
+        @media (max-width: 760px) {
+          .bw-table-wrap { display: none; }
+          .bw-mobile-list { display: grid; }
           .bw-pagination { align-items: stretch; }
           .bw-page-controls { width: 100%; justify-content: flex-start; }
         }
       `}</style>
 
-      <div className="bw-shell" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 330px", gap: "1rem", alignItems: "start" }}>
-        <div style={{ backgroundColor: "var(--cs-surface)", border: "1px solid var(--cs-border)", borderRadius: 10, overflow: "hidden", minWidth: 0 }}>
+      <div className="bw-shell grid grid-cols-[minmax(0,1fr)_360px] items-start gap-4">
+        <div className="min-w-0 overflow-hidden rounded-3xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold text-[var(--cs-text)]">Booking List</div>
+              <div className="text-xs text-[var(--cs-text-muted)]">Select a row to guide the next front-desk action.</div>
+            </div>
+            <div className="rounded-full bg-[var(--cs-surface)] px-3 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
+              {filtered.length} total
+            </div>
+          </div>
+
+          <div className="bw-table-wrap overflow-x-auto">
           <table className="bw-table">
             <thead>
               <tr>
-                <th className="bw-th bw-col-id">Booking ID</th>
                 <th className="bw-th bw-col-customer">Customer</th>
-                <th className="bw-th bw-col-type">Type</th>
-                <th className="bw-th bw-col-time">Time</th>
                 <th className="bw-th bw-col-service">Service</th>
+                <th className="bw-th bw-col-time">Time</th>
+                <th className="bw-th bw-col-source">Source/Type</th>
                 <th className="bw-th bw-col-status">Status</th>
                 <th className="bw-th bw-col-payment">Payment</th>
                 <th className="bw-th bw-col-amount">Amount</th>
+                <th className="bw-th bw-col-next">Next Action</th>
                 <th className="bw-th bw-col-actions" aria-label="Actions" />
               </tr>
             </thead>
@@ -192,12 +418,13 @@ export function BookingsTable({
               {pageBookings.map((booking) => {
                 const customer = readFirst(booking.customers);
                 const service = readFirst(booking.services);
-                const staff = readFirst(booking.staff);
                 const resource = readFirst(booking.branch_resources);
+                const staff = readFirst(booking.staff);
                 const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
                 const price = readPricePaid(booking.metadata);
                 const isSelected = booking.id === selected?.id;
                 const shortId = booking.id.slice(0, 8).toUpperCase();
+                const nextAction = getNextActionLabel(booking);
 
                 return (
                   <tr
@@ -206,52 +433,50 @@ export function BookingsTable({
                     onClick={() => setSelectedId(booking.id)}
                     aria-selected={isSelected}
                   >
-                    <td className="bw-td bw-col-id">
-                      <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                        #{shortId}
-                      </span>
-                    </td>
-
                     <td className="bw-td bw-col-customer">
-                      <div className="bw-truncate" style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }} title={customer?.full_name ?? undefined}>
-                        {customer?.full_name ?? "—"}
-                      </div>
-                      {customer?.phone && (
-                        <div className="bw-truncate" style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", marginTop: 1 }} title={customer.phone}>
-                          {customer.phone}
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-bold text-[var(--cs-sand-dark)]">
+                          {customerInitials(customer?.full_name)}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="bw-truncate text-sm font-semibold text-[var(--cs-text)]" title={customer?.full_name ?? undefined}>
+                            {customer?.full_name ?? "Customer"}
+                          </div>
+                          <div className="bw-truncate text-[11px] text-[var(--cs-text-muted)]" title={customer?.phone ?? shortId}>
+                            {customer?.phone ?? `#${shortId}`}
+                          </div>
                         </div>
-                      )}
-                    </td>
-
-                    <td className="bw-td bw-col-type">
-                      <BookingTypeBadge type={booking.type} />
-                    </td>
-
-                    <td className="bw-td bw-col-time">
-                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
-                        {formatTime(booking.start_time)}
-                      </div>
-                      <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", marginTop: 1 }}>
-                        {new Date(booking.booking_date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
                       </div>
                     </td>
 
                     <td className="bw-td bw-col-service">
-                      <div className="bw-truncate" style={{ fontSize: "0.8125rem", color: "var(--cs-text)" }} title={service?.name ?? undefined}>
-                        {service?.name ?? "—"}
+                      <div className="bw-truncate text-sm font-medium text-[var(--cs-text)]" title={service?.name ?? undefined}>
+                        {service?.name ?? "Service"}
                       </div>
                       <div
-                        className="bw-truncate"
-                        style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", marginTop: 1 }}
-                        title={[staffName, resource?.name].filter(Boolean).join(" · ")}
+                        className="bw-truncate text-[11px] text-[var(--cs-text-muted)]"
+                        title={[staffName, resource?.name].filter(Boolean).join(" / ")}
                       >
                         {staffName}
-                        {resource && <> · {resource.name}</>}
+                        {resource ? ` / ${resource.name}` : ""}
                       </div>
                     </td>
 
+                    <td className="bw-td bw-col-time">
+                      <div className="text-sm font-semibold text-[var(--cs-text)]">
+                        {formatTime(booking.start_time)}
+                      </div>
+                      <div className="text-[11px] text-[var(--cs-text-muted)]">
+                        {formatBookingDate(booking.booking_date)}
+                      </div>
+                    </td>
+
+                    <td className="bw-td bw-col-source">
+                      <SourcePill booking={booking} />
+                    </td>
+
                     <td className="bw-td bw-col-status">
-                      <BookingStatusBadge status={booking.status} />
+                      <OperationalStatusPill booking={booking} />
                     </td>
 
                     <td className="bw-td bw-col-payment">
@@ -260,12 +485,18 @@ export function BookingsTable({
 
                     <td className="bw-td bw-col-amount">
                       {price > 0 ? (
-                        <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)", whiteSpace: "nowrap" }}>
+                        <span className="whitespace-nowrap text-[0.8125rem] font-semibold text-[var(--cs-text)]">
                           {formatCurrency(price)}
                         </span>
                       ) : (
-                        <span style={{ color: "var(--cs-text-muted)" }}>—</span>
+                        <span className="text-[var(--cs-text-muted)]">-</span>
                       )}
+                    </td>
+
+                    <td className="bw-td bw-col-next">
+                      <span className="inline-flex rounded-full bg-[var(--cs-sand-tint)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cs-sand-dark)]">
+                        {nextAction}
+                      </span>
                     </td>
 
                     <td className="bw-td bw-col-actions" onClick={(event) => event.stopPropagation()}>
@@ -275,7 +506,7 @@ export function BookingsTable({
                         userRole={viewerRole}
                         statusAction={statusAction}
                         triggerVariant="icon"
-                        triggerAriaLabel={`Open actions for booking ${shortId}`}
+                        triggerAriaLabel={`Open more actions for booking ${shortId}`}
                       />
                     </td>
                   </tr>
@@ -283,9 +514,55 @@ export function BookingsTable({
               })}
             </tbody>
           </table>
+          </div>
+
+          <div className="bw-mobile-list gap-2 p-3">
+            {pageBookings.map((booking) => {
+              const customer = readFirst(booking.customers);
+              const service = readFirst(booking.services);
+              const price = readPricePaid(booking.metadata);
+              const isSelected = booking.id === selected?.id;
+
+              return (
+                <button
+                  key={booking.id}
+                  type="button"
+                  onClick={() => setSelectedId(booking.id)}
+                  className={cn(
+                    "rounded-2xl border bg-[var(--cs-surface)] p-3 text-left shadow-[var(--cs-shadow-xs)]",
+                    isSelected ? "border-[var(--cs-sand)] bg-[var(--cs-sand-tint)]" : "border-[var(--cs-border-soft)]"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-[var(--cs-text)]">
+                        {customer?.full_name ?? "Customer"}
+                      </div>
+                      <div className="mt-0.5 truncate text-xs text-[var(--cs-text-muted)]">
+                        {service?.name ?? "Service"} / {formatTime(booking.start_time)}
+                      </div>
+                    </div>
+                    <OperationalStatusPill booking={booking} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <SourcePill booking={booking} />
+                    <PaymentStatusBadge status={booking.payment_status} />
+                    {price > 0 ? (
+                      <span className="rounded-full bg-[var(--cs-surface-warm)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cs-text-secondary)]">
+                        {formatCurrency(price)}
+                      </span>
+                    ) : null}
+                    <span className="rounded-full bg-[var(--cs-sand-tint)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cs-sand-dark)]">
+                      {getNextActionLabel(booking)}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
           <div className="bw-pagination">
-            <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+            <div className="text-xs text-[var(--cs-text-muted)]">
               Showing {startIndex + 1} to {endIndex} of {filtered.length} booking{filtered.length !== 1 ? "s" : ""}
             </div>
 
@@ -309,20 +586,13 @@ export function BookingsTable({
               </button>
             </div>
 
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+            <label className="inline-flex items-center gap-2 text-xs text-[var(--cs-text-muted)]">
               Rows per page
               <select
                 value={rowsPerPage}
                 onChange={handleRowsPerPageChange}
                 aria-label="Rows per page"
-                style={{
-                  height: 30,
-                  borderRadius: 6,
-                  border: "1px solid var(--cs-border)",
-                  backgroundColor: "var(--cs-surface)",
-                  color: "var(--cs-text)",
-                  padding: "0 0.5rem",
-                }}
+                className="h-[30px] rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2 text-[var(--cs-text)] outline-none"
               >
                 {ROWS_PER_PAGE_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -337,27 +607,55 @@ export function BookingsTable({
             <BookingDetailsPanel
               booking={selected}
               viewerRole={viewerRole}
+              dispatchHref={dispatchHref}
               onClose={() => setSelectedId(NO_SELECTION)}
               statusAction={statusAction}
               paymentAction={paymentAction}
               confirmPaymentAction={confirmPaymentAction}
+              onOpenFollowup={(booking, initialResult) =>
+                setModalState({ type: "followup", booking, initialResult })
+              }
+              onOpenArrival={(booking) => setModalState({ type: "arrival", booking })}
+              onOpenRoomAssignment={(booking) => setModalState({ type: "room", booking })}
+              onBookingsChanged={handleBookingsChanged}
             />
           ) : (
-            <div style={{
-              backgroundColor: "var(--cs-surface)",
-              border: "1px solid var(--cs-border)",
-              borderRadius: 10,
-              padding: "1.25rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 120,
-            }}>
-              <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>Select a booking to view details.</span>
+            <div className="flex min-h-[120px] items-center justify-center rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-5">
+              <span className="text-sm text-[var(--cs-text-muted)]">Select a booking to view details.</span>
             </div>
           )}
         </div>
       </div>
+
+      <BookingFollowupModal
+        key={modalState?.type === "followup" ? `${modalState.booking.id}-${modalState.initialResult}` : "followup-closed"}
+        open={modalState?.type === "followup"}
+        booking={modalState?.type === "followup" ? modalState.booking : null}
+        initialResult={modalState?.type === "followup" ? modalState.initialResult : "confirmed"}
+        cancelBookingAction={statusAction}
+        onOpenChange={(open) => {
+          if (!open) setModalState(null);
+        }}
+        onSuccess={handleBookingsChanged}
+      />
+      <CustomerArrivedModal
+        key={modalState?.type === "arrival" ? modalState.booking.id : "arrival-closed"}
+        open={modalState?.type === "arrival"}
+        booking={modalState?.type === "arrival" ? modalState.booking : null}
+        onOpenChange={(open) => {
+          if (!open) setModalState(null);
+        }}
+        onMarkedArrived={handleArrivedSuccess}
+      />
+      <RoomAssignmentModal
+        key={modalState?.type === "room" ? modalState.booking.id : "room-closed"}
+        open={modalState?.type === "room"}
+        booking={modalState?.type === "room" ? modalState.booking : null}
+        onOpenChange={(open) => {
+          if (!open) setModalState(null);
+        }}
+        onAssigned={handleBookingsChanged}
+      />
     </>
   );
 }
@@ -365,17 +663,27 @@ export function BookingsTable({
 function BookingDetailsPanel({
   booking,
   viewerRole,
+  dispatchHref,
   onClose,
   statusAction,
   paymentAction,
   confirmPaymentAction,
+  onOpenFollowup,
+  onOpenArrival,
+  onOpenRoomAssignment,
+  onBookingsChanged,
 }: {
   booking: WorkspaceBookingRow;
   viewerRole: string;
+  dispatchHref?: string;
   onClose: () => void;
   statusAction?: ActionFn;
   paymentAction?: ActionFn;
   confirmPaymentAction?: ActionFn;
+  onOpenFollowup: (booking: WorkspaceBookingRow, initialResult: BookingFollowupResult) => void;
+  onOpenArrival: (booking: WorkspaceBookingRow) => void;
+  onOpenRoomAssignment: (booking: WorkspaceBookingRow) => void;
+  onBookingsChanged?: () => void;
 }) {
   const customer = readFirst(booking.customers);
   const service = readFirst(booking.services);
@@ -387,113 +695,150 @@ function BookingDetailsPanel({
   const balance = price > 0 ? Math.max(0, price - booking.amount_paid) : 0;
   const notes = (booking.metadata as Record<string, unknown> | null)?.["customer_notes"];
   const durationMinutes = service?.duration_minutes;
+  const addOns = readAddOns(booking.metadata);
+  const isHomeService = isHomeServiceBooking(booking);
+  const roomLabel = resource?.name ?? (isHomeService ? "Home service" : "Room TBD");
+  const operationalStatus = getOperationalStatus(booking);
 
   return (
-    <div style={{
-      backgroundColor: "var(--cs-surface)",
-      border: "1px solid var(--cs-border)",
-      borderRadius: 10,
-      padding: "1.25rem",
-      position: "sticky",
-      top: "1rem",
-      height: "fit-content",
-      maxHeight: "calc(100vh - 160px)",
-      overflowY: "auto",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-        <span style={{ fontSize: "0.6875rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Booking Details
-        </span>
+    <aside className="sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto rounded-3xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-sm)]">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+            Selected Booking
+          </div>
+          <div className="mt-1 font-mono text-[11px] text-[var(--cs-text-muted)]">
+            #{booking.id.slice(0, 8).toUpperCase()}
+          </div>
+        </div>
         <button
           type="button"
           onClick={onClose}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cs-text-muted)", fontSize: "1.125rem", lineHeight: 1, padding: "0 2px" }}
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-muted)] transition-colors hover:text-[var(--cs-text)]"
           aria-label="Close booking details"
         >
-          x
+          <X size={15} />
         </button>
       </div>
 
-      <div style={{ marginBottom: "1.25rem" }}>
-        <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", fontFamily: "var(--font-mono, monospace)", marginBottom: "0.5rem" }}>
-          #{booking.id.slice(0, 8).toUpperCase()}
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <BookingStatusBadge status={booking.status} />
-          <BookingTypeBadge type={booking.type} />
+      <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--cs-sand-mist)] text-sm font-bold text-[var(--cs-sand-dark)]">
+            {customerInitials(customer?.full_name)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <OperationalStatusPill booking={booking} />
+              <SourcePill booking={booking} />
+            </div>
+            <h2 className="mt-3 truncate text-lg font-semibold leading-tight text-[var(--cs-text)]" title={customer?.full_name ?? undefined}>
+              {customer?.full_name ?? "Customer"}
+            </h2>
+            <div className="mt-1 text-sm leading-5 text-[var(--cs-text-secondary)]">
+              {service?.name ?? "Service"} / {formatTime(booking.start_time)}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium text-[var(--cs-text-muted)]">
+              {branch ? <span>{branch.name}</span> : null}
+              <span>{roomLabel}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
-        <PanelSection label="Customer">
-          <PanelRow label="Name" value={customer?.full_name ?? "—"} />
-          {customer?.phone && <PanelRow label="Phone" value={customer.phone} />}
-        </PanelSection>
+      <div className="mt-4 space-y-4">
+        <ServiceCountdownChip
+          status={booking.status}
+          progressStatus={booking.booking_progress_status}
+          checkedInAt={booking.checked_in_at}
+          sessionStartedAt={booking.session_started_at}
+          sessionCompletedAt={booking.session_completed_at}
+          durationMinutes={durationMinutes}
+          resourceId={booking.resource_id}
+          isHomeService={isHomeService}
+        />
 
-        <PanelSection label="Booking Info">
+        <CrmNextActionsPanel
+          booking={booking}
+          statusAction={statusAction}
+          dispatchHref={dispatchHref}
+          onOpenFollowup={onOpenFollowup}
+          onOpenArrival={onOpenArrival}
+          onOpenRoomAssignment={onOpenRoomAssignment}
+          onBookingsChanged={onBookingsChanged}
+        />
+
+        <PanelSection label="Booking Details">
           <PanelRow
             label="Date"
-            value={new Date(booking.booking_date + "T00:00:00").toLocaleDateString("en-PH", {
-              weekday: "short", month: "long", day: "numeric",
-            })}
+            value={formatLongBookingDate(booking.booking_date)}
           />
           <PanelRow label="Time" value={formatTime(booking.start_time)} />
-          <PanelRow label="Service" value={service?.name ?? "—"} />
-          {durationMinutes != null && <PanelRow label="Duration" value={`${durationMinutes} min`} />}
-          <PanelRow label="Staff" value={staffName} />
-          {resource && <PanelRow label="Room/Bed" value={resource.name} />}
-          {branch && <PanelRow label="Branch" value={branch.name} />}
-          {booking.travel_buffer_mins != null && booking.travel_buffer_mins > 0 && (
+          {durationMinutes != null ? <PanelRow label="Duration" value={`${durationMinutes} min`} /> : null}
+          <PanelRow label="Service" value={service?.name ?? "Service"} />
+          <PanelRow label="Staff/Therapist" value={staffName} />
+          <PanelRow label="Source" value={sourceLabel(booking)} />
+          <PanelRow label="Room/Bed" value={roomLabel} />
+          {branch ? <PanelRow label="Branch" value={branch.name} /> : null}
+          {addOns ? <PanelRow label="Add-ons" value={addOns} /> : null}
+          {booking.travel_buffer_mins != null && booking.travel_buffer_mins > 0 ? (
             <PanelRow label="Travel buffer" value={`+${booking.travel_buffer_mins} min`} />
-          )}
+          ) : null}
         </PanelSection>
 
-        <PanelSection label="Payment">
-          <PanelRow label="Status" value={<PaymentStatusBadge status={booking.payment_status} />} />
-          <PanelRow label="Method" value={<PaymentMethodBadge method={booking.payment_method} />} />
-          {price > 0 && (
-            <>
-              <PanelRow label="Total" value={formatCurrency(price)} />
-              <PanelRow label="Paid" value={formatCurrency(booking.amount_paid)} />
-              {balance > 0 && <PanelRow label="Balance" value={formatCurrency(balance)} danger />}
-            </>
-          )}
+        <PanelSection label="Payment / Confirmation">
+          <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <PaymentStatusBadge status={booking.payment_status} />
+                <PaymentMethodBadge method={booking.payment_method} />
+              </div>
+              {price > 0 ? (
+                <span className="text-sm font-semibold text-[var(--cs-text)]">{formatCurrency(price)}</span>
+              ) : null}
+            </div>
+            {price > 0 ? (
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl bg-[var(--cs-surface)] px-3 py-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">Paid</div>
+                  <div className="mt-1 font-semibold text-[var(--cs-text)]">{formatCurrency(booking.amount_paid)}</div>
+                </div>
+                <div className="rounded-xl bg-[var(--cs-surface)] px-3 py-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">Balance</div>
+                  <div className={cn("mt-1 font-semibold", balance > 0 ? "text-[var(--cs-error-text)]" : "text-[var(--cs-success-text)]")}>
+                    {formatCurrency(balance)}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {isCrmPendingBookingStatus(booking.status) ? (
+            <PaymentConfirmationPanel booking={booking} confirmPaymentAction={confirmPaymentAction} />
+          ) : null}
         </PanelSection>
 
-        {typeof notes === "string" && notes.trim() && (
+        {typeof notes === "string" && notes.trim() ? (
           <PanelSection label="Notes">
-            <p style={{ fontSize: "0.8125rem", color: "var(--cs-text)", lineHeight: 1.55, margin: 0 }}>
+            <p className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 text-sm leading-6 text-[var(--cs-text-secondary)]">
               {notes}
             </p>
           </PanelSection>
-        )}
+        ) : null}
 
-        {(booking.status === "pending_payment" || booking.status === "pending_crm_confirmation") && (
-          <PaymentConfirmationPanel booking={booking} confirmPaymentAction={confirmPaymentAction} />
-        )}
+        {operationalStatus.tone !== "completed" ? (
+          <BookingRecommendationSection booking={booking} />
+        ) : null}
 
-        {/* Recommendations */}
-        <BookingRecommendationSection booking={booking} />
-
-        <PanelSection label="Actions">
-          <div style={{ display: "grid", gap: "0.5rem" }}>
-            <button
-              type="button"
-              disabled
-              style={editButtonStyle}
-              title="Edit booking is not available from this panel yet."
-            >
-              Edit Booking
-            </button>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.5rem" }}>
+        <PanelSection label="More Actions">
+          <div className="grid gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <BookingActionMenu
                 bookingId={booking.id}
                 currentStatus={booking.status}
                 userRole={viewerRole}
                 statusAction={statusAction}
                 actionScope="status"
-                triggerLabel="Change Status"
+                triggerLabel="More Status"
                 triggerVariant="panelSecondary"
                 fullWidth
                 emptyBehavior="disabled"
@@ -511,20 +856,22 @@ function BookingDetailsPanel({
               />
             </div>
 
-            <BookingActionMenu
-              bookingId={booking.id}
-              currentStatus={booking.status}
-              userRole={viewerRole}
-              statusAction={statusAction}
-              actionScope="cancel"
-              triggerLabel="Cancel Booking"
-              triggerVariant="panelDanger"
-              fullWidth
-            />
+            {!isClosedOperationalBooking(booking) ? (
+              <BookingActionMenu
+                bookingId={booking.id}
+                currentStatus={booking.status}
+                userRole={viewerRole}
+                statusAction={statusAction}
+                actionScope="cancel"
+                triggerLabel="Cancel Booking"
+                triggerVariant="panelDanger"
+                fullWidth
+              />
+            ) : null}
           </div>
         </PanelSection>
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -558,10 +905,242 @@ function BookingRecommendationSection({
         showTherapists={needsTherapist}
         showDrivers={needsDriver}
       />
-      <div style={{ fontSize: 10, color: "var(--cs-text-muted)", marginTop: 6, textAlign: "center" }}>
+      <div className="mt-2 text-center text-[10px] text-[var(--cs-text-muted)]">
         Recommendation only. Use existing booking controls to confirm assignment.
       </div>
     </div>
+  );
+}
+
+function CrmNextActionsPanel({
+  booking,
+  statusAction,
+  dispatchHref,
+  onOpenFollowup,
+  onOpenArrival,
+  onOpenRoomAssignment,
+  onBookingsChanged,
+}: {
+  booking: WorkspaceBookingRow;
+  statusAction?: ActionFn;
+  dispatchHref?: string;
+  onOpenFollowup: (booking: WorkspaceBookingRow, initialResult: BookingFollowupResult) => void;
+  onOpenArrival: (booking: WorkspaceBookingRow) => void;
+  onOpenRoomAssignment: (booking: WorkspaceBookingRow) => void;
+  onBookingsChanged?: () => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const isHomeService = isHomeServiceBooking(booking);
+  const progress = booking.booking_progress_status ?? null;
+  const isClosed = isClosedOperationalBooking(booking);
+  const isPendingConfirmation = isCrmPendingBookingStatus(booking.status);
+  const isConfirmedInSpa =
+    !isHomeService &&
+    booking.status === "confirmed" &&
+    isNotStartedProgress(progress);
+  const isConfirmedHomeService =
+    isHomeService &&
+    booking.status === "confirmed" &&
+    isNotStartedProgress(progress);
+  const isHomeServiceTravel = isHomeService && (progress === "travel_started" || progress === "arrived");
+  const isWaitingArrived = progress === "checked_in";
+  const isInService = booking.status === "in_progress" || progress === "session_started";
+  const resourceAssigned = Boolean(booking.resource_id);
+
+  if (isClosed) return null;
+
+  function afterMutation() {
+    onBookingsChanged?.();
+    router.refresh();
+  }
+
+  function handleStatus(status: "in_progress" | "completed") {
+    setFeedback(null);
+    startTransition(async () => {
+      const callAction = statusAction ?? updateBookingStatusAction;
+      const result = await callAction({ bookingId: booking.id, status });
+      if (!result.success) {
+        setFeedback(result.error ?? "Could not update booking.");
+        return;
+      }
+      toast.success(status === "in_progress" ? "Service started." : "Service completed.");
+      afterMutation();
+    });
+  }
+
+  async function handleCopyMessage() {
+    const customer = readFirst(booking.customers);
+    const service = readFirst(booking.services);
+    const branch = readFirst(booking.branches);
+    const message = [
+      `Hi ${customer?.full_name ?? "there"}, this is CradleHub confirming your booking.`,
+      `Service: ${service?.name ?? "your selected service"}.`,
+      `Schedule: ${new Date(`${booking.booking_date}T00:00:00`).toLocaleDateString("en-PH", {
+        month: "long",
+        day: "numeric",
+      })} at ${formatTime(booking.start_time)}.`,
+      branch?.name ? `Branch: ${branch.name}.` : null,
+      "Please reply to confirm or let us know if you need to reschedule.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setFeedback("Confirmation message copied.");
+    } catch {
+      setFeedback("Could not copy message. Please copy it manually from the booking details.");
+    }
+  }
+
+  function handleKeepWaiting() {
+    const customer = readFirst(booking.customers);
+    const name = customer?.full_name ?? "Customer";
+    setFeedback(`${name} remains in waiting until a room is ready.`);
+    toast.message("Guest kept in waiting queue.");
+  }
+
+  const actions: React.ReactNode[] = [];
+
+  if (isPendingConfirmation) {
+    actions.push(
+      <NextActionButton key="call" tone="secondary" icon={<Phone size={14} />} onClick={() => onOpenFollowup(booking, "confirmed")}>
+        Call Customer
+      </NextActionButton>,
+      <NextActionButton key="copy" tone="secondary" icon={<Copy size={14} />} onClick={handleCopyMessage}>
+        Copy Message
+      </NextActionButton>,
+      <NextActionButton key="confirmed" icon={<CheckCircle2 size={14} />} onClick={() => onOpenFollowup(booking, "confirmed")}>
+        Mark Booking Confirmed
+      </NextActionButton>,
+      <NextActionButton key="no-answer" tone="secondary" icon={<UserX size={14} />} onClick={() => onOpenFollowup(booking, "no_answer")}>
+        No Answer
+      </NextActionButton>,
+      <NextActionButton key="reschedule" tone="secondary" icon={<CalendarClock size={14} />} onClick={() => onOpenFollowup(booking, "reschedule")}>
+        Reschedule
+      </NextActionButton>,
+      <NextActionButton key="cancel" tone="danger" icon={<UserX size={14} />} onClick={() => onOpenFollowup(booking, "cancel")}>
+        Cancel Booking
+      </NextActionButton>
+    );
+  } else if (isConfirmedInSpa) {
+    actions.push(
+      <NextActionButton key="arrived" icon={<CheckCircle2 size={14} />} onClick={() => onOpenArrival(booking)}>
+        Customer Arrived
+      </NextActionButton>
+    );
+  } else if (isConfirmedHomeService && dispatchHref) {
+    actions.push(
+      <NextActionButton key="dispatch" icon={<Home size={14} />} onClick={() => router.push(dispatchHref)}>
+        Open Dispatch
+      </NextActionButton>
+    );
+  } else if (isHomeServiceTravel && dispatchHref) {
+    actions.push(
+      <NextActionButton key="track-dispatch" icon={<Home size={14} />} onClick={() => router.push(dispatchHref)}>
+        Track Dispatch
+      </NextActionButton>
+    );
+  } else if (isWaitingArrived && !isHomeService) {
+    actions.push(
+      <NextActionButton key="room" tone={resourceAssigned ? "secondary" : "primary"} icon={<DoorOpen size={14} />} onClick={() => onOpenRoomAssignment(booking)}>
+        {resourceAssigned ? "Change Room" : "Assign Room"}
+      </NextActionButton>
+    );
+
+    if (resourceAssigned) {
+      actions.push(
+        <NextActionButton
+          key="start"
+          icon={<Play size={14} />}
+          disabled={isPending}
+          onClick={() => handleStatus("in_progress")}
+        >
+          {isPending ? "Starting..." : "Start Service"}
+        </NextActionButton>
+      );
+    } else {
+      actions.push(
+        <NextActionButton key="waiting" tone="secondary" icon={<CalendarClock size={14} />} onClick={handleKeepWaiting}>
+          Keep Waiting
+        </NextActionButton>
+      );
+    }
+  } else if (isInService) {
+    actions.push(
+      <NextActionButton
+        key="complete"
+        icon={<CheckCircle2 size={14} />}
+        disabled={isPending}
+        onClick={() => handleStatus("completed")}
+      >
+        {isPending ? "Completing..." : "Complete Service"}
+      </NextActionButton>
+    );
+  }
+
+  if (actions.length === 0 && !feedback) return null;
+
+  return (
+    <PanelSection label="Next Best Action">
+      {actions.length > 0 ? (
+        <div className="grid gap-2">{actions}</div>
+      ) : null}
+      {feedback ? (
+        <div className={cn(
+          "rounded-xl border px-3 py-2 text-xs font-semibold",
+          feedback.includes("Could not")
+            ? "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
+            : "border-[var(--cs-sand-mist)] bg-[var(--cs-sand-tint)] text-[var(--cs-sand-dark)]"
+        )}>
+          {feedback}
+        </div>
+      ) : null}
+    </PanelSection>
+  );
+}
+
+function NextActionButton({
+  children,
+  icon,
+  onClick,
+  tone = "primary",
+  disabled,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  onClick: () => void | Promise<void>;
+  tone?: "primary" | "secondary" | "danger";
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        void onClick();
+      }}
+      className={cn(
+        "inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+        tone === "primary"
+          ? "border-[var(--cs-crm-text)] bg-[var(--cs-crm-text)] text-[var(--cs-text-inverse)] hover:bg-[var(--cs-success-text)]"
+          : null,
+        tone === "secondary"
+          ? "border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]"
+          : null,
+        tone === "danger"
+          ? "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)] hover:border-[var(--cs-error-text)]"
+          : null
+      )}
+    >
+      {icon}
+      {children}
+    </button>
   );
 }
 
@@ -619,30 +1198,40 @@ function PaymentConfirmationPanel({
   }
 
   return (
-    <div style={{
-      borderRadius: 8,
-      border: `1.5px solid ${holdExpired ? "#FCA5A5" : "#86EFAC"}`,
-      background: holdExpired ? "#FFF5F5" : "#F0FDF4",
-      padding: "0.875rem",
-    }}>
-      <div style={{ fontSize: "0.625rem", fontWeight: 700, color: holdExpired ? "#DC2626" : "#16A34A", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.625rem" }}>
-        Payment Confirmation
+    <div className={cn(
+      "rounded-2xl border bg-[var(--cs-surface)] p-3",
+      holdExpired ? "border-[var(--cs-error-bg)]" : "border-[var(--cs-sand-mist)]"
+    )}>
+      <div className="flex items-start gap-2">
+        <span className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+          holdExpired ? "bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]" : "bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]"
+        )}>
+          <ReceiptText size={15} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+            Payment Confirmation
+          </div>
+          {holdExpiresLabel ? (
+            <div className={cn(
+              "mt-1 text-xs font-semibold",
+              holdExpired ? "text-[var(--cs-error-text)]" : "text-[var(--cs-sand-dark)]"
+            )}>
+              {holdExpiresLabel}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {holdExpiresLabel && (
-        <div style={{ fontSize: "0.75rem", color: holdExpired ? "#DC2626" : "#16A34A", marginBottom: "0.625rem", fontWeight: 500 }}>
-          {holdExpiresLabel}
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+      <div className="mt-3 grid gap-2">
+        <label className="grid gap-1 text-xs font-medium text-[var(--cs-text-muted)]">
           Payment method
           <select
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
             disabled={isPending}
-            style={confirmInputStyle}
+            className={confirmControlClass}
           >
             {CONFIRM_PAYMENT_METHODS.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
@@ -650,82 +1239,67 @@ function PaymentConfirmationPanel({
           </select>
         </label>
 
-        <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-          Reference / receipt no. <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+        <label className="grid gap-1 text-xs font-medium text-[var(--cs-text-muted)]">
+          <span>Reference / receipt no. <span className="font-normal opacity-70">(optional)</span></span>
           <input
             type="text"
             value={paymentReference}
             onChange={(e) => setPaymentReference(e.target.value)}
             placeholder="e.g. GCash ref #"
             disabled={isPending}
-            style={confirmInputStyle}
+            className={confirmControlClass}
           />
         </label>
 
-        <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-          Note <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+        <label className="grid gap-1 text-xs font-medium text-[var(--cs-text-muted)]">
+          <span>Note <span className="font-normal opacity-70">(optional)</span></span>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            placeholder="Internal note…"
+            placeholder="Internal note..."
             disabled={isPending}
-            style={{ ...confirmInputStyle, height: "auto", resize: "vertical", paddingTop: "0.375rem", paddingBottom: "0.375rem" }}
+            className={cn(confirmControlClass, "h-auto min-h-[70px] resize-y py-2")}
           />
         </label>
 
-        {feedback && (
-          <div style={{ fontSize: "0.75rem", color: feedback.ok ? "#16A34A" : "#DC2626", fontWeight: 500 }}>
+        {feedback ? (
+          <div className={cn(
+            "rounded-xl border px-3 py-2 text-xs font-semibold",
+            feedback.ok
+              ? "border-[var(--cs-success-bg)] bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"
+              : "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
+          )}>
             {feedback.message}
           </div>
-        )}
+        ) : null}
 
         <button
           type="button"
           onClick={handleConfirm}
           disabled={isPending || !confirmPaymentAction || feedback?.ok === true}
-          style={{
-            height: 38,
-            borderRadius: 7,
-            border: "none",
-            backgroundColor: isPending ? "var(--cs-text-muted)" : "#16A34A",
-            color: "#fff",
-            fontSize: "0.8125rem",
-            fontWeight: 700,
-            cursor: isPending || !confirmPaymentAction || feedback?.ok === true ? "not-allowed" : "pointer",
-            opacity: isPending || !confirmPaymentAction ? 0.7 : 1,
-            transition: "background-color 0.15s",
-          }}
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-[var(--cs-crm-text)] bg-[var(--cs-crm-text)] px-3 text-sm font-semibold text-[var(--cs-text-inverse)] transition-colors hover:bg-[var(--cs-success-text)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isPending ? "Confirming…" : "Confirm payment & finalize booking"}
+          {isPending ? "Confirming..." : "Confirm payment & finalize booking"}
         </button>
       </div>
     </div>
   );
 }
 
-const confirmInputStyle: React.CSSProperties = {
-  height: 34,
-  borderRadius: 6,
-  border: "1px solid var(--cs-border)",
-  padding: "0 0.625rem",
-  fontSize: "0.8125rem",
-  backgroundColor: "var(--cs-surface)",
-  color: "var(--cs-text)",
-  width: "100%",
-  boxSizing: "border-box",
-};
+const confirmControlClass =
+  "h-9 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)] disabled:cursor-not-allowed disabled:opacity-60";
 
 function PanelSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <div style={{ fontSize: "0.625rem", fontWeight: 700, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>
+    <section className="space-y-2">
+      <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
         {label}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+      <div className="grid gap-2">
         {children}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -739,23 +1313,14 @@ function PanelRow({
   danger?: boolean;
 }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minWidth: 0 }}>
-      <span style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: "0.8125rem", fontWeight: danger ? 600 : 400, color: danger ? "#DC2626" : "var(--cs-text)", textAlign: "right", minWidth: 0 }}>
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
+      <span className="shrink-0 text-[0.8125rem] text-[var(--cs-text-muted)]">{label}</span>
+      <span className={cn(
+        "min-w-0 text-right text-[0.8125rem]",
+        danger ? "font-semibold text-[var(--cs-error-text)]" : "font-medium text-[var(--cs-text)]"
+      )}>
         {value}
       </span>
     </div>
   );
 }
-
-const editButtonStyle: React.CSSProperties = {
-  height: 40,
-  borderRadius: 7,
-  border: "1px solid transparent",
-  backgroundColor: "var(--cs-charcoal)",
-  color: "#fff",
-  fontSize: "0.875rem",
-  fontWeight: 700,
-  cursor: "not-allowed",
-  opacity: 0.5,
-};
