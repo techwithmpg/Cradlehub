@@ -15,14 +15,20 @@ import type { DayOfWeek } from "@/lib/schedule/manual-schedule-2026";
 
 // ── Permission ─────────────────────────────────────────────────────────────────
 
-const IMPORT_ALLOWED_ROLES = new Set([
+// Roles that may manage staff schedules operationally.
+// csr_staff included so front-desk/CRM staff can configure schedules for MVP.
+const SCHEDULE_MANAGER_ROLES = new Set([
   "owner",
   "manager",
   "assistant_manager",
   "store_manager",
   "crm",
   "csr_head",
+  "csr_staff",  // front-desk operational access
 ]);
+
+const SCHEDULE_PERMISSION_DENIED_MESSAGE =
+  "You do not have permission to edit staff schedules. Please ask an owner or CRM admin.";
 
 async function requireImportAccess(branchId: string) {
   // Session client — used only for auth checks (respects RLS).
@@ -46,8 +52,8 @@ async function requireImportAccess(branchId: string) {
     .maybeSingle();
 
   if (!me) return null;
-  if (!IMPORT_ALLOWED_ROLES.has(me.system_role)) return null;
-  // Non-owner must be on the same branch
+  if (!SCHEDULE_MANAGER_ROLES.has(me.system_role)) return null;
+  // Non-owner must be on the same branch (branch-scoped access for CRM/CSR).
   if (me.system_role !== "owner" && me.branch_id !== branchId) return null;
 
   // Admin client bypasses staff_schedules RLS (INSERT/UPDATE policies only
@@ -123,7 +129,7 @@ export async function applyManualScheduleImportAction(
   } = parsed.data;
 
   const ctx = await requireImportAccess(branchId);
-  if (!ctx) return { ok: false, error: "Unauthorized" };
+  if (!ctx) return { ok: false, error: SCHEDULE_PERMISSION_DENIED_MESSAGE };
 
   // Verify all staff IDs belong to this branch (admin client — bypasses RLS)
   const staffIds = resolvedMatches.map((m) => m.staffId);
@@ -396,7 +402,7 @@ export async function saveStaffWeeklyScheduleAction(
   const { staffId, branchId, days, times } = parsed.data;
 
   const ctx = await requireImportAccess(branchId);
-  if (!ctx) return { ok: false, error: "Unauthorized" };
+  if (!ctx) return { ok: false, error: SCHEDULE_PERMISSION_DENIED_MESSAGE };
 
   // Verify staff belongs to this branch
   const { data: staffRecord, error: verifyErr } = await ctx.admin
