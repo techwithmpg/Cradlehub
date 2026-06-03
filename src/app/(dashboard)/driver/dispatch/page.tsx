@@ -24,7 +24,7 @@ export default async function DriverDispatchPage() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("id, system_role, branch_id")
+    .select("id, system_role, staff_type, branch_id")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -37,7 +37,7 @@ export default async function DriverDispatchPage() {
     redirect("/login");
   }
 
-  if (me.system_role !== "owner" && me.system_role !== "driver") {
+  if (me.system_role !== "owner" && me.system_role !== "driver" && me.staff_type !== "driver") {
     redirect("/staff-portal");
   }
 

@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getDefaultDashboardPath } from "@/lib/permissions";
+import { getUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
+import { getWorkspaceSwitchDestination } from "@/lib/auth/workspace-access";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { logError } from "@/lib/logger";
@@ -49,62 +50,25 @@ export async function loginAction(
     return { error: "Invalid email or password. Please try again." };
   }
 
-  // Get staff role + job function to determine workspace
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "Authentication failed. Please try again." };
 
-  const { data: staffRecord, error: staffError } = await supabase
-    .from("staff")
-    .select("id, auth_user_id, system_role, branch_id, is_active")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (staffError) {
-    logError("auth.staff_lookup_failed", {
+  let workspaces;
+  try {
+    workspaces = await getUserWorkspaceAccess(user.id);
+  } catch (error) {
+    logError("auth.workspace_access_failed", {
       userId: user.id,
-      error: staffError,
+      error,
     });
-
-    await supabase.auth.signOut();
-
     return {
-      error: "Staff access query failed. Please contact your administrator.",
+      error: "Workspace access query failed. Please contact your administrator.",
     };
   }
 
-  // Dev bypass: if no staff record but dev mode is on, send to CRM
-  const { isDevAuthBypassEnabled } = await import("@/lib/dev-bypass");
-  if (!staffRecord) {
-    if (isDevAuthBypassEnabled()) {
-      redirect("/crm");
-    }
-
-    // Check if this user has a pending onboarding request
-    const { data: onboardingRequest } = await supabase
-      .from("staff_onboarding_requests")
-      .select("status")
-      .eq("auth_user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    await supabase.auth.signOut();
-
-    if (onboardingRequest?.status === "submitted") {
-      return { error: "Your application is pending review. You'll be able to log in once a manager approves your account." };
-    }
-    if (onboardingRequest?.status === "rejected") {
-      return { error: "Your application was not approved. Please contact your administrator for more information." };
-    }
-
-    return { error: "Your account has not been set up yet. Contact your administrator." };
-  }
-
-  const destination = getDefaultDashboardPath(staffRecord.system_role);
-  redirect(destination);
+  redirect(getWorkspaceSwitchDestination(workspaces));
 }
 

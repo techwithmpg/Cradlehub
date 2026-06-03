@@ -1,6 +1,8 @@
 "use server";
 
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getMyUpcomingBookings, getMyMonthlyStats } from "@/lib/queries/bookings";
 import { attachBranchResources } from "@/lib/queries/booking-resources";
 import { getStaffSchedule, getStaffOverrides, getBlockedTimes } from "@/lib/queries/staff";
@@ -11,6 +13,7 @@ import {
   type BookingProgressStatus,
 } from "@/lib/bookings/progress";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
+import { STAFF_TYPES, SYSTEM_ROLES } from "@/constants/staff";
 
 import { revalidatePath } from "next/cache";
 import { logError, logBusinessEvent } from "@/lib/logger";
@@ -21,13 +24,56 @@ const STAFF_PORTAL_PATHS = [
   "/staff-portal/today",
   "/staff-portal/schedule",
   "/staff-portal/week",
+  "/staff-portal/profile",
 ] as const;
+
+const staffSelfProfileSchema = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .min(2, "Full name must be at least 2 characters.")
+    .max(100, "Full name must be 100 characters or fewer."),
+  nickname: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return null;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    },
+    z.string().max(80, "Nickname must be 80 characters or fewer.").nullable()
+  ),
+  systemRole: z.enum(SYSTEM_ROLES, "Select a supported system role."),
+  staffType: z.enum(STAFF_TYPES, "Select a supported staff role."),
+});
+
+export type StaffProfileDetailsActionState = {
+  success?: boolean;
+  error?: string;
+  fieldErrors?: {
+    fullName?: string[];
+    nickname?: string[];
+    systemRole?: string[];
+    staffType?: string[];
+  };
+};
 
 function revalidateStaffAndOperationalSurfaces(branchId?: string | null): void {
   for (const path of STAFF_PORTAL_PATHS) {
     revalidatePath(path);
   }
   revalidateOperationalBookingSurfaces(branchId);
+}
+
+function isMissingStaffProfileColumnError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("staff.staff_type does not exist") ||
+    m.includes('"staff_type" does not exist') ||
+    m.includes("staff.avatar_url does not exist") ||
+    m.includes('"avatar_url" does not exist') ||
+    m.includes("staff.avatar_path does not exist") ||
+    m.includes('"avatar_path" does not exist') ||
+    m.includes("in the schema cache")
+  );
 }
 
 // ── Resolve authenticated staff record ────────────────────────────────────
@@ -38,14 +84,34 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Select only core columns needed for the portal shell.
-  // staff_type, avatar_url, avatar_path require later migrations — they default to null.
-  const { data: me, error: meError } = await supabase
+  const primary = await supabase
     .from("staff")
-    .select("id, full_name, nickname, tier, system_role, branch_id")
+    .select("id, full_name, nickname, tier, system_role, staff_type, branch_id, avatar_url, avatar_path")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
+
+  let me = primary.data as StaffPortalStaff | null;
+  let meError = primary.error;
+
+  if (primary.error && isMissingStaffProfileColumnError(primary.error.message)) {
+    const fallback = await supabase
+      .from("staff")
+      .select("id, full_name, nickname, tier, system_role, branch_id")
+      .eq("auth_user_id", user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    me = fallback.data
+      ? ({
+          ...fallback.data,
+          staff_type: null,
+          avatar_url: null,
+          avatar_path: null,
+        } as StaffPortalStaff)
+      : null;
+    meError = fallback.error;
+  }
 
   if (meError) {
     logError("staff_portal.staff_lookup_failed", {
@@ -62,13 +128,7 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
 
   if (!me) return null;
 
-  // Merge in nullable fields that may not exist in this deployment yet.
-  return {
-    ...me,
-    staff_type: null,
-    avatar_url: null,
-    avatar_path: null,
-  } as StaffPortalStaff;
+  return me;
 }
 
 // ── Update staff profile photo ──────────────────────────────────────────
@@ -110,21 +170,96 @@ export async function updateStaffProfilePhotoAction(formData: FormData) {
     .getPublicUrl(filePath);
 
   // Update staff record
-  const { error: updateError } = await supabase
+  const { data: updatedRows, error: updateError } = await createAdminClient()
     .from("staff")
     .update({
       avatar_url: publicUrl,
       avatar_path: filePath,
     })
-    .eq("id", me.id);
+    .eq("id", me.id)
+    .select("id");
 
   if (updateError) return { error: updateError.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return { error: "No staff profile was updated." };
+  }
 
-  revalidatePath("/staff-portal");
-  revalidatePath("/staff-portal/profile");
+  revalidateStaffAndOperationalSurfaces(me.branch_id);
   revalidatePath("/owner/staff");
+  revalidatePath("/manager/staff");
+  revalidatePath("/crm/staff");
 
   return { success: true, avatarUrl: publicUrl };
+}
+
+// ── Update own staff profile details ─────────────────────────────────────
+export async function updateMyProfileDetailsAction(
+  _previousState: StaffProfileDetailsActionState,
+  formData: FormData
+): Promise<StaffProfileDetailsActionState> {
+  const parsed = staffSelfProfileSchema.safeParse({
+    fullName: formData.get("fullName"),
+    nickname: formData.get("nickname"),
+    systemRole: formData.get("systemRole"),
+    staffType: formData.get("staffType"),
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    return {
+      success: false,
+      error: "Please check the highlighted fields.",
+      fieldErrors: {
+        fullName: fieldErrors.fullName,
+        nickname: fieldErrors.nickname,
+        systemRole: fieldErrors.systemRole,
+        staffType: fieldErrors.staffType,
+      },
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Unauthorized" };
+
+  const me = await getMyStaffRecord();
+  if (!me) return { success: false, error: "Unauthorized" };
+
+  const { fullName, nickname, systemRole, staffType } = parsed.data;
+  const { data: updatedRows, error } = await createAdminClient()
+    .from("staff")
+    .update({
+      full_name: fullName,
+      nickname,
+      system_role: systemRole,
+      staff_type: staffType,
+    })
+    .eq("id", me.id)
+    .eq("auth_user_id", user.id)
+    .select("id");
+
+  if (error) return { success: false, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return { success: false, error: "No staff profile was updated." };
+  }
+
+  logBusinessEvent("staff_profile.self_updated", {
+    actorId: me.id,
+    branchId: me.branch_id,
+    previousSystemRole: me.system_role,
+    nextSystemRole: systemRole,
+    previousStaffType: me.staff_type,
+    nextStaffType: staffType,
+  });
+
+  revalidateStaffAndOperationalSurfaces(me.branch_id);
+  revalidatePath("/owner/staff");
+  revalidatePath("/manager/staff");
+  revalidatePath("/crm/staff");
+
+  return { success: true };
 }
 
 // ── Today's bookings for the portal home ──────────────────────────────────

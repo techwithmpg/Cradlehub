@@ -4,41 +4,13 @@ import { createServerClient } from "@supabase/ssr";
 import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
-
-/** Maps system_role → default dashboard workspace prefix */
-function resolveWorkspace(systemRole: string): string {
-  // MVP: owner, manager, and all management variants route to /crm
-  if (
-    systemRole === "owner" ||
-    systemRole === "manager" ||
-    systemRole === "assistant_manager" ||
-    systemRole === "store_manager"
-  ) {
-    return "/crm";
-  }
-
-  if (
-    systemRole === "crm" ||
-    systemRole === "csr" ||
-    systemRole === "csr_head" ||
-    systemRole === "csr_staff"
-  ) {
-    return "/crm";
-  }
-
-  if (
-    systemRole === "staff" ||
-    systemRole === "service_head" ||
-    systemRole === "service_staff"
-  ) {
-    return "/staff-portal";
-  }
-
-  if (systemRole === "driver") return "/driver";
-  if (systemRole === "utility") return "/utility";
-
-  return "/";
-}
+import {
+  buildWorkspaceAccessFromStaffProfile,
+  getWorkspaceSwitchDestination,
+  hasWorkspaceAccess,
+  type WorkspaceAccess,
+  type WorkspaceStaffProfile,
+} from "@/lib/auth/workspace-access";
 
 const PROTECTED_PREFIXES = [
   "/owner",
@@ -48,7 +20,49 @@ const PROTECTED_PREFIXES = [
   "/driver",
   "/utility",
   "/dev",
+  "/select-workspace",
 ];
+
+function canAccessProtectedPath(
+  pathname: string,
+  role: string,
+  workspaces: readonly WorkspaceAccess[]
+): boolean {
+  if (pathname.startsWith("/select-workspace")) return workspaces.length > 0;
+
+  if (pathname.startsWith("/crm")) {
+    if (!hasWorkspaceAccess(workspaces, "crm")) return false;
+    if (isCsr(role)) return canCsrAccessPath(role, pathname);
+    if (role === "crm") return canCrmAccessPath(pathname);
+    return true;
+  }
+
+  if (pathname.startsWith("/staff-portal")) {
+    return hasWorkspaceAccess(workspaces, "staff_portal");
+  }
+
+  if (pathname.startsWith("/driver")) {
+    return hasWorkspaceAccess(workspaces, "driver");
+  }
+
+  if (pathname.startsWith("/utility")) {
+    return hasWorkspaceAccess(workspaces, "utility");
+  }
+
+  if (pathname.startsWith("/owner")) {
+    return hasWorkspaceAccess(workspaces, "owner");
+  }
+
+  if (pathname.startsWith("/manager")) {
+    return hasWorkspaceAccess(workspaces, "manager");
+  }
+
+  if (pathname.startsWith("/dev")) {
+    return hasWorkspaceAccess(workspaces, "owner");
+  }
+
+  return true;
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -94,10 +108,9 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Get the user's role from the staff table
   const { data: staffRecord, error: staffError } = await supabase
     .from("staff")
-    .select("system_role")
+    .select("id, full_name, system_role, staff_type, branch_id, branches(name)")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -108,49 +121,17 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!staffRecord) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/account/setup", request.url));
   }
 
   const systemRole = staffRecord.system_role;
-  if (process.env.NODE_ENV === "development") {
-    console.debug("[proxy] workspace route", { pathname, systemRole });
+  const workspaces = buildWorkspaceAccessFromStaffProfile(staffRecord as WorkspaceStaffProfile);
+  if (workspaces.length === 0) {
+    return NextResponse.redirect(new URL("/account/setup", request.url));
   }
 
-  // MVP: owner/manager roles are routed to /crm — they no longer have
-  // cross-workspace bypass. They are treated as CRM-level users for routing.
-  if (
-    systemRole === "owner" ||
-    systemRole === "manager" ||
-    systemRole === "assistant_manager" ||
-    systemRole === "store_manager"
-  ) {
-    if (!pathname.startsWith("/crm")) {
-      return NextResponse.redirect(new URL("/crm", request.url));
-    }
-    return response;
-  }
-
-  // CRM role can access CRM routes and booking-list operations pages only.
-  if (systemRole === "crm") {
-    if (!canCrmAccessPath(pathname)) {
-      return NextResponse.redirect(new URL("/crm", request.url));
-    }
-    return response;
-  }
-
-  // CSR roles have restricted cross-workspace access
-  if (isCsr(systemRole)) {
-    if (!canCsrAccessPath(systemRole, pathname)) {
-      return NextResponse.redirect(new URL("/crm", request.url));
-    }
-    return response;
-  }
-
-  const correctWorkspace = resolveWorkspace(systemRole);
-
-  // Redirect to the right workspace if they're at the wrong one
-  if (correctWorkspace && !pathname.startsWith(correctWorkspace)) {
-    return NextResponse.redirect(new URL(correctWorkspace, request.url));
+  if (!canAccessProtectedPath(pathname, systemRole, workspaces)) {
+    return NextResponse.redirect(new URL(getWorkspaceSwitchDestination(workspaces), request.url));
   }
 
   return response;

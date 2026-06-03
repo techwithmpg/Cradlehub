@@ -1,2 +1,2 @@
-Task: Build Staff Full Schedule Calendar Modal for CRM Schedule right panel.
-Status: DONE - View Full Schedule now opens an in-page Day/Week/Month calendar modal with staff summary, shifts, day-off states, bookings, blocked time, overnight ranges, filters, and legend. type-check PASS, lint PASS, build PASS (89 routes). Authenticated browser click-through still needs a local CRM/CSR session.
+Task: Make Staff Portal profile save button visible with inline spinner.
+Status: DONE - Staff Portal profile form now shows the Save Changes button in the Account Details header, and the in-button pending spinner is driven by `useFormStatus`. Full Name, Nickname, System Role, and Staff Role remain editable; Tier remains read-only. npx tsc PASS, lint PASS, build PASS (91 routes). Local route reachability redirects unauthenticated traffic to `/login`; authenticated visual save test still needs a staff session.

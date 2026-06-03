@@ -11,7 +11,6 @@ import {
   MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
 } from "lucide-react";
 import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole, type NavGroup, type NavItem } from "./nav-config";
-import { isCsr } from "@/lib/permissions";
 import { BrandLogo } from "@/components/shared/brand-logo";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
@@ -174,14 +173,7 @@ type SidebarContentProps = SidebarProps & {
 function SidebarContent({ role, fullName, avatarUrl, branchName, pathname, onNav }: SidebarContentProps) {
   const roleWorkspaceKey = resolveWorkspaceKeyFromRole(role);
   const pathWorkspaceKey = resolveWorkspaceKeyFromPath(pathname);
-  const forceRoleWorkspace =
-    roleWorkspaceKey === "crm" ||
-    roleWorkspaceKey === "csr_head" ||
-    roleWorkspaceKey === "csr_staff";
-  const workspaceKey =
-    isCsr(role) || forceRoleWorkspace
-      ? roleWorkspaceKey
-      : pathWorkspaceKey ?? roleWorkspaceKey;
+  const workspaceKey = pathWorkspaceKey ?? roleWorkspaceKey;
   const nav          = NAV_CONFIG[workspaceKey];
   const pathMeta = WORKSPACE_META[pathWorkspaceKey ?? ""] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
   const meta     = pathMeta;

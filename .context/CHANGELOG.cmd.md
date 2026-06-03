@@ -3855,3 +3855,126 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: Passing, 89 routes
 - `git diff --check`: Passing with LF/CRLF working-copy warnings only
 - In-app browser reached `/crm/schedule` but redirected to `/login`; authenticated modal click-through still needs a local CRM/CSR session.
+
+---
+
+### 2026-06-03 - Codex (AUTH-WORKSPACE-SWITCHING-001 - Multi-workspace selector and transition)
+
+**Task:** Implement a professional multi-workspace switching experience with a premium centered transition loader.
+
+**Files Created:**
+- `src/lib/auth/workspace-access.ts` - typed workspace access model, access builder, and redirect helpers.
+- `src/lib/auth/get-user-workspace-access.ts` - Supabase-backed current-user workspace resolver with super-admin/dev-bypass support.
+- `src/app/(dashboard)/select-workspace/page.tsx` - premium workspace selector page.
+- `src/app/account/setup/page.tsx` - account setup/profile normalization fallback for users with no usable workspace.
+- `src/components/shared/workspace-switching-loader.tsx` - centered blurred overlay using the existing setup-center `CrmPremiumLoader`.
+- `src/components/shared/workspace-switch-link.tsx` - client navigation wrapper with loader, repeated-click guard, and failure handling.
+
+**Files Changed:**
+- `src/app/(auth)/login/actions.ts` - login redirect now uses workspace access count: zero → `/account/setup`, one → workspace, many → `/select-workspace`.
+- `src/proxy.ts` - route guard now validates workspace access instead of forcing a single role destination.
+- `src/app/(dashboard)/layout.tsx` - passes workspace access to the dashboard header.
+- `src/components/features/dashboard/header.tsx` - adds profile dropdown with conditional `Switch Workspace`.
+- `src/app/(dashboard)/driver/page.tsx` and `src/app/(dashboard)/driver/dispatch/page.tsx` - allow driver portal access by `staff_type = driver`.
+
+**Behavior:**
+- CRM/CSR users with linked active staff profiles can switch between CRM and Staff Portal.
+- Owners/managers are no longer forcibly redirected to CRM by the proxy and can enter their authorized workspaces.
+- Workspace cards expose only authorized destinations.
+- Switching actions show the same premium setup-center spinner style in a centered overlay.
+- Users with no usable workspace land on `/account/setup` instead of being signed out immediately after login.
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: Passing
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 91 routes
+- In-app browser reached `/select-workspace` and redirected unauthenticated traffic to `/login` as expected.
+
+---
+
+### 2026-06-03 - Codex (STAFF-PORTAL-SHELL-NAV-001 - Route-first sidebar workspace)
+
+**Task:** Fix Staff Portal pages for multi-access CSR/staff users showing the CRM/CSR sidebar instead of the Staff Portal navigation.
+
+**Files Changed:**
+- `src/components/features/dashboard/sidebar.tsx` - sidebar workspace resolution now uses the current route workspace first, then falls back to the role workspace.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up fix and verification notes.
+
+**Behavior:**
+- `/staff-portal/*` now uses Staff Portal sidebar metadata and `NAV_CONFIG.staff` entries such as `My Schedule`, `My Week`, `My Stats`, `Profile`, and `Notifications`.
+- CSR/CRM roles still fall back to CRM navigation on non-workspace or CRM paths.
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 91 routes
+- In-app browser reached `/staff-portal/profile` but redirected unauthenticated traffic to `/login`; authenticated visual confirmation still needs a valid local staff session.
+
+---
+
+### 2026-06-03 - Codex (STAFF-PORTAL-PROFILE-EDIT-001 - Staff self-editable profile details)
+
+**Task:** Let staff edit their own Staff Portal profile name/nickname while keeping system role, staff role, and tier editable only by higher-power staff management users.
+
+**Files Created:**
+- `src/components/features/staff-portal/staff-profile-details-form.tsx` - client form with editable Full Name/Nickname and locked read-only System Role, Staff Role, and Tier fields.
+
+**Files Changed:**
+- `src/app/(dashboard)/staff-portal/actions.ts` - added `updateMyProfileDetailsAction`; profile lookup now selects real `staff_type`, `avatar_url`, and `avatar_path`; profile photo DB update now uses the server admin client after staff auth validation.
+- `src/app/(dashboard)/staff-portal/profile/page.tsx` - replaces read-only account details grid with the new self-edit form and label formatting.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up fix and verification notes.
+
+**Behavior:**
+- Staff can update only `full_name` and `nickname` from `/staff-portal/profile`.
+- `system_role`, `staff_type`, and `tier` stay locked in Staff Portal and must be changed from the higher-power staff management flows.
+- Staff Portal profile cards now show real `staff_type` and existing avatar URL/path when the columns are present.
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 91 routes
+- In-app browser reached `/staff-portal/profile` but redirected unauthenticated traffic to `/login`; authenticated save flow still needs a valid local staff session.
+
+---
+
+### 2026-06-03 - Codex (STAFF-PORTAL-ROLE-DROPDOWNS-001 - Editable profile roles)
+
+**Task:** Allow Staff Portal users to edit Staff Role and System Role from supported dropdown lists and keep the save button spinner inside the button.
+
+**Files Changed:**
+- `src/app/(dashboard)/staff-portal/actions.ts` - `updateMyProfileDetailsAction` now accepts and validates `systemRole` and `staffType` against supported constants before updating `system_role` and `staff_type`.
+- `src/components/features/staff-portal/staff-profile-details-form.tsx` - System Role and Staff Role are now dropdown fields sourced from `SYSTEM_ROLE_OPTIONS` and `STAFF_TYPE_OPTIONS`; save button keeps `Loader2` in-button pending state.
+- `src/app/(dashboard)/staff-portal/profile/page.tsx` - passes raw `system_role` and `staff_type` values into the form.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up.
+
+**Behavior:**
+- Staff can edit `full_name`, `nickname`, `system_role`, and `staff_type` from `/staff-portal/profile`.
+- `tier` remains read-only in the Staff Portal profile form.
+- Dropdown choices use the supported app role constants rather than free text.
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 91 routes
+- In-app browser reached `/staff-portal/profile` but redirected unauthenticated traffic to `/login`; authenticated save flow still needs a valid local staff session.
+
+---
+
+### 2026-06-03 - Codex (STAFF-PORTAL-PROFILE-SAVE-BUTTON-001 - Visible inline-spinner save control)
+
+**Task:** Make the Staff Portal profile save button obvious and ensure the spinner effect appears inside the button while saving.
+
+**Files Changed:**
+- `src/components/features/staff-portal/staff-profile-details-form.tsx` - moved the submit button into the Account Details header and switched the button pending state to a `useFormStatus()` submit component with inline `Loader2` spinner and `Saving` label.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up.
+
+**Behavior:**
+- Staff see `Save Changes` at the top of the Account Details card, beside the tier-managed badge.
+- While the form submits, the button disables and shows the spinner inline before `Saving`.
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 91 routes
+- Local route check reached `/staff-portal/profile` and redirected unauthenticated traffic to `/login`; authenticated visual save flow still needs a valid local staff session.

@@ -147,3 +147,27 @@
 - **Symptom:** The in-app browser reached `http://localhost:3000/crm/schedule`, but the route redirected to `http://localhost:3000/login`.
 - **Impact:** Type-check, lint, production build, and route reachability passed, but the authenticated visual check for selecting a staff member and opening the `View Full Schedule` modal still needs a valid local CRM/CSR session.
 - **Resolution:** No code change required for this limitation. Re-run browser verification after logging in locally as a CRM/CSR user, then open `/crm/schedule`, select a staff member, and click `View Full Schedule`.
+
+---
+
+## 2026-06-03 - AUTH-WORKSPACE-SWITCHING-001 browser/auth verification limitation
+
+- **Symptom:** The in-app browser reached `http://localhost:3000/select-workspace`, but unauthenticated traffic redirected to `http://localhost:3000/login`.
+- **Impact:** Type-check, lint, production build, and unauthenticated proxy behavior passed, but full workspace-switch click-through still needs local authenticated users for CRM-only, Staff-only, CRM+Staff, Driver, Owner/Admin, and no-workspace cases.
+- **Resolution:** No code change required for this limitation. Re-run authenticated browser verification with seeded users for each access combination.
+
+---
+
+## 2026-06-03 - STAFF-PORTAL-SHELL-NAV-001 browser/auth verification limitation
+
+- **Symptom:** The in-app browser reached `http://localhost:3000/staff-portal/profile`, but unauthenticated traffic redirected to `http://localhost:3000/login`.
+- **Impact:** Type-check, lint, production build, and route reachability passed, but visual confirmation of the authenticated Staff Portal sidebar still needs a valid local staff/CSR+staff session.
+- **Resolution:** No code change required for this limitation. Re-run browser verification after logging in locally as a multi-access CSR/staff user and opening `/staff-portal/profile`.
+
+---
+
+## 2026-06-03 - STAFF-PORTAL-PROFILE-EDIT-001 browser/auth verification limitation
+
+- **Symptom:** The in-app browser reached `http://localhost:3000/staff-portal/profile`, but unauthenticated traffic redirected to `http://localhost:3000/login`.
+- **Impact:** Type-check, lint, production build, and protected-route reachability passed, but the authenticated Staff Portal profile edit/save flow still needs a valid local staff session.
+- **Resolution:** No code change required for this limitation. Re-run browser verification after logging in locally as a staff or CSR+staff user, edit Full Name/Nickname, save, and confirm role/tier fields remain locked.

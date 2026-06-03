@@ -16,7 +16,7 @@ async function requireDriverRecord() {
 
   const { data: me } = await supabase
     .from("staff")
-    .select("id, full_name, nickname, branch_id, system_role")
+    .select("id, full_name, nickname, branch_id, system_role, staff_type")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -29,13 +29,14 @@ async function requireDriverRecord() {
         nickname: null,
         branch_id: "00000000-0000-0000-0000-000000000000",
         system_role: "driver",
+        staff_type: "driver",
       };
     }
     redirect("/login");
   }
 
   // Allow owner + driver roles; others go back to staff portal
-  if (me.system_role !== "owner" && me.system_role !== "driver") {
+  if (me.system_role !== "owner" && me.system_role !== "driver" && me.staff_type !== "driver") {
     redirect("/staff-portal");
   }
 

@@ -5,6 +5,7 @@ import { OfflineBanner } from "@/components/shared/offline-banner";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
+import { getUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
 
 // force-dynamic is NOT set here — the layout is already dynamic because
 // createClient() calls cookies() from next/headers, which inherently opts
@@ -20,6 +21,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const resolvedMe = me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
 
   if (!resolvedMe) redirect("/login");
+
+  const workspaces = await getUserWorkspaceAccess(ctx.user.id).catch(() => []);
 
   // Fetch CRM readiness for the header indicator (failure-safe).
   const branchId = resolvedMe.branch_id ?? null;
@@ -53,6 +56,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             fullName={resolvedMe.full_name}
             avatarUrl={null}
             readiness={readiness}
+            workspaces={workspaces}
           />
         </div>
         <main
