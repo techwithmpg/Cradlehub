@@ -374,8 +374,10 @@ export function ScheduleWorkspace({
             <CrmScheduleDetailsPanel
               staff={selectedStaff}
               booking={selectedBookingWithStaff?.booking ?? null}
+              availabilityItem={availabilityItemForSelectedStaff}
               branchResources={branchResources}
               date={date}
+              branchName={branchName}
               onClose={handleCloseDetails}
               canEditAvailability={availabilityItemForSelectedStaff !== null}
               onEditAvailability={() => {

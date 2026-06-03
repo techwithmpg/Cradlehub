@@ -1,2 +1,2 @@
-Task: Fix Start Service toast showing without countdown activating.
-Status: DONE - Direct DB update replaces RPC, allBookings fallback prevents panel disappearing on tab switch, sessionOverride optimistic state shows countdown immediately. type-check ✅ lint ✅ build ✅ (89 routes).
+Task: Build Staff Full Schedule Calendar Modal for CRM Schedule right panel.
+Status: DONE - View Full Schedule now opens an in-page Day/Week/Month calendar modal with staff summary, shifts, day-off states, bookings, blocked time, overnight ranges, filters, and legend. type-check PASS, lint PASS, build PASS (89 routes). Authenticated browser click-through still needs a local CRM/CSR session.

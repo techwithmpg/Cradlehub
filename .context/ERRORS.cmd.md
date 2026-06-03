@@ -139,3 +139,11 @@
 - **Symptom:** The in-app browser reached the existing local dev server at `http://localhost:3000`, but `/crm/bookings` redirected to `/login`.
 - **Impact:** The command-center redesign passed type-check, lint, and build, but the authenticated visual check of the Bookings Command Center, selected-booking panel, and modals still needs a valid local CRM/CSR browser session.
 - **Resolution:** No code change required for this limitation. Re-run browser verification after logging in locally as a CRM/CSR user.
+
+---
+
+## 2026-06-03 - CRM-SCHEDULE-FULL-CALENDAR-001 browser/auth verification limitation
+
+- **Symptom:** The in-app browser reached `http://localhost:3000/crm/schedule`, but the route redirected to `http://localhost:3000/login`.
+- **Impact:** Type-check, lint, production build, and route reachability passed, but the authenticated visual check for selecting a staff member and opening the `View Full Schedule` modal still needs a valid local CRM/CSR session.
+- **Resolution:** No code change required for this limitation. Re-run browser verification after logging in locally as a CRM/CSR user, then open `/crm/schedule`, select a staff member, and click `View Full Schedule`.

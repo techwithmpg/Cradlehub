@@ -3826,3 +3826,32 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm type-check`: ✅
 - `pnpm lint`: ✅ (0 errors, 2 pre-existing warnings)
 - `pnpm build`: ✅ 89 routes
+
+---
+
+### 2026-06-03 - Codex (CRM-SCHEDULE-FULL-CALENDAR-001 - Staff Full Schedule Modal)
+
+**Task:** Build a responsive Staff Full Schedule Calendar Modal for the CRM Schedule selected-staff right panel.
+
+**Files Created:**
+- `src/app/(dashboard)/crm/schedule/actions.ts` - server action that loads selected staff schedule data, overrides, group fallback rules, blocked times, and bookings with branch-scoped access checks.
+- `src/components/features/staff-schedule/staff-schedule-calendar-modal.tsx` - client modal with Day, Week, and Month calendar views.
+
+**Files Changed:**
+- `src/components/features/schedule/crm-schedule-details-panel.tsx` - replaced the old `View Full Schedule` navigation link with a modal-opening action and passes selected staff context into the modal.
+- `src/components/features/schedule/schedule-workspace.tsx` - passes the selected availability item and branch name into the details panel.
+
+**Behavior:**
+- `View Full Schedule` now opens an in-page modal instead of navigating away.
+- Week view is the default, uses Monday-Sunday columns, and renders a time rail with shift, day-off, booking, blocked-time, and overnight blocks.
+- Day view focuses the selected date, while Month view shows a compact operational overview across the full grid.
+- The modal prefers individual staff schedules and falls back to staff-group rules when individual active schedules are not present.
+- Summary cards, date navigation, filters, and legend are included in the modal shell.
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: Passing
+- `pnpm type-check`: Passing
+- `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: Passing, 89 routes
+- `git diff --check`: Passing with LF/CRLF working-copy warnings only
+- In-app browser reached `/crm/schedule` but redirected to `/login`; authenticated modal click-through still needs a local CRM/CSR session.

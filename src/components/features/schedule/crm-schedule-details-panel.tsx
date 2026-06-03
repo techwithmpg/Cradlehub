@@ -10,12 +10,14 @@
  * This replaces the Sheet-based details panel for CRM context.
  */
 
-import Link from "next/link";
+import { useState } from "react";
 import { X, User, Clock, Scissors, BedDouble, CreditCard } from "lucide-react";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
+import { StaffScheduleCalendarModal } from "@/components/features/staff-schedule/staff-schedule-calendar-modal";
 import { formatScheduleTime } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow, DailyScheduleBooking } from "@/lib/queries/schedule";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 import type { Database } from "@/types/supabase";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
@@ -23,8 +25,10 @@ type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 type CrmScheduleDetailsPanelProps = {
   staff: DailyScheduleStaffRow | null;
   booking: DailyScheduleBooking | null;
+  availabilityItem?: StaffScheduleItem | null;
   branchResources: ResourceRow[];
   date: string;
+  branchName?: string | null;
   onClose: () => void;
   canEditAvailability?: boolean;
   onEditAvailability?: () => void;
@@ -65,11 +69,15 @@ function durationLabel(start: string, end: string): string {
 export function CrmScheduleDetailsPanel({
   staff,
   booking,
+  availabilityItem,
   date,
+  branchName,
   onClose,
   canEditAvailability = false,
   onEditAvailability,
 }: CrmScheduleDetailsPanelProps) {
+  const [isFullScheduleOpen, setIsFullScheduleOpen] = useState(false);
+
   if (!staff && !booking) {
     return (
       <div
@@ -247,10 +255,33 @@ export function CrmScheduleDetailsPanel({
               onClick={onEditAvailability}
               disabled={!canEditAvailability}
             />
-            <ActionLink href={`/crm/schedule?date=${date}`} label="View Full Schedule" />
+            <ActionButton
+              label="View Full Schedule"
+              onClick={() => setIsFullScheduleOpen(true)}
+            />
           </div>
         </PanelSection>
       )}
+
+      <StaffScheduleCalendarModal
+        open={isFullScheduleOpen}
+        onOpenChange={setIsFullScheduleOpen}
+        initialDate={date}
+        branchName={branchName}
+        staff={
+          staff
+            ? {
+                id: staff.staff_id,
+                full_name: staff.staff_name,
+                nickname: availabilityItem?.staff.nickname ?? null,
+                avatar_url: null,
+                staff_type: availabilityItem?.staff.staff_type ?? null,
+                system_role: null,
+                branch_name: branchName ?? null,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
@@ -311,17 +342,6 @@ function PanelRow({
         {value}
       </span>
     </div>
-  );
-}
-
-function ActionLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center justify-center rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--cs-text-secondary)] no-underline transition hover:bg-[var(--cs-surface-warm)]"
-    >
-      {label}
-    </Link>
   );
 }
 
