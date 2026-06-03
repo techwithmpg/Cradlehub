@@ -1,3 +1,47 @@
+# HANDOFF - Therapist Staff Portal Mobile UI: COMPLETE
+
+## Status
+
+Build verified. 93 routes. Therapist Staff Portal mobile UI complete.
+
+## What changed
+
+**New action:** `getMyServiceProgressAction(date)` in `actions.ts` — fetches all non-cancelled today's bookings split into `active` / `completed` arrays.
+
+**13 new therapist components** in `src/components/features/staff-portal/therapist/`:
+- `therapist-mobile-bottom-nav.tsx` — Home, Schedule, **Service Progress**, Stats, More
+- `therapist-header.tsx` — sticky logo + role + bell + avatar
+- `therapist-greeting-card.tsx` — greeting + service-aware status (In Service / Traveling / On Duty / Day Off / No Shift)
+- `therapist-shift-card.tsx` — My Shift Today card
+- `therapist-next-service-card.tsx` — Next Service with countdown badge + room/home-service context
+- `therapist-quick-actions.tsx` — My Schedule, Service Progress, Dispatch, My Stats
+- `therapist-mobile-home.tsx` — assembles all home cards
+- `therapist-service-progress-card.tsx` — service card reusing `BookingProgressActions`
+- `therapist-service-progress-page.tsx` — client: Active / Completed tabs
+- `therapist-schedule-list.tsx` — compact day cards with appointment chips
+- `therapist-week-detail.tsx` — day picker + timeline with appointments
+- `therapist-stats.tsx` — booking-based stat cards (completed, revenue, rate)
+- `therapist-more-menu.tsx` — Account + Work + Support sections with inline logout
+
+**New route:** `/staff-portal/service-progress` — service progress tabs for therapists.
+
+**Updated pages:** home, schedule, week, stats, more — all now route therapist mode to therapist components.
+
+**Key reuse decisions:**
+- `BookingProgressActions` unchanged and embedded in service progress cards (no duplicate progress system)
+- `TrackingTimer` already used inside `BookingProgressActions`
+- Dispatch page at `/staff-portal/dispatch` unchanged (therapist home links there)
+- Basic Staff Portal (`basic/` components) untouched
+- Driver Portal untouched
+
+## Verification
+
+- tsc: PASS, lint: PASS, build: PASS (93 routes)
+- Zero TypeScript `any` in new files
+- Authenticated visual check needs valid local therapist session
+
+---
+
 # HANDOFF - Basic Staff Portal Mobile UI: COMPLETE
 
 ## Status

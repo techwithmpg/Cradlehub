@@ -1,5 +1,6 @@
 import { StaffSchedulePage } from "@/components/features/staff-portal/staff-schedule-page";
 import { BasicStaffMobileSchedule } from "@/components/features/staff-portal/basic/basic-staff-mobile-schedule";
+import { TherapistScheduleList } from "@/components/features/staff-portal/therapist/therapist-schedule-list";
 import { getWeekNavigation, buildStaffWeekPlanner, type WeekResult } from "@/lib/staff-portal/week";
 import { buildWeekEvents } from "@/lib/staff-portal/schedule";
 import { getMyWeekAction } from "../actions";
@@ -31,6 +32,7 @@ export default async function SchedulePage({
 
   const mode = getStaffPortalMode(result.staff);
   const isBasic = isBasicStaffMode(mode);
+  const isTherapist = mode === "therapist";
 
   const planner = buildStaffWeekPlanner({
     days: nav.days,
@@ -48,17 +50,9 @@ export default async function SchedulePage({
   if (isBasic) {
     return (
       <>
-        {/* Desktop: existing schedule page (grid + right rail) */}
         <div className="hidden md:block">
-          <StaffSchedulePage
-            nav={nav}
-            days={planner.days}
-            summary={planner.summary}
-            eventsByDate={eventsByDate}
-          />
+          <StaffSchedulePage nav={nav} days={planner.days} summary={planner.summary} eventsByDate={eventsByDate} />
         </div>
-
-        {/* Mobile: compact day cards for basic staff */}
         <div className="block md:hidden">
           <BasicStaffMobileSchedule nav={nav} days={planner.days} />
         </div>
@@ -66,7 +60,20 @@ export default async function SchedulePage({
     );
   }
 
-  // Therapist / driver: existing schedule page handles desktop + mobile
+  if (isTherapist) {
+    return (
+      <>
+        <div className="hidden md:block">
+          <StaffSchedulePage nav={nav} days={planner.days} summary={planner.summary} eventsByDate={eventsByDate} />
+        </div>
+        <div className="block md:hidden">
+          <TherapistScheduleList nav={nav} days={planner.days} />
+        </div>
+      </>
+    );
+  }
+
+  // Driver / other: existing schedule page
   return (
     <StaffSchedulePage
       nav={nav}

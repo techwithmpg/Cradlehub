@@ -1,5 +1,6 @@
 import { MyWeekPage } from "@/components/features/staff-portal/my-week-page";
 import { BasicStaffWeekDetail } from "@/components/features/staff-portal/basic/basic-staff-week-detail";
+import { TherapistWeekDetail } from "@/components/features/staff-portal/therapist/therapist-week-detail";
 import {
   buildStaffWeekPlanner,
   getWeekNavigation,
@@ -34,6 +35,7 @@ export default async function StaffWeekPage({
 
   const mode = getStaffPortalMode(result.staff);
   const isBasic = isBasicStaffMode(mode);
+  const isTherapist = mode === "therapist";
 
   const planner = buildStaffWeekPlanner({
     days: navigation.days,
@@ -42,30 +44,28 @@ export default async function StaffWeekPage({
     overrides: result.overrides,
   });
 
-  // Build lightweight schedule entries for shift_type lookup in week detail
   const scheduleEntries = result.schedule.map((row) => ({
     day_of_week: row.day_of_week,
     shift_type: row.shift_type ?? null,
   }));
 
+  const desktopPage = (
+    <MyWeekPage
+      fromDate={navigation.fromDate}
+      toDate={navigation.toDate}
+      previousWeekStart={navigation.previousWeekStart}
+      nextWeekStart={navigation.nextWeekStart}
+      currentWeekStart={navigation.currentWeekStart}
+      isCurrentWeek={navigation.isCurrentWeek}
+      days={planner.days}
+      summary={planner.summary}
+    />
+  );
+
   if (isBasic) {
     return (
       <>
-        {/* Desktop: existing My Week page */}
-        <div className="hidden md:block">
-          <MyWeekPage
-            fromDate={navigation.fromDate}
-            toDate={navigation.toDate}
-            previousWeekStart={navigation.previousWeekStart}
-            nextWeekStart={navigation.nextWeekStart}
-            currentWeekStart={navigation.currentWeekStart}
-            isCurrentWeek={navigation.isCurrentWeek}
-            days={planner.days}
-            summary={planner.summary}
-          />
-        </div>
-
-        {/* Mobile: day-picker week detail for basic staff */}
+        <div className="hidden md:block">{desktopPage}</div>
         <div className="block md:hidden">
           <BasicStaffWeekDetail
             days={planner.days}
@@ -80,17 +80,24 @@ export default async function StaffWeekPage({
     );
   }
 
-  // Therapist / driver: existing My Week page handles both desktop and mobile
-  return (
-    <MyWeekPage
-      fromDate={navigation.fromDate}
-      toDate={navigation.toDate}
-      previousWeekStart={navigation.previousWeekStart}
-      nextWeekStart={navigation.nextWeekStart}
-      currentWeekStart={navigation.currentWeekStart}
-      isCurrentWeek={navigation.isCurrentWeek}
-      days={planner.days}
-      summary={planner.summary}
-    />
-  );
+  if (isTherapist) {
+    return (
+      <>
+        <div className="hidden md:block">{desktopPage}</div>
+        <div className="block md:hidden">
+          <TherapistWeekDetail
+            days={planner.days}
+            schedule={scheduleEntries}
+            fromDate={navigation.fromDate}
+            toDate={navigation.toDate}
+            previousWeekStart={navigation.previousWeekStart}
+            nextWeekStart={navigation.nextWeekStart}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // Driver / other: existing My Week page
+  return desktopPage;
 }

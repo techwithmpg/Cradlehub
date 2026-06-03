@@ -4016,3 +4016,49 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Therapist and driver portal flows not modified
 - Role/type/tier locked on profile (existing behavior preserved)
 - Browser authenticated visual check still needs a valid local staff session
+
+---
+
+## 2026-06-03 — Therapist Staff Portal Mobile UI
+
+**Task:** Implement approved Therapist Staff Portal mobile experience for service provider staff (therapist, nail_tech, aesthetician, salon_head).
+
+**New server action:**
+- `getMyServiceProgressAction(date)` in `actions.ts` — fetches all non-cancelled today's bookings; returns `{ active, completed, staff }`.
+
+**New route:** `/staff-portal/service-progress` — therapist service progress page.
+
+**New components (13) in `src/components/features/staff-portal/therapist/`:**
+- `therapist-mobile-bottom-nav.tsx` — Home, Schedule, Service (→ /service-progress), Stats, More
+- `therapist-header.tsx` — header with logo, role label, bell, avatar
+- `therapist-greeting-card.tsx` — service-aware status: In Service, Traveling, On Duty, Day Off, No Shift
+- `therapist-shift-card.tsx` — My Shift Today (reuses same pattern as basic)
+- `therapist-next-service-card.tsx` — Next Service with countdown badge and home-service context
+- `therapist-quick-actions.tsx` — My Schedule, Service Progress, Dispatch, My Stats
+- `therapist-mobile-home.tsx` — assembles all home cards + TherapistMobileBottomNav
+- `therapist-service-progress-card.tsx` — service card with BookingProgressActions (stepper, timer, action buttons)
+- `therapist-service-progress-page.tsx` — Active/Completed tabs client component
+- `therapist-schedule-list.tsx` — compact day cards with appointment chips (service + time + room + status)
+- `therapist-week-detail.tsx` — horizontal day picker + selected day detail + timeline with booked appointments
+- `therapist-stats.tsx` — mobile booking-based stat cards (Services Completed, Revenue Generated, Completion Rate)
+- `therapist-more-menu.tsx` — Account + Work (My Week, Dispatch, Service History) + Support sections; server logout action
+
+**Modified files:**
+- `actions.ts` — new `getMyServiceProgressAction` and `ServiceProgressResult` type
+- `page.tsx` (home) — therapist mode → `TherapistMobileHome`; schedule data also fetched for therapist
+- `schedule/page.tsx` — therapist mobile → `TherapistScheduleList`
+- `week/page.tsx` — therapist mobile → `TherapistWeekDetail`
+- `stats/page.tsx` — therapist mobile → `TherapistStats`; desktop keeps existing `BookingStatsDesktop`
+- `more/page.tsx` — mode-aware: therapist → `TherapistMoreMenu`, basic → `BasicStaffMoreMenu`
+
+**Key design decisions:**
+- `BookingProgressActions` reused unchanged inside service progress cards — no duplicate progress system
+- Dispatch page at `/staff-portal/dispatch` unchanged — therapist home and more menu link there
+- Basic Staff Portal (`basic/` folder) and Driver Portal completely untouched
+- Service-aware status badge in greeting: detects session_started → "In Service", travel_started/arrived → "Traveling"
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: PASS
+- `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in scripts/)
+- `pnpm build`: PASS, 93 routes (+1 /staff-portal/service-progress)
+- Zero TypeScript `any` in new/modified files

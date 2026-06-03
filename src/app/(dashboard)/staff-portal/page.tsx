@@ -5,6 +5,7 @@ import { StaffMobileHome } from "@/components/features/staff-portal/mobile/staff
 import { StaffCheckinWidget } from "@/components/features/staff-portal/staff-checkin-widget";
 import { ActionRequiredList } from "@/components/features/notifications/action-required-list";
 import { BasicStaffMobileHome } from "@/components/features/staff-portal/basic/basic-staff-mobile-home";
+import { TherapistMobileHome } from "@/components/features/staff-portal/therapist/therapist-mobile-home";
 import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 
@@ -33,9 +34,10 @@ export default async function StaffTodayPage() {
 
   const mode = getStaffPortalMode(result.staff);
   const isBasic = isBasicStaffMode(mode);
+  const isTherapist = mode === "therapist";
 
-  // For basic staff: fetch today's schedule so we can show shift info on home
-  const scheduleResult = isBasic
+  // Fetch schedule data for basic and therapist modes (both need shift info on home)
+  const scheduleResult = !("driver" === mode)
     ? await getMyTodayScheduleAction(today)
     : null;
 
@@ -48,7 +50,7 @@ export default async function StaffTodayPage() {
       ? scheduleResult.todayOverride
       : null;
 
-  // Fetch today's check-in status (for non-basic / therapist mobile check-in widget)
+  // Check-in widget for non-basic (therapist/driver) — shown on desktop only
   const checkin =
     !isBasic && result.staff.branch_id
       ? await getStaffCheckinForDate(
@@ -82,15 +84,23 @@ export default async function StaffTodayPage() {
       {/* ── Mobile layout (below md) ── */}
       <div className="block md:hidden">
         {isBasic ? (
-          /* Basic staff: clean mobile home (no service progress controls) */
+          /* Basic (utility, CSR, admin assistant): no service progress */
           <BasicStaffMobileHome
             staff={result.staff}
             bookings={result.bookings}
             todaySchedule={todaySchedule}
             todayOverride={todayOverride}
           />
+        ) : isTherapist ? (
+          /* Therapist: service-progress-first mobile home */
+          <TherapistMobileHome
+            staff={result.staff}
+            bookings={result.bookings}
+            todaySchedule={todaySchedule}
+            todayOverride={todayOverride}
+          />
         ) : (
-          /* Therapist / driver: existing mobile home */
+          /* Driver / other: existing mobile home with check-in widget */
           <>
             {result.staff.branch_id && (
               <div style={{ marginBottom: "0.75rem" }}>

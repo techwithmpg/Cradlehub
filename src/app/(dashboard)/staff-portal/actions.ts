@@ -247,6 +247,81 @@ export async function updateMyProfileDetailsAction(
   return { success: true };
 }
 
+// ── Service Progress — all today's active + completed bookings ───────────
+export type ServiceProgressResult =
+  | { error: string }
+  | {
+      active: StaffPortalBooking[];
+      completed: StaffPortalBooking[];
+      staff: StaffPortalStaff;
+    };
+
+export async function getMyServiceProgressAction(date: string): Promise<ServiceProgressResult> {
+  const supabase = await createClient();
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const selectWithResource = `
+    id, booking_date, start_time, end_time, type, status,
+    booking_progress_status, home_service_tracking_status,
+    travel_buffer_mins, metadata,
+    travel_started_at, arrived_at, session_started_at, completed_at,
+    session_completed_at, checked_in_at, no_show_at,
+    resource_id,
+    services  ( id, name, duration_minutes ),
+    customers ( id, full_name )
+  `;
+  const selectWithoutResource = `
+    id, booking_date, start_time, end_time, type, status,
+    booking_progress_status, home_service_tracking_status,
+    travel_buffer_mins, metadata,
+    travel_started_at, arrived_at, session_started_at, completed_at,
+    session_completed_at, checked_in_at, no_show_at,
+    services  ( id, name, duration_minutes ),
+    customers ( id, full_name )
+  `;
+
+  const runQuery = async (select: string) =>
+    supabase
+      .from("bookings")
+      .select(select)
+      .eq("staff_id", me.id)
+      .eq("booking_date", date)
+      .neq("status", "cancelled")
+      .order("start_time");
+
+  let { data, error } = await runQuery(selectWithResource);
+
+  if (error && /column bookings\.resource_id does not exist/i.test(error.message)) {
+    const fallback = await runQuery(selectWithoutResource);
+    data = fallback.data;
+    error = fallback.error;
+  }
+
+  if (error) return { error: error.message };
+
+  try {
+    const allBookings = await attachBranchResources(
+      supabase,
+      (data ?? []) as unknown as Array<StaffPortalBooking & { resource_id?: string | null }>
+    );
+
+    const bookings = allBookings as unknown as StaffPortalBooking[];
+    const active = bookings.filter(
+      (b) => b.status !== "completed" && b.status !== "no_show"
+    );
+    const completed = bookings.filter(
+      (b) => b.status === "completed" || b.status === "no_show"
+    );
+
+    return { active, completed, staff: me };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Unable to load service progress",
+    };
+  }
+}
+
 // ── Today's schedule (shift) info ────────────────────────────────────────
 export type TodayScheduleInfo = {
   day_of_week: number;
