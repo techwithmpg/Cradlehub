@@ -13,7 +13,6 @@ import {
   type BookingProgressStatus,
 } from "@/lib/bookings/progress";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
-import { STAFF_TYPES, SYSTEM_ROLES } from "@/constants/staff";
 
 import { revalidatePath } from "next/cache";
 import { logError, logBusinessEvent } from "@/lib/logger";
@@ -41,8 +40,6 @@ const staffSelfProfileSchema = z.object({
     },
     z.string().max(80, "Nickname must be 80 characters or fewer.").nullable()
   ),
-  systemRole: z.enum(SYSTEM_ROLES, "Select a supported system role."),
-  staffType: z.enum(STAFF_TYPES, "Select a supported staff role."),
 });
 
 export type StaffProfileDetailsActionState = {
@@ -51,8 +48,6 @@ export type StaffProfileDetailsActionState = {
   fieldErrors?: {
     fullName?: string[];
     nickname?: string[];
-    systemRole?: string[];
-    staffType?: string[];
   };
 };
 
@@ -200,8 +195,6 @@ export async function updateMyProfileDetailsAction(
   const parsed = staffSelfProfileSchema.safeParse({
     fullName: formData.get("fullName"),
     nickname: formData.get("nickname"),
-    systemRole: formData.get("systemRole"),
-    staffType: formData.get("staffType"),
   });
 
   if (!parsed.success) {
@@ -212,8 +205,6 @@ export async function updateMyProfileDetailsAction(
       fieldErrors: {
         fullName: fieldErrors.fullName,
         nickname: fieldErrors.nickname,
-        systemRole: fieldErrors.systemRole,
-        staffType: fieldErrors.staffType,
       },
     };
   }
@@ -227,14 +218,12 @@ export async function updateMyProfileDetailsAction(
   const me = await getMyStaffRecord();
   if (!me) return { success: false, error: "Unauthorized" };
 
-  const { fullName, nickname, systemRole, staffType } = parsed.data;
+  const { fullName, nickname } = parsed.data;
   const { data: updatedRows, error } = await createAdminClient()
     .from("staff")
     .update({
       full_name: fullName,
       nickname,
-      system_role: systemRole,
-      staff_type: staffType,
     })
     .eq("id", me.id)
     .eq("auth_user_id", user.id)
@@ -248,10 +237,6 @@ export async function updateMyProfileDetailsAction(
   logBusinessEvent("staff_profile.self_updated", {
     actorId: me.id,
     branchId: me.branch_id,
-    previousSystemRole: me.system_role,
-    nextSystemRole: systemRole,
-    previousStaffType: me.staff_type,
-    nextStaffType: staffType,
   });
 
   revalidateStaffAndOperationalSurfaces(me.branch_id);
@@ -260,6 +245,151 @@ export async function updateMyProfileDetailsAction(
   revalidatePath("/crm/staff");
 
   return { success: true };
+}
+
+// ── Today's schedule (shift) info ────────────────────────────────────────
+export type TodayScheduleInfo = {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  shift_type: string;
+};
+
+export type TodayOverrideInfo = {
+  override_date: string;
+  is_day_off: boolean;
+  start_time: string | null;
+  end_time: string | null;
+};
+
+export type TodayScheduleResult =
+  | { error: string }
+  | { todaySchedule: TodayScheduleInfo | null; todayOverride: TodayOverrideInfo | null };
+
+export async function getMyTodayScheduleAction(date: string): Promise<TodayScheduleResult> {
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const parts = date.split("-").map(Number);
+  const y = parts[0] ?? 0;
+  const m = (parts[1] ?? 1) - 1;
+  const d = parts[2] ?? 1;
+  const todayDow = new Date(y, m, d).getDay();
+
+  const [scheduleRows, overrideRows] = await Promise.all([
+    getStaffSchedule(me.id).catch((): Awaited<ReturnType<typeof getStaffSchedule>> => []),
+    getStaffOverrides(me.id, date).catch((): Awaited<ReturnType<typeof getStaffOverrides>> => []),
+  ]);
+
+  const todayScheduleRow = scheduleRows.find((r) => r.day_of_week === todayDow);
+  const todayOverrideRow = overrideRows.find((o) => o.override_date === date);
+
+  return {
+    todaySchedule: todayScheduleRow
+      ? {
+          day_of_week: todayScheduleRow.day_of_week,
+          start_time: todayScheduleRow.start_time,
+          end_time: todayScheduleRow.end_time,
+          shift_type: todayScheduleRow.shift_type ?? "single",
+        }
+      : null,
+    todayOverride: todayOverrideRow
+      ? {
+          override_date: todayOverrideRow.override_date,
+          is_day_off: todayOverrideRow.is_day_off,
+          start_time: todayOverrideRow.start_time ?? null,
+          end_time: todayOverrideRow.end_time ?? null,
+        }
+      : null,
+  };
+}
+
+// ── Monthly schedule stats for basic (non-therapist) staff ─────────────────
+export type MonthlyScheduleStats = {
+  workingDays: number;
+  daysOff: number;
+  noShiftDays: number;
+  hoursScheduled: number;
+  avgDailyHours: number;
+  daysInMonth: number;
+};
+
+export type MonthlyScheduleStatsResult =
+  | { error: string }
+  | MonthlyScheduleStats;
+
+export async function getMyMonthlyScheduleStatsAction(
+  year: number,
+  month: number
+): Promise<MonthlyScheduleStatsResult> {
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const yStr = String(year);
+  const mStr = String(month).padStart(2, "0");
+  const monthStart = `${yStr}-${mStr}-01`;
+  const monthEnd = `${yStr}-${mStr}-${String(daysInMonth).padStart(2, "0")}`;
+
+  const [scheduleRows, allOverrides] = await Promise.all([
+    getStaffSchedule(me.id).catch((): Awaited<ReturnType<typeof getStaffSchedule>> => []),
+    getStaffOverrides(me.id, monthStart).catch((): Awaited<ReturnType<typeof getStaffOverrides>> => []),
+  ]);
+
+  const overrides = allOverrides.filter(
+    (o) => o.override_date >= monthStart && o.override_date <= monthEnd
+  );
+  const overrideByDate: Record<string, typeof overrides[number]> = {};
+  for (const o of overrides) overrideByDate[o.override_date] = o;
+
+  const schedByDow: Partial<Record<number, typeof scheduleRows[number]>> = {};
+  for (const row of scheduleRows) schedByDow[row.day_of_week] = row;
+
+  let workingDays = 0;
+  let daysOff = 0;
+  let totalMinutes = 0;
+
+  for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+    const dateStr = `${yStr}-${mStr}-${String(dayNum).padStart(2, "0")}`;
+    const dow = new Date(year, month - 1, dayNum).getDay();
+    const override = overrideByDate[dateStr];
+
+    if (override) {
+      if (override.is_day_off) {
+        daysOff++;
+      } else {
+        workingDays++;
+        const st = override.start_time;
+        const et = override.end_time;
+        if (st && et) {
+          const [sh, sm] = st.split(":").map(Number);
+          const [eh, em] = et.split(":").map(Number);
+          totalMinutes += ((eh ?? 0) * 60 + (em ?? 0)) - ((sh ?? 0) * 60 + (sm ?? 0));
+        }
+      }
+    } else {
+      const schedRow = schedByDow[dow];
+      if (schedRow) {
+        workingDays++;
+        const [sh, sm] = schedRow.start_time.split(":").map(Number);
+        const [eh, em] = schedRow.end_time.split(":").map(Number);
+        totalMinutes += ((eh ?? 0) * 60 + (em ?? 0)) - ((sh ?? 0) * 60 + (sm ?? 0));
+      }
+    }
+  }
+
+  const hoursScheduled = Math.round((totalMinutes / 60) * 10) / 10;
+  const avgDailyHours =
+    workingDays > 0 ? Math.round((hoursScheduled / workingDays) * 10) / 10 : 0;
+
+  return {
+    workingDays,
+    daysOff,
+    noShiftDays: daysInMonth - workingDays - daysOff,
+    hoursScheduled,
+    avgDailyHours,
+    daysInMonth,
+  };
 }
 
 // ── Today's bookings for the portal home ──────────────────────────────────

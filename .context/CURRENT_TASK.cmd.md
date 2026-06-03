@@ -1,2 +1,3 @@
-Task: Make Staff Portal profile save button visible with inline spinner.
-Status: DONE - Staff Portal profile form now shows the Save Changes button in the Account Details header, and the in-button pending spinner is driven by `useFormStatus`. Full Name, Nickname, System Role, and Staff Role remain editable; Tier remains read-only. npx tsc PASS, lint PASS, build PASS (91 routes). Local route reachability redirects unauthenticated traffic to `/login`; authenticated visual save test still needs a staff session.
+Task: Basic Staff Portal Mobile UI — full mobile experience for non-therapist, non-driver staff.
+Status: DONE — 2026-06-03
+Verification: npx tsc PASS, pnpm lint PASS (0 errors, 2 pre-existing warnings in scripts/), pnpm build PASS (92 routes).

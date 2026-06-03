@@ -37,7 +37,12 @@ export type WeekResult =
       schedule: ScheduleRow[];
       overrides: OverrideRow[];
       blocks: BlockedTimeRow[];
-      staff: Pick<StaffRow, "id" | "full_name" | "tier" | "system_role" | "branch_id">;
+      staff: Pick<StaffRow, "id" | "full_name" | "tier" | "system_role" | "branch_id"> & {
+        nickname: string | null;
+        staff_type: string | null;
+        avatar_url?: string | null;
+        avatar_path?: string | null;
+      };
     };
 
 export type StaffWeekNavigation = {

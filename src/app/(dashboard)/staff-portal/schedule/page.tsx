@@ -1,7 +1,9 @@
 import { StaffSchedulePage } from "@/components/features/staff-portal/staff-schedule-page";
+import { BasicStaffMobileSchedule } from "@/components/features/staff-portal/basic/basic-staff-mobile-schedule";
 import { getWeekNavigation, buildStaffWeekPlanner, type WeekResult } from "@/lib/staff-portal/week";
 import { buildWeekEvents } from "@/lib/staff-portal/schedule";
 import { getMyWeekAction } from "../actions";
+import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 
 export default async function SchedulePage({
   searchParams,
@@ -27,6 +29,9 @@ export default async function SchedulePage({
     );
   }
 
+  const mode = getStaffPortalMode(result.staff);
+  const isBasic = isBasicStaffMode(mode);
+
   const planner = buildStaffWeekPlanner({
     days: nav.days,
     bookings: result.bookings,
@@ -40,6 +45,28 @@ export default async function SchedulePage({
     blocks: result.blocks,
   });
 
+  if (isBasic) {
+    return (
+      <>
+        {/* Desktop: existing schedule page (grid + right rail) */}
+        <div className="hidden md:block">
+          <StaffSchedulePage
+            nav={nav}
+            days={planner.days}
+            summary={planner.summary}
+            eventsByDate={eventsByDate}
+          />
+        </div>
+
+        {/* Mobile: compact day cards for basic staff */}
+        <div className="block md:hidden">
+          <BasicStaffMobileSchedule nav={nav} days={planner.days} />
+        </div>
+      </>
+    );
+  }
+
+  // Therapist / driver: existing schedule page handles desktop + mobile
   return (
     <StaffSchedulePage
       nav={nav}

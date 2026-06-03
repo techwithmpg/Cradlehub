@@ -1,3 +1,74 @@
+# HANDOFF - Basic Staff Portal Mobile UI: COMPLETE
+
+## Status
+
+Build verified. CradleHub now has a complete Basic Staff Portal mobile UI for non-therapist, non-driver staff.
+
+## What changed
+
+### Staff portal mode helper
+
+Added `src/lib/staff/get-staff-portal-mode.ts`.
+
+- Exports `StaffPortalMode = "basic" | "therapist" | "driver" | "crm_staff"`.
+- `getStaffPortalMode(staff)` checks `system_role` and `staff_type` to determine mode.
+- `isBasicStaffMode(mode)` returns true for `"basic"` and `"crm_staff"`.
+
+### New server actions
+
+Added to `src/app/(dashboard)/staff-portal/actions.ts`:
+- `getMyTodayScheduleAction(date)` — fetches today's shift schedule row and override for the home page.
+- `getMyMonthlyScheduleStatsAction(year, month)` — computes working days, days off, hours scheduled from `staff_schedules` + `schedule_overrides`.
+
+### Updated week types
+
+`src/lib/staff-portal/week.ts`: `WeekResult.staff` now includes `nickname`, `staff_type`, `avatar_url`, `avatar_path` in its type, reflecting what `getMyWeekAction` already returns at runtime.
+
+### Basic staff components (10 new files)
+
+All in `src/components/features/staff-portal/basic/`:
+- `basic-staff-header.tsx` — sticky top bar with logo, role, bell, avatar
+- `basic-staff-greeting-card.tsx` — greeting + On Duty / Day Off / No Shift status badge
+- `basic-staff-shift-card.tsx` — "My Shift Today" with time range, shift type, View Full Schedule
+- `basic-staff-assignment-card.tsx` — "Next Assignment" without service progress controls; empty state
+- `basic-staff-quick-actions.tsx` — 2×2 quick action grid (Schedule, Week, Stats, Profile)
+- `basic-staff-mobile-home.tsx` — assembles cards + StaffMobileBottomNav
+- `basic-staff-mobile-schedule.tsx` — client: compact day cards + filter chips (All/On Duty/Day Off/Booked/Blocked)
+- `basic-staff-week-detail.tsx` — client: horizontal day picker + selected day detail + timeline + notes
+- `basic-staff-stats.tsx` — schedule-based stat cards (working days, days off, hours, avg daily hours)
+- `basic-staff-more-menu.tsx` — More menu with Account + Support sections; inline "use server" logout action
+
+### New route
+
+`src/app/(dashboard)/staff-portal/more/page.tsx` — `/staff-portal/more` route renders `BasicStaffMoreMenu`.
+
+### Updated pages
+
+- `page.tsx` (home) — detects mode; basic → `BasicStaffMobileHome`, therapist/driver → existing `StaffMobileHome`
+- `schedule/page.tsx` — basic on mobile → `BasicStaffMobileSchedule`; others → existing `StaffSchedulePage`
+- `week/page.tsx` — basic on mobile → `BasicStaffWeekDetail`; others → existing `MyWeekPage`
+- `stats/page.tsx` — basic → `BasicStaffStats` (schedule stats); others → existing booking stats
+
+### Bottom nav
+
+`staff-mobile-bottom-nav.tsx` — "More" now links to `/staff-portal/more` (was `/staff-portal/profile`); active detection covers `/staff-portal/more`, `/staff-portal/profile`, `/staff-portal/notifications`, `/staff-portal/settings`.
+
+## Verification
+
+- `npx tsc --noEmit --pretty false`: PASS
+- `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in scripts/)
+- `pnpm build`: PASS, 92 routes (+1 `/staff-portal/more`)
+- Zero TypeScript `any` in new/modified files
+- Therapist portal flows (StaffMobileHome, StaffSchedulePage, MyWeekPage) not modified
+- Driver portal flows not modified
+- Profile page locked fields (role/type/tier) preserved — existing server action only updates full_name and nickname
+
+## Browser note
+
+Authenticated visual check still needs a valid local staff session. Login as a utility/CSR/front-desk staff user (not therapist, not driver) and open `/staff-portal` on mobile viewport to see the Basic Staff Portal mobile UI.
+
+---
+
 # HANDOFF - Multi-workspace switching: COMPLETE
 
 ## Status

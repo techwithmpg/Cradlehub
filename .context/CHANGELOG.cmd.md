@@ -3978,3 +3978,41 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 91 routes
 - Local route check reached `/staff-portal/profile` and redirected unauthenticated traffic to `/login`; authenticated visual save flow still needs a valid local staff session.
+
+---
+
+## 2026-06-03 — Basic Staff Portal Mobile UI
+
+**Task:** Implement approved Basic Staff Portal mobile experience for non-therapist, non-driver staff.
+
+**New files:**
+- `src/lib/staff/get-staff-portal-mode.ts` — StaffPortalMode helper (basic | therapist | driver | crm_staff) using `isServiceStaffType` and system_role
+- `src/components/features/staff-portal/basic/basic-staff-header.tsx` — sticky mobile header with logo, role label, notification bell, avatar
+- `src/components/features/staff-portal/basic/basic-staff-greeting-card.tsx` — greeting + status badge (On Duty / Day Off / No Shift)
+- `src/components/features/staff-portal/basic/basic-staff-shift-card.tsx` — "My Shift Today" card with shift time + type + View Full Schedule button
+- `src/components/features/staff-portal/basic/basic-staff-assignment-card.tsx` — "Next Assignment" card without service progress controls
+- `src/components/features/staff-portal/basic/basic-staff-quick-actions.tsx` — 2×2 grid quick actions (My Schedule, My Week, My Stats, Profile)
+- `src/components/features/staff-portal/basic/basic-staff-mobile-home.tsx` — assembles all home cards + StaffMobileBottomNav
+- `src/components/features/staff-portal/basic/basic-staff-mobile-schedule.tsx` — client component: compact day cards + filter chips (All/On Duty/Day Off/Booked/Blocked)
+- `src/components/features/staff-portal/basic/basic-staff-week-detail.tsx` — client component: horizontal day picker + selected day detail + timeline + notes card
+- `src/components/features/staff-portal/basic/basic-staff-stats.tsx` — schedule-based stats (Working Days, Days Off, Hours Scheduled, Avg Daily Hours)
+- `src/components/features/staff-portal/basic/basic-staff-more-menu.tsx` — More page with Account + Support sections, inline "use server" logout action
+- `src/app/(dashboard)/staff-portal/more/page.tsx` — new route `/staff-portal/more`
+
+**Modified files:**
+- `src/lib/staff-portal/week.ts` — WeekResult.staff extended to include `nickname`, `staff_type`, `avatar_url`, `avatar_path`
+- `src/app/(dashboard)/staff-portal/actions.ts` — added `getMyTodayScheduleAction` (today's shift/override data) and `getMyMonthlyScheduleStatsAction` (schedule-based monthly stats)
+- `src/app/(dashboard)/staff-portal/page.tsx` — detects mode via `getStaffPortalMode`; basic staff see `BasicStaffMobileHome`, therapist/driver see existing `StaffMobileHome`
+- `src/app/(dashboard)/staff-portal/schedule/page.tsx` — basic staff on mobile get `BasicStaffMobileSchedule`; desktop + non-basic keep existing `StaffSchedulePage`
+- `src/app/(dashboard)/staff-portal/week/page.tsx` — basic staff on mobile get `BasicStaffWeekDetail` with day picker; desktop + non-basic keep existing `MyWeekPage`
+- `src/app/(dashboard)/staff-portal/stats/page.tsx` — basic staff get schedule-based stats (`BasicStaffStats`); therapist/driver keep existing booking-based stats
+- `src/components/features/staff-portal/mobile/staff-mobile-bottom-nav.tsx` — More item now links to `/staff-portal/more` (was `/staff-portal/profile`); active detection handles all More sub-paths
+
+**Verification:**
+- `npx tsc --noEmit --pretty false`: PASS
+- `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in scripts/)
+- `pnpm build`: PASS, 92 routes (+1 `/staff-portal/more`)
+- Zero TypeScript `any` in new files
+- Therapist and driver portal flows not modified
+- Role/type/tier locked on profile (existing behavior preserved)
+- Browser authenticated visual check still needs a valid local staff session

@@ -1,11 +1,16 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
-import { getMyStatsAction } from "../actions";
+import { BasicStaffStats } from "@/components/features/staff-portal/basic/basic-staff-stats";
+import { getMyStatsAction, getMyMonthlyScheduleStatsAction, getMyProfileAction } from "../actions";
+import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 import { formatCurrency } from "@/lib/utils";
+import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
+import type { MonthlyScheduleStats } from "../actions";
 
-type StatsResult =
+// ── Booking-based stats result type ──────────────────────────────────────────
+type BookingStatsResult =
   | { error: string }
   | {
       total_assigned: number;
@@ -14,6 +19,8 @@ type StatsResult =
       no_show: number;
       revenue_generated: number;
     };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getMonthLabel(year: number, month: number): string {
   return new Date(year, month - 1, 1).toLocaleDateString("en-PH", {
@@ -28,48 +35,32 @@ function clampMonth(month: number): number {
   return month;
 }
 
-export default async function StaffStatsPage({
-  searchParams,
+// ── Booking stats view (for therapist/driver staff) ───────────────────────────
+
+function BookingStatsView({
+  stats,
+  year,
+  month,
+  prevHref,
+  nextHref,
+  isFuture,
 }: {
-  searchParams: Promise<{ month?: string; year?: string }>;
+  stats: Exclude<BookingStatsResult, { error: string }>;
+  year: number;
+  month: number;
+  prevHref: string;
+  nextHref: string;
+  isFuture: boolean;
 }) {
-  const now = new Date();
-  const resolvedSearchParams = await searchParams;
-
-  const yearParam = Number(resolvedSearchParams.year ?? now.getFullYear());
-  const monthParam = Number(resolvedSearchParams.month ?? now.getMonth() + 1);
-  const year = Number.isFinite(yearParam) ? Math.floor(yearParam) : now.getFullYear();
-  const month = clampMonth(Number.isFinite(monthParam) ? Math.floor(monthParam) : now.getMonth() + 1);
-
-  const result = (await getMyStatsAction(year, month)) as StatsResult;
-
-  const prevDate = new Date(year, month - 2, 1);
-  const nextDate = new Date(year, month, 1);
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const isFuture = nextDate > currentMonthStart;
-
-  if ("error" in result) {
-    return (
-      <div
-        style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: "var(--cs-text-muted)",
-          fontSize: "0.875rem",
-        }}
-      >
-        {result.error}
-      </div>
-    );
-  }
-
-  const stats = result;
+  const monthLabel = getMonthLabel(year, month);
   const completionRate =
-    stats.total_assigned > 0 ? Math.round((stats.completed / stats.total_assigned) * 100) : 0;
+    stats.total_assigned > 0
+      ? Math.round((stats.completed / stats.total_assigned) * 100)
+      : 0;
 
   return (
     <div>
-      <PageHeader title="My Stats" description={getMonthLabel(year, month)} />
+      <PageHeader title="My Stats" description={monthLabel} />
 
       <div
         style={{
@@ -80,7 +71,7 @@ export default async function StaffStatsPage({
         }}
       >
         <Link
-          href={`/staff-portal/stats?year=${prevDate.getFullYear()}&month=${prevDate.getMonth() + 1}`}
+          href={prevHref}
           style={{
             padding: "5px 12px",
             borderRadius: 6,
@@ -102,11 +93,11 @@ export default async function StaffStatsPage({
             textAlign: "center",
           }}
         >
-          {getMonthLabel(year, month)}
+          {monthLabel}
         </span>
         {!isFuture && (
           <Link
-            href={`/staff-portal/stats?year=${nextDate.getFullYear()}&month=${nextDate.getMonth() + 1}`}
+            href={nextHref}
             style={{
               padding: "5px 12px",
               borderRadius: 6,
@@ -182,8 +173,8 @@ export default async function StaffStatsPage({
                     completionRate >= 80
                       ? "var(--cs-success)"
                       : completionRate >= 60
-                        ? "var(--cs-sand)"
-                        : "var(--cs-manager-accent)",
+                      ? "var(--cs-sand)"
+                      : "var(--cs-manager-accent)",
                 }}
               >
                 {completionRate}%
@@ -207,114 +198,12 @@ export default async function StaffStatsPage({
                     completionRate >= 80
                       ? "var(--cs-success)"
                       : completionRate >= 60
-                        ? "var(--cs-sand)"
-                        : "var(--cs-manager-accent)",
+                      ? "var(--cs-sand)"
+                      : "var(--cs-manager-accent)",
                   transition: "width 0.5s ease",
                 }}
               />
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginTop: "0.5rem",
-                fontSize: "0.75rem",
-                color: "var(--cs-text-muted)",
-              }}
-            >
-              <span>{stats.completed} completed</span>
-              <span>{stats.total_assigned} assigned</span>
-            </div>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: "var(--cs-surface)",
-              border: "1px solid var(--cs-border)",
-              borderRadius: 10,
-              overflow: "hidden",
-            }}
-          >
-            {[
-              {
-                label: "Completed sessions",
-                value: stats.completed,
-                color: "var(--cs-success)",
-                pct: completionRate,
-              },
-              {
-                label: "Cancellations",
-                value: stats.cancelled,
-                color: "var(--cs-text-muted)",
-                pct:
-                  stats.total_assigned > 0
-                    ? Math.round((stats.cancelled / stats.total_assigned) * 100)
-                    : 0,
-              },
-              {
-                label: "No shows",
-                value: stats.no_show,
-                color: "var(--cs-sand)",
-                pct:
-                  stats.total_assigned > 0
-                    ? Math.round((stats.no_show / stats.total_assigned) * 100)
-                    : 0,
-              },
-            ].map((row, i, arr) => (
-              <div
-                key={row.label}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.75rem 1rem",
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--cs-border)" : "none",
-                }}
-              >
-                <div
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    backgroundColor: row.color,
-                    flexShrink: 0,
-                  }}
-                />
-                <div style={{ flex: 1, fontSize: "0.875rem", color: "var(--cs-text)" }}>{row.label}</div>
-                <div
-                  style={{
-                    fontSize: "0.8125rem",
-                    color: "var(--cs-text-muted)",
-                    minWidth: 32,
-                    textAlign: "right",
-                  }}
-                >
-                  {row.pct}%
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.9375rem",
-                    fontWeight: 600,
-                    color: "var(--cs-text)",
-                    minWidth: 24,
-                    textAlign: "right",
-                  }}
-                >
-                  {row.value}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              marginTop: "0.75rem",
-              fontSize: "0.75rem",
-              color: "var(--cs-text-muted)",
-              textAlign: "center",
-            }}
-          >
-            Revenue figures based on service prices at time of booking.
           </div>
         </>
       )}
@@ -322,3 +211,97 @@ export default async function StaffStatsPage({
   );
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default async function StaffStatsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; year?: string }>;
+}) {
+  const now = new Date();
+  const resolvedSearchParams = await searchParams;
+
+  const yearParam = Number(resolvedSearchParams.year ?? now.getFullYear());
+  const monthParam = Number(resolvedSearchParams.month ?? now.getMonth() + 1);
+  const year = Number.isFinite(yearParam) ? Math.floor(yearParam) : now.getFullYear();
+  const month = clampMonth(
+    Number.isFinite(monthParam) ? Math.floor(monthParam) : now.getMonth() + 1
+  );
+
+  const prevDate = new Date(year, month - 2, 1);
+  const nextDate = new Date(year, month, 1);
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const isFuture = nextDate > currentMonthStart;
+
+  const prevHref = `/staff-portal/stats?year=${prevDate.getFullYear()}&month=${prevDate.getMonth() + 1}`;
+  const nextHref = `/staff-portal/stats?year=${nextDate.getFullYear()}&month=${nextDate.getMonth() + 1}`;
+
+  // Determine staff mode
+  const profileResult = await getMyProfileAction();
+  const staffForMode = "error" in profileResult ? null : (profileResult.staff as StaffPortalStaff);
+  const mode = staffForMode ? getStaffPortalMode(staffForMode) : "basic";
+  const isBasic = isBasicStaffMode(mode);
+
+  if (isBasic) {
+    // Basic staff: schedule-based stats
+    const scheduleStatsResult = await getMyMonthlyScheduleStatsAction(year, month);
+
+    if ("error" in scheduleStatsResult) {
+      return (
+        <div style={{ padding: "2rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
+          {scheduleStatsResult.error}
+        </div>
+      );
+    }
+
+    const monthLabel = getMonthLabel(year, month);
+
+    return (
+      <>
+        {/* Mobile: full-screen stats with bottom nav */}
+        <div className="block md:hidden">
+          <BasicStaffStats
+            stats={scheduleStatsResult as MonthlyScheduleStats}
+            monthLabel={monthLabel}
+            prevHref={prevHref}
+            nextHref={nextHref}
+            isFuture={isFuture}
+          />
+        </div>
+
+        {/* Desktop: inline stats cards */}
+        <div className="hidden md:block">
+          <BasicStaffStats
+            stats={scheduleStatsResult as MonthlyScheduleStats}
+            monthLabel={monthLabel}
+            prevHref={prevHref}
+            nextHref={nextHref}
+            isFuture={isFuture}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // Therapist / driver: booking-based stats (existing behavior)
+  const result = (await getMyStatsAction(year, month)) as BookingStatsResult;
+
+  if ("error" in result) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
+        {result.error}
+      </div>
+    );
+  }
+
+  return (
+    <BookingStatsView
+      stats={result}
+      year={year}
+      month={month}
+      prevHref={prevHref}
+      nextHref={nextHref}
+      isFuture={isFuture}
+    />
+  );
+}
