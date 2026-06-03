@@ -49,7 +49,9 @@ const IN_SPA_TRANSITIONS: Record<
   BookingProgressStatus,
   BookingProgressStatus[]
 > = {
-  not_started: ["checked_in", "no_show"],
+  // session_started is a valid direct transition for assigned staff
+  // (avoids requiring CRM check-in before service starts).
+  not_started: ["checked_in", "session_started", "no_show"],
   checked_in: ["session_started", "no_show"],
   session_started: ["completed"],
   completed: [],

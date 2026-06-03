@@ -140,9 +140,11 @@ function getStepperStages(bookingType: string): BookingProgressStatus[] {
 
 type BookingProgressActionsProps = {
   booking: StaffPortalBooking;
+  /** Called after a successful progress update (optional, for modal context). */
+  onSuccess?: () => void;
 };
 
-export function BookingProgressActions({ booking }: BookingProgressActionsProps) {
+export function BookingProgressActions({ booking, onSuccess }: BookingProgressActionsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const { isOffline } = useNetworkStatus();
@@ -186,7 +188,11 @@ export function BookingProgressActions({ booking }: BookingProgressActionsProps)
           description: feedback.successDescription,
           variant: feedback.variant ?? "success",
         });
-        router.refresh();
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.refresh();
+        }
         setTimeout(() => setActionFeedback({ type: "idle", title: "" }), 3000);
       }
     });

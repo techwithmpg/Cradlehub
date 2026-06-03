@@ -14,6 +14,21 @@ import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features
 
 import { revalidatePath } from "next/cache";
 import { logError, logBusinessEvent } from "@/lib/logger";
+import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+
+const STAFF_PORTAL_PATHS = [
+  "/staff-portal",
+  "/staff-portal/today",
+  "/staff-portal/schedule",
+  "/staff-portal/week",
+] as const;
+
+function revalidateStaffAndOperationalSurfaces(branchId?: string | null): void {
+  for (const path of STAFF_PORTAL_PATHS) {
+    revalidatePath(path);
+  }
+  revalidateOperationalBookingSurfaces(branchId);
+}
 
 // ── Resolve authenticated staff record ────────────────────────────────────
 async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
@@ -219,10 +234,10 @@ export async function updateBookingProgressAction({
     };
   }
 
-  // Fetch the booking — include driver_id for Phase 5 permission checks
+  // Fetch the booking — delivery_type drives transition validation (not type)
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
-    .select("id, staff_id, branch_id, type, status, booking_progress_status, driver_id")
+    .select("id, staff_id, branch_id, type, delivery_type, status, booking_progress_status, driver_id")
     .eq("id", bookingId)
     .single();
 
@@ -297,9 +312,10 @@ export async function updateBookingProgressAction({
 
   // ── Transition validation ──
   const currentStatus = booking.booking_progress_status as BookingProgressStatus;
-  const rawType = booking.type as string;
+  // Use delivery_type (operational discriminator) — the RPC also uses delivery_type.
+  const deliveryType = (booking as { delivery_type?: string | null }).delivery_type;
   const bookingType: import("@/lib/bookings/progress").BookingTypeForProgress =
-    rawType === "home_service" ? "home_service" : "in_spa";
+    deliveryType === "home_service" ? "home_service" : "in_spa";
 
   if (!canTransitionBookingProgress({ bookingType, currentStatus, nextStatus })) {
     return {
@@ -360,12 +376,85 @@ export async function updateBookingProgressAction({
     bookingType,
   });
 
+  revalidateStaffAndOperationalSurfaces(booking.branch_id);
+
   return {
     ok: true,
     bookingId,
     status: nextStatus,
     timestamp,
   };
+}
+
+// ── Auto-complete due session ─────────────────────────────────────────────────
+// Called by the countdown timer when the service duration expires.
+// Server validates booking state + server time independently.
+export async function autoCompleteDueSessionAction(
+  bookingId: string
+): Promise<BookingProgressResult> {
+  const supabase = await createClient();
+  const me = await getMyStaffRecord();
+  if (!me) {
+    return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in." };
+  }
+
+  const { data: booking, error: fetchError } = await supabase
+    .from("bookings")
+    .select("id, staff_id, branch_id, delivery_type, status, booking_progress_status, session_started_at, service_id, services(duration_minutes)")
+    .eq("id", bookingId)
+    .single();
+
+  if (fetchError || !booking) {
+    return { ok: false, code: "NOT_FOUND", message: "Booking not found." };
+  }
+
+  // Permission: assigned staff, or manager/owner
+  const isAssignedStaff = booking.staff_id === me.id;
+  const isManager = ["owner", "manager"].includes(me.system_role);
+  const isCrm = ["crm", "csr_head", "csr_staff", "csr"].includes(me.system_role);
+  if (!isAssignedStaff && !isManager && !isCrm) {
+    return { ok: false, code: "PERMISSION_DENIED", message: "Only assigned staff or managers may auto-complete." };
+  }
+
+  // Must be in session
+  if (booking.booking_progress_status !== "session_started") {
+    if (booking.booking_progress_status === "completed") {
+      return { ok: true, bookingId, status: "completed", timestamp: new Date().toISOString() };
+    }
+    return { ok: false, code: "INVALID_TRANSITION", message: "Session is not currently in progress." };
+  }
+
+  if (!booking.session_started_at) {
+    return { ok: false, code: "INVALID_TRANSITION", message: "Session start time is missing." };
+  }
+
+  // Server-side time validation: service duration must have elapsed
+  type ServiceRow = { duration_minutes?: number | null };
+  const serviceRow = Array.isArray(booking.services)
+    ? (booking.services[0] as ServiceRow | undefined)
+    : (booking.services as ServiceRow | null);
+  const durationMinutes = serviceRow?.duration_minutes ?? 60;
+  const startMs  = new Date(booking.session_started_at).getTime();
+  const endMs    = startMs + durationMinutes * 60 * 1000;
+
+  if (Date.now() < endMs) {
+    return { ok: false, code: "INVALID_TRANSITION", message: "Service duration has not elapsed yet." };
+  }
+
+  const { error: rpcError } = await supabase.rpc("update_booking_progress", {
+    p_booking_id: bookingId,
+    p_next_status: "completed",
+  });
+
+  if (rpcError) {
+    logError("staff_progress.auto_complete_failed", { bookingId, actorId: me.id, error: rpcError });
+    return { ok: false, code: "DATABASE_ERROR", message: rpcError.message };
+  }
+
+  logBusinessEvent("staff_progress.auto_completed", { bookingId, branchId: booking.branch_id, actorId: me.id });
+  revalidateStaffAndOperationalSurfaces(booking.branch_id);
+
+  return { ok: true, bookingId, status: "completed", timestamp: new Date().toISOString() };
 }
 
 function getInvalidTransitionMessage(
@@ -389,8 +478,8 @@ function getInvalidTransitionMessage(
   }
 
   if (bookingType === "in_spa") {
-    if (current === "not_started" && next !== "checked_in" && next !== "no_show") {
-      return "Please check in the client or mark no-show.";
+    if (current === "not_started" && next !== "checked_in" && next !== "session_started" && next !== "no_show") {
+      return "You may check in, start service directly, or mark no-show.";
     }
     if (current === "checked_in" && next !== "session_started" && next !== "no_show") {
       return "You can start the session or mark no-show.";

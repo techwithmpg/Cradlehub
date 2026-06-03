@@ -3689,3 +3689,38 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: ✅ Passing, 89 routes
 - Authenticated visual click-through still needs a valid local CRM/CSR browser session.
+
+---
+
+### 2026-06-03 — Claude Code (Staff Service Progress Workflow)
+
+**Task:** Upgrade the staff portal booking progress system into a full Service Progress workflow with a dedicated modal, direct session start, auto-completion, and CRM revalidation.
+
+**Files Created:**
+- `supabase/migrations/20260603000001_staff_direct_session_start.sql` — RPC update allowing `not_started → session_started` for in_spa bookings (direct start without CRM check-in).
+- `src/lib/bookings/service-session.ts` — Shared timing helpers: `computeServiceTimerState`, `fmtServiceSecs`, `SERVICE_BUFFER_SECS`, `SERVICE_GRACE_SECS`, `ServiceTimerState`, `ServiceTimerInput`, `ServiceTimerPhase`.
+- `src/components/features/staff-portal/service-session-countdown.tsx` — Staff portal live countdown widget (36px bold timer, progress bar, 6 phases: buffer/delayed/running/grace/overtime/done). Fires `onDue` callback when service duration expires.
+- `src/components/features/staff-portal/service-progress-modal.tsx` — Bottom sheet with booking header (customer/service/time/room), `ServiceSessionCountdown`, `BookingProgressActions` (full stepper + buttons), and auto-complete orchestration.
+
+**Files Changed:**
+- `src/lib/bookings/progress.ts` — Added `session_started` to `IN_SPA_TRANSITIONS.not_started` so staff can go directly to session without CRM check-in.
+- `src/app/(dashboard)/staff-portal/actions.ts`:
+  - Added `revalidateOperationalBookingSurfaces` import + `revalidateStaffAndOperationalSurfaces` helper (revalidates all staff portal + CRM + manager booking paths).
+  - Fixed `updateBookingProgressAction`: now fetches and uses `delivery_type` (not `type`) for TypeScript transition validation, matching RPC behavior.
+  - Added `autoCompleteDueSessionAction`: server-validates booking state, checks server-time ≥ service end, calls RPC, revalidates all surfaces.
+  - Added `revalidateStaffAndOperationalSurfaces` call after every successful progress update.
+- `src/components/features/staff-portal/booking-progress-actions.tsx` — Added optional `onSuccess?: () => void` prop; modal uses it to refresh + close instead of calling `router.refresh()`.
+- `src/components/features/staff-portal/staff-appointment-card.tsx` — Converted to `"use client"`. Replaced always-expanded `BookingProgressActions` with compact progress dot + "Service Progress" button that opens `ServiceProgressModal`.
+
+**Key decisions:**
+- The `react-hooks/refs` rule in this project forbids reading/writing refs during render. Phase-transition tracking for `onDue` lives in a `useEffect([currentPhase])` — refs are only accessed inside effects.
+- `onDue` fires when phase enters `grace` or `overtime` (service duration expired). The `autoCompleteDueSessionAction` independently validates server time, making it safe even if the client clock drifts.
+- Home service bookings remain unchanged: travel → arrived → session is still required. The modal shows the full flow for both delivery types.
+- CRM still retains full control — the new staff actions go through the same `update_booking_progress` RPC and revalidate all CRM surfaces.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 89 routes
+- Migration `20260603000001_staff_direct_session_start.sql` needs `supabase db push` to reach production.
+- Authenticated browser click-through still needs a valid local staff-portal session.

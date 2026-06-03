@@ -1,4 +1,4 @@
-# HANDOFF — Service Countdown Timer Chip: COMPLETE
+# HANDOFF — Staff Service Progress Workflow: COMPLETE
 
 ## Status: ✅ Build verified (89 routes · type-check ✅ · lint ✅ · build ✅)
 
@@ -6,65 +6,54 @@
 
 ## What Was Done (2026-06-03)
 
-### New: `src/components/features/bookings/service-countdown-chip.tsx`
+### New components
 
-| What | Detail |
-|------|--------|
-| **Component** | `ServiceCountdownChip` — compact live service timer |
-| **Placement** | `BookingDetailsPanel` → after hero card, before `CrmNextActionsPanel` |
-| **Timer phases** | 6: buffer, delayed, running, grace, overtime, done |
-| **Tick mechanism** | Combined `TickState \| null` state; `mountMs` captured once in `setTimeout` callback; `nowMs` ticked via `setInterval`. No direct setState in effect body. No ref-in-render. |
-| **Hydration** | Returns `null` until after first client tick (avoids SSR mismatch) |
-| **Design tokens** | All CSS variables: `--cs-sand*`, `--cs-success*`, `--cs-error*`, `--cs-border-soft` |
+| File | Purpose |
+|------|---------|
+| `src/lib/bookings/service-session.ts` | Shared timing: `computeServiceTimerState`, `fmtServiceSecs`, phase types |
+| `src/components/features/staff-portal/service-session-countdown.tsx` | 36px bold countdown widget for modal (6 phases, fires `onDue` callback) |
+| `src/components/features/staff-portal/service-progress-modal.tsx` | Bottom sheet: booking header + countdown + full progress actions + auto-complete |
+| `supabase/migrations/20260603000001_staff_direct_session_start.sql` | RPC: allow `not_started → session_started` for in_spa bookings |
 
-### Phase logic summary
+### Changed files
 
-| Phase | Condition | Timer | Color |
-|-------|-----------|-------|-------|
-| `buffer` | `checked_in` + `resourceId` + no `sessionStartedAt` | Countdown from `checkedInAt` / mount | Sand/gold |
-| `delayed` | Same, after 5 min expires | Elapsed since overdue (`+MM:SS`) | Soft red |
-| `running` | `session_started` or `in_progress` | Countdown to service end | Green |
-| `grace` | After service end, within 5 min | 5-min grace countdown | Sand/gold |
-| `overtime` | After grace expires | Elapsed since grace end (`+MM:SS`) | Soft red |
-| `done` | `completed` status | Tiny chip: "Completed · Service finished" | Neutral |
-| null | pending, cancelled, no_show, home service | Hidden | — |
-
-### Integration change in `bookings-table.tsx`
-
-```diff
-+ import { ServiceCountdownChip } from "./service-countdown-chip";
-  ...
-  <div className="mt-4 space-y-4">
-+   <ServiceCountdownChip
-+     status={booking.status}
-+     progressStatus={booking.booking_progress_status}
-+     checkedInAt={booking.checked_in_at}
-+     sessionStartedAt={booking.session_started_at}
-+     sessionCompletedAt={booking.session_completed_at}
-+     durationMinutes={durationMinutes}
-+     resourceId={booking.resource_id}
-+     isHomeService={isHomeService}
-+   />
-    <CrmNextActionsPanel booking={booking} ... />
-```
+| File | What changed |
+|------|-------------|
+| `src/lib/bookings/progress.ts` | `IN_SPA_TRANSITIONS.not_started` now includes `session_started` |
+| `src/app/(dashboard)/staff-portal/actions.ts` | Fixed `delivery_type` routing; added CRM revalidation; added `autoCompleteDueSessionAction` |
+| `src/components/features/staff-portal/booking-progress-actions.tsx` | Added `onSuccess?: () => void` prop |
+| `src/components/features/staff-portal/staff-appointment-card.tsx` | Now `"use client"`; compact trigger button + `ServiceProgressModal` |
 
 ---
 
-## Key Decisions Made
+## Key Decisions
 
-- **`TickState | null` pattern** instead of separate `isMounted` + `ref` to avoid both `react-hooks/set-state-in-effect` and `react-hooks/refs` lint errors. `mountMs` lives in state (not a ref) so it is never accessed during render from a ref.
-- **`setTimeout(..., 0)` init** — fires the first setState inside a callback, not directly in the effect body, satisfying the lint rule while still showing the timer immediately on mount.
-- **Home service excluded** — timer chip returns `null` when `isHomeService === true`; home service has different progress states (`travel_started`, `arrived`) that do not map to the in-spa timer model.
-- **No `PanelSection` wrapper** — the chip is self-contained with its own label and badge. Adding another section label would double-label it. It sits directly in the `space-y-4` div.
-- **`sessionCompletedAt` in props** — included in the exported type for completeness per task spec; the phase logic uses `progressStatus === "completed"` and `status === "completed"` instead (more reliable than checking the timestamp directly).
+- **Direct session start**: `not_started → session_started` is now valid for in_spa bookings (RPC + TypeScript both updated). CRM check-in remains an optional intermediate step, not a requirement.
+- **`delivery_type` as routing key**: The RPC and TypeScript transition validator now both use `delivery_type` (not `type`). Fixes a bug where `online` bookings were validated against wrong transitions.
+- **onDue in `useEffect`**: The `react-hooks/refs` lint rule forbids ref reads during render. `onDue` fires inside `useEffect([currentPhase])` — safe.
+- **Auto-complete is server-validated**: `autoCompleteDueSessionAction` independently checks `NOW() >= session_started_at + duration_minutes` using server time. Client timer expiry is a soft signal only.
+- **CRM revalidation**: Every staff progress update now calls `revalidateOperationalBookingSurfaces(branchId)` (CRM + manager paths) + staff portal paths.
+
+---
+
+## Pending: DB migration
+
+The migration `20260603000001_staff_direct_session_start.sql` is written but needs to be pushed to the live DB:
+
+```bash
+supabase db push
+```
+
+Until then, direct `not_started → session_started` will fail at the RPC level even though TypeScript allows it.
 
 ---
 
 ## What's Next
 
-- Apply premium layer to remaining CRM workspaces: Schedule, Services.
-- Authenticated browser click-through for the booking panel timer (needs local CRM/CSR session).
-- The proof-of-concept timer pattern is stable and can be adapted for other timed workflows.
+- Push migration to production (`supabase db push`)
+- Authenticated staff-portal browser click-through verification
+- Apply premium layer to remaining CRM workspaces (Schedule, Services)
+- Optional: `NextAppointmentCard` — add "Service Progress" trigger for the next-up appointment card
 
 ---
 
