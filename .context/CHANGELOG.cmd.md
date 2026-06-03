@@ -3758,3 +3758,44 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 89 routes
+
+---
+
+### 2026-06-03 — Claude Code (Fix: Service Workflow Bug — Complete Service before session start)
+
+**Task:** Fix the selected booking panel showing "Complete Service" when the service had not actually started.
+
+**Root cause (multi-layered):**
+1. `updateBookingStatusAction` only wrote `status = 'in_progress'`. It did NOT call the `update_booking_progress` RPC, so `booking_progress_status = 'session_started'` and `session_started_at` were never set.
+2. `isServiceActive` in `BookingDetailsPanel` checked `status === 'in_progress'` without requiring `session_started_at`. So any booking marked `in_progress` via the old path triggered the "active" branch — showing "Complete Service" with no countdown.
+3. `canStartService` only matched `checked_in + room` bookings, so confirmed non-checked-in bookings got neither "Start Service" nor "Complete Service" — just blank actions.
+
+**Fix summary:**
+
+`src/app/(dashboard)/crm/bookings/actions.ts`:
+- Added `revalidatePath` import + `revalidateServiceSurfaces()` (covers CRM + manager + all staff-portal paths).
+- Added `crmStartServiceAction({ bookingId })`: validates CRM access, calls `update_booking_progress` RPC with `session_started` (atomically sets `session_started_at`, `booking_progress_status`, and `status = 'in_progress'`). Idempotent for already-started bookings.
+- Added `crmCompleteServiceAction({ bookingId })`: calls RPC with `completed` (atomically sets `session_completed_at`, `booking_progress_status = 'completed'`, `status = 'completed'`). Idempotent for already-completed bookings.
+
+`src/components/features/bookings/hybrid-selected-booking-card.tsx`:
+- Added `useRef` import.
+- Added `onAutoComplete?: () => void` prop.
+- Tightened `isServiceActive`: now requires BOTH `(status === 'in_progress' || progress === 'session_started')` AND `Boolean(session_started_at)`.
+- Moved elapsed/remaining/progressPct computation to top level so the auto-complete effect can read them.
+- Added `hasAutoCompletedRef` + `useEffect([isCountdownDue, onAutoComplete])` that fires `onAutoComplete` exactly once when countdown hits zero. Refs read/written in effect (never during render) — satisfies `react-hooks/refs` rule.
+
+`src/components/features/bookings/bookings-table.tsx`:
+- Imported `crmStartServiceAction`, `crmCompleteServiceAction`, `autoCompleteDueSessionAction`, `isBookingClosedForCrm`.
+- Fixed `isServiceActive`: same tight guard (requires `session_started_at`).
+- Broadened `canStartService`: any confirmed in-spa non-closed non-pending booking, not just checked_in+room.
+- Changed `handleStartService` → `crmStartServiceAction` (RPC-based).
+- Changed `handleCompleteService` → `crmCompleteServiceAction` (RPC-based).
+- Added `handleAutoComplete` → `autoCompleteDueSessionAction` (server-validated).
+- Added `wrappedStatusAction`: intercepts `status = 'in_progress'` in `CrmNextActionsPanel`'s "Start Service" call and routes it through `crmStartServiceAction` so that path also uses the RPC correctly.
+- Passed `onAutoComplete={isServiceActive ? handleAutoComplete : undefined}` to `HybridSelectedBookingCard`.
+- Added `key={booking.id + session_started_at}` to `HybridSelectedBookingCard` so `hasAutoCompletedRef` resets when a new session starts.
+
+**Verification:**
+- `pnpm type-check`: ✅ Passing
+- `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
+- `pnpm build`: ✅ Passing, 89 routes

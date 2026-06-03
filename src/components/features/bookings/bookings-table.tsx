@@ -26,7 +26,9 @@ import { AssignmentRecommendationPanel } from "@/components/features/assignments
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
-import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import { crmStartServiceAction, crmCompleteServiceAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { autoCompleteDueSessionAction } from "@/app/(dashboard)/staff-portal/actions";
+import { isCrmPendingBookingStatus, isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
 import { BookingFollowupModal, type BookingFollowupResult } from "./booking-followup-modal";
 import { CustomerArrivedModal } from "./customer-arrived-modal";
 import { RoomAssignmentModal } from "./room-assignment-modal";
@@ -703,24 +705,45 @@ function BookingDetailsPanel({
   const roomLabel = resource?.name ?? (isHomeService ? "Home service" : "Room TBD");
   const operationalStatus = getOperationalStatus(booking);
 
-  // Determine active-service state for hybrid card logic
-  const progress        = booking.booking_progress_status ?? null;
-  const isServiceActive = booking.status === "in_progress" || progress === "session_started";
-  const isCheckedIn     = progress === "checked_in";
-  const resourceAssigned = Boolean(booking.resource_id);
+  // ── Service state guards ──────────────────────────────────────────────────
+  const progress = booking.booking_progress_status ?? null;
 
-  // Eligible for Start Service when checked-in with a room (and not home service)
-  const canStartService = !isHomeService && isCheckedIn && resourceAssigned && !isServiceActive;
+  // Active service requires BOTH a status flag AND session_started_at.
+  // A booking updated via the old updateBookingStatusAction only had
+  // status = 'in_progress' without session_started_at, causing the card to
+  // show "Complete Service" with no countdown. Requiring the timestamp here
+  // ensures the countdown and Complete button only appear after a proper
+  // RPC-based service start (which sets all three fields atomically).
+  const isServiceActive = (
+    booking.status === "in_progress" ||
+    progress === "session_started"
+  ) && Boolean(booking.session_started_at);
+
+  // Eligible for Start Service: any confirmed in-spa booking that hasn't
+  // started a session yet. Broader than the old "checked_in + room" check.
+  const isPendingConfirmation = isCrmPendingBookingStatus(booking.status);
+  const isClosed = isBookingClosedForCrm(booking.status) ||
+    booking.status === "completed" ||
+    booking.status === "no_show";
+  const canStartService =
+    !isHomeService &&
+    !isServiceActive &&
+    !isPendingConfirmation &&
+    !isClosed &&
+    (booking.status === "confirmed" || booking.status === "in_progress");
+
+  // ── Mutation helpers ──────────────────────────────────────────────────────
 
   function afterServiceMutation() {
     onBookingsChanged?.();
     router.refresh();
   }
 
+  // Uses the RPC action so booking_progress_status + session_started_at are
+  // set atomically alongside status = 'in_progress'.
   function handleStartService() {
     startStartTransition(async () => {
-      const callAction = statusAction ?? updateBookingStatusAction;
-      const result = await callAction({ bookingId: booking.id, status: "in_progress" });
+      const result = await crmStartServiceAction({ bookingId: booking.id });
       if (!result.success) {
         toast.error(result.error ?? "Could not start service.");
         return;
@@ -730,10 +753,11 @@ function BookingDetailsPanel({
     });
   }
 
+  // Uses the RPC action so booking_progress_status + session_completed_at are
+  // set atomically alongside status = 'completed'.
   function handleCompleteService() {
     startCompleteTransition(async () => {
-      const callAction = statusAction ?? updateBookingStatusAction;
-      const result = await callAction({ bookingId: booking.id, status: "completed" });
+      const result = await crmCompleteServiceAction({ bookingId: booking.id });
       if (!result.success) {
         toast.error(result.error ?? "Could not complete service.");
         return;
@@ -741,6 +765,34 @@ function BookingDetailsPanel({
       toast.success("Service completed.");
       afterServiceMutation();
     });
+  }
+
+  // Called by HybridSelectedBookingCard when the countdown expires.
+  // autoCompleteDueSessionAction re-validates on the server before completing.
+  function handleAutoComplete() {
+    startCompleteTransition(async () => {
+      const result = await autoCompleteDueSessionAction(booking.id);
+      if (result.ok) {
+        toast.success("Service auto-completed.");
+        afterServiceMutation();
+      }
+      // If already completed (idempotent), silently refresh.
+      if (!result.ok && result.code !== "ALREADY_COMPLETED") {
+        toast.error(result.message ?? "Auto-complete failed.");
+      }
+      afterServiceMutation();
+    });
+  }
+
+  // Wrapped statusAction for CrmNextActionsPanel: intercepts 'in_progress' and
+  // routes it through the RPC-based action so session_started_at is always set.
+  async function wrappedStatusAction(input: unknown) {
+    const typed = input as { bookingId?: string; status?: string } | undefined;
+    if (typed?.status === "in_progress" && typed?.bookingId) {
+      return crmStartServiceAction({ bookingId: typed.bookingId });
+    }
+    const callAction = statusAction ?? updateBookingStatusAction;
+    return callAction(input);
   }
 
   return (
@@ -762,39 +814,45 @@ function BookingDetailsPanel({
         </div>
       </div>
 
-      {/* Hybrid card — replaces old hero card + ServiceCountdownChip */}
+      {/* Hybrid card replaces the old hero card + ServiceCountdownChip.
+          Key changes when session_started_at changes so hasAutoCompletedRef resets. */}
       <HybridSelectedBookingCard
+        key={`${booking.id}-${booking.session_started_at ?? "none"}`}
         booking={{
-          id:                        booking.id,
-          booking_code:              `#${booking.id.slice(0, 8).toUpperCase()}`,
-          customer_name:             customer?.full_name,
-          service_name:              service?.name,
-          staff_name:                staffName,
-          resource_name:             resource?.name,
-          start_time:                booking.start_time,
-          end_time:                  booking.end_time,
-          status:                    booking.status,
-          booking_progress_status:   booking.booking_progress_status,
-          session_started_at:        booking.session_started_at,
-          session_completed_at:      booking.session_completed_at,
-          service_duration:          durationMinutes,
-          type:                      booking.type,
+          id:                      booking.id,
+          booking_code:            `#${booking.id.slice(0, 8).toUpperCase()}`,
+          customer_name:           customer?.full_name,
+          service_name:            service?.name,
+          staff_name:              staffName,
+          resource_name:           resource?.name,
+          start_time:              booking.start_time,
+          end_time:                booking.end_time,
+          status:                  booking.status,
+          booking_progress_status: booking.booking_progress_status,
+          session_started_at:      booking.session_started_at,
+          session_completed_at:    booking.session_completed_at,
+          service_duration:        durationMinutes,
+          type:                    booking.type,
         }}
         onClose={onClose}
         onStartService={canStartService ? handleStartService : undefined}
-        onCompleteService={isServiceActive && !isHomeService ? handleCompleteService : undefined}
+        onCompleteService={isServiceActive ? handleCompleteService : undefined}
+        onAutoComplete={isServiceActive ? handleAutoComplete : undefined}
         isStarting={isStarting}
         isCompleting={isCompleting}
       />
 
       <div className="mt-4 space-y-4">
-        {/* CrmNextActionsPanel handles all non-service workflow.
+        {/* CrmNextActionsPanel handles all pre-service workflow (check-in,
+            arrival, dispatch, room assignment, follow-up, etc.).
             When service is active, the hybrid card owns Complete Service
-            so we skip the panel to avoid duplicate buttons. */}
+            to avoid duplicate buttons. wrappedStatusAction intercepts the
+            'in_progress' path so CrmNextActionsPanel's Start Service button
+            (for checked-in + room states) also calls the RPC correctly. */}
         {!isServiceActive ? (
           <CrmNextActionsPanel
             booking={booking}
-            statusAction={statusAction}
+            statusAction={wrappedStatusAction}
             dispatchHref={dispatchHref}
             onOpenFollowup={onOpenFollowup}
             onOpenArrival={onOpenArrival}

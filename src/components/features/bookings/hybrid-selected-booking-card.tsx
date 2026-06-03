@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Clock, Play, X } from "lucide-react";
 import { cn, formatTime } from "@/lib/utils";
 
@@ -29,6 +29,8 @@ export type HybridSelectedBookingCardProps = {
   onClose?: () => void;
   onStartService?: () => void;
   onCompleteService?: () => void;
+  /** Called once when the service countdown reaches zero (server must re-validate). */
+  onAutoComplete?: () => void;
   isStarting?: boolean;
   isCompleting?: boolean;
 };
@@ -77,46 +79,46 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── Countdown zone (only in active-service mode) ──────────────────────────────
+// ── Countdown zone (active-service mode only) ─────────────────────────────────
 
 type CountdownZoneProps = {
-  tick: TickState;
-  sessionStartedAt: string;
+  elapsedSecs: number;
+  remainingSecs: number;
+  progressPct: number;
   durationMins: number;
+  sessionStartedAt: string;
   staffName?: string | null;
   resourceName?: string | null;
 };
 
 function CountdownZone({
-  tick,
-  sessionStartedAt,
+  elapsedSecs,
+  remainingSecs,
+  progressPct,
   durationMins,
+  sessionStartedAt,
   staffName,
   resourceName,
 }: CountdownZoneProps) {
-  const durationSecs = durationMins * 60;
-  const startMs      = new Date(sessionStartedAt).getTime();
-
-  const elapsedSecs  = Number.isFinite(startMs)
-    ? Math.max(0, Math.floor((tick.nowMs - startMs) / 1000))
-    : 0;
-  const remainingSecs = Math.max(0, durationSecs - elapsedSecs);
-  const progressPct   = Math.min(100, (elapsedSecs / durationSecs) * 100);
-  const isOvertime    = elapsedSecs > durationSecs;
-  const minutesLabel  = isOvertime
+  const isOvertime   = elapsedSecs > durationMins * 60;
+  const minutesLabel = isOvertime
     ? "Overtime"
     : `${Math.ceil(remainingSecs / 60)} min`;
-  const helperLabel   = isOvertime ? "Ready to complete" : "remaining";
-  const timerDisplay  = isOvertime
-    ? `+${fmtCountdown(elapsedSecs - durationSecs)}`
+  const helperLabel  = isOvertime ? "Ready to complete" : "remaining";
+  const timerDisplay = isOvertime
+    ? `+${fmtCountdown(elapsedSecs - durationMins * 60)}`
     : fmtCountdown(remainingSecs);
-  const startedLabel  = Number.isFinite(startMs) ? fmtTimeLabel(sessionStartedAt) : null;
+  const startMs      = new Date(sessionStartedAt).getTime();
+  const startedLabel = Number.isFinite(startMs) ? fmtTimeLabel(sessionStartedAt) : null;
 
   return (
     <div className="mx-4 mb-4 overflow-hidden rounded-xl bg-[var(--cs-success-bg)] px-4 py-3">
-      {/* Timer display */}
+      <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-success-text)] text-center mb-1">
+        IN SERVICE
+      </div>
+
       <div className="text-center">
-        <div className="text-[11px] font-bold uppercase tracking-wide text-[var(--cs-success-text)]">
+        <div className="text-[11px] font-semibold text-[var(--cs-success-text)]">
           {minutesLabel}
         </div>
         <div className="text-[10px] text-[var(--cs-text-muted)]">{helperLabel}</div>
@@ -128,7 +130,7 @@ function CountdownZone({
         </div>
       </div>
 
-      {/* Segmented progress bar */}
+      {/* Progress bar */}
       <div
         className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.08)]"
         role="progressbar"
@@ -146,18 +148,8 @@ function CountdownZone({
       {startedLabel ? (
         <div className="mt-2 flex flex-wrap items-center justify-center gap-1 text-[10px] text-[var(--cs-text-muted)]">
           <span>Started {startedLabel}</span>
-          {staffName ? (
-            <>
-              <span>·</span>
-              <span>{staffName}</span>
-            </>
-          ) : null}
-          {resourceName ? (
-            <>
-              <span>·</span>
-              <span>{resourceName}</span>
-            </>
-          ) : null}
+          {staffName ? <><span>·</span><span>Staff: {staffName}</span></> : null}
+          {resourceName ? <><span>·</span><span>Room: {resourceName}</span></> : null}
         </div>
       ) : null}
     </div>
@@ -171,12 +163,17 @@ export function HybridSelectedBookingCard({
   onClose,
   onStartService,
   onCompleteService,
-  isStarting  = false,
+  onAutoComplete,
+  isStarting   = false,
   isCompleting = false,
 }: HybridSelectedBookingCardProps) {
   const [tick, setTick] = useState<TickState | null>(null);
 
-  // Tick from inside callbacks only — never directly in effect body.
+  // Guard: fire onAutoComplete at most once per session.
+  // Reset when the parent provides a new key (session_started_at changed).
+  const hasAutoCompletedRef = useRef(false);
+
+  // Tick setup — setState only from callbacks to satisfy react-hooks/set-state-in-effect.
   useEffect(() => {
     const initId = setTimeout(() => {
       const now = Date.now();
@@ -191,15 +188,54 @@ export function HybridSelectedBookingCard({
     };
   }, []);
 
-  const isServiceActive =
-    booking.status === "in_progress" ||
-    booking.booking_progress_status === "session_started";
+  // ── Derived state ──────────────────────────────────────────────────────────
 
-  const shouldShowCountdown =
-    isServiceActive && Boolean(booking.session_started_at) && tick !== null;
+  const progress = booking.booking_progress_status ?? null;
+
+  // Active ONLY when status flag AND session_started_at are both present.
+  // This prevents showing "Complete Service" when the old statusAction only
+  // wrote status = 'in_progress' but skipped the RPC (which also sets
+  // session_started_at via update_booking_progress).
+  const isServiceActive = (
+    booking.status === "in_progress" ||
+    progress === "session_started"
+  ) && Boolean(booking.session_started_at);
+
+  const shouldShowCountdown = isServiceActive && Boolean(booking.session_started_at) && tick !== null;
 
   const durationMins = booking.service_duration ?? booking.duration_minutes ?? 60;
-  const showActions  = Boolean(onStartService ?? onCompleteService);
+  const durationSecs = durationMins * 60;
+
+  // Compute elapsed / remaining at the top level so the auto-complete
+  // effect can read them without needing a ref or additional state.
+  let elapsedSecs  = 0;
+  let remainingSecs = durationSecs;
+  let progressPct  = 0;
+
+  if (shouldShowCountdown && tick && booking.session_started_at) {
+    const startMs = new Date(booking.session_started_at).getTime();
+    if (Number.isFinite(startMs)) {
+      const rawElapsed = Math.floor((tick.nowMs - startMs) / 1000);
+      elapsedSecs   = Math.max(0, rawElapsed);
+      remainingSecs = Math.max(0, durationSecs - elapsedSecs);
+      progressPct   = Math.min(100, (elapsedSecs / durationSecs) * 100);
+    }
+  }
+
+  const isCountdownDue = shouldShowCountdown && elapsedSecs >= durationSecs;
+
+  // Auto-complete effect — refs read in effects (never during render).
+  useEffect(() => {
+    if (!isCountdownDue) return;
+    if (hasAutoCompletedRef.current) return;
+    if (!onAutoComplete) return;
+    hasAutoCompletedRef.current = true;
+    onAutoComplete();
+  }, [isCountdownDue, onAutoComplete]);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  const showActions = Boolean(onStartService ?? onCompleteService);
 
   return (
     <div
@@ -245,11 +281,13 @@ export function HybridSelectedBookingCard({
       </div>
 
       {/* ── Active-service countdown ─────────────────────────────────────── */}
-      {shouldShowCountdown && tick ? (
+      {shouldShowCountdown && booking.session_started_at ? (
         <CountdownZone
-          tick={tick}
-          sessionStartedAt={booking.session_started_at!}
+          elapsedSecs={elapsedSecs}
+          remainingSecs={remainingSecs}
+          progressPct={progressPct}
           durationMins={durationMins}
+          sessionStartedAt={booking.session_started_at}
           staffName={booking.staff_name}
           resourceName={booking.resource_name}
         />
@@ -283,7 +321,7 @@ export function HybridSelectedBookingCard({
       {/* ── Action buttons ───────────────────────────────────────────────── */}
       {showActions ? (
         <div className="grid grid-cols-2 gap-2 border-t border-[var(--cs-border-soft)] p-3">
-          {/* Edit Booking — placeholder, no handler yet */}
+          {/* Edit Booking — placeholder only, no handler wired yet */}
           <button
             type="button"
             disabled
@@ -294,6 +332,7 @@ export function HybridSelectedBookingCard({
             Edit Booking
           </button>
 
+          {/* Primary action: Complete Service (active) or Start Service (not started) */}
           {onCompleteService ? (
             <button
               type="button"

@@ -1,2 +1,2 @@
-Task: Hybrid selected-booking detail card — integrates service countdown directly into the CRM right panel hero card.
-Status: DONE - HybridSelectedBookingCard created, BookingDetailsPanel updated, type-check ✅ lint ✅ build ✅ (89 routes).
+Task: Fix selected booking panel service workflow — Complete Service showing before service started.
+Status: DONE - Root cause fixed, crmStartServiceAction + crmCompleteServiceAction added, isServiceActive guard tightened, canStartService broadened, auto-complete wired. type-check ✅ lint ✅ build ✅ (89 routes).
