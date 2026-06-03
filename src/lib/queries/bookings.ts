@@ -1,9 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { attachBranchResources } from "@/lib/queries/booking-resources";
+import {
+  CRM_PENDING_BOOKING_STATUSES,
+  isBookingClosedForCrm,
+  isCrmPendingBookingStatus,
+} from "@/lib/bookings/crm-booking-status";
 
 // Full booking with all related data
 const BOOKING_SELECT = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   resource_id,
   branches   ( id, name ),
@@ -13,7 +18,7 @@ const BOOKING_SELECT = `
 `;
 
 const BOOKING_SELECT_CORE = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   branches   ( id, name ),
   services   ( id, name, duration_minutes ),
@@ -22,7 +27,7 @@ const BOOKING_SELECT_CORE = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   resource_id,
@@ -33,7 +38,7 @@ const BOOKING_SELECT_WITH_PAYMENTS = `
 `;
 
 const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   branches   ( id, name ),
@@ -43,7 +48,7 @@ const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
 `;
 
 const TODAY_SCHEDULE_SELECT = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata,
   resource_id,
   services  ( id, name, duration_minutes ),
@@ -52,7 +57,7 @@ const TODAY_SCHEDULE_SELECT = `
 `;
 
 const TODAY_SCHEDULE_SELECT_CORE = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata,
   services  ( id, name, duration_minutes ),
   staff!staff_id ( id, full_name, nickname, tier ),
@@ -60,7 +65,7 @@ const TODAY_SCHEDULE_SELECT_CORE = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
@@ -73,7 +78,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
 `;
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
-  id, booking_date, start_time, end_time, type, status,
+  id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
@@ -126,10 +131,12 @@ type CustomerRelation = OneOrMany<{
 }>;
 type BookingFullRow = {
   id: string;
+  branch_id: string;
   booking_date: string;
   start_time: string;
   end_time: string;
   type: string;
+  delivery_type: string | null;
   status: string;
   travel_buffer_mins: number | null;
   metadata: unknown;
@@ -144,10 +151,12 @@ type BookingFullRow = {
 } & MaybePaymentFields;
 type TodayScheduleRow = {
   id: string;
+  branch_id: string;
   booking_date: string;
   start_time: string;
   end_time: string;
   type: string;
+  delivery_type: string | null;
   status: string;
   travel_buffer_mins: number | null;
   metadata: unknown;
@@ -501,6 +510,55 @@ export async function getTodaysSchedule(branchId: string, date: string) {
   );
 }
 
+// ── CRM pending / incoming queue (today forward) ─────────────────────────
+export async function getCrmPendingBookingQueue(
+  branchId: string,
+  fromDate: string
+) {
+  const supabase = await createClient();
+  return loadBookingRows(
+    supabase,
+    TODAY_SCHEDULE_SELECT_VARIANTS,
+    async (select) => {
+      const result = await supabase
+        .from("bookings")
+        .select(select)
+        .eq("branch_id", branchId)
+        .in("status", [...CRM_PENDING_BOOKING_STATUSES])
+        .gte("booking_date", fromDate)
+        .order("booking_date")
+        .order("start_time")
+        .limit(100);
+      return result as QueryResult<TodayScheduleRow>;
+    }
+  );
+}
+
+export async function getCrmBookingsCommandCenterRows(
+  branchId: string,
+  date: string
+) {
+  const [todayRows, pendingRows] = await Promise.all([
+    getTodaysSchedule(branchId, date),
+    getCrmPendingBookingQueue(branchId, date),
+  ]);
+
+  const rowsById = new Map<string, TodayScheduleRow>();
+  for (const booking of todayRows as TodayScheduleRow[]) {
+    rowsById.set(booking.id, booking);
+  }
+  for (const booking of pendingRows as TodayScheduleRow[]) {
+    rowsById.set(booking.id, booking);
+  }
+
+  return Array.from(rowsById.values()).sort((a, b) => {
+    const dateCompare = a.booking_date.localeCompare(b.booking_date);
+    return dateCompare !== 0
+      ? dateCompare
+      : a.start_time.localeCompare(b.start_time);
+  });
+}
+
 // ── Daily payment summary for a branch ───────────────────────────────────
 export async function getDailyPaymentSummary(branchId: string, date: string) {
   const supabase = await createClient();
@@ -520,7 +578,7 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
       )
     : withPaymentDefaults((result.data ?? []) as DailyPaymentRow[]);
 
-  const activeRows = rows.filter((r) => !["cancelled", "no_show"].includes(r.status));
+  const activeRows = rows.filter((r) => !isBookingClosedForCrm(r.status));
   const paidRows = activeRows.filter((r) => r.payment_status === "paid");
   const unpaidRows = activeRows.filter((r) => ["unpaid", "pending"].includes(r.payment_status));
 
@@ -588,6 +646,7 @@ export async function getManagerDashboardStats(branchId: string, date: string) {
   const rows = data ?? [];
   return {
     total:       rows.length,
+    pending:     rows.filter((r) => isCrmPendingBookingStatus(r.status)).length,
     confirmed:   rows.filter((r) => r.status === "confirmed").length,
     in_progress: rows.filter((r) => r.status === "in_progress").length,
     completed:   rows.filter((r) => r.status === "completed").length,

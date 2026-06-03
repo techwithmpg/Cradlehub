@@ -40,7 +40,7 @@ export function AdminDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           className={cn(
-            "fixed inset-0 isolate z-50 bg-black/35 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
+            "fixed inset-0 isolate z-50 bg-black/35 backdrop-blur-sm duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
           )}
         />
         <DialogPrimitive.Popup

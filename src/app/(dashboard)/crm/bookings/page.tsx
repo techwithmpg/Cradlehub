@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
-import { getTodaysSchedule, getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { getCrmBookingsCommandCenterRows, getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { CrmBookingsView } from "@/components/features/bookings/crm-bookings-view";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
+import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { confirmBookingPaymentAction } from "./actions";
-import { CrmTabNav, BOOKINGS_TABS } from "@/components/features/crm/crm-tab-nav";
+import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
 
 async function getCrmContext() {
   const supabase = await createClient();
@@ -39,14 +40,23 @@ async function getCrmContext() {
 export default async function CrmBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; status?: string; type?: string; highlight?: string; search?: string; bookingId?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    status?: string;
+    type?: string;
+    highlight?: string;
+    search?: string;
+    bookingId?: string;
+    tab?: string;
+    openRoomAssignment?: string;
+  }>;
 }) {
   const { branchId, branchName, role } = await getCrmContext();
   const params = await searchParams;
   const today  = new Date().toISOString().split("T")[0]!;
 
   // When navigating from a notification link, resolve the booking's date
-  const bookingId = params.bookingId;
+  const bookingId = params.bookingId ?? params.highlight;
   let date = params.date ?? today;
 
   if (bookingId && !params.date) {
@@ -59,9 +69,10 @@ export default async function CrmBookingsPage({
     if (ref?.booking_date) date = ref.booking_date;
   }
 
-  const [bookings, cashSummary] = await Promise.all([
-    getTodaysSchedule(branchId, date),
+  const [bookings, cashSummary, waitlistResult] = await Promise.all([
+    getCrmBookingsCommandCenterRows(branchId, date),
     getDailyPaymentSummary(branchId, date),
+    getWaitlistAction(branchId),
   ]);
 
   const initialData = {
@@ -72,17 +83,15 @@ export default async function CrmBookingsPage({
     // Cast: getTodaysSchedule returns metadata as unknown; WorkspaceBookingRow
     // expects Record<string,unknown>|null|undefined. The values are compatible.
     bookings: bookings as WorkspaceBookingRow[],
+    waitlistRows: (waitlistResult.ok ? waitlistResult.data : []) as WaitlistRow[],
     cashSummary,
   };
 
   return (
-    <>
-      <CrmTabNav tabs={BOOKINGS_TABS} activeHref="/crm/bookings" />
-      <CrmBookingsView
-        initialData={initialData}
-        paymentAction={updateBookingPaymentAction}
-        confirmPaymentAction={confirmBookingPaymentAction}
-      />
-    </>
+    <CrmBookingsView
+      initialData={initialData}
+      paymentAction={updateBookingPaymentAction}
+      confirmPaymentAction={confirmBookingPaymentAction}
+    />
   );
 }

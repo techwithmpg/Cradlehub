@@ -5,6 +5,7 @@ import { CrmEmptyState } from "../crm-empty-state";
 import { CrmActionItem } from "../crm-action-item";
 import type { ReadinessIssue } from "@/types/readiness";
 import type { BookingListItemData } from "../crm-booking-list-item";
+import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
 
 export function TodayActionRequiredTab({
   readinessIssues,
@@ -16,7 +17,7 @@ export function TodayActionRequiredTab({
   queueData: BookingListItemData[];
 }) {
   const unassigned = queueData.filter((b) => b.status === "confirmed" && !b.staff_name);
-  const unpaid = queueData.filter((b) => b.payment_status !== "paid" && b.status !== "cancelled" && b.status !== "no_show");
+  const unpaid = queueData.filter((b) => b.payment_status !== "paid" && !isBookingClosedForCrm(b.status));
   const homeServiceIssues = queueData.filter((b) => b.type === "home_service" && (b.needs_location_review || b.dispatch_warning));
 
   // Build action items from real data
@@ -28,7 +29,7 @@ export function TodayActionRequiredTab({
       category: "Payments",
       severity: "warning" as const,
       actionLabel: "Review Payment",
-      actionHref: `/crm/bookings?highlight=${b.id}`,
+      actionHref: `/crm/bookings?bookingId=${b.id}`,
     })),
     ...unassigned.map((b) => ({
       id: `unassigned-${b.id}`,
@@ -37,7 +38,7 @@ export function TodayActionRequiredTab({
       category: "Bookings",
       severity: "warning" as const,
       actionLabel: "Assign Therapist",
-      actionHref: `/crm/bookings?highlight=${b.id}`,
+      actionHref: `/crm/bookings?bookingId=${b.id}`,
     })),
     ...homeServiceIssues.map((b) => ({
       id: `hs-${b.id}`,

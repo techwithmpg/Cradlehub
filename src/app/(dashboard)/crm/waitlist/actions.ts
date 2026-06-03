@@ -33,10 +33,15 @@ export async function getWaitlistAction(branchId: string, status?: string) {
   const ctx = await requireCrm();
   if (!ctx) return { ok: false as const, error: "Unauthorized", data: [] };
 
+  const requestedBranchId = branchId || ctx.branchId;
+  if (requestedBranchId !== ctx.branchId && ctx.branchId !== "dev") {
+    return { ok: false as const, error: "Unauthorized", data: [] };
+  }
+
   let q = ctx.supabase
     .from("waitlist_requests")
     .select("*, services ( name )")
-    .eq("branch_id", branchId)
+    .eq("branch_id", requestedBranchId)
     .order("preferred_date", { ascending: true, nullsFirst: false })
     .order("created_at");
 
@@ -73,6 +78,7 @@ export async function updateWaitlistStatusAction(rawInput: unknown) {
       updated_at:               now,
     })
     .eq("id", d.requestId)
+    .eq("branch_id", ctx.branchId)
     .select("id");
 
   if (error) return { ok: false as const, error: error.message };
@@ -88,5 +94,7 @@ export async function updateWaitlistStatusAction(rawInput: unknown) {
   }
 
   revalidatePath("/crm/waitlist");
+  revalidatePath("/crm/customers");
+  revalidatePath("/crm/bookings");
   return { ok: true as const };
 }

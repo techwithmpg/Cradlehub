@@ -5,7 +5,8 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 export type BookingResource = {
   id: string;
   name: string;
-  type: string;
+  type: string | null;
+  capacity: number | null;
 };
 
 export type BookingRowWithResource<T extends { resource_id?: string | null }> =
@@ -38,7 +39,7 @@ export async function attachBranchResources<
 
   const { data, error } = await supabase
     .from("branch_resources")
-    .select("id, name, type")
+    .select("id, name, type, capacity")
     .in("id", resourceIds);
 
   if (error) throw new Error(error.message);

@@ -9,8 +9,8 @@ import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/res
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { SlotUnavailableError } from "@/types/errors";
-import { revalidatePath } from "next/cache";
 import { logError, logBusinessEvent } from "@/lib/logger";
+import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 
 export async function createWalkinBookingAction(rawInput: unknown) {
   const parsed = createWalkinBookingSchema.safeParse(rawInput);
@@ -158,8 +158,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
       bookingType: d.type,
     });
 
-    revalidatePath("/manager");
-    revalidatePath("/manager/bookings");
+    revalidateOperationalBookingSurfaces(branchId);
 
     return { success: true, bookingId: booking.id };
   } catch (err) {

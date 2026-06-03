@@ -76,7 +76,7 @@ export function CrmBookingFlowRow({
 }) {
   return (
     <Link
-      href={`/crm/bookings?highlight=${booking.id}`}
+      href={`/crm/bookings?bookingId=${booking.id}`}
       style={{
         display: "grid",
         gridTemplateColumns: "72px 1fr 1fr 100px 90px",
@@ -143,7 +143,7 @@ export function CrmBookingFlowRowMobile({
 }) {
   return (
     <Link
-      href={`/crm/bookings?highlight=${booking.id}`}
+      href={`/crm/bookings?bookingId=${booking.id}`}
       style={{
         display: "flex",
         alignItems: "center",

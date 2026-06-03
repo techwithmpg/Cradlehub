@@ -4,6 +4,7 @@ import Link from "next/link";
 
 export type BookingListItemData = {
   id: string;
+  booking_date: string;
   start_time: string;
   end_time: string;
   status: string;
@@ -66,7 +67,7 @@ export function CrmBookingListItem({
 
   return (
     <Link
-      href={`/crm/bookings?highlight=${booking.id}`}
+      href={`/crm/bookings?bookingId=${booking.id}`}
       className="cs-card"
       style={{
         padding: "0.75rem 1rem",

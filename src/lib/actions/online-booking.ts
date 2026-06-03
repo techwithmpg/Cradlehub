@@ -24,6 +24,8 @@ import { buildGoogleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
+import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { getPublicBookingHoldExpiresAt } from "@/lib/bookings/hold-status";
 
 export type CreateOnlineBookingResult =
   | { ok: true; bookingId: string }
@@ -135,6 +137,7 @@ export async function createOnlineBookingAction(
 
     const endTime = await computeEndTime(d.startTime, d.serviceId);
     const metadata = await buildBookingSnapshot(d.branchId, d.serviceId, d.notes);
+    const holdExpiresAt = getPublicBookingHoldExpiresAt();
 
     const { data: customerId, error: custErr } = await supabase.rpc(
       "upsert_customer",
@@ -166,7 +169,11 @@ export async function createOnlineBookingAction(
         end_time: endTime,
         type: d.type,
         delivery_type: deliveryType,
-        status: "pending",
+        status: "pending_payment",
+        payment_method: "pay_on_site",
+        payment_status: "pending",
+        amount_paid: 0,
+        hold_expires_at: holdExpiresAt,
         travel_buffer_mins: null,
         metadata,
       })
@@ -210,6 +217,7 @@ export async function createOnlineBookingAction(
       serviceId: d.serviceId,
       bookingType: d.type,
     });
+    revalidateOperationalBookingSurfaces(d.branchId);
     return { ok: true, bookingId: booking.id };
   } catch (err) {
     if (err instanceof SlotUnavailableError) {
@@ -454,6 +462,7 @@ export async function createOnlineBookingMultiAction(
 
     let currentStart = d.startTime;
     const insertedIds: string[] = [];
+    const holdExpiresAt = getPublicBookingHoldExpiresAt();
 
     for (const serviceId of d.serviceIds) {
       const endTime = await computeEndTime(currentStart, serviceId);
@@ -474,7 +483,11 @@ export async function createOnlineBookingMultiAction(
           end_time: endTime,
           type: d.type,
           delivery_type: deliveryType,
-          status: "pending",
+          status: "pending_payment",
+          payment_method: "pay_on_site",
+          payment_status: "pending",
+          amount_paid: 0,
+          hold_expires_at: holdExpiresAt,
           travel_buffer_mins:
             deliveryType === "home_service"
               ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
@@ -578,6 +591,7 @@ export async function createOnlineBookingMultiAction(
       deliveryType,
       serviceCount: insertedIds.length,
     });
+    revalidateOperationalBookingSurfaces(d.branchId);
     return { ok: true, bookingId: insertedIds[0]! };
   } catch (err) {
     if (err instanceof SlotUnavailableError) {

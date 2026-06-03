@@ -5,6 +5,7 @@ import { CrmEmptyState } from "../crm-empty-state";
 import { CrmPaymentListItem } from "../crm-payment-list-item";
 import type { BookingListItemData } from "../crm-booking-list-item";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
+import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
 
 export function TodayPaymentsPendingTab({
   queueData,
@@ -16,8 +17,7 @@ export function TodayPaymentsPendingTab({
   const pending = queueData.filter(
     (b) =>
       b.payment_status !== "paid" &&
-      b.status !== "cancelled" &&
-      b.status !== "no_show"
+      !isBookingClosedForCrm(b.status)
   );
 
   const byMethod: Record<string, number> = {};
@@ -101,7 +101,7 @@ export function TodayPaymentsPendingTab({
                   start_time: b.start_time,
                 }}
                 onReview={() => {
-                  window.location.href = `/crm/bookings?highlight=${b.id}`;
+                  window.location.href = `/crm/bookings?bookingId=${b.id}`;
                 }}
               />
             ))}

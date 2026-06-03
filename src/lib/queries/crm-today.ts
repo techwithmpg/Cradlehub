@@ -14,6 +14,7 @@ export type CrmTodayPayment = Awaited<ReturnType<typeof getDailyPaymentSummary>>
 
 export type CrmTodayBookingSummary = {
   total: number;
+  pending: number;
   confirmed: number;
   in_progress: number;
   completed: number;

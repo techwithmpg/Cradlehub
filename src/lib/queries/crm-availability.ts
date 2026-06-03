@@ -3,6 +3,7 @@ import { getDailySchedule, type DailyScheduleStaffRow } from "./schedule";
 import { getStaffByBranch } from "./staff";
 import { isServiceStaffType } from "@/constants/staff-roles";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
+import { CRM_PENDING_BOOKING_STATUSES } from "@/lib/bookings/crm-booking-status";
 
 export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule";
 
@@ -134,7 +135,7 @@ export async function getCrmAvailabilitySnapshot(params: {
       .from("bookings")
       .select("id", { count: "exact", head: true })
       .eq("branch_id", params.branchId)
-      .in("status", ["pending_payment", "pending_crm_confirmation", "pending"])
+      .in("status", [...CRM_PENDING_BOOKING_STATUSES])
       .gte("booking_date", params.date),
   ]);
 

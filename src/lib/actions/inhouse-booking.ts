@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
@@ -20,6 +19,7 @@ import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/res
 import { SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
+import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 
 type CreateInhouseBookingResult =
   | { ok: true; bookingId: string }
@@ -575,11 +575,7 @@ export async function createInhouseBookingMultiAction(
       serviceCount: insertedIds.length,
     });
 
-    revalidatePath("/crm");
-    revalidatePath("/crm/bookings");
-    revalidatePath("/crm/bookings/new");
-    revalidatePath("/manager");
-    revalidatePath("/manager/bookings");
+    revalidateOperationalBookingSurfaces(resolvedBranchId);
 
     return { ok: true, bookingId: insertedIds[0]! };
   } catch (error) {

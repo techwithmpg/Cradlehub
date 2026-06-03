@@ -6,6 +6,7 @@ import { CrmPanel } from "../crm-panel";
 import { CrmEmptyState } from "../crm-empty-state";
 import { CrmBookingFlowRow, CrmBookingFlowRowMobile } from "../crm-booking-flow-row";
 import type { BookingListItemData } from "../crm-booking-list-item";
+import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 
 function formatTime(t: string): string {
   const [h, m] = t.split(":").map(Number);
@@ -78,6 +79,7 @@ export function TodayOverviewTab({
   queueData: BookingListItemData[];
   nextApptId?: string;
 }) {
+  const pending = queueData.filter((b) => isCrmPendingBookingStatus(b.status));
   const active = queueData.filter((b) => b.status === "confirmed" || b.status === "in_progress");
   const upcoming = queueData
     .filter((b) => b.status === "confirmed")
@@ -85,6 +87,29 @@ export function TodayOverviewTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {pending.length > 0 && (
+        <CrmPanel
+          title="Incoming / Pending"
+          action={
+            <Link
+              href="/crm/bookings?tab=needs-confirmation"
+              style={{ fontSize: "0.75rem", color: "var(--cs-sand)", fontWeight: 600, textDecoration: "none" }}
+            >
+              Review queue →
+            </Link>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {pending.slice(0, 5).map((b) => (
+              <div key={b.id}>
+                <CrmBookingFlowRow booking={b} />
+                <CrmBookingFlowRowMobile booking={b} />
+              </div>
+            ))}
+          </div>
+        </CrmPanel>
+      )}
+
       {/* Today's Booking Flow */}
       <CrmPanel
         title={

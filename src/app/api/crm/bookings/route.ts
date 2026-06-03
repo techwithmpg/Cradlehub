@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApiContext } from "@/lib/api/get-api-context";
-import { getTodaysSchedule, getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { getCrmBookingsCommandCenterRows, getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
+import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
+import { logError } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   const ctx = await getApiContext();
@@ -12,8 +14,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const today = new Date().toISOString().split("T")[0]!;
   const date = searchParams.get("date") ?? today;
-  const bookingId = searchParams.get("bookingId");
-
+  const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight");
   try {
     // If a bookingId was provided but no date, look up the booking's date
     let resolvedDate = date;
@@ -27,9 +28,10 @@ export async function GET(req: NextRequest) {
       if (ref?.booking_date) resolvedDate = ref.booking_date;
     }
 
-    const [bookings, cashSummary] = await Promise.all([
-      getTodaysSchedule(ctx.branchId, resolvedDate),
+    const [bookings, cashSummary, waitlistResult] = await Promise.all([
+      getCrmBookingsCommandCenterRows(ctx.branchId, resolvedDate),
       getDailyPaymentSummary(ctx.branchId, resolvedDate),
+      getWaitlistAction(ctx.branchId),
     ]);
 
     return NextResponse.json(
@@ -39,16 +41,20 @@ export async function GET(req: NextRequest) {
         role: ctx.role,
         date: resolvedDate,
         bookings,
+        waitlistRows: waitlistResult.ok ? waitlistResult.data : [],
         cashSummary,
       },
       {
         headers: {
-          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+          "Cache-Control": "private, no-store",
         },
       }
     );
   } catch (err) {
-    console.error("[api/crm/bookings]", err);
+    logError("Failed to load CRM bookings command center", {
+      error: err,
+      action: "api.crm.bookings",
+    });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

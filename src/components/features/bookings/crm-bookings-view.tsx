@@ -9,8 +9,9 @@
 
 import useSWR from "swr";
 import { useSearchParams } from "next/navigation";
-import { BookingsWorkspace, type WorkspaceBookingRow } from "./bookings-workspace";
+import { BookingsWorkspace, type BookingWorkspaceTab, type WorkspaceBookingRow } from "./bookings-workspace";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
+import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
@@ -20,6 +21,7 @@ type BookingsApiPayload = {
   role: string;
   date: string;
   bookings: WorkspaceBookingRow[];
+  waitlistRows: WaitlistRow[];
   cashSummary: DailyCashSummaryData | null;
 };
 
@@ -35,6 +37,37 @@ async function fetcher(url: string): Promise<BookingsApiPayload> {
   return res.json() as Promise<BookingsApiPayload>;
 }
 
+function parseTab(raw: string | null): BookingWorkspaceTab | undefined {
+  switch (raw) {
+    case "needs-confirmation":
+    case "confirmed":
+    case "waiting":
+    case "in-service":
+    case "completed":
+    case "callback-followup":
+      return raw;
+    default:
+      return undefined;
+  }
+}
+
+function tabFromStatus(status: string | undefined): BookingWorkspaceTab | undefined {
+  switch (status) {
+    case "pending":
+    case "pending_payment":
+    case "pending_crm_confirmation":
+      return "needs-confirmation";
+    case "confirmed":
+      return "confirmed";
+    case "in_progress":
+      return "in-service";
+    case "completed":
+      return "completed";
+    default:
+      return undefined;
+  }
+}
+
 export function CrmBookingsView({
   initialData,
   paymentAction,
@@ -43,7 +76,8 @@ export function CrmBookingsView({
   const searchParams = useSearchParams();
   const today = new Date().toISOString().split("T")[0]!;
   const date = searchParams.get("date") ?? today;
-  const bookingId = searchParams.get("bookingId") ?? undefined;
+  const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight") ?? undefined;
+  const tab = parseTab(searchParams.get("tab"));
   const statusFilter = searchParams.get("status") ?? undefined;
   const typeFilter = searchParams.get("type") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
@@ -52,10 +86,12 @@ export function CrmBookingsView({
   const apiUrl = (() => {
     const params = new URLSearchParams({ date });
     if (bookingId) params.set("bookingId", bookingId);
+    if (tab) params.set("tab", tab);
+    if (statusFilter && !tab) params.set("status", statusFilter);
     return `/api/crm/bookings?${params.toString()}`;
   })();
 
-  const { data } = useSWR<BookingsApiPayload>(apiUrl, fetcher, {
+  const { data, mutate } = useSWR<BookingsApiPayload>(apiUrl, fetcher, {
     fallbackData: initialData,
     keepPreviousData: true,
     dedupingInterval: 30_000,
@@ -64,11 +100,7 @@ export function CrmBookingsView({
   });
 
   const payload = data ?? initialData;
-
-  // Client-side filter (status/type/search) — these are URL state only, not API params
-  let bookings = payload.bookings;
-  if (statusFilter) bookings = bookings.filter((b) => b.status === statusFilter);
-  if (typeFilter) bookings = bookings.filter((b) => b.type === typeFilter);
+  const initialTab = tab ?? tabFromStatus(statusFilter);
 
   return (
     <BookingsWorkspace
@@ -79,11 +111,16 @@ export function CrmBookingsView({
       statusFilter={statusFilter}
       typeFilter={typeFilter}
       search={search}
-      bookings={bookings}
+      initialTab={initialTab}
+      bookings={payload.bookings}
+      waitlistRows={payload.waitlistRows ?? []}
       cashSummary={payload.cashSummary}
       paymentAction={paymentAction}
       initialSelectedId={bookingId}
       confirmPaymentAction={confirmPaymentAction}
+      onBookingsChanged={() => {
+        void mutate();
+      }}
     />
   );
 }

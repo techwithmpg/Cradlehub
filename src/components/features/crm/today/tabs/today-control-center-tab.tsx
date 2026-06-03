@@ -4,13 +4,14 @@ import { CrmPanel } from "../crm-panel";
 import { CrmEmptyState } from "../crm-empty-state";
 import { CrmBookingListItem } from "../crm-booking-list-item";
 import type { BookingListItemData } from "../crm-booking-list-item";
+import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 
 export function TodayControlCenterTab({
   queueData,
 }: {
   queueData: BookingListItemData[];
 }) {
-  const pending = queueData.filter((b) => b.status === "pending" || b.status === "pending_payment" || b.status === "pending_crm_confirmation");
+  const pending = queueData.filter((b) => isCrmPendingBookingStatus(b.status));
   const confirmed = queueData.filter((b) => b.status === "confirmed");
   const inService = queueData.filter((b) => b.status === "in_progress");
   const completed = queueData.filter((b) => b.status === "completed");
@@ -48,6 +49,22 @@ export function TodayControlCenterTab({
             </div>
           ))}
         </div>
+      </CrmPanel>
+
+      {/* Incoming / Pending */}
+      <CrmPanel title="Incoming / Pending">
+        {pending.length === 0 ? (
+          <CrmEmptyState
+            title="No pending bookings"
+            description="Incoming online bookings will appear here while CRM confirms payment."
+          />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {pending.slice(0, 8).map((b) => (
+              <CrmBookingListItem key={b.id} booking={b} />
+            ))}
+          </div>
+        )}
       </CrmPanel>
 
       {/* In Service Now */}

@@ -376,3 +376,24 @@ Notification bell popover now uses one simple business-readable list instead of 
 
 **Rationale:**
 CRM staff need the bell to answer what happened, who/what is affected, when it happened, and what to do next without deciding between Action Required, Updates, Resolved, and Activity categories.
+
+### DEC-CRM-BOOKINGS-WORKFLOW-001: Bookings uses operational in-page workflow tabs and centralized action modals
+**Status:** ACCEPTED - 2026-06-03
+
+**Decision:**
+`/crm/bookings` now uses CRM workflow tabs for the front-desk lifecycle: Needs Confirmation, Confirmed, Waiting / Arrived, In Service, Completed, and Callback Follow-up. Deep links use canonical `?tab=` values, and tab switching uses client state plus `window.history.replaceState` so the booking workspace does not soft-navigate just to change workflow buckets.
+
+Booking operational actions are centralized into modal components:
+- Booking Follow-up for confirmation, no-answer, reschedule, confirm-later, and cancellation notes.
+- Customer Arrived for in-spa check-in.
+- Assign Room / Change Room for branch resource assignment.
+
+**Rationale:**
+CRM staff need to move bookings through the real front-desk flow, not just filter a flat status table. Keeping the actions in lifted modal components prevents row-level duplication and lets the detail panel, deep links, and future queue cards reuse the same behavior. Room assignment intentionally uses the existing resource availability engine instead of introducing a second availability rule path.
+
+**Supporting choices:**
+- Pending/incoming booking statuses are centralized in `src/lib/bookings/crm-booking-status.ts`.
+- Room assignment uses `isResourceAvailable()` and `autoAssignBookingResource()` from the existing resource engine.
+- Customer arrival updates `booking_progress_status = "checked_in"` and leaves home-service bookings out of room assignment.
+- Callback follow-up embeds the existing waitlist follow-up table into the Bookings workspace instead of duplicating waitlist UI.
+- Booking mutations call shared booking surface revalidation so CRM Today, CRM Bookings, CRM Control, Manager bookings, and workspace cache tags stay fresher after status/payment/create changes.

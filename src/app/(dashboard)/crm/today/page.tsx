@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getTodaysSchedule } from "@/lib/queries/bookings";
+import { getCrmPendingBookingQueue, getTodaysSchedule } from "@/lib/queries/bookings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
@@ -8,6 +8,7 @@ import { getCrmTodaySnapshot } from "@/lib/queries/crm-today";
 import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { buildReadinessResult } from "@/types/readiness";
 import { CrmTodayShell } from "@/components/features/crm/today/crm-today-shell";
+import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ type ResourceRel = { name: string };
 
 type BookingRow = {
   id: string;
+  booking_date: string;
   start_time: string;
   end_time: string;
   status: string;
@@ -75,14 +77,28 @@ export default async function CrmTodayPage() {
   const { branchId, branchName, role } = await getCsrContext();
   const today   = new Date().toISOString().split("T")[0]!;
 
-  const [rawBookings, snapshot, actionNotifications, readiness] = await Promise.all([
+  const [rawBookings, pendingQueue, snapshot, actionNotifications, readiness] = await Promise.all([
     getTodaysSchedule(branchId, today),
+    getCrmPendingBookingQueue(branchId, today),
     getCrmTodaySnapshot({ branchId, date: today }),
     getActionRequiredNotificationsAction(3),
     getCrmReadinessCached(branchId).catch(() => null),
   ]);
 
-  const bookings = rawBookings as BookingRow[];
+  const bookingsById = new Map<string, BookingRow>();
+  for (const booking of rawBookings as BookingRow[]) {
+    bookingsById.set(booking.id, booking);
+  }
+  for (const booking of pendingQueue as BookingRow[]) {
+    if (!bookingsById.has(booking.id)) {
+      bookingsById.set(booking.id, booking);
+    }
+  }
+
+  const bookings = Array.from(bookingsById.values()).sort((a, b) => {
+    const dateCompare = a.booking_date.localeCompare(b.booking_date);
+    return dateCompare !== 0 ? dateCompare : a.start_time.localeCompare(b.start_time);
+  });
 
   // Build queue data for the interactive panel
   const queueData = bookings.map((b) => {
@@ -93,6 +109,7 @@ export default async function CrmTodayPage() {
     const pricePaid = typeof priceRaw === "number" && Number.isFinite(priceRaw) ? priceRaw : 0;
     return {
       id:                    b.id,
+      booking_date:          b.booking_date,
       start_time:            b.start_time,
       end_time:              b.end_time,
       status:                b.status,
@@ -116,8 +133,11 @@ export default async function CrmTodayPage() {
     };
   });
 
-  const upcoming = bookings.filter((b) => b.status === "confirmed");
+  const upcoming = bookings.filter(
+    (b) => b.booking_date === today && b.status === "confirmed"
+  );
   const nextAppt = [...upcoming].sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+  const pendingBookingCount = queueData.filter((b) => isCrmPendingBookingStatus(b.status)).length;
 
   const roleLabel =
     role === "owner"             ? "Owner"
@@ -146,6 +166,7 @@ export default async function CrmTodayPage() {
       readinessIssues={readinessIssues}
       readinessStatus={readinessStatus}
       nextApptId={nextAppt?.id}
+      pendingBookingCount={pendingBookingCount}
     />
   );
 }

@@ -57,6 +57,7 @@ import type { BookingListItemData } from "./crm-booking-list-item";
 import type { CrmTodaySnapshot } from "@/lib/queries/crm-today";
 import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
 import { CrmReadinessDetail } from "./crm-readiness-detail";
+import { isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
 
 const TAB_PARAM = "tab";
 const DEFAULT_TAB: TodayTabKey = "overview";
@@ -77,6 +78,7 @@ export function CrmTodayShell({
   readinessIssues,
   readinessStatus,
   nextApptId,
+  pendingBookingCount,
 }: {
   branchName: string;
   dateLabel: string;
@@ -87,6 +89,7 @@ export function CrmTodayShell({
   readinessIssues: ReadinessIssue[];
   readinessStatus: ReadinessStatus;
   nextApptId?: string;
+  pendingBookingCount: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -107,7 +110,7 @@ export function CrmTodayShell({
   );
 
   const pendingPaymentsCount = useMemo(
-    () => queueData.filter((b) => b.payment_status !== "paid" && b.status !== "cancelled" && b.status !== "no_show").length,
+    () => queueData.filter((b) => b.payment_status !== "paid" && !isBookingClosedForCrm(b.status)).length,
     [queueData]
   );
 
@@ -126,6 +129,13 @@ export function CrmTodayShell({
         color: "#5A8A6A",
         icon: <Calendar size={16} />,
         trend: "Scheduled today",
+      },
+      {
+        label: "Pending",
+        value: snapshot.bookingSummary.pending,
+        color: "#8A6A2A",
+        icon: <AlertCircle size={16} />,
+        trend: "Needs CRM action",
       },
       {
         label: "Confirmed",
@@ -192,6 +202,9 @@ export function CrmTodayShell({
     // Overview tab right rail
     if (activeTab === "overview") {
       const needsAttentionItems = [
+        ...(pendingBookingCount > 0
+          ? [{ label: "Incoming pending", value: pendingBookingCount, color: "var(--cs-warning)" }]
+          : []),
         ...(pendingPaymentsCount > 0
           ? [{ label: "Payments pending", value: pendingPaymentsCount, color: "var(--cs-error)" }]
           : []),
@@ -363,6 +376,7 @@ export function CrmTodayShell({
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {[
+              { label: "Pending", value: snapshot.bookingSummary.pending, color: "var(--cs-warning)" },
               { label: "Completed", value: snapshot.bookingSummary.completed, color: "var(--cs-success)" },
               { label: "In Progress", value: snapshot.bookingSummary.in_progress, color: "var(--cs-sand)" },
               { label: "Upcoming", value: snapshot.bookingSummary.confirmed, color: "var(--cs-info)" },

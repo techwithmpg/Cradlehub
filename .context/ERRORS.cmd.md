@@ -123,3 +123,19 @@
 - **Symptom:** Browser route checks for `/crm/staff` and each Staff `?tab=` deep link redirected to `/login` in the in-app browser.
 - **Impact:** Authenticated click-through could not verify Staff Management rendering, Service Assignments rendering, Status rendering, Applications review behavior, edit profile save, service capabilities save, activate/deactivate, or green success toasts.
 - **Resolution:** Code-level verification, type-check, lint, and production build passed. Re-run browser verification with a valid local CRM/CSR session.
+
+---
+
+## 2026-06-03 - CRM-BOOKINGS-WORKFLOW-001 browser/auth verification limitation
+
+- **Symptom:** Shell route checks for `/crm/bookings?tab=needs-confirmation`, `/crm/bookings?tab=confirmed`, and `/crm/bookings?tab=callback-followup` returned HTTP 200, but full visual click-through could not be completed because a valid local CRM/CSR browser session was not available. Tool discovery also did not expose an in-app browser navigation/screenshot tool in this turn.
+- **Impact:** Code-level checks, production build, and unauthenticated route/API smoke checks passed, but manual modal flows still need authenticated verification: Booking Follow-up, Customer Arrived, Assign Room / Change Room, and Callback Follow-up actions.
+- **Resolution:** No code change required for this limitation. Re-run authenticated browser verification on `http://localhost:3000/crm/bookings?tab=needs-confirmation` after logging in as a CRM/CSR user.
+
+---
+
+## 2026-06-03 - CRM-BOOKINGS-COMMAND-CENTER-001 browser/auth verification limitation
+
+- **Symptom:** The in-app browser reached the existing local dev server at `http://localhost:3000`, but `/crm/bookings` redirected to `/login`.
+- **Impact:** The command-center redesign passed type-check, lint, and build, but the authenticated visual check of the Bookings Command Center, selected-booking panel, and modals still needs a valid local CRM/CSR browser session.
+- **Resolution:** No code change required for this limitation. Re-run browser verification after logging in locally as a CRM/CSR user.

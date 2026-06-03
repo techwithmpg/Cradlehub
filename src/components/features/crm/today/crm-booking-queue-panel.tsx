@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
+import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 
 type BookingCardData = {
   id: string;
@@ -31,9 +32,10 @@ type BookingCardData = {
 
 type PaymentAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
-type FilterTab = "active" | "confirmed" | "in_progress" | "completed" | "cancelled";
+type FilterTab = "pending" | "active" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
 const TAB_LABELS: Record<FilterTab, string> = {
+  pending: "Pending",
   active: "Active",
   confirmed: "Confirmed",
   in_progress: "In Progress",
@@ -95,7 +97,7 @@ function BookingCard({ booking, isNext, paymentAction }: { booking: BookingCardD
 
   return (
     <Link
-      href={`/crm/bookings?highlight=${booking.id}`}
+      href={`/crm/bookings?bookingId=${booking.id}`}
       className="cs-card"
       style={{
         padding: hasHsFooter ? "0.75rem 1rem 1.75rem" : "0.75rem 1rem",
@@ -201,11 +203,13 @@ function BookingCard({ booking, isNext, paymentAction }: { booking: BookingCardD
                 booking.status === "completed" ? "#ECFDF5"
                 : booking.status === "in_progress" ? "#FFF7ED"
                 : booking.status === "confirmed" ? "var(--cs-sand-mist)"
+                : isCrmPendingBookingStatus(booking.status) ? "#FFF7ED"
                 : "#FEF2F2",
               color:
                 booking.status === "completed" ? "#065F46"
                 : booking.status === "in_progress" ? "#92400E"
                 : booking.status === "confirmed" ? "var(--cs-sand)"
+                : isCrmPendingBookingStatus(booking.status) ? "#92400E"
                 : "#991B1B",
             }}
           >
@@ -313,9 +317,12 @@ export function CrmBookingQueuePanel({
   nextApptId?: string;
   paymentAction?: PaymentAction;
 }) {
-  const [activeTab, setActiveTab] = useState<FilterTab>("active");
+  const [activeTab, setActiveTab] = useState<FilterTab>(() =>
+    bookings.some((b) => isCrmPendingBookingStatus(b.status)) ? "pending" : "active"
+  );
 
   const filtered = bookings.filter((b) => {
+    if (activeTab === "pending") return isCrmPendingBookingStatus(b.status);
     if (activeTab === "active") return b.status === "confirmed" || b.status === "in_progress";
     if (activeTab === "confirmed") return b.status === "confirmed";
     if (activeTab === "in_progress") return b.status === "in_progress";
@@ -325,6 +332,7 @@ export function CrmBookingQueuePanel({
   });
 
   const tabCounts: Record<FilterTab, number> = {
+    pending: bookings.filter((b) => isCrmPendingBookingStatus(b.status)).length,
     active: bookings.filter((b) => b.status === "confirmed" || b.status === "in_progress").length,
     confirmed: bookings.filter((b) => b.status === "confirmed").length,
     in_progress: bookings.filter((b) => b.status === "in_progress").length,
@@ -332,7 +340,7 @@ export function CrmBookingQueuePanel({
     cancelled: bookings.filter((b) => b.status === "cancelled" || b.status === "no_show").length,
   };
 
-  const tabs: FilterTab[] = ["active", "confirmed", "in_progress", "completed", "cancelled"];
+  const tabs: FilterTab[] = ["pending", "active", "confirmed", "in_progress", "completed", "cancelled"];
 
   return (
     <div>
@@ -394,6 +402,8 @@ export function CrmBookingQueuePanel({
         >
           {activeTab === "active"
             ? "No active bookings right now. Use New Walk-in, New Home Service, or Online Requests to begin today's front-desk flow."
+            : activeTab === "pending"
+            ? "No incoming pending bookings right now."
             : `No ${TAB_LABELS[activeTab].toLowerCase()} bookings today.`}
         </div>
       ) : (

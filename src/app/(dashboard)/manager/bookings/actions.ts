@@ -7,8 +7,7 @@ import { assertSlotAvailable } from "@/lib/engine/availability";
 import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
-import { revalidatePath } from "next/cache";
-import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
+import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import type { Database } from "@/types/supabase";
 import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
@@ -180,12 +179,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     }
   }
 
-  revalidatePath("/manager");
-  revalidatePath("/manager/bookings");
-  revalidatePath("/crm");
-  revalidatePath("/crm/bookings");
-  invalidateCrmWorkspace(me.branch_id);
-  invalidateManagerWorkspace(me.branch_id);
+  revalidateOperationalBookingSurfaces(me.branch_id);
   return { success: true };
 }
 
@@ -382,12 +376,7 @@ export async function editBookingAction(rawInput: unknown) {
     });
   }
 
-  revalidatePath("/manager");
-  revalidatePath("/manager/bookings");
-  revalidatePath("/crm");
-  revalidatePath("/crm/bookings");
-  invalidateCrmWorkspace(me.branch_id);
-  invalidateManagerWorkspace(me.branch_id);
+  revalidateOperationalBookingSurfaces(me.branch_id);
   return { success: true };
 }
 
@@ -475,11 +464,6 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     });
   }
 
-  revalidatePath("/manager");
-  revalidatePath("/manager/bookings");
-  revalidatePath("/crm");
-  revalidatePath("/crm/bookings");
-  invalidateCrmWorkspace(me.branch_id);
-  invalidateManagerWorkspace(me.branch_id);
+  revalidateOperationalBookingSurfaces(me.branch_id);
   return { success: true };
 }
