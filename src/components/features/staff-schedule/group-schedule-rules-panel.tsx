@@ -6,7 +6,7 @@ import {
   upsertStaffGroupScheduleRuleAction,
   deleteStaffGroupScheduleRuleAction,
 } from "@/lib/actions/staff-schedule-groups";
-import { formatTime12h } from "@/lib/utils/time-format";
+import { formatShiftTimeRange } from "@/lib/utils/time-format";
 import type { StaffScheduleGroup, StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 import { Save, RotateCcw, Clock } from "lucide-react";
 
@@ -292,7 +292,7 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules }
       days: formatDayList(
         SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.opening).map((d) => dayAbbr(d.label))
       ),
-      time: `${formatTime12h(shiftTimes.opening.start)} – ${formatTime12h(shiftTimes.opening.end)}`,
+      time: formatShiftTimeRange(shiftTimes.opening.start, shiftTimes.opening.end),
       dot: "var(--cs-success)",
     },
     {
@@ -300,7 +300,7 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules }
       days: formatDayList(
         SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.closing).map((d) => dayAbbr(d.label))
       ),
-      time: `${formatTime12h(shiftTimes.closing.start)} – ${formatTime12h(shiftTimes.closing.end)}`,
+      time: formatShiftTimeRange(shiftTimes.closing.start, shiftTimes.closing.end),
       dot: "var(--cs-info)",
     },
     {
@@ -308,7 +308,7 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules }
       days: formatDayList(
         SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.regular).map((d) => dayAbbr(d.label))
       ),
-      time: `${formatTime12h(shiftTimes.regular.start)} – ${formatTime12h(shiftTimes.regular.end)}`,
+      time: formatShiftTimeRange(shiftTimes.regular.start, shiftTimes.regular.end),
       dot: "var(--cs-sand)",
     },
     {
@@ -455,7 +455,7 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules }
                   />
                   <span style={{ fontWeight: 600, color: s.badge }}>{b.label}</span>
                   <span style={{ color: "var(--cs-text-muted)" }}>
-                    {formatTime12h(b.startTime)} – {formatTime12h(b.endTime)}
+                    {formatShiftTimeRange(b.startTime, b.endTime)}
                   </span>
                 </div>
               );

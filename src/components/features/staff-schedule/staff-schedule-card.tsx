@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { Save, RotateCcw, Clock, Users } from "lucide-react";
-import { formatTime12h } from "@/lib/utils/time-format";
+import { formatShiftTimeRange } from "@/lib/utils/time-format";
 import {
   extractShiftTimes,
   computeOverlap,
@@ -178,7 +178,7 @@ function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
       days: formatDayList(
         SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.opening).map((d) => dayAbbr(d.label))
       ),
-      time: `${formatTime12h(activeTimes.opening.start)} – ${formatTime12h(activeTimes.opening.end)}`,
+      time: formatShiftTimeRange(activeTimes.opening.start, activeTimes.opening.end),
       dot: "var(--cs-success)",
     },
     {
@@ -186,7 +186,7 @@ function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
       days: formatDayList(
         SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.closing).map((d) => dayAbbr(d.label))
       ),
-      time: `${formatTime12h(activeTimes.closing.start)} – ${formatTime12h(activeTimes.closing.end)}`,
+      time: formatShiftTimeRange(activeTimes.closing.start, activeTimes.closing.end),
       dot: "var(--cs-info)",
     },
     {
@@ -194,7 +194,7 @@ function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
       days: formatDayList(
         SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.regular).map((d) => dayAbbr(d.label))
       ),
-      time: `${formatTime12h(activeTimes.regular.start)} – ${formatTime12h(activeTimes.regular.end)}`,
+      time: formatShiftTimeRange(activeTimes.regular.start, activeTimes.regular.end),
       dot: "var(--cs-sand)",
     },
     {
@@ -410,7 +410,7 @@ function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
                       display: "inline-block",
                     }}
                   />
-                  {formatTime12h(t.start)} – {formatTime12h(t.end)}
+                  {formatShiftTimeRange(t.start, t.end)}
                 </span>
               );
             })}

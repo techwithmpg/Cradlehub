@@ -282,6 +282,34 @@ export async function applyManualScheduleImportAction(
   return { ok: true, staffCount: staffPaperNames.size, rowsWritten: rows.length };
 }
 
+// ── Overnight-shift time helpers ─────────────────────────────────────────────
+
+/** Converts "HH:MM" to total minutes from midnight (0–1439). */
+function parseTimeToMinutes(time: string): number {
+  const parts = time.split(":");
+  return parseInt(parts[0] ?? "0", 10) * 60 + parseInt(parts[1] ?? "0", 10);
+}
+
+/**
+ * Returns the duration in minutes between two HH:MM times.
+ * If endTime <= startTime (crosses midnight), 24 hours are added to endTime
+ * so that e.g. "17:00"–"01:30" = 8h 30m, not a negative/zero value.
+ */
+function getShiftDurationMinutes(startTime: string, endTime: string): number {
+  const start = parseTimeToMinutes(startTime);
+  let end = parseTimeToMinutes(endTime);
+  if (end <= start) end += 24 * 60; // overnight adjustment
+  return end - start;
+}
+
+/** Returns true if any day in the pattern enables this shift (and is not a day-off). */
+function isShiftEnabled(
+  days: Array<{ opening: boolean; closing: boolean; regular: boolean; dayOff: boolean }>,
+  shift: "opening" | "closing" | "regular"
+): boolean {
+  return days.some((d) => !d.dayOff && d[shift]);
+}
+
 // ── Save Staff Weekly Schedule Action ─────────────────────────────────────────
 
 const dayPatternInputSchema = z.object({
@@ -307,18 +335,42 @@ const saveStaffWeeklyScheduleSchema = z
       .refine((a) => a.length === 7, "Must provide all 7 days (0–6)"),
     times: shiftTimesInputSchema,
   })
-  .refine((d) => d.times.opening.start < d.times.opening.end, {
-    message: "Opening shift start must be before end",
-    path: ["times", "opening", "end"],
-  })
-  .refine((d) => d.times.closing.start < d.times.closing.end, {
-    message: "Closing shift start must be before end",
-    path: ["times", "closing", "end"],
-  })
-  .refine((d) => d.times.regular.start < d.times.regular.end, {
-    message: "Regular shift start must be before end",
-    path: ["times", "regular", "end"],
-  });
+  // Opening: only validate when at least one day uses it; allow overnight spans.
+  .refine(
+    (d) => {
+      if (!isShiftEnabled(d.days, "opening")) return true;
+      const dur = getShiftDurationMinutes(d.times.opening.start, d.times.opening.end);
+      return dur > 0 && dur <= 16 * 60;
+    },
+    {
+      message: "Opening shift times are invalid (must span 1 min – 16 h)",
+      path: ["times", "opening", "end"],
+    }
+  )
+  // Closing: same rules — overnight OK (e.g. 17:00 → 01:30 = 8 h 30 m).
+  .refine(
+    (d) => {
+      if (!isShiftEnabled(d.days, "closing")) return true;
+      const dur = getShiftDurationMinutes(d.times.closing.start, d.times.closing.end);
+      return dur > 0 && dur <= 16 * 60;
+    },
+    {
+      message: "Closing shift times are invalid (must span 1 min – 16 h)",
+      path: ["times", "closing", "end"],
+    }
+  )
+  // Regular: same rules.
+  .refine(
+    (d) => {
+      if (!isShiftEnabled(d.days, "regular")) return true;
+      const dur = getShiftDurationMinutes(d.times.regular.start, d.times.regular.end);
+      return dur > 0 && dur <= 16 * 60;
+    },
+    {
+      message: "Regular shift times are invalid (must span 1 min – 16 h)",
+      path: ["times", "regular", "end"],
+    }
+  );
 
 export type SaveStaffWeeklyScheduleResult =
   | { ok: true; rowsWritten: number }
