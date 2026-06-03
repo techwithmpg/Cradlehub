@@ -213,6 +213,9 @@ type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }
 
 type BookingsTableProps = {
   bookings: WorkspaceBookingRow[];
+  /** Full unfiltered list from BookingsWorkspace — used to find a booking
+   *  that has moved to a different workflow tab after a status change. */
+  allBookings?: WorkspaceBookingRow[];
   viewerRole: string;
   dispatchHref?: string;
   search?: string;
@@ -231,6 +234,7 @@ type BookingModalState =
 
 export function BookingsTable({
   bookings,
+  allBookings,
   viewerRole,
   dispatchHref,
   search,
@@ -289,10 +293,18 @@ export function BookingsTable({
   const startIndex = safePageIndex * rowsPerPage;
   const endIndex = Math.min(startIndex + rowsPerPage, filtered.length);
   const pageBookings = filtered.slice(startIndex, endIndex);
-  const selected =
-    selectedId === NO_SELECTION
-      ? null
-      : pageBookings.find((booking) => booking.id === selectedId) ?? pageBookings[0] ?? null;
+  // When a booking moves to a different workflow tab after a status change
+  // (e.g. confirmed → in-service after Start Service), it is no longer in
+  // `pageBookings`. Fall back to the full unfiltered `allBookings` list so
+  // the right panel stays populated and shows the updated booking data.
+  const selected = (() => {
+    if (selectedId === NO_SELECTION) return null;
+    const inPage = pageBookings.find((b) => b.id === selectedId);
+    if (inPage) return inPage;
+    const inAll = allBookings?.find((b) => b.id === selectedId);
+    if (inAll) return inAll;
+    return pageBookings[0] ?? null;
+  })();
   const pageIndexes = getPageIndexes(totalPages, safePageIndex);
 
   function goToPage(nextPage: number) {
@@ -606,6 +618,7 @@ export function BookingsTable({
         <div className="bw-panel">
           {selected ? (
             <BookingDetailsPanel
+              key={`${selected.id}-${selected.session_started_at ?? "none"}-${selected.booking_progress_status ?? "none"}`}
               booking={selected}
               viewerRole={viewerRole}
               dispatchHref={dispatchHref}
@@ -690,6 +703,23 @@ function BookingDetailsPanel({
   const [isStarting,   startStartTransition]    = useTransition();
   const [isCompleting, startCompleteTransition] = useTransition();
 
+  // Optimistic override — set immediately after Start Service success so the
+  // countdown appears before router.refresh() completes and the updated server
+  // data flows back into the panel.  When the parent's key changes (because
+  // `selected.session_started_at` is now set from the server), this component
+  // remounts and the override resets to null automatically.
+  type SessionOverride = {
+    status: string;
+    booking_progress_status: string;
+    session_started_at: string;
+  };
+  const [sessionOverride, setSessionOverride] = useState<SessionOverride | null>(null);
+
+  // Effective fields: optimistic values take precedence until server data arrives.
+  const effectiveStatus           = sessionOverride?.status                   ?? booking.status;
+  const effectiveProgressStatus   = sessionOverride?.booking_progress_status  ?? booking.booking_progress_status;
+  const effectiveSessionStartedAt = sessionOverride?.session_started_at       ?? booking.session_started_at;
+
   const customer = readFirst(booking.customers);
   const service  = readFirst(booking.services);
   const staff    = readFirst(booking.staff);
@@ -705,22 +735,16 @@ function BookingDetailsPanel({
   const roomLabel = resource?.name ?? (isHomeService ? "Home service" : "Room TBD");
   const operationalStatus = getOperationalStatus(booking);
 
-  // ── Service state guards ──────────────────────────────────────────────────
-  const progress = booking.booking_progress_status ?? null;
+  // ── Service state guards (use effective values so optimistic state applies) ─
+
+  const progress = effectiveProgressStatus ?? null;
 
   // Active service requires BOTH a status flag AND session_started_at.
-  // A booking updated via the old updateBookingStatusAction only had
-  // status = 'in_progress' without session_started_at, causing the card to
-  // show "Complete Service" with no countdown. Requiring the timestamp here
-  // ensures the countdown and Complete button only appear after a proper
-  // RPC-based service start (which sets all three fields atomically).
   const isServiceActive = (
-    booking.status === "in_progress" ||
-    progress === "session_started"
-  ) && Boolean(booking.session_started_at);
+    effectiveStatus === "in_progress" || progress === "session_started"
+  ) && Boolean(effectiveSessionStartedAt);
 
-  // Eligible for Start Service: any confirmed in-spa booking that hasn't
-  // started a session yet. Broader than the old "checked_in + room" check.
+  // Show Start Service for any confirmed in-spa booking not yet in active service.
   const isPendingConfirmation = isCrmPendingBookingStatus(booking.status);
   const isClosed = isBookingClosedForCrm(booking.status) ||
     booking.status === "completed" ||
@@ -739,8 +763,6 @@ function BookingDetailsPanel({
     router.refresh();
   }
 
-  // Uses the RPC action so booking_progress_status + session_started_at are
-  // set atomically alongside status = 'in_progress'.
   function handleStartService() {
     startStartTransition(async () => {
       const result = await crmStartServiceAction({ bookingId: booking.id });
@@ -748,13 +770,18 @@ function BookingDetailsPanel({
         toast.error(result.error ?? "Could not start service.");
         return;
       }
+      // Set optimistic override BEFORE calling afterServiceMutation so the
+      // countdown appears immediately — no waiting for the refresh cycle.
+      setSessionOverride({
+        status:                  "in_progress",
+        booking_progress_status: "session_started",
+        session_started_at:      new Date().toISOString(),
+      });
       toast.success("Service started.");
       afterServiceMutation();
     });
   }
 
-  // Uses the RPC action so booking_progress_status + session_completed_at are
-  // set atomically alongside status = 'completed'.
   function handleCompleteService() {
     startCompleteTransition(async () => {
       const result = await crmCompleteServiceAction({ bookingId: booking.id });
@@ -768,28 +795,32 @@ function BookingDetailsPanel({
   }
 
   // Called by HybridSelectedBookingCard when the countdown expires.
-  // autoCompleteDueSessionAction re-validates on the server before completing.
   function handleAutoComplete() {
     startCompleteTransition(async () => {
       const result = await autoCompleteDueSessionAction(booking.id);
       if (result.ok) {
         toast.success("Service auto-completed.");
-        afterServiceMutation();
-      }
-      // If already completed (idempotent), silently refresh.
-      if (!result.ok && result.code !== "ALREADY_COMPLETED") {
+      } else if (result.code !== "ALREADY_COMPLETED") {
         toast.error(result.message ?? "Auto-complete failed.");
       }
       afterServiceMutation();
     });
   }
 
-  // Wrapped statusAction for CrmNextActionsPanel: intercepts 'in_progress' and
-  // routes it through the RPC-based action so session_started_at is always set.
+  // Intercepts 'in_progress' from CrmNextActionsPanel so its Start Service
+  // button also sets all three session fields (not just status).
   async function wrappedStatusAction(input: unknown) {
     const typed = input as { bookingId?: string; status?: string } | undefined;
     if (typed?.status === "in_progress" && typed?.bookingId) {
-      return crmStartServiceAction({ bookingId: typed.bookingId });
+      const result = await crmStartServiceAction({ bookingId: typed.bookingId });
+      if (result.success) {
+        setSessionOverride({
+          status:                  "in_progress",
+          booking_progress_status: "session_started",
+          session_started_at:      new Date().toISOString(),
+        });
+      }
+      return result;
     }
     const callAction = statusAction ?? updateBookingStatusAction;
     return callAction(input);
@@ -814,10 +845,10 @@ function BookingDetailsPanel({
         </div>
       </div>
 
-      {/* Hybrid card replaces the old hero card + ServiceCountdownChip.
-          Key changes when session_started_at changes so hasAutoCompletedRef resets. */}
+      {/* Hybrid card: uses effective (possibly optimistic) session fields so
+          the countdown activates immediately after Start Service without
+          waiting for router.refresh() to complete. */}
       <HybridSelectedBookingCard
-        key={`${booking.id}-${booking.session_started_at ?? "none"}`}
         booking={{
           id:                      booking.id,
           booking_code:            `#${booking.id.slice(0, 8).toUpperCase()}`,
@@ -827,9 +858,9 @@ function BookingDetailsPanel({
           resource_name:           resource?.name,
           start_time:              booking.start_time,
           end_time:                booking.end_time,
-          status:                  booking.status,
-          booking_progress_status: booking.booking_progress_status,
-          session_started_at:      booking.session_started_at,
+          status:                  effectiveStatus,
+          booking_progress_status: effectiveProgressStatus,
+          session_started_at:      effectiveSessionStartedAt,
           session_completed_at:    booking.session_completed_at,
           service_duration:        durationMinutes,
           type:                    booking.type,

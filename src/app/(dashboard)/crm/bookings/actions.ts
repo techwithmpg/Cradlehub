@@ -739,22 +739,35 @@ export async function crmStartServiceAction(
     return { success: false, error: "Home-service sessions are started by the assigned staff." };
   }
 
-  // Idempotent: already started → return success without error
+  // Idempotent: fully started (both fields + timestamp set) → return success
   if (
-    booking.booking_progress_status === "session_started" ||
-    booking.status === "in_progress"
+    (booking.booking_progress_status === "session_started" || booking.status === "in_progress")
+    && (booking as { session_started_at?: string | null }).session_started_at
   ) {
     return { success: true };
   }
 
-  const { error: rpcError } = await ctx.supabase.rpc("update_booking_progress", {
-    p_booking_id: parsed.data.bookingId,
-    p_next_status: "session_started",
-  });
+  // Use a direct update instead of the RPC so this works regardless of whether
+  // the direct-start migration (20260603000001) has been applied to the DB.
+  // All three fields are written atomically in one UPDATE statement.
+  const now = new Date().toISOString();
+  const { data: updatedRows, error } = await ctx.supabase
+    .from("bookings")
+    .update({
+      status:                   "in_progress",
+      booking_progress_status:  "session_started",
+      session_started_at:       now,
+    })
+    .eq("id", parsed.data.bookingId)
+    .eq("branch_id", booking.branch_id)
+    .select("id");
 
-  if (rpcError) {
-    logError("crm.start_service_failed", { bookingId: parsed.data.bookingId, error: rpcError });
-    return { success: false, error: rpcError.message };
+  if (error) {
+    logError("crm.start_service_failed", { bookingId: parsed.data.bookingId, error });
+    return { success: false, error: error.message };
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    return { success: false, error: "Booking could not be started. You may not have permission." };
   }
 
   revalidateServiceSurfaces(booking.branch_id);
@@ -790,14 +803,25 @@ export async function crmCompleteServiceAction(
     return { success: false, error: "This booking is already closed." };
   }
 
-  const { error: rpcError } = await ctx.supabase.rpc("update_booking_progress", {
-    p_booking_id: parsed.data.bookingId,
-    p_next_status: "completed",
-  });
+  // Direct update — reliable regardless of booking_progress_status current value.
+  const now = new Date().toISOString();
+  const { data: updatedRows, error } = await ctx.supabase
+    .from("bookings")
+    .update({
+      status:                   "completed",
+      booking_progress_status:  "completed",
+      session_completed_at:     now,
+    })
+    .eq("id", parsed.data.bookingId)
+    .eq("branch_id", booking.branch_id)
+    .select("id");
 
-  if (rpcError) {
-    logError("crm.complete_service_failed", { bookingId: parsed.data.bookingId, error: rpcError });
-    return { success: false, error: rpcError.message };
+  if (error) {
+    logError("crm.complete_service_failed", { bookingId: parsed.data.bookingId, error });
+    return { success: false, error: error.message };
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    return { success: false, error: "Booking could not be completed. You may not have permission." };
   }
 
   revalidateServiceSurfaces(booking.branch_id);

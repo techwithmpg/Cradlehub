@@ -1,2 +1,2 @@
-Task: Fix selected booking panel service workflow — Complete Service showing before service started.
-Status: DONE - Root cause fixed, crmStartServiceAction + crmCompleteServiceAction added, isServiceActive guard tightened, canStartService broadened, auto-complete wired. type-check ✅ lint ✅ build ✅ (89 routes).
+Task: Fix Start Service toast showing without countdown activating.
+Status: DONE - Direct DB update replaces RPC, allBookings fallback prevents panel disappearing on tab switch, sessionOverride optimistic state shows countdown immediately. type-check ✅ lint ✅ build ✅ (89 routes).

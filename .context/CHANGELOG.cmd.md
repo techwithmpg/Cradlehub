@@ -3799,3 +3799,30 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 89 routes
+
+---
+
+### 2026-06-03 — Claude Code (Fix: Start Service countdown not appearing)
+
+**Task:** Fix Start Service showing a success toast but countdown not activating.
+
+**Root causes (all three fixed):**
+
+1. **RPC migration not applied**: `crmStartServiceAction` called `update_booking_progress` RPC with `session_started`, but the `not_started → session_started` transition was only enabled by migration `20260603000001_staff_direct_session_start.sql` which had never been pushed. Both `crmStartServiceAction` and `crmCompleteServiceAction` now use **direct `supabase.update()`** (writing `status`, `booking_progress_status`, and `session_started_at`/`session_completed_at` in one statement) — no RPC dependency.
+   - Also fixed: idempotency check now requires `session_started_at` to be non-null so limbo bookings (status=in_progress, no timestamp) are not silently skipped.
+
+2. **Cross-tab booking disappearance**: After `router.refresh()`, the booking moved from "confirmed" tab to "in-service" tab. `BookingsTable.selected` derived from the current tab's `pageBookings`, so the booking was no longer found and the panel showed a different booking (or went blank).
+   - **Fix**: `BookingsWorkspace` now passes `allBookings={bookings}` to `BookingsTable`. `BookingsTable.selected` falls back to `allBookings` when `selectedId` is not in the current tab — the right panel stays on the correct booking across tab transitions.
+
+3. **No optimistic state during refresh window**: Between action success and refresh completing (~500ms), `booking.session_started_at` was still null, so the countdown could not appear.
+   - **Fix**: `BookingDetailsPanel` has a `sessionOverride` state that is set in the Start Service success callback with `{ status, booking_progress_status, session_started_at }`. `effectiveStatus/ProgressStatus/SessionStartedAt` merge server props with the override. `HybridSelectedBookingCard` uses these effective values — countdown activates immediately. When the parent's `key` changes (server data arrives), the panel remounts and clears the override.
+
+**Files changed:**
+- `src/app/(dashboard)/crm/bookings/actions.ts` — direct update in `crmStartServiceAction` + `crmCompleteServiceAction`; tighter idempotency check
+- `src/components/features/bookings/bookings-workspace.tsx` — pass `allBookings={bookings}` to `BookingsTable`
+- `src/components/features/bookings/bookings-table.tsx` — `allBookings` fallback in `selected` derivation; `key` on `BookingDetailsPanel`; `SessionOverride` state + effective fields in `BookingDetailsPanel`; `wrappedStatusAction` also sets override
+
+**Verification:**
+- `pnpm type-check`: ✅
+- `pnpm lint`: ✅ (0 errors, 2 pre-existing warnings)
+- `pnpm build`: ✅ 89 routes
