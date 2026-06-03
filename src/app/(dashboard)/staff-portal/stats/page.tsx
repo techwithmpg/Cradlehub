@@ -4,15 +4,17 @@ import { StatCard } from "@/components/features/dashboard/stat-card";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { BasicStaffStats } from "@/components/features/staff-portal/basic/basic-staff-stats";
 import { TherapistStats } from "@/components/features/staff-portal/therapist/therapist-stats";
+import { DriverStatsPage } from "@/components/features/staff-portal/driver/driver-stats-page";
 import {
   getMyStatsAction,
   getMyMonthlyScheduleStatsAction,
+  getMyDriverStatsAction,
   getMyProfileAction,
 } from "../actions";
 import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 import { formatCurrency } from "@/lib/utils";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
-import type { MonthlyScheduleStats } from "../actions";
+import type { MonthlyScheduleStats, DriverMonthlyStats } from "../actions";
 
 type BookingStatsResult =
   | { error: string }
@@ -113,6 +115,17 @@ export default async function StaffStatsPage({
   const mode = staffForMode ? getStaffPortalMode(staffForMode) : "basic";
   const isBasic = isBasicStaffMode(mode);
   const isTherapist = mode === "therapist";
+  const isDriver = mode === "driver";
+
+  if (isDriver) {
+    const driverStatsResult = await getMyDriverStatsAction(year, month);
+    if ("error" in driverStatsResult) {
+      return <div style={{ padding: "2rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>{driverStatsResult.error}</div>;
+    }
+    return (
+      <DriverStatsPage stats={driverStatsResult as DriverMonthlyStats} monthLabel={monthLabel} prevHref={prevHref} nextHref={nextHref} isFuture={isFuture} />
+    );
+  }
 
   if (isBasic) {
     const scheduleStatsResult = await getMyMonthlyScheduleStatsAction(year, month);

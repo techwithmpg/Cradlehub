@@ -873,3 +873,274 @@ export async function getMyProfileAction() {
   if (!me) return { error: "Unauthorized" };
   return { staff: me };
 }
+
+// ── Driver: today's dispatch jobs ─────────────────────────────────────────
+import { getDispatchData } from "@/lib/queries/dispatch-queries";
+import type { RealDispatchItem, DispatchStats } from "@/lib/queries/dispatch-queries";
+
+export type DriverJobsResult =
+  | { error: string }
+  | { items: RealDispatchItem[]; stats: DispatchStats; staff: StaffPortalStaff };
+
+export async function getMyDriverJobsAction(date: string): Promise<DriverJobsResult> {
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+  if (!me.branch_id) return { items: [], stats: { totalToday: 0, awaitingDispatch: 0, activeTrips: 0, completedToday: 0, cancelledToday: 0 }, staff: me };
+
+  const data = await getDispatchData({
+    branchId: me.branch_id,
+    date,
+    role: "driver",
+    staffId: me.id,
+  });
+
+  return { items: data.items, stats: data.stats, staff: me };
+}
+
+// ── Driver: all recent jobs (last N days) for "All" tab ───────────────────
+export type DriverAllJobsResult =
+  | { error: string }
+  | { today: RealDispatchItem[]; recent: RealDispatchItem[]; staff: StaffPortalStaff };
+
+export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const supabase = await createClient();
+  const todayStr = new Date().toISOString().split("T")[0]!;
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(`
+      id, booking_date, start_time, end_time,
+      status, booking_progress_status,
+      driver_id, staff_id,
+      metadata,
+      travel_started_at, arrived_at, session_started_at, completed_at,
+      services ( name ),
+      customers ( full_name )
+    `)
+    .eq("driver_id", me.id)
+    .gte("booking_date", thirtyDaysAgo)
+    .order("booking_date", { ascending: false })
+    .order("start_time", { ascending: false })
+    .limit(100);
+
+  if (error) return { error: error.message };
+
+  type RawRow = {
+    id: string;
+    booking_date: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    booking_progress_status?: string | null;
+    driver_id?: string | null;
+    staff_id?: string | null;
+    metadata?: unknown;
+    travel_started_at?: string | null;
+    arrived_at?: string | null;
+    session_started_at?: string | null;
+    completed_at?: string | null;
+    services?: { name: string } | { name: string }[] | null;
+    customers?: { full_name: string } | { full_name: string }[] | null;
+  };
+
+  function firstRel<T>(v: T | T[] | null | undefined): T | null {
+    if (!v) return null;
+    return Array.isArray(v) ? (v[0] ?? null) : v;
+  }
+
+  function toDispatchItem(b: RawRow, idx: number): RealDispatchItem {
+    const meta = b.metadata as Record<string, unknown> | null;
+    const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
+    const rawLat = hsAddr?.lat;
+    const rawLng = hsAddr?.lng;
+    const lat = typeof rawLat === "number" ? rawLat : typeof rawLat === "string" ? parseFloat(rawLat) : null;
+    const lng = typeof rawLng === "number" ? rawLng : typeof rawLng === "string" ? parseFloat(rawLng) : null;
+    const area = typeof hsAddr?.zone === "string" ? hsAddr.zone : typeof hsAddr?.city === "string" ? hsAddr.city : null;
+    const customer = firstRel(b.customers as { full_name: string } | { full_name: string }[] | null);
+    const service = firstRel(b.services as { name: string } | { name: string }[] | null);
+    const progressStatus = b.booking_progress_status ?? null;
+    const driverId = b.driver_id ?? null;
+
+    let dispatchStatus: import("@/features/dispatch/types").DispatchStatus = "ready";
+    if (b.status === "cancelled" || b.status === "no_show") dispatchStatus = "cancelled";
+    else if (b.status === "completed" || progressStatus === "completed") dispatchStatus = "completed";
+    else if (progressStatus === "session_started") dispatchStatus = "service_started";
+    else if (progressStatus === "arrived") dispatchStatus = "arrived_at_customer";
+    else if (progressStatus === "travel_started") dispatchStatus = "in_route";
+    else if (!driverId) dispatchStatus = "awaiting_driver";
+
+    return {
+      id: b.id,
+      number: `#${String(idx + 1).padStart(3, "0")}`,
+      bookingDate: b.booking_date,
+      startTime: b.start_time,
+      endTime: b.end_time,
+      customerName: customer?.full_name ?? "Guest Customer",
+      serviceName: service?.name ?? "—",
+      area,
+      formattedAddress: typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
+      lat: lat !== null && !isNaN(lat) ? lat : null,
+      lng: lng !== null && !isNaN(lng) ? lng : null,
+      needsLocationReview: false,
+      driverId,
+      driverName: null,
+      therapistId: b.staff_id ?? "",
+      therapistName: null,
+      dispatchStatus,
+      bookingStatus: b.status,
+      bookingProgressStatus: progressStatus ?? "not_started",
+      paymentStatus: "pending",
+      etaMinutes: null,
+      travelStartedAt: b.travel_started_at ?? null,
+      arrivedAt: b.arrived_at ?? null,
+      sessionStartedAt: b.session_started_at ?? null,
+      completedAt: b.completed_at ?? null,
+      rating: null,
+      currentLocation: null,
+    };
+  }
+
+  const rows = (data ?? []) as RawRow[];
+  const mapped = rows.map((r, i) => toDispatchItem(r, i));
+  const today = mapped.filter((i) => i.bookingDate === todayStr);
+  const recent = mapped.filter((i) => i.bookingDate !== todayStr);
+
+  return { today, recent, staff: me };
+}
+
+// ── Driver: single job by bookingId (with driver safety check) ────────────
+export type DriverJobByIdResult =
+  | { error: string }
+  | { job: RealDispatchItem & { durationMinutes: number | null; notes: string | null }; staff: StaffPortalStaff };
+
+export async function getMyDriverJobByIdAction(bookingId: string): Promise<DriverJobByIdResult> {
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const supabase = await createClient();
+  const { data: b, error } = await supabase
+    .from("bookings")
+    .select(`
+      id, booking_date, start_time, end_time,
+      status, booking_progress_status,
+      driver_id, staff_id,
+      metadata,
+      travel_started_at, arrived_at, session_started_at, completed_at,
+      services ( name, duration_minutes ),
+      customers ( full_name )
+    `)
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error) return { error: error.message };
+  if (!b) return { error: "Job not found" };
+
+  type JobRow = typeof b & { driver_id?: string | null; staff_id?: string | null; booking_progress_status?: string | null; travel_started_at?: string | null; arrived_at?: string | null; session_started_at?: string | null; completed_at?: string | null };
+  const row = b as JobRow;
+
+  if (row.driver_id !== me.id) return { error: "Unauthorized" };
+
+  const meta = row.metadata as Record<string, unknown> | null;
+  const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
+  const notes = typeof meta?.notes === "string" ? meta.notes : typeof meta?.customer_notes === "string" ? meta.customer_notes : null;
+  const rawLat = hsAddr?.lat;
+  const rawLng = hsAddr?.lng;
+  const lat = typeof rawLat === "number" ? rawLat : typeof rawLat === "string" ? parseFloat(rawLat) : null;
+  const lng = typeof rawLng === "number" ? rawLng : typeof rawLng === "string" ? parseFloat(rawLng) : null;
+  const area = typeof hsAddr?.zone === "string" ? hsAddr.zone : typeof hsAddr?.city === "string" ? hsAddr.city : null;
+
+  type SvcRow = { name: string; duration_minutes?: number | null } | null;
+  type CustRow = { full_name: string } | null;
+  function firstR<T>(v: T | T[] | null | undefined): T | null {
+    if (!v) return null;
+    return Array.isArray(v) ? (v[0] ?? null) : v;
+  }
+  const service = firstR(row.services as SvcRow | SvcRow[]);
+  const customer = firstR(row.customers as CustRow | CustRow[]);
+
+  const progressStatus = row.booking_progress_status ?? null;
+  const driverId = row.driver_id ?? null;
+  let dispatchStatus: import("@/features/dispatch/types").DispatchStatus = "ready";
+  if (row.status === "cancelled" || row.status === "no_show") dispatchStatus = "cancelled";
+  else if (row.status === "completed" || progressStatus === "completed") dispatchStatus = "completed";
+  else if (progressStatus === "session_started") dispatchStatus = "service_started";
+  else if (progressStatus === "arrived") dispatchStatus = "arrived_at_customer";
+  else if (progressStatus === "travel_started") dispatchStatus = "in_route";
+  else if (!driverId) dispatchStatus = "awaiting_driver";
+
+  const job = {
+    id: row.id,
+    number: "#001",
+    bookingDate: row.booking_date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    customerName: customer?.full_name ?? "Guest Customer",
+    serviceName: service?.name ?? "—",
+    area,
+    formattedAddress: typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
+    lat: lat !== null && !isNaN(lat) ? lat : null,
+    lng: lng !== null && !isNaN(lng) ? lng : null,
+    needsLocationReview: false,
+    driverId,
+    driverName: null,
+    therapistId: row.staff_id ?? "",
+    therapistName: null,
+    dispatchStatus,
+    bookingStatus: row.status,
+    bookingProgressStatus: progressStatus ?? "not_started",
+    paymentStatus: "pending",
+    etaMinutes: null,
+    travelStartedAt: row.travel_started_at ?? null,
+    arrivedAt: row.arrived_at ?? null,
+    sessionStartedAt: row.session_started_at ?? null,
+    completedAt: row.completed_at ?? null,
+    rating: null,
+    currentLocation: null,
+    durationMinutes: service?.duration_minutes ?? null,
+    notes,
+  };
+
+  return { job, staff: me };
+}
+
+// ── Driver: monthly stats (by driver_id) ──────────────────────────────────
+export type DriverMonthlyStats = {
+  totalJobs: number;
+  completedJobs: number;
+  cancelledJobs: number;
+  inProgressJobs: number;
+};
+
+export type DriverStatsResult =
+  | { error: string }
+  | DriverMonthlyStats;
+
+export async function getMyDriverStatsAction(year: number, month: number): Promise<DriverStatsResult> {
+  const me = await getMyStaffRecord();
+  if (!me) return { error: "Unauthorized" };
+
+  const supabase = await createClient();
+  const fromDate = `${year}-${String(month).padStart(2, "0")}-01`;
+  const toDate = new Date(year, month, 0).toISOString().split("T")[0]!;
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, status")
+    .eq("driver_id", me.id)
+    .gte("booking_date", fromDate)
+    .lte("booking_date", toDate);
+
+  if (error) return { error: error.message };
+
+  const rows = data ?? [];
+  return {
+    totalJobs: rows.length,
+    completedJobs: rows.filter((r) => r.status === "completed").length,
+    cancelledJobs: rows.filter((r) => r.status === "cancelled" || r.status === "no_show").length,
+    inProgressJobs: rows.filter((r) => r.status === "in_progress").length,
+  };
+}

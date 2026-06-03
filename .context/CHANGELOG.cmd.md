@@ -4062,3 +4062,39 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in scripts/)
 - `pnpm build`: PASS, 93 routes (+1 /staff-portal/service-progress)
 - Zero TypeScript `any` in new/modified files
+
+---
+
+## 2026-06-03 — Driver Staff Portal Mobile UI
+
+**Task:** Implement approved Driver Staff Portal mobile experience for driver staff (system_role=driver OR staff_type=driver).
+
+**New server actions (4) in actions.ts:**
+- `getMyDriverJobsAction(date)` — today's dispatch jobs via `getDispatchData(role="driver")`
+- `getMyDriverAllJobsAction()` — last 30 days of jobs for "All" tab (direct driver_id query)
+- `getMyDriverJobByIdAction(bookingId)` — single job with driver safety check
+- `getMyDriverStatsAction(year, month)` — monthly stats queried by driver_id
+
+**New routes (4):** /staff-portal/map, /staff-portal/jobs, /staff-portal/jobs/active, /staff-portal/jobs/[bookingId]
+
+**New components (18) in src/components/features/staff-portal/driver/:**
+- driver-mobile-bottom-nav.tsx — Home, Dispatch, Map, Jobs, More
+- driver-header.tsx, driver-greeting-card.tsx (route-aware status), driver-today-overview-card.tsx
+- driver-next-stop-card.tsx (countdown badge + address), driver-quick-actions.tsx
+- driver-mobile-home.tsx — assembles home
+- driver-dispatch-card.tsx, driver-dispatch-page.tsx (Upcoming/History tabs)
+- driver-route-map-page.tsx — stop list + Google Maps navigation links (no new map library)
+- driver-job-status-stepper.tsx, driver-job-details-page.tsx (Start Travel/Mark Arrived via existing action)
+- driver-job-timeline.tsx, driver-active-job-page.tsx (reuses TrackingTimer)
+- driver-job-card.tsx, driver-jobs-list-page.tsx (Today/All + summary strip)
+- driver-stats-page.tsx (by driver_id), driver-more-menu.tsx
+
+**Modified pages:** home, dispatch, stats, more — all now route driver mode to driver components.
+
+**Key decisions:**
+- `updateBookingProgressAction` reused for travel/arrived transitions — no duplicate progress system
+- `getDispatchData(role="driver")` reused — no new dispatch table
+- Map uses Google Maps links — no new map library installed
+- Basic Staff Portal and Therapist Portal completely untouched
+
+**Verification:** tsc PASS, lint PASS (0 errors, 2 pre-existing warnings), build PASS (96 routes), zero TypeScript `any`

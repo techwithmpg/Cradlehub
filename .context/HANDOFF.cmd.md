@@ -1,3 +1,65 @@
+# HANDOFF - Driver Staff Portal Mobile UI: COMPLETE
+
+## Status
+
+Build verified. 96 routes. Driver Staff Portal mobile UI complete.
+
+## What changed
+
+**New driver server actions** in `actions.ts`:
+- `getMyDriverJobsAction(date)` — today's dispatch jobs via `getDispatchData(role="driver")`
+- `getMyDriverAllJobsAction()` — last 30 days of jobs for the "All" tab (direct `driver_id` query)
+- `getMyDriverJobByIdAction(bookingId)` — single job with driver safety check (`driver_id === me.id`)
+- `getMyDriverStatsAction(year, month)` — monthly stats queried by `driver_id`
+
+**18 new driver components** in `src/components/features/staff-portal/driver/`:
+- `driver-mobile-bottom-nav.tsx` — Home, Dispatch, Map, Jobs, More
+- `driver-header.tsx` — logo, "STAFF · DRIVER", bell, avatar
+- `driver-greeting-card.tsx` — greeting + On Route / Arrived / In Progress / On Duty / Off Duty status
+- `driver-today-overview-card.tsx` — route status, job count strip, View Route button
+- `driver-next-stop-card.tsx` — next active stop with countdown badge, address, service, time
+- `driver-quick-actions.tsx` — Map View, Jobs, Update Status, My Stats
+- `driver-mobile-home.tsx` — assembles all home cards
+- `driver-dispatch-card.tsx` — individual dispatch item card with status badge
+- `driver-dispatch-page.tsx` — client: Upcoming / History tabs
+- `driver-route-map-page.tsx` — route overview list + map placeholder + Google Maps navigation links
+- `driver-job-status-stepper.tsx` — Assigned → On Way → Arrived → In Progress → Completed
+- `driver-job-details-page.tsx` — full job detail with stepper, Start Travel / Mark Arrived actions (reuses `updateBookingProgressAction`)
+- `driver-job-timeline.tsx` — timestamped progress timeline
+- `driver-active-job-page.tsx` — active job with elapsed timer (reuses `TrackingTimer`)
+- `driver-job-card.tsx` — compact job card for list
+- `driver-jobs-list-page.tsx` — Today / All tabs with summary strip
+- `driver-stats-page.tsx` — driver stats by driver_id (completed, total, rate)
+- `driver-more-menu.tsx` — Account + Work (Jobs, Map, Dispatch History) + Support with server logout
+
+**New routes (4)**:
+- `/staff-portal/map` — DriverRouteMapPage
+- `/staff-portal/jobs` — DriverJobsListPage
+- `/staff-portal/jobs/active` — DriverActiveJobPage
+- `/staff-portal/jobs/[bookingId]` — DriverJobDetailsPage
+
+**Updated pages**:
+- `page.tsx` (home): driver mode → `DriverMobileHome`
+- `dispatch/page.tsx`: driver mode → `DriverDispatchPage` on mobile; `HomeServiceDispatchWorkspace` on desktop (unchanged)
+- `stats/page.tsx`: driver mode → `DriverStatsPage`
+- `more/page.tsx`: driver mode → `DriverMoreMenu`
+
+**Key design decisions**:
+- `updateBookingProgressAction` reused for Start Travel (travel_started) and Mark Arrived (arrived) — no duplicate progress system
+- `TrackingTimer` reused in active job page for elapsed time
+- `getDispatchData(role="driver")` reused with `driver_id` filter — no new dispatch table
+- Map page uses Google Maps links (lat/lng or address) — no new map library
+- Dispatch page detects driver via `system_role === "driver"` OR `staff_type === "driver"`
+- Therapist Portal, Basic Staff Portal, CRM dispatch completely untouched
+
+## Verification
+
+- tsc: PASS, lint: PASS (0 errors, 2 pre-existing warnings), build: PASS (96 routes)
+- Zero TypeScript `any` in new files
+- Authenticated visual check needs valid local driver session
+
+---
+
 # HANDOFF - Therapist Staff Portal Mobile UI: COMPLETE
 
 ## Status
