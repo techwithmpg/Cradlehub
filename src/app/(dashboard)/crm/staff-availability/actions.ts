@@ -67,6 +67,42 @@ async function requireImportAccess(branchId: string) {
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
 
+// ── Overnight-safe validation helpers (used by import schema) ─────────────────
+
+function parseImportMinutes(t: string): number {
+  const p = t.split(":");
+  return parseInt(p[0] ?? "0", 10) * 60 + parseInt(p[1] ?? "0", 10);
+}
+
+/**
+ * Duration-based shift validity check — supports overnight spans.
+ * e.g. "17:00"–"01:00" = 8 h, not a parse error.
+ */
+function isValidImportShift(start: string, end: string): boolean {
+  const s = parseImportMinutes(start);
+  let e = parseImportMinutes(end);
+  if (e <= s) e += 24 * 60; // overnight adjustment
+  const dur = e - s;
+  return dur > 0 && dur <= 16 * 60;
+}
+
+export type ScheduleImportTimes = {
+  therapistOpeningStart: string;
+  therapistOpeningEnd: string;
+  therapistClosingStart: string;
+  therapistClosingEnd: string;
+  crmOpeningStart: string;
+  crmOpeningEnd: string;
+  crmClosingStart: string;
+  crmClosingEnd: string;
+  driverStart: string;
+  driverEnd: string;
+  utilityStart: string;
+  utilityEnd: string;
+  salonStart: string;
+  salonEnd: string;
+};
+
 const applyImportSchema = z
   .object({
     branchId: uuid,
@@ -78,18 +114,49 @@ const applyImportSchema = z
         })
       )
       .min(1, "At least one staff match is required"),
-    regularStart: timeStr,
-    regularEnd: timeStr,
-    openingStart: timeStr,
-    openingEnd: timeStr,
+    // Grouped shift times — replaces old regularStart/regularEnd/openingStart/openingEnd
+    therapistOpeningStart: timeStr,
+    therapistOpeningEnd: timeStr,
+    therapistClosingStart: timeStr,
+    therapistClosingEnd: timeStr,
+    crmOpeningStart: timeStr,
+    crmOpeningEnd: timeStr,
+    crmClosingStart: timeStr,
+    crmClosingEnd: timeStr,
+    driverStart: timeStr,
+    driverEnd: timeStr,
+    utilityStart: timeStr,
+    utilityEnd: timeStr,
+    salonStart: timeStr,
+    salonEnd: timeStr,
   })
-  .refine((d) => d.regularStart < d.regularEnd, {
-    message: "Regular shift start must be before end time",
-    path: ["regularEnd"],
+  .refine((d) => isValidImportShift(d.therapistOpeningStart, d.therapistOpeningEnd), {
+    message: "Therapist opening shift times are invalid (must span 1 min – 16 h)",
+    path: ["therapistOpeningEnd"],
   })
-  .refine((d) => d.openingStart < d.openingEnd, {
-    message: "Opening shift start must be before end time",
-    path: ["openingEnd"],
+  .refine((d) => isValidImportShift(d.therapistClosingStart, d.therapistClosingEnd), {
+    message: "Therapist closing shift times are invalid (must span 1 min – 16 h)",
+    path: ["therapistClosingEnd"],
+  })
+  .refine((d) => isValidImportShift(d.crmOpeningStart, d.crmOpeningEnd), {
+    message: "CRM opening shift times are invalid (must span 1 min – 16 h)",
+    path: ["crmOpeningEnd"],
+  })
+  .refine((d) => isValidImportShift(d.crmClosingStart, d.crmClosingEnd), {
+    message: "CRM closing shift times are invalid (must span 1 min – 16 h)",
+    path: ["crmClosingEnd"],
+  })
+  .refine((d) => isValidImportShift(d.driverStart, d.driverEnd), {
+    message: "Driver shift times are invalid (must span 1 min – 16 h)",
+    path: ["driverEnd"],
+  })
+  .refine((d) => isValidImportShift(d.utilityStart, d.utilityEnd), {
+    message: "Utility shift times are invalid (must span 1 min – 16 h)",
+    path: ["utilityEnd"],
+  })
+  .refine((d) => isValidImportShift(d.salonStart, d.salonEnd), {
+    message: "Salon shift times are invalid (must span 1 min – 16 h)",
+    path: ["salonEnd"],
   });
 
 export type ApplyImportResult =
@@ -98,13 +165,151 @@ export type ApplyImportResult =
 
 // ── Action ─────────────────────────────────────────────────────────────────────
 
+// ── Staff-type classification helper ─────────────────────────────────────────
+
+type StaffClassification = {
+  staff_type: string | null;
+  system_role: string | null;
+};
+
+type ResolvedShift = {
+  shiftType: "opening" | "closing" | "single";
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+};
+
+/**
+ * Determines what shift a staff member works for a given day.
+ *
+ * Business rules (priority order):
+ *  1. Day-off → inactive single row (placeholder)
+ *  2. Therapist (service provider) → opening/closing rotation
+ *  3. CRM / CSR / Front Desk → opening/closing rotation (different times)
+ *  4. Driver → regular single shift
+ *  5. Utility → regular single shift
+ *  6. Salon / Nail / Aesthetician / Facialist → regular single shift
+ *  7. Unclassified → treat as therapist (backwards-compatible default)
+ */
+function resolveScheduleForStaffDay(
+  staff: StaffClassification,
+  isOff: boolean,
+  isOpening: boolean,
+  times: ScheduleImportTimes
+): ResolvedShift {
+  if (isOff) {
+    // Day-off: write an inactive placeholder using salon times as neutral default
+    return {
+      shiftType: "single",
+      startTime: times.salonStart,
+      endTime: times.salonEnd,
+      isActive: false,
+    };
+  }
+
+  const staffType = (staff.staff_type ?? "").toLowerCase();
+  const systemRole = (staff.system_role ?? "").toLowerCase();
+
+  const isTherapist =
+    staffType.includes("therapist") ||
+    staffType.includes("nail_tech") ||
+    staffType.includes("aesthetician") ||
+    staffType.includes("facialist") ||
+    staffType.includes("salon_head");
+
+  const isCrm =
+    staffType.includes("csr") ||
+    staffType.includes("front") ||
+    systemRole === "crm" ||
+    systemRole === "csr_staff" ||
+    systemRole === "csr_head" ||
+    systemRole === "csr";
+
+  const isDriver = staffType.includes("driver") || systemRole === "driver";
+  const isUtility = staffType.includes("utility");
+  const isSalon =
+    staffType.includes("salon") ||
+    staffType.includes("nail") ||
+    staffType.includes("aesthetician") ||
+    staffType.includes("facialist");
+
+  if (isCrm) {
+    // CRM/CSR/Front Desk: opening/closing rotation with CRM times
+    if (isOpening) {
+      return {
+        shiftType: "opening",
+        startTime: times.crmOpeningStart,
+        endTime: times.crmOpeningEnd,
+        isActive: true,
+      };
+    }
+    return {
+      shiftType: "closing",
+      startTime: times.crmClosingStart,
+      endTime: times.crmClosingEnd,
+      isActive: true,
+    };
+  }
+
+  if (isDriver) {
+    return {
+      shiftType: "single",
+      startTime: times.driverStart,
+      endTime: times.driverEnd,
+      isActive: true,
+    };
+  }
+
+  if (isUtility) {
+    return {
+      shiftType: "single",
+      startTime: times.utilityStart,
+      endTime: times.utilityEnd,
+      isActive: true,
+    };
+  }
+
+  if (isSalon && !isTherapist) {
+    // Pure salon staff (nail tech listed separately as non-therapist)
+    return {
+      shiftType: "single",
+      startTime: times.salonStart,
+      endTime: times.salonEnd,
+      isActive: true,
+    };
+  }
+
+  // Therapist or unclassified (default) — opening/closing rotation with therapist times
+  if (isOpening) {
+    return {
+      shiftType: "opening",
+      startTime: times.therapistOpeningStart,
+      endTime: times.therapistOpeningEnd,
+      isActive: true,
+    };
+  }
+  return {
+    shiftType: "closing",
+    startTime: times.therapistClosingStart,
+    endTime: times.therapistClosingEnd,
+    isActive: true,
+  };
+}
+
 /**
  * Applies the 2026 manual schedule import to the staff_schedules table.
  *
- * For each resolved match, writes 7 rows (one per day of week):
- *   - Day-off days  → is_active=false,  shift_type="single",  regular times
- *   - Opening days  → is_active=true,   shift_type="opening", opening times
- *   - Regular days  → is_active=true,   shift_type="single",  regular times
+ * For each resolved match, writes 21 rows (7 days × 3 shift types):
+ *   - Day-off days → all 3 shift types inactive, single uses the inactive placeholder
+ *   - Working days → the resolved active shift type gets is_active=true;
+ *                    the other two shift types get is_active=false with fallback times
+ *
+ * Shift assignment by staff type:
+ *   - Therapist / unclassified  → opening / closing rotation (therapist times)
+ *   - CRM / CSR / Front Desk    → opening / closing rotation (CRM times)
+ *   - Driver                    → regular single shift
+ *   - Utility                   → regular single shift
+ *   - Salon / Nail / Aesthetician → regular single shift
  *
  * Uses upsert on (staff_id, day_of_week, shift_type) — safe to re-run.
  */
@@ -119,24 +324,18 @@ export async function applyManualScheduleImportAction(
     };
   }
 
-  const {
-    branchId,
-    resolvedMatches,
-    regularStart,
-    regularEnd,
-    openingStart,
-    openingEnd,
-  } = parsed.data;
+  const { branchId, resolvedMatches, ...times } = parsed.data;
 
   const ctx = await requireImportAccess(branchId);
   if (!ctx) return { ok: false, error: SCHEDULE_PERMISSION_DENIED_MESSAGE };
 
-  // Verify all staff IDs belong to this branch (admin client — bypasses RLS)
+  // Verify all staff IDs belong to this branch and fetch staff_type + system_role
+  // so resolveScheduleForStaffDay can classify each staff member correctly.
   const staffIds = resolvedMatches.map((m) => m.staffId);
 
   const { data: verifiedStaff, error: verifyErr } = await ctx.admin
     .from("staff")
-    .select("id")
+    .select("id, staff_type, system_role")
     .eq("branch_id", branchId)
     .in("id", staffIds);
 
@@ -144,13 +343,24 @@ export async function applyManualScheduleImportAction(
     return { ok: false, error: "Could not verify staff records" };
   }
 
-  const verifiedIdSet = new Set((verifiedStaff ?? []).map((s) => s.id));
+  const verifiedStaffList = verifiedStaff ?? [];
+  const verifiedIdSet = new Set(verifiedStaffList.map((s) => s.id));
   const outsideIds = staffIds.filter((id) => !verifiedIdSet.has(id));
   if (outsideIds.length > 0) {
     return {
       ok: false,
       error: `${outsideIds.length} staff member(s) are not assigned to this branch`,
     };
+  }
+
+  // Build a quick lookup: staffId → classification
+  type StaffRow = { id: string; staff_type?: string | null; system_role?: string | null };
+  const staffClassMap = new Map<string, StaffClassification>();
+  for (const s of verifiedStaffList as StaffRow[]) {
+    staffClassMap.set(s.id, {
+      staff_type: s.staff_type ?? null,
+      system_role: s.system_role ?? null,
+    });
   }
 
   // Build combined day-off map: dayOfWeek → Set<UPPER_NAME>
@@ -184,7 +394,7 @@ export async function applyManualScheduleImportAction(
     openingMap.set(Number(d), new Set(names.map((n) => n.toUpperCase())));
   }
 
-  // Build upsert rows
+  // Build upsert rows — 21 rows per staff (7 days × 3 shift types)
   type ScheduleRow = {
     staff_id: string;
     day_of_week: number;
@@ -194,12 +404,8 @@ export async function applyManualScheduleImportAction(
     shift_type: string;
   };
 
-  // Two different paper names may have been fuzzy-matched to the same staff ID
-  // (e.g. RIZA and RIZZA both resolving to the same person). Build a combined
-  // per-staff day pattern first so we never generate duplicate conflict keys.
-  // For each staff ID we union all the paper names they were matched from, then
-  // derive a single set of rows. Day-off wins: if ANY mapped name marks a day
-  // as off, the staff is off that day.
+  // Two different paper names may have been fuzzy-matched to the same staff ID.
+  // Union their patterns: day-off wins across all mapped names.
   const staffPaperNames = new Map<string, string[]>();
   for (const { paperName, staffId } of resolvedMatches) {
     const names = staffPaperNames.get(staffId) ?? [];
@@ -210,42 +416,46 @@ export async function applyManualScheduleImportAction(
   const rows: ScheduleRow[] = [];
 
   for (const [staffId, paperNames] of staffPaperNames) {
-    for (let day = 0 as DayOfWeek; day <= 6; day++) {
-      // Union across all paper names matched to this staff member
-      const isOff     = paperNames.some((n) => dayOffMap.get(day)?.has(n) ?? false);
-      const isOpening = paperNames.some((n) => openingMap.get(day)?.has(n) ?? false);
+    const classification = staffClassMap.get(staffId) ?? {
+      staff_type: null,
+      system_role: null,
+    };
 
-      if (isOff) {
-        // Day off: write inactive record (day-off takes precedence over opening)
-        rows.push({
-          staff_id: staffId,
-          day_of_week: day,
-          start_time: regularStart,
-          end_time: regularEnd,
-          is_active: false,
-          shift_type: "single",
-        });
-      } else if (isOpening) {
-        // Opening duty: write active opening shift
-        rows.push({
-          staff_id: staffId,
-          day_of_week: day,
-          start_time: openingStart,
-          end_time: openingEnd,
-          is_active: true,
-          shift_type: "opening",
-        });
-      } else {
-        // Regular working day
-        rows.push({
-          staff_id: staffId,
-          day_of_week: day,
-          start_time: regularStart,
-          end_time: regularEnd,
-          is_active: true,
-          shift_type: "single",
-        });
-      }
+    for (let day = 0 as DayOfWeek; day <= 6; day++) {
+      // Union across all paper names mapped to this staff member
+      const isOff     = paperNames.some((n) => dayOffMap.get(day)?.has(n) ?? false);
+      const isOpening = !isOff && paperNames.some((n) => openingMap.get(day)?.has(n) ?? false);
+
+      const active = resolveScheduleForStaffDay(classification, isOff, isOpening, times);
+
+      // Write all 3 shift types for this day so the upsert covers every conflict key.
+      // Only the resolved active shift gets is_active=true.
+      rows.push({
+        staff_id: staffId,
+        day_of_week: day,
+        shift_type: "opening",
+        start_time: active.shiftType === "opening" ? active.startTime : times.therapistOpeningStart,
+        end_time:   active.shiftType === "opening" ? active.endTime   : times.therapistOpeningEnd,
+        is_active:  active.shiftType === "opening" && active.isActive,
+      });
+
+      rows.push({
+        staff_id: staffId,
+        day_of_week: day,
+        shift_type: "closing",
+        start_time: active.shiftType === "closing" ? active.startTime : times.therapistClosingStart,
+        end_time:   active.shiftType === "closing" ? active.endTime   : times.therapistClosingEnd,
+        is_active:  active.shiftType === "closing" && active.isActive,
+      });
+
+      rows.push({
+        staff_id: staffId,
+        day_of_week: day,
+        shift_type: "single",
+        start_time: active.shiftType === "single" ? active.startTime : times.salonStart,
+        end_time:   active.shiftType === "single" ? active.endTime   : times.salonEnd,
+        is_active:  active.shiftType === "single" && active.isActive,
+      });
     }
   }
 

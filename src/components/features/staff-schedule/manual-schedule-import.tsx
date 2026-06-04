@@ -251,11 +251,34 @@ function SchedulePreviewCard({
 // ── Time settings ─────────────────────────────────────────────────────────────
 
 type TimeSettings = {
-  regularStart: string;
-  regularEnd: string;
-  openingStart: string;
-  openingEnd: string;
+  therapistOpeningStart: string;
+  therapistOpeningEnd: string;
+  therapistClosingStart: string;
+  therapistClosingEnd: string;
+  crmOpeningStart: string;
+  crmOpeningEnd: string;
+  crmClosingStart: string;
+  crmClosingEnd: string;
+  driverStart: string;
+  driverEnd: string;
+  utilityStart: string;
+  utilityEnd: string;
+  salonStart: string;
+  salonEnd: string;
 };
+
+/** Client-side overnight-safe shift validation (mirrors server action logic). */
+function isValidShift(start: string, end: string): boolean {
+  const parseMin = (t: string) => {
+    const p = t.split(":");
+    return parseInt(p[0] ?? "0", 10) * 60 + parseInt(p[1] ?? "0", 10);
+  };
+  const s = parseMin(start);
+  let e = parseMin(end);
+  if (e <= s) e += 24 * 60;
+  const dur = e - s;
+  return dur > 0 && dur <= 16 * 60;
+}
 
 function TimeInput({
   label,
@@ -314,10 +337,20 @@ export function ManualScheduleImport({
 
   // ── Time settings state ─────────────────────────────────────────────────
   const [times, setTimes] = useState<TimeSettings>({
-    regularStart: "10:00",
-    regularEnd: "22:00",
-    openingStart: "09:00",
-    openingEnd: "21:30",
+    therapistOpeningStart: "10:00",
+    therapistOpeningEnd: "17:30",
+    therapistClosingStart: "14:00",
+    therapistClosingEnd: "22:30",
+    crmOpeningStart: "10:00",
+    crmOpeningEnd: "19:00",
+    crmClosingStart: "17:00",
+    crmClosingEnd: "01:00",
+    driverStart: "14:00",
+    driverEnd: "22:00",
+    utilityStart: "08:00",
+    utilityEnd: "20:00",
+    salonStart: "10:00",
+    salonEnd: "17:30",
   });
 
   // ── Derived state ────────────────────────────────────────────────────────
@@ -371,14 +404,18 @@ export function ManualScheduleImport({
     return conflicts;
   }, [matches, openingOffConflictsInData]);
 
-  // Apply is allowed as long as at least one name is matched and times are valid.
-  // Pending (ambiguous / not-found) names are simply skipped for this run.
-  // Only a data conflict (opening + off on same day for the same staff) blocks apply.
+  // Apply is allowed as long as at least one name is matched, times are valid
+  // (overnight-safe duration check), and no opening+off conflicts exist.
   const canApply =
     staffConflicts.length === 0 &&
     resolvedMatches.length > 0 &&
-    times.regularStart < times.regularEnd &&
-    times.openingStart < times.openingEnd;
+    isValidShift(times.therapistOpeningStart, times.therapistOpeningEnd) &&
+    isValidShift(times.therapistClosingStart, times.therapistClosingEnd) &&
+    isValidShift(times.crmOpeningStart, times.crmOpeningEnd) &&
+    isValidShift(times.crmClosingStart, times.crmClosingEnd) &&
+    isValidShift(times.driverStart, times.driverEnd) &&
+    isValidShift(times.utilityStart, times.utilityEnd) &&
+    isValidShift(times.salonStart, times.salonEnd);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -429,10 +466,7 @@ export function ManualScheduleImport({
       const res = await applyManualScheduleImportAction({
         branchId,
         resolvedMatches,
-        regularStart: times.regularStart,
-        regularEnd: times.regularEnd,
-        openingStart: times.openingStart,
-        openingEnd: times.openingEnd,
+        ...times,
       });
       setResult(res);
     });
@@ -841,37 +875,127 @@ export function ManualScheduleImport({
           {/* ── Tab: Times & Apply ── */}
           {activeTab === "apply" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {/* Time settings */}
+              {/* Info banner explaining the new rules */}
+              <div
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "rgba(41,128,185,0.05)",
+                  border: "1px solid rgba(41,128,185,0.2)",
+                  fontSize: "0.8125rem",
+                  color: "var(--cs-text-secondary)",
+                  lineHeight: 1.55,
+                }}
+              >
+                <strong style={{ color: "var(--cs-info,#2980b9)" }}>How shifts are assigned:</strong>
+                {" Therapists and CRM/Front Desk staff use an opening/closing rotation — those in the Opening Duty list get the opening shift, everyone else gets the closing shift. Drivers, Utility, and Salon staff use a fixed regular shift. Day-off always wins."}
+              </div>
+
+              {/* Time settings — grouped by staff type */}
               <div className="cs-card" style={{ padding: "1rem 1.125rem" }}>
-                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)", marginBottom: "0.75rem", fontFamily: "var(--font-display)" }}>
-                  Shift Times
+                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)", marginBottom: "0.875rem", fontFamily: "var(--font-display)" }}>
+                  Shift Times by Staff Type
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
-                  {/* Regular shift */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>Regular Shift</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>Applied to non-off, non-opening days</div>
-                    <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                      <TimeInput label="Start" value={times.regularStart} onChange={(v) => setTimes((t) => ({ ...t, regularStart: v }))} />
-                      <TimeInput label="End" value={times.regularEnd} onChange={(v) => setTimes((t) => ({ ...t, regularEnd: v }))} />
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+
+                  {/* Therapist */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                    <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)" }}>Therapist — Opening / Closing</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: "0.25rem" }}>Service providers, massage therapists, aestheticians. Opening duty → Opening shift; otherwise → Closing shift.</div>
+                    <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Opening</span>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <TimeInput label="Start" value={times.therapistOpeningStart} onChange={(v) => setTimes((t) => ({ ...t, therapistOpeningStart: v }))} />
+                          <TimeInput label="End" value={times.therapistOpeningEnd} onChange={(v) => setTimes((t) => ({ ...t, therapistOpeningEnd: v }))} />
+                        </div>
+                        {!isValidShift(times.therapistOpeningStart, times.therapistOpeningEnd) && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Invalid (1 min – 16 h)</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Closing</span>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <TimeInput label="Start" value={times.therapistClosingStart} onChange={(v) => setTimes((t) => ({ ...t, therapistClosingStart: v }))} />
+                          <TimeInput label="End" value={times.therapistClosingEnd} onChange={(v) => setTimes((t) => ({ ...t, therapistClosingEnd: v }))} />
+                        </div>
+                        {!isValidShift(times.therapistClosingStart, times.therapistClosingEnd) && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Invalid (1 min – 16 h)</span>
+                        )}
+                      </div>
                     </div>
-                    {times.regularStart >= times.regularEnd && (
-                      <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Start must be before end</span>
-                    )}
                   </div>
 
-                  {/* Opening shift */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>Opening Shift</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>Applied on opening-duty days</div>
-                    <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                      <TimeInput label="Start" value={times.openingStart} onChange={(v) => setTimes((t) => ({ ...t, openingStart: v }))} />
-                      <TimeInput label="End" value={times.openingEnd} onChange={(v) => setTimes((t) => ({ ...t, openingEnd: v }))} />
+                  <div style={{ height: 1, backgroundColor: "var(--cs-border-soft)" }} />
+
+                  {/* CRM / Front Desk */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                    <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)" }}>CRM / Front Desk — Opening / Closing</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: "0.25rem" }}>CSR, front-desk, CRM staff. Opening duty → Opening shift; otherwise → Closing shift. Closing may cross midnight.</div>
+                    <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Opening</span>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <TimeInput label="Start" value={times.crmOpeningStart} onChange={(v) => setTimes((t) => ({ ...t, crmOpeningStart: v }))} />
+                          <TimeInput label="End" value={times.crmOpeningEnd} onChange={(v) => setTimes((t) => ({ ...t, crmOpeningEnd: v }))} />
+                        </div>
+                        {!isValidShift(times.crmOpeningStart, times.crmOpeningEnd) && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Invalid (1 min – 16 h)</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Closing</span>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <TimeInput label="Start" value={times.crmClosingStart} onChange={(v) => setTimes((t) => ({ ...t, crmClosingStart: v }))} />
+                          <TimeInput label="End" value={times.crmClosingEnd} onChange={(v) => setTimes((t) => ({ ...t, crmClosingEnd: v }))} />
+                        </div>
+                        {!isValidShift(times.crmClosingStart, times.crmClosingEnd) && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Invalid (1 min – 16 h)</span>
+                        )}
+                      </div>
                     </div>
-                    {times.openingStart >= times.openingEnd && (
-                      <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Start must be before end</span>
-                    )}
                   </div>
+
+                  <div style={{ height: 1, backgroundColor: "var(--cs-border-soft)" }} />
+
+                  {/* Driver / Utility / Salon — regular single shifts */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                    <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--cs-text)" }}>Driver / Utility / Salon — Regular Single Shift</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginBottom: "0.25rem" }}>These roles use a fixed working window (no opening/closing split). Opening duty list is ignored for them.</div>
+                    <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Driver</span>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <TimeInput label="Start" value={times.driverStart} onChange={(v) => setTimes((t) => ({ ...t, driverStart: v }))} />
+                          <TimeInput label="End" value={times.driverEnd} onChange={(v) => setTimes((t) => ({ ...t, driverEnd: v }))} />
+                        </div>
+                        {!isValidShift(times.driverStart, times.driverEnd) && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Invalid (1 min – 16 h)</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Utility</span>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <TimeInput label="Start" value={times.utilityStart} onChange={(v) => setTimes((t) => ({ ...t, utilityStart: v }))} />
+                          <TimeInput label="End" value={times.utilityEnd} onChange={(v) => setTimes((t) => ({ ...t, utilityEnd: v }))} />
+                        </div>
+                        {!isValidShift(times.utilityStart, times.utilityEnd) && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Invalid (1 min – 16 h)</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Salon / Nail / Aesthetician</span>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <TimeInput label="Start" value={times.salonStart} onChange={(v) => setTimes((t) => ({ ...t, salonStart: v }))} />
+                          <TimeInput label="End" value={times.salonEnd} onChange={(v) => setTimes((t) => ({ ...t, salonEnd: v }))} />
+                        </div>
+                        {!isValidShift(times.salonStart, times.salonEnd) && (
+                          <span style={{ fontSize: "0.75rem", color: "var(--cs-error,#e74c3c)" }}>Invalid (1 min – 16 h)</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               </div>
 
