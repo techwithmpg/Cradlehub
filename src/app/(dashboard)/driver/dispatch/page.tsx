@@ -21,7 +21,7 @@ function renderDriverTrips(data: Awaited<ReturnType<typeof getDispatchData>>) {
   return (
     <>
       <div className="block md:hidden">
-        <DriverTripsPage todayItems={data.items} historyItems={[]} />
+        <DriverTripsPage todayItems={data.items} historyItems={[]} detailsBasePath="/driver/jobs" />
       </div>
       <div className="hidden md:block">
         <HomeServiceDispatchWorkspace role="driver" data={data} />
@@ -83,7 +83,7 @@ export default async function DriverDispatchPage() {
   return (
     <>
       <div className="block md:hidden">
-        <DriverTripsPage todayItems={data.items} historyItems={history} />
+        <DriverTripsPage todayItems={data.items} historyItems={history} detailsBasePath="/driver/jobs" />
       </div>
       <div className="hidden md:block">
         <HomeServiceDispatchWorkspace role="driver" data={data} />

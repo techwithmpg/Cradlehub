@@ -37,7 +37,13 @@ function getNavUrl(item: RealDispatchItem): string | null {
   return null;
 }
 
-export function DriverJobDetailsPage({ job }: { job: JobDetailItem }) {
+export function DriverJobDetailsPage({
+  job,
+  backHref = "/staff-portal/jobs",
+}: {
+  job: JobDetailItem;
+  backHref?: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const action = getDriverAction(job.dispatchStatus);
@@ -55,7 +61,7 @@ export function DriverJobDetailsPage({ job }: { job: JobDetailItem }) {
     <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       {/* Header */}
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem", position: "sticky", top: 0, zIndex: 30, display: "flex", alignItems: "center", gap: "0.75rem" }}>
-        <Link href="/staff-portal/jobs" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--cs-border-soft)", backgroundColor: "var(--cs-surface-warm)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cs-text-muted)", textDecoration: "none" }}>
+        <Link href={backHref} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--cs-border-soft)", backgroundColor: "var(--cs-surface-warm)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cs-text-muted)", textDecoration: "none" }}>
           <ChevronLeft size={18} />
         </Link>
         <div style={{ flex: 1 }}>

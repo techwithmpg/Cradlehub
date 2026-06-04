@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Home, Map, MapPin, Truck, User } from "lucide-react";
+import { Home, Map, Plus, Truck, User } from "lucide-react";
 import {
   FloatingMobileBottomNav,
   type FloatingMobileNavItem,
@@ -28,8 +28,8 @@ function ProfileIcon({ className }: { className?: string }) {
   return <User className={className} />;
 }
 
-function UpdateIcon({ className }: { className?: string }) {
-  return <MapPin className={className} />;
+function JobsActionIcon({ className }: { className?: string }) {
+  return <Plus className={className} />;
 }
 
 export function DriverMobileBottomNav({
@@ -41,7 +41,7 @@ export function DriverMobileBottomNav({
   const homeHref = isStandaloneDriver ? "/driver" : "/staff-portal";
   const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
   const mapHref = isStandaloneDriver ? "/driver/map" : "/staff-portal/map";
-  const updateHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/jobs/active";
+  const jobsHref = isStandaloneDriver ? "/driver/jobs" : "/staff-portal/jobs";
   const profileActive = profileOpen || pathname.startsWith("/staff-portal/profile");
 
   const items: FloatingMobileNavItem[] = [
@@ -74,7 +74,12 @@ export function DriverMobileBottomNav({
   return (
     <FloatingMobileBottomNav
       items={items}
-      centerAction={{ label: "Update", icon: UpdateIcon, href: updateHref }}
+      centerAction={{
+        label: "Jobs",
+        icon: JobsActionIcon,
+        href: jobsHref,
+        active: pathname.startsWith(jobsHref),
+      }}
       ariaLabel="Driver portal navigation"
     />
   );

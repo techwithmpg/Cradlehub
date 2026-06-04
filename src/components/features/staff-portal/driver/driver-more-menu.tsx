@@ -27,9 +27,9 @@ const SECTIONS: MenuSection[] = [
   {
     title: "Work",
     items: [
-      { kind: "link", label: "Jobs", description: "View all dispatch jobs", href: "/staff-portal/jobs", icon: BriefcaseBusiness },
+      { kind: "link", label: "Jobs", description: "View all assigned jobs", href: "/staff-portal/jobs", icon: BriefcaseBusiness },
       { kind: "link", label: "Map", description: "Open route map", href: "/staff-portal/map", icon: Map },
-      { kind: "link", label: "Dispatch History", description: "Review completed dispatches", href: "/staff-portal/jobs", icon: Clock },
+      { kind: "link", label: "Job History", description: "Review completed jobs", href: "/staff-portal/jobs", icon: Clock },
     ],
   },
   {

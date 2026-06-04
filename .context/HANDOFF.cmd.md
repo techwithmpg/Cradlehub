@@ -1,3 +1,39 @@
+# HANDOFF - DRIVER-JOBS-001 Driver Jobs Page: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Driver Jobs mobile page is complete for `/staff-portal/jobs` and `/driver/jobs`.
+
+## What changed
+
+- Added the new Jobs component set in `src/components/features/staff-portal/driver/jobs/`.
+- `/staff-portal/jobs` now renders the new premium mobile Jobs UI.
+- Added `/driver/jobs` and `/driver/jobs/[bookingId]` for the standalone Driver portal.
+- Updated the driver floating nav center action to `Jobs` and routed it to the correct Jobs page for staff-portal and standalone driver contexts.
+- Updated standalone driver Trips and Map detail links to use `/driver/jobs`.
+- Removed the previous inline-styled driver jobs list/card implementation.
+
+## Key behavior
+
+- Data comes from existing driver actions and `RealDispatchItem`; no backend logic, booking status rules, or fake job data were added.
+- Visible page copy uses Jobs/Job/Trips wording, not Dispatch.
+- Active jobs are highlighted with a live elapsed timer when a real start timestamp exists.
+- The persistent floating bottom nav remains owned by `DriverMobileShell`; the Jobs page does not render a bottom nav.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- `/driver/jobs`, `/staff-portal/jobs`, and `/driver/dispatch` route smoke checks redirected unauthenticated traffic to `/login` as expected.
+
+## Browser note
+
+Authenticated mobile visual verification still needs a valid local driver staff session.
+
+---
+
 # HANDOFF - DRIVER-MAP-001 Driver Route Map Page: COMPLETE
 
 ## Status

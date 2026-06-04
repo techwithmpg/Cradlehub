@@ -215,3 +215,17 @@
 - **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
 - **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, and local Next.js docs in `node_modules/next/dist/docs/`.
 - **Resolution:** No code change required.
+
+---
+
+## 2026-06-04 - DRIVER-JOBS-001 browser/auth verification limitation
+
+- **Symptom:** The local dev server at `http://localhost:3000` responded, but protected `/driver/jobs`, `/staff-portal/jobs`, and `/driver/dispatch` routes redirected unauthenticated traffic to `/login`.
+- **Impact:** Type-check, lint, production build, diff check, and protected-route reachability passed, but the authenticated mobile visual check of the Jobs header, tabs, summary row, active job timer, cards, detail links, center nav button, and persistent bottom nav still needs a valid local driver staff session.
+- **Resolution:** No code change required. Re-run authenticated mobile browser verification at 390px width after logging in as a driver staff user, then check `/driver/jobs` and `/staff-portal/jobs`.
+
+## 2026-06-04 - DRIVER-JOBS-001 pre-flight file note
+
+- **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
+- **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, and local Next.js docs in `node_modules/next/dist/docs/`.
+- **Resolution:** No code change required.

@@ -19,6 +19,7 @@ export type FloatingMobileCenterAction = {
   href?: string;
   onClick?: () => void;
   disabled?: boolean;
+  active?: boolean;
 };
 
 export type FloatingMobileBottomNavProps = {
@@ -69,8 +70,10 @@ function CenterActionButton({
   action: FloatingMobileCenterAction;
 }) {
   const Icon = action.icon;
-  const className =
-    "mx-auto flex h-[62px] w-[62px] -translate-y-5 items-center justify-center rounded-full bg-teal-500 text-white shadow-xl transition active:scale-95 disabled:opacity-60";
+  const className = cn(
+    "mx-auto flex h-[62px] w-[62px] -translate-y-5 items-center justify-center rounded-full bg-teal-500 text-white shadow-xl transition active:scale-95 disabled:opacity-60",
+    action.active && "ring-4 ring-emerald-100"
+  );
 
   const content = (
     <>
@@ -84,6 +87,7 @@ function CenterActionButton({
       <Link
         href={action.href}
         aria-label={action.label}
+        aria-current={action.active ? "page" : undefined}
         className={cn(className, action.disabled && "pointer-events-none opacity-60")}
       >
         {content}
@@ -97,6 +101,7 @@ function CenterActionButton({
       onClick={action.onClick}
       disabled={action.disabled}
       aria-label={action.label}
+      aria-current={action.active ? "page" : undefined}
       className={className}
     >
       {content}

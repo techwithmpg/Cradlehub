@@ -20,7 +20,7 @@ export default async function DriverMapPage() {
       homeHref="/driver"
       tripsHref="/driver/dispatch"
       profileHref="/staff-portal/profile"
-      detailsBasePath="/staff-portal/jobs"
+      detailsBasePath="/driver/jobs"
     />
   );
 }

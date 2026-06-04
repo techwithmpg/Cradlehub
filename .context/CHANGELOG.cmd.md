@@ -4133,6 +4133,55 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 ---
 
+## 2026-06-04 - Codex (DRIVER-JOBS-001 - Driver Jobs mobile page)
+
+**Task:** Build a premium mobile-first Driver Jobs page and wire the driver floating navbar center button to the Jobs route, preserving existing booking/status logic.
+
+**Files Created:**
+- `src/components/features/staff-portal/driver/jobs/driver-jobs-page.tsx` - client Jobs page with Today/All tabs, summary row, active job, grouped cards, and empty/error states.
+- `src/components/features/staff-portal/driver/jobs/driver-jobs-view-model.ts` - typed display-safe mapping from `RealDispatchItem` to driver job cards.
+- `src/components/features/staff-portal/driver/jobs/driver-jobs-header.tsx` - large mobile Jobs header with notification button.
+- `src/components/features/staff-portal/driver/jobs/driver-jobs-tabs.tsx` - Today/All tabs.
+- `src/components/features/staff-portal/driver/jobs/driver-jobs-summary-row.tsx` - four-column stats card.
+- `src/components/features/staff-portal/driver/jobs/driver-active-job-card.tsx` - highlighted active job card.
+- `src/components/features/staff-portal/driver/jobs/driver-active-job-timer.tsx` - safe live elapsed timer.
+- `src/components/features/staff-portal/driver/jobs/driver-job-card.tsx` - reusable job card.
+- `src/components/features/staff-portal/driver/jobs/driver-job-status-badge.tsx` - Jobs-specific status badge tone mapping.
+- `src/components/features/staff-portal/driver/jobs/driver-jobs-empty-state.tsx` - calm no jobs / load error state.
+- `src/app/(dashboard)/driver/jobs/page.tsx` - standalone Driver Jobs route.
+- `src/app/(dashboard)/driver/jobs/[bookingId]/page.tsx` - standalone Driver job details route reusing existing job details component.
+
+**Files Changed:**
+- `src/app/(dashboard)/staff-portal/jobs/page.tsx` - now renders the new Jobs page component.
+- `src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx` - center floating action is now `Jobs`, routing to `/staff-portal/jobs` or `/driver/jobs`.
+- `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` - center action supports active state.
+- `src/components/features/staff-portal/driver/driver-job-details-page.tsx` - accepts configurable back href for standalone Driver details.
+- `src/app/(dashboard)/driver/dispatch/page.tsx` and `src/app/(dashboard)/driver/map/page.tsx` - standalone driver details links now use `/driver/jobs`.
+- `src/components/features/staff-portal/driver/driver-quick-actions.tsx` and `driver-more-menu.tsx` - Jobs descriptions no longer use dispatch wording.
+- Removed old inline-styled `driver-jobs-list-page.tsx` and `driver-job-card.tsx`.
+
+**Behavior:**
+- Driver Jobs page uses real existing driver booking/job data from `getMyDriverAllJobsAction`.
+- The page title and visible copy use Jobs/Job/Trips wording, not Dispatch.
+- Active/on-route/arrived/in-progress jobs are highlighted in an Active Job card with a live elapsed timer when a start timestamp exists.
+- Today and All tabs work client-side without refetching.
+- Summary stats are computed from the visible tab data.
+- Job cards link to details routes.
+- The persistent floating bottom nav remains owned by `DriverMobileShell`; the Jobs page does not render its own bottom nav.
+- Desktop dispatch workspace and backend booking/status logic were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for `/driver/jobs`, `/staff-portal/jobs`, and `/driver/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
+
+**Follow-up:**
+- Authenticated mobile visual QA still needs a valid local driver staff session.
+
+---
+
 ## 2026-06-04 - Codex (DRIVER-MAP-001 - Driver Route Map mobile page)
 
 **Task:** Build a premium mobile-first Driver Route Map page for the existing driver map route, preserving backend booking/status logic and the shell-owned floating bottom nav.

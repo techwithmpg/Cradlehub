@@ -35,7 +35,7 @@ export default async function StaffActiveJobPage() {
   if (!activeJob) {
     return (
       <div style={{ padding: "2rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
-        No active job found. Check back when a job is dispatched.
+        No active job found. Check back when a job is assigned.
       </div>
     );
   }

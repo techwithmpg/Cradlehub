@@ -3,7 +3,7 @@ import { Map, BriefcaseBusiness, RefreshCw, TrendingUp } from "lucide-react";
 
 const ACTIONS = [
   { label: "Map View", href: "/staff-portal/map", icon: Map, desc: "View route map" },
-  { label: "Jobs", href: "/staff-portal/jobs", icon: BriefcaseBusiness, desc: "All dispatch jobs" },
+  { label: "Jobs", href: "/staff-portal/jobs", icon: BriefcaseBusiness, desc: "All assigned jobs" },
   { label: "Update Status", href: "/staff-portal/jobs/active", icon: RefreshCw, desc: "Current job status" },
   { label: "My Stats", href: "/staff-portal/stats", icon: TrendingUp, desc: "Performance & earnings" },
 ] as const;

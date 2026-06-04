@@ -1,13 +1,16 @@
-import { getMyDriverAllJobsAction } from "../actions";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getMyDriverAllJobsAction } from "../../staff-portal/actions";
 import { DriverJobsPage } from "@/components/features/staff-portal/driver/jobs/driver-jobs-page";
 import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
+
+export const metadata: Metadata = { title: "Jobs - Driver" };
 
 type AllJobsResult =
   | { error: string }
   | { today: RealDispatchItem[]; recent: RealDispatchItem[] };
 
-export default async function StaffJobsPage() {
+export default async function DriverJobsRoutePage() {
   const result = (await getMyDriverAllJobsAction()) as AllJobsResult;
   const todayISO = new Date().toISOString().split("T")[0]!;
 
@@ -17,8 +20,8 @@ export default async function StaffJobsPage() {
     <DriverJobsPage
       today={"error" in result ? [] : result.today}
       recent={"error" in result ? [] : result.recent}
-      detailsBasePath="/staff-portal/jobs"
-      tripsHref="/staff-portal/dispatch"
+      detailsBasePath="/driver/jobs"
+      tripsHref="/driver/dispatch"
       todayISO={todayISO}
       loadError={"error" in result}
     />
