@@ -52,6 +52,10 @@ export function getDevBypassStaffRecord(): {
   system_role: string;
   staff_type: string;
   branch_id: string;
+  phone: string | null;
+  is_active: boolean;
+  avatar_url: string | null;
+  avatar_path: string | null;
 } {
   return {
     id: "00000000-0000-0000-0000-000000000000",
@@ -61,6 +65,10 @@ export function getDevBypassStaffRecord(): {
     system_role: "staff",
     staff_type: "therapist",
     branch_id: "00000000-0000-0000-0000-000000000000",
+    phone: null,
+    is_active: true,
+    avatar_url: null,
+    avatar_path: null,
   };
 }
 

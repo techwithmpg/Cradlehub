@@ -229,3 +229,31 @@
 - **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
 - **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, and local Next.js docs in `node_modules/next/dist/docs/`.
 - **Resolution:** No code change required.
+
+---
+
+## 2026-06-04 - DRIVER-PROFILE-EDIT-001 browser/auth verification limitation
+
+- **Symptom:** Shell route checks reached the existing local dev server at `http://localhost:3000` and returned the expected 307 redirects to `/login`, but the in-app browser stayed on a Chrome connection-refused interstitial for `localhost:3000/login`.
+- **Impact:** Type-check, lint, production build, diff check, and protected-route reachability passed, but authenticated visual verification of the Profile bottom sheet still needs a valid local driver staff session and reachable in-app browser.
+- **Resolution:** No code change required. Re-run authenticated mobile browser verification at 390px width after logging in as a driver staff user, then open Profile from Home, Trips, Map, and Jobs, test Edit Profile, Cancel, Save Changes, photo upload, and Logout.
+
+## 2026-06-04 - DRIVER-PROFILE-EDIT-001 pre-flight file note
+
+- **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
+- **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, local Next.js docs in `node_modules/next/dist/docs/`, and the Supabase skill guidance.
+- **Resolution:** No code change required.
+
+---
+
+## 2026-06-04 - MOBILE-LOADING-001 browser/auth verification limitation
+
+- **Symptom:** The local dev server at `http://localhost:3000` responded, but protected driver and staff mobile routes redirected unauthenticated traffic to `/login`. Tool discovery did not expose an in-app browser navigation/screenshot tool in this turn.
+- **Impact:** Type-check, lint, production build, diff check, and protected-route reachability passed, but authenticated mobile visual confirmation of the top route-progress line, no-progress Profile modal behavior, and skeleton pairing still needs valid local staff/driver sessions.
+- **Resolution:** No code change required. Re-run authenticated mobile browser verification at 390px width after logging in as Basic Staff, Therapist, and Driver users.
+
+## 2026-06-04 - MOBILE-LOADING-001 pre-flight file note
+
+- **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
+- **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, local Next.js docs in `node_modules/next/dist/docs/`, and the Next.js App Router skill guidance.
+- **Resolution:** No code change required.

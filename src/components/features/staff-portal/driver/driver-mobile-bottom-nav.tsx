@@ -8,8 +8,8 @@ import {
 } from "@/components/features/mobile-shell/floating-mobile-bottom-nav";
 
 type DriverMobileBottomNavProps = {
-  profileOpen: boolean;
-  onProfileClick: () => void;
+  isProfileOpen?: boolean;
+  onProfileOpen: () => void;
 };
 
 function HomeIcon({ className }: { className?: string }) {
@@ -33,8 +33,8 @@ function JobsActionIcon({ className }: { className?: string }) {
 }
 
 export function DriverMobileBottomNav({
-  profileOpen,
-  onProfileClick,
+  isProfileOpen = false,
+  onProfileOpen,
 }: DriverMobileBottomNavProps) {
   const pathname = usePathname();
   const isStandaloneDriver = pathname.startsWith("/driver");
@@ -42,7 +42,7 @@ export function DriverMobileBottomNav({
   const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
   const mapHref = isStandaloneDriver ? "/driver/map" : "/staff-portal/map";
   const jobsHref = isStandaloneDriver ? "/driver/jobs" : "/staff-portal/jobs";
-  const profileActive = profileOpen || pathname.startsWith("/staff-portal/profile");
+  const profileActive = isProfileOpen || pathname.startsWith("/staff-portal/profile");
 
   const items: FloatingMobileNavItem[] = [
     {
@@ -65,9 +65,10 @@ export function DriverMobileBottomNav({
     },
     {
       label: "Profile",
+      ariaLabel: "Open profile",
       icon: ProfileIcon,
       active: profileActive,
-      onClick: onProfileClick,
+      onClick: onProfileOpen,
     },
   ];
 

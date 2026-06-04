@@ -17,6 +17,7 @@ import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features
 import { revalidatePath } from "next/cache";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import type { Database } from "@/types/supabase";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -30,6 +31,13 @@ const STAFF_PORTAL_PATHS = [
   "/staff-portal/stats",
   "/staff-portal/more",
   "/staff-portal/profile",
+] as const;
+
+const DRIVER_PORTAL_PATHS = [
+  "/driver",
+  "/driver/dispatch",
+  "/driver/map",
+  "/driver/jobs",
 ] as const;
 
 const staffSelfProfileSchema = z.object({
@@ -46,6 +54,18 @@ const staffSelfProfileSchema = z.object({
     },
     z.string().max(80, "Nickname must be 80 characters or fewer.").nullable()
   ),
+  phone: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return undefined;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    },
+    z
+      .string()
+      .max(30, "Phone must be 30 characters or fewer.")
+      .nullable()
+      .optional()
+  ),
 });
 
 export type StaffProfileDetailsActionState = {
@@ -54,11 +74,15 @@ export type StaffProfileDetailsActionState = {
   fieldErrors?: {
     fullName?: string[];
     nickname?: string[];
+    phone?: string[];
   };
 };
 
 function revalidateStaffAndOperationalSurfaces(branchId?: string | null): void {
   for (const path of STAFF_PORTAL_PATHS) {
+    revalidatePath(path);
+  }
+  for (const path of DRIVER_PORTAL_PATHS) {
     revalidatePath(path);
   }
   revalidateOperationalBookingSurfaces(branchId);
@@ -90,7 +114,7 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
 
   const primary = await supabase
     .from("staff")
-    .select("id, full_name, nickname, tier, system_role, staff_type, branch_id, avatar_url, avatar_path, branches(name)")
+    .select("id, full_name, nickname, phone, tier, system_role, staff_type, branch_id, is_active, avatar_url, avatar_path, branches(name)")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -101,7 +125,7 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   if (primary.error && isMissingStaffProfileColumnError(primary.error.message)) {
     const fallback = await supabase
       .from("staff")
-      .select("id, full_name, nickname, tier, system_role, branch_id, branches(name)")
+      .select("id, full_name, nickname, phone, tier, system_role, branch_id, is_active, branches(name)")
       .eq("auth_user_id", user.id)
       .eq("is_active", true)
       .maybeSingle();
@@ -204,6 +228,7 @@ export async function updateMyProfileDetailsAction(
   const parsed = staffSelfProfileSchema.safeParse({
     fullName: formData.get("fullName"),
     nickname: formData.get("nickname"),
+    phone: formData.has("phone") ? formData.get("phone") : undefined,
   });
 
   if (!parsed.success) {
@@ -214,6 +239,7 @@ export async function updateMyProfileDetailsAction(
       fieldErrors: {
         fullName: fieldErrors.fullName,
         nickname: fieldErrors.nickname,
+        phone: fieldErrors.phone,
       },
     };
   }
@@ -227,13 +253,19 @@ export async function updateMyProfileDetailsAction(
   const me = await getMyStaffRecord();
   if (!me) return { success: false, error: "Unauthorized" };
 
-  const { fullName, nickname } = parsed.data;
+  const { fullName, nickname, phone } = parsed.data;
+  const profileUpdate: Database["public"]["Tables"]["staff"]["Update"] = {
+    full_name: fullName,
+    nickname,
+  };
+
+  if (phone !== undefined) {
+    profileUpdate.phone = phone;
+  }
+
   const { data: updatedRows, error } = await createAdminClient()
     .from("staff")
-    .update({
-      full_name: fullName,
-      nickname,
-    })
+    .update(profileUpdate)
     .eq("id", me.id)
     .eq("auth_user_id", user.id)
     .select("id");

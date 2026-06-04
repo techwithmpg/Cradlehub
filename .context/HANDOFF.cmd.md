@@ -1,3 +1,61 @@
+# HANDOFF - MOBILE-LOADING-001 Mobile Route Loading Line: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Mobile route-change progress is wired through the shared mobile shell/nav layer.
+
+## What changed
+
+- Added `MobileNavigationProgressProvider`, `MobileRouteProgress`, and `MobileNavLink` under `src/components/features/mobile-shell/`.
+- `FloatingMobileBottomNav` now uses `MobileNavLink` for href-based nav items and center actions.
+- Staff, Therapist, and Driver mobile shells each mount one provider and one fixed top progress line.
+- Driver Profile remains a button/modal action, so opening Profile does not trigger route progress.
+- Added mobile-friendly standalone driver loading skeletons for Trips, Jobs, and Map child routes.
+- Removed the existing inline style from the standalone driver desktop error banner.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for driver and staff mobile routes redirected unauthenticated traffic to `/login` as expected.
+
+## Browser note
+
+Tool discovery did not expose an in-app browser navigation/screenshot tool in this turn. Authenticated mobile verification should be re-run at 390px width after logging in as Basic Staff, Therapist, and Driver users, checking nav taps, current-route taps, Profile modal open/close, and route skeleton pairing.
+
+---
+
+# HANDOFF - DRIVER-PROFILE-EDIT-001 Driver Profile Pop Modal: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Driver mobile Profile bottom-sheet view/edit flow is complete in the existing `DriverProfileSheet` path.
+
+## What changed
+
+- Refactored `src/components/features/staff-portal/driver/driver-profile-sheet.tsx` into a wrapper around focused components in `src/components/features/staff-portal/driver/profile/`.
+- Profile view mode now shows a premium mobile sheet with avatar/initials, full name, nickname, Driver role, branch, duty chip, phone, staff type, Driver Portal access, readiness, action rows, and logout.
+- Edit mode stays inside the sheet and supports full name, nickname, phone, and profile photo.
+- The existing `updateMyProfileDetailsAction` now optionally validates and updates `phone` only when the form submits it; forms without phone do not clear phone.
+- Driver self-edit still cannot change system role, staff type, tier, branch, active status, services, schedules, or permissions.
+- The driver floating Profile nav item is a button with `aria-label="Open profile"` and active sheet state.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- `/staff-portal`, `/driver`, and `/driver/jobs` route smoke checks redirected unauthenticated traffic to `/login` as expected.
+
+## Browser note
+
+The in-app browser remained on a connection-refused interstitial for `localhost:3000/login`, even though shell `Invoke-WebRequest` reached the app and saw the expected redirects. Authenticated click-through of opening Profile, switching to edit mode, saving, and returning to view still needs a valid local driver staff session.
+
+---
+
 # HANDOFF - DRIVER-JOBS-001 Driver Jobs Page: COMPLETE
 
 ## Status

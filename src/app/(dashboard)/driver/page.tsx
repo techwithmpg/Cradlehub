@@ -113,17 +113,7 @@ export default async function DriverPanelPage() {
         />
 
         {fetchError ? (
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              backgroundColor: "#FEF2F2",
-              border: "1px solid #FECACA",
-              borderRadius: 8,
-              fontSize: "0.875rem",
-              color: "#991B1B",
-              marginBottom: "1rem",
-            }}
-          >
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             Error loading trips: {fetchError}
           </div>
         ) : null}

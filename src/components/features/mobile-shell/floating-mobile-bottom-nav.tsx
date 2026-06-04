@@ -1,11 +1,12 @@
 "use client";
 
 import type { ComponentType } from "react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { MobileNavLink } from "./mobile-nav-link";
 
 export type FloatingMobileNavItem = {
   label: string;
+  ariaLabel?: string;
   href?: string;
   icon: ComponentType<{ className?: string }>;
   active?: boolean;
@@ -84,14 +85,14 @@ function CenterActionButton({
 
   if (action.href) {
     return (
-      <Link
+      <MobileNavLink
         href={action.href}
         aria-label={action.label}
         aria-current={action.active ? "page" : undefined}
         className={cn(className, action.disabled && "pointer-events-none opacity-60")}
       >
         {content}
-      </Link>
+      </MobileNavLink>
     );
   }
 
@@ -177,13 +178,14 @@ function NavControl({
 
   if (item.href) {
     return (
-      <Link
+      <MobileNavLink
         href={item.href}
+        aria-label={item.ariaLabel}
         aria-current={item.active ? "page" : undefined}
         className={className}
       >
         {content}
-      </Link>
+      </MobileNavLink>
     );
   }
 
@@ -191,6 +193,7 @@ function NavControl({
     <button
       type="button"
       onClick={item.onClick}
+      aria-label={item.ariaLabel}
       aria-current={item.active ? "page" : undefined}
       className={className}
     >

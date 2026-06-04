@@ -4180,6 +4180,49 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Follow-up:**
 - Authenticated mobile visual QA still needs a valid local driver staff session.
 
+## 2026-06-04 - Codex (DRIVER-PROFILE-EDIT-001 - Driver Profile pop modal)
+
+**Task:** Build a mobile pop modal / bottom-sheet profile experience for the Driver mobile Profile button with inline edit mode.
+
+**Files Created:**
+- `src/components/features/staff-portal/driver/profile/driver-profile-sheet.tsx` - shell-owned bottom sheet with view/edit mode.
+- `src/components/features/staff-portal/driver/profile/driver-profile-view.tsx` - view-mode composition.
+- `src/components/features/staff-portal/driver/profile/driver-profile-edit-form.tsx` - inline edit form for supported self-edit fields.
+- `src/components/features/staff-portal/driver/profile/driver-profile-photo-field.tsx` - compact avatar/photo upload using existing staff photo action.
+- `src/components/features/staff-portal/driver/profile/driver-profile-header-card.tsx` - identity card with avatar, role, branch, and duty chip.
+- `src/components/features/staff-portal/driver/profile/driver-profile-info-grid.tsx` - phone, branch, staff type, and access summary.
+- `src/components/features/staff-portal/driver/profile/driver-profile-readiness-card.tsx` - profile completeness summary from real available fields.
+- `src/components/features/staff-portal/driver/profile/driver-profile-action-list.tsx` - edit, notifications, schedule, support, policy, and logout rows.
+- `src/components/features/staff-portal/driver/profile/driver-profile-actions.ts` - server logout action.
+- `src/components/features/staff-portal/driver/profile/driver-profile-utils.ts` - profile label helpers.
+
+**Files Changed:**
+- `src/components/features/staff-portal/driver/driver-profile-sheet.tsx` - now wraps the new profile sheet component.
+- `src/components/features/staff-portal/driver/driver-mobile-shell.tsx` - passes `isProfileOpen` / `onProfileOpen` to the driver nav.
+- `src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx` - Profile is a button with `aria-label="Open profile"` and active modal state.
+- `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` - nav items support explicit aria labels.
+- `src/app/(dashboard)/staff-portal/actions.ts` - self-profile update now optionally accepts and updates phone while preserving full-name/nickname-only behavior for forms that do not submit phone.
+- `src/components/features/staff-portal/types.ts` - Staff portal staff type includes phone and active status.
+- `src/lib/dev-bypass.ts` - dev bypass staff record includes profile fields required by the driver modal.
+
+**Behavior:**
+- The shell-owned driver Profile nav button opens a mobile bottom sheet instead of navigating away.
+- View mode shows real staff data: avatar/initials, full name, nickname, Driver role, branch, duty chip, phone, staff type, Driver Portal access, readiness, actions, and logout.
+- Edit mode stays inside the sheet and supports full name, nickname, phone, and profile photo.
+- Save shows an inline spinner, refreshes profile data, and returns to view mode on success.
+- Unsupported/admin fields remain unavailable to driver self-edit: system role, staff type, tier, branch, active status, service assignments, schedule rules, and permissions.
+- Standalone `/driver/*` contexts keep missing action routes disabled instead of linking to broken routes.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for `/staff-portal`, `/driver`, and `/driver/jobs` returned 307 -> `/login` as expected.
+
+**Follow-up:**
+- Authenticated mobile visual QA still needs a valid local driver staff session.
+
 ---
 
 ## 2026-06-04 - Codex (DRIVER-MAP-001 - Driver Route Map mobile page)
@@ -4293,3 +4336,41 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - Authenticated mobile visual QA still needs a valid local driver staff session.
+
+---
+
+## 2026-06-04 - Codex (MOBILE-LOADING-001 - Mobile Route Loading Line)
+
+**Task:** Add a slim mobile route-change loading line that pairs with existing skeleton loading states without changing backend logic, booking rules, or desktop layouts.
+
+**Files Created:**
+- `src/components/features/mobile-shell/mobile-navigation-progress-provider.tsx` - mobile navigation progress context with minimum visible duration and stuck-state fallback timeout.
+- `src/components/features/mobile-shell/mobile-route-progress.tsx` - mobile-only fixed top progress line.
+- `src/components/features/mobile-shell/mobile-nav-link.tsx` - Next Link wrapper that starts progress only for normal internal route navigation.
+- `src/app/(dashboard)/driver/dispatch/loading.tsx` - standalone driver Trips skeleton.
+- `src/app/(dashboard)/driver/jobs/loading.tsx` - standalone driver Jobs skeleton.
+- `src/app/(dashboard)/driver/map/loading.tsx` - standalone driver Map skeleton.
+
+**Files Changed:**
+- `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` - uses `MobileNavLink` for href items and center actions.
+- `src/components/features/staff-portal/driver/driver-mobile-shell.tsx` - mounts one mobile progress provider/line around driver children, nav, and profile sheet.
+- `src/components/features/staff-portal/mobile/staff-mobile-shell.tsx` - mounts one mobile progress provider/line for Basic Staff navigation.
+- `src/components/features/staff-portal/therapist/therapist-mobile-shell.tsx` - mounts one mobile progress provider/line for Therapist navigation.
+- `src/app/(dashboard)/driver/page.tsx` - removed an existing inline-styled desktop error banner in favor of Tailwind classes.
+
+**Behavior:**
+- Mobile bottom-nav route taps show a thin forest/teal top loading line.
+- Tapping the current active route does not start progress.
+- Driver Profile remains a modal button action and does not start route progress.
+- Existing route-level skeleton loading remains intact, with child-route skeletons added for standalone driver Trips, Jobs, and Map.
+- Desktop UI remains unchanged.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for `/driver`, `/driver/dispatch`, `/driver/jobs`, `/driver/map`, `/staff-portal`, `/staff-portal/dispatch`, `/staff-portal/jobs`, `/staff-portal/map`, `/staff-portal/schedule`, and `/staff-portal/service-progress` reached the local server and redirected unauthenticated traffic to `/login` as expected.
+
+**Follow-up:**
+- Authenticated mobile visual QA still needs valid local Basic Staff, Therapist, and Driver sessions because protected mobile routes redirect unauthenticated traffic to `/login` and no in-app browser navigation/screenshot tool was exposed in this turn.
