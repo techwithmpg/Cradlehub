@@ -3,12 +3,32 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
+import { DriverTripsPage } from "@/components/features/staff-portal/driver/trips/driver-trips-page";
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logInfo } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
+import { getMyDriverAllJobsAction } from "../../staff-portal/actions";
 
-export const metadata: Metadata = { title: "Home Service Dispatch - Driver" };
+export const metadata: Metadata = { title: "Trips - Driver" };
+
+async function getRecentDriverTrips() {
+  const result = await getMyDriverAllJobsAction().catch(() => null);
+  return result && "recent" in result ? result.recent : [];
+}
+
+function renderDriverTrips(data: Awaited<ReturnType<typeof getDispatchData>>) {
+  return (
+    <>
+      <div className="block md:hidden">
+        <DriverTripsPage todayItems={data.items} historyItems={[]} />
+      </div>
+      <div className="hidden md:block">
+        <HomeServiceDispatchWorkspace role="driver" data={data} />
+      </div>
+    </>
+  );
+}
 
 export default async function DriverDispatchPage() {
   const supabase = await createClient();
@@ -17,7 +37,7 @@ export default async function DriverDispatchPage() {
   if (!user) {
     if (isDevAuthBypassEnabled()) {
       const empty = { items: [], stats: { totalToday: 0, awaitingDispatch: 0, activeTrips: 0, completedToday: 0, cancelledToday: 0 }, alerts: [], today: new Date().toISOString().split("T")[0]! };
-      return <HomeServiceDispatchWorkspace role="driver" data={empty} />;
+      return renderDriverTrips(empty);
     }
     redirect("/login");
   }
@@ -32,7 +52,7 @@ export default async function DriverDispatchPage() {
   if (!me) {
     if (isDevAuthBypassEnabled()) {
       const empty = { items: [], stats: { totalToday: 0, awaitingDispatch: 0, activeTrips: 0, completedToday: 0, cancelledToday: 0 }, alerts: [], today: new Date().toISOString().split("T")[0]! };
-      return <HomeServiceDispatchWorkspace role="driver" data={empty} />;
+      return renderDriverTrips(empty);
     }
     redirect("/login");
   }
@@ -58,5 +78,16 @@ export default async function DriverDispatchPage() {
     count: data.items.length,
   });
 
-  return <HomeServiceDispatchWorkspace role="driver" data={data} />;
+  const history = await getRecentDriverTrips();
+
+  return (
+    <>
+      <div className="block md:hidden">
+        <DriverTripsPage todayItems={data.items} historyItems={history} />
+      </div>
+      <div className="hidden md:block">
+        <HomeServiceDispatchWorkspace role="driver" data={data} />
+      </div>
+    </>
+  );
 }

@@ -1,3 +1,31 @@
+# HANDOFF - DRIVER-TRIPS-MOBILE-001 Driver Trips Page: COMPLETE
+
+## Status
+
+Build verified. 96 routes. Driver Trips mobile page is complete for `/driver/dispatch` and driver-mode `/staff-portal/dispatch`.
+
+## What changed
+
+- Added the new Trips component set in `src/components/features/staff-portal/driver/trips/`.
+- Mobile `/driver/dispatch` now renders `DriverTripsPage`; desktop still renders the existing dispatch workspace.
+- Driver-mode mobile `/staff-portal/dispatch` now renders `DriverTripsPage`; non-driver and desktop behavior remain unchanged.
+- The UI uses Trips/Trip/Jobs wording for visible page title, tabs, empty states, cards, and actions.
+- Internal dispatch route names, data queries, logs, and action names remain unchanged for safety.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 96 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- `/driver/dispatch` and `/staff-portal/dispatch` route smoke checks redirected unauthenticated traffic to `/login` as expected.
+
+## Browser note
+
+Authenticated mobile visual verification still needs a valid local driver staff session.
+
+---
+
 # HANDOFF - MOBILE-NAV-001 Floating Glass Mobile Bottom Nav: COMPLETE
 
 ## Status

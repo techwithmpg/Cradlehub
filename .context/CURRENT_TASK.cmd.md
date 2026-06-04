@@ -1,14 +1,15 @@
-Task ID: MOBILE-NAV-001
-Description: Build persistent floating glass mobile bottom navbar for staff, therapist, and driver portals
+Task ID: DRIVER-TRIPS-MOBILE-001
+Description: Build polished mobile-first Driver Trips page UI
 Agent: Codex
 Status: DONE
 
 Summary:
-- Added a shared floating glass mobile bottom nav component.
-- Moved Staff, Therapist, Driver Staff Portal, and standalone Driver mobile nav ownership into layout shells.
-- Removed duplicate fixed nav renders and page-level bottom padding from mobile pages.
+- Added a dedicated Driver Trips component set under `src/components/features/staff-portal/driver/trips/`.
+- Wired mobile `/driver/dispatch` and driver-mode `/staff-portal/dispatch` to show Trips UI while preserving existing desktop dispatch workspace.
+- Replaced visible driver mobile page copy with Trips/Trip/Jobs naming and kept internal dispatch route/action names unchanged.
 
 Verification:
 - pnpm type-check: PASS
 - pnpm lint: PASS (0 errors, 2 existing warnings in scripts/generate-service-image-assets.mjs)
 - pnpm build: PASS (96 routes)
+- route smoke: `/driver/dispatch` and `/staff-portal/dispatch` redirect unauthenticated traffic to `/login` as expected

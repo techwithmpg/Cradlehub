@@ -3,22 +3,21 @@ export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { HomeServiceDispatchWorkspace } from "@/components/features/dispatch/dispatch-workspace";
-import { DriverDispatchPage } from "@/components/features/staff-portal/driver/driver-dispatch-page";
+import { DriverTripsPage } from "@/components/features/staff-portal/driver/trips/driver-trips-page";
 import { getDispatchData } from "@/lib/queries/dispatch-queries";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logInfo } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
-import type { RealDispatchItem } from "@/lib/queries/dispatch-queries";
+import { getMyDriverAllJobsAction } from "../actions";
 
-export const metadata: Metadata = { title: "Dispatch - Staff Portal" };
+export const metadata: Metadata = { title: "Trips - Staff Portal" };
 
 const DRIVER_ROLES = ["driver"];
 const SERVICE_ROLES = ["owner", "manager", "service_head", "service_staff", "staff"];
 
-function splitByStatus(items: RealDispatchItem[]): { upcoming: RealDispatchItem[]; history: RealDispatchItem[] } {
-  const upcoming = items.filter((i) => !["completed", "cancelled"].includes(i.dispatchStatus));
-  const history = items.filter((i) => ["completed", "cancelled"].includes(i.dispatchStatus));
-  return { upcoming, history };
+async function getRecentDriverTrips() {
+  const result = await getMyDriverAllJobsAction().catch(() => null);
+  return result && "recent" in result ? result.recent : [];
 }
 
 export default async function StaffDispatchPage() {
@@ -69,13 +68,13 @@ export default async function StaffDispatchPage() {
     });
 
     logInfo("dispatch.driver.loaded", { staffId: me.id, branchId: me.branch_id, date: today, count: data.items.length });
-    const { upcoming, history } = splitByStatus(data.items);
+    const history = await getRecentDriverTrips();
 
     return (
       <>
-        {/* Mobile: driver dispatch UI */}
+        {/* Mobile: driver trips UI */}
         <div className="block md:hidden">
-          <DriverDispatchPage upcoming={upcoming} history={history} />
+          <DriverTripsPage todayItems={data.items} historyItems={history} />
         </div>
         {/* Desktop: existing workspace */}
         <div className="hidden md:block">

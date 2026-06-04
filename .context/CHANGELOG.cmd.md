@@ -4165,3 +4165,39 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - Authenticated mobile visual QA still needs a valid local staff/therapist/driver session because the current unauthenticated route checks redirect to `/login`.
+
+---
+
+## 2026-06-04 - Codex (DRIVER-TRIPS-MOBILE-001 - Driver Trips mobile page)
+
+**Task:** Build a polished mobile-first Driver Trips page UI for the existing driver trips/dispatch routes, using Trips/Trip/Jobs user-facing naming while keeping internal dispatch route/action names stable.
+
+**Files Created:**
+- `src/components/features/staff-portal/driver/trips/driver-trips-page.tsx` - client Trips page with Today, Upcoming, and History tabs.
+- `src/components/features/staff-portal/driver/trips/driver-trips-header.tsx` - compact sticky Trips header.
+- `src/components/features/staff-portal/driver/trips/driver-trips-tabs.tsx` - mobile filter tabs with counts.
+- `src/components/features/staff-portal/driver/trips/driver-active-trip-card.tsx` - highlighted active trip card with Open Trip and Navigate actions.
+- `src/components/features/staff-portal/driver/trips/driver-trip-card.tsx` - reusable trip list card.
+- `src/components/features/staff-portal/driver/trips/driver-trip-status-badge.tsx` - Trips-specific status badge labels/styles.
+- `src/components/features/staff-portal/driver/trips/driver-trip-empty-state.tsx` - empty states for today/upcoming/history.
+
+**Files Changed:**
+- `src/app/(dashboard)/driver/dispatch/page.tsx` - mobile now renders `DriverTripsPage`; desktop keeps `HomeServiceDispatchWorkspace`.
+- `src/app/(dashboard)/staff-portal/dispatch/page.tsx` - driver-mode mobile now renders `DriverTripsPage`; desktop/non-driver dispatch behavior is preserved.
+- `src/components/features/staff-portal/driver/driver-dispatch-page.tsx` - compatibility wrapper now delegates to `DriverTripsPage` so old visible Dispatch copy is not used.
+
+**Behavior:**
+- Driver mobile Trips page shows Today, Upcoming, and History filters.
+- Active in-progress trips are promoted into a premium active trip section.
+- Upcoming trips and completed/cancelled history use real booking/trip data from existing driver dispatch queries/actions.
+- No backend logic, status rules, tables, or desktop dispatch workspace were changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 96 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for `/driver/dispatch` and `/staff-portal/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
+
+**Follow-up:**
+- Authenticated mobile visual QA still needs a valid local driver staff session.
