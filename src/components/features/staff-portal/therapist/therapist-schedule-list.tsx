@@ -6,7 +6,6 @@ import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { formatWeekRange } from "@/lib/staff-portal/week";
 import type { StaffWeekDay, StaffWeekNavigation } from "@/lib/staff-portal/week";
-import { TherapistMobileBottomNav } from "./therapist-mobile-bottom-nav";
 
 type FilterKey = "all" | "on_duty" | "day_off" | "booked" | "blocked";
 
@@ -179,7 +178,7 @@ export function TherapistScheduleList({ nav, days }: TherapistScheduleListProps)
   const filteredDays = days.filter((d) => matchesFilter(d, filter));
 
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       {/* Sticky header */}
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", padding: "0.875rem 1rem 0.625rem", position: "sticky", top: 0, zIndex: 30 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.625rem" }}>
@@ -221,8 +220,6 @@ export function TherapistScheduleList({ nav, days }: TherapistScheduleListProps)
           filteredDays.map((day) => <DayCard key={day.date} day={day} />)
         )}
       </div>
-
-      <TherapistMobileBottomNav />
     </div>
   );
 }

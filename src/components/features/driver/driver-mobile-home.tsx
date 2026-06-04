@@ -2,13 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   Bell,
-  Home,
   Truck,
-  LayoutDashboard,
-  User,
   MapPin,
   Clock,
   ChevronRight,
@@ -81,63 +77,6 @@ function getNextDriverAction(status: string): { label: string; next: BookingProg
     case "travel_started": return { label: "Mark Arrived", next: "arrived" };
     default: return null;
   }
-}
-
-// ── Driver Bottom Nav ─────────────────────────────────────────────────────────
-
-function DriverBottomNav() {
-  const pathname = usePathname();
-
-  const items = [
-    { label: "Home", href: "/driver", icon: LayoutDashboard, exact: true },
-    { label: "Trips", href: "/driver/dispatch", icon: Truck },
-    { label: "Schedule", href: "/staff-portal/schedule", icon: Home },
-    { label: "Profile", href: "/staff-portal/profile", icon: User },
-  ];
-
-  return (
-    <nav
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        backgroundColor: "#fff",
-        borderTop: "1px solid var(--cs-border-soft)",
-        display: "flex",
-        paddingBottom: "env(safe-area-inset-bottom, 0)",
-      }}
-      aria-label="Driver navigation"
-    >
-      {items.map(({ label, href, icon: Icon, exact }) => {
-        const isActive = exact ? pathname === href : pathname.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              padding: "0.5rem 0 0.625rem",
-              textDecoration: "none",
-              color: isActive ? "#5A6A8A" : "var(--cs-text-muted)",
-              fontSize: 10,
-              fontWeight: isActive ? 700 : 500,
-            }}
-            aria-current={isActive ? "page" : undefined}
-          >
-            <Icon size={22} strokeWidth={isActive ? 2 : 1.75} aria-hidden />
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
 }
 
 // ── Current trip card ─────────────────────────────────────────────────────────
@@ -503,7 +442,6 @@ export function DriverMobileHome({ driver, trips }: DriverMobileHomeProps) {
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96,
       }}
     >
       {/* Top bar */}
@@ -816,9 +754,6 @@ export function DriverMobileHome({ driver, trips }: DriverMobileHomeProps) {
           Live — updates when trip status changes
         </div>
       </div>
-
-      {/* Bottom nav */}
-      <DriverBottomNav />
     </div>
   );
 }

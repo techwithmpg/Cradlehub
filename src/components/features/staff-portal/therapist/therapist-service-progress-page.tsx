@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { CheckCircle2, Stethoscope } from "lucide-react";
-import { TherapistMobileBottomNav } from "./therapist-mobile-bottom-nav";
 import { TherapistServiceProgressCard } from "./therapist-service-progress-card";
 import type { StaffPortalBooking } from "@/components/features/staff-portal/types";
 
@@ -78,7 +77,6 @@ export function TherapistServiceProgressPage({
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96,
       }}
     >
       {/* Sticky header */}
@@ -208,8 +206,6 @@ export function TherapistServiceProgressPage({
           </>
         )}
       </div>
-
-      <TherapistMobileBottomNav />
     </div>
   );
 }

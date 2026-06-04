@@ -179,3 +179,17 @@
 - **Symptom:** The existing local dev server at `http://localhost:3000` responded, but unauthenticated staff portal routes redirected to `/login`. Tool discovery did not expose an in-app browser navigation/screenshot tool in this thread.
 - **Impact:** Code-level checks, production build, and protected-route smoke checks passed, but the authenticated mobile visual flow still needs a valid driver staff session to confirm the persistent bottom nav, Profile sheet save/photo controls, schedule cards, and driver job actions in-browser.
 - **Resolution:** No code change required for this limitation. Re-run authenticated browser verification after logging in locally as a driver staff user, then check `/staff-portal`, `/staff-portal/dispatch`, `/staff-portal/map`, `/staff-portal/jobs`, `/staff-portal/schedule`, `/staff-portal/stats`, and the Profile bottom sheet.
+
+---
+
+## 2026-06-04 - MOBILE-NAV-001 browser/auth verification limitation
+
+- **Symptom:** The local dev server at `http://localhost:3000` responded, but protected staff and driver mobile routes redirected unauthenticated traffic to `/login`. Tool discovery did not expose an in-app browser navigation/screenshot tool in this turn.
+- **Impact:** `pnpm type-check`, `pnpm lint`, `pnpm build`, and unauthenticated route reachability passed, but visual mobile confirmation of the floating glass nav still needs valid local Basic Staff, Therapist, Driver Staff Portal, and standalone Driver sessions.
+- **Resolution:** No code change required for this limitation. Re-run authenticated mobile browser verification at 390px width after logging in, checking `/staff-portal`, `/staff-portal/schedule`, `/staff-portal/service-progress`, `/staff-portal/dispatch`, `/driver`, and `/driver/dispatch`.
+
+## 2026-06-04 - MOBILE-NAV-001 pre-flight file note
+
+- **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
+- **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, and local Next.js docs in `node_modules/next/dist/docs/`.
+- **Resolution:** No code change required.

@@ -4130,3 +4130,38 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 96 routes
 - Local unauthenticated route smoke checks for `/staff-portal`, `/dispatch`, `/map`, `/jobs`, `/jobs/active`, `/schedule`, `/stats`, `/more`, `/profile` returned 307 -> `/login` as expected.
+
+---
+
+## 2026-06-04 - Codex (MOBILE-NAV-001 - Floating Glass Mobile Bottom Nav)
+
+**Task:** Build a persistent floating glass mobile bottom navbar across Basic Staff Portal, Therapist Staff Portal, Driver Staff Portal, and standalone `/driver/*` routes without changing desktop layouts or backend dispatch/booking logic.
+
+**Files Created:**
+- `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` - shared reusable floating glass mobile nav with four edge items and optional center action.
+- `src/components/features/staff-portal/mobile/staff-mobile-shell.tsx` - Basic/CSR staff mobile shell that owns bottom spacing and nav.
+- `src/components/features/staff-portal/therapist/therapist-mobile-shell.tsx` - Therapist mobile shell that owns bottom spacing and nav.
+
+**Files Changed:**
+- `src/app/(dashboard)/staff-portal/layout.tsx` - wraps staff portal children in the correct mode-specific mobile shell: basic, therapist, or driver.
+- `src/app/(dashboard)/driver/layout.tsx` - wraps standalone driver routes in `DriverMobileShell` when a staff profile is available.
+- `src/components/features/staff-portal/mobile/staff-mobile-bottom-nav.tsx` - now configures the shared floating nav for staff routes.
+- `src/components/features/staff-portal/therapist/therapist-mobile-bottom-nav.tsx` - now configures the shared floating nav for therapist routes.
+- `src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx` - now configures the shared floating nav for staff-portal driver and standalone driver routes while preserving the Profile sheet button.
+- `src/components/features/staff-portal/driver/driver-mobile-shell.tsx` - uses the larger shared shell bottom spacing.
+- Basic, Therapist, legacy Staff mobile home, and standalone Driver mobile pages - removed duplicate per-page fixed nav renders and old hardcoded `paddingBottom: 96`.
+
+**Behavior:**
+- Mobile staff, therapist, and driver workspaces now get one persistent shell-owned floating glass bottom nav.
+- Desktop behavior remains unchanged through `md:hidden` nav and `md:contents` shell behavior.
+- Staff portal mobile routes preserve existing Basic, Therapist, Driver, mobile week, and mobile schedule component flows.
+- Standalone `/driver` and `/driver/dispatch` now share the same mobile driver shell/profile sheet pattern as driver staff portal routes.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 96 routes
+- Protected route smoke checks for `/staff-portal`, `/staff-portal/schedule`, `/staff-portal/service-progress`, `/staff-portal/dispatch`, `/driver`, and `/driver/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
+
+**Follow-up:**
+- Authenticated mobile visual QA still needs a valid local staff/therapist/driver session because the current unauthenticated route checks redirect to `/login`.

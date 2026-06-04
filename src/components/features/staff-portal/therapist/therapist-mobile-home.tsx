@@ -1,4 +1,3 @@
-import { TherapistMobileBottomNav } from "./therapist-mobile-bottom-nav";
 import { TherapistHeader } from "./therapist-header";
 import { TherapistGreetingCard } from "./therapist-greeting-card";
 import { TherapistShiftCard } from "./therapist-shift-card";
@@ -53,7 +52,6 @@ export function TherapistMobileHome({
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96,
       }}
     >
       {/* Sticky header */}
@@ -91,9 +89,6 @@ export function TherapistMobileHome({
         {/* Quick Actions grid */}
         <TherapistQuickActions />
       </div>
-
-      {/* Therapist sticky bottom nav */}
-      <TherapistMobileBottomNav />
     </div>
   );
 }

@@ -15,7 +15,7 @@ export function DriverMobileShell({ staff, children }: DriverMobileShellProps) {
   const [profileOpen, setProfileOpen] = useState(false);
 
   return (
-    <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(84px+env(safe-area-inset-bottom))] md:bg-transparent md:pb-0">
+    <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(112px+env(safe-area-inset-bottom))] md:contents md:bg-transparent md:pb-0">
       {children}
       <DriverMobileBottomNav profileOpen={profileOpen} onProfileClick={() => setProfileOpen(true)} />
       <DriverProfileSheet staff={staff} open={profileOpen} onOpenChange={setProfileOpen} />

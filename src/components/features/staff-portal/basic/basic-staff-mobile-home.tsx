@@ -1,4 +1,3 @@
-import { StaffMobileBottomNav } from "@/components/features/staff-portal/mobile/staff-mobile-bottom-nav";
 import { BasicStaffHeader } from "./basic-staff-header";
 import { BasicStaffGreetingCard } from "./basic-staff-greeting-card";
 import { BasicStaffShiftCard } from "./basic-staff-shift-card";
@@ -25,7 +24,6 @@ export function BasicStaffMobileHome({
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96,
       }}
     >
       {/* Sticky header */}
@@ -63,8 +61,6 @@ export function BasicStaffMobileHome({
         <BasicStaffQuickActions />
       </div>
 
-      {/* Sticky bottom nav */}
-      <StaffMobileBottomNav />
     </div>
   );
 }

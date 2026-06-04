@@ -10,7 +10,6 @@ import {
   LogOut,
   ChevronRight,
 } from "lucide-react";
-import { StaffMobileBottomNav } from "@/components/features/staff-portal/mobile/staff-mobile-bottom-nav";
 
 // ── Logout server action ──────────────────────────────────────────────────────
 
@@ -274,7 +273,6 @@ export function BasicStaffMoreMenu() {
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96,
       }}
     >
       {/* Header */}
@@ -317,7 +315,6 @@ export function BasicStaffMoreMenu() {
         ))}
       </div>
 
-      <StaffMobileBottomNav />
     </div>
   );
 }

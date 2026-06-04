@@ -1,3 +1,31 @@
+# HANDOFF - MOBILE-NAV-001 Floating Glass Mobile Bottom Nav: COMPLETE
+
+## Status
+
+Build verified. 96 routes. Persistent shell-owned mobile bottom nav is complete for Basic Staff Portal, Therapist Staff Portal, Driver Staff Portal, and standalone `/driver/*` routes.
+
+## What changed
+
+- Added `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` as the shared glass nav primitive.
+- Added `StaffMobileShell` and `TherapistMobileShell`; reused `DriverMobileShell` for both staff-portal driver mode and standalone driver routes.
+- Updated `staff-portal/layout.tsx` to choose the correct shell from `getStaffPortalMode(staff)`.
+- Updated `/driver/layout.tsx` to wrap authenticated driver routes in `DriverMobileShell`.
+- Reworked Staff, Therapist, and Driver bottom-nav files into thin route config wrappers around the shared component.
+- Removed duplicate fixed bottom nav renders and old `paddingBottom: 96` spacing from Basic, Therapist, legacy Staff mobile home, and standalone Driver mobile pages.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 96 routes
+- Local route smoke checks for `/staff-portal`, `/staff-portal/schedule`, `/staff-portal/service-progress`, `/staff-portal/dispatch`, `/driver`, and `/driver/dispatch` redirected unauthenticated traffic to `/login` as expected.
+
+## Browser note
+
+Authenticated mobile visual verification still needs valid local Basic Staff, Therapist, Driver Staff Portal, and standalone Driver sessions. Tool discovery did not expose the in-app browser/screenshot tool in this turn.
+
+---
+
 # HANDOFF - Driver Staff Portal Mobile UI: COMPLETE
 
 ## Status

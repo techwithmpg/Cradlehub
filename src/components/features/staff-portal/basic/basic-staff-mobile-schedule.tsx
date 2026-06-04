@@ -6,7 +6,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { formatWeekRange } from "@/lib/staff-portal/week";
 import type { StaffWeekDay, StaffWeekNavigation } from "@/lib/staff-portal/week";
-import { StaffMobileBottomNav } from "@/components/features/staff-portal/mobile/staff-mobile-bottom-nav";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -236,7 +235,6 @@ export function BasicStaffMobileSchedule({
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96,
       }}
     >
       {/* Sticky header */}
@@ -357,7 +355,6 @@ export function BasicStaffMobileSchedule({
         )}
       </div>
 
-      <StaffMobileBottomNav />
     </div>
   );
 }

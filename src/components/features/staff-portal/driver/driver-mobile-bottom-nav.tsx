@@ -1,108 +1,85 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ElementType } from "react";
-import { LayoutDashboard, Truck, Map, BriefcaseBusiness, CircleUserRound } from "lucide-react";
-
-type NavItem = {
-  label: string;
-  href: string;
-  icon: ElementType;
-  exact?: boolean;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { label: "Home", href: "/staff-portal", icon: LayoutDashboard, exact: true },
-  { label: "Dispatch", href: "/staff-portal/dispatch", icon: Truck },
-  { label: "Map", href: "/staff-portal/map", icon: Map },
-  { label: "Jobs", href: "/staff-portal/jobs", icon: BriefcaseBusiness },
-];
+import { CalendarDays, Home, Map, MapPin, Truck, User } from "lucide-react";
+import {
+  FloatingMobileBottomNav,
+  type FloatingMobileNavItem,
+} from "@/components/features/mobile-shell/floating-mobile-bottom-nav";
 
 type DriverMobileBottomNavProps = {
   profileOpen: boolean;
   onProfileClick: () => void;
 };
 
-export function DriverMobileBottomNav({ profileOpen, onProfileClick }: DriverMobileBottomNavProps) {
+function HomeIcon({ className }: { className?: string }) {
+  return <Home className={className} />;
+}
+
+function TripsIcon({ className }: { className?: string }) {
+  return <Truck className={className} />;
+}
+
+function MapIcon({ className }: { className?: string }) {
+  return <Map className={className} />;
+}
+
+function ScheduleIcon({ className }: { className?: string }) {
+  return <CalendarDays className={className} />;
+}
+
+function ProfileIcon({ className }: { className?: string }) {
+  return <User className={className} />;
+}
+
+function UpdateIcon({ className }: { className?: string }) {
+  return <MapPin className={className} />;
+}
+
+export function DriverMobileBottomNav({
+  profileOpen,
+  onProfileClick,
+}: DriverMobileBottomNavProps) {
   const pathname = usePathname();
+  const isStandaloneDriver = pathname.startsWith("/driver");
+  const homeHref = isStandaloneDriver ? "/driver" : "/staff-portal";
+  const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
+  const mapHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/map";
+  const updateHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/jobs/active";
   const profileActive = profileOpen || pathname.startsWith("/staff-portal/profile");
 
-  return (
-    <nav
-      className="md:hidden"
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        backgroundColor: "#fff",
-        borderTop: "1px solid var(--cs-border-soft)",
-        display: "flex",
-        minHeight: 60,
-        paddingBottom: "env(safe-area-inset-bottom, 0)",
-      }}
-      aria-label="Driver portal navigation"
-    >
-      {NAV_ITEMS.map(({ label, href, icon: Icon, exact }) => {
-        const isActive = exact
-          ? pathname === href
-          : pathname.startsWith(href);
+  const items: FloatingMobileNavItem[] = [
+    {
+      label: "Home",
+      href: homeHref,
+      icon: HomeIcon,
+      active: pathname === homeHref,
+    },
+    {
+      label: "Trips",
+      href: tripsHref,
+      icon: TripsIcon,
+      active: pathname.startsWith(tripsHref),
+    },
+    {
+      label: isStandaloneDriver ? "Schedule" : "Map",
+      href: mapHref,
+      icon: isStandaloneDriver ? ScheduleIcon : MapIcon,
+      active: !isStandaloneDriver && pathname.startsWith(mapHref),
+    },
+    {
+      label: "Profile",
+      icon: ProfileIcon,
+      active: profileActive,
+      onClick: onProfileClick,
+    },
+  ];
 
-        return (
-          <Link
-            key={href}
-            href={href}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              padding: "0.5rem 0 0.625rem",
-              minHeight: 56,
-              textDecoration: "none",
-              color: isActive ? "var(--cs-staff-accent)" : "var(--cs-text-muted)",
-              fontSize: 10,
-              fontWeight: isActive ? 700 : 500,
-              letterSpacing: "0.01em",
-              transition: "color 120ms ease",
-            }}
-            aria-current={isActive ? "page" : undefined}
-          >
-            <Icon size={22} strokeWidth={isActive ? 2 : 1.75} aria-hidden="true" />
-            {label}
-          </Link>
-        );
-      })}
-      <button
-        type="button"
-        onClick={onProfileClick}
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 3,
-          padding: "0.5rem 0 0.625rem",
-          minHeight: 56,
-          border: 0,
-          background: "transparent",
-          color: profileActive ? "var(--cs-staff-accent)" : "var(--cs-text-muted)",
-          cursor: "pointer",
-          fontSize: 10,
-          fontWeight: profileActive ? 700 : 500,
-          letterSpacing: "0.01em",
-          transition: "color 120ms ease",
-        }}
-        aria-pressed={profileActive}
-      >
-        <CircleUserRound size={22} strokeWidth={profileActive ? 2 : 1.75} aria-hidden="true" />
-        Profile
-      </button>
-    </nav>
+  return (
+    <FloatingMobileBottomNav
+      items={items}
+      centerAction={{ label: "Update", icon: UpdateIcon, href: updateHref }}
+      ariaLabel="Driver portal navigation"
+    />
   );
 }

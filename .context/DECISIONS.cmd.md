@@ -397,3 +397,15 @@ CRM staff need to move bookings through the real front-desk flow, not just filte
 - Customer arrival updates `booking_progress_status = "checked_in"` and leaves home-service bookings out of room assignment.
 - Callback follow-up embeds the existing waitlist follow-up table into the Bookings workspace instead of duplicating waitlist UI.
 - Booking mutations call shared booking surface revalidation so CRM Today, CRM Bookings, CRM Control, Manager bookings, and workspace cache tags stay fresher after status/payment/create changes.
+
+### DEC-MOBILE-NAV-001: Mobile staff/driver nav is shell-owned
+**Status:** ACCEPTED - 2026-06-04
+
+**Decision:**
+Staff, Therapist, Driver Staff Portal, and standalone Driver mobile navigation should be owned by layout-level mobile shells, not by individual page components. Each role-specific bottom-nav file is now a thin route configuration wrapper around `FloatingMobileBottomNav`.
+
+**Rationale:**
+- Prevents duplicate fixed nav bars when pages compose nested mobile flows.
+- Keeps bottom safe-area spacing consistent across home, schedule, week, progress, dispatch, and driver routes.
+- Preserves desktop layouts through `md:hidden` nav rendering and `md:contents` shells.
+- Allows Basic, Therapist, and Driver route sets to share the same glass nav behavior while keeping their labels and primary action routes role-specific.

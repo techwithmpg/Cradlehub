@@ -1,10 +1,32 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarDays, ClipboardList, TrendingUp, MoreHorizontal } from "lucide-react";
+import { CalendarDays, ClipboardList, Home, Plus, User } from "lucide-react";
+import {
+  FloatingMobileBottomNav,
+  type FloatingMobileNavItem,
+} from "@/components/features/mobile-shell/floating-mobile-bottom-nav";
 
-// Paths that belong to the "More" section (profile, notifications, settings, more itself)
+function HomeIcon({ className }: { className?: string }) {
+  return <Home className={className} />;
+}
+
+function ScheduleIcon({ className }: { className?: string }) {
+  return <CalendarDays className={className} />;
+}
+
+function TodayIcon({ className }: { className?: string }) {
+  return <ClipboardList className={className} />;
+}
+
+function ProfileIcon({ className }: { className?: string }) {
+  return <User className={className} />;
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return <Plus className={className} />;
+}
+
 const MORE_MATCH_PATHS = [
   "/staff-portal/more",
   "/staff-portal/profile",
@@ -12,83 +34,40 @@ const MORE_MATCH_PATHS = [
   "/staff-portal/settings",
 ];
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon: React.ElementType;
-  exact?: boolean;
-  matchPaths?: string[];
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { label: "Home", href: "/staff-portal", icon: LayoutDashboard, exact: true },
-  { label: "Schedule", href: "/staff-portal/schedule", icon: CalendarDays },
-  { label: "My Week", href: "/staff-portal/week", icon: ClipboardList },
-  { label: "Stats", href: "/staff-portal/stats", icon: TrendingUp },
-  {
-    label: "More",
-    href: "/staff-portal/more",
-    icon: MoreHorizontal,
-    matchPaths: MORE_MATCH_PATHS,
-  },
-];
-
 export function StaffMobileBottomNav() {
   const pathname = usePathname();
+  const items: FloatingMobileNavItem[] = [
+    {
+      label: "Home",
+      href: "/staff-portal",
+      icon: HomeIcon,
+      active: pathname === "/staff-portal",
+    },
+    {
+      label: "Schedule",
+      href: "/staff-portal/schedule",
+      icon: ScheduleIcon,
+      active: pathname.startsWith("/staff-portal/schedule") || pathname.startsWith("/staff-portal/week"),
+    },
+    {
+      label: "Today",
+      href: "/staff-portal/today",
+      icon: TodayIcon,
+      active: pathname.startsWith("/staff-portal/today"),
+    },
+    {
+      label: "Profile",
+      href: "/staff-portal/more",
+      icon: ProfileIcon,
+      active: MORE_MATCH_PATHS.some((path) => pathname.startsWith(path)),
+    },
+  ];
 
   return (
-    <nav
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        backgroundColor: "#fff",
-        borderTop: "1px solid var(--cs-border-soft)",
-        display: "flex",
-        paddingBottom: "env(safe-area-inset-bottom, 0)",
-      }}
-      aria-label="Staff portal navigation"
-    >
-      {NAV_ITEMS.map(({ label, href, icon: Icon, exact, matchPaths }) => {
-        const isActive = matchPaths
-          ? matchPaths.some((p) => pathname.startsWith(p))
-          : exact
-          ? pathname === href
-          : pathname.startsWith(href);
-
-        return (
-          <Link
-            key={href}
-            href={href}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              padding: "0.5rem 0 0.625rem",
-              minHeight: 56,
-              textDecoration: "none",
-              color: isActive ? "var(--cs-staff-accent)" : "var(--cs-text-muted)",
-              fontSize: 10,
-              fontWeight: isActive ? 700 : 500,
-              letterSpacing: "0.01em",
-              transition: "color 120ms ease",
-            }}
-            aria-current={isActive ? "page" : undefined}
-          >
-            <Icon
-              size={22}
-              strokeWidth={isActive ? 2 : 1.75}
-              aria-hidden="true"
-            />
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
+    <FloatingMobileBottomNav
+      items={items}
+      centerAction={{ label: "Action", icon: PlusIcon, href: "/staff-portal/today" }}
+      ariaLabel="Staff portal navigation"
+    />
   );
 }

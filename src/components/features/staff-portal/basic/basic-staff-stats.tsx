@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { StaffMobileBottomNav } from "@/components/features/staff-portal/mobile/staff-mobile-bottom-nav";
 import type { MonthlyScheduleStats } from "@/app/(dashboard)/staff-portal/actions";
 
 type BasicStaffStatsProps = {
@@ -151,7 +150,6 @@ export function BasicStaffStats({
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96,
       }}
     >
       {/* Header */}
@@ -237,7 +235,6 @@ export function BasicStaffStats({
         )}
       </div>
 
-      <StaffMobileBottomNav />
     </div>
   );
 }

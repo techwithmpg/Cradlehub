@@ -7,7 +7,6 @@ import { BookingProgressActions } from "@/components/features/staff-portal/booki
 import { formatTime } from "@/lib/utils";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
-import { StaffMobileBottomNav } from "./staff-mobile-bottom-nav";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -743,7 +742,6 @@ export function StaffMobileHome({ staff, bookings }: StaffMobileHomeProps) {
       style={{
         minHeight: "100dvh",
         backgroundColor: "var(--cs-bg)",
-        paddingBottom: 96, // room for fixed bottom nav
       }}
     >
       {/* Sticky top bar */}
@@ -818,9 +816,6 @@ export function StaffMobileHome({ staff, bookings }: StaffMobileHomeProps) {
           ))}
         </div>
       </div>
-
-      {/* Fixed bottom nav */}
-      <StaffMobileBottomNav />
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { formatWeekRange } from "@/lib/staff-portal/week";
 import type { StaffWeekDay } from "@/lib/staff-portal/week";
-import { TherapistMobileBottomNav } from "./therapist-mobile-bottom-nav";
 
 type ScheduleEntry = { day_of_week: number; shift_type: string | null };
 
@@ -111,7 +110,7 @@ export function TherapistWeekDetail({ days, schedule, fromDate, toDate, previous
   const shiftType = selectedDay ? (schedByDow[selectedDay.dayOfWeek] ?? null) : null;
 
   return (
-    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)", paddingBottom: 96 }}>
+    <div style={{ minHeight: "100dvh", backgroundColor: "var(--cs-bg)" }}>
       {/* Header */}
       <div style={{ backgroundColor: "#fff", borderBottom: "1px solid var(--cs-border-soft)", position: "sticky", top: 0, zIndex: 30 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.875rem 1rem 0.5rem" }}>
@@ -191,8 +190,6 @@ export function TherapistWeekDetail({ days, schedule, fromDate, toDate, previous
           </>
         )}
       </div>
-
-      <TherapistMobileBottomNav />
     </div>
   );
 }
