@@ -1,3 +1,39 @@
+# HANDOFF - DRIVER-MAP-001 Driver Route Map Page: COMPLETE
+
+## Status
+
+Build verified. 97 routes. Driver Route Map mobile page is complete for `/staff-portal/map` and `/driver/map`.
+
+## What changed
+
+- Added the new Route Map component set in `src/components/features/staff-portal/driver/map/`.
+- Mobile Route Map now includes a compact header, route summary chips, map-like route placeholder, floating map controls, next-stop bottom sheet, route actions, and today's stops strip.
+- `/staff-portal/map` now renders the new route map UI.
+- Added `/driver/map` for the standalone Driver portal.
+- Updated standalone driver bottom nav to show `Map` and link to `/driver/map`.
+- Removed the previous inline-styled route map page and bottom card.
+
+## Key behavior
+
+- Data comes from existing driver dispatch/jobs actions and `RealDispatchItem`; no backend logic, booking status rules, tables, or fake trip data were added.
+- ETA and distance show pending labels unless existing route data supports concrete values.
+- Visible UI uses Route Map / Map / Trips wording. Internal dispatch route/action/query names are unchanged.
+- The persistent floating bottom nav remains owned by `DriverMobileShell`; the map page does not render a bottom nav.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 97 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- `/staff-portal/map`, `/driver/map`, and `/driver/dispatch` route smoke checks redirected unauthenticated traffic to `/login` as expected.
+
+## Browser note
+
+Authenticated mobile visual verification still needs a valid local driver staff session. Tool discovery did not expose an in-app browser screenshot tool in this turn.
+
+---
+
 # HANDOFF - DRIVER-TRIPS-MOBILE-001 Driver Trips Page: COMPLETE
 
 ## Status

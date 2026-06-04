@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Map, MapPin, Truck, User } from "lucide-react";
+import { Home, Map, MapPin, Truck, User } from "lucide-react";
 import {
   FloatingMobileBottomNav,
   type FloatingMobileNavItem,
@@ -24,10 +24,6 @@ function MapIcon({ className }: { className?: string }) {
   return <Map className={className} />;
 }
 
-function ScheduleIcon({ className }: { className?: string }) {
-  return <CalendarDays className={className} />;
-}
-
 function ProfileIcon({ className }: { className?: string }) {
   return <User className={className} />;
 }
@@ -44,7 +40,7 @@ export function DriverMobileBottomNav({
   const isStandaloneDriver = pathname.startsWith("/driver");
   const homeHref = isStandaloneDriver ? "/driver" : "/staff-portal";
   const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
-  const mapHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/map";
+  const mapHref = isStandaloneDriver ? "/driver/map" : "/staff-portal/map";
   const updateHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/jobs/active";
   const profileActive = profileOpen || pathname.startsWith("/staff-portal/profile");
 
@@ -62,10 +58,10 @@ export function DriverMobileBottomNav({
       active: pathname.startsWith(tripsHref),
     },
     {
-      label: isStandaloneDriver ? "Schedule" : "Map",
+      label: "Map",
       href: mapHref,
-      icon: isStandaloneDriver ? ScheduleIcon : MapIcon,
-      active: !isStandaloneDriver && pathname.startsWith(mapHref),
+      icon: MapIcon,
+      active: pathname.startsWith(mapHref),
     },
     {
       label: "Profile",

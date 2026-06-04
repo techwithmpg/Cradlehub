@@ -4133,6 +4133,49 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 ---
 
+## 2026-06-04 - Codex (DRIVER-MAP-001 - Driver Route Map mobile page)
+
+**Task:** Build a premium mobile-first Driver Route Map page for the existing driver map route, preserving backend booking/status logic and the shell-owned floating bottom nav.
+
+**Files Created:**
+- `src/components/features/staff-portal/driver/map/driver-route-map-page.tsx` - composed Route Map page with mobile premium layout and restrained desktop fallback.
+- `src/components/features/staff-portal/driver/map/driver-route-view-model.ts` - typed route state/stop view model derived from real dispatch items.
+- `src/components/features/staff-portal/driver/map/driver-route-map-header.tsx` - compact mobile Route Map header.
+- `src/components/features/staff-portal/driver/map/driver-route-summary-bar.tsx` - status/ETA/distance/traffic/location summary chips.
+- `src/components/features/staff-portal/driver/map/driver-route-map-panel.tsx` - map panel composition.
+- `src/components/features/staff-portal/driver/map/driver-route-map-placeholder.tsx` - polished map-like placeholder driven by assigned stops.
+- `src/components/features/staff-portal/driver/map/driver-map-floating-controls.tsx` - floating recenter/maps controls.
+- `src/components/features/staff-portal/driver/map/driver-route-bottom-sheet.tsx` - next-stop sheet with customer, ETA, address, service, actions, and stop strip.
+- `src/components/features/staff-portal/driver/map/driver-route-action-buttons.tsx` - real details/navigation/map actions with pending states.
+- `src/components/features/staff-portal/driver/map/driver-today-stops-strip.tsx` - horizontal today stops strip.
+- `src/components/features/staff-portal/driver/map/driver-route-status-badge.tsx` - route-state badge styles.
+- `src/components/features/staff-portal/driver/map/driver-route-empty-state.tsx` - no-route empty state.
+- `src/app/(dashboard)/driver/map/page.tsx` - standalone Driver Route Map route.
+
+**Files Changed:**
+- `src/app/(dashboard)/staff-portal/map/page.tsx` - now renders the new Route Map component set.
+- `src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx` - standalone Driver portal now links to `/driver/map` with visible label `Map`.
+- Removed old inline-styled `driver-route-map-page.tsx` and `driver-route-bottom-card.tsx`.
+
+**Behavior:**
+- Mobile driver Route Map now shows a compact header, real route status summary chips, map-like route panel, floating map controls, next-stop bottom sheet, navigation/details actions, and today stops strip.
+- Visible route UI uses Route Map / Map / Trips wording; internal dispatch route/query names remain unchanged for safety.
+- ETA and distance only show concrete values when the existing dispatch item data supports them; otherwise the UI uses pending labels instead of fake values.
+- The persistent floating bottom nav remains owned by `DriverMobileShell`; the Route Map page does not render its own bottom nav.
+- No backend logic, booking status rules, tables, or desktop dispatch workspace were changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 97 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for `/staff-portal/map`, `/driver/map`, and `/driver/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
+
+**Follow-up:**
+- Authenticated mobile visual QA still needs a valid local driver staff session because this turn only had unauthenticated route access and no in-app browser screenshot tool.
+
+---
+
 ## 2026-06-04 - Codex (MOBILE-NAV-001 - Floating Glass Mobile Bottom Nav)
 
 **Task:** Build a persistent floating glass mobile bottom navbar across Basic Staff Portal, Therapist Staff Portal, Driver Staff Portal, and standalone `/driver/*` routes without changing desktop layouts or backend dispatch/booking logic.
