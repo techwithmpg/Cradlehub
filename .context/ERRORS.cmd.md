@@ -257,3 +257,11 @@
 - **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
 - **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, local Next.js docs in `node_modules/next/dist/docs/`, and the Next.js App Router skill guidance.
 - **Resolution:** No code change required.
+
+---
+
+## 2026-06-04 - SCHEDULE-RULE-BUILDER-UI-001 browser/auth verification limitation
+
+- **Symptom:** The local app routes for `/crm/staff-availability`, `/crm/staff-availability?tab=individual`, `/crm/staff-availability?tab=coverage`, and `/manager/staff-availability` redirected unauthenticated traffic to `/login`. Tool discovery did not expose an in-app browser navigation/screenshot tool in this turn.
+- **Impact:** Type-check, lint, production build, diff check, targeted code scan, and protected-route reachability passed, but authenticated visual confirmation of the redesigned General Rules and Individual Adjustments screens still needs a valid CRM/manager session.
+- **Resolution:** No code change required. Re-run authenticated browser verification after logging in locally as CRM/manager, checking group switching, individual staff switching, save/reset states, overnight badges, role-specific shift columns, and responsive spacing.

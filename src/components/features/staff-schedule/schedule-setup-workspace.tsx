@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScheduleGroupCards, STAFF_GROUPS } from "./schedule-group-cards";
 import { GroupScheduleRulesPanel } from "./group-schedule-rules-panel";
@@ -8,7 +9,7 @@ import { ScheduleSetupRightRail } from "./schedule-setup-right-rail";
 import { ScheduleCoverageIssues } from "./schedule-coverage-issues";
 import { ScheduleOverridesView } from "./schedule-overrides-view";
 import { ScheduleSetupHelperBar } from "./schedule-setup-helper-bar";
-import { StaffSchedulePageClient } from "./staff-schedule-page-client";
+import { IndividualScheduleEditor } from "./individual-schedule-editor";
 import { StaffScheduleCard } from "./staff-schedule-card";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffScheduleGroup, StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
@@ -22,8 +23,23 @@ type Props = {
   branchId: string;
 };
 
+function parseTab(value: string | null): TabValue {
+  if (
+    value === "general" ||
+    value === "individual" ||
+    value === "overrides" ||
+    value === "coverage" ||
+    value === "staff-schedule"
+  ) {
+    return value;
+  }
+
+  return "general";
+}
+
 export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }: Props) {
-  const [activeTab, setActiveTab] = useState<TabValue>("general");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabValue>(() => parseTab(searchParams.get("tab")));
   const [selectedGroup, setSelectedGroup] = useState<string>("therapist");
 
   const groupItems = useMemo(() => {
@@ -44,68 +60,49 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
     return rulesByGroup[selectedGroup] ?? [];
   }, [rulesByGroup, selectedGroup]);
 
+  function handleTabChange(tab: TabValue) {
+    setActiveTab(tab);
+    const params = new URLSearchParams(window.location.search);
+    if (tab === "general") {
+      params.delete("tab");
+    } else {
+      params.set("tab", tab);
+    }
+
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+  }
+
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "1rem",
-      }}
-    >
-      {/* Setup flow breadcrumb — subtle and compact */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 2,
-          fontSize: "0.6875rem",
-          color: "var(--cs-text-muted)",
-          padding: "5px 12px",
-          background: "var(--cs-surface-warm)",
-          borderRadius: "var(--cs-r-lg)",
-          border: "1px solid var(--cs-border-soft)",
-          overflowX: "auto",
-          scrollbarWidth: "none",
-        }}
-      >
-        <span style={{ fontWeight: 600, color: "var(--cs-text-secondary)", whiteSpace: "nowrap", marginRight: 4 }}>
-          Setup Flow
-        </span>
+    <div className="space-y-5 rounded-3xl bg-[#f8f4ee] p-4 md:p-5">
+      <div className="flex items-center gap-2 overflow-x-auto rounded-2xl border border-stone-200 bg-white/70 px-3 py-2 text-xs text-stone-500">
+        <span className="mr-1 shrink-0 font-bold text-stone-700">Setup Flow</span>
         {[
           { label: "Group Rules", tab: "general" as TabValue },
           { label: "Individual", tab: "individual" as TabValue },
           { label: "Overrides", tab: "overrides" as TabValue },
           { label: "Coverage", tab: "coverage" as TabValue },
           { label: "Staff Schedule", tab: "staff-schedule" as TabValue },
-        ].map((step, idx) => (
-          <span
-            key={step.label}
-            style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}
-          >
+        ].map((step, index) => (
+          <span key={step.label} className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveTab(step.tab)}
-              style={{
-                fontWeight: activeTab === step.tab ? 700 : 400,
-                color: activeTab === step.tab ? "var(--cs-crm-accent)" : "inherit",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: "2px 4px",
-                borderRadius: "var(--cs-r-sm)",
-                transition: "color 120ms ease",
-                fontSize: "inherit",
-              }}
+              onClick={() => handleTabChange(step.tab)}
+              className={
+                activeTab === step.tab
+                  ? "rounded-lg px-2 py-1 font-black text-emerald-900"
+                  : "rounded-lg px-2 py-1 font-semibold hover:bg-stone-100"
+              }
             >
               {step.label}
             </button>
-            {idx < 4 && <span style={{ color: "var(--cs-border)", opacity: 0.6 }}>/</span>}
+            {index < 4 ? <span className="text-stone-300">/</span> : null}
           </span>
         ))}
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
+      <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as TabValue)}>
         <TabsList
           variant="line"
           className="h-10 min-w-max justify-start rounded-none border-b border-[var(--cs-border-soft)] p-0"
@@ -145,7 +142,7 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
 
       {/* Tab content */}
       {activeTab === "general" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div className="space-y-5">
           <ScheduleGroupCards
             items={items}
             groups={groups}
@@ -153,21 +150,20 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
             onSelectGroup={setSelectedGroup}
           />
 
-          <div
-            style={{ display: "grid", gap: "1.25rem", alignItems: "start" }}
-            className="grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_320px]"
-          >
+          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
             <GroupScheduleRulesPanel
               key={selectedGroup}
               selectedGroup={selectedGroup}
               groupData={selectedGroupData}
               groupRules={selectedGroupRules}
+              staffCount={groupItems.length}
             />
-            <aside style={{ display: "flex", flexDirection: "column", gap: "0.875rem", minWidth: 0 }}>
+            <aside className="min-w-0">
               <ScheduleSetupRightRail
                 selectedGroup={selectedGroup}
                 groupItems={groupItems}
                 groupRules={selectedGroupRules}
+                onSelectTab={handleTabChange}
               />
             </aside>
           </div>
@@ -177,11 +173,12 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
       )}
 
       {activeTab === "individual" && (
-        <StaffSchedulePageClient
+        <IndividualScheduleEditor
           branchId={branchId}
           branchName="Assigned branch"
           items={items}
           rulesByGroup={rulesByGroup}
+          onBackToGeneral={() => handleTabChange("general")}
         />
       )}
 

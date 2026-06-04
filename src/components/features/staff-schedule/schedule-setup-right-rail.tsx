@@ -1,343 +1,272 @@
-import Link from "next/link";
+import type { ReactNode } from "react";
+import { CalendarCheck, ChevronRight, Target, Users, Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { StaffScheduleItem } from "./staff-schedule-list";
-import { STAFF_GROUPS } from "./schedule-group-cards";
 import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
-import { Target, Users, Zap } from "lucide-react";
+import {
+  countDiffDays,
+  getGroupScheduleConfig,
+  getVisibleShiftKinds,
+  hasActiveIndividualSchedule,
+  rulesToPatternForGroup,
+  schedulesToPatternForGroup,
+  type ShiftKind,
+} from "./schedule-rule-builder-utils";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+type ScheduleSetupRightRailProps = {
+  selectedGroup: string;
+  groupItems: StaffScheduleItem[];
+  groupRules: StaffGroupScheduleRule[];
+  onSelectTab?: (tab: "individual" | "overrides" | "coverage") => void;
+};
 
-function pct(count: number, total: number): string {
-  if (total === 0) return "—";
-  return `(${Math.round((count / total) * 100)}%)`;
-}
-
-/** Deterministic date label — no locale API to avoid SSR/client mismatch. */
 function todayLabel(): string {
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] as const;
-  const d = new Date();
-  return `${months[d.getMonth()] ?? "Jan"} ${d.getDate()}, ${d.getFullYear()}`;
+  const date = new Date();
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+  return `${months[date.getMonth()] ?? "Jan"} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
-function StatRow({
-  label,
-  value,
-  pctStr,
-  color,
+function percent(count: number, total: number): number {
+  if (total === 0) return 0;
+  return Math.min(100, Math.round((count / total) * 100));
+}
+
+function widthClass(value: number): string {
+  if (value <= 0) return "w-0";
+  if (value <= 20) return "w-1/5";
+  if (value <= 40) return "w-2/5";
+  if (value <= 60) return "w-3/5";
+  if (value <= 80) return "w-4/5";
+  return "w-full";
+}
+
+function railShiftLabel(kind: ShiftKind): string {
+  if (kind === "opening") return "Opening Coverage";
+  if (kind === "closing") return "Closing Coverage";
+  return "Regular Coverage";
+}
+
+function RailCard({
+  title,
+  icon,
+  children,
 }: {
-  label: string;
-  value: number;
-  pctStr: string;
-  color: string;
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "4px 0",
-      }}
-    >
-      <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>{label}</span>
-      <span style={{ fontSize: "0.75rem", fontWeight: 600, color }}>
-        {value} <span style={{ fontWeight: 400, opacity: 0.7 }}>{pctStr}</span>
+    <section className="rounded-2xl border border-stone-200 bg-white/85 p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="grid size-9 place-items-center rounded-full bg-emerald-50 text-emerald-900">
+          {icon}
+        </div>
+        <h3 className="text-sm font-bold text-stone-950">{title}</h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export function CoverageTodayCard({
+  selectedGroup,
+  groupItems,
+  onSelectTab,
+}: ScheduleSetupRightRailProps) {
+  const visibleKinds = getVisibleShiftKinds(selectedGroup);
+  const todayDow = new Date().getDay();
+  const totalStaff = groupItems.length;
+  const scheduledToday = groupItems.filter((item) =>
+    item.schedules.some((schedule) => schedule.day_of_week === todayDow && schedule.is_active)
+  ).length;
+
+  return (
+    <RailCard title="Coverage Today" icon={<Target className="size-4" />}>
+      <div className="mb-4 flex items-center justify-between text-xs">
+        <span className="font-medium text-stone-500">{todayLabel()}</span>
+        <span className="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-800">
+          Moderate
+        </span>
+      </div>
+      <div className="space-y-4">
+        {visibleKinds.map((kind) => {
+          const count = groupItems.filter((item) =>
+            item.schedules.some(
+              (schedule) =>
+                schedule.day_of_week === todayDow &&
+                schedule.is_active &&
+                schedule.shift_type === (kind === "regular" ? "single" : kind)
+            )
+          ).length;
+          const fill = percent(count, totalStaff);
+
+          return (
+            <div key={kind}>
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="font-semibold text-stone-600">{railShiftLabel(kind)}</span>
+                <span className="font-black text-stone-950">
+                  {count} / {totalStaff || 0} staff
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-stone-100">
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    widthClass(fill),
+                    kind === "closing"
+                      ? "bg-blue-800"
+                      : kind === "regular"
+                        ? "bg-amber-700"
+                        : "bg-emerald-800"
+                  )}
+                />
+              </div>
+            </div>
+          );
+        })}
+        <div>
+          <div className="mb-1 flex items-center justify-between text-xs">
+            <span className="font-semibold text-stone-600">Total Scheduled</span>
+            <span className="font-black text-stone-950">
+              {scheduledToday} / {totalStaff || 0} staff
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-stone-100">
+            <div
+              className={cn(
+                "h-full rounded-full bg-stone-700",
+                widthClass(percent(scheduledToday, totalStaff))
+              )}
+            />
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onSelectTab?.("coverage")}
+        className="mt-5 flex h-10 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-sm font-bold text-stone-800 hover:bg-stone-100"
+      >
+        View Coverage Issues
+      </button>
+    </RailCard>
+  );
+}
+
+export function GroupScheduleSummaryCard({
+  selectedGroup,
+  groupItems,
+  groupRules,
+}: ScheduleSetupRightRailProps) {
+  const config = getGroupScheduleConfig(selectedGroup);
+  const visibleKinds = getVisibleShiftKinds(selectedGroup);
+  const groupPattern = rulesToPatternForGroup(groupRules, selectedGroup);
+  const totalStaff = groupItems.length;
+  const withCustomSchedule = groupItems.filter((item) => {
+    if (!hasActiveIndividualSchedule(item)) return false;
+    return countDiffDays(
+      schedulesToPatternForGroup(item.schedules, selectedGroup),
+      groupPattern,
+      visibleKinds
+    ) > 0;
+  }).length;
+  const today = new Date().toISOString().slice(0, 10);
+  const onLeaveToday = groupItems.filter((item) =>
+    item.overrides.some((override) => override.override_date === today && override.is_day_off)
+  ).length;
+  const followingDefault = Math.max(totalStaff - withCustomSchedule, 0);
+  const ruleCount = groupRules.filter((rule) => rule.is_active).length;
+
+  return (
+    <RailCard title="Group Summary" icon={<Users className="size-4" />}>
+      <div className="mb-4 flex items-center justify-between text-xs">
+        <span className="font-medium text-stone-500">{config.label}</span>
+        <span className="font-bold text-stone-900">{totalStaff} staff</span>
+      </div>
+      <div className="space-y-3 text-sm">
+        <SummaryRow label="Following Default" value={`${followingDefault} (${percent(followingDefault, totalStaff)}%)`} tone="success" />
+        <SummaryRow label="With Custom Schedule" value={`${withCustomSchedule} (${percent(withCustomSchedule, totalStaff)}%)`} tone="warning" />
+        <SummaryRow label="On Leave Today" value={`${onLeaveToday} (${percent(onLeaveToday, totalStaff)}%)`} tone="danger" />
+      </div>
+      <div className="mt-5 flex items-center justify-between rounded-xl border border-stone-100 bg-stone-50 px-4 py-3 text-sm">
+        <span className="font-bold text-emerald-900">{ruleCount} active rules</span>
+        <ChevronRight className="size-4 text-stone-400" />
+      </div>
+    </RailCard>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "danger";
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-stone-500">{label}</span>
+      <span
+        className={
+          tone === "success"
+            ? "font-black text-emerald-800"
+            : tone === "warning"
+              ? "font-black text-amber-800"
+              : "font-black text-red-700"
+        }
+      >
+        {value}
       </span>
     </div>
   );
 }
 
-// ── Component ──────────────────────────────────────────────────────────────────
-
-type Props = {
-  selectedGroup: string;
-  groupItems: StaffScheduleItem[];
-  groupRules: StaffGroupScheduleRule[];
-};
-
-export function ScheduleSetupRightRail({ selectedGroup, groupItems, groupRules }: Props) {
-  const group = STAFF_GROUPS.find((g) => g.id === selectedGroup);
-  const groupLabel = group?.label ?? selectedGroup;
-
-  const today = new Date().toISOString().split("T")[0]!;
-  const todayDow = new Date().getDay();
-  const total = groupItems.length;
-
-  // Group overview stats — computed from real data
-  const withCustom = groupItems.filter(
-    (i) => i.overrides.length > 0 || i.blockedTimes.length > 0
-  ).length;
-  const followingDefault = groupItems.filter(
-    (i) =>
-      i.schedules.some((s) => s.is_active) &&
-      i.overrides.length === 0 &&
-      i.blockedTimes.length === 0
-  ).length;
-  const onLeaveToday = groupItems.filter((i) =>
-    i.overrides.some((o) => o.override_date === today && o.is_day_off)
-  ).length;
-
-  // Coverage insight — from today's day-of-week schedules
-  const openingToday = groupItems.filter((i) =>
-    i.schedules.some(
-      (s) => s.day_of_week === todayDow && s.is_active && s.shift_type === "opening"
-    )
-  ).length;
-  const closingToday = groupItems.filter((i) =>
-    i.schedules.some(
-      (s) => s.day_of_week === todayDow && s.is_active && s.shift_type === "closing"
-    )
-  ).length;
-  const scheduledToday = groupItems.filter((i) =>
-    i.schedules.some((s) => s.day_of_week === todayDow && s.is_active)
-  ).length;
-
-  // Group rules insight
-  const hasGroupRules = groupRules.some((r) => r.is_active && !r.is_day_off);
-  const groupRuleDays = groupRules.filter((r) => r.is_active && !r.is_day_off).length;
-
-  const coverageBars = [
-    { label: "Opening", count: openingToday, total: scheduledToday || total, color: "var(--cs-success)" },
-    { label: "Closing", count: closingToday, total: scheduledToday || total, color: "var(--cs-info)" },
-    { label: "Scheduled", count: scheduledToday, total, color: "var(--cs-sand)" },
+export function QuickActionsCard({
+  onSelectTab,
+}: {
+  onSelectTab?: (tab: "individual" | "overrides" | "coverage") => void;
+}) {
+  const links = [
+    { label: "View Coverage Issues", tab: "coverage" as const },
+    { label: "Open Individual Adjustments", tab: "individual" as const },
+    { label: "Open Overrides", tab: "overrides" as const },
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-      {/* Coverage Today */}
-      <div
-        style={{
-          background: "var(--cs-surface)",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: "var(--cs-r-xl)",
-          padding: "1rem 1.125rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.75rem",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              background: "rgba(90,138,106,0.12)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--cs-crm-accent)",
-              flexShrink: 0,
-            }}
+    <RailCard title="Quick Actions" icon={<Zap className="size-4" />}>
+      <div className="space-y-2">
+        {links.map((link) => (
+          <button
+            key={link.tab}
+            type="button"
+            onClick={() => onSelectTab?.(link.tab)}
+            className="flex h-11 items-center justify-between rounded-xl border border-stone-100 bg-stone-50 px-4 text-sm font-bold text-stone-800 hover:bg-amber-50 hover:text-amber-900"
           >
-            <Target size={14} />
-          </div>
-          <div>
-            <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)", fontFamily: "var(--font-display)" }}>
-              Coverage Today
-            </div>
-            <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", fontWeight: 500 }}>{todayLabel()}</div>
-          </div>
-        </div>
-        {total > 0 ? (
-          coverageBars.map((bar) => {
-            const fill = bar.total > 0 ? Math.min(100, Math.round((bar.count / bar.total) * 100)) : 0;
-            return (
-              <div key={bar.label}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", fontWeight: 500 }}>{bar.label}</span>
-                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--cs-text)" }}>
-                    {bar.count} / {bar.total}
-                  </span>
-                </div>
-                <div style={{ height: 6, background: "var(--cs-surface-warm)", borderRadius: 3, overflow: "hidden" }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${fill}%`,
-                      background: bar.color,
-                      borderRadius: 3,
-                      transition: "width 0.5s ease",
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>No staff in this group.</div>
-        )}
+            {link.label}
+            <ChevronRight className="size-4" />
+          </button>
+        ))}
       </div>
+    </RailCard>
+  );
+}
 
-      {/* Group Status */}
-      <div
-        style={{
-          background: "var(--cs-surface)",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: "var(--cs-r-xl)",
-          padding: "1rem 1.125rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.5rem",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              background: "var(--cs-sand-mist)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--cs-sand)",
-              flexShrink: 0,
-            }}
-          >
-            <Users size={14} />
-          </div>
-          <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)", fontFamily: "var(--font-display)" }}>
-            {groupLabel}
-          </span>
-          <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", marginLeft: "auto", fontWeight: 500 }}>
-            {total} staff
-          </span>
+export function ScheduleSetupRightRail(props: ScheduleSetupRightRailProps) {
+  return (
+    <div className="space-y-4">
+      <CoverageTodayCard {...props} />
+      <GroupScheduleSummaryCard {...props} />
+      <QuickActionsCard onSelectTab={props.onSelectTab} />
+      <section className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 text-sm text-emerald-950">
+        <div className="mb-2 flex items-center gap-2 font-bold">
+          <CalendarCheck className="size-4" />
+          Rule Builder
         </div>
-        {total > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <StatRow label="Following Default" value={followingDefault} pctStr={pct(followingDefault, total)} color="var(--cs-success)" />
-            <StatRow label="With Custom Schedule" value={withCustom} pctStr={pct(withCustom, total)} color="var(--cs-warning)" />
-            <StatRow label="On Leave Today" value={onLeaveToday} pctStr={pct(onLeaveToday, total)} color="var(--cs-error)" />
-          </div>
-        ) : (
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)" }}>No staff in this group yet.</div>
-        )}
-
-        {/* Group rules status */}
-        <div
-          style={{
-            marginTop: 4,
-            padding: "0.5rem 0.625rem",
-            background: "var(--cs-surface-warm)",
-            borderRadius: "var(--cs-r-md)",
-            border: "1px solid var(--cs-border-soft)",
-          }}
-        >
-          <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cs-text)", marginBottom: 2 }}>Group Rules</div>
-          {hasGroupRules ? (
-            <div style={{ fontSize: "0.75rem", color: "var(--cs-success)", fontWeight: 500 }}>
-              {groupRuleDays} active rule{groupRuleDays !== 1 ? "s" : ""}
-            </div>
-          ) : (
-            <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>No universal rules yet.</div>
-          )}
-        </div>
-      </div>
-
-      {/* Quick Actions — only functional ones */}
-      <div
-        style={{
-          background: "var(--cs-surface)",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: "var(--cs-r-xl)",
-          padding: "1rem 1.125rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.5rem",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              background: "rgba(166,123,91,0.12)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--cs-sand)",
-              flexShrink: 0,
-            }}
-          >
-            <Zap size={14} />
-          </div>
-          <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)", fontFamily: "var(--font-display)" }}>
-            Quick Actions
-          </span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <Link
-            href="/crm/staff-availability?tab=coverage"
-            style={{
-              fontSize: "0.8125rem",
-              color: "var(--cs-sand)",
-              textDecoration: "none",
-              padding: "6px 10px",
-              borderRadius: "var(--cs-r-sm)",
-              border: "1px solid var(--cs-border-soft)",
-              background: "var(--cs-surface-warm)",
-              display: "block",
-              fontWeight: 500,
-              transition: "all 120ms ease",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--cs-sand-mist)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--cs-surface-warm)";
-            }}
-          >
-            View Coverage Issues ›
-          </Link>
-          <Link
-            href="/crm/staff-availability?tab=individual"
-            style={{
-              fontSize: "0.8125rem",
-              color: "var(--cs-sand)",
-              textDecoration: "none",
-              padding: "6px 10px",
-              borderRadius: "var(--cs-r-sm)",
-              border: "1px solid var(--cs-border-soft)",
-              background: "var(--cs-surface-warm)",
-              display: "block",
-              fontWeight: 500,
-              transition: "all 120ms ease",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--cs-sand-mist)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--cs-surface-warm)";
-            }}
-          >
-            Open Individual Adjustments ›
-          </Link>
-          <Link
-            href="/crm/staff-availability?tab=overrides"
-            style={{
-              fontSize: "0.8125rem",
-              color: "var(--cs-sand)",
-              textDecoration: "none",
-              padding: "6px 10px",
-              borderRadius: "var(--cs-r-sm)",
-              border: "1px solid var(--cs-border-soft)",
-              background: "var(--cs-surface-warm)",
-              display: "block",
-              fontWeight: 500,
-              transition: "all 120ms ease",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--cs-sand-mist)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--cs-surface-warm)";
-            }}
-          >
-            Open Overrides ›
-          </Link>
-        </div>
-      </div>
+        <p className="leading-6">
+          Group rules set the default. Individual Adjustments override these defaults only for selected staff.
+        </p>
+      </section>
     </div>
   );
 }

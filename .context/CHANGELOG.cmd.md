@@ -4374,3 +4374,41 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - Authenticated mobile visual QA still needs valid local Basic Staff, Therapist, and Driver sessions because protected mobile routes redirect unauthenticated traffic to `/login` and no in-app browser navigation/screenshot tool was exposed in this turn.
+
+---
+
+## 2026-06-04 - Codex (SCHEDULE-RULE-BUILDER-UI-001 - Schedule Rule Builder UI)
+
+**Task:** Redesign Schedule Setup General Rules and Individual Schedule Editing to match the provided role-aware rule-builder mockup without changing backend logic.
+
+**Files Created:**
+- `src/components/features/staff-schedule/schedule-rule-builder-utils.ts` - shared group schedule policy, pattern conversion, shift helpers, and save payload helpers.
+- `src/components/features/staff-schedule/shift-toggle-pill.tsx` - reusable opening/closing/regular/day-off pill toggle.
+- `src/components/features/staff-schedule/weekly-rule-day-row.tsx` - day row for the pill-based weekly matrix.
+- `src/components/features/staff-schedule/weekly-rule-matrix.tsx` - role-aware weekly schedule matrix.
+- `src/components/features/staff-schedule/shift-definition-card.tsx` - shift summary card with edit-time affordance and overnight badge.
+- `src/components/features/staff-schedule/individual-schedule-editor.tsx` - individual staff schedule editor with staff selector, save/reset actions, comparison state, and right rail.
+
+**Files Changed:**
+- `src/components/features/staff-schedule/group-schedule-rules-panel.tsx` - replaced the old checkbox-style group rule editor with role-aware shift cards, pill toggles, edit-time controls, and summary sections.
+- `src/components/features/staff-schedule/schedule-group-cards.tsx` - refreshed group selector pills with role labels, icons, counts, and missing-rule hints.
+- `src/components/features/staff-schedule/schedule-setup-right-rail.tsx` - redesigned coverage, group summary, and quick action cards.
+- `src/components/features/staff-schedule/schedule-setup-workspace.tsx` - wired tab state/query synchronization, new general rules layout, new individual editor, and right-rail quick actions.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
+
+**Behavior:**
+- General Rules now renders opening/closing shift controls only for split-shift groups and regular-shift controls for regular-only groups.
+- Individual Adjustments now supports staff selection, custom weekly override editing, reset-to-group-default, save feedback, custom diff hints, and compare-with-group summaries.
+- Existing `upsertStaffGroupScheduleRuleAction`, `deleteStaffGroupScheduleRuleAction`, and `saveStaffWeeklyScheduleAction` remain the only write paths.
+- Booking, dispatch, driver portal, payment, schema, and unrelated operational logic were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for `/crm/staff-availability`, `/crm/staff-availability?tab=individual`, `/crm/staff-availability?tab=coverage`, and `/manager/staff-availability` redirected unauthenticated traffic to `/login` as expected.
+- Targeted scan found no inline styles, `any`, `@ts-ignore`, or lingering `React.ComponentType` references in touched schedule files.
+
+**Follow-up:**
+- Authenticated visual QA still needs a valid CRM/manager session because protected schedule setup routes redirect unauthenticated traffic to `/login` and no in-app browser navigation/screenshot tool was exposed in this turn.

@@ -1,30 +1,30 @@
+import type { ComponentType } from "react";
+import { BriefcaseBusiness, CarFront, Leaf, ShieldCheck, Sparkles, UserRound, Wrench } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
-
-// ── Group definitions ──────────────────────────────────────────────────────────
+import { getGroupScheduleConfig } from "./schedule-rule-builder-utils";
 
 export type StaffGroupDef = {
   id: string;
   label: string;
-  icon: string;
+  icon: ComponentType<{ className?: string }>;
   staffTypes: string[];
 };
 
 export const STAFF_GROUPS: StaffGroupDef[] = [
-  { id: "therapist",    label: "Therapists",        icon: "👤", staffTypes: ["therapist"] },
-  { id: "driver",       label: "Drivers",           icon: "🚗", staffTypes: ["driver"] },
-  { id: "csr",          label: "CRM / Front Desk",  icon: "💼", staffTypes: ["csr"] },
-  { id: "utility",      label: "Utility",           icon: "🔧", staffTypes: ["utility"] },
-  { id: "managerial",   label: "Managers",          icon: "🛡️", staffTypes: ["managerial"] },
-  { id: "nail_tech",    label: "Salon / Nail Tech",  icon: "✂️", staffTypes: ["nail_tech", "salon_head"] },
-  { id: "aesthetician", label: "Aesthetician",      icon: "🌿", staffTypes: ["aesthetician"] },
+  { id: "therapist", label: "Therapists", icon: UserRound, staffTypes: ["therapist"] },
+  { id: "csr", label: "CRM / Front Desk", icon: BriefcaseBusiness, staffTypes: ["csr", "csr_staff", "csr_head"] },
+  { id: "driver", label: "Drivers", icon: CarFront, staffTypes: ["driver"] },
+  { id: "utility", label: "Utility", icon: Wrench, staffTypes: ["utility"] },
+  { id: "nail_tech", label: "Salon / Nail Tech", icon: Sparkles, staffTypes: ["nail_tech", "salon_head"] },
+  { id: "aesthetician", label: "Aesthetician", icon: Leaf, staffTypes: ["aesthetician", "facialist"] },
+  { id: "managerial", label: "Managers", icon: ShieldCheck, staffTypes: ["managerial"] },
 ];
 
 export function getGroupLabel(groupId: string): string {
-  return STAFF_GROUPS.find((g) => g.id === groupId)?.label ?? groupId;
+  return getGroupScheduleConfig(groupId).label;
 }
-
-// ── Component ──────────────────────────────────────────────────────────────────
 
 type Props = {
   items: StaffScheduleItem[];
@@ -35,95 +35,43 @@ type Props = {
 
 export function ScheduleGroupCards({ items, groups, selectedGroup, onSelectGroup }: Props) {
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 6,
-        overflowX: "auto",
-        paddingBottom: 4,
-      }}
-    >
+    <div className="flex gap-2 overflow-x-auto pb-2">
       {STAFF_GROUPS.map((group) => {
-        const count = items.filter((i) =>
-          group.staffTypes.includes(i.staff.staff_type ?? "")
+        const Icon = group.icon;
+        const count = items.filter((item) =>
+          group.staffTypes.includes(item.staff.staff_type ?? "")
         ).length;
         const isActive = selectedGroup === group.id;
-        const hasGroupData = groups.some((g) => g.group_key === group.id);
+        const hasGroupData = groups.some((row) => row.group_key === group.id);
 
         return (
           <button
             key={group.id}
             type="button"
             onClick={() => onSelectGroup(group.id)}
-            style={{
-              flexShrink: 0,
-              padding: "8px 14px",
-              borderRadius: "var(--cs-r-lg)",
-              border: isActive
-                ? "1.5px solid var(--cs-crm-accent)"
-                : "1px solid var(--cs-border-soft)",
-              background: isActive ? "rgba(90,138,106,0.08)" : "var(--cs-surface)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              transition: "all 150ms ease",
-              boxShadow: isActive ? "var(--cs-shadow-xs)" : "none",
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive) {
-                (e.currentTarget as HTMLElement).style.background = "var(--cs-surface-warm)";
-                (e.currentTarget as HTMLElement).style.borderColor = "var(--cs-border)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive) {
-                (e.currentTarget as HTMLElement).style.background = "var(--cs-surface)";
-                (e.currentTarget as HTMLElement).style.borderColor = "var(--cs-border-soft)";
-              }
-            }}
+            className={cn(
+              "flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition",
+              isActive
+                ? "border-emerald-700 bg-emerald-50 text-emerald-950 shadow-sm"
+                : "border-stone-200 bg-white/80 text-stone-700 hover:border-stone-300 hover:bg-stone-50"
+            )}
+            aria-pressed={isActive}
           >
-            <span style={{ fontSize: 15, lineHeight: 1 }}>{group.icon}</span>
+            <Icon className={cn("size-4", isActive ? "text-emerald-800" : "text-stone-500")} />
+            <span>{group.label}</span>
             <span
-              style={{
-                fontSize: "0.8125rem",
-                fontWeight: isActive ? 700 : 600,
-                color: isActive ? "var(--cs-crm-accent)" : "var(--cs-text)",
-                letterSpacing: "0.01em",
-              }}
-            >
-              {group.label}
-            </span>
-            <span
-              style={{
-                fontSize: "0.75rem",
-                color: isActive ? "var(--cs-crm-accent)" : "var(--cs-text-muted)",
-                fontWeight: 700,
-                background: isActive ? "rgba(90,138,106,0.12)" : "var(--cs-surface-warm)",
-                padding: "1px 7px",
-                borderRadius: "var(--cs-r-pill)",
-                minWidth: 20,
-                textAlign: "center",
-              }}
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs",
+                isActive ? "bg-emerald-100 text-emerald-900" : "bg-stone-100 text-stone-500"
+              )}
             >
               {count}
             </span>
-            {!hasGroupData && count > 0 && (
-              <span
-                style={{
-                  fontSize: "0.625rem",
-                  fontWeight: 700,
-                  padding: "2px 6px",
-                  background: "var(--cs-error-bg)",
-                  color: "var(--cs-error)",
-                  borderRadius: "var(--cs-r-pill)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.03em",
-                }}
-              >
+            {!hasGroupData && count > 0 ? (
+              <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase text-red-700">
                 No rules
               </span>
-            )}
+            ) : null}
           </button>
         );
       })}

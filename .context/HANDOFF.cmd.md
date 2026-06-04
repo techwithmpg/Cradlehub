@@ -1,3 +1,32 @@
+# HANDOFF - SCHEDULE-RULE-BUILDER-UI-001 Schedule Rule Builder UI: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Schedule Setup General Rules and Individual Adjustments now use the new role-aware rule-builder UI while preserving existing schedule actions and storage.
+
+## What changed
+
+- Added shared schedule rule-builder utilities for role group policy, visible shift kinds, weekly patterns, shift times, overnight detection, and save payload conversion.
+- General Rules now shows role group pills, shift definition cards, a pill-based weekly matrix, edit-time controls, coverage today, group summary, and in-page quick actions.
+- Individual Adjustments now shows staff selector/profile context, save/reset controls, individual weekly pill matrix, custom override hints, compare-with-group snapshot, staff today, schedule info, and quick actions.
+- Opening/closing groups show Opening, Closing, and Day Off controls; regular-only groups show Regular and Day Off controls.
+- Existing group and individual schedule actions remain wired; booking, dispatch, driver portal, payment, schema, and unrelated logic were not changed.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- Protected route smoke checks for `/crm/staff-availability`, `/crm/staff-availability?tab=individual`, `/crm/staff-availability?tab=coverage`, and `/manager/staff-availability` redirected unauthenticated traffic to `/login` as expected.
+- Targeted scan found no inline styles, `any`, `@ts-ignore`, or lingering `React.ComponentType` references in touched schedule files.
+
+## Browser note
+
+Tool discovery did not expose an in-app browser navigation/screenshot tool in this turn, and the schedule setup routes require authentication. Authenticated visual QA should be re-run after logging in as CRM/manager, checking General Rules, Individual Adjustments, group switching, staff switching, save/reset states, and mobile/tablet responsiveness.
+
+---
+
 # HANDOFF - MOBILE-LOADING-001 Mobile Route Loading Line: COMPLETE
 
 ## Status

@@ -1,254 +1,320 @@
 "use client";
 
-import { useState, useCallback, useTransition } from "react";
-import { getGroupLabel } from "./schedule-group-cards";
+import { useCallback, useMemo, useState, useTransition } from "react";
+import { Clock, Info, RotateCcw, Save } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ShiftDefinitionCard } from "./shift-definition-card";
+import { WeeklyRuleMatrix } from "./weekly-rule-matrix";
 import {
-  upsertStaffGroupScheduleRuleAction,
+  ALL_SHIFT_KINDS,
+  SCHEDULE_DAYS,
+  activeDayLabels,
+  clonePattern,
+  extractShiftTimesForGroup,
+  formatDayList,
+  getGroupScheduleConfig,
+  getRuleShiftType,
+  getShiftDisplay,
+  getShiftLabel,
+  getVisibleShiftKinds,
+  rulesToPatternForGroup,
+  type DayPattern,
+  type ShiftKind,
+  type ShiftTimes,
+} from "./schedule-rule-builder-utils";
+import {
   deleteStaffGroupScheduleRuleAction,
+  upsertStaffGroupScheduleRuleAction,
 } from "@/lib/actions/staff-schedule-groups";
-import { formatShiftTimeRange } from "@/lib/utils/time-format";
-import type { StaffScheduleGroup, StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
-import { Save, RotateCcw, Clock } from "lucide-react";
+import type { StaffGroupScheduleRule, StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
 
-// ── Shared types (exported for StaffScheduleCard) ──────────────────────────────
-
-export type DayPattern = {
-  opening: boolean;
-  closing: boolean;
-  regular: boolean;
-  dayOff: boolean;
-};
-
-export type ShiftTimes = {
-  opening: { start: string; end: string };
-  closing: { start: string; end: string };
-  regular: { start: string; end: string };
-};
-
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-export const SCHEDULE_DAYS = [
-  { dow: 1, label: "Monday" },
-  { dow: 2, label: "Tuesday" },
-  { dow: 3, label: "Wednesday" },
-  { dow: 4, label: "Thursday" },
-  { dow: 5, label: "Friday" },
-  { dow: 6, label: "Saturday" },
-  { dow: 0, label: "Sunday" },
-] as const;
+export type { DayPattern, ShiftTimes } from "./schedule-rule-builder-utils";
+export { SCHEDULE_DAYS, formatDayList } from "./schedule-rule-builder-utils";
 
 export const DEFAULT_SHIFT_TIMES: ShiftTimes = {
-  opening: { start: "09:00", end: "17:00" },
+  opening: { start: "10:00", end: "17:30" },
   closing: { start: "14:00", end: "22:30" },
-  regular: { start: "09:00", end: "18:00" },
+  regular: { start: "10:00", end: "17:30" },
 };
 
-export const SHIFT_STYLE: Record<string, { dot: string; badge: string; bg: string }> = {
+export const SHIFT_STYLE: Record<ShiftKind, { dot: string; badge: string; bg: string }> = {
   opening: { dot: "var(--cs-success)", badge: "#4A7C59", bg: "rgba(74,124,89,0.12)" },
   closing: { dot: "var(--cs-info)", badge: "#2563EB", bg: "rgba(37,99,235,0.12)" },
   regular: { dot: "var(--cs-sand)", badge: "var(--cs-sand-dark)", bg: "rgba(166,123,91,0.12)" },
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
 export function dayAbbr(label: string): string {
   return label.slice(0, 3);
 }
 
-export function formatDayList(days: string[]): string {
-  if (days.length === 0) return "—";
-  if (days.length === 1) return days[0] ?? "—";
-  if (days.length > 2) return `${days[0]} – ${days[days.length - 1]}`;
-  return days.join(", ");
-}
-
 export function extractShiftTimes(rules: StaffGroupScheduleRule[]): ShiftTimes {
-  const times: ShiftTimes = {
-    opening: { ...DEFAULT_SHIFT_TIMES.opening },
-    closing: { ...DEFAULT_SHIFT_TIMES.closing },
-    regular: { ...DEFAULT_SHIFT_TIMES.regular },
-  };
-  for (const rule of rules) {
-    if (rule.is_day_off || !rule.start_time || !rule.end_time) continue;
-    const start = rule.start_time.slice(0, 5);
-    const end = rule.end_time.slice(0, 5);
-    if (rule.shift_type === "opening") times.opening = { start, end };
-    else if (rule.shift_type === "closing") times.closing = { start, end };
-    else if (rule.shift_type === "single") times.regular = { start, end };
-  }
-  return times;
+  return extractShiftTimesForGroup(rules, "therapist");
 }
 
-function toMins(t: string): number {
-  const parts = t.split(":");
-  return parseInt(parts[0] ?? "0", 10) * 60 + parseInt(parts[1] ?? "0", 10);
+function toMinutes(value: string): number {
+  const [hour = "0", minute = "0"] = value.slice(0, 5).split(":");
+  return Number(hour) * 60 + Number(minute);
 }
 
-function minsToTime12h(mins: number): string {
-  const h = Math.floor(mins / 60) % 24;
-  const m = mins % 60;
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+function minutesToTimeLabel(value: number): string {
+  const hour = Math.floor(value / 60) % 24;
+  const minute = value % 60;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${String(minute).padStart(2, "0")} ${period}`;
 }
 
 export function computeOverlap(
   opening: { start: string; end: string },
   closing: { start: string; end: string }
 ): string | null {
-  const start = Math.max(toMins(opening.start), toMins(closing.start));
-  const end = Math.min(toMins(opening.end), toMins(closing.end));
+  const start = Math.max(toMinutes(opening.start), toMinutes(closing.start));
+  const end = Math.min(toMinutes(opening.end), toMinutes(closing.end));
   if (end <= start) return null;
-  const dur = end - start;
-  const durLabel =
-    dur % 60 > 0
-      ? `${Math.floor(dur / 60)}h ${dur % 60}m`
-      : `${Math.floor(dur / 60)}h`;
-  return `${minsToTime12h(start)} – ${minsToTime12h(end)} (${durLabel})`;
+
+  const duration = end - start;
+  const durationLabel =
+    duration % 60 > 0
+      ? `${Math.floor(duration / 60)}h ${duration % 60}m`
+      : `${Math.floor(duration / 60)}h`;
+
+  return `${minutesToTimeLabel(start)} - ${minutesToTimeLabel(end)} (${durationLabel})`;
 }
 
-function rulesToPattern(rules: StaffGroupScheduleRule[]): Record<number, DayPattern> {
-  const pattern: Record<number, DayPattern> = {
-    0: { opening: false, closing: false, regular: false, dayOff: false },
-    1: { opening: false, closing: false, regular: false, dayOff: false },
-    2: { opening: false, closing: false, regular: false, dayOff: false },
-    3: { opening: false, closing: false, regular: false, dayOff: false },
-    4: { opening: false, closing: false, regular: false, dayOff: false },
-    5: { opening: false, closing: false, regular: false, dayOff: false },
-    6: { opening: false, closing: false, regular: false, dayOff: false },
-  };
-
-  for (const rule of rules) {
-    const p = pattern[rule.day_of_week];
-    if (!p) continue;
-    if (rule.is_day_off) {
-      p.dayOff = true;
-    } else if (rule.shift_type === "opening") {
-      p.opening = true;
-    } else if (rule.shift_type === "closing") {
-      p.closing = true;
-    } else if (rule.shift_type === "single") {
-      p.regular = true;
-    }
-  }
-
-  return pattern;
-}
-
-function activeShiftBadges(
-  pattern: Record<number, DayPattern>,
-  times: ShiftTimes
-): Array<{ id: string; label: string; type: string; startTime: string; endTime: string }> {
-  const badges = [];
-  if (SCHEDULE_DAYS.some((d) => pattern[d.dow]?.opening))
-    badges.push({ id: "opening", label: "Opening Shift", type: "opening", startTime: times.opening.start, endTime: times.opening.end });
-  if (SCHEDULE_DAYS.some((d) => pattern[d.dow]?.closing))
-    badges.push({ id: "closing", label: "Closing Shift", type: "closing", startTime: times.closing.start, endTime: times.closing.end });
-  if (SCHEDULE_DAYS.some((d) => pattern[d.dow]?.regular))
-    badges.push({ id: "regular", label: "Regular Shift", type: "regular", startTime: times.regular.start, endTime: times.regular.end });
-  return badges;
-}
-
-// ── Component ──────────────────────────────────────────────────────────────────
-
-type Props = {
+type GroupScheduleRulesPanelProps = {
   selectedGroup: string;
   groupData?: StaffScheduleGroup;
   groupRules: StaffGroupScheduleRule[];
+  staffCount?: number;
 };
 
-export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules }: Props) {
-  const groupLabel = getGroupLabel(selectedGroup);
+function togglePatternField(
+  previous: Record<number, DayPattern>,
+  dow: number,
+  field: keyof DayPattern,
+  visibleKinds: ShiftKind[]
+) {
+  const next = clonePattern(previous);
+  const row = next[dow];
+  if (!row) return previous;
+
+  if (field === "dayOff") {
+    const nextValue = !row.dayOff;
+    row.dayOff = nextValue;
+    if (nextValue) {
+      for (const kind of visibleKinds) {
+        row[kind] = false;
+      }
+    }
+    return next;
+  }
+
+  row[field] = !row[field];
+  if (row[field]) {
+    row.dayOff = false;
+  }
+
+  return next;
+}
+
+function ScheduleSummary({
+  pattern,
+  times,
+  visibleKinds,
+}: {
+  pattern: Record<number, DayPattern>;
+  times: ShiftTimes;
+  visibleKinds: ShiftKind[];
+}) {
+  return (
+    <section className="rounded-2xl border border-stone-200 bg-white/80 p-5 shadow-sm">
+      <h3 className="text-base font-bold text-stone-950">Schedule Summary (Default Times)</h3>
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {ALL_SHIFT_KINDS.map((kind) => {
+          const used = visibleKinds.includes(kind);
+          const display = getShiftDisplay(kind, times);
+
+          return (
+            <div key={kind} className="border-r border-stone-100 pr-4 last:border-r-0">
+              <div className="flex items-center gap-2 text-sm font-bold text-stone-950">
+                <span
+                  className={
+                    kind === "opening"
+                      ? "size-2 rounded-full bg-emerald-700"
+                      : kind === "closing"
+                        ? "size-2 rounded-full bg-blue-800"
+                        : "size-2 rounded-full bg-amber-700"
+                  }
+                />
+                {getShiftLabel(kind)}
+              </div>
+              <p className="mt-2 text-sm text-stone-500">
+                {used ? formatDayList(activeDayLabels(pattern, kind)) : "Not used for this group"}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-stone-900">
+                {used ? (
+                  <>
+                    {display.label}
+                    {display.isOvernight ? (
+                      <span className="ml-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">
+                        +1 day
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  "Not used"
+                )}
+              </p>
+            </div>
+          );
+        })}
+        <div>
+          <div className="flex items-center gap-2 text-sm font-bold text-stone-950">
+            <span className="size-2 rounded-full bg-stone-500" />
+            Day Off
+          </div>
+          <p className="mt-2 text-sm text-stone-500">{formatDayList(activeDayLabels(pattern, "dayOff"))}</p>
+          <p className="mt-1 text-sm font-semibold text-stone-900">All day</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TimeEditor({
+  visibleKinds,
+  times,
+  onChange,
+}: {
+  visibleKinds: ShiftKind[];
+  times: ShiftTimes;
+  onChange: (kind: ShiftKind, field: keyof ShiftTimes[ShiftKind], value: string) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+      <div className="mb-4 flex items-center gap-2 text-sm font-bold text-amber-950">
+        <Clock className="size-4" />
+        Edit Group Times
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {visibleKinds.map((kind) => (
+          <label key={kind} className="grid gap-2 rounded-xl border border-white/70 bg-white/70 p-4">
+            <span className="text-xs font-bold uppercase tracking-wide text-stone-500">
+              {getShiftLabel(kind)}
+            </span>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <input
+                type="time"
+                value={times[kind].start}
+                onChange={(event) => onChange(kind, "start", event.target.value)}
+                className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm font-semibold text-stone-900"
+              />
+              <span className="text-stone-400">-</span>
+              <input
+                type="time"
+                value={times[kind].end}
+                onChange={(event) => onChange(kind, "end", event.target.value)}
+                className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm font-semibold text-stone-900"
+              />
+            </div>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function GroupScheduleRulesPanel({
+  selectedGroup,
+  groupData,
+  groupRules,
+  staffCount = 0,
+}: GroupScheduleRulesPanelProps) {
+  const config = getGroupScheduleConfig(selectedGroup);
   const groupId = groupData?.id;
+  const visibleKinds = useMemo(() => getVisibleShiftKinds(selectedGroup), [selectedGroup]);
+  const initialPattern = useMemo(
+    () => rulesToPatternForGroup(groupRules, selectedGroup),
+    [groupRules, selectedGroup]
+  );
+  const initialTimes = useMemo(
+    () => extractShiftTimesForGroup(groupRules, selectedGroup),
+    [groupRules, selectedGroup]
+  );
 
-  const [pattern, setPattern] = useState<Record<number, DayPattern>>(() =>
-    rulesToPattern(groupRules)
-  );
-  const [shiftTimes, setShiftTimes] = useState<ShiftTimes>(() =>
-    extractShiftTimes(groupRules)
-  );
+  const [pattern, setPattern] = useState(() => initialPattern);
+  const [times, setTimes] = useState(() => initialTimes);
   const [editingTimes, setEditingTimes] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const toggle = useCallback((dow: number, field: keyof DayPattern) => {
-    setPattern((prev) => ({
-      ...prev,
-      [dow]: { ...prev[dow]!, [field]: !prev[dow]![field] },
-    }));
-    setDirty(true);
-  }, []);
+  const handleToggle = useCallback(
+    (dow: number, field: keyof DayPattern) => {
+      setPattern((previous) => togglePatternField(previous, dow, field, visibleKinds));
+      setDirty(true);
+    },
+    [visibleKinds]
+  );
+
+  const handleTimeChange = useCallback(
+    (kind: ShiftKind, field: keyof ShiftTimes[ShiftKind], value: string) => {
+      setTimes((previous) => ({
+        ...previous,
+        [kind]: {
+          ...previous[kind],
+          [field]: value,
+        },
+      }));
+      setDirty(true);
+    },
+    []
+  );
+
+  const resetPanel = useCallback(() => {
+    setPattern(initialPattern);
+    setTimes(initialTimes);
+    setEditingTimes(false);
+    setDirty(false);
+    setFeedback(null);
+  }, [initialPattern, initialTimes]);
 
   const savePattern = useCallback(() => {
-    if (!groupId) return;
+    if (!groupId) {
+      setFeedback({ tone: "error", message: "This group has no saved rule container yet." });
+      return;
+    }
 
     startTransition(async () => {
-      const promises: Promise<unknown>[] = [];
+      const promises: Promise<{ success: boolean; error?: string }>[] = [];
 
       for (const { dow } of SCHEDULE_DAYS) {
-        const p = pattern[dow];
-        if (!p) continue;
+        const row = pattern[dow];
+        if (!row) continue;
 
-        // Opening
-        if (p.opening) {
-          promises.push(
-            upsertStaffGroupScheduleRuleAction({
-              groupId,
-              dayOfWeek: dow,
-              shiftType: "opening",
-              startTime: shiftTimes.opening.start,
-              endTime: shiftTimes.opening.end,
-              isDayOff: false,
-              isActive: true,
-            })
-          );
-        } else {
-          promises.push(
-            deleteStaffGroupScheduleRuleAction({ groupId, dayOfWeek: dow, shiftType: "opening" })
-          );
+        for (const kind of ALL_SHIFT_KINDS) {
+          const shiftType = getRuleShiftType(kind);
+          const isVisible = visibleKinds.includes(kind);
+          const isActive = isVisible && row[kind] && !row.dayOff;
+
+          if (isActive) {
+            promises.push(
+              upsertStaffGroupScheduleRuleAction({
+                groupId,
+                dayOfWeek: dow,
+                shiftType,
+                startTime: times[kind].start,
+                endTime: times[kind].end,
+                isDayOff: false,
+                isActive: true,
+              })
+            );
+          } else {
+            promises.push(deleteStaffGroupScheduleRuleAction({ groupId, dayOfWeek: dow, shiftType }));
+          }
         }
 
-        // Closing
-        if (p.closing) {
-          promises.push(
-            upsertStaffGroupScheduleRuleAction({
-              groupId,
-              dayOfWeek: dow,
-              shiftType: "closing",
-              startTime: shiftTimes.closing.start,
-              endTime: shiftTimes.closing.end,
-              isDayOff: false,
-              isActive: true,
-            })
-          );
-        } else {
-          promises.push(
-            deleteStaffGroupScheduleRuleAction({ groupId, dayOfWeek: dow, shiftType: "closing" })
-          );
-        }
-
-        // Regular (single)
-        if (p.regular) {
-          promises.push(
-            upsertStaffGroupScheduleRuleAction({
-              groupId,
-              dayOfWeek: dow,
-              shiftType: "single",
-              startTime: shiftTimes.regular.start,
-              endTime: shiftTimes.regular.end,
-              isDayOff: false,
-              isActive: true,
-            })
-          );
-        } else {
-          promises.push(
-            deleteStaffGroupScheduleRuleAction({ groupId, dayOfWeek: dow, shiftType: "single" })
-          );
-        }
-
-        // Day off
-        if (p.dayOff) {
+        if (row.dayOff) {
           promises.push(
             upsertStaffGroupScheduleRuleAction({
               groupId,
@@ -264,537 +330,111 @@ export function GroupScheduleRulesPanel({ selectedGroup, groupData, groupRules }
       }
 
       const results = await Promise.all(promises);
-      const failed = results.filter((r) => (r as { success: boolean }).success === false);
+      const failed = results.find((result) => !result.success);
 
-      if (failed.length > 0) {
-        setFeedback("Some rules failed to save. Please try again.");
-      } else {
-        setFeedback("Schedule rules saved successfully.");
-        setDirty(false);
-        setEditingTimes(false);
+      if (failed) {
+        setFeedback({ tone: "error", message: failed.error ?? "Some rules failed to save." });
+        return;
       }
 
+      setDirty(false);
+      setEditingTimes(false);
+      setFeedback({ tone: "success", message: "Group schedule rules saved." });
       window.setTimeout(() => setFeedback(null), 3000);
     });
-  }, [groupId, pattern, shiftTimes]);
-
-  const resetPattern = useCallback(() => {
-    setPattern(rulesToPattern(groupRules));
-    setShiftTimes(extractShiftTimes(groupRules));
-    setEditingTimes(false);
-    setDirty(false);
-  }, [groupRules]);
-
-  // Summary rows — derived from current pattern + times state
-  const summaryRows = [
-    {
-      label: "Opening Shift",
-      days: formatDayList(
-        SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.opening).map((d) => dayAbbr(d.label))
-      ),
-      time: formatShiftTimeRange(shiftTimes.opening.start, shiftTimes.opening.end),
-      dot: "var(--cs-success)",
-    },
-    {
-      label: "Closing Shift",
-      days: formatDayList(
-        SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.closing).map((d) => dayAbbr(d.label))
-      ),
-      time: formatShiftTimeRange(shiftTimes.closing.start, shiftTimes.closing.end),
-      dot: "var(--cs-info)",
-    },
-    {
-      label: "Regular Shift",
-      days: formatDayList(
-        SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.regular).map((d) => dayAbbr(d.label))
-      ),
-      time: formatShiftTimeRange(shiftTimes.regular.start, shiftTimes.regular.end),
-      dot: "var(--cs-sand)",
-    },
-    {
-      label: "Day Off",
-      days: formatDayList(
-        SCHEDULE_DAYS.filter((d) => pattern[d.dow]?.dayOff).map((d) => dayAbbr(d.label))
-      ),
-      time: "All day",
-      dot: "var(--cs-text-subtle)",
-    },
-  ];
-
-  const hasOpening = SCHEDULE_DAYS.some((d) => pattern[d.dow]?.opening);
-  const hasClosing = SCHEDULE_DAYS.some((d) => pattern[d.dow]?.closing);
-  const hasOverlap = hasOpening && hasClosing;
-  const overlapLabel = hasOverlap
-    ? computeOverlap(shiftTimes.opening, shiftTimes.closing)
-    : null;
-
-  const badges = activeShiftBadges(pattern, shiftTimes);
+  }, [groupId, pattern, times, visibleKinds]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {/* ── Main card ── */}
-      <div
-        style={{
-          background: "var(--cs-surface)",
-          border: "1px solid var(--cs-border-soft)",
-          borderRadius: "var(--cs-r-lg)",
-          padding: "16px 20px",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: 12,
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          <div>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--cs-text)", margin: 0 }}>
-              {groupLabel} — Weekly Rules
-            </h2>
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--cs-text-muted)",
-                marginTop: 4,
-                marginBottom: 0,
-              }}
-            >
-              Default weekly pattern for this staff group. Use Individual Adjustments for special
-              cases.
-            </p>
+    <div className="space-y-5">
+      <section className="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-900">
+              <Clock className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-stone-950">{config.label} - Weekly Rules</h2>
+              <p className="mt-1 text-sm font-medium text-stone-500">
+                {staffCount} staff member{staffCount === 1 ? "" : "s"} · {config.subtitle}
+              </p>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            {dirty && (
-              <>
-                <button
-                  type="button"
-                  onClick={savePattern}
-                  disabled={isPending || !groupId}
-                  className="cs-btn cs-btn-primary cs-btn-sm"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-                >
-                  <Save size={13} />
-                  Save Rules
-                </button>
-                <button
-                  type="button"
-                  onClick={resetPattern}
-                  disabled={isPending}
-                  className="cs-btn cs-btn-secondary cs-btn-sm"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-                >
-                  <RotateCcw size={13} />
-                  Reset
-                </button>
-              </>
-            )}
-          </div>
-        </div>
 
-        {/* Feedback banner */}
-        {feedback && (
-          <div
-            style={{
-              marginBottom: 12,
-              padding: "8px 12px",
-              borderRadius: "var(--cs-r-sm)",
-              fontSize: 12,
-              fontWeight: 500,
-              background: feedback.includes("failed")
-                ? "var(--cs-error-bg)"
-                : "var(--cs-success-bg)",
-              color: feedback.includes("failed")
-                ? "var(--cs-error-text)"
-                : "var(--cs-success-text)",
-            }}
-          >
-            {feedback}
-          </div>
-        )}
-
-        {/* Shift badges + "Edit Times" toggle */}
-        {badges.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 6,
-              marginBottom: 10,
-            }}
-          >
-            {badges.map((b) => {
-              const s = SHIFT_STYLE[b.type] ?? SHIFT_STYLE.regular!;
-              return (
-                <div
-                  key={b.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "4px 10px",
-                    borderRadius: "var(--cs-r-sm)",
-                    background: s.bg,
-                    fontSize: 11,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      background: s.dot,
-                      flexShrink: 0,
-                      display: "inline-block",
-                    }}
-                  />
-                  <span style={{ fontWeight: 600, color: s.badge }}>{b.label}</span>
-                  <span style={{ color: "var(--cs-text-muted)" }}>
-                    {formatShiftTimeRange(b.startTime, b.endTime)}
-                  </span>
-                </div>
-              );
-            })}
-
-            {/* Edit Times button */}
-            <button
+          <div className="flex flex-wrap gap-2">
+            <Button
               type="button"
-              onClick={() => setEditingTimes((v) => !v)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 11,
-                padding: "4px 10px",
-                borderRadius: "var(--cs-r-sm)",
-                border: editingTimes
-                  ? "1px solid var(--cs-sand)"
-                  : "1px solid var(--cs-border)",
-                background: editingTimes ? "var(--cs-sand-tint)" : "transparent",
-                color: editingTimes ? "var(--cs-sand-dark)" : "var(--cs-text-muted)",
-                cursor: "pointer",
-                fontWeight: 500,
-              }}
+              variant="outline"
+              className="border-emerald-200 bg-white/80 text-emerald-900 hover:bg-emerald-50"
+              onClick={() => setEditingTimes((current) => !current)}
             >
-              <Clock size={11} />
+              <Clock className="size-4" />
               {editingTimes ? "Done Editing" : "Edit Times"}
-            </button>
-          </div>
-        )}
-
-        {/* Inline time editor */}
-        {editingTimes && (
-          <div
-            style={{
-              marginBottom: 14,
-              padding: "12px 14px",
-              background: "var(--cs-surface-warm)",
-              borderRadius: "var(--cs-r-md)",
-              border: "1px solid var(--cs-border-soft)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: "var(--cs-text)",
-                marginBottom: 10,
-              }}
+            </Button>
+            <Button
+              type="button"
+              disabled={!dirty || isPending}
+              className="bg-emerald-900 text-white hover:bg-emerald-800"
+              onClick={savePattern}
             >
-              Shift Times — saved together with the weekly pattern
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {(["opening", "closing", "regular"] as const).map((k) => {
-                const label =
-                  k === "opening" ? "Opening" : k === "closing" ? "Closing" : "Regular";
-                const t = shiftTimes[k];
-                const s = SHIFT_STYLE[k] ?? SHIFT_STYLE.regular!;
-                return (
-                  <div
-                    key={k}
-                    style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
-                  >
-                    <span
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        background: s.dot,
-                        flexShrink: 0,
-                        display: "inline-block",
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: "var(--cs-text)",
-                        minWidth: 70,
-                      }}
-                    >
-                      {label}
-                    </span>
-                    <input
-                      type="time"
-                      value={t.start}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setShiftTimes((prev) => ({
-                          ...prev,
-                          [k]: { ...prev[k], start: val },
-                        }));
-                        setDirty(true);
-                      }}
-                      style={{
-                        fontSize: 12,
-                        padding: "3px 8px",
-                        borderRadius: "var(--cs-r-sm)",
-                        border: "1px solid var(--cs-border)",
-                        background: "var(--cs-surface)",
-                        color: "var(--cs-text)",
-                      }}
-                    />
-                    <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>–</span>
-                    <input
-                      type="time"
-                      value={t.end}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setShiftTimes((prev) => ({
-                          ...prev,
-                          [k]: { ...prev[k], end: val },
-                        }));
-                        setDirty(true);
-                      }}
-                      style={{
-                        fontSize: 12,
-                        padding: "3px 8px",
-                        borderRadius: "var(--cs-r-sm)",
-                        border: "1px solid var(--cs-border)",
-                        background: "var(--cs-surface)",
-                        color: "var(--cs-text)",
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Weekly Pattern heading */}
-        <div style={{ marginBottom: 4 }}>
-          <div
-            style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)", marginBottom: 8 }}
-          >
-            Weekly Pattern
-          </div>
-          {dirty && (
-            <div
-              style={{
-                fontSize: 10,
-                color: "var(--cs-sand-dark)",
-                background: "var(--cs-sand-mist)",
-                borderRadius: "var(--cs-r-sm)",
-                padding: "5px 10px",
-                marginBottom: 8,
-                display: "inline-block",
-              }}
-            >
-              You have unsaved changes. Click Save Rules to persist.
-            </div>
-          )}
-        </div>
-
-        {/* Matrix */}
-        <div style={{ overflowX: "auto" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "100px 1fr 1fr 1fr 1fr",
-              minWidth: 380,
-            }}
-          >
-            {["Day", "Opening", "Closing", "Regular", "Day Off"].map((h) => (
-              <div
-                key={h}
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "var(--cs-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  padding: "6px 4px",
-                  borderBottom: "1px solid var(--cs-border)",
-                }}
-              >
-                {h}
-              </div>
-            ))}
-            {SCHEDULE_DAYS.map(({ dow, label }, rowIdx) => {
-              const dp = pattern[dow] ?? {
-                opening: false,
-                closing: false,
-                regular: false,
-                dayOff: false,
-              };
-              const border =
-                rowIdx < SCHEDULE_DAYS.length - 1
-                  ? "1px solid var(--cs-border-soft)"
-                  : "none";
-              return (
-                <div key={dow} style={{ display: "contents" }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--cs-text)",
-                      padding: "8px 4px",
-                      borderBottom: border,
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    {label}
-                  </div>
-                  {(["opening", "closing", "regular", "dayOff"] as const).map((field) => (
-                    <div
-                      key={`${dow}-${field}`}
-                      style={{
-                        padding: "8px 4px",
-                        borderBottom: border,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={dp[field]}
-                        onChange={() => toggle(dow, field)}
-                        style={{ width: 16, height: 16, cursor: "pointer" }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
+              <Save className="size-4" />
+              {isPending ? "Saving..." : "Save Rules"}
+            </Button>
+            <Button type="button" variant="outline" disabled={isPending} onClick={resetPanel}>
+              <RotateCcw className="size-4" />
+              Reset
+            </Button>
           </div>
         </div>
 
-        {/* Schedule Summary */}
-        <div
-          style={{
-            marginTop: "1rem",
-            padding: 12,
-            background: "var(--cs-surface-warm)",
-            borderRadius: "var(--cs-r-md)",
-            border: "1px solid var(--cs-border-soft)",
-          }}
-        >
-          <div
-            style={{ fontSize: 12, fontWeight: 600, color: "var(--cs-text)", marginBottom: 6 }}
-          >
-            Schedule Summary
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {summaryRows.map((row, idx) => (
-              <div
-                key={row.label}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "3px 0",
-                  borderBottom:
-                    idx < summaryRows.length - 1 ? "1px solid var(--cs-border-soft)" : "none",
-                }}
-              >
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: row.dot,
-                    display: "inline-block",
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: "var(--cs-text)",
-                    width: 90,
-                  }}
-                >
-                  {row.label}
-                </span>
-                <span style={{ fontSize: 11, color: "var(--cs-text-muted)", flex: 1 }}>
-                  {row.days}
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "var(--cs-text-subtle)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.time}
-                </span>
-              </div>
-            ))}
-          </div>
+        <p className="mt-6 max-w-3xl text-sm leading-6 text-stone-600">{config.description}</p>
 
-          {hasOverlap && (
-            <div
-              style={{
-                marginTop: 10,
-                padding: "8px 10px",
-                background: "var(--cs-success-bg)",
-                borderRadius: "var(--cs-r-sm)",
-                border: "1px solid rgba(90,138,106,0.2)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 2,
-                }}
-              >
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--cs-success)" }}>
-                  Overlap Window
-                </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    padding: "2px 8px",
-                    background: "var(--cs-success)",
-                    color: "#fff",
-                    borderRadius: "var(--cs-r-pill)",
-                  }}
-                >
-                  High Coverage
-                </span>
-              </div>
-              {overlapLabel ? (
-                <span style={{ fontSize: 11, color: "var(--cs-text)" }}>{overlapLabel}</span>
-              ) : (
-                <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>
-                  No overlap — opening and closing shifts don&apos;t share any hours
-                </span>
-              )}
-            </div>
-          )}
+        {feedback ? (
+          <div
+            className={
+              feedback.tone === "success"
+                ? "mt-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900"
+                : "mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
+            }
+          >
+            {feedback.message}
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          {visibleKinds.map((kind) => (
+            <ShiftDefinitionCard
+              key={kind}
+              kind={kind}
+              groupId={selectedGroup}
+              times={times}
+              onEditTime={() => setEditingTimes(true)}
+            />
+          ))}
         </div>
+      </section>
+
+      {editingTimes ? (
+        <TimeEditor visibleKinds={visibleKinds} times={times} onChange={handleTimeChange} />
+      ) : null}
+
+      <WeeklyRuleMatrix
+        pattern={pattern}
+        visibleKinds={visibleKinds}
+        onToggle={handleToggle}
+        description="Set which shifts are active for each day."
+      />
+
+      <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <Info className="mt-0.5 size-4 shrink-0" />
+        <p>
+          <span className="font-bold">Tip:</span>{" "}
+          {config.mode === "opening_closing"
+            ? `Changes here affect the default weekly pattern for all ${config.label} staff unless overridden in Individual Adjustments.`
+            : "This group uses regular working hours. Use Individual Adjustments only for special cases."}
+        </p>
       </div>
+
+      <ScheduleSummary pattern={pattern} times={times} visibleKinds={visibleKinds} />
     </div>
   );
 }
