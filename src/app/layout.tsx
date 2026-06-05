@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { DM_Sans, Playfair_Display, Cormorant_Garamond } from "next/font/google";
+import {
+  Cormorant_Garamond,
+  DM_Sans,
+  Manrope,
+  Playfair_Display,
+} from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -32,6 +37,12 @@ const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
   weight: ["300", "400", "500", "600"],
   style: ["normal", "italic"],
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -102,7 +113,7 @@ export default function RootLayout({
         <OrganizationJsonLd />
         <WebSiteJsonLd />
       </head>
-      <body className={`${dmSans.variable} ${playfair.variable} ${cormorant.variable} font-sans antialiased`}>
+      <body className={`${dmSans.variable} ${playfair.variable} ${cormorant.variable} ${manrope.variable} font-sans antialiased`}>
         {children}
         <Toaster position="top-right" richColors />
         <SpeedInsights />

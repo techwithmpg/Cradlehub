@@ -1,5 +1,9 @@
 export const SPA_IMAGES = {
   hero:            "/images/spa/hero.jpg",
+  heroMobile:      "/images/spa/hero-mobile.jpg",
+  heroWide:        "/images/spa/hero-wide.jpg",
+  heroAmbience:    "/images/spa/hero-ambience.jpg",
+  heroSupportingMassage: "/images/spa/hero-supporting-massage.jpg",
   heroPortrait:    "/images/spa/hero-portrait.jpg",
   about:           "/images/spa/about.jpg",
   aboutSecondary:  "/images/spa/about-secondary.jpg",

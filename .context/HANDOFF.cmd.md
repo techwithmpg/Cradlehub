@@ -1,3 +1,34 @@
+# HANDOFF - BOOKING-THERAPIST-DROPDOWN-001 Public Booking Therapist Dropdown: COMPLETE
+
+## Status
+
+Build verified. 98 routes. The public booking Select therapist step now uses a compact dropdown-only provider picker while preserving the existing booking state and submission logic.
+
+## What changed
+
+- Added focused therapist picker components under `src/components/features/booking/therapist-picker/`.
+- Replaced the large therapist card grid in `src/components/public/booking-wizard.tsx` with a dropdown-only picker.
+- Kept `Any available provider` as the recommended default using the existing `"auto"` convention.
+- Specific therapist selections still submit through the existing staff id path.
+- Clear resets back to `Any available provider`.
+- Booking summary now updates dynamically for both Any available provider and specific therapist selections.
+- No booking backend logic, status rules, API contracts, tables, or fake provider data were changed.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- `/book` route smoke check returned HTTP 200 on the local dev server.
+- Targeted scans found no TypeScript `any` in the touched picker/wizard paths, no inline styles or `@ts-ignore` in the new therapist-picker files, no therapist-step search UI, and no old large-card grid markers. Existing inline styles remain elsewhere in the older booking wizard outside this picker scope.
+
+## Follow-up
+
+Authenticated/manual visual QA can still be run in-browser through the full public booking flow to confirm final spacing with live service/location/staff data.
+
+---
+
 # HANDOFF - SCHEDULE-RULE-BUILDER-UI-001 Schedule Rule Builder UI: COMPLETE
 
 ## Status

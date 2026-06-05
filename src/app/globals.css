@@ -403,7 +403,7 @@ a:focus-visible,
 
   --sp-font-display: var(--font-playfair), 'Playfair Display', Georgia, serif;
   --sp-font-accent:  var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
-  --sp-font-body:    var(--font-dm-sans), 'DM Sans', system-ui, sans-serif;
+  --sp-font-body:    var(--font-manrope), 'Manrope', var(--font-dm-sans), system-ui, sans-serif;
 
   --sp-shadow-sm: 0 2px 12px rgba(22, 58, 43, 0.06);
   --sp-shadow-md: 0 8px 32px rgba(22, 58, 43, 0.09);
@@ -446,6 +446,141 @@ a:focus-visible,
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
+  }
+}
+
+@keyframes cradleHeroCrossfade {
+  0%, 26% { opacity: 1; }
+  33%, 93% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes cradleHeroZoom {
+  from { transform: scale(1.04); }
+  to { transform: scale(1.1); }
+}
+
+@keyframes cradleSoftFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes cradleBreathRevealExit {
+  0%, 78% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes cradleBreathGlow {
+  0% { opacity: 0.5; transform: scale(0.92); }
+  48% { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 0.35; transform: scale(1.16); }
+}
+
+@keyframes cradleBreathCopyOne {
+  0%, 16% { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  25%, 42% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  52%, 100% { opacity: 0; transform: translateY(-8px); filter: blur(4px); }
+}
+
+@keyframes cradleBreathCopyTwo {
+  0%, 42% { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  54%, 70% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  82%, 100% { opacity: 0; transform: translateY(-8px); filter: blur(4px); }
+}
+
+@keyframes cradleBreathCopyThree {
+  0%, 68% { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  78%, 92% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-8px); filter: blur(4px); }
+}
+
+.cradle-hero-slide {
+  opacity: 0;
+  animation: cradleHeroCrossfade 30s ease-in-out infinite;
+}
+
+.cradle-hero-slide-one { opacity: 1; animation-delay: 0s; }
+.cradle-hero-slide-two { animation-delay: 10s; }
+.cradle-hero-slide-three { animation-delay: 20s; }
+
+.cradle-hero-image {
+  transform: scale(1.04);
+  animation: cradleHeroZoom 10s ease-in-out infinite alternate;
+}
+
+.cradle-hero-fade {
+  opacity: 0;
+  animation: cradleSoftFadeUp 0.9s var(--sp-ease) forwards;
+}
+
+.cradle-hero-fade:nth-child(1) { animation-delay: 0.25s; }
+.cradle-hero-fade:nth-child(2) { animation-delay: 0.38s; }
+.cradle-hero-fade:nth-child(3) { animation-delay: 0.52s; }
+.cradle-hero-fade:nth-child(4) { animation-delay: 0.66s; }
+.cradle-hero-fade:nth-child(5) { animation-delay: 0.82s; }
+.cradle-hero-copy + .cradle-hero-fade { animation-delay: 0.98s; }
+
+.cradle-breath-reveal {
+  animation: cradleBreathRevealExit 2.4s ease forwards;
+}
+
+.cradle-breath-reveal > div:nth-child(2) {
+  animation: cradleBreathGlow 2.4s ease forwards;
+}
+
+.cradle-breath-logo {
+  opacity: 0;
+  animation: cradleSoftFadeUp 0.85s var(--sp-ease) 0.18s forwards;
+}
+
+.cradle-breath-copy {
+  position: absolute;
+  inset-inline: 0;
+  opacity: 0;
+}
+
+.cradle-breath-copy-one { animation: cradleBreathCopyOne 2.4s ease forwards; }
+.cradle-breath-copy-two { animation: cradleBreathCopyTwo 2.4s ease forwards; }
+.cradle-breath-copy-three { animation: cradleBreathCopyThree 2.4s ease forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cradle-hero-slide,
+  .cradle-hero-image,
+  .cradle-hero-fade,
+  .cradle-breath-reveal,
+  .cradle-breath-reveal > div:nth-child(2),
+  .cradle-breath-logo,
+  .cradle-breath-copy-one,
+  .cradle-breath-copy-two,
+  .cradle-breath-copy-three {
+    animation: none !important;
+  }
+
+  .cradle-breath-reveal {
+    display: none !important;
+  }
+
+  .cradle-hero-slide { opacity: 0; }
+  .cradle-hero-slide-one { opacity: 1; }
+  .cradle-hero-image {
+    transform: none !important;
+  }
+  .cradle-hero-fade,
+  .cradle-breath-logo {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .cradle-breath-copy-one {
+    opacity: 1 !important;
   }
 }
 

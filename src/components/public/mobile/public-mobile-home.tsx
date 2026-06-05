@@ -6,6 +6,7 @@ import { SPA_IMAGES } from "@/constants/spa-images";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { Database } from "@/types/supabase";
+import { CradleBreathReveal } from "./cradle-breath-reveal";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
 import { MobileExperienceGrid } from "./mobile-experience-grid";
 import { FaqAccordion } from "../faq-accordion";
@@ -52,6 +53,7 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
 
   return (
     <div className="md:hidden bg-[#F8F2E7] pb-12 text-[#022316]">
+      <CradleBreathReveal />
 
       {/* ── Hero Carousel ─────────────────────────────────────────────────── */}
       <MobileHomeHeroCarousel />

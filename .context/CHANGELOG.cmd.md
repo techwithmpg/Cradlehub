@@ -4412,3 +4412,42 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - Authenticated visual QA still needs a valid CRM/manager session because protected schedule setup routes redirect unauthenticated traffic to `/login` and no in-app browser navigation/screenshot tool was exposed in this turn.
+
+---
+
+## 2026-06-05 - Codex (BOOKING-THERAPIST-DROPDOWN-001 - Public Booking Therapist Dropdown)
+
+**Task:** Replace the public booking Select therapist card grid with a compact dropdown-only provider picker while preserving existing booking behavior.
+
+**Files Created:**
+- `src/components/features/booking/therapist-picker/therapist-picker-types.ts` - shared picker value, option, and staff data types.
+- `src/components/features/booking/therapist-picker/therapist-picker-utils.ts` - Any provider option, initials, labels, and option-building helpers.
+- `src/components/features/booking/therapist-picker/therapist-availability-badge.tsx` - compact availability/recommendation badge.
+- `src/components/features/booking/therapist-picker/therapist-dropdown-option-row.tsx` - dropdown row for Any provider and therapist options.
+- `src/components/features/booking/therapist-picker/any-provider-option-card.tsx` - recommended Any available provider default panel.
+- `src/components/features/booking/therapist-picker/therapist-dropdown-picker.tsx` - non-searchable dropdown picker.
+- `src/components/features/booking/therapist-picker/selected-therapist-preview.tsx` - selected therapist preview with Change/Clear actions.
+- `src/components/features/booking/therapist-picker/therapist-selection-step.tsx` - composed Select therapist step UI.
+
+**Files Changed:**
+- `src/components/public/booking-wizard.tsx` - replaced the old therapist card grid with the dropdown-only picker and updated booking summary provider labels.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
+
+**Behavior:**
+- `Any available provider` remains the recommended default and maps to the existing `"auto"` flow.
+- Specific therapist selection sets the existing staff/provider id.
+- Clear resets selection back to `Any available provider`.
+- Booking summary updates dynamically for Any provider and selected therapist states.
+- The therapist step has no search bar/searchable combobox and no large provider card grid.
+- Existing booking backend logic, status rules, API contracts, submission payload shape, tables, and real provider data sources remain unchanged.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF warnings only
+- `/book` route smoke check returned HTTP 200 on the local dev server.
+- Targeted scans found no TypeScript `any` in the touched picker/wizard paths, no inline styles or `@ts-ignore` in the new therapist-picker files, no therapist-step search UI, and no old large-card grid markers. Existing inline styles remain elsewhere in the older booking wizard outside this picker scope.
+
+**Follow-up:**
+- Manual browser QA through the full public booking flow can confirm final visual spacing with live service, location, slot, and provider data.

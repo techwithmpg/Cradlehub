@@ -67,7 +67,9 @@
       "Bash(node -e \"const m = require\\('./node_modules/motion/package.json'\\); console.log\\(m.version, m.exports ? Object.keys\\(m.exports\\).slice\\(0,8\\).join\\(', '\\) : 'no exports'\\)\")",
       "Bash(pnpm dlx *)",
       "Bash(git log *)",
-      "Bash(awk '/^\\\\s+staff: \\\\{/,/^\\\\s+\\\\}$/' src/types/supabase.ts)"
+      "Bash(awk '/^\\\\s+staff: \\\\{/,/^\\\\s+\\\\}$/' src/types/supabase.ts)",
+      "Bash(mkdir -p \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\map\" \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\jobs\" \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\jobs\\\\active\" \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\jobs\\\\[bookingId]\")",
+      "Bash(git remote *)"
     ]
   },
   "enableAllProjectMcpServers": true,
