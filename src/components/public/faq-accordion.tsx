@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { MobileFadeUp } from "@/components/public/mobile/mobile-scroll-effects";
 
 export type FaqItem = {
   question: string;
@@ -10,9 +11,10 @@ export type FaqItem = {
 
 type Props = {
   items: FaqItem[];
+  revealItems?: boolean;
 };
 
-export function FaqAccordion({ items }: Props) {
+export function FaqAccordion({ items, revealItems = false }: Props) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   function toggle(index: number) {
@@ -23,11 +25,10 @@ export function FaqAccordion({ items }: Props) {
     <div className="flex flex-col">
       {items.map((item, index) => {
         const isOpen = openIndex === index;
-        return (
-          <div
-            key={item.question}
-            className="border-b border-[#E8D5A3]/25 last:border-b-0"
-          >
+        const borderClass =
+          index < items.length - 1 ? "border-b border-[#E8D5A3]/25" : "";
+        const itemContent = (
+          <div className={borderClass}>
             <button
               type="button"
               onClick={() => toggle(index)}
@@ -59,6 +60,14 @@ export function FaqAccordion({ items }: Props) {
                 </p>
               </div>
             </div>
+          </div>
+        );
+
+        return revealItems ? (
+          <MobileFadeUp key={item.question}>{itemContent}</MobileFadeUp>
+        ) : (
+          <div key={item.question} className="contents">
+            {itemContent}
           </div>
         );
       })}

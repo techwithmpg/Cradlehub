@@ -1,3 +1,76 @@
+# HANDOFF - PUBLIC-MOBILE-HOME-REVEAL-FIX-001 Mobile Loading and Hero Overlay Refinement: COMPLETE
+
+## Status
+
+Build verified. 98 routes. The public mobile homepage now uses a branded Cradle loading bridge before the reveal, preloads only the first mobile hero image, and renders the hero photo with a lighter targeted overlay.
+
+## What changed
+
+- Replaced the root `src/app/loading.tsx` generic gray skeleton with a deep-green Cradle fallback.
+- Kept dashboard/staff/driver/CRM loading skeletons intact; those deeper route loading files still override the root fallback.
+- Updated `CradleBreathReveal` so it starts in a client-side checking state and only renders the reveal when it should actually play.
+- Switched first hero image loading from deprecated `priority` to Next 16 `preload` on only `hero-mobile.jpg`.
+- Left `hero-wide.jpg` and `hero-ambience.jpg` as normal non-preloaded secondary slides.
+- Replaced the heavy full-screen overlay with targeted gradients:
+  - top vignette `rgba(6,25,18,0.42) -> 0.18 -> 0`
+  - bottom gradient max `rgba(4,17,12,0.78)`
+  - text-area vignette `rgba(6,25,18,0.44) -> 0.16 -> 0`
+  - warm glow max `rgba(200,169,106,0.16)`
+- Added text shadow to the hero copy to maintain readability without washing out the image.
+- Left homepage sections below the hero and all booking/CRM/admin/staff/driver logic unchanged.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- Headless Chrome mobile reveal screenshot captured at `.tmp/home-mobile-reveal-after-fix.png`.
+- Headless Chrome mobile post-reveal hero screenshot captured at `.tmp/home-mobile-after-fix.png`.
+- Rendered stream includes `Loading Cradle Wellness Living` branded fallback markup instead of the old skeleton blocks.
+
+## Notes
+
+- The existing local Next dev server was already running on `http://localhost:3000`; the attempted second server on port 3001 correctly refused because Next detected the existing process.
+- Tool discovery did not expose an in-app browser screenshot tool in this turn, so visual verification used local headless Chrome.
+
+---
+
+# HANDOFF - PUBLIC-MOBILE-HOME-REVEAL-001 Cradle Breath Reveal and Mobile Hero: COMPLETE
+
+## Status
+
+Build verified. 98 routes. The public mobile homepage now opens with a calm Cradle Breath Reveal and transitions into a premium real-photo hero using the requested Cradle assets.
+
+## What changed
+
+- Added `CradleBreathReveal` for a once-per-session mobile-only homepage reveal.
+- Rebuilt the mobile homepage hero as a stable-copy, CSS-driven slow crossfade with gentle Ken Burns image movement.
+- Added Manrope through `next/font/google` and used the Cormorant/Manrope pairing only in the public spa presentation layer.
+- Added optimized real Cradle hero images at:
+  - `public/images/spa/hero-mobile.jpg`
+  - `public/images/spa/hero-wide.jpg`
+  - `public/images/spa/hero-ambience.jpg`
+  - `public/images/spa/hero-supporting-massage.jpg`
+- Extended `SPA_IMAGES` with the new hero asset paths.
+- Mounted the reveal only from the mobile public homepage path.
+- Left booking logic, Supabase logic, database schema, server actions, authentication, RBAC, CRM/admin/staff/driver portals, route behavior, and homepage sections below the hero unchanged.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- Headless Chrome mobile screenshots captured at 390x844 for reveal dissolve, post-reveal hero, and a later room/trust slide on `http://localhost:3001`.
+- HTTP smoke check confirmed the homepage rendered the new hero copy and image paths.
+- Targeted scan found no `any`, `@ts-ignore`, or console logs in the touched reveal/hero/font/image files.
+
+## Notes
+
+- Old desktop/lower-section public images remain outside this scope because this task explicitly did not redesign the desktop homepage or sections below the mobile hero.
+- The dev server emitted existing Next/Image `sizes` warnings for older unchanged `hero.jpg` and `cta-banner.jpg` usage in non-hero/lower-section surfaces.
+
+---
+
 # HANDOFF - BOOKING-THERAPIST-DROPDOWN-001 Public Booking Therapist Dropdown: COMPLETE
 
 ## Status

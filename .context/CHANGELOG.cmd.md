@@ -4451,3 +4451,76 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - Manual browser QA through the full public booking flow can confirm final visual spacing with live service, location, slot, and provider data.
+
+---
+
+## 2026-06-05 - Codex (PUBLIC-MOBILE-HOME-REVEAL-001 - Cradle Breath Reveal and Mobile Hero)
+
+**Task:** Enhance only the public mobile homepage first-load experience with a Cradle Breath Reveal and premium real-photo hero using the uploaded Cradle images.
+
+**Files Created:**
+- `src/components/public/mobile/cradle-breath-reveal.tsx` - mobile-only once-per-session Cradle Breath Reveal client component.
+- `public/images/spa/hero-mobile.jpg` - optimized `LAB08869.jpg`, first mobile hero image.
+- `public/images/spa/hero-wide.jpg` - optimized `LAB08817.jpg`, room/trust hero slide.
+- `public/images/spa/hero-ambience.jpg` - optimized `LAB08693 (1).jpg`, ambience hero slide.
+- `public/images/spa/hero-supporting-massage.jpg` - optimized `LAB08871.jpg`, optional supporting image.
+
+**Files Changed:**
+- `src/components/public/mobile/mobile-home-hero-carousel.tsx` - replaced the fast carousel with stable hero copy, real Cradle slides, slow CSS crossfade, and gentle Ken Burns zoom.
+- `src/components/public/mobile/public-mobile-home.tsx` - mounted `CradleBreathReveal` above the mobile hero.
+- `src/app/layout.tsx` - added Manrope through `next/font/google`.
+- `src/app/globals.css` - added public hero/reveal keyframes and updated the public spa body font variable to Manrope.
+- `src/constants/spa-images.ts` - added the new hero image constants.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
+
+**Behavior:**
+- Mobile homepage shows Cradle Breath Reveal once per browser session using `cradle_mobile_home_reveal_seen`.
+- Reveal is mounted only on the public mobile homepage and skips desktop/reduced-motion/session-seen states.
+- Mobile hero first slide is `hero-mobile.jpg` from `LAB08869.jpg`.
+- Second slide is `hero-wide.jpg`; third slide is `hero-ambience.jpg`.
+- Hero copy remains stable across slides: Bacolod Wellness Spa, Rest. Renew. Rejuvenate., requested subtitle, Book Appointment, View Services, and the trust line.
+- Book Appointment still links to `/book`; View Services still links to `/services`.
+- Homepage sections below the hero remain unchanged.
+- Booking, Supabase, schema, server actions, CRM/admin/staff/driver portals, authentication, RBAC, and route behavior were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- Headless Chrome mobile screenshots captured at 390x844 for reveal dissolve, post-reveal hero, and a later room/trust slide on `http://localhost:3001`.
+- HTTP smoke check confirmed the new homepage hero copy and image paths rendered.
+- Targeted scan found no `any`, `@ts-ignore`, or console logs in the touched reveal/hero/font/image files.
+
+**Follow-up:**
+- Existing desktop/lower-section image `sizes` warnings for older `hero.jpg` and `cta-banner.jpg` remain outside this scoped mobile hero task.
+
+---
+
+## 2026-06-05 - Codex (PUBLIC-MOBILE-HOME-REVEAL-FIX-001 - Mobile Loading and Hero Overlay Refinement)
+
+**Task:** Fix the public mobile homepage so the old generic loading skeleton no longer appears before the Cradle reveal, the first hero image is ready when the reveal ends, and the hero photo is not washed out by a heavy overlay.
+
+**Files Changed:**
+- `src/app/loading.tsx` - replaced the root gray skeleton fallback with a lightweight branded Cradle loading bridge using deep forest green, cream, and warm gold.
+- `src/components/public/mobile/cradle-breath-reveal.tsx` - changed reveal state from immediate visible/default-dismissed behavior to an explicit checking/showing/hidden state so repeat sessions do not flash the reveal overlay.
+- `src/components/public/mobile/mobile-home-hero-carousel.tsx` - changed the first hero image to Next 16 `preload={true}` behavior, left secondary slides unpreloaded, and replaced the heavy full-screen overlay with targeted top/text/bottom gradients plus a subtle warm glow.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - updated Codex task records.
+
+**Behavior:**
+- Public route streaming now starts with Cradle-branded loading instead of generic skeleton blocks.
+- `hero-mobile.jpg` is the only preloaded mobile hero slide; `hero-wide.jpg` and `hero-ambience.jpg` remain normal secondary carousel images.
+- Overlay moved from one full-screen green wash (`0.38 -> 0.66 -> 0.96`) to localized layers: top `0.42 -> 0.18 -> 0`, bottom max `0.78`, text-area `0.44 -> 0.16 -> 0`, and warm glow max `0.16`.
+- The hero image remains visible behind the copy with warmer skin tones and less green wash.
+- Homepage sections below the hero remain unchanged.
+- Booking, Supabase, schema, server actions, CRM/admin/staff/driver portals, authentication, RBAC, and route behavior were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- Headless Chrome mobile screenshot at 390x844 captured the branded reveal state on `http://localhost:3000`.
+- Headless Chrome mobile screenshot at 390x844 captured the post-reveal hero with the photo visible and no gray skeleton shell.
+- Rendered stream check confirmed the new `Loading Cradle Wellness Living` fallback markup is emitted.
+
+**Follow-up:**
+- The Browser plugin navigation/screenshot tool was not exposed in this turn, so screenshots were captured with local headless Chrome instead.

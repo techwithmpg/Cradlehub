@@ -291,3 +291,44 @@
 - **Symptom:** During local dev-server smoke testing, `/book` loaded with HTTP 200, but one `/api/booking/available-slots` request returned 500 because the underlying availability RPC fetch timed out while connecting to the remote service.
 - **Impact:** The page route and production build passed, but full slot-loading verification was limited by the remote fetch timeout in the local environment.
 - **Resolution:** No code change made because the therapist picker did not change slot-fetching logic. Re-test the full booking flow when the remote backend is reachable.
+
+---
+
+## 2026-06-05 - PUBLIC-MOBILE-HOME-REVEAL-001 pre-flight file note
+
+- **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
+- **Impact:** No implementation blocker; used `.context/*` files, `AGENTS.md`, local Next.js docs in `node_modules/next/dist/docs/`, and the Next.js App Router skill guidance.
+- **Resolution:** No code change required.
+
+## 2026-06-05 - PUBLIC-MOBILE-HOME-REVEAL-001 lint fix
+
+- **Symptom:** Initial `pnpm lint` found one `react-hooks/set-state-in-effect` error in `CradleBreathReveal`.
+- **Impact:** Lint failed until immediate dismiss state updates were moved into browser callbacks.
+- **Resolution:** Changed synchronous effect dismissals to zero-delay timeout callbacks, then re-ran `pnpm type-check`, `pnpm lint`, and `pnpm build` successfully.
+
+## 2026-06-05 - PUBLIC-MOBILE-HOME-REVEAL-001 headless browser sandbox limitation
+
+- **Symptom:** Initial non-escalated Chrome/Edge headless screenshot attempts failed with Windows crashpad/mojo access errors.
+- **Impact:** Visual mobile verification needed an escalated one-time headless Chrome run and a temporary dev server on port 3001.
+- **Resolution:** Captured mobile screenshots successfully after starting the temporary dev server in the same elevated context, then stopped the server.
+
+## 2026-06-05 - PUBLIC-MOBILE-HOME-REVEAL-001 existing image sizes warnings
+
+- **Symptom:** During screenshot verification, the dev server emitted existing Next/Image warnings for older `/images/spa/hero.jpg` and `/images/spa/cta-banner.jpg` usage.
+- **Impact:** No blocker for this scoped mobile hero change; the warnings come from unchanged desktop/lower-section public image surfaces.
+- **Resolution:** No code change made because the task explicitly did not redesign desktop or sections below the mobile hero.
+
+---
+
+## 2026-06-05 - PUBLIC-MOBILE-HOME-REVEAL-FIX-001 root loading shell mismatch
+
+- **Symptom:** Public mobile homepage could show the old generic gray skeleton before the Cradle Breath Reveal.
+- **Impact:** The first-load experience felt disconnected from the new branded reveal/hero.
+- **Root cause:** Root `src/app/loading.tsx` still rendered generic `Skeleton` blocks. Because root `loading.tsx` is the streamed Suspense fallback for the root segment, it can appear before public route content is ready.
+- **Resolution:** Replaced the root fallback with a Cradle-branded deep-green loading bridge. Existing dashboard/staff/driver/CRM route-specific loading files remain in place.
+
+## 2026-06-05 - PUBLIC-MOBILE-HOME-REVEAL-FIX-001 browser tool fallback
+
+- **Symptom:** Tool discovery did not expose an in-app browser navigation/screenshot tool in this turn.
+- **Impact:** Visual QA could not use the Browser plugin directly.
+- **Resolution:** Captured mobile screenshots successfully with local headless Chrome against the already running `http://localhost:3000` dev server.

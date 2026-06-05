@@ -46,7 +46,7 @@ export function MobileHomeHeroCarousel() {
               src={slide.src}
               alt={slide.alt}
               fill
-              priority={index === 0}
+              preload={index === 0}
               className={`cradle-hero-image object-cover ${slide.imageClassName}`}
               sizes="100vw"
             />
@@ -54,12 +54,13 @@ export function MobileHomeHeroCarousel() {
         ))}
       </div>
 
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,25,18,0.38)_0%,rgba(13,43,32,0.66)_42%,rgba(4,17,12,0.96)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_34%,rgba(200,169,106,0.30)_0%,rgba(200,169,106,0.09)_30%,rgba(13,43,32,0)_58%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_84%,rgba(200,169,106,0.20)_0%,rgba(200,169,106,0.06)_26%,rgba(13,43,32,0)_54%)]" />
+      <div className="absolute inset-x-0 top-0 h-44 bg-[linear-gradient(to_bottom,rgba(6,25,18,0.42)_0%,rgba(6,25,18,0.18)_46%,rgba(6,25,18,0)_100%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-[70%] bg-[linear-gradient(to_top,rgba(4,17,12,0.78)_0%,rgba(4,17,12,0.50)_34%,rgba(4,17,12,0.14)_70%,rgba(4,17,12,0)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_72%,rgba(6,25,18,0.44)_0%,rgba(6,25,18,0.16)_38%,rgba(6,25,18,0)_68%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_32%,rgba(200,169,106,0.16)_0%,rgba(200,169,106,0.04)_32%,rgba(200,169,106,0)_60%)]" />
 
       <div className="relative flex min-h-[100svh] flex-col justify-end px-6 pb-[calc(2.25rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))]">
-        <div className="cradle-hero-copy max-w-[330px]">
+        <div className="cradle-hero-copy max-w-[330px] [text-shadow:0_2px_22px_rgba(4,17,12,0.72)]">
           <p className="cradle-hero-fade text-[15px] italic leading-6 text-[#F3E9D2]/92 [font-family:var(--sp-font-accent)]">
             Bacolod Wellness Spa
           </p>

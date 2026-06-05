@@ -6,12 +6,14 @@ import { BrandLogo } from "@/components/shared/brand-logo";
 const STORAGE_KEY = "cradle_mobile_home_reveal_seen";
 const REVEAL_DURATION_MS = 2500;
 
+type RevealState = "checking" | "showing" | "hidden";
+
 export function CradleBreathReveal() {
-  const [dismissed, setDismissed] = useState(false);
+  const [revealState, setRevealState] = useState<RevealState>("checking");
 
   useEffect(() => {
-    const dismissOnNextTask = () => {
-      const timeoutId = window.setTimeout(() => setDismissed(true), 0);
+    const hideOnNextTask = () => {
+      const timeoutId = window.setTimeout(() => setRevealState("hidden"), 0);
       return () => window.clearTimeout(timeoutId);
     };
 
@@ -28,24 +30,31 @@ export function CradleBreathReveal() {
     }
 
     if (isDesktop || prefersReduced || revealSeen) {
-      return dismissOnNextTask();
+      return hideOnNextTask();
     }
 
     try {
       window.sessionStorage.setItem(STORAGE_KEY, "true");
     } catch {
-      return dismissOnNextTask();
+      return hideOnNextTask();
     }
 
-    const timeoutId = window.setTimeout(
-      () => setDismissed(true),
+    const showTimeoutId = window.setTimeout(
+      () => setRevealState("showing"),
+      0
+    );
+    const hideTimeoutId = window.setTimeout(
+      () => setRevealState("hidden"),
       REVEAL_DURATION_MS
     );
 
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      window.clearTimeout(showTimeoutId);
+      window.clearTimeout(hideTimeoutId);
+    };
   }, []);
 
-  if (dismissed) {
+  if (revealState !== "showing") {
     return null;
   }
 

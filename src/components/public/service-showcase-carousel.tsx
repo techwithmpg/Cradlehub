@@ -20,6 +20,8 @@ type ServiceShowcaseCarouselProps = {
   subheading?: string;
   /** Auto-advance interval in ms. Default 10000. */
   autoPlayInterval?: number;
+  /** Preload the first image when the carousel is high on the page. */
+  preloadFirstImage?: boolean;
 };
 
 export function ServiceShowcaseCarousel({
@@ -28,6 +30,7 @@ export function ServiceShowcaseCarousel({
   heading,
   subheading,
   autoPlayInterval = 10000,
+  preloadFirstImage = true,
 }: ServiceShowcaseCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -188,7 +191,7 @@ export function ServiceShowcaseCarousel({
                       src={slide.image}
                       alt={slide.title}
                       fill
-                      priority
+                      preload={preloadFirstImage && i === 0}
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                       sizes="(max-width: 768px) 82vw, 380px"
                     />
