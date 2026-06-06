@@ -270,7 +270,7 @@ export async function HomePageSections({ branches = [] }: HomePageSectionsProps)
             alt="Cradle Massage and Wellness Spa treatment room"
             priority
             className="object-cover opacity-70"
-            sizes="100vw"
+            sizes="(max-width: 767px) 0px, 100vw"
           />
           <div className="absolute inset-0 bg-[#10261D]/55" />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.96)_0%,rgba(16,38,29,0.76)_48%,rgba(16,38,29,0.38)_100%)]" />

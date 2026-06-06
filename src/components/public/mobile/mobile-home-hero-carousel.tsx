@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, Home, MapPin } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
 
 const HERO_SLIDES = [
@@ -22,12 +21,6 @@ const HERO_SLIDES = [
     className: "cradle-hero-slide-three",
     imageClassName: "object-center",
   },
-] as const;
-
-const TRUST_ITEMS = [
-  { icon: MapPin, label: "In-spa care" },
-  { icon: Home, label: "Home service" },
-  { icon: CalendarDays, label: "Two Bacolod branches" },
 ] as const;
 
 export function MobileHomeHeroCarousel() {
@@ -54,25 +47,23 @@ export function MobileHomeHeroCarousel() {
         ))}
       </div>
 
-      <div className="absolute inset-x-0 top-0 h-44 bg-[linear-gradient(to_bottom,rgba(6,25,18,0.42)_0%,rgba(6,25,18,0.18)_46%,rgba(6,25,18,0)_100%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-[70%] bg-[linear-gradient(to_top,rgba(4,17,12,0.78)_0%,rgba(4,17,12,0.50)_34%,rgba(4,17,12,0.14)_70%,rgba(4,17,12,0)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_72%,rgba(6,25,18,0.44)_0%,rgba(6,25,18,0.16)_38%,rgba(6,25,18,0)_68%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_32%,rgba(200,169,106,0.16)_0%,rgba(200,169,106,0.04)_32%,rgba(200,169,106,0)_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_24%,rgba(212,181,122,0.18)_0%,rgba(212,181,122,0.05)_34%,transparent_58%),linear-gradient(90deg,rgba(3,27,22,0.78)_0%,rgba(3,27,22,0.42)_46%,rgba(3,27,22,0.12)_100%),linear-gradient(180deg,rgba(3,27,22,0.12)_0%,rgba(3,27,22,0.78)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_72%,rgba(3,27,22,0.62)_0%,rgba(3,27,22,0.22)_38%,transparent_70%)]" />
 
       <div className="relative flex min-h-[100svh] flex-col justify-end px-6 pb-[calc(2.25rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))]">
         <div className="cradle-hero-copy max-w-[330px] [text-shadow:0_2px_22px_rgba(4,17,12,0.72)]">
-          <p className="cradle-hero-fade text-[15px] italic leading-6 text-[#F3E9D2]/92 [font-family:var(--sp-font-accent)]">
-            Bacolod Wellness Spa
+          <p className="cradle-hero-fade text-[11px] font-semibold uppercase tracking-[0.24em] text-[#D4B57A] [font-family:var(--sp-font-body)]">
+            Cradle Wellness Living
           </p>
-          <h1 className="cradle-hero-fade mt-3 text-[56px] font-semibold leading-[0.94] text-[#F3E9D2] [font-family:var(--sp-font-accent)] min-[390px]:text-[60px]">
-            Rest. Renew.
+          <h1 className="cradle-hero-fade mt-4 text-[58px] font-semibold leading-[0.92] text-[#F6EBD6] [font-family:var(--sp-font-accent)] min-[390px]:text-[62px]">
+            Where calm
             <br />
-            Rejuvenate.
+            meets care.
           </h1>
           <div className="cradle-hero-fade mt-5 h-px w-16 bg-[#C8A96A]" />
-          <p className="cradle-hero-fade mt-5 max-w-[305px] text-[15px] leading-[1.65] text-[#F3E9D2]/86 [font-family:var(--sp-font-body)]">
-            Experience massage, skin care, salon care, and home-service wellness
-            designed for calm recovery.
+          <p className="cradle-hero-fade mt-5 max-w-[315px] text-[15px] leading-[1.65] text-[#F6EBD6]/86 [font-family:var(--sp-font-body)]">
+            A warm wellness experience for tired bodies, quiet minds, and
+            moments that deserve gentle attention.
           </p>
 
           <div className="cradle-hero-fade mt-8 flex flex-col gap-3 min-[360px]:flex-row">
@@ -88,20 +79,6 @@ export function MobileHomeHeroCarousel() {
             >
               View Services
             </Link>
-          </div>
-        </div>
-
-        <div className="cradle-hero-fade mt-8 rounded-full border border-[#F3E9D2]/16 bg-[#061912]/48 px-4 py-3 text-[#F3E9D2]/86 shadow-[0_16px_40px_rgba(0,0,0,0.22)] backdrop-blur-md [font-family:var(--sp-font-body)]">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] font-semibold">
-            {TRUST_ITEMS.map(({ icon: Icon, label }, index) => (
-              <div key={label} className="flex items-center gap-1.5">
-                <Icon className="h-3.5 w-3.5 text-[#C8A96A]" aria-hidden="true" />
-                <span>{label}</span>
-                {index < TRUST_ITEMS.length - 1 ? (
-                  <span className="ml-1 text-[#C8A96A]/70">·</span>
-                ) : null}
-              </div>
-            ))}
           </div>
         </div>
       </div>

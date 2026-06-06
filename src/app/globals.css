@@ -420,6 +420,33 @@ a:focus-visible,
   color: var(--sp-text);
 }
 
+.public-booking-surface input,
+.public-booking-surface textarea,
+.public-booking-surface select,
+.public-booking-surface gmp-place-autocomplete {
+  color-scheme: dark;
+  caret-color: #D4B57A;
+}
+
+.public-booking-surface select,
+.public-booking-surface option {
+  background-color: rgba(5, 36, 29, 0.95);
+  color: #F6EBD6;
+}
+
+.public-booking-surface option:checked {
+  background-color: #D4B57A;
+  color: #031B16;
+}
+
+.public-booking-surface input:-webkit-autofill,
+.public-booking-surface textarea:-webkit-autofill,
+.public-booking-surface select:-webkit-autofill {
+  -webkit-text-fill-color: #F6EBD6;
+  transition: background-color 9999s ease-in-out 0s;
+  box-shadow: 0 0 0px 1000px rgba(5, 36, 29, 0.95) inset;
+}
+
 /* Scroll reveal animations */
 .sp-reveal {
   opacity: 0;
@@ -470,6 +497,32 @@ a:focus-visible,
     opacity: 1;
     transform: translateY(0);
     filter: blur(0);
+  }
+}
+
+@keyframes cradlePublicRouteLoading {
+  0% {
+    opacity: 0.64;
+    transform: translateX(-46%) scaleX(0.28);
+  }
+  48% {
+    opacity: 1;
+    transform: translateX(18%) scaleX(0.72);
+  }
+  100% {
+    opacity: 0.72;
+    transform: translateX(106%) scaleX(0.34);
+  }
+}
+
+@keyframes cradlePublicRouteComplete {
+  from {
+    opacity: 1;
+    transform: translateX(0) scaleX(0.72);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(0) scaleX(1);
   }
 }
 
@@ -528,17 +581,46 @@ a:focus-visible,
 .cradle-hero-fade:nth-child(5) { animation-delay: 0.82s; }
 .cradle-hero-copy + .cradle-hero-fade { animation-delay: 0.98s; }
 
+.public-route-loading-track {
+  top: env(safe-area-inset-top, 0px);
+  background: rgba(6, 25, 18, 0.08);
+}
+
+.public-route-loading-line {
+  height: 100%;
+  transform-origin: left center;
+  background: linear-gradient(
+    90deg,
+    rgba(212, 181, 122, 0),
+    #D4B57A 22%,
+    #F3DFAE 52%,
+    #B98F45 78%,
+    rgba(212, 181, 122, 0)
+  );
+  box-shadow: 0 0 14px rgba(212, 181, 122, 0.48);
+}
+
+.public-route-loading-line[data-phase="loading"] {
+  width: 66%;
+  animation: cradlePublicRouteLoading 860ms cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.public-route-loading-line[data-phase="complete"] {
+  width: 100%;
+  animation: cradlePublicRouteComplete 220ms ease-out forwards;
+}
+
 .cradle-breath-reveal {
-  animation: cradleBreathRevealExit 2.4s ease forwards;
+  animation: cradleBreathRevealExit 1.2s ease forwards;
 }
 
 .cradle-breath-reveal > div:nth-child(2) {
-  animation: cradleBreathGlow 2.4s ease forwards;
+  animation: cradleBreathGlow 1.2s ease forwards;
 }
 
 .cradle-breath-logo {
   opacity: 0;
-  animation: cradleSoftFadeUp 0.85s var(--sp-ease) 0.18s forwards;
+  animation: cradleSoftFadeUp 0.42s var(--sp-ease) 0.08s forwards;
 }
 
 .cradle-breath-copy {
@@ -547,9 +629,9 @@ a:focus-visible,
   opacity: 0;
 }
 
-.cradle-breath-copy-one { animation: cradleBreathCopyOne 2.4s ease forwards; }
-.cradle-breath-copy-two { animation: cradleBreathCopyTwo 2.4s ease forwards; }
-.cradle-breath-copy-three { animation: cradleBreathCopyThree 2.4s ease forwards; }
+.cradle-breath-copy-one { animation: cradleBreathCopyOne 1.2s ease forwards; }
+.cradle-breath-copy-two { animation: cradleBreathCopyTwo 1.2s ease forwards; }
+.cradle-breath-copy-three { animation: cradleBreathCopyThree 1.2s ease forwards; }
 
 .mobile-fade-up {
   opacity: 0;
@@ -596,6 +678,7 @@ a:focus-visible,
   .cradle-hero-slide,
   .cradle-hero-image,
   .cradle-hero-fade,
+  .public-route-loading-line,
   .cradle-breath-reveal,
   .cradle-breath-reveal > div:nth-child(2),
   .cradle-breath-logo,
@@ -603,6 +686,13 @@ a:focus-visible,
   .cradle-breath-copy-two,
   .cradle-breath-copy-three {
     animation: none !important;
+  }
+
+  .public-route-loading-line[data-phase="loading"],
+  .public-route-loading-line[data-phase="complete"] {
+    width: 100% !important;
+    opacity: 0.92;
+    transform: none !important;
   }
 
   .cradle-breath-reveal {

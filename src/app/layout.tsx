@@ -7,6 +7,7 @@ import {
 } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/sonner";
+import { PublicRouteLoadingLine } from "@/components/public/public-route-loading-line";
 import {
   BUSINESS_NAME,
   BUSINESS_TAGLINE,
@@ -115,6 +116,7 @@ export default function RootLayout({
       </head>
       <body className={`${dmSans.variable} ${playfair.variable} ${cormorant.variable} ${manrope.variable} font-sans antialiased`}>
         {children}
+        <PublicRouteLoadingLine />
         <Toaster position="top-right" richColors />
         <SpeedInsights />
       </body>

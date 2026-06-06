@@ -1,3 +1,71 @@
+# HANDOFF - PUBLIC-MOBILE-LOADING-TRANSITIONS-001 Public Mobile Intro and Route Loading: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Public mobile loading now has one short homepage intro and one warm-gold route-loading line for top-level public navigation.
+
+## What changed
+
+- Added `src/components/public/public-route-loading-line.tsx`, a root-mounted client component that listens only while the current path is one of `/`, `/services`, `/book`, `/branches`, `/about`, or `/contact`.
+- Added `src/components/public/public-loading-events.ts` so the homepage intro can tell the route line when the intro is active.
+- Updated `src/components/public/mobile/cradle-breath-reveal.tsx` to use `sessionStorage` key `cradle_public_intro_seen`, play for 1.2 seconds, dispatch intro active/inactive events, and keep reduced-motion/desktop/session-seen skips.
+- Mounted `PublicRouteLoadingLine` in `src/app/layout.tsx` so it survives navigation between root `/` and `(public)` route-group pages.
+- Replaced root `src/app/loading.tsx` with a non-branded dark mobile paint guard so the old full-screen Cradle loading bridge no longer appears before the homepage intro and mobile does not flash light/white.
+- Added `src/app/(public)/loading.tsx` as a simple thin warm-gold top-line fallback for public segment streaming.
+- Added CSS keyframes/classes in `src/app/globals.css` for the public route line and shortened intro timing.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Local public route smoke checks on the existing `http://localhost:3000` server: `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact` all returned HTTP 200.
+- Targeted source scan found no new `any`, `@ts-ignore`, console logs, old `cradle_mobile_home_reveal_seen` key, or old `Loading Cradle Wellness Living` shell text in touched loading/intro files.
+
+## Notes
+
+- Booking wizard step logic, booking routes/data, APIs, Supabase/database logic, server actions, protected workspaces, CRM/admin/staff/driver portals, auth/RBAC, and middleware were not changed.
+- The route line intentionally ignores non-top-level booking subroutes such as `/book/[branchId]`, hash links, `tel:`, `mailto:`, external links, modified clicks, same-route links, and clicks while the intro is active.
+- Tool discovery did not expose the in-app browser controller in this turn, so visual QA should still be run manually on mobile viewport.
+
+---
+
+# HANDOFF - PUBLIC-MOBILE-HOME-DARK-SECTIONS-001 Mobile Dark Cinematic Homepage Sections: COMPLETE
+
+## Status
+
+Build verified. 98 routes. The public mobile homepage sections after the hero now follow the approved dark, premium, cinematic spa direction while preserving booking/data/portal behavior.
+
+## What changed
+
+- Removed `MobileExperienceGrid` and `MobileInsideCradleSection` from the mobile homepage render path to match the requested section rhythm.
+- Converted `MobileCalmCategories` from horizontal cream cards into stacked full-image service category cards with dark overlays, muted gold labels, warm cream text, and circular gold-outline arrows.
+- Converted `MobileMostLovedTreatments` from cream catalog tiles into horizontal image-dominant dark cards with gradient overlays, gold metadata, and compact circular booking actions.
+- Converted `MobileSignatureRituals` from split image/cream-body cards into full-image ritual panels with bottom dark glass content, gold price pills, and glass/gold `Book Ritual` buttons.
+- Converted `MobileGuestImpressions` to dark translucent glass testimonial cards with gold stars and carousel dots.
+- Converted `MobileBranchesSection` to image-led branch cards with dark glass address/action panels and integrated Call/Directions buttons.
+- Updated the mobile FAQ section to the requested `FREQUENTLY ASKED` / `Questions` treatment using a new dark variant on `FaqAccordion`.
+- Tightened `MobileFinalCta` to a single cinematic image CTA with `Book your pause today.` and `Book Now`.
+- Updated the actual desktop homepage hero `CoverImage` sizes from `100vw` to `(max-width: 767px) 0px, 100vw` so the desktop-only hidden tree does not advertise full mobile viewport width for `/images/spa/hero.jpg`.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- `GET http://localhost:3000/`: PASS, status 200; rendered HTML includes `Choose Your Calm`, `Most-Loved Treatments`, `What Our Guests`, and `Your calm is waiting`.
+- Targeted source scan found no `bg-white`, `bg-[#F3E9D2]`, `bg-[#FFF8E9]`, or `#FFFFFF` card backgrounds in the touched mobile homepage section files.
+
+## Notes
+
+- Booking logic/routes, Supabase/database logic, server actions, CRM/admin/staff/driver portals, auth/RBAC, and public booking flow behavior were not changed.
+- Images remain existing project assets and service/branch data images; no generated or stock images were added.
+- Headless Chrome screenshot capture was blocked: sandboxed Chrome failed with access denied, and the escalated browser run was declined. Non-browser smoke verification was completed instead.
+
+---
+
 # HANDOFF - PUBLIC-MOBILE-HOME-REVEAL-FIX-001 Mobile Loading and Hero Overlay Refinement: COMPLETE
 
 ## Status

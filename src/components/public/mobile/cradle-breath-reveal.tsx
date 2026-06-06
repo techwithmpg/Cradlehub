@@ -2,11 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import {
+  PUBLIC_INTRO_EVENT,
+  type PublicIntroEventDetail,
+} from "@/components/public/public-loading-events";
 
-const STORAGE_KEY = "cradle_mobile_home_reveal_seen";
-const REVEAL_DURATION_MS = 2500;
+const STORAGE_KEY = "cradle_public_intro_seen";
+const INTRO_DURATION_MS = 1200;
 
 type RevealState = "checking" | "showing" | "hidden";
+
+function emitIntroState(isActive: boolean) {
+  window.dispatchEvent(
+    new CustomEvent<PublicIntroEventDetail>(PUBLIC_INTRO_EVENT, {
+      detail: { isActive },
+    })
+  );
+}
 
 export function CradleBreathReveal() {
   const [revealState, setRevealState] = useState<RevealState>("checking");
@@ -33,24 +45,29 @@ export function CradleBreathReveal() {
       return hideOnNextTask();
     }
 
+    let introStarted = false;
     try {
       window.sessionStorage.setItem(STORAGE_KEY, "true");
     } catch {
       return hideOnNextTask();
     }
 
-    const showTimeoutId = window.setTimeout(
-      () => setRevealState("showing"),
-      0
-    );
-    const hideTimeoutId = window.setTimeout(
-      () => setRevealState("hidden"),
-      REVEAL_DURATION_MS
-    );
+    const showTimeoutId = window.setTimeout(() => {
+      introStarted = true;
+      emitIntroState(true);
+      setRevealState("showing");
+    }, 0);
+    const hideTimeoutId = window.setTimeout(() => {
+      emitIntroState(false);
+      setRevealState("hidden");
+    }, INTRO_DURATION_MS);
 
     return () => {
       window.clearTimeout(showTimeoutId);
       window.clearTimeout(hideTimeoutId);
+      if (introStarted) {
+        emitIntroState(false);
+      }
     };
   }, []);
 

@@ -46,7 +46,20 @@ type BookingServicePickerProps = {
   totalDuration: number;
   totalPrice: number;
   visitType: VisitType;
+  theme?: "default" | "warm";
 };
+
+const WARM_HEADING_STYLE = {
+  fontFamily: "var(--sp-font-display)",
+  color: "#F6EBD6",
+} as const;
+const WARM_BODY_STYLE = { color: "rgba(246,235,214,0.82)" } as const;
+const WARM_MUTED_STYLE = { color: "rgba(246,235,214,0.62)" } as const;
+const WARM_LABEL_STYLE = { color: "#D4B57A" } as const;
+const WARM_GLASS_CARD =
+  "border border-[#D4B57A]/25 bg-[#0D2B20]/65 shadow-[0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl";
+const WARM_SKELETON_CLS =
+  "bg-[#05241D]/65 after:via-[#D4B57A]/18";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -89,7 +102,7 @@ function groupServicesByCategory(services: BookingWizardService[]): ServiceCateg
     });
 }
 
-// ── Mobile service card: image-top + white text area below ────────────────────
+// ── Mobile service card: image-led with warm dark overlay ─────────────────────
 
 function MobileServiceCard({
   service,
@@ -110,14 +123,13 @@ function MobileServiceCard({
       onClick={onToggle}
       aria-pressed={isSelected}
       aria-label={`Select ${service.name}, ${durationLabel}, ${priceLabel}`}
-      className={`relative w-full min-w-0 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.98] ${
+      className={`relative w-full min-w-0 max-w-full overflow-hidden rounded-2xl border bg-[#05241D] shadow-[0_18px_42px_rgba(0,0,0,0.28)] transition active:scale-[0.98] ${
         isSelected
-          ? "border-[#163A2B] ring-1 ring-[#163A2B]"
-          : "border-[#E3D7C5]"
+          ? "border-[#D4B57A] ring-1 ring-[#D4B57A]/55"
+          : "border-[#D4B57A]/24 hover:border-[#D4B57A]/55"
       }`}
     >
-      {/* Image */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden">
+      <div className="relative aspect-[4/4.6] w-full overflow-hidden">
         <ServiceImage
           src={serviceImage.imageUrl}
           alt={serviceImage.imageAlt}
@@ -125,34 +137,30 @@ function MobileServiceCard({
           className="h-full w-full object-cover"
           sizes="(max-width: 390px) 50vw, (max-width: 520px) 33vw, 25vw"
         />
-        {/* Selection indicator */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#031B16]/92 via-[#031B16]/34 to-[#031B16]/10" />
         <div
           className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full shadow-sm transition ${
             isSelected
-              ? "bg-[#163A2B] text-white"
-              : "border border-white/80 bg-black/10 backdrop-blur"
+              ? "bg-[#D4B57A] text-[#031B16]"
+              : "border border-[#D4B57A]/45 bg-[#031B16]/35 backdrop-blur"
           }`}
           aria-hidden="true"
         >
-          {isSelected && <Check className="h-3 w-3 text-white" />}
+          {isSelected && <Check className="h-3 w-3 text-[#031B16]" />}
         </div>
-      </div>
 
-      {/* Text content */}
-      <div className="min-w-0 p-2">
-        <p
-          className="min-w-0 line-clamp-2 text-[12px] font-semibold leading-tight"
-          style={{ color: "#163A2B" }}
-        >
-          {service.name}
-        </p>
-        <div className="mt-1 flex min-w-0 items-center justify-between gap-1">
-          <span className="truncate text-[11px]" style={{ color: "#6B7A6F" }}>
-            {durationLabel}
-          </span>
-          <span className="shrink-0 text-[11px] font-semibold" style={{ color: "#C8A96B" }}>
-            {priceLabel}
-          </span>
+        <div className="absolute inset-x-0 bottom-0 min-w-0 p-2.5">
+          <p className="min-w-0 line-clamp-2 text-[12px] font-semibold leading-tight text-[#F6EBD6]">
+            {service.name}
+          </p>
+          <div className="mt-1 flex min-w-0 items-center justify-between gap-1">
+            <span className="truncate text-[11px] text-[#F6EBD6]/68">
+              {durationLabel}
+            </span>
+            <span className="shrink-0 text-[11px] font-semibold text-[#D4B57A]">
+              {priceLabel}
+            </span>
+          </div>
         </div>
       </div>
     </button>
@@ -180,8 +188,8 @@ function ServiceImageCard({
       aria-label={`Select ${service.name}, ${service.durationMinutes} min, ${formatCurrency(service.price)}`}
       className={`group relative aspect-[4/5] overflow-hidden rounded-2xl transition-all duration-200 ${
         isSelected
-          ? "ring-2 ring-[#C8A96B] ring-offset-2 shadow-[0_6px_20px_rgba(200,169,107,0.25)]"
-          : "ring-1 ring-[#EDE4D3] hover:ring-[#C8A96B]/60 hover:shadow-md"
+          ? "ring-2 ring-[#D4B57A] ring-offset-2 ring-offset-[#031B16] shadow-[0_6px_24px_rgba(212,181,122,0.24)]"
+          : "ring-1 ring-[#D4B57A]/25 hover:ring-[#D4B57A]/60 hover:shadow-[0_18px_44px_rgba(0,0,0,0.28)]"
       }`}
     >
       <ServiceImage
@@ -212,12 +220,12 @@ function ServiceImageCard({
 
       {/* Service info */}
       <div className="absolute inset-x-0 bottom-0 p-3">
-        <p className="line-clamp-2 text-[13px] font-semibold leading-[1.35] text-white">
+        <p className="line-clamp-2 text-[13px] font-semibold leading-[1.35] text-[#F6EBD6]">
           {service.name}
         </p>
         <div className="mt-1 flex items-center justify-between gap-1">
-          <span className="text-[11px] text-white/70">{service.durationMinutes} min</span>
-          <span className="text-[13px] font-bold text-[#C8A96B]">
+          <span className="text-[11px] text-[#F6EBD6]/70">{service.durationMinutes} min</span>
+          <span className="text-[13px] font-bold text-[#D4B57A]">
             {formatCurrency(service.price)}
           </span>
         </div>
@@ -236,6 +244,7 @@ export function BookingServicePicker({
   totalDuration,
   totalPrice,
   visitType,
+  theme = "warm",
 }: BookingServicePickerProps) {
   const [preferredCategoryId, setPreferredCategoryId] = useState<string | null>(null);
   const categories = useMemo(() => groupServicesByCategory(services), [services]);
@@ -244,6 +253,7 @@ export function BookingServicePicker({
     categories[0] ??
     null;
   const selectedIds = new Set(selected.map((service) => service.id));
+  const skeletonClassName = theme === "warm" ? WARM_SKELETON_CLS : "";
 
   if (loading) {
     return (
@@ -253,14 +263,14 @@ export function BookingServicePicker({
           <div className="w-full max-w-full overflow-hidden">
             <div className="mb-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-9 w-24 shrink-0 rounded-full" />
+                <Skeleton key={i} className={`h-9 w-24 shrink-0 rounded-full ${skeletonClassName}`} />
               ))}
             </div>
           </div>
           <div className="w-full max-w-full overflow-hidden">
             <div className="grid w-full max-w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
               {Array.from({ length: 9 }).map((_, i) => (
-                <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/3" }} />
+                <Skeleton key={i} className={`rounded-2xl ${skeletonClassName}`} style={{ aspectRatio: "4/3" }} />
               ))}
             </div>
           </div>
@@ -269,12 +279,12 @@ export function BookingServicePicker({
         <div className="hidden md:grid md:grid-cols-[190px_minmax(0,1fr)] md:gap-4">
           <div className="flex flex-col gap-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-11 rounded-full" />
+              <Skeleton key={i} className={`h-11 rounded-full ${skeletonClassName}`} />
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="rounded-2xl" style={{ aspectRatio: "4/5" }} />
+              <Skeleton key={i} className={`rounded-2xl ${skeletonClassName}`} style={{ aspectRatio: "4/5" }} />
             ))}
           </div>
         </div>
@@ -285,10 +295,10 @@ export function BookingServicePicker({
   if (services.length === 0) {
     return (
       <div className="py-16 text-center">
-        <p className="text-[15px] font-medium" style={{ color: "#163A2B" }}>
+        <p className="text-[15px] font-medium" style={WARM_HEADING_STYLE}>
           No services available
         </p>
-        <p className="mt-2 text-[13px]" style={{ color: "#6B7A6F" }}>
+        <p className="mt-2 text-[13px]" style={WARM_MUTED_STYLE}>
           {visitType === "home_service"
             ? "No services are currently available for home service. Please choose in-spa or contact us."
             : "This location does not have any services listed yet."}
@@ -310,32 +320,31 @@ export function BookingServicePicker({
     <div className="w-full max-w-full overflow-hidden md:overflow-visible">
       <h2
         className="mb-2 text-[18px] font-semibold md:text-2xl md:font-medium"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
         Select services
       </h2>
-      <p className="mb-5 text-[13px] leading-6 md:text-[14px]" style={{ color: "#6B7A6F" }}>
+      <p className="mb-5 text-[13px] leading-6 md:text-[14px]" style={WARM_BODY_STYLE}>
         Choose one or more services for your visit.
       </p>
 
       {/* Selection summary strip */}
       {selected.length > 0 && (
         <div
-          className="mb-4 flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
-          style={{ background: "#F0FDF4", borderColor: "#BBF7D0" }}
+          className={`mb-4 flex items-center justify-between gap-4 rounded-xl px-4 py-3 ${WARM_GLASS_CARD}`}
         >
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#15803D" }}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
               {selected.length} {selected.length === 1 ? "service" : "services"} selected
             </p>
-            <p className="mt-0.5 truncate text-[13px] font-medium" style={{ color: "#163A2B" }}>
+            <p className="mt-0.5 truncate text-[13px] font-medium" style={WARM_BODY_STYLE}>
               {selected.map((s) => s.name).slice(0, 2).join(", ")}
               {selected.length > 2 && ` +${selected.length - 2} more`}
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-[11px] font-medium" style={{ color: "#6B7A6F" }}>{totalDuration} min</p>
-            <p className="text-[15px] font-bold" style={{ color: "#C8A96B" }}>
+            <p className="text-[11px] font-medium" style={WARM_MUTED_STYLE}>{totalDuration} min</p>
+            <p className="text-[15px] font-bold" style={WARM_LABEL_STYLE}>
               {formatCurrency(totalPrice)}
             </p>
           </div>
@@ -356,8 +365,8 @@ export function BookingServicePicker({
                   onClick={() => setPreferredCategoryId(category.id)}
                   className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
                     isActive
-                      ? "border-[#163A2B] bg-[#163A2B] text-[#FDF8EE]"
-                      : "border-[#E3D7C5] bg-white text-[#6B4F2A]"
+                      ? "border-[#D4B57A] bg-[#D4B57A] text-[#031B16]"
+                      : "border-[#D4B57A]/25 bg-[#05241D]/62 text-[#F6EBD6]/72"
                   }`}
                 >
                   {category.name}
@@ -370,8 +379,7 @@ export function BookingServicePicker({
         {/* Mobile service grid: 2 → 3 → 4 columns */}
         {!activeCategory ? (
           <div
-            className="rounded-2xl border border-dashed px-4 py-8 text-center"
-            style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}
+            className="rounded-2xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-4 py-8 text-center text-[#F6EBD6]/68"
           >
             No services in this category yet.
           </div>
@@ -405,12 +413,12 @@ export function BookingServicePicker({
                   onClick={() => setPreferredCategoryId(category.id)}
                   className={`flex items-center justify-between rounded-full border px-4 py-2.5 text-left text-[12px] font-semibold transition-colors ${
                     isActive
-                      ? "border-[#163A2B] bg-[#163A2B] text-[#FDF8EE]"
-                      : "border-[#EDE4D3] bg-white text-[#6B4F2A] hover:border-[#C8A96B]/60"
+                      ? "border-[#D4B57A] bg-[#D4B57A] text-[#031B16]"
+                      : "border-[#D4B57A]/25 bg-[#05241D]/62 text-[#F6EBD6]/72 hover:border-[#D4B57A]/60"
                   }`}
                 >
                   <span className="truncate">{category.name}</span>
-                  <span className={isActive ? "text-[#C8A96B]" : "text-[#9AA89A]"}>
+                  <span className={isActive ? "text-[#031B16]/70" : "text-[#D4B57A]/75"}>
                     {category.services.length}
                   </span>
                 </button>
@@ -421,8 +429,7 @@ export function BookingServicePicker({
           {/* Desktop image grid */}
           {!activeCategory ? (
             <div
-              className="rounded-2xl border border-dashed px-4 py-8 text-center"
-              style={{ background: "#FCFAF5", borderColor: "#EDE4D3", color: "#6B7A6F" }}
+              className="rounded-2xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-4 py-8 text-center text-[#F6EBD6]/68"
             >
               No services in this category yet.
             </div>

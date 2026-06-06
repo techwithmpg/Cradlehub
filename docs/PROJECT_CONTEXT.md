@@ -213,3 +213,11 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Daily schedule rows now expose the current date override and real blocked-time IDs so remove actions are precise.
 - Existing booking availability/assignment engine was left intact because it already respects `schedule_overrides`, `blocked_times`, weekly `staff_schedules`, and bookings.
 - Verified `pnpm type-check`, `pnpm lint`, and `pnpm build` are passing; build renders 83 app routes.
+
+## Latest Agent Update (2026-06-06)
+
+- Completed `PUBLIC-MOBILE-LOADING-TRANSITIONS-001`: public mobile loading now has one short first-homepage intro and one thin warm-gold route-loading line for top-level public page navigation.
+- Homepage intro uses `sessionStorage` key `cradle_public_intro_seen`, skips desktop/reduced-motion/repeat sessions, and no longer has a full-screen branded root loading bridge before it.
+- Root-mounted route progress is allow-listed to `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact`; booking subroutes/steps, external links, hashes, phone/email links, and protected workspaces are ignored.
+- Booking logic, APIs, Supabase/database logic, server actions, protected portals, auth/RBAC, and middleware were not changed.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, and local public route smoke checks are passing; lint still reports two pre-existing warnings in `scripts/generate-service-image-assets.mjs`.

@@ -3,11 +3,9 @@ import type { PublicCatalogService } from "@/lib/queries/services";
 import type { Database } from "@/types/supabase";
 import { CradleBreathReveal } from "./cradle-breath-reveal";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
-import { MobileExperienceGrid } from "./mobile-experience-grid";
 import { MobileCalmCategories } from "./mobile-calm-categories";
 import { MobileMostLovedTreatments } from "./mobile-most-loved-treatments";
 import { MobileSignatureRituals } from "./mobile-signature-rituals";
-import { MobileInsideCradleSection } from "./mobile-inside-cradle-section";
 import { MobileGuestImpressions } from "./mobile-guest-impressions";
 import { MobileBranchesSection } from "./mobile-branches-section";
 import { MobileFinalCta } from "./mobile-final-cta";
@@ -60,9 +58,6 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
 
       {/* ── Calm mobile journey ───────────────────────────────────────────── */}
       <div className="-mt-5 rounded-t-[30px] bg-[#061912] pt-2 shadow-[0_-18px_44px_rgba(0,0,0,0.24)]">
-        {/* ── Choose Your Experience ──────────────────────────────────────── */}
-        <MobileExperienceGrid />
-
         {/* ── Choose Your Calm / Service Categories ───────────────────────── */}
         <MobileCalmCategories services={services} />
 
@@ -71,9 +66,6 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
 
         {/* ── Signature Rituals ───────────────────────────────────────────── */}
         <MobileSignatureRituals services={services} />
-
-        {/* ── Inside Cradle Experience ────────────────────────────────────── */}
-        <MobileInsideCradleSection />
 
         {/* ── Guest Impressions ───────────────────────────────────────────── */}
         <MobileGuestImpressions testimonials={TESTIMONIALS} />
@@ -85,39 +77,40 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
         <section className="px-4 pt-12">
           <div className="mb-5">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C8A96A]/90">
-              Before you visit
+              Frequently Asked
             </p>
-            <MobileScrollFloatHeading text="Frequently Asked Questions" />
+            <MobileScrollFloatHeading text="Questions" />
           </div>
           <MobileFadeUp>
-            <div className="rounded-[26px] border border-[#C8A96A]/18 bg-[#F3E9D2] px-4 shadow-[0_16px_38px_rgba(0,0,0,0.16)]">
-            <FaqAccordion
-              revealItems
-              items={[
-                {
-                  question: "How do I book a massage?",
-                  answer:
-                    "Book online at cradlewellnessliving.com/book. Choose in-spa or home service, select your treatment, and confirm your schedule.",
-                },
-                {
-                  question: "Do you offer home service massage in Bacolod?",
-                  answer:
-                    "Yes. Select Home Service when booking and provide your address. Our therapist will come to your location.",
-                },
-                {
-                  question: "Where are your branches?",
-                  answer:
-                    branchNames.length > 0
-                      ? `${branchListText}${branchAddressText ? `. ${branchAddressText}` : ""}`
-                      : "We have branches in Bacolod City. Please contact us for the latest location information.",
-                },
-                {
-                  question: "What services do you offer?",
-                  answer:
-                    "Massage, foot spa, body scrub, skin care, salon services, spa packages, and home service massage.",
-                },
-              ]}
-            />
+            <div className="rounded-[28px] border border-[#C8A96A]/22 bg-[#0D2B20]/65 px-4 shadow-[0_24px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+              <FaqAccordion
+                revealItems
+                variant="dark"
+                items={[
+                  {
+                    question: "How do I book a massage?",
+                    answer:
+                      "Book online at cradlewellnessliving.com/book. Choose in-spa or home service, select your treatment, and confirm your schedule.",
+                  },
+                  {
+                    question: "Do you offer home service massage in Bacolod?",
+                    answer:
+                      "Yes. Select Home Service when booking and provide your address. Our therapist will come to your location.",
+                  },
+                  {
+                    question: "Where are your branches?",
+                    answer:
+                      branchNames.length > 0
+                        ? `${branchListText}${branchAddressText ? `. ${branchAddressText}` : ""}`
+                        : "We have branches in Bacolod City. Please contact us for the latest location information.",
+                  },
+                  {
+                    question: "What services do you offer?",
+                    answer:
+                      "Massage, foot spa, body scrub, skin care, salon services, spa packages, and home service massage.",
+                  },
+                ]}
+              />
             </div>
           </MobileFadeUp>
         </section>

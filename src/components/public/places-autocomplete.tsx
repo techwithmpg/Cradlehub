@@ -35,6 +35,7 @@ type Props = {
   className?: string;
   id?: string;
   ariaDescribedBy?: string;
+  theme?: "default" | "warm";
 };
 
 const MAPS_SCRIPT_ID = "google-maps-api";
@@ -217,13 +218,30 @@ function normalizeAddressComponents(
   }));
 }
 
-function stylePlaceAutocompleteElement(element: GooglePlaceAutocompleteElement): void {
+function stylePlaceAutocompleteElement(
+  element: GooglePlaceAutocompleteElement,
+  theme: Props["theme"]
+): void {
+  const isWarm = theme === "warm";
+
   element.style.display = "block";
   element.style.width = "100%";
-  element.style.setProperty("border", "1px solid #EDE4D3");
+  element.style.setProperty(
+    "border",
+    isWarm ? "1px solid rgba(212, 181, 122, 0.25)" : "1px solid #EDE4D3"
+  );
   element.style.setProperty("border-radius", "0.75rem");
-  element.style.setProperty("background-color", "#FFFFFF");
-  element.style.setProperty("color", "#163A2B");
+  element.style.setProperty(
+    "background-color",
+    isWarm ? "rgba(5, 36, 29, 0.75)" : "#FFFFFF"
+  );
+  element.style.setProperty("color", isWarm ? "#F6EBD6" : "#163A2B");
+  element.style.setProperty(
+    "box-shadow",
+    isWarm ? "inset 0 1px 0 rgba(246,235,214,0.06)" : "none"
+  );
+  element.style.setProperty("caret-color", isWarm ? "#D4B57A" : "#163A2B");
+  element.style.setProperty("color-scheme", isWarm ? "dark" : "light");
   element.style.setProperty("font-family", "inherit");
   element.style.setProperty("font-size", "14px");
   element.style.setProperty("line-height", "1.5");
@@ -239,6 +257,7 @@ export function PlacesAutocomplete({
   className = "",
   id,
   ariaDescribedBy,
+  theme = "default",
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const autocompleteRef = useRef<GooglePlaceAutocompleteElement | null>(null);
@@ -283,7 +302,7 @@ export function PlacesAutocomplete({
         if (ariaDescribedBy) {
           autocompleteElement.setAttribute("aria-describedby", ariaDescribedBy);
         }
-        stylePlaceAutocompleteElement(autocompleteElement);
+        stylePlaceAutocompleteElement(autocompleteElement, theme);
 
         const handleInput = () => {
           onChangeRef.current(autocompleteElement?.value ?? "");
@@ -379,6 +398,7 @@ export function PlacesAutocomplete({
     className,
     id,
     placeholder,
+    theme,
   ]);
 
   useEffect(() => {

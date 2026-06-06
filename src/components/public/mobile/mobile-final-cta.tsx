@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CalendarDays } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { MobileFadeUp, MobileScrollFloatHeading } from "./mobile-scroll-effects";
 
@@ -16,15 +16,14 @@ export function MobileFinalCta() {
             className="object-cover"
             sizes="calc(100vw - 32px)"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(4,17,12,0.88)_0%,rgba(4,17,12,0.56)_46%,rgba(4,17,12,0.18)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_26%_20%,rgba(200,169,106,0.18)_0%,transparent_44%),linear-gradient(to_top,rgba(4,17,12,0.9)_0%,rgba(4,17,12,0.62)_48%,rgba(4,17,12,0.22)_100%)]" />
           <div className="relative flex min-h-[340px] flex-col justify-end p-6">
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C8A96A]">
               Book your pause
             </p>
             <MobileScrollFloatHeading text="Your calm is waiting" />
             <p className="mt-4 max-w-[270px] text-[13px] leading-6 text-[#F3E9D2]/82">
-              Choose a time, choose your setting, and let Cradle take care of
-              the rest.
+              Book your pause today.
             </p>
             <div className="mt-7 grid gap-3">
               <Link
@@ -32,14 +31,7 @@ export function MobileFinalCta() {
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#C8A96A] px-6 text-[11px] font-bold uppercase tracking-[0.16em] text-[#061912] shadow-[0_16px_34px_rgba(200,169,106,0.26)]"
               >
                 <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                Book Appointment
-              </Link>
-              <Link
-                href="/services"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#C8A96A]/55 bg-[#061912]/46 px-6 text-[11px] font-bold uppercase tracking-[0.16em] text-[#F3E9D2] backdrop-blur-md"
-              >
-                View Services
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Book Now
               </Link>
             </div>
           </div>

@@ -4524,3 +4524,79 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - The Browser plugin navigation/screenshot tool was not exposed in this turn, so screenshots were captured with local headless Chrome instead.
+
+---
+
+## 2026-06-05 - Codex (PUBLIC-MOBILE-HOME-DARK-SECTIONS-001 - Dark Cinematic Mobile Homepage Sections)
+
+**Task:** Refine the public mobile homepage sections after the hero so they match the approved dark, premium, cinematic spa mockup.
+
+**Files Changed:**
+- `src/components/public/mobile/public-mobile-home.tsx` - removed the lighter interim mobile sections from the homepage flow and converted FAQ shell to dark glass.
+- `src/components/public/mobile/mobile-calm-categories.tsx` - rebuilt service category cards as full-image dark cinematic cards.
+- `src/components/public/mobile/mobile-most-loved-treatments.tsx` - rebuilt most-loved treatment cards as image-dominant dark cards with compact booking actions.
+- `src/components/public/mobile/mobile-signature-rituals.tsx` - rebuilt ritual cards as immersive full-image panels with bottom dark glass content.
+- `src/components/public/mobile/mobile-guest-impressions.tsx` - converted testimonials to dark translucent glass cards with gold stars and dots.
+- `src/components/public/mobile/mobile-branches-section.tsx` - converted branch cards to image-led location cards with dark glass details and actions.
+- `src/components/public/mobile/mobile-final-cta.tsx` - tightened final CTA copy and action to the requested cinematic Book Now treatment.
+- `src/components/public/faq-accordion.tsx` - added a dark variant while preserving the default light presentation.
+- `src/components/public/home-page-sections.tsx` - adjusted desktop homepage hero image `sizes` to account for the hidden mobile tree and address the `/images/spa/hero.jpg` warning.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
+
+**Behavior:**
+- Mobile homepage flow is now hero/reveal, Service Categories, Most-Loved Treatments, Signature Rituals, Guest Impressions, Branches, FAQ, and Final CTA.
+- Mobile homepage sections no longer use white/cream card surfaces in the touched section files.
+- Existing services and branches data continue to drive cards; no fake data, generated images, or stock images were added.
+- Booking links still point to the existing `/book` route and service/category links still use existing `/services` anchors.
+- Booking logic, Supabase/database logic, server actions, CRM/admin/staff/driver portals, authentication, RBAC, and route behavior were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Localhost smoke check returned HTTP 200 and rendered the new mobile section headings.
+- Targeted source scan found no `bg-white`, `bg-[#F3E9D2]`, `bg-[#FFF8E9]`, or `#FFFFFF` card backgrounds in the touched mobile homepage section files.
+
+**Follow-up:**
+- Headless Chrome screenshot capture was blocked because sandboxed Chrome failed with access denied and the escalated browser run was declined. Manual/in-app visual QA can still be run in a normal browser session.
+
+---
+
+## 2026-06-06 - Codex (PUBLIC-MOBILE-LOADING-TRANSITIONS-001 - Public Mobile Intro and Route Loading)
+
+**Task:** Implement the final public mobile loading/transition behavior: one short homepage intro on first `/` entry per browser session, plus a simple top route-loading line for public page navigation.
+
+**Files Created:**
+- `src/components/public/public-loading-events.ts` - typed intro active-state event name/detail shared by the intro and route line.
+- `src/components/public/public-route-loading-line.tsx` - root-mounted, public-route-scoped client route-loading line.
+- `src/app/(public)/loading.tsx` - public segment warm-gold top-line loading fallback.
+
+**Files Changed:**
+- `src/components/public/mobile/cradle-breath-reveal.tsx` - switched to `cradle_public_intro_seen`, shortened to 1.2 seconds, and emits intro active/inactive events.
+- `src/app/layout.tsx` - mounts the self-scoped public route loading line.
+- `src/app/loading.tsx` - replaced the full-screen branded loading bridge with a non-branded dark mobile paint guard so no second shell appears before the homepage intro and mobile avoids light/white flash.
+- `src/app/globals.css` - added public route line keyframes/classes and shortened intro animation timing.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md`, `.context/DECISIONS.cmd.md` - updated task records.
+- `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - logged the public loading transition update.
+
+**Behavior:**
+- Mobile homepage intro appears only from the homepage component and only once per browser session via `cradle_public_intro_seen`.
+- Desktop, reduced-motion, and repeat-session visits skip the intro without a flash.
+- Public top-line loading starts only for normal internal clicks between `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact`.
+- The line ignores hash links, `tel:`, `mailto:`, external links, modified clicks, same-route links, and booking subroutes/step paths.
+- Intro-active events suppress route-line starts while the intro is playing; the line also sits below the intro overlay and above the public header.
+- Root route streaming no longer emits the old full-screen `Loading Cradle Wellness Living` bridge; it only paints a non-branded dark mobile background while content streams.
+- Booking logic, booking data, APIs, Supabase/database logic, server actions, protected workspaces, CRM/admin/staff/driver portals, auth/RBAC, and middleware were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Local public route smoke checks: `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact` all returned HTTP 200 on `http://localhost:3000`.
+- Rendered public HTML checks found no old `Loading Cradle Wellness Living` shell text.
+- Targeted source scan found no new `any`, `@ts-ignore`, console logs, old intro key, or old full-screen loading-shell markers in touched loading/intro files.
+
+**Follow-up:**
+- Manual mobile visual QA should verify first homepage session intro, repeat-session skip, `/` back-navigation skip, route line on top-level public navigation, and no line during booking wizard step changes. Tool discovery did not expose the in-app browser controller in this turn.

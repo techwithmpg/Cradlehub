@@ -12,10 +12,16 @@ export type FaqItem = {
 type Props = {
   items: FaqItem[];
   revealItems?: boolean;
+  variant?: "light" | "dark";
 };
 
-export function FaqAccordion({ items, revealItems = false }: Props) {
+export function FaqAccordion({
+  items,
+  revealItems = false,
+  variant = "light",
+}: Props) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const isDark = variant === "dark";
 
   function toggle(index: number) {
     setOpenIndex((current) => (current === index ? null : index));
@@ -26,7 +32,9 @@ export function FaqAccordion({ items, revealItems = false }: Props) {
       {items.map((item, index) => {
         const isOpen = openIndex === index;
         const borderClass =
-          index < items.length - 1 ? "border-b border-[#E8D5A3]/25" : "";
+          index < items.length - 1
+            ? `border-b ${isDark ? "border-[#C8A96A]/18" : "border-[#E8D5A3]/25"}`
+            : "";
         const itemContent = (
           <div className={borderClass}>
             <button
@@ -34,14 +42,19 @@ export function FaqAccordion({ items, revealItems = false }: Props) {
               onClick={() => toggle(index)}
               aria-expanded={isOpen}
               aria-controls={`faq-answer-${index}`}
-              className="flex w-full items-center justify-between gap-3 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8A96B]/50 rounded-sm"
+              className="flex w-full items-center justify-between gap-3 rounded-sm py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8A96B]/50"
             >
-              <span className="text-[13px] font-semibold text-[#022316] md:text-[15px]">
+              <span
+                className={`text-[13px] font-semibold md:text-[15px] ${
+                  isDark ? "text-[#F5ECDD]" : "text-[#022316]"
+                }`}
+              >
                 {item.question}
               </span>
               <ChevronDown
                 className={[
-                  "h-4 w-4 shrink-0 text-[#B68A3C] transition-transform duration-300",
+                  "h-4 w-4 shrink-0 transition-transform duration-300",
+                  isDark ? "text-[#D4B57A]" : "text-[#B68A3C]",
                   isOpen ? "rotate-180" : "",
                 ].join(" ")}
                 aria-hidden="true"
@@ -55,7 +68,11 @@ export function FaqAccordion({ items, revealItems = false }: Props) {
               ].join(" ")}
             >
               <div className="overflow-hidden">
-                <p className="pb-4 text-[11px] leading-5 text-[#5F6F63] md:text-[14px] md:leading-6">
+                <p
+                  className={`pb-4 text-[11px] leading-5 md:text-[14px] md:leading-6 ${
+                    isDark ? "text-[#EFE3CF]/72" : "text-[#5F6F63]"
+                  }`}
+                >
                   {item.answer}
                 </p>
               </div>

@@ -332,3 +332,19 @@
 - **Symptom:** Tool discovery did not expose an in-app browser navigation/screenshot tool in this turn.
 - **Impact:** Visual QA could not use the Browser plugin directly.
 - **Resolution:** Captured mobile screenshots successfully with local headless Chrome against the already running `http://localhost:3000` dev server.
+
+---
+
+## 2026-06-05 - PUBLIC-MOBILE-HOME-DARK-SECTIONS-001 headless browser verification blocked
+
+- **Symptom:** Non-escalated headless Chrome failed with Windows crashpad/mojo access denied errors while attempting mobile homepage screenshot capture.
+- **Impact:** Automated screenshot verification of the dark mobile homepage sections could not be completed in this turn.
+- **Resolution:** Requested escalation for the headless Chrome verification run, but the request was declined. Completed non-browser verification instead: `GET /` HTTP 200, rendered heading checks, targeted source scan for light card classes, `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check`.
+
+---
+
+## 2026-06-06 - PUBLIC-MOBILE-LOADING-TRANSITIONS-001 browser verification limitation
+
+- **Symptom:** Tool discovery did not expose the in-app Browser/agent-browser navigation or screenshot controller during this turn.
+- **Impact:** Visual confirmation of the intro animation, route-line timing, and back-navigation behavior was limited to code review, local HTTP route checks, rendered markup checks, and build/lint/type verification.
+- **Resolution:** No code change required. Run manual mobile browser QA at a 390px viewport: clear `sessionStorage`, open `/`, confirm one short intro, navigate among `/services`, `/book`, `/branches`, `/about`, `/contact`, return to `/`, and confirm booking wizard step changes do not trigger the public route line.

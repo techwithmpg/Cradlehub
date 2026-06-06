@@ -155,6 +155,55 @@ const STEPS_HS = [
 const MOBILE_PROGRESS_STEPS = ["Branch", "Service", "Date & Time", "Details", "Confirm"] as const;
 const PRECISE_LOCATION_ERROR =
   "Please select your address from the Google suggestions so our therapist and driver can find you accurately.";
+const BOOKING_PAGE_BACKGROUND =
+  "radial-gradient(circle at 80% 8%, rgba(212,181,122,0.14), transparent 34%), radial-gradient(circle at 12% 18%, rgba(30,61,47,0.38), transparent 38%), linear-gradient(180deg, #031B16 0%, #05241D 45%, #02140F 100%)";
+const BOOKING_HERO_OVERLAY =
+  "radial-gradient(circle at 76% 24%, rgba(212,181,122,0.18), transparent 34%), linear-gradient(90deg, rgba(3,27,22,0.78) 0%, rgba(3,27,22,0.42) 46%, rgba(3,27,22,0.12) 100%), linear-gradient(180deg, rgba(3,27,22,0.12) 0%, rgba(3,27,22,0.78) 100%)";
+const WARM_HEADING_STYLE = {
+  fontFamily: "var(--sp-font-display)",
+  color: "#F6EBD6",
+} as const;
+const WARM_BODY_STYLE = { color: "rgba(246,235,214,0.82)" } as const;
+const WARM_MUTED_STYLE = { color: "rgba(246,235,214,0.62)" } as const;
+const WARM_LABEL_STYLE = { color: "#D4B57A" } as const;
+const WARM_GLASS_PANEL_CLS =
+  "border border-[#D4B57A]/25 bg-[#0D2B20]/65 shadow-[0_24px_70px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
+const WARM_SELECTED_CARD_CLS =
+  "border-[#D4B57A]/80 bg-[#0D2B20]/78 ring-1 ring-[#D4B57A]/45 shadow-[0_0_34px_rgba(212,181,122,0.18)]";
+const WARM_IDLE_CARD_CLS =
+  "border-[#D4B57A]/25 bg-[#0D2B20]/58 hover:border-[#D4B57A]/55 hover:bg-[#0D2B20]/72";
+const WARM_PRIMARY_BUTTON_CLS =
+  "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16] shadow-[0_18px_42px_rgba(200,169,106,0.25)]";
+const WARM_DISABLED_BUTTON_CLS =
+  "border border-[#D4B57A]/18 bg-[#0A261E]/62 text-[#F6EBD6]/38";
+const WARM_SKELETON_CLS =
+  "bg-[#05241D]/65 after:via-[#D4B57A]/18";
+const BOOKING_CALENDAR_CLASSNAMES = {
+  root: "w-fit text-[#F6EBD6]",
+  months: "relative flex flex-col gap-4 md:flex-row",
+  month: "flex w-full flex-col gap-4",
+  month_caption: "flex h-(--cell-size) w-full items-center justify-center px-(--cell-size)",
+  caption_label: "select-none text-sm font-semibold text-[#D4B57A]",
+  nav: "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
+  button_previous:
+    "size-(--cell-size) select-none rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/55 p-0 text-[#D4B57A] transition-colors hover:border-[#D4B57A]/55 hover:bg-[#0D2B20]/80 aria-disabled:opacity-35",
+  button_next:
+    "size-(--cell-size) select-none rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/55 p-0 text-[#D4B57A] transition-colors hover:border-[#D4B57A]/55 hover:bg-[#0D2B20]/80 aria-disabled:opacity-35",
+  weekdays: "flex",
+  weekday:
+    "flex-1 rounded-lg text-[0.8rem] font-medium text-[#F6EBD6]/58 select-none",
+  week: "mt-2 flex w-full",
+  month_grid: "w-full border-collapse",
+  day: "group/day relative aspect-square h-full w-full rounded-lg p-0 text-center select-none",
+  day_button:
+    "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 rounded-lg border border-transparent bg-transparent text-[#F6EBD6] leading-none font-medium transition-colors hover:border-[#D4B57A]/55 hover:bg-[#05241D]/80 focus-visible:border-[#D4B57A]/75 focus-visible:ring-2 focus-visible:ring-[#D4B57A]/20 disabled:text-[#F6EBD6]/24 disabled:hover:border-transparent disabled:hover:bg-transparent data-[selected-single=true]:border-[#D4B57A] data-[selected-single=true]:bg-[#D4B57A] data-[selected-single=true]:text-[#031B16] data-[selected-single=true]:shadow-[0_0_22px_rgba(212,181,122,0.22)] data-[selected-single=true]:hover:bg-[#D4B57A]",
+  today:
+    "rounded-lg border border-[#D4B57A]/45 bg-[#05241D]/72 text-[#F6EBD6]",
+  outside: "text-[#F6EBD6]/24 aria-selected:text-[#031B16]",
+  disabled: "text-[#F6EBD6]/22 opacity-45",
+  selected: "rounded-lg",
+  hidden: "invisible",
+};
 
 function getSteps(isHomeService: boolean) {
   return isHomeService ? STEPS_HS : STEPS_BASE;
@@ -781,8 +830,12 @@ export function BookingWizard({
 
   return (
     <div
-      className={mode === "public" ? "min-h-screen w-full max-w-full overflow-x-hidden pt-14 md:pt-0" : ""}
-      style={{ background: mode === "public" ? "#F7F3EB" : "transparent" }}
+      className={
+        mode === "public"
+          ? "public-booking-surface min-h-screen w-full max-w-full overflow-x-hidden pt-14 text-[#F6EBD6] md:pt-0"
+          : ""
+      }
+      style={{ background: mode === "public" ? BOOKING_PAGE_BACKGROUND : "transparent" }}
     >
       {mode === "public" && (
         <div className="relative hidden overflow-hidden pt-28 pb-12 md:block lg:pt-32 lg:pb-16">
@@ -797,24 +850,26 @@ export function BookingWizard({
             <div
               className="absolute inset-0"
               style={{
-                background:
-                  "linear-gradient(135deg, rgba(16,38,29,0.88) 0%, rgba(22,58,43,0.78) 100%)",
+                background: BOOKING_HERO_OVERLAY,
               }}
             />
           </div>
           <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
             <p
               className="text-[11px] font-semibold tracking-[0.25em] uppercase mb-3"
-              style={{ color: "#C8A96B" }}
+              style={WARM_LABEL_STYLE}
             >
-              Online Booking
+              Book Your Pause
             </p>
             <h1
               className="text-3xl sm:text-4xl font-medium"
-              style={{ fontFamily: "var(--sp-font-display)", color: "#FCFAF5" }}
+              style={WARM_HEADING_STYLE}
             >
-              Book Your Appointment
+              Choose your care
             </h1>
+            <p className="mx-auto mt-3 max-w-xl text-[14px] leading-6" style={WARM_BODY_STYLE}>
+              Select your branch, treatment, time, and details. We&apos;ll guide you gently.
+            </p>
           </div>
         </div>
       )}
@@ -829,10 +884,16 @@ export function BookingWizard({
         }
       >
         {mode === "public" && currentStepName !== "success" && (
-          <div className="mb-5 text-center md:hidden">
-            <h1 className="text-[19px] font-semibold text-[#10261D]">
-              Book an Appointment
+          <div className="mb-6 text-left md:hidden">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#D4B57A]">
+              Book Your Pause
+            </p>
+            <h1 className="text-[32px] font-medium leading-none text-[#F6EBD6] [font-family:var(--sp-font-display)]">
+              Choose your care
             </h1>
+            <p className="mt-3 max-w-[320px] text-[13px] leading-6 text-[#F6EBD6]/72">
+              Select your branch, treatment, time, and details. We&apos;ll guide you gently.
+            </p>
           </div>
         )}
 
@@ -844,22 +905,22 @@ export function BookingWizard({
                   {index < MOBILE_PROGRESS_STEPS.length - 1 && (
                     <span
                       className={`absolute left-1/2 top-3 h-px w-full ${
-                        mobileProgressIndex > index ? "bg-[#063D2D]" : "bg-[#D8C8AA]"
+                        mobileProgressIndex > index ? "bg-[#D4B57A]" : "bg-[#D4B57A]/22"
                       }`}
                     />
                   )}
                   <span
                     className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold ${
                       mobileProgressIndex >= index
-                        ? "border-[#063D2D] bg-[#063D2D] text-[#FCFAF5]"
-                        : "border-[#D8C8AA] bg-[#FBF6EC] text-[#A79A86]"
+                        ? "border-[#D4B57A] bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16] shadow-[0_8px_22px_rgba(212,181,122,0.24)]"
+                        : "border-[#D4B57A]/28 bg-[#05241D]/70 text-[#F6EBD6]/45 backdrop-blur"
                     }`}
                   >
                     {mobileProgressIndex > index ? <Check className="h-3 w-3" /> : index + 1}
                   </span>
                   <span
                     className={`mt-2 text-center text-[9.5px] font-medium leading-3 ${
-                      mobileProgressIndex >= index ? "text-[#10261D]" : "text-[#857967]"
+                      mobileProgressIndex >= index ? "text-[#F6EBD6]" : "text-[#F6EBD6]/45"
                     }`}
                   >
                     {label}
@@ -880,17 +941,17 @@ export function BookingWizard({
                     <div
                       className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full text-[11px] sm:text-[12px] font-semibold transition-all duration-300 ${
                         step > s.id
-                          ? "bg-[#163A2B] text-[#C8A96B]"
+                          ? "border border-[#D4B57A]/45 bg-[#05241D] text-[#D4B57A]"
                           : step === s.id
-                          ? "bg-[#C8A96B] text-[#10261D]"
-                          : "bg-white text-[#9AA89A] border border-[#EDE4D3]"
+                          ? "bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16]"
+                          : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#F6EBD6]/42"
                       }`}
                     >
                       {step > s.id ? <Check className="h-3.5 w-3.5" /> : s.id}
                     </div>
                     <span
                       className={`hidden sm:block text-[10px] mt-1.5 font-medium ${
-                        step >= s.id ? "text-[#163A2B]" : "text-[#9AA89A]"
+                        step >= s.id ? "text-[#F6EBD6]" : "text-[#F6EBD6]/42"
                       }`}
                     >
                       {s.label}
@@ -899,7 +960,7 @@ export function BookingWizard({
                   {i < steps.length - 1 && (
                     <div
                       className={`w-4 sm:w-8 lg:w-12 h-0.5 rounded-full mb-4 sm:mb-3 transition-colors duration-300 ${
-                        step > s.id ? "bg-[#C8A96B]" : "bg-[#EDE4D3]"
+                        step > s.id ? "bg-[#D4B57A]" : "bg-[#D4B57A]/20"
                       }`}
                     />
                   )}
@@ -918,6 +979,7 @@ export function BookingWizard({
                 branches={branches}
                 loading={loadingBranches}
                 selected={selectedBranch}
+                mode={mode}
                 onSelect={(b) => {
                   setSelectedBranch(b);
                   setBookingRules(null);
@@ -946,6 +1008,7 @@ export function BookingWizard({
                 totalDuration={totalDuration}
                 totalPrice={totalPrice}
                 visitType={visitType}
+                theme={mode === "public" ? "warm" : "default"}
               />
             )}
             {currentStepName === "location" && (
@@ -1020,8 +1083,8 @@ export function BookingWizard({
                 className={
                   mode === "public"
                     ? isTherapistStep
-                      ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#EDE4D3] bg-[#FBF6EC]/95 px-4 py-3 shadow-[0_-8px_22px_rgba(16,38,29,0.12)] backdrop-blur md:relative md:mt-8 md:border-t md:bg-transparent md:px-0 md:pt-6 md:shadow-none md:backdrop-blur-0"
-                      : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#EDE4D3] bg-[#FBF6EC]/95 px-4 py-3 shadow-[0_-8px_22px_rgba(16,38,29,0.12)] backdrop-blur md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
+                      ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:relative md:mt-8 md:border-t md:bg-transparent md:px-0 md:pt-6 md:shadow-none md:backdrop-blur-0"
+                      : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/25 bg-[#031B16]/82 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
                     : "flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]"
                 }
                 style={{ paddingBottom: mode === "public" ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined }}
@@ -1029,8 +1092,7 @@ export function BookingWizard({
                 <button
                   onClick={handleBack}
                   disabled={currentStepName === "branch"}
-                  className="flex min-h-11 items-center gap-2 text-[13px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:text-[#163A2B]"
-                  style={{ color: "#6B7A6F" }}
+                  className="flex min-h-11 items-center gap-2 rounded-full border border-[#D4B57A]/35 bg-[#031B16]/50 px-4 text-[13px] font-medium text-[#F6EBD6] transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:border-[#D4B57A]/60 md:bg-transparent"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Back
@@ -1043,11 +1105,11 @@ export function BookingWizard({
                       "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
                       isTherapistStep
                         ? canClickContinue
-                          ? "bg-[#063D2D] text-[#FCFAF5] md:absolute md:left-1/2 md:min-w-[280px] md:-translate-x-1/2"
-                          : "bg-[#EDE4D3] text-[#9AA89A] md:absolute md:left-1/2 md:min-w-[280px] md:-translate-x-1/2"
+                          ? `${WARM_PRIMARY_BUTTON_CLS} md:absolute md:left-1/2 md:min-w-[280px] md:-translate-x-1/2`
+                          : `${WARM_DISABLED_BUTTON_CLS} md:absolute md:left-1/2 md:min-w-[280px] md:-translate-x-1/2`
                         : canClickContinue
-                          ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
-                          : "bg-[#EDE4D3] text-[#9AA89A]",
+                          ? WARM_PRIMARY_BUTTON_CLS
+                          : WARM_DISABLED_BUTTON_CLS,
                     ].join(" ")}
                   >
                     Continue
@@ -1060,8 +1122,8 @@ export function BookingWizard({
                     className={[
                       "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[7px] px-8 py-3 text-[12px] font-semibold tracking-widest uppercase transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 hover:shadow-lg md:flex-none md:rounded-full",
                       canProceed && !isOffline
-                        ? "bg-[#063D2D] text-[#FCFAF5] md:bg-[linear-gradient(135deg,#C8A96B,#B68A3C)] md:text-[#10261D]"
-                        : "bg-[#EDE4D3] text-[#9AA89A]",
+                        ? WARM_PRIMARY_BUTTON_CLS
+                        : WARM_DISABLED_BUTTON_CLS,
                     ].join(" ")}
                   >
                     {submitting ? (
@@ -1122,17 +1184,17 @@ function SummaryRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#163A2B]/5 shrink-0">
-        <Icon className="h-4 w-4 text-[#163A2B]" />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/70">
+        <Icon className="h-4 w-4 text-[#D4B57A]" />
       </div>
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "#9AA89A" }}>
+        <p className="text-[11px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
           {label}
         </p>
-        <p className="text-[13px] font-medium mt-0.5" style={{ color: value ? "#163A2B" : "#9AA89A" }}>
+        <p className="text-[13px] font-medium mt-0.5" style={value ? WARM_BODY_STYLE : WARM_MUTED_STYLE}>
           {value || placeholder}
         </p>
-        {sub && <p className="text-[11px] mt-0.5" style={{ color: "#6B7A6F" }}>{sub}</p>}
+        {sub && <p className="text-[11px] mt-0.5" style={WARM_MUTED_STYLE}>{sub}</p>}
       </div>
     </div>
   );
@@ -1148,15 +1210,15 @@ function TherapistSummaryItem({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-4 border-b border-[#EDE4D3]/75 py-4 last:border-b-0">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F4F0E8]">
-        <Icon className="h-[18px] w-[18px] text-[#163A2B]" />
+    <div className="flex items-start gap-4 border-b border-[#D4B57A]/16 py-4 last:border-b-0">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/70">
+        <Icon className="h-[18px] w-[18px] text-[#D4B57A]" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#8A968C" }}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
           {label}
         </p>
-        <div className="mt-1 text-[14px] font-semibold leading-5" style={{ color: "#10261D" }}>
+        <div className="mt-1 text-[14px] font-semibold leading-5" style={WARM_BODY_STYLE}>
           {children}
         </div>
       </div>
@@ -1217,70 +1279,70 @@ function BookingSummary({
   if (variant === "therapist") {
     return (
       <div className="sticky top-24">
-        <div className="rounded-[20px] border border-[#EDE4D3] bg-white p-6 shadow-[0_18px_45px_rgba(16,38,29,0.08)]">
+        <div className={`rounded-[20px] p-6 ${WARM_GLASS_PANEL_CLS}`}>
           <h3
             className="text-[21px] font-medium"
-            style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+            style={WARM_HEADING_STYLE}
           >
             Booking Summary
           </h3>
 
           <div className="mt-5">
             <TherapistSummaryItem icon={Building} label="Branch">
-              {branch?.name ?? <span className="font-medium text-[#9AA89A]">Not selected</span>}
+              {branch?.name ?? <span className="font-medium text-[#F6EBD6]/45">Not selected</span>}
             </TherapistSummaryItem>
             <TherapistSummaryItem icon={visitType === "home_service" ? Home : User} label="Visit Type">
               <p>{visitOption.label}</p>
-              <p className="mt-1 text-[12px] font-medium" style={{ color: "#6B7A6F" }}>
+              <p className="mt-1 text-[12px] font-medium" style={WARM_MUTED_STYLE}>
                 {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
               </p>
             </TherapistSummaryItem>
             <TherapistSummaryItem icon={Sparkles} label={services.length === 1 ? "Service" : "Services"}>
               {services.length === 0 ? (
-                <span className="font-medium text-[#9AA89A]">Not selected</span>
+                <span className="font-medium text-[#F6EBD6]/45">Not selected</span>
               ) : (
                 <>
                   {services.map((s) => (
                     <p key={s.id}>{s.name}</p>
                   ))}
-                  <p className="mt-2 text-[12px] font-semibold" style={{ color: "#B68A3C" }}>
+                  <p className="mt-2 text-[12px] font-semibold" style={WARM_LABEL_STYLE}>
                     {totalDuration} min · {formatCurrency(totalPrice)}
                   </p>
                 </>
               )}
             </TherapistSummaryItem>
             <TherapistSummaryItem icon={CalendarDays} label="Date & Time">
-              {dateTimeLabel ?? <span className="font-medium text-[#9AA89A]">Not selected</span>}
+              {dateTimeLabel ?? <span className="font-medium text-[#F6EBD6]/45">Not selected</span>}
             </TherapistSummaryItem>
             <TherapistSummaryItem icon={User} label="Therapist">
-              {staffLabel ?? <span className="font-medium text-[#9AA89A]">Not selected</span>}
+              {staffLabel ?? <span className="font-medium text-[#F6EBD6]/45">Not selected</span>}
               {staffSubLabel ? (
-                <p className="mt-1 text-[12px] font-medium text-[#6B7A6F]">
+                <p className="mt-1 text-[12px] font-medium text-[#F6EBD6]/60">
                   {staffSubLabel}
                 </p>
               ) : null}
             </TherapistSummaryItem>
           </div>
 
-          <div className="mt-6 flex gap-4 rounded-xl border border-[#E9D7B8] bg-[#FCFAF5] p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#B68A3C] shadow-sm">
+          <div className="mt-6 flex gap-4 rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/58 p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4B57A]/30 bg-[#031B16]/48 text-[#D4B57A] shadow-sm">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
               <p
                 className="text-[14px] font-semibold"
-                style={{ fontFamily: "var(--sp-font-display)", color: "#7A4F16" }}
+                style={WARM_HEADING_STYLE}
               >
                 Your booking is safe with us
               </p>
-              <p className="mt-2 text-[13px] leading-6" style={{ color: "#163A2B" }}>
+              <p className="mt-2 text-[13px] leading-6" style={WARM_BODY_STYLE}>
                 We never share your personal information with third parties.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px]" style={{ color: "#6B7A6F" }}>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[12px]" style={WARM_MUTED_STYLE}>
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-[#B68A3C]" />
             Secure booking
@@ -1302,12 +1364,11 @@ function BookingSummary({
 
   return (
     <div
-      className="sticky top-28 rounded-2xl p-6 border"
-      style={{ background: "#FCFAF5", borderColor: "#EDE4D3" }}
+      className={`sticky top-28 rounded-2xl p-6 ${WARM_GLASS_PANEL_CLS}`}
     >
       <h3
         className="text-[14px] font-semibold mb-5"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
         Booking Summary
       </h3>
@@ -1327,25 +1388,25 @@ function BookingSummary({
 
         {/* Services list */}
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#163A2B]/5 shrink-0">
-            <Clock className="h-4 w-4 text-[#163A2B]" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/25 bg-[#05241D]/70">
+            <Clock className="h-4 w-4 text-[#D4B57A]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "#9AA89A" }}>
+            <p className="text-[11px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
               Services
             </p>
             {services.length === 0 ? (
-              <p className="text-[13px] font-medium mt-0.5" style={{ color: "#9AA89A" }}>
+              <p className="text-[13px] font-medium mt-0.5" style={WARM_MUTED_STYLE}>
                 Not selected
               </p>
             ) : (
               <>
                 {services.map((s) => (
-                  <p key={s.id} className="text-[13px] font-medium mt-0.5" style={{ color: "#163A2B" }}>
+                  <p key={s.id} className="text-[13px] font-medium mt-0.5" style={WARM_BODY_STYLE}>
                     {s.name}
                   </p>
                 ))}
-                <p className="text-[11px] mt-1.5 font-medium" style={{ color: "#C8A96B" }}>
+                <p className="text-[11px] mt-1.5 font-medium" style={WARM_LABEL_STYLE}>
                   {totalDuration} min · {formatCurrency(totalPrice)}
                 </p>
               </>
@@ -1377,18 +1438,27 @@ function StepBranches({
   branches,
   loading,
   selected,
+  mode,
   onSelect,
 }: {
   branches: Branch[];
   loading: boolean;
   selected: Branch | null;
+  mode: BookingWizardMode;
   onSelect: (b: Branch) => void;
 }) {
   if (loading) {
     return (
       <div className="grid sm:grid-cols-2 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 rounded-xl" />
+          <Skeleton
+            key={i}
+            className={
+              mode === "public"
+                ? `h-28 rounded-xl ${WARM_SKELETON_CLS}`
+                : "h-28 rounded-xl"
+            }
+          />
         ))}
       </div>
     );
@@ -1397,10 +1467,10 @@ function StepBranches({
   if (branches.length === 0) {
     return (
       <div className="text-center py-16">
-        <p className="text-[15px] font-medium" style={{ color: "#163A2B" }}>
+        <p className="text-[15px] font-medium" style={WARM_HEADING_STYLE}>
           No branches available
         </p>
-        <p className="text-[13px] mt-2" style={{ color: "#6B7A6F" }}>
+        <p className="text-[13px] mt-2" style={WARM_MUTED_STYLE}>
           Please check back soon or contact us directly.
         </p>
       </div>
@@ -1411,11 +1481,11 @@ function StepBranches({
     <div>
       <h2
         className="mb-2 text-[18px] font-semibold md:text-2xl md:font-medium"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
         Select Branch
       </h2>
-      <p className="mb-5 text-[13px] leading-6 md:mb-8 md:text-[14px]" style={{ color: "#6B7A6F" }}>
+      <p className="mb-5 text-[13px] leading-6 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
         Please choose the branch where you would like to book.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
@@ -1425,11 +1495,11 @@ function StepBranches({
             onClick={() => onSelect(branch)}
             className={`grid grid-cols-[84px_1fr_auto] gap-3 rounded-[10px] border p-3 text-left transition-all duration-300 md:flex md:items-start md:gap-4 md:rounded-xl md:p-5 ${
               selected?.id === branch.id
-                ? "border-[#063D2D] bg-white shadow-[0_8px_22px_rgba(16,38,29,0.08)] md:border-[#C8A96B] md:bg-[#C8A96B]/5 md:shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
-                : "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
+                ? WARM_SELECTED_CARD_CLS
+                : WARM_IDLE_CARD_CLS
             }`}
           >
-            <div className="relative h-[92px] overflow-hidden rounded-[7px] bg-[#E9DDC8] md:hidden">
+            <div className="relative h-[92px] overflow-hidden rounded-[7px] bg-[#05241D] md:hidden">
               <Image
                 src={index % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking}
                 alt={`${branch.name} branch`}
@@ -1437,29 +1507,30 @@ function StepBranches({
                 className="object-cover"
                 sizes="84px"
               />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#031B16]/68 via-transparent to-transparent" />
             </div>
             <div
               className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg md:flex ${
                 selected?.id === branch.id
-                  ? "bg-[#163A2B] text-[#C8A96B]"
-                  : "bg-[#163A2B]/5 text-[#163A2B]"
+                  ? "border border-[#D4B57A]/35 bg-[#031B16]/70 text-[#D4B57A]"
+                  : "border border-[#D4B57A]/20 bg-[#05241D]/70 text-[#D4B57A]"
               }`}
             >
               <MapPin className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <span className="inline-flex rounded-full bg-[#F6E8C8] px-2 py-1 text-[10px] font-semibold text-[#9A6A1F] md:hidden">
+              <span className="inline-flex rounded-full border border-[#D4B57A]/25 bg-[#031B16]/60 px-2 py-1 text-[10px] font-semibold text-[#D4B57A] md:hidden">
                 Services vary by branch
               </span>
-              <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
+              <p className="text-[14px] font-semibold" style={WARM_HEADING_STYLE}>
                 {branch.name}
               </p>
               {branch.address && (
-                <p className="mt-1 line-clamp-2 text-[11px] leading-4 md:text-[12px]" style={{ color: "#6B7A6F" }}>
+                <p className="mt-1 line-clamp-2 text-[11px] leading-4 md:text-[12px]" style={WARM_MUTED_STYLE}>
                   {branch.address}
                 </p>
               )}
-              <p className="mt-2 text-[10.5px] text-[#3F4F44] md:hidden">
+              <p className="mt-2 text-[10.5px] text-[#F6EBD6]/58 md:hidden">
                 Open daily · 10:00 AM - 10:00 PM
               </p>
             </div>
@@ -1467,8 +1538,8 @@ function StepBranches({
               <span
                 className={`flex h-6 w-6 items-center justify-center rounded-full border ${
                   selected?.id === branch.id
-                    ? "border-[#063D2D] bg-[#063D2D] text-[#FCFAF5]"
-                    : "border-[#A79A86] bg-white text-transparent"
+                    ? "border-[#D4B57A] bg-[#D4B57A] text-[#031B16]"
+                    : "border-[#D4B57A]/30 bg-[#031B16]/40 text-transparent"
                 }`}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1496,11 +1567,11 @@ function StepVisitType({
     <div>
       <h2
         className="text-2xl font-medium mb-2"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
         Choose Visit Type
       </h2>
-      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
+      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
         Select how you would like to receive your treatment.
       </p>
 
@@ -1522,36 +1593,36 @@ function StepVisitType({
               }}
               className={`flex items-start gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
                 isSelected
-                  ? "border-[#C8A96B] bg-[#C8A96B]/5 shadow-[0_4px_16px_rgba(200,169,107,0.15)]"
+                  ? WARM_SELECTED_CARD_CLS
                   : isEnabled
-                    ? "border-[#EDE4D3] bg-white hover:border-[#C8A96B]/50 hover:shadow-sm"
-                    : "border-[#EDE4D3] bg-white opacity-55 cursor-not-allowed"
+                    ? WARM_IDLE_CARD_CLS
+                    : "cursor-not-allowed border-[#D4B57A]/12 bg-[#05241D]/32 opacity-55"
               }`}
             >
               <div
                 className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
                   isSelected
-                    ? "bg-[#163A2B] text-[#C8A96B]"
-                    : "bg-[#163A2B]/5 text-[#163A2B]"
+                    ? "border border-[#D4B57A]/40 bg-[#031B16]/70 text-[#D4B57A]"
+                    : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#D4B57A]"
                 }`}
               >
                 <Icon className="h-6 w-6" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[14px] font-semibold" style={{ color: "#163A2B" }}>
+                  <p className="text-[14px] font-semibold" style={WARM_HEADING_STYLE}>
                     {option.label}
                   </p>
                   {isSelected && (
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#163A2B] shrink-0">
-                      <Check className="h-3.5 w-3.5 text-[#C8A96B]" />
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#D4B57A] shrink-0">
+                      <Check className="h-3.5 w-3.5 text-[#031B16]" />
                     </span>
                   )}
                 </div>
-                <p className="text-[12px] mt-1" style={{ color: "#6B7A6F" }}>
+                <p className="text-[12px] mt-1" style={WARM_BODY_STYLE}>
                   {isEnabled ? option.description : "Not available for this branch."}
                 </p>
-                <p className="text-[11px] mt-3 font-medium" style={{ color: "#C8A96B" }}>
+                <p className="text-[11px] mt-3 font-medium" style={WARM_LABEL_STYLE}>
                   {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
                 </p>
               </div>
@@ -1614,20 +1685,26 @@ function StepDateTime({
     <div>
       <h2
         className="text-2xl font-medium mb-2"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
         Select Date & Time
       </h2>
-      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
+      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
         Choose your preferred date and an available start time.
       </p>
 
       <div className="grid md:grid-cols-2 gap-8">
         <div>
-          <p className="text-[12px] font-semibold uppercase tracking-wide mb-3" style={{ color: "#9AA89A" }}>
+          <p className="text-[12px] font-semibold uppercase tracking-wide mb-3" style={WARM_LABEL_STYLE}>
             Date
           </p>
-          <div className="bg-white rounded-xl border border-[#EDE4D3] p-3 overflow-x-auto flex justify-center md:justify-start">
+          <div
+            className={
+              mode === "public"
+                ? `overflow-x-auto flex justify-center rounded-xl p-3 md:justify-start ${WARM_GLASS_PANEL_CLS}`
+                : "rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-3 overflow-x-auto flex justify-center md:justify-start backdrop-blur-xl"
+            }
+          >
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -1637,53 +1714,64 @@ function StepDateTime({
                 d.setHours(0, 0, 0, 0);
                 return d < today || d > maxDate;
               }}
-              className="rounded-md"
+              className={
+                mode === "public"
+                  ? "rounded-md bg-transparent p-0 text-[#F6EBD6] [--cell-radius:0.65rem] [--cell-size:2.25rem] sm:[--cell-size:2.5rem] [&_.rdp-chevron]:text-[#D4B57A]"
+                  : "rounded-md"
+              }
+              classNames={
+                mode === "public" ? BOOKING_CALENDAR_CLASSNAMES : undefined
+              }
             />
           </div>
         </div>
 
         <div>
-          <p className="text-[12px] font-semibold uppercase tracking-wide mb-3" style={{ color: "#9AA89A" }}>
+          <p className="text-[12px] font-semibold uppercase tracking-wide mb-3" style={WARM_LABEL_STYLE}>
             Available Times
           </p>
-          <p className="text-[12px] mb-3" style={{ color: "#6B7A6F" }}>
+          <p className="text-[12px] mb-3" style={WARM_MUTED_STYLE}>
             {visitOption.label}: {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
           </p>
           {serviceCount === 0 ? (
             <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed"
-              style={{ borderColor: "#EDE4D3", background: "#FCFAF5" }}
+              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50"
             >
-              <p className="text-[13px]" style={{ color: "#9AA89A" }}>
+              <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a service to see available times.
               </p>
             </div>
           ) : !selectedDate ? (
             <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed"
-              style={{ borderColor: "#EDE4D3", background: "#FCFAF5" }}
+              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50"
             >
-              <p className="text-[13px]" style={{ color: "#9AA89A" }}>
+              <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a date to see available times.
               </p>
             </div>
           ) : loading ? (
             <div>
-              <p className="mb-3 text-[13px]" style={{ color: "#6B7A6F" }}>
+              <p className="mb-3 text-[13px]" style={WARM_MUTED_STYLE}>
                 Checking available times...
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Array.from({ length: 9 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 rounded-lg" />
+                  <Skeleton
+                    key={i}
+                    className={
+                      mode === "public"
+                        ? `h-10 rounded-lg ${WARM_SKELETON_CLS}`
+                        : "h-10 rounded-lg"
+                    }
+                  />
                 ))}
               </div>
             </div>
           ) : availableSlots.length === 0 ? (
             <div
-              className="flex items-center justify-center h-48 rounded-xl border border-dashed"
-              style={{ borderColor: "#EDE4D3", background: "#FCFAF5" }}
+              className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 text-center"
             >
-              <p className="text-[13px]" style={{ color: "#6B7A6F" }}>
+              <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 {isTodaySelected
                   ? "No more available slots today. Please choose another date."
                   : emptyMessage}
@@ -1705,12 +1793,12 @@ function StepDateTime({
                     disabled={isHard && mode === "inhouse"}
                     className={`relative flex flex-col items-center justify-center rounded-lg py-2.5 px-2 text-[12px] font-medium transition-all duration-300 ${
                       isSelected
-                        ? "bg-[#163A2B] text-[#C8A96B] shadow-md"
+                        ? "bg-[#D4B57A] text-[#031B16] shadow-[0_12px_28px_rgba(212,181,122,0.22)]"
                         : isHard
-                        ? "bg-white text-[#9AA89A] border border-[#EDE4D3] opacity-50 cursor-not-allowed"
+                        ? "cursor-not-allowed border border-[#D4B57A]/12 bg-[#05241D]/35 text-[#F6EBD6]/35 opacity-50"
                         : isWarning
-                        ? "bg-amber-50 text-[#163A2B] border border-amber-200 hover:border-amber-400"
-                        : "bg-white text-[#163A2B] border border-[#EDE4D3] hover:border-[#C8A96B]/50"
+                        ? "border border-[#D4B57A]/38 bg-[#B88945]/16 text-[#F6EBD6] hover:border-[#D4B57A]/65"
+                        : "border border-[#D4B57A]/25 bg-[#0D2B20]/62 text-[#F6EBD6] hover:border-[#D4B57A]/60"
                     }`}
                   >
                     {formatTime(slot.slot_time)}
@@ -1770,8 +1858,9 @@ function StepTherapist({
 }
 
 // ── Shared input style ─────────────────────────────────────────────────────────
-const INPUT_CLS = "w-full rounded-xl border border-[#EDE4D3] bg-white px-4 py-3 text-[14px] text-[#163A2B] placeholder:text-[#9AA89A] outline-none transition-all focus:border-[#C8A96B] focus:ring-2 focus:ring-[#C8A96B]/20";
-const LABEL_CLS = "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2";
+const INPUT_CLS = "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/70 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/25";
+const PUBLIC_INPUT_CLS = "w-full rounded-xl border border-[#D4B57A]/25 bg-[#05241D]/75 px-4 py-3 text-[14px] text-[#F6EBD6] placeholder:text-[#F6EBD6]/45 outline-none transition-all selection:bg-[#D4B57A]/30 focus:border-[#D4B57A]/75 focus:ring-2 focus:ring-[#D4B57A]/20";
+const LABEL_CLS = "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2 text-[#D4B57A]";
 
 // ── Step 4 (HS only): Location ────────────────────────────────────────────────
 
@@ -1872,6 +1961,7 @@ function StepLocation({
 }) {
   const preciseLocationSelected = isPreciseHomeServiceLocation(form);
   const hasTypedAddress = form.hsAddress.trim().length > 0;
+  const fieldClassName = mode === "public" ? PUBLIC_INPUT_CLS : INPUT_CLS;
   const statusMessage = placesStatusMessage(placesStatus);
   const showSelectionError =
     (preciseLocationRequired && hasTypedAddress && !preciseLocationSelected) ||
@@ -1883,18 +1973,18 @@ function StepLocation({
     <div>
       <h2
         className="text-2xl font-medium mb-2"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
         Your Location
       </h2>
-      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
+      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
         Search and select your exact location so our therapist and driver can find you easily.
       </p>
 
       <div className="flex flex-col gap-5">
         {!showCustomerCompactLocation && (
           <div>
-            <label htmlFor="hs-zone" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+            <label htmlFor="hs-zone" className={LABEL_CLS}>
               <MapPin className="h-3.5 w-3.5" />
               Location Zone *
             </label>
@@ -1902,7 +1992,7 @@ function StepLocation({
               id="hs-zone"
               value={form.hsZone}
               onChange={(event) => onChange({ ...form, hsZone: event.target.value })}
-              className={INPUT_CLS}
+              className={fieldClassName}
             >
               <option value="" disabled>Select your zone...</option>
               {HS_ZONE_OPTIONS.filter((option) => option.value !== "unknown").map((option) => (
@@ -1911,7 +2001,7 @@ function StepLocation({
                 </option>
               ))}
             </select>
-            <p className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
+            <p className="text-[11px] mt-1" style={WARM_MUTED_STYLE}>
               Helps us verify we have a driver available in your area before you pick a time.
             </p>
           </div>
@@ -1920,7 +2010,7 @@ function StepLocation({
         <div>
           {!preciseLocationSelected ? (
             <>
-              <label htmlFor="hs-address-location" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+              <label htmlFor="hs-address-location" className={LABEL_CLS}>
                 <MapPin className="h-3.5 w-3.5" />
                 Search your home location *
               </label>
@@ -1935,31 +2025,31 @@ function StepLocation({
                 }}
                 onStatusChange={onPlacesStatusChange}
                 placeholder="Search your address, building, or nearby landmark"
-                className={INPUT_CLS}
+                className={fieldClassName}
+                theme="warm"
                 ariaDescribedBy={helperId}
               />
-              <p id={helperId} className="text-[11px] mt-1" style={{ color: "#9AA89A" }}>
+              <p id={helperId} className="text-[11px] mt-1" style={WARM_MUTED_STYLE}>
                 Choose a Google suggestion; typed text alone is not enough for routing.
               </p>
             </>
           ) : (
             <div
-              className="flex items-start gap-3 rounded-xl border px-4 py-3"
-              style={{ background: "#F7FBF5", borderColor: "#CDE3C7" }}
+              className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/28 bg-[#0D2B20]/65 px-4 py-3 backdrop-blur-xl"
             >
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#2F6B3C]" />
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#2F6B3C]">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
                   Selected location
                 </p>
-                <p className="mt-0.5 text-[13px] leading-5 text-[#163A2B]">
+                <p className="mt-0.5 text-[13px] leading-5 text-[#F6EBD6]">
                   {form.hsFormattedAddress}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => onChange(clearSelectedPlace(form, ""))}
-                className="rounded-full border border-[#CDE3C7] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#2F6B3C] transition-colors hover:bg-white"
+                className="rounded-full border border-[#D4B57A]/35 bg-[#031B16]/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A] transition-colors hover:border-[#D4B57A]/70"
               >
                 Change
               </button>
@@ -1970,8 +2060,8 @@ function StepLocation({
             <p
               className={`mt-2 rounded-lg px-3 py-2 text-[12px] ${
                 placesStatus === "loading"
-                  ? "bg-[#FCFAF5] text-[#6B7A6F]"
-                  : "bg-amber-50 text-amber-800"
+                  ? "border border-[#D4B57A]/20 bg-[#05241D]/58 text-[#F6EBD6]/70"
+                  : "border border-[#D4B57A]/30 bg-[#B88945]/14 text-[#F6EBD6]"
               }`}
             >
               {statusMessage}
@@ -1979,14 +2069,14 @@ function StepLocation({
           )}
 
           {showSelectionError && (
-            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
+            <p className="mt-2 rounded-lg border border-red-300/25 bg-red-950/30 px-3 py-2 text-[12px] font-medium text-red-100">
               {PRECISE_LOCATION_ERROR}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="hs-delivery-notes" className={LABEL_CLS} style={{ color: "#9AA89A" }}>
+          <label htmlFor="hs-delivery-notes" className={LABEL_CLS}>
             Delivery notes{" "}
             <span className="normal-case font-normal">(optional)</span>
           </label>
@@ -1996,7 +2086,7 @@ function StepLocation({
             onChange={(event) => onChange({ ...form, hsParkingNotes: event.target.value })}
             placeholder="House number, unit, gate color, landmark, parking instructions..."
             rows={3}
-            className={`${INPUT_CLS} resize-none`}
+            className={`${fieldClassName} resize-none`}
           />
         </div>
       </div>
@@ -2053,23 +2143,24 @@ function StepDetails({
   mode: BookingWizardMode;
 }) {
   const isHomeService = visitType === "home_service";
+  const fieldClassName = mode === "public" ? PUBLIC_INPUT_CLS : INPUT_CLS;
 
   return (
     <div>
       <h2
         className="text-2xl font-medium mb-2"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
         Your Details
       </h2>
-      <p className="text-[14px] mb-8" style={{ color: "#6B7A6F" }}>
+      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
         Please provide your contact information to complete the booking.
       </p>
 
       <div className="flex flex-col gap-5">
         {/* Contact info */}
         <div>
-          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+          <label className={LABEL_CLS}>
             <User className="h-3.5 w-3.5" />
             Full Name *
           </label>
@@ -2078,12 +2169,12 @@ function StepDetails({
             value={form.fullName}
             onChange={(e) => onChange({ ...form, fullName: e.target.value })}
             placeholder="Enter your full name"
-            className={INPUT_CLS}
+            className={fieldClassName}
           />
         </div>
 
         <div>
-          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+          <label className={LABEL_CLS}>
             <Phone className="h-3.5 w-3.5" />
             Phone Number *
           </label>
@@ -2092,12 +2183,12 @@ function StepDetails({
             value={form.phone}
             onChange={(e) => onChange({ ...form, phone: e.target.value })}
             placeholder="e.g. 0917 123 4567"
-            className={INPUT_CLS}
+            className={fieldClassName}
           />
         </div>
 
         <div>
-          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+          <label className={LABEL_CLS}>
             <Mail className="h-3.5 w-3.5" />
             Email{" "}
             <span className="normal-case font-normal">(optional)</span>
@@ -2107,12 +2198,12 @@ function StepDetails({
             value={form.email}
             onChange={(e) => onChange({ ...form, email: e.target.value })}
             placeholder="your@email.com"
-            className={INPUT_CLS}
+            className={fieldClassName}
           />
         </div>
 
         <div>
-          <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+          <label className={LABEL_CLS}>
             <FileText className="h-3.5 w-3.5" />
             Notes{" "}
             <span className="normal-case font-normal">(optional)</span>
@@ -2122,40 +2213,39 @@ function StepDetails({
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
             placeholder="Share any comfort notes or special requests."
             rows={3}
-            className={`${INPUT_CLS} resize-none`}
+            className={`${fieldClassName} resize-none`}
           />
         </div>
 
         {/* CRM In-House Payment Capture */}
         {mode === "inhouse" && (
           <div
-            className="flex flex-col gap-4 rounded-2xl p-5 border"
-            style={{ background: "#F0FDF4", borderColor: "#86EFAC" }}
+            className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl"
           >
             <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-4 w-4" style={{ color: "#16A34A" }} />
-              <p className="text-[13px] font-semibold" style={{ color: "#15803D" }}>
+              <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
+              <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
                 Payment
               </p>
               <span
                 className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ background: "#DCFCE7", color: "#15803D" }}
+                style={{ background: "rgba(212,181,122,0.14)", color: "#D4B57A" }}
               >
                 Required
               </span>
             </div>
-            <p className="text-[12px] -mt-2" style={{ color: "#166534" }}>
+            <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
               Record the customer&apos;s payment before finalizing this in-house booking.
             </p>
 
             <div>
-              <label className={`${LABEL_CLS}`} style={{ color: "#166534" }}>
+              <label className={LABEL_CLS}>
                 Payment method *
               </label>
               <select
                 value={form.paymentMethod}
                 onChange={(e) => onChange({ ...form, paymentMethod: e.target.value })}
-                className={INPUT_CLS}
+                className={fieldClassName}
               >
                 <option value="" disabled>Select payment method…</option>
                 <option value="cash">Cash</option>
@@ -2167,7 +2257,7 @@ function StepDetails({
             </div>
 
             <div>
-              <label className={`${LABEL_CLS}`} style={{ color: "#166534" }}>
+              <label className={LABEL_CLS}>
                 Reference / receipt no.{" "}
                 <span className="normal-case font-normal">(optional)</span>
               </label>
@@ -2176,12 +2266,12 @@ function StepDetails({
                 value={form.paymentReference}
                 onChange={(e) => onChange({ ...form, paymentReference: e.target.value })}
                 placeholder="e.g. GCash ref #, receipt number"
-                className={INPUT_CLS}
+                className={fieldClassName}
               />
             </div>
 
             <div>
-              <label className={`${LABEL_CLS}`} style={{ color: "#166534" }}>
+              <label className={LABEL_CLS}>
                 Payment note{" "}
                 <span className="normal-case font-normal">(optional)</span>
               </label>
@@ -2190,7 +2280,7 @@ function StepDetails({
                 onChange={(e) => onChange({ ...form, paymentNote: e.target.value })}
                 placeholder="Internal note about this payment…"
                 rows={2}
-                className={`${INPUT_CLS} resize-none`}
+                className={`${fieldClassName} resize-none`}
               />
             </div>
           </div>
@@ -2199,31 +2289,30 @@ function StepDetails({
         {/* Home Service Address */}
         {isHomeService && (
           <div
-            className="flex flex-col gap-4 rounded-2xl p-5 border"
-            style={{ background: "#FCFAF5", borderColor: "#C8A96B40" }}
+            className="flex flex-col gap-4 rounded-2xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-5 backdrop-blur-xl"
           >
             <div className="flex items-center gap-2 mb-1">
-              <Home className="h-4 w-4" style={{ color: "#C8A96B" }} />
-              <p className="text-[13px] font-semibold" style={{ color: "#163A2B" }}>
+              <Home className="h-4 w-4" style={WARM_LABEL_STYLE} />
+              <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
                 Home Service Address
               </p>
               <span
                 className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                style={{ background: "#C8A96B20", color: "#8A6B35" }}
+                style={{ background: "rgba(212,181,122,0.14)", color: "#D4B57A" }}
               >
                 Required
               </span>
             </div>
-            <p className="text-[12px] -mt-2" style={{ color: "#6B7A6F" }}>
+            <p className="text-[12px] -mt-2" style={WARM_BODY_STYLE}>
               We will use the selected Google location from the Location step for dispatch and routing.
             </p>
 
             {mode === "inhouse" && (
-              <div className="flex items-center gap-2 rounded-xl px-4 py-3 border" style={{ background: "white", borderColor: "#EDE4D3" }}>
-                <MapPin className="h-4 w-4 shrink-0" style={{ color: "#C8A96B" }} />
+              <div className="flex items-center gap-2 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
+                <MapPin className="h-4 w-4 shrink-0" style={WARM_LABEL_STYLE} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA89A" }}>Zone</p>
-                  <p className="text-[13px] font-medium" style={{ color: "#163A2B" }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>Zone</p>
+                  <p className="text-[13px] font-medium" style={WARM_BODY_STYLE}>
                     {HS_ZONE_OPTIONS.find((o) => o.value === form.hsZone)?.label ?? form.hsZone}
                   </p>
                 </div>
@@ -2232,34 +2321,33 @@ function StepDetails({
 
             {isPreciseHomeServiceLocation(form) ? (
               <div
-                className="flex items-start gap-3 rounded-xl border px-4 py-3"
-                style={{ background: "white", borderColor: "#EDE4D3" }}
+                className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3"
               >
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#2F6B3C]" />
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#D4B57A]" />
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#2F6B3C]">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#D4B57A]">
                     Selected location
                   </p>
-                  <p className="mt-0.5 text-[13px] leading-5" style={{ color: "#163A2B" }}>
+                  <p className="mt-0.5 text-[13px] leading-5" style={WARM_BODY_STYLE}>
                     {form.hsFormattedAddress}
                   </p>
-                  <p className="mt-1 text-[11px]" style={{ color: "#6B7A6F" }}>
+                  <p className="mt-1 text-[11px]" style={WARM_MUTED_STYLE}>
                     Place ID captured for routing.
                   </p>
                 </div>
               </div>
             ) : (
-              <p className="rounded-lg bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700">
+              <p className="rounded-lg border border-red-300/25 bg-red-950/30 px-4 py-3 text-[13px] font-medium text-red-100">
                 {PRECISE_LOCATION_ERROR}
               </p>
             )}
 
             {form.hsAddressDetails && (
-              <div className="rounded-xl border px-4 py-3" style={{ background: "white", borderColor: "#EDE4D3" }}>
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9AA89A" }}>
+              <div className="rounded-xl border border-[#D4B57A]/22 bg-[#05241D]/58 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
                   House / Unit Details
                 </p>
-                <p className="mt-0.5 text-[13px]" style={{ color: "#163A2B" }}>
+                <p className="mt-0.5 text-[13px]" style={WARM_BODY_STYLE}>
                   {form.hsAddressDetails}
                 </p>
               </div>
@@ -2268,7 +2356,7 @@ function StepDetails({
             {mode === "inhouse" && (
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                  <label className={LABEL_CLS}>
                     Barangay *
                   </label>
                   <input
@@ -2276,11 +2364,11 @@ function StepDetails({
                     value={form.hsBarangay}
                     onChange={(event) => onChange({ ...form, hsBarangay: event.target.value })}
                     placeholder="e.g. Brgy. San Antonio"
-                    className={INPUT_CLS}
+                    className={fieldClassName}
                   />
                 </div>
                 <div>
-                  <label className={`${LABEL_CLS}`} style={{ color: "#9AA89A" }}>
+                  <label className={LABEL_CLS}>
                     City / Municipality *
                   </label>
                   <input
@@ -2288,7 +2376,7 @@ function StepDetails({
                     value={form.hsCity}
                     onChange={(event) => onChange({ ...form, hsCity: event.target.value })}
                     placeholder="e.g. Bacolod City"
-                    className={INPUT_CLS}
+                    className={fieldClassName}
                   />
                 </div>
               </div>
@@ -2298,7 +2386,7 @@ function StepDetails({
       </div>
 
       {error && (
-        <p className="mt-5 text-[13px] font-medium text-red-600 bg-red-50 rounded-lg px-4 py-3">
+        <p className="mt-5 rounded-lg border border-red-300/25 bg-red-950/30 px-4 py-3 text-[13px] font-medium text-red-100">
           {error}
         </p>
       )}
@@ -2319,30 +2407,29 @@ function StepSuccess({
 }) {
   return (
     <div className="text-center py-12">
-      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#163A2B] text-[#C8A96B] mx-auto mb-6">
+      <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-[#D4B57A]/40 bg-[#0D2B20]/72 text-[#D4B57A] shadow-[0_20px_54px_rgba(0,0,0,0.32)]">
         <Check className="h-10 w-10" />
       </div>
       <h2
         className="text-2xl sm:text-3xl font-medium mb-3"
-        style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+        style={WARM_HEADING_STYLE}
       >
-        {mode === "inhouse" ? "Booking Saved" : "Booking request received ✨"}
+        {mode === "inhouse" ? "Booking Saved" : "Your calm is booked"}
       </h2>
-      <p className="text-[15px] max-w-md mx-auto mb-6" style={{ color: "#6B7A6F" }}>
+      <p className="text-[15px] max-w-md mx-auto mb-6" style={WARM_BODY_STYLE}>
         {mode === "inhouse"
           ? "The appointment has been saved and confirmed in the CRM workspace."
-          : "Thanks for booking with CradleHub. Our CRM team will contact you shortly to confirm your payment and finalize your appointment."}
+          : "We can't wait to care for you. Our CRM team will contact you shortly to confirm your payment and finalize your appointment."}
       </p>
 
       {mode === "public" && (
         <div
-          className="mx-auto mb-6 max-w-md rounded-xl px-5 py-4 text-left"
-          style={{ background: "#FCFAF5", border: "1px solid #EDE4D3" }}
+          className="mx-auto mb-6 max-w-md rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-5 py-4 text-left backdrop-blur-xl"
         >
-          <p className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#C8A96B" }}>
+          <p className="text-[12px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
             Next step
           </p>
-          <p className="mt-1 text-[13px] leading-6" style={{ color: "#3F4F44" }}>
+          <p className="mt-1 text-[13px] leading-6" style={WARM_BODY_STYLE}>
             Wait for our CRM confirmation. We are temporarily holding your selected time while we process your request, so please keep your phone nearby.
           </p>
         </div>
@@ -2351,13 +2438,12 @@ function StepSuccess({
       {/* Service list recap */}
       {services.length > 0 && (
         <div
-          className="inline-flex flex-col items-start gap-1.5 rounded-xl px-6 py-4 mb-6 text-left"
-          style={{ background: "#FCFAF5", border: "1px solid #EDE4D3" }}
+          className="mb-6 inline-flex flex-col items-start gap-1.5 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 text-left backdrop-blur-xl"
         >
           {services.map((s) => (
             <div key={s.id} className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 shrink-0" style={{ color: "#C8A96B" }} />
-              <span className="text-[13px] font-medium" style={{ color: "#163A2B" }}>
+              <Check className="h-3.5 w-3.5 shrink-0" style={WARM_LABEL_STYLE} />
+              <span className="text-[13px] font-medium" style={WARM_BODY_STYLE}>
                 {s.name}
               </span>
             </div>
@@ -2366,18 +2452,17 @@ function StepSuccess({
       )}
 
       <div
-        className="inline-flex items-center gap-3 rounded-xl px-6 py-4 mb-8"
-        style={{ background: "#FCFAF5", border: "1px solid #EDE4D3" }}
+        className="mb-8 inline-flex items-center gap-3 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-6 py-4 backdrop-blur-xl"
       >
-        <span className="text-[12px] font-medium uppercase tracking-wide" style={{ color: "#9AA89A" }}>
+        <span className="text-[12px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
           Booking ID
         </span>
-        <span className="text-[14px] font-semibold font-mono" style={{ color: "#163A2B" }}>
+        <span className="text-[14px] font-semibold font-mono" style={WARM_BODY_STYLE}>
           {bookingId.slice(0, 8).toUpperCase()}
         </span>
       </div>
 
-      <p className="text-[12px]" style={{ color: "#9AA89A" }}>
+      <p className="text-[12px]" style={WARM_MUTED_STYLE}>
         {mode === "inhouse"
           ? "You can view or adjust this booking anytime from the bookings workspace."
           : "Your request is with our CRM team. If you need to make any changes, please call us directly."}
@@ -2387,13 +2472,13 @@ function StepSuccess({
         <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#EDE4D3] bg-white px-5 text-[13px] font-semibold text-[#163A2B] transition-colors hover:border-[#C8A96B]"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#D4B57A]/35 bg-[#031B16]/48 px-5 text-[13px] font-semibold text-[#F6EBD6] transition-colors hover:border-[#D4B57A]/70"
           >
             Back to home
           </Link>
           <Link
             href="/book"
-            className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#163A2B] px-5 text-[13px] font-semibold text-[#FCFAF5] transition-opacity hover:opacity-90"
+            className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 text-[13px] font-semibold transition-opacity hover:opacity-90 ${WARM_PRIMARY_BUTTON_CLS}`}
           >
             Book another service
           </Link>

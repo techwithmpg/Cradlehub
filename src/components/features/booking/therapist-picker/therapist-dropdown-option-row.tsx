@@ -33,12 +33,14 @@ export function TherapistDropdownOptionRow({
       onClick={onSelect}
       className={cn(
         "flex min-h-16 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8A96B]/50",
-        selected ? "bg-[#F7F1E6] text-[#10261D]" : "text-[#163A2B] hover:bg-[#FCFAF5]",
+        selected
+          ? "bg-[#D4B57A]/14 text-[#F6EBD6]"
+          : "text-[#F6EBD6] hover:bg-[#0D2B20]/80",
         !option.isAvailable && "cursor-not-allowed opacity-50"
       )}
       aria-pressed={selected}
     >
-      <Avatar className="size-10 border border-white bg-[#F4F0E8] shadow-sm">
+      <Avatar className="size-10 border border-[#D4B57A]/22 bg-[#05241D] shadow-sm">
         {option.avatarUrl ? (
           <AvatarImage src={option.avatarUrl} alt={option.displayName} />
         ) : null}
@@ -56,7 +58,7 @@ export function TherapistDropdownOptionRow({
             </TherapistAvailabilityBadge>
           ) : null}
         </span>
-        <span className="mt-0.5 block truncate text-[12px] leading-5 text-[#6B7A6F]">
+        <span className="mt-0.5 block truncate text-[12px] leading-5 text-[#F6EBD6]/64">
           {subLabel}
         </span>
       </span>
@@ -64,11 +66,11 @@ export function TherapistDropdownOptionRow({
       <span
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full border",
-          selected ? "border-[#163A2B] bg-[#163A2B]" : "border-[#D6CEC2] bg-white"
+          selected ? "border-[#D4B57A] bg-[#D4B57A]" : "border-[#D4B57A]/30 bg-[#031B16]/35"
         )}
         aria-hidden="true"
       >
-        {selected ? <Check className="size-3.5 text-[#C8A96B]" /> : null}
+        {selected ? <Check className="size-3.5 text-[#031B16]" /> : null}
       </span>
     </button>
   );

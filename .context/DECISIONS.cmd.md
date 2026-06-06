@@ -409,3 +409,16 @@ Staff, Therapist, Driver Staff Portal, and standalone Driver mobile navigation s
 - Keeps bottom safe-area spacing consistent across home, schedule, week, progress, dispatch, and driver routes.
 - Preserves desktop layouts through `md:hidden` nav rendering and `md:contents` shells.
 - Allows Basic, Therapist, and Driver route sets to share the same glass nav behavior while keeping their labels and primary action routes role-specific.
+
+### DEC-PUBLIC-LOADING-001: Public mobile loading has one intro and one scoped route line
+**Status:** ACCEPTED - 2026-06-06
+
+**Decision:**
+Public mobile loading is split into two narrow experiences:
+- The custom Cradle intro lives only in the homepage mobile component and is session-scoped with `cradle_public_intro_seen`.
+- Public route progress is a root-mounted client component, but it is inert unless the current and target paths are top-level public routes: `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact`.
+
+Root `src/app/loading.tsx` renders only a non-branded dark mobile paint guard so it cannot show a second full-screen loading shell before the homepage intro and does not flash light/white while content streams. The `(public)` route group owns a thin warm-gold fallback line for streamed public segment transitions.
+
+**Rationale:**
+The homepage lives at `src/app/page.tsx`, while the rest of the public pages live under `src/app/(public)`. A root-mounted but allow-listed route line is the smallest way to persist across `/` and `(public)` transitions without touching booking logic or protected workspaces. The intro emits an active-state event so route progress does not start while the intro is playing.
