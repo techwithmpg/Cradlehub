@@ -1091,6 +1091,7 @@ export function BookingWizard({
                   selectedDate={selectedDate}
                   onSelectDate={(d) => {
                     setSelectedDate(d);
+                    setLoadingSlots(Boolean(d && selectedBranch && selectedServices.length > 0));
                     setRawSlots([]);
                     setSlots([]);
                     setSelectedSlot(null);
@@ -1793,7 +1794,7 @@ function StepDateTime({
   }, [closeTimeSheet, isTimeSheetOpen]);
 
   return (
-    <div>
+    <div className="min-h-0 h-full overflow-y-auto overscroll-contain pb-[calc(7rem+env(safe-area-inset-bottom))] md:block md:h-auto md:overflow-visible md:pb-0">
       <h2
         className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
@@ -2094,33 +2095,35 @@ function MobileTimeBottomSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-x-0 bottom-0 z-[80] max-h-[72dvh] overflow-hidden rounded-t-[28px] border-t border-[#D4B57A]/25 bg-[#0D2B20]/95 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-24px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[80] flex max-h-[72dvh] flex-col overflow-hidden rounded-t-[28px] border-t border-[#D4B57A]/25 bg-[#0D2B20]/95 shadow-[0_-24px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
       >
-        <div className="mx-auto mt-3 h-1 w-12 rounded-full bg-[#D4B57A]/50" />
-        <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
-          <div>
-            <p
-              id={titleId}
-              className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#D4B57A]"
+        <div className="shrink-0">
+          <div className="mx-auto mt-3 h-1 w-12 rounded-full bg-[#D4B57A]/50" />
+          <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
+            <div>
+              <p
+                id={titleId}
+                className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#D4B57A]"
+              >
+                Available times
+              </p>
+              <p className="mt-1 text-[18px] font-semibold text-[#F6EBD6] [font-family:var(--sp-font-display)]">
+                {selectedDate ? formatSheetDate(selectedDate) : "Choose a date"}
+              </p>
+            </div>
+            <button
+              ref={closeButtonRef}
+              type="button"
+              onClick={onClose}
+              aria-label="Close available times"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D4B57A]/30 bg-[#031B16]/55 text-[#D4B57A] transition-colors hover:border-[#D4B57A]/65"
             >
-              Available times
-            </p>
-            <p className="mt-1 text-[18px] font-semibold text-[#F6EBD6] [font-family:var(--sp-font-display)]">
-              {selectedDate ? formatSheetDate(selectedDate) : "Choose a date"}
-            </p>
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close available times"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D4B57A]/30 bg-[#031B16]/55 text-[#D4B57A] transition-colors hover:border-[#D4B57A]/65"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
           {serviceCount === 0 ? (
             <MobileTimeSheetMessage>
               Choose a service first to see available times.
@@ -2156,7 +2159,7 @@ function MobileTimeBottomSheet({
           )}
         </div>
 
-        <div className="border-t border-[#D4B57A]/16 px-5 pt-3">
+        <div className="shrink-0 border-t border-[#D4B57A]/15 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
