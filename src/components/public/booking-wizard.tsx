@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useId,
+  type RefObject,
+  type ReactNode,
+} from "react";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import Image from "next/image";
 import Link from "next/link";
@@ -29,6 +38,7 @@ import {
   ShieldCheck,
   LockKeyhole,
   BadgeCheck,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createOnlineBookingMultiAction } from "@/lib/actions/online-booking";
@@ -238,11 +248,32 @@ function formatTime(timeStr: string) {
   return `${displayHour}:${m} ${ampm}`;
 }
 
+function formatSheetDate(date: Date): string {
+  return date.toLocaleDateString("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatCompactDate(date: Date): string {
+  return date.toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function toLocalYmd(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function isMobileBookingViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
 }
 
 function staffCanPerformSelectedServices(
@@ -333,6 +364,7 @@ export function BookingWizard({
 } = {}) {
   const [step, setStep] = useState(1);
   const { isOffline } = useNetworkStatus();
+  const stepScrollRef = useRef<HTMLDivElement>(null);
 
   // Data
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -642,8 +674,13 @@ export function BookingWizard({
   }, [bookingRules, mode]);
 
   useEffect(() => {
+    if (mode === "public" && isMobileBookingViewport()) {
+      stepScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [step]);
+  }, [mode, step]);
 
   const handleBack = useCallback(() => {
     if (currentStepName === "date_time") {
@@ -832,7 +869,7 @@ export function BookingWizard({
     <div
       className={
         mode === "public"
-          ? "public-booking-surface min-h-screen w-full max-w-full overflow-x-hidden pt-14 text-[#F6EBD6] md:pt-0"
+          ? "public-booking-surface flex h-[100dvh] min-h-[100dvh] w-full max-w-full flex-col overflow-hidden pt-14 text-[#F6EBD6] md:block md:h-auto md:min-h-screen md:overflow-x-hidden md:overflow-y-visible md:pt-0"
           : ""
       }
       style={{ background: mode === "public" ? BOOKING_PAGE_BACKGROUND : "transparent" }}
@@ -878,48 +915,48 @@ export function BookingWizard({
         className={
           mode === "public"
             ? isTherapistStep
-              ? "mx-auto w-full max-w-full overflow-x-hidden px-4 pb-32 pt-7 md:max-w-7xl md:px-8 md:py-10 md:overflow-visible lg:py-12"
-              : "mx-auto w-full max-w-full overflow-x-hidden px-4 pb-32 pt-7 md:max-w-5xl md:px-6 md:py-10 md:overflow-visible lg:py-14"
+              ? "mx-auto flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pt-3 md:block md:max-w-7xl md:overflow-visible md:px-8 md:py-10 lg:py-12"
+              : "mx-auto flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden px-4 pt-3 md:block md:max-w-5xl md:overflow-visible md:px-6 md:py-10 lg:py-14"
             : "mx-auto max-w-6xl py-2"
         }
       >
         {mode === "public" && currentStepName !== "success" && (
-          <div className="mb-6 text-left md:hidden">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#D4B57A]">
+          <div className="mb-3 shrink-0 text-center md:hidden">
+            <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#D4B57A]">
               Book Your Pause
             </p>
-            <h1 className="text-[32px] font-medium leading-none text-[#F6EBD6] [font-family:var(--sp-font-display)]">
+            <h1 className="text-[22px] font-medium leading-none text-[#F6EBD6] [font-family:var(--sp-font-display)]">
               Choose your care
             </h1>
-            <p className="mt-3 max-w-[320px] text-[13px] leading-6 text-[#F6EBD6]/72">
+            <p className="mx-auto mt-1.5 max-w-[270px] text-[11px] leading-4 text-[#F6EBD6]/68">
               Select your branch, treatment, time, and details. We&apos;ll guide you gently.
             </p>
           </div>
         )}
 
         {mode === "public" && currentStepName !== "success" && (
-          <div className="mb-8 md:hidden">
+          <div className="mb-4 shrink-0 md:hidden">
             <div className="flex items-start justify-between">
               {MOBILE_PROGRESS_STEPS.map((label, index) => (
                 <div key={label} className="relative flex flex-1 flex-col items-center">
                   {index < MOBILE_PROGRESS_STEPS.length - 1 && (
                     <span
-                      className={`absolute left-1/2 top-3 h-px w-full ${
+                      className={`absolute left-1/2 top-2.5 h-px w-full ${
                         mobileProgressIndex > index ? "bg-[#D4B57A]" : "bg-[#D4B57A]/22"
                       }`}
                     />
                   )}
                   <span
-                    className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                    className={`relative z-10 flex h-5 w-5 items-center justify-center rounded-full border text-[9px] font-semibold ${
                       mobileProgressIndex >= index
                         ? "border-[#D4B57A] bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16] shadow-[0_8px_22px_rgba(212,181,122,0.24)]"
                         : "border-[#D4B57A]/28 bg-[#05241D]/70 text-[#F6EBD6]/45 backdrop-blur"
                     }`}
                   >
-                    {mobileProgressIndex > index ? <Check className="h-3 w-3" /> : index + 1}
+                    {mobileProgressIndex > index ? <Check className="h-2.5 w-2.5" /> : index + 1}
                   </span>
                   <span
-                    className={`mt-2 text-center text-[9.5px] font-medium leading-3 ${
+                    className={`mt-1.5 text-center text-[8.5px] font-medium leading-3 ${
                       mobileProgressIndex >= index ? "text-[#F6EBD6]" : "text-[#F6EBD6]/45"
                     }`}
                   >
@@ -971,111 +1008,132 @@ export function BookingWizard({
         )}
 
         {/* Content */}
-        <div className="grid min-w-0 gap-8 lg:grid-cols-3">
+        <div
+          className={
+            mode === "public"
+              ? "min-h-0 flex-1 overflow-hidden md:grid md:gap-8 md:overflow-visible lg:grid-cols-3"
+              : "grid min-w-0 gap-8 lg:grid-cols-3"
+          }
+        >
           {/* Main */}
-          <div className="min-w-0 lg:col-span-2">
-            {currentStepName === "branch" && (
-              <StepBranches
-                branches={branches}
-                loading={loadingBranches}
-                selected={selectedBranch}
-                mode={mode}
-                onSelect={(b) => {
-                  setSelectedBranch(b);
-                  setBookingRules(null);
-                  setSelectedServices([]);
-                  setRawSlots([]);
-                  setSlots([]);
-                  setSelectedSlot(null);
-                  setSelectedStaff("auto");
-                  setAvailabilityMessage("");
-                }}
-              />
-            )}
-            {currentStepName === "visit" && (
-              <StepVisitType
-                selected={visitType}
-                bookingRules={bookingRules}
-                onSelect={handleVisitTypeSelect}
-              />
-            )}
-            {currentStepName === "services" && (
-              <BookingServicePicker
-                services={eligibleServices}
-                loading={loadingServices}
-                selected={selectedServices}
-                onToggle={toggleService}
-                totalDuration={totalDuration}
-                totalPrice={totalPrice}
-                visitType={visitType}
-                theme={mode === "public" ? "warm" : "default"}
-              />
-            )}
-            {currentStepName === "location" && (
-              <StepLocation
-                form={form}
-                onChange={(nextForm) => {
-                  setForm(nextForm);
-                  if (formError === PRECISE_LOCATION_ERROR) {
-                    setFormError("");
-                  }
-                }}
-                placesStatus={placesStatus}
-                onPlacesStatusChange={setPlacesStatus}
-                preciseLocationRequired={mode === "public"}
-                mode={mode}
-                error={formError}
-              />
-            )}
-            {currentStepName === "date_time" && (
-              <StepDateTime
-                visitType={visitType}
-                bookingRules={bookingRules}
-                selectedDate={selectedDate}
-                onSelectDate={(d) => {
-                  setSelectedDate(d);
-                  setRawSlots([]);
-                  setSlots([]);
-                  setSelectedSlot(null);
-                  setSelectedStaff("auto");
-                  setAvailabilityMessage("");
-                }}
-                slots={displaySlots}
-                loading={loadingSlots}
-                serviceCount={selectedServices.length}
-                availabilityMessage={availabilityMessage}
-                selectedSlot={selectedSlot}
-                onSelectSlot={(s) => {
-                  setSelectedSlot(s);
-                  setSelectedStaff("auto");
-                }}
-                dispatchStatuses={dispatchStatuses}
-                mode={mode}
-              />
-            )}
-            {currentStepName === "therapist" && (
-              <StepTherapist
-                availableStaff={availableStaffAtSlot}
-                selectedSlot={selectedSlot}
-                selected={selectedStaffForBooking}
-                onSelect={setSelectedStaff}
-                selectedServices={selectedServices}
-                totalDuration={totalDuration}
-                totalPrice={totalPrice}
-              />
-            )}
-            {currentStepName === "details" && (
-              <StepDetails
-                form={form}
-                onChange={setForm}
-                error={formError}
-                visitType={visitType}
-                mode={mode}
-              />
-            )}
-            {currentStepName === "success" && success && (
-              <StepSuccess bookingId={success.bookingId} services={selectedServices} mode={mode} />
-            )}
+          <div
+            className={
+              mode === "public"
+                ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:block md:overflow-visible lg:col-span-2"
+                : "min-w-0 lg:col-span-2"
+            }
+          >
+            <div
+              ref={stepScrollRef}
+              className={
+                mode === "public"
+                  ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-28 md:overflow-visible md:pb-0"
+                  : ""
+              }
+            >
+              {currentStepName === "branch" && (
+                <StepBranches
+                  branches={branches}
+                  loading={loadingBranches}
+                  selected={selectedBranch}
+                  mode={mode}
+                  onSelect={(b) => {
+                    setSelectedBranch(b);
+                    setBookingRules(null);
+                    setSelectedServices([]);
+                    setRawSlots([]);
+                    setSlots([]);
+                    setSelectedSlot(null);
+                    setSelectedStaff("auto");
+                    setAvailabilityMessage("");
+                  }}
+                />
+              )}
+              {currentStepName === "visit" && (
+                <StepVisitType
+                  selected={visitType}
+                  bookingRules={bookingRules}
+                  onSelect={handleVisitTypeSelect}
+                />
+              )}
+              {currentStepName === "services" && (
+                <BookingServicePicker
+                  services={eligibleServices}
+                  loading={loadingServices}
+                  selected={selectedServices}
+                  onToggle={toggleService}
+                  totalDuration={totalDuration}
+                  totalPrice={totalPrice}
+                  visitType={visitType}
+                  theme={mode === "public" ? "warm" : "default"}
+                />
+              )}
+              {currentStepName === "location" && (
+                <StepLocation
+                  form={form}
+                  onChange={(nextForm) => {
+                    setForm(nextForm);
+                    if (formError === PRECISE_LOCATION_ERROR) {
+                      setFormError("");
+                    }
+                  }}
+                  placesStatus={placesStatus}
+                  onPlacesStatusChange={setPlacesStatus}
+                  preciseLocationRequired={mode === "public"}
+                  mode={mode}
+                  error={formError}
+                />
+              )}
+              {currentStepName === "date_time" && (
+                <StepDateTime
+                  visitType={visitType}
+                  bookingRules={bookingRules}
+                  selectedDate={selectedDate}
+                  onSelectDate={(d) => {
+                    setSelectedDate(d);
+                    setRawSlots([]);
+                    setSlots([]);
+                    setSelectedSlot(null);
+                    setSelectedStaff("auto");
+                    setAvailabilityMessage("");
+                  }}
+                  slots={displaySlots}
+                  loading={loadingSlots}
+                  serviceCount={selectedServices.length}
+                  availabilityMessage={availabilityMessage}
+                  selectedSlot={selectedSlot}
+                  onSelectSlot={(s) => {
+                    setSelectedSlot(s);
+                    setSelectedStaff("auto");
+                  }}
+                  dispatchStatuses={dispatchStatuses}
+                  mode={mode}
+                />
+              )}
+              {currentStepName === "therapist" && (
+                <StepTherapist
+                  availableStaff={availableStaffAtSlot}
+                  selectedSlot={selectedSlot}
+                  selected={selectedStaffForBooking}
+                  onSelect={setSelectedStaff}
+                  selectedServices={selectedServices}
+                  totalDuration={totalDuration}
+                  totalPrice={totalPrice}
+                />
+              )}
+              {currentStepName === "details" && (
+                <StepDetails
+                  form={form}
+                  onChange={setForm}
+                  error={formError}
+                  visitType={visitType}
+                  mode={mode}
+                />
+              )}
+              {currentStepName === "success" && success && (
+                <StepSuccess bookingId={success.bookingId} services={selectedServices} mode={mode} />
+              )}
+            </div>
 
             {/* Navigation */}
             {currentStepName !== "success" && (
@@ -1449,13 +1507,13 @@ function StepBranches({
 }) {
   if (loading) {
     return (
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton
             key={i}
             className={
               mode === "public"
-                ? `h-28 rounded-xl ${WARM_SKELETON_CLS}`
+                ? `h-24 rounded-xl md:h-28 ${WARM_SKELETON_CLS}`
                 : "h-28 rounded-xl"
             }
           />
@@ -1480,32 +1538,32 @@ function StepBranches({
   return (
     <div>
       <h2
-        className="mb-2 text-[18px] font-semibold md:text-2xl md:font-medium"
+        className="mb-1.5 text-[17px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
         Select Branch
       </h2>
-      <p className="mb-5 text-[13px] leading-6 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
+      <p className="mb-3 text-[12px] leading-5 md:mb-8 md:text-[14px] md:leading-6" style={WARM_BODY_STYLE}>
         Please choose the branch where you would like to book.
       </p>
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
         {branches.map((branch, index) => (
           <button
             key={branch.id}
             onClick={() => onSelect(branch)}
-            className={`grid grid-cols-[84px_1fr_auto] gap-3 rounded-[10px] border p-3 text-left transition-all duration-300 md:flex md:items-start md:gap-4 md:rounded-xl md:p-5 ${
+            className={`grid min-h-[96px] grid-cols-[72px_1fr_auto] gap-2.5 rounded-[10px] border p-2.5 text-left transition-all duration-300 md:flex md:min-h-0 md:items-start md:gap-4 md:rounded-xl md:p-5 ${
               selected?.id === branch.id
                 ? WARM_SELECTED_CARD_CLS
                 : WARM_IDLE_CARD_CLS
             }`}
           >
-            <div className="relative h-[92px] overflow-hidden rounded-[7px] bg-[#05241D] md:hidden">
+            <div className="relative h-[76px] overflow-hidden rounded-[7px] bg-[#05241D] md:hidden">
               <Image
                 src={index % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking}
                 alt={`${branch.name} branch`}
                 fill
                 className="object-cover"
-                sizes="84px"
+                sizes="72px"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#031B16]/68 via-transparent to-transparent" />
             </div>
@@ -1519,7 +1577,7 @@ function StepBranches({
               <MapPin className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <span className="inline-flex rounded-full border border-[#D4B57A]/25 bg-[#031B16]/60 px-2 py-1 text-[10px] font-semibold text-[#D4B57A] md:hidden">
+              <span className="mb-1 inline-flex rounded-full border border-[#D4B57A]/25 bg-[#031B16]/60 px-2 py-0.5 text-[9px] font-semibold text-[#D4B57A] md:hidden">
                 Services vary by branch
               </span>
               <p className="text-[14px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -1530,7 +1588,7 @@ function StepBranches({
                   {branch.address}
                 </p>
               )}
-              <p className="mt-2 text-[10.5px] text-[#F6EBD6]/58 md:hidden">
+              <p className="mt-1 text-[10px] text-[#F6EBD6]/58 md:hidden">
                 Open daily · 10:00 AM - 10:00 PM
               </p>
             </div>
@@ -1566,16 +1624,16 @@ function StepVisitType({
   return (
     <div>
       <h2
-        className="text-2xl font-medium mb-2"
+        className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
         Choose Visit Type
       </h2>
-      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
+      <p className="mb-4 text-[12px] leading-5 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
         Select how you would like to receive your treatment.
       </p>
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
         {VISIT_TYPE_ORDER.map((visitType) => {
           const option = VISIT_TYPE_OPTIONS[visitType];
           const availability = getVisitTypeAvailability(visitType, bookingRules);
@@ -1591,7 +1649,7 @@ function StepVisitType({
               onClick={() => {
                 if (isEnabled) onSelect(visitType);
               }}
-              className={`flex items-start gap-4 p-5 rounded-xl border text-left transition-all duration-300 ${
+              className={`flex min-h-[128px] items-start gap-3 rounded-xl border p-4 text-left transition-all duration-300 md:min-h-0 md:gap-4 md:p-5 ${
                 isSelected
                   ? WARM_SELECTED_CARD_CLS
                   : isEnabled
@@ -1600,13 +1658,13 @@ function StepVisitType({
               }`}
             >
               <div
-                className={`flex h-12 w-12 items-center justify-center rounded-xl shrink-0 ${
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:h-12 md:w-12 ${
                   isSelected
                     ? "border border-[#D4B57A]/40 bg-[#031B16]/70 text-[#D4B57A]"
                     : "border border-[#D4B57A]/22 bg-[#05241D]/70 text-[#D4B57A]"
                 }`}
               >
-                <Icon className="h-6 w-6" />
+                <Icon className="h-5 w-5 md:h-6 md:w-6" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-3">
@@ -1619,10 +1677,10 @@ function StepVisitType({
                     </span>
                   )}
                 </div>
-                <p className="text-[12px] mt-1" style={WARM_BODY_STYLE}>
+                <p className="mt-1 text-[12px] leading-5" style={WARM_BODY_STYLE}>
                   {isEnabled ? option.description : "Not available for this branch."}
                 </p>
-                <p className="text-[11px] mt-3 font-medium" style={WARM_LABEL_STYLE}>
+                <p className="mt-2 text-[11px] font-medium md:mt-3" style={WARM_LABEL_STYLE}>
                   {formatTime(availability.startTime)} - {formatTime(availability.endTime)}
                 </p>
               </div>
@@ -1663,6 +1721,10 @@ function StepDateTime({
   dispatchStatuses: Map<string, SlotDispatchStatus>;
   mode: BookingWizardMode;
 }) {
+  const [isTimeSheetOpen, setIsTimeSheetOpen] = useState(false);
+  const sheetTitleId = useId();
+  const calendarPanelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today);
@@ -1680,35 +1742,86 @@ function StepDateTime({
     (slots.length > 0
       ? "No available times for this date. Try another day."
       : "No available staff for this service at this branch.");
+  const displayEmptyMessage =
+    isTodaySelected
+      ? "No more available slots today. Please choose another date."
+      : emptyMessage;
+
+  const closeTimeSheet = useCallback(() => {
+    setIsTimeSheetOpen(false);
+    window.setTimeout(() => {
+      calendarPanelRef.current?.focus({ preventScroll: true });
+    }, 0);
+  }, []);
+
+  const handleDateSelect = useCallback(
+    (date: Date | undefined) => {
+      onSelectDate(date);
+      setIsTimeSheetOpen(Boolean(date && isMobileBookingViewport()));
+    },
+    [onSelectDate]
+  );
+
+  const handleSlotSelect = useCallback(
+    (slot: Slot) => {
+      onSelectSlot(slot);
+      if (isMobileBookingViewport()) {
+        closeTimeSheet();
+      }
+    },
+    [closeTimeSheet, onSelectSlot]
+  );
+
+  useEffect(() => {
+    if (!isTimeSheetOpen) return;
+
+    const focusId = window.setTimeout(() => {
+      closeButtonRef.current?.focus({ preventScroll: true });
+    }, 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeTimeSheet();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusId);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeTimeSheet, isTimeSheetOpen]);
 
   return (
     <div>
       <h2
-        className="text-2xl font-medium mb-2"
+        className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
         Select Date & Time
       </h2>
-      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
+      <p className="mb-4 text-[12px] leading-5 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
         Choose your preferred date and an available start time.
       </p>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="grid gap-4 md:grid-cols-2 md:gap-8">
         <div>
-          <p className="text-[12px] font-semibold uppercase tracking-wide mb-3" style={WARM_LABEL_STYLE}>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide md:mb-3 md:text-[12px]" style={WARM_LABEL_STYLE}>
             Date
           </p>
           <div
+            ref={calendarPanelRef}
+            tabIndex={-1}
             className={
               mode === "public"
-                ? `overflow-x-auto flex justify-center rounded-xl p-3 md:justify-start ${WARM_GLASS_PANEL_CLS}`
+                ? `flex justify-center overflow-x-auto rounded-xl p-2 focus:outline-none md:justify-start md:p-3 ${WARM_GLASS_PANEL_CLS}`
                 : "rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 p-3 overflow-x-auto flex justify-center md:justify-start backdrop-blur-xl"
             }
           >
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={onSelectDate}
+              onSelect={handleDateSelect}
               disabled={(date) => {
                 const d = new Date(date);
                 d.setHours(0, 0, 0, 0);
@@ -1716,7 +1829,7 @@ function StepDateTime({
               }}
               className={
                 mode === "public"
-                  ? "rounded-md bg-transparent p-0 text-[#F6EBD6] [--cell-radius:0.65rem] [--cell-size:2.25rem] sm:[--cell-size:2.5rem] [&_.rdp-chevron]:text-[#D4B57A]"
+                  ? "rounded-md bg-transparent p-0 text-[#F6EBD6] [--cell-radius:0.65rem] [--cell-size:2rem] min-[390px]:[--cell-size:2.15rem] sm:[--cell-size:2.5rem] [&_.rdp-chevron]:text-[#D4B57A]"
                   : "rounded-md"
               }
               classNames={
@@ -1724,10 +1837,21 @@ function StepDateTime({
               }
             />
           </div>
+
+          <SelectedDateTimeCard
+            selectedDate={selectedDate}
+            selectedSlot={selectedSlot}
+            onOpenSheet={() => setIsTimeSheetOpen(true)}
+          />
+          {!selectedDate && (
+            <p className="mt-3 rounded-xl border border-[#D4B57A]/18 bg-[#05241D]/45 px-3 py-2 text-[12px] leading-5 text-[#F6EBD6]/62 md:hidden">
+              Select a date to open available times in a bottom sheet.
+            </p>
+          )}
         </div>
 
-        <div>
-          <p className="text-[12px] font-semibold uppercase tracking-wide mb-3" style={WARM_LABEL_STYLE}>
+        <div className="hidden md:block">
+          <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
             Available Times
           </p>
           <p className="text-[12px] mb-3" style={WARM_MUTED_STYLE}>
@@ -1772,53 +1896,295 @@ function StepDateTime({
               className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 text-center"
             >
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
-                {isTodaySelected
-                  ? "No more available slots today. Please choose another date."
-                  : emptyMessage}
+                {displayEmptyMessage}
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {availableSlots.map((slot) => {
-                const dispatch = dispatchStatuses.get(slot.slot_time);
-                const isWarning = dispatch === "warning";
-                const isHard = dispatch === "hard";
-                const isSelected = selectedSlot?.slot_time === slot.slot_time;
-                // inhouse: show hard slots with warning; public: hard slots filtered before here
-                return (
-                  <button
-                    type="button"
-                    key={slot.slot_time}
-                    onClick={() => !isHard && onSelectSlot(slot)}
-                    disabled={isHard && mode === "inhouse"}
-                    className={`relative flex flex-col items-center justify-center rounded-lg py-2.5 px-2 text-[12px] font-medium transition-all duration-300 ${
-                      isSelected
-                        ? "bg-[#D4B57A] text-[#031B16] shadow-[0_12px_28px_rgba(212,181,122,0.22)]"
-                        : isHard
-                        ? "cursor-not-allowed border border-[#D4B57A]/12 bg-[#05241D]/35 text-[#F6EBD6]/35 opacity-50"
-                        : isWarning
-                        ? "border border-[#D4B57A]/38 bg-[#B88945]/16 text-[#F6EBD6] hover:border-[#D4B57A]/65"
-                        : "border border-[#D4B57A]/25 bg-[#0D2B20]/62 text-[#F6EBD6] hover:border-[#D4B57A]/60"
-                    }`}
-                  >
-                    {formatTime(slot.slot_time)}
-                    {isWarning && !isSelected && (
-                      <span className="text-[9px] font-semibold text-amber-600 leading-none mt-0.5">
-                        Review
-                      </span>
-                    )}
-                    {isHard && mode === "inhouse" && (
-                      <span className="text-[9px] font-semibold text-red-500 leading-none mt-0.5">
-                        Conflict
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            <TimeSlotsGrid
+              slots={availableSlots}
+              selectedSlot={selectedSlot}
+              dispatchStatuses={dispatchStatuses}
+              mode={mode}
+              onSelectSlot={onSelectSlot}
+            />
           )}
         </div>
       </div>
+
+      <MobileTimeBottomSheet
+        open={isTimeSheetOpen}
+        titleId={sheetTitleId}
+        selectedDate={selectedDate}
+        selectedSlot={selectedSlot}
+        slots={availableSlots}
+        loading={loading}
+        serviceCount={serviceCount}
+        emptyMessage={displayEmptyMessage}
+        dispatchStatuses={dispatchStatuses}
+        mode={mode}
+        closeButtonRef={closeButtonRef}
+        onClose={closeTimeSheet}
+        onSelectSlot={handleSlotSelect}
+      />
+    </div>
+  );
+}
+
+function SelectedDateTimeCard({
+  selectedDate,
+  selectedSlot,
+  onOpenSheet,
+}: {
+  selectedDate: Date | undefined;
+  selectedSlot: Slot | null;
+  onOpenSheet: () => void;
+}) {
+  if (!selectedDate) return null;
+
+  return (
+    <div className="mt-3 rounded-xl border border-[#D4B57A]/25 bg-[#0D2B20]/65 px-3 py-3 shadow-[0_14px_32px_rgba(0,0,0,0.22)] backdrop-blur-xl md:hidden">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/25 bg-[#031B16]/50 text-[#D4B57A]">
+          <CalendarDays className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#D4B57A]">
+            {selectedSlot ? "Selected date & time" : "Selected date"}
+          </p>
+          <p className="mt-0.5 text-[13px] font-semibold leading-5 text-[#F6EBD6]">
+            {formatCompactDate(selectedDate)}
+            {selectedSlot ? ` at ${formatTime(selectedSlot.slot_time)}` : ""}
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onOpenSheet}
+        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] border border-[#D4B57A]/35 bg-[#031B16]/52 px-4 text-[11px] font-semibold uppercase tracking-widest text-[#D4B57A] transition-colors hover:border-[#D4B57A]/70"
+      >
+        {selectedSlot ? "Change time" : "View available times"}
+      </button>
+    </div>
+  );
+}
+
+function TimeSlotButton({
+  slot,
+  isSelected,
+  dispatchStatus,
+  mode,
+  onSelectSlot,
+}: {
+  slot: Slot;
+  isSelected: boolean;
+  dispatchStatus: SlotDispatchStatus | undefined;
+  mode: BookingWizardMode;
+  onSelectSlot: (slot: Slot) => void;
+}) {
+  const isWarning = dispatchStatus === "warning";
+  const isHard = dispatchStatus === "hard";
+  const disabled = isHard && mode === "inhouse";
+
+  return (
+    <button
+      type="button"
+      key={slot.slot_time}
+      onClick={() => {
+        if (!isHard) onSelectSlot(slot);
+      }}
+      disabled={disabled}
+      aria-pressed={isSelected}
+      className={`relative flex min-h-11 flex-col items-center justify-center rounded-lg px-2 py-2.5 text-[12px] font-medium transition-all duration-300 motion-reduce:transition-none ${
+        isSelected
+          ? "bg-[#D4B57A] text-[#031B16] shadow-[0_12px_28px_rgba(212,181,122,0.22)]"
+          : isHard
+            ? "cursor-not-allowed border border-[#D4B57A]/12 bg-[#05241D]/35 text-[#F6EBD6]/35 opacity-50"
+            : isWarning
+              ? "border border-[#D4B57A]/38 bg-[#B88945]/16 text-[#F6EBD6] hover:border-[#D4B57A]/65"
+              : "border border-[#D4B57A]/25 bg-[#0D2B20]/62 text-[#F6EBD6] hover:border-[#D4B57A]/60"
+      }`}
+    >
+      <span className="inline-flex items-center gap-1">
+        {formatTime(slot.slot_time)}
+        {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
+      </span>
+      {isWarning && !isSelected && (
+        <span className="mt-0.5 text-[9px] font-semibold leading-none text-amber-300">
+          Review
+        </span>
+      )}
+      {isHard && mode === "inhouse" && (
+        <span className="mt-0.5 text-[9px] font-semibold leading-none text-red-300">
+          Conflict
+        </span>
+      )}
+    </button>
+  );
+}
+
+function TimeSlotsGrid({
+  slots,
+  selectedSlot,
+  dispatchStatuses,
+  mode,
+  onSelectSlot,
+}: {
+  slots: Slot[];
+  selectedSlot: Slot | null;
+  dispatchStatuses: Map<string, SlotDispatchStatus>;
+  mode: BookingWizardMode;
+  onSelectSlot: (slot: Slot) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {slots.map((slot) => (
+        <TimeSlotButton
+          key={slot.slot_time}
+          slot={slot}
+          isSelected={selectedSlot?.slot_time === slot.slot_time}
+          dispatchStatus={dispatchStatuses.get(slot.slot_time)}
+          mode={mode}
+          onSelectSlot={onSelectSlot}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MobileTimeBottomSheet({
+  open,
+  titleId,
+  selectedDate,
+  selectedSlot,
+  slots,
+  loading,
+  serviceCount,
+  emptyMessage,
+  dispatchStatuses,
+  mode,
+  closeButtonRef,
+  onClose,
+  onSelectSlot,
+}: {
+  open: boolean;
+  titleId: string;
+  selectedDate: Date | undefined;
+  selectedSlot: Slot | null;
+  slots: Slot[];
+  loading: boolean;
+  serviceCount: number;
+  emptyMessage: string;
+  dispatchStatuses: Map<string, SlotDispatchStatus>;
+  mode: BookingWizardMode;
+  closeButtonRef: RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+  onSelectSlot: (slot: Slot) => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Close available times"
+        className="fixed inset-0 z-[70] bg-[#031B16]/65 backdrop-blur-[2px] md:hidden"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="fixed inset-x-0 bottom-0 z-[80] max-h-[72dvh] overflow-hidden rounded-t-[28px] border-t border-[#D4B57A]/25 bg-[#0D2B20]/95 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-24px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
+      >
+        <div className="mx-auto mt-3 h-1 w-12 rounded-full bg-[#D4B57A]/50" />
+        <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
+          <div>
+            <p
+              id={titleId}
+              className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#D4B57A]"
+            >
+              Available times
+            </p>
+            <p className="mt-1 text-[18px] font-semibold text-[#F6EBD6] [font-family:var(--sp-font-display)]">
+              {selectedDate ? formatSheetDate(selectedDate) : "Choose a date"}
+            </p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close available times"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D4B57A]/30 bg-[#031B16]/55 text-[#D4B57A] transition-colors hover:border-[#D4B57A]/65"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-4">
+          {serviceCount === 0 ? (
+            <MobileTimeSheetMessage>
+              Choose a service first to see available times.
+            </MobileTimeSheetMessage>
+          ) : !selectedDate ? (
+            <MobileTimeSheetMessage>
+              Choose a date to see available times.
+            </MobileTimeSheetMessage>
+          ) : loading ? (
+            <div className="rounded-xl border border-[#D4B57A]/20 bg-[#05241D]/55 px-4 py-5">
+              <p className="mb-3 text-[13px] text-[#F6EBD6]/68">
+                Checking available times...
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <Skeleton
+                    key={index}
+                    className={`h-11 rounded-lg ${WARM_SKELETON_CLS}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : slots.length === 0 ? (
+            <MobileTimeSheetMessage>{emptyMessage}</MobileTimeSheetMessage>
+          ) : (
+            <TimeSlotsGrid
+              slots={slots}
+              selectedSlot={selectedSlot}
+              dispatchStatuses={dispatchStatuses}
+              mode={mode}
+              onSelectSlot={onSelectSlot}
+            />
+          )}
+        </div>
+
+        <div className="border-t border-[#D4B57A]/16 px-5 pt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={!selectedSlot}
+            className={[
+              "inline-flex min-h-12 w-full items-center justify-center rounded-[7px] px-5 text-[12px] font-semibold uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-45",
+              selectedSlot ? WARM_PRIMARY_BUTTON_CLS : WARM_DISABLED_BUTTON_CLS,
+            ].join(" ")}
+          >
+            Confirm Time
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] text-[12px] font-semibold text-[#F6EBD6]/68 transition-colors hover:text-[#F6EBD6]"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function MobileTimeSheetMessage({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-32 items-center justify-center rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 text-center">
+      <p className="text-[13px] leading-6 text-[#F6EBD6]/68">{children}</p>
     </div>
   );
 }
@@ -1972,16 +2338,16 @@ function StepLocation({
   return (
     <div>
       <h2
-        className="text-2xl font-medium mb-2"
+        className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
         Your Location
       </h2>
-      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
+      <p className="mb-4 text-[12px] leading-5 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
         Search and select your exact location so our therapist and driver can find you easily.
       </p>
 
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4 md:gap-5">
         {!showCustomerCompactLocation && (
           <div>
             <label htmlFor="hs-zone" className={LABEL_CLS}>
@@ -2085,7 +2451,7 @@ function StepLocation({
             value={form.hsParkingNotes}
             onChange={(event) => onChange({ ...form, hsParkingNotes: event.target.value })}
             placeholder="House number, unit, gate color, landmark, parking instructions..."
-            rows={3}
+            rows={mode === "public" ? 2 : 3}
             className={`${fieldClassName} resize-none`}
           />
         </div>
@@ -2148,16 +2514,16 @@ function StepDetails({
   return (
     <div>
       <h2
-        className="text-2xl font-medium mb-2"
+        className="mb-1.5 text-[18px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
         Your Details
       </h2>
-      <p className="text-[14px] mb-8" style={WARM_BODY_STYLE}>
+      <p className="mb-4 text-[12px] leading-5 md:mb-8 md:text-[14px]" style={WARM_BODY_STYLE}>
         Please provide your contact information to complete the booking.
       </p>
 
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4 md:gap-5">
         {/* Contact info */}
         <div>
           <label className={LABEL_CLS}>
@@ -2212,7 +2578,7 @@ function StepDetails({
             value={form.notes}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
             placeholder="Share any comfort notes or special requests."
-            rows={3}
+            rows={mode === "public" ? 2 : 3}
             className={`${fieldClassName} resize-none`}
           />
         </div>

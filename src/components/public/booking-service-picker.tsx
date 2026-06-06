@@ -317,21 +317,21 @@ export function BookingServicePicker({
         : "grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4";
 
   return (
-    <div className="w-full max-w-full overflow-hidden md:overflow-visible">
+    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden md:block md:h-auto md:overflow-visible">
       <h2
-        className="mb-2 text-[18px] font-semibold md:text-2xl md:font-medium"
+        className="mb-1.5 text-[17px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
         Select services
       </h2>
-      <p className="mb-5 text-[13px] leading-6 md:text-[14px]" style={WARM_BODY_STYLE}>
+      <p className="mb-3 text-[12px] leading-5 md:mb-5 md:text-[14px] md:leading-6" style={WARM_BODY_STYLE}>
         Choose one or more services for your visit.
       </p>
 
       {/* Selection summary strip */}
       {selected.length > 0 && (
         <div
-          className={`mb-4 flex items-center justify-between gap-4 rounded-xl px-4 py-3 ${WARM_GLASS_CARD}`}
+          className={`mb-3 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 md:mb-4 md:gap-4 md:px-4 md:py-3 ${WARM_GLASS_CARD}`}
         >
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
@@ -352,10 +352,10 @@ export function BookingServicePicker({
       )}
 
       {/* ── Mobile layout ─────────────────────────────────────────────────────── */}
-      <div className="block w-full max-w-full overflow-hidden md:hidden">
+      <div className="block min-h-0 w-full max-w-full flex-1 overflow-hidden md:hidden">
         {/* Category chips — scrollable row, no page overflow */}
-        <div className="w-full max-w-full overflow-hidden">
-          <div className="mb-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
+        <div className="w-full max-w-full shrink-0 overflow-hidden">
+          <div className="mb-3 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
             {categories.map((category) => {
               const isActive = category.id === activeCategory?.id;
               return (
@@ -363,7 +363,7 @@ export function BookingServicePicker({
                   key={category.id}
                   type="button"
                   onClick={() => setPreferredCategoryId(category.id)}
-                  className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+                  className={`min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3 text-[12px] font-semibold transition-colors ${
                     isActive
                       ? "border-[#D4B57A] bg-[#D4B57A] text-[#031B16]"
                       : "border-[#D4B57A]/25 bg-[#05241D]/62 text-[#F6EBD6]/72"
@@ -384,7 +384,7 @@ export function BookingServicePicker({
             No services in this category yet.
           </div>
         ) : (
-          <div className="w-full max-w-full overflow-hidden">
+          <div className="min-h-0 w-full max-w-full overflow-y-auto overscroll-contain pb-2">
             <div className="grid w-full max-w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
               {activeCategory.services.map((service) => (
                 <MobileServiceCard

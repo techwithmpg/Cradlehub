@@ -58,7 +58,7 @@ export function SiteFooter({ branches }: SiteFooterProps) {
   const hoursText = firstBranchHours ?? "Open daily · Book online";
 
   return (
-    <footer className="bg-[#10261D] text-[#9AA89A]">
+    <footer className="public-site-footer bg-[#10261D] text-[#9AA89A]">
       <div className="mx-auto max-w-7xl px-6 py-8 md:py-12">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8">
 

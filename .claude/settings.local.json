@@ -69,7 +69,9 @@
       "Bash(git log *)",
       "Bash(awk '/^\\\\s+staff: \\\\{/,/^\\\\s+\\\\}$/' src/types/supabase.ts)",
       "Bash(mkdir -p \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\map\" \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\jobs\" \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\jobs\\\\active\" \"E:\\\\cradlehub\\\\src\\\\app\\\\\\(dashboard\\)\\\\staff-portal\\\\jobs\\\\[bookingId]\")",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "Bash(Remove-Item -Recurse -Force E:\\\\cradlehub\\\\.next -ErrorAction SilentlyContinue)",
+      "Bash(Write-Output \"Done\")"
     ]
   },
   "enableAllProjectMcpServers": true,

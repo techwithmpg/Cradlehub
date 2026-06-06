@@ -447,6 +447,24 @@ a:focus-visible,
   box-shadow: 0 0 0px 1000px rgba(5, 36, 29, 0.95) inset;
 }
 
+@media (max-width: 767px) {
+  .sp-public:has(.public-booking-surface) {
+    min-height: 100dvh;
+    overflow: hidden;
+    background-color: #031B16;
+  }
+
+  .sp-public:has(.public-booking-surface) main {
+    min-height: 100dvh;
+    overflow: hidden;
+    background-color: #031B16;
+  }
+
+  .sp-public:has(.public-booking-surface) .public-site-footer {
+    display: none;
+  }
+}
+
 /* Scroll reveal animations */
 .sp-reveal {
   opacity: 0;

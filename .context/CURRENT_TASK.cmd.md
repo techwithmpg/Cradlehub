@@ -1,13 +1,25 @@
-Task ID: PUBLIC-MOBILE-LOADING-TRANSITIONS-001
-Description: Add the final public mobile homepage intro and simple public route-loading line
+Task ID: PUBLIC-BOOKING-MOBILE-VIEWPORT-001
+Description: Refine the public mobile booking wizard into a viewport-fitted app-like flow with mobile time-slot bottom sheet
 Agent: Codex
-Status: COMPLETE
+Status: IN PROGRESS
 
 Scope:
-- Show the custom Cradle website intro only on first homepage (`/`) entry per browser session.
-- Add one simple thin warm-gold top route-loading line for public navigation among `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact`.
-- Keep the public intro and route line from stacking or replaying unnecessarily.
-- Preserve all booking wizard logic, booking data, APIs, Supabase/database logic, server actions, auth/RBAC, middleware, protected workspaces, CRM/admin/staff/driver portals, and non-public loading patterns.
+- Public `/book` mobile booking UX/layout only.
+- Use a viewport-fitted mobile shell with compact header/progress, constrained internal step scrolling, and always-visible bottom actions.
+- Make short steps fit with little or no body/page scrolling.
+- Keep long steps internally scrollable inside the active content area.
+- On mobile Date & Time, open a warm dark bottom sheet for available time slots after date selection.
+- Preserve desktop booking layout where it already works.
+
+Do not change:
+- Booking logic, step order, validation, selection state semantics, submit payloads, available-slot API behavior, server actions, Supabase/database logic, public route behavior, protected workspaces, CRM/admin/staff/driver portals, or backend/API routes.
+
+Primary files:
+- `src/components/public/booking-wizard.tsx`
+- `src/components/public/booking-service-picker.tsx`
+- `src/components/public/places-autocomplete.tsx`
+- `src/components/features/booking/therapist-picker/therapist-selection-step.tsx`
+- `src/components/ui/calendar.tsx`
 
 Required verification:
 - `pnpm type-check`
@@ -15,6 +27,6 @@ Required verification:
 - `pnpm build`
 
 Notes:
-- Required protocol files and local Next.js App Router docs were read before code edits.
-- Worktree already contains uncommitted public homepage and booking reskin changes from recent public tasks; this task must build on them without reverting unrelated edits.
-- Completed with `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, and local public route smoke checks passing.
+- Required `.context/*`, `AGENTS.md`, docs equivalents, and local Next.js 16 docs were read before code edits.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent; docs equivalents were read where available.
+- Existing uncommitted change present before this task: `.claude/settings.local.json`.
