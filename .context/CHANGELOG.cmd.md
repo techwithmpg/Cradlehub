@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-06-07 - Codex (PUBLIC-PAGES-DARK-THEME-001 - Public Pages Dark Theme)
+
+**Task:** Restyle `/services`, `/contact`, `/about`, and `/branches` plus the shared public catalog/header surfaces so the requested public page set no longer uses white, cream, pale gray, or default-light page/card sections.
+
+**Files Changed:**
+- `src/app/(public)/services/page.tsx` - replaced the pale hero bridge and info card with dark/gold surfaces.
+- `src/app/(public)/contact/page.tsx` - moved desktop action/contact sections from cream/white cards to dark glass cards.
+- `src/app/(public)/about/page.tsx` - moved desktop story, values, and secondary sections to dark surfaces and dark glass value cards.
+- `src/app/(public)/branches/page.tsx` - moved desktop branch list and empty state to dark surfaces and dark glass branch cards.
+- `src/components/public/service-catalog-client.tsx` - converted empty state, catalog background, sidebar, service rows, badges, CTAs, and bottom help panel to dark/gold styling.
+- `src/components/public/site-header.tsx` - kept the shared header dark in desktop scrolled mode and removed white hover fills.
+- `src/components/public/mobile/public-mobile-services.tsx` - replaced cream mobile sections, service rows, categories, empty state, and CTAs with the dark Cradle treatment.
+- `src/components/public/mobile/public-mobile-contact.tsx` - replaced cream mobile action/branch/hour cards with dark glass cards and added viewport-safe branch text wrapping.
+- `src/components/public/mobile/public-mobile-about.tsx` - replaced the cream story panel with dark glass styling.
+- `src/components/public/mobile/public-mobile-branches.tsx` - replaced cream branch cards with dark stacked image cards and viewport-safe action/address layout.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated task records.
+- `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - logged the public dark theme pass.
+
+**Behavior:**
+- Public mobile `/services`, `/contact`, `/about`, and `/branches` now use deep green backgrounds, muted gold borders/actions, cream text, and translucent dark cards.
+- Desktop public sections for the requested pages now match the dark Cradle theme instead of transitioning into pale cream page bands.
+- The shared service catalog now remains dark from empty state through category navigation, service rows, badges, prices, and CTA panel.
+- The shared public header no longer switches to a cream desktop header when scrolled.
+- Mobile branch and contact rows now wrap long branch names/addresses safely without clipping action labels.
+- Booking logic, service/branch queries, Supabase/database logic, server actions, protected portals, auth/RBAC, APIs, and backend behavior were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- Scoped source scan: PASS, no `bg-white`, `bg-[#FCFAF5]`, `bg-[#F7F3EB]`, `bg-[#FBF6EC]`, cream inline background, or `hover:bg-white` matches in the requested route/component set.
+- Temporary production route checks on `http://localhost:3011`: `/services`, `/contact`, `/about`, and `/branches` all returned HTTP 200.
+- Headless Chrome production screenshots captured at `.tmp/public-dark-screens-prod/` for mobile 390x844 and desktop 1440x1100.
+- Visual spot-check confirmed dark services desktop catalog and mobile branches layout with no clipped action labels.
+
+**Follow-up:**
+- Unrelated public home/SEO landing components still contain intentional light marketing sections and were left out of scope.
+- Tool discovery did not expose the in-app browser controller in this turn; local headless Chrome was used for visual QA instead.
+
+---
+
 ### 2026-04-29 — Codex (Phase 0 initialization)
 
 **Task:** Full CradleHub project scaffold
@@ -4668,3 +4709,11 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `/` returned HTTP 200 on `http://localhost:3000`.
 - Mobile browser visual check at 390x844: hero is warmer/readable; Signature Ritual images remain visible; the large dark glass content panel is removed; `Book Ritual` links resolve to `/book`.
 - Desktop homepage browser smoke check at 1280x900: PASS, desktop hero/nav/CTA rendered intact.
+
+---
+
+## 2026-06-07 - Codex (PUBLIC-PAGES-DARK-THEME-001 - Public Pages Dark Theme)
+
+**Task:** Restyled `/services`, `/contact`, `/about`, `/branches`, the shared public service catalog, and the shared public header onto the dark warm Cradle theme. The full detailed entry for this task was also recorded near the top of this append-only changelog during the same update.
+
+**Verification:** `pnpm type-check` PASS; `pnpm lint` PASS with 2 existing warnings in `scripts/generate-service-image-assets.mjs`; `pnpm build` PASS, 98 routes; production route checks on temporary `http://localhost:3011` returned HTTP 200 for `/services`, `/contact`, `/about`, and `/branches`; final headless Chrome screenshots were captured under `.tmp/public-dark-screens-prod/`.

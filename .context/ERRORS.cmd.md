@@ -362,3 +362,15 @@
 - **Symptom:** Tool discovery did not expose the in-app Browser/agent-browser navigation or screenshot controller during this turn.
 - **Impact:** Full mobile tap-through of branch -> visit -> service -> date -> time bottom sheet could not be automated in the in-app browser. Code-level checks, production build, route smoke check, and headless Chrome mobile screenshots passed.
 - **Resolution:** No code change required. Run manual mobile QA at 390px width on `/book`, select a branch, visit type, service, date, confirm the time bottom sheet opens, select a time, and confirm the selected date/time summary appears while the bottom action bar stays visible.
+
+---
+
+## 2026-06-07 - PUBLIC-PAGES-DARK-THEME-001 verification notes
+
+- **Symptom:** Tool discovery did not expose the in-app Browser/agent-browser navigation or screenshot controller during this turn.
+- **Impact:** Visual QA used local headless Chrome screenshots instead of the in-app Browser plugin.
+- **Resolution:** Captured final production screenshots from a temporary `next start` server on `http://localhost:3011` and stopped that server after verification.
+
+- **Symptom:** A pre-existing Next dev server was already running for `E:\cradlehub`, so starting a second `next dev` server on another port failed with Next's "Another next dev server is already running" guard.
+- **Impact:** The existing `localhost:3000` server was not used as the final authoritative visual baseline.
+- **Resolution:** Ran `pnpm build`, started temporary production server `next start --port 3011`, verified `/services`, `/contact`, `/about`, and `/branches` HTTP 200 plus screenshots, then stopped the temporary server.

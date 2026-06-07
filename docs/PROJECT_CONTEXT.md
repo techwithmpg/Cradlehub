@@ -107,8 +107,8 @@ root/
 | **Sprint**          | `DISPATCH-LIVE-001`  |
 | **Completion**      | `Manager dispatch now reads real branch-scoped Supabase dispatch data instead of mock data`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-05-15` |
-| **Blockers**        | `No build/type blockers; lint has 2 pre-existing warnings in staff onboarding form`      |
+| **Last Updated**    | `2026-06-07` |
+| **Blockers**        | `No build/type blockers; lint has 2 pre-existing warnings in scripts/generate-service-image-assets.mjs`      |
 
 ---
 
@@ -229,3 +229,12 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Services now work inside the constrained mobile shell, with category chips and selected summary compact while the service grid scrolls internally.
 - Booking logic, step order, validation, slot fetching/API behavior, submit payloads, Supabase/database logic, server actions, protected portals, auth/RBAC, and desktop layout behavior were not changed.
 - Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, `/book` HTTP 200, and headless Chrome mobile screenshots; lint still reports two pre-existing warnings in `scripts/generate-service-image-assets.mjs`.
+
+## Latest Agent Update (2026-06-07)
+
+- Completed `PUBLIC-PAGES-DARK-THEME-001`: `/services`, `/contact`, `/about`, and `/branches` now use the dark warm Cradle visual system across mobile page components and desktop public sections.
+- Shared `ServiceCatalogClient` now uses dark page surfaces, dark glass category/service cards, muted gold borders/actions, and cream text.
+- Shared public `SiteHeader` now stays dark in desktop scrolled mode instead of switching to a cream header.
+- Mobile Contact/Branches branch data rows now wrap long names/addresses and keep action labels inside the viewport.
+- Booking logic, service/branch data behavior, Supabase/database logic, server actions, protected portals, auth/RBAC, APIs, and backend behavior were not changed.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, scoped light-surface source scan, production HTTP 200 checks for `/services`, `/contact`, `/about`, `/branches`, and headless Chrome production screenshots; lint still reports two pre-existing warnings in `scripts/generate-service-image-assets.mjs`.

@@ -166,3 +166,4 @@
 | 2026-05-21 | Logged CRM-OPS-002E-B Manage Individual Schedule modal redesign | Redesign sheet header, tabs, weekly hours editor, overrides editor, block time editor with warm cards, status chips, and cleaner forms | Claude Code |
 | 2026-06-06 | Logged PUBLIC-MOBILE-LOADING-TRANSITIONS-001 public mobile loading transitions | Track one-session homepage intro, public top route line, and removal of the root full-screen loading bridge from public first load | Codex |
 | 2026-06-06 | Logged PUBLIC-BOOKING-MOBILE-VIEWPORT-001 public booking mobile viewport wizard | Track viewport-fitted `/book` shell, internal step scrolling, fixed bottom actions, compact mobile steps, and mobile Date & Time bottom sheet | Codex |
+| 2026-06-07 | Logged PUBLIC-PAGES-DARK-THEME-001 public pages dark theme pass | Track dark Cradle restyling for `/services`, `/contact`, `/about`, `/branches`, shared service catalog, and scrolled public header | Codex |

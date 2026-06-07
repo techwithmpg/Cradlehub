@@ -35,7 +35,7 @@ export default async function ServicesPage() {
             />
             <div className="absolute inset-0 bg-[#10261D]/70" />
             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.97)_0%,rgba(16,38,29,0.74)_52%,rgba(16,38,29,0.4)_100%)]" />
-            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#FCFAF5_0%,rgba(252,250,245,0)_100%)]" />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#031B16_0%,rgba(3,27,22,0)_100%)]" />
           </div>
 
           <div className="relative mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[1fr_0.52fr] lg:items-end lg:px-12">
@@ -63,7 +63,7 @@ export default async function ServicesPage() {
                 </Link>
                 <Link
                   href="/contact"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/28 px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-white/10"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#D4B57A]/32 px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#D4B57A]/10"
                 >
                   Ask Front Desk
                   <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -71,11 +71,11 @@ export default async function ServicesPage() {
               </div>
             </div>
 
-            <div className="rounded-[8px] border border-[#F7F3EB]/14 bg-[#FCFAF5] p-5 text-[#163A2B] shadow-2xl">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#B68A3C]">
+            <div className="rounded-[8px] border border-[#D4B57A]/22 bg-[#0D2B20]/72 p-5 text-[#F6EBD6] shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#D4B57A]">
                 What appears in booking?
               </p>
-              <p className="mt-3 text-[14px] leading-6 text-[#5F6F63]">
+              <p className="mt-3 text-[14px] leading-6 text-[#F6EBD6]/70">
                 The catalog below is for browsing. The booking wizard only shows services that are
                 assigned to your selected branch, active, public, and available for your visit type.
               </p>

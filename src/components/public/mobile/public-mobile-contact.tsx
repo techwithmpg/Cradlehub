@@ -1,11 +1,4 @@
-import {
-  ChevronRight,
-  Mail,
-  MapPin,
-  MessageCircle,
-  Phone,
-  type LucideIcon,
-} from "lucide-react";
+import { Mail, MapPin, MessageCircle, Phone, type LucideIcon } from "lucide-react";
 import type { Database } from "@/types/supabase";
 
 const CRADLE_FACEBOOK_HREF =
@@ -22,6 +15,11 @@ type ContactAction = {
   external?: boolean;
   Icon: LucideIcon;
 };
+
+const MOBILE_PUBLIC_SURFACE =
+  "md:hidden bg-[radial-gradient(circle_at_80%_8%,rgba(212,181,122,0.10),transparent_34%),linear-gradient(180deg,#031B16_0%,#05241D_50%,#02140F_100%)] pb-12 pt-14 text-[#F6EBD6]";
+const MOBILE_GLASS_CARD =
+  "box-border border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
 
 function primaryPhoneHref(branch: MobileContactBranch | undefined) {
   if (branch?.phone) {
@@ -84,7 +82,7 @@ export function PublicMobileContact({
   const actions = getContactActions(branches);
 
   return (
-    <div className="md:hidden bg-[#FBF6EC] pb-12 pt-14 text-[#10261D]">
+    <div className={MOBILE_PUBLIC_SURFACE}>
       <section className="bg-[#082E22] px-5 pb-8 pt-9 text-center text-[#FCFAF5]">
         <h1
           className="text-[30px] font-medium leading-tight"
@@ -95,8 +93,8 @@ export function PublicMobileContact({
         <p className="mt-2 text-[13px] text-[#FCFAF5]/80">We&apos;re here to help.</p>
       </section>
 
-      <section className="-mt-5 px-4">
-        <div className="rounded-[12px] bg-[#FCFAF5] p-3 shadow-[0_10px_24px_rgba(16,38,29,0.12)]">
+      <section className="-mt-5 overflow-hidden px-4">
+        <div className={`max-w-full overflow-hidden rounded-[12px] p-3 ${MOBILE_GLASS_CARD}`}>
           {actions.map(({ label, href, external, Icon }, index) => (
             <a
               key={label}
@@ -104,22 +102,22 @@ export function PublicMobileContact({
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
               className={[
-                "flex min-h-12 items-center gap-4 rounded-[8px] border border-[#E8DDCA] bg-white px-4 text-[12px] font-semibold uppercase",
+                "flex min-h-12 min-w-0 items-center gap-4 rounded-[8px] border border-[#D4B57A]/22 bg-[#05241D]/72 px-4 text-[12px] font-semibold uppercase text-[#F6EBD6]",
                 index < actions.length - 1 ? "mb-2" : "",
               ].join(" ")}
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#063D2D] text-[#C8A96B]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#D4B57A]/22 bg-[#031B16]/70 text-[#D4B57A]">
                 <Icon className="h-4 w-4" aria-hidden="true" />
               </span>
-              {label}
+              <span className="min-w-0 truncate">{label}</span>
             </a>
           ))}
         </div>
       </section>
 
-      <section className="px-4 py-6">
-        <h2 className="mb-3 text-[14px] font-semibold">Visit Our Branches</h2>
-        <div className="rounded-[10px] bg-[#FCFAF5]">
+      <section className="overflow-hidden px-4 py-6">
+        <h2 className="mb-3 text-[14px] font-semibold text-[#F6EBD6]">Visit Our Branches</h2>
+        <div className={`max-w-full overflow-hidden rounded-[10px] px-3 ${MOBILE_GLASS_CARD}`}>
           {branches.length > 0 ? (
             branches.map((branch) => (
               <a
@@ -127,34 +125,42 @@ export function PublicMobileContact({
                 href={branchMapHref(branch)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 border-b border-[#E8DDCA] py-4 last:border-b-0"
+                className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)] gap-3 overflow-hidden border-b border-[#D4B57A]/16 py-4 last:border-b-0"
               >
-                <MapPin className="h-5 w-5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[12px] font-semibold">{branch.name}</span>
-                  <span className="block line-clamp-1 text-[11px] text-[#5F6F63]">
+                <MapPin className="h-5 w-5 shrink-0 text-[#D4B57A]" aria-hidden="true" />
+                <span
+                  className="min-w-0 overflow-hidden"
+                  style={{ maxWidth: "min(250px, calc(100vw - 130px))" }}
+                >
+                  <span className="block text-[12px] font-semibold leading-4 text-[#F6EBD6]">
+                    {branch.name}
+                  </span>
+                  <span className="mt-1 block whitespace-normal text-[11px] leading-4 text-[#F6EBD6]/62">
                     {branch.address}
                   </span>
                 </span>
-                <ChevronRight className="h-4 w-4 text-[#5F6F63]" aria-hidden="true" />
               </a>
             ))
           ) : (
             <div className="py-5 text-center">
-              <MapPin className="mx-auto h-5 w-5 text-[#B68A3C]" aria-hidden="true" />
-              <p className="mt-2 text-[12px] font-semibold">Branch details are being updated.</p>
-              <p className="mt-1 text-[11px] text-[#5F6F63]">
+              <MapPin className="mx-auto h-5 w-5 text-[#D4B57A]" aria-hidden="true" />
+              <p className="mt-2 text-[12px] font-semibold text-[#F6EBD6]">
+                Branch details are being updated.
+              </p>
+              <p className="mt-1 text-[11px] text-[#F6EBD6]/62">
                 Please call us for the latest branch information.
               </p>
             </div>
           )}
         </div>
 
-        <div className="mt-6 border-t border-[#E8DDCA] pt-5">
-          <h2 className="mb-3 text-[14px] font-semibold">Opening Hours</h2>
-          <div className="flex items-center justify-between text-[12px]">
-            <span>Daily</span>
-            <span>{branches[0]?.opening_hours ?? "10:00 AM - 10:00 PM"}</span>
+        <div className={`mt-6 rounded-[10px] p-4 ${MOBILE_GLASS_CARD}`}>
+          <h2 className="mb-3 text-[14px] font-semibold text-[#F6EBD6]">Opening Hours</h2>
+          <div className="flex items-start justify-between gap-3 text-[12px] text-[#F6EBD6]/70">
+            <span className="shrink-0">Daily</span>
+            <span className="min-w-0 text-right leading-5 text-[#D4B57A]">
+              {branches[0]?.opening_hours ?? "10:00 AM - 10:00 PM"}
+            </span>
           </div>
         </div>
       </section>

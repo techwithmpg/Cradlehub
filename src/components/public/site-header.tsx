@@ -54,7 +54,7 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
           isHeroMode
             ? "md:bg-transparent md:border-transparent md:shadow-none"
             : scrolled
-            ? "md:bg-[#FCFAF5]/95 md:backdrop-blur-md md:shadow-[0_1px_20px_rgba(22,58,43,0.06)] md:border-[#E8D5A3]/20"
+            ? "md:bg-[#10261D]/95 md:backdrop-blur-md md:shadow-[0_1px_20px_rgba(0,0,0,0.18)] md:border-[#D4B57A]/20"
             : "md:bg-[#10261D] md:border-transparent",
         ].join(" ")}
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
@@ -65,7 +65,7 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
           <button
             type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-[#D4B57A]/10 transition-colors"
             aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileOpen}
           >
@@ -95,7 +95,7 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
           <Link href="/" aria-label="Cradle Wellness Living" className="group flex items-center">
             <BrandLogo
               size="md"
-              variant={isHeroMode ? "dark" : scrolled ? "light" : "dark"}
+              variant="dark"
               className="w-32 sm:w-36 md:w-44 lg:w-52 group-hover:opacity-85"
             />
           </Link>
@@ -116,11 +116,11 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
                     isActive
                       ? isHeroMode
                         ? "text-white"
-                        : "text-[#163A2B]"
+                        : "text-[#F6EBD6]"
                       : isHeroMode
                       ? "text-white/65 hover:text-white"
                       : scrolled
-                      ? "text-[#6B7A6F] hover:text-[#163A2B]"
+                      ? "text-[#F6EBD6]/65 hover:text-[#F6EBD6]"
                       : "text-white/65 hover:text-white",
                   ].join(" ")}
                 >
@@ -173,7 +173,7 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 hover:bg-[#D4B57A]/10 hover:text-white transition-colors"
                 aria-label="Close navigation menu"
               >
                 <X className="h-4 w-4" />
@@ -193,8 +193,8 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
                     className={[
                       "flex items-center rounded-xl px-4 py-3.5 text-[16px] font-medium transition-colors",
                       isActive
-                        ? "bg-white/10 text-[#C8A96B]"
-                        : "text-white/75 hover:bg-white/8 hover:text-white",
+                        ? "bg-[#D4B57A]/10 text-[#C8A96B]"
+                        : "text-white/75 hover:bg-[#D4B57A]/8 hover:text-white",
                     ].join(" ")}
                     style={{ fontFamily: "var(--sp-font-body)" }}
                   >
@@ -221,7 +221,7 @@ export function SiteHeader({ primaryPhone }: SiteHeaderProps) {
               {primaryPhone && (
                 <a
                   href={primaryPhone.href}
-                  className="flex w-full items-center justify-center gap-2 rounded-full border border-white/20 px-6 py-3.5 text-[12px] font-medium text-white/80 hover:bg-white/5 transition-colors"
+                  className="flex w-full items-center justify-center gap-2 rounded-full border border-white/20 px-6 py-3.5 text-[12px] font-medium text-white/80 hover:bg-[#D4B57A]/10 transition-colors"
                 >
                   <Phone className="h-4 w-4" />
                   {primaryPhone.label}

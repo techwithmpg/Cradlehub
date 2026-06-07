@@ -32,6 +32,11 @@ const categoryIcons: Record<PublicCatalogCategoryName, LucideIcon> = {
   "Spa Party Packages": Users,
 };
 
+const MOBILE_PUBLIC_SURFACE =
+  "md:hidden bg-[radial-gradient(circle_at_80%_8%,rgba(212,181,122,0.10),transparent_34%),linear-gradient(180deg,#031B16_0%,#05241D_50%,#02140F_100%)] pb-12 pt-14 text-[#F6EBD6]";
+const MOBILE_GLASS_CARD =
+  "box-border border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
+
 function serviceAction(service: PublicCatalogService) {
   if (service.isPublicBookable && !service.requiresConsultation) {
     return { href: "/book", label: "Book", Icon: CalendarDays };
@@ -61,7 +66,7 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
   const categoryDetails = PUBLIC_CATALOG_CATEGORY_DETAILS[selectedCategory];
 
   return (
-    <div className="md:hidden bg-[#FBF6EC] pb-12 pt-14 text-[#10261D]">
+    <div className={MOBILE_PUBLIC_SURFACE}>
       <section className="relative h-[214px] overflow-hidden bg-[#10261D]">
         <Image
           src={SPA_IMAGES.ctaBanner}
@@ -86,7 +91,7 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
       </section>
 
       <section className="px-4 py-5">
-        <h2 className="text-[15px] font-semibold">Categories</h2>
+        <h2 className="text-[15px] font-semibold text-[#F6EBD6]">Categories</h2>
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {categories.map((category) => {
             const details = PUBLIC_CATALOG_CATEGORY_DETAILS[category];
@@ -103,12 +108,12 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
                 className={[
                   "flex min-h-[58px] min-w-[70px] shrink-0 flex-col items-center justify-center gap-1 rounded-[7px] border px-3 py-2 text-[10.5px] font-semibold transition",
                   active
-                    ? "border-[#063D2D] bg-[#063D2D] text-[#FCFAF5]"
-                    : "border-[#E9DDC8] bg-[#FCFAF5] text-[#10261D]",
+                    ? "border-[#D4B57A]/80 bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] text-[#031B16]"
+                    : "border-[#D4B57A]/22 bg-[#05241D]/72 text-[#F6EBD6]/82",
                 ].join(" ")}
               >
                 <CategoryIcon
-                  className={active ? "h-4 w-4 text-[#C8A96B]" : "h-4 w-4 text-[#8A6B35]"}
+                  className={active ? "h-4 w-4 text-[#031B16]" : "h-4 w-4 text-[#D4B57A]"}
                   aria-hidden="true"
                 />
                 {details.shortName}
@@ -119,14 +124,16 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
       </section>
 
       <section className="px-4 pb-6">
-        <div className="mb-3 flex items-end justify-between gap-3 border-b border-[#E8DDCA] pb-3">
+        <div className="mb-3 flex items-end justify-between gap-3 border-b border-[#D4B57A]/22 pb-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#B68A3C]">
               {categoryDetails.eyebrow}
             </p>
-            <h2 className="mt-1 text-[19px] font-semibold">{selectedCategory}</h2>
+            <h2 className="mt-1 text-[19px] font-semibold text-[#F6EBD6]">
+              {selectedCategory}
+            </h2>
           </div>
-          <p className="text-[11px] font-medium text-[#7A6B58]">
+          <p className="text-[11px] font-medium text-[#F6EBD6]/58">
             {visibleServices.length} items
           </p>
         </div>
@@ -139,9 +146,9 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
               return (
                 <article
                   key={service.id}
-                  className="grid grid-cols-[72px_1fr_auto] gap-3 border-b border-[#E8DDCA] pb-3"
+                  className="grid grid-cols-[72px_1fr_auto] gap-3 rounded-2xl border border-[#D4B57A]/18 bg-[#05241D]/72 p-3"
                 >
-                  <div className="relative h-[72px] overflow-hidden rounded-[7px] bg-[#E9DDC8]">
+                  <div className="relative h-[72px] overflow-hidden rounded-[7px] bg-[#031B16]">
                     <ServiceImage
                       src={service.imageUrl}
                       alt={service.imageAlt}
@@ -151,21 +158,23 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
                     />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="line-clamp-1 text-[13px] font-semibold">{service.name}</h3>
-                    <p className="mt-1 line-clamp-2 text-[10.5px] leading-4 text-[#5F6F63]">
+                    <h3 className="line-clamp-1 text-[13px] font-semibold text-[#F6EBD6]">
+                      {service.name}
+                    </h3>
+                    <p className="mt-1 line-clamp-2 text-[10.5px] leading-4 text-[#F6EBD6]/62">
                       {service.shortDescription}
                     </p>
-                    <p className="mt-2 text-[10px] font-medium text-[#7A6B58]">
+                    <p className="mt-2 text-[10px] font-medium text-[#F6EBD6]/50">
                       {service.durationText}
                     </p>
                   </div>
                   <div className="flex min-w-[66px] flex-col items-end justify-between">
-                    <p className="text-[12px] font-semibold text-[#9A6A1F]">
+                    <p className="text-[12px] font-semibold text-[#D4B57A]">
                       {service.priceLabel}
                     </p>
                     <Link
                       href={action.href}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-[5px] bg-[#063D2D] px-2 text-[9.5px] font-semibold uppercase text-[#FCFAF5]"
+                      className="inline-flex min-h-8 items-center gap-1 rounded-[5px] bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] px-2 text-[9.5px] font-semibold uppercase text-[#031B16]"
                     >
                       <ActionIcon className="h-3 w-3" aria-hidden="true" />
                       {action.label}
@@ -175,10 +184,12 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
               );
             })
           ) : (
-            <div className="rounded-[10px] border border-[#E8DDCA] bg-white p-5 text-center">
-              <Sparkles className="mx-auto h-5 w-5 text-[#B68A3C]" aria-hidden="true" />
-              <p className="mt-2 text-[13px] font-semibold">Services are being updated.</p>
-              <p className="mt-1 text-[11px] leading-5 text-[#5F6F63]">
+            <div className={`rounded-[10px] p-5 text-center ${MOBILE_GLASS_CARD}`}>
+              <Sparkles className="mx-auto h-5 w-5 text-[#D4B57A]" aria-hidden="true" />
+              <p className="mt-2 text-[13px] font-semibold text-[#F6EBD6]">
+                Services are being updated.
+              </p>
+              <p className="mt-1 text-[11px] leading-5 text-[#F6EBD6]/62">
                 Please contact the front desk for the latest available treatments.
               </p>
             </div>
@@ -189,7 +200,7 @@ export function PublicMobileServices({ services }: { services: PublicCatalogServ
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="mt-4 flex min-h-11 w-full items-center justify-center rounded-[7px] border border-[#D8C8AA] text-[12px] font-semibold uppercase tracking-[0.12em]"
+            className="mt-4 flex min-h-11 w-full items-center justify-center rounded-[7px] border border-[#D4B57A]/45 bg-[#031B16]/50 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#F6EBD6] backdrop-blur-md"
           >
             View All {PUBLIC_CATALOG_CATEGORY_DETAILS[selectedCategory].shortName} Services
           </button>

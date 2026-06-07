@@ -15,6 +15,43 @@ Scope guard: no booking/service/backend/Supabase/server action/API/protected por
 
 ---
 
+# HANDOFF - PUBLIC-PAGES-DARK-THEME-001 Public Pages Dark Theme: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Public `/services`, `/contact`, `/about`, and `/branches` now use the dark warm Cradle visual system across the requested mobile page components, desktop public sections, shared service catalog, and shared public header.
+
+## What changed
+
+- Converted `src/components/public/mobile/public-mobile-services.tsx`, `public-mobile-contact.tsx`, `public-mobile-about.tsx`, and `public-mobile-branches.tsx` from cream/light surfaces to deep-green gradients, muted gold borders/actions, cream text, and dark glass cards.
+- Converted `src/components/public/service-catalog-client.tsx` empty state, page background, browse rail, category headers, service rows, badges, CTA links, show-more button, and bottom help panel to the dark Cradle palette.
+- Converted desktop public sections in `src/app/(public)/services/page.tsx`, `contact/page.tsx`, `about/page.tsx`, and `branches/page.tsx` away from pale section bands and white cards.
+- Updated `src/components/public/site-header.tsx` so desktop scrolled state remains dark glass instead of switching to a cream header.
+- Adjusted mobile Contact and Branches long branch/address layouts to wrap within the viewport and avoid clipped action labels.
+
+## Preserved
+
+- Booking logic, service logic, branch queries, Supabase/database behavior, server actions, API routes, protected workspaces, CRM/admin/staff/driver portals, auth/RBAC, middleware, and backend behavior were not changed.
+- Unrelated public homepage and SEO landing-page sections were left out of scope even though broad scans show they still contain intentional light marketing surfaces.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- Scoped source scan: PASS, no `bg-white`, `bg-[#FCFAF5]`, `bg-[#F7F3EB]`, `bg-[#FBF6EC]`, matching cream inline background, or `hover:bg-white` in the requested route/component set.
+- Temporary production route checks on `http://localhost:3011`: `/services`, `/contact`, `/about`, and `/branches` all returned HTTP 200.
+- Final headless Chrome screenshots captured at `.tmp/public-dark-screens-prod/` for mobile 390x844 and desktop 1440x1100.
+- Visual spot-check confirmed dark desktop services catalog and mobile branches card/action layout.
+
+## Notes
+
+- Tool discovery did not expose the in-app browser controller in this turn, so local headless Chrome was used for visual QA.
+- A pre-existing Next dev server was already running on port 3000; a temporary production server was started on port 3011 from the fresh build for final verification and then stopped.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were absent; docs equivalents and `.context/*` were read and updated where applicable.
+
+---
+
 # HANDOFF - PUBLIC-BOOKING-MOBILE-VIEWPORT-001 Public Booking Mobile Viewport Wizard: COMPLETE
 
 ## Status

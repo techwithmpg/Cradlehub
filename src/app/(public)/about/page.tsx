@@ -30,6 +30,11 @@ const values = [
   },
 ];
 
+const PUBLIC_DARK_SECTION =
+  "bg-[radial-gradient(circle_at_80%_8%,rgba(212,181,122,0.10),transparent_34%),linear-gradient(180deg,#031B16_0%,#05241D_50%,#02140F_100%)]";
+const PUBLIC_DARK_CARD =
+  "rounded-2xl border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
+
 export const metadata: Metadata = buildMetadata({
   title: "About | Cradle Wellness Living — Bacolod Massage & Spa",
   description:
@@ -69,7 +74,7 @@ export default function AboutPage() {
         </div>
 
         {/* Story Section */}
-        <section className="py-20 lg:py-28" style={{ background: "#FCFAF5" }}>
+        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
               <ScrollReveal variant="scale">
@@ -88,11 +93,11 @@ export default function AboutPage() {
                 <ScrollReveal>
                   <h2
                     className="text-2xl sm:text-3xl font-medium leading-tight mb-6"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                   >
                     Our Story
                   </h2>
-                  <div className="flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "#6B7A6F" }}>
+                  <div className="flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "rgba(246,235,214,0.68)" }}>
                     <p>
                       Cradle Massage & Wellness Spa was born from a simple belief: that everyone deserves
                       a place to pause, breathe, and be cared for. In the heart of Bacolod City, we have
@@ -115,7 +120,7 @@ export default function AboutPage() {
         </section>
 
         {/* Values */}
-        <section className="py-20 lg:py-28" style={{ background: "#F7F3EB" }}>
+        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
           <div className="mx-auto max-w-7xl px-6">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <ScrollReveal>
@@ -127,7 +132,7 @@ export default function AboutPage() {
                 </p>
                 <h2
                   className="text-2xl sm:text-3xl font-medium"
-                  style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                  style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                 >
                   What We Stand For
                 </h2>
@@ -137,17 +142,17 @@ export default function AboutPage() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {values.map((v, i) => (
                 <ScrollReveal key={v.title} delay={i * 100}>
-                  <div className="bg-white rounded-2xl p-7 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 h-full">
+                  <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full`}>
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mb-5">
                       <v.icon className="h-6 w-6" />
                     </div>
                     <h3
                       className="text-[16px] font-semibold mb-3"
-                      style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                      style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                     >
                       {v.title}
                     </h3>
-                    <p className="text-[13px] leading-relaxed" style={{ color: "#6B7A6F" }}>
+                    <p className="text-[13px] leading-relaxed" style={{ color: "rgba(246,235,214,0.66)" }}>
                       {v.desc}
                     </p>
                   </div>
@@ -158,18 +163,18 @@ export default function AboutPage() {
         </section>
 
         {/* Secondary Image */}
-        <section className="py-20 lg:py-28" style={{ background: "#FCFAF5" }}>
+        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
               <div className="order-2 lg:order-1">
                 <ScrollReveal>
                   <h2
                     className="text-2xl sm:text-3xl font-medium leading-tight mb-6"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                   >
                     The Cradle Experience
                   </h2>
-                  <div className="flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "#6B7A6F" }}>
+                  <div className="flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "rgba(246,235,214,0.68)" }}>
                     <p>
                       From the moment you arrive, you are welcomed into calm. Soft lighting, quiet details,
                       and a slower pace set the tone before your treatment even begins.

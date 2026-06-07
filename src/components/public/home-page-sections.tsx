@@ -58,6 +58,17 @@ const proofIcons = [ShieldCheck, Home, MapPin, MessageCircle] as const;
 const journeyIcons = [Home, Sparkles, CalendarDays, HeartHandshake] as const;
 const whyIcons = [Leaf, CalendarDays, Home, MapPin] as const;
 
+const HOME_CATEGORY_IMAGES: Partial<Record<PublicCatalogCategoryName, string>> = {
+  "Divine Renewal Packages": "/images/spa/home/packages.jpg",
+  "Spa Party Packages": "/images/spa/home/spa-party.jpg",
+};
+
+const HOME_CATEGORY_IMAGE_CLASSES: Partial<
+  Record<PublicCatalogCategoryName, string>
+> = {
+  "Spa Party Packages": "object-[center_45%]",
+};
+
 function metadataObject(value: PublicSiteSectionRow["metadata"] | undefined) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -252,9 +263,14 @@ export async function HomePageSections({ branches = [] }: HomePageSectionsProps)
 
   const serviceCategoryCards = PUBLIC_CATALOG_CATEGORY_NAMES.map((categoryName) => {
     const categoryServices = servicesForCategory(services, categoryName);
+    const details = PUBLIC_CATALOG_CATEGORY_DETAILS[categoryName];
     return {
       name: categoryName,
-      details: PUBLIC_CATALOG_CATEGORY_DETAILS[categoryName],
+      details: {
+        ...details,
+        image: HOME_CATEGORY_IMAGES[categoryName] ?? details.image,
+      },
+      imageClassName: HOME_CATEGORY_IMAGE_CLASSES[categoryName] ?? "",
       count: categoryServices.length,
       examples: categoryServices.slice(0, 3).map((service) => service.name),
       href: `/services#${slugify(categoryName)}`,
@@ -567,7 +583,7 @@ export async function HomePageSections({ branches = [] }: HomePageSectionsProps)
                       src={category.details.image}
                       alt={`${category.name} at Cradle`}
                       fill
-                      className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                      className={`object-cover ${category.imageClassName} transition duration-500 group-hover:scale-[1.03]`}
                       sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 20vw"
                     />
                     <div className="absolute inset-0 bg-[#10261D]/22" />

@@ -25,6 +25,11 @@ function IconInstagram({ className }: { className?: string }) {
   );
 }
 
+const PUBLIC_DARK_SECTION =
+  "bg-[radial-gradient(circle_at_80%_8%,rgba(212,181,122,0.10),transparent_34%),linear-gradient(180deg,#031B16_0%,#05241D_50%,#02140F_100%)]";
+const PUBLIC_DARK_CARD =
+  "rounded-2xl border border-[#D4B57A]/22 bg-[#0D2B20]/70 shadow-[0_24px_70px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(246,235,214,0.06)] backdrop-blur-xl";
+
 export const metadata: Metadata = buildMetadata({
   title: "Contact | Cradle Wellness Living — Bacolod Massage & Spa Booking",
   description:
@@ -72,7 +77,7 @@ export default async function ContactPage() {
         </div>
 
         {/* Action-first cards */}
-        <section className="pt-12 pb-4 lg:pt-16" style={{ background: "#FCFAF5" }}>
+        <section className={`${PUBLIC_DARK_SECTION} pt-12 pb-4 lg:pt-16`}>
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
               {primaryPhone ? (
@@ -138,36 +143,36 @@ export default async function ContactPage() {
         </section>
 
         {/* Contact Info Cards */}
-        <section className="py-20 lg:py-28" style={{ background: "#FCFAF5" }}>
+        <section className={`${PUBLIC_DARK_SECTION} py-20 lg:py-28`}>
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
 
               {/* Hours */}
               <ScrollReveal delay={0}>
-                <div className="bg-white rounded-2xl p-7 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 h-full text-center">
+                <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full text-center`}>
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
                     <Clock className="h-6 w-6" />
                   </div>
                   <h3
                     className="text-[16px] font-semibold mb-3"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                   >
                     Hours
                   </h3>
-                  <p className="text-[13px] font-medium" style={{ color: "#163A2B" }}>Open Daily</p>
-                  <p className="text-[13px] mt-1" style={{ color: "#6B7A6F" }}>{openingHours}</p>
+                  <p className="text-[13px] font-medium" style={{ color: "#F6EBD6" }}>Open Daily</p>
+                  <p className="text-[13px] mt-1" style={{ color: "rgba(246,235,214,0.66)" }}>{openingHours}</p>
                 </div>
               </ScrollReveal>
 
               {/* Phone */}
               <ScrollReveal delay={100}>
-                <div className="bg-white rounded-2xl p-7 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 h-full text-center">
+                <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full text-center`}>
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
                     <Phone className="h-6 w-6" />
                   </div>
                   <h3
                     className="text-[16px] font-semibold mb-3"
-                    style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                    style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                   >
                     Phone
                   </h3>
@@ -175,18 +180,18 @@ export default async function ContactPage() {
                     <a
                       href={primaryPhoneHref}
                       className="block text-[13px] transition-colors hover:text-[#C8A96B]"
-                      style={{ color: "#6B7A6F" }}
+                      style={{ color: "rgba(246,235,214,0.66)" }}
                     >
                       {primaryPhone}
                     </a>
                   ) : (
-                    <p className="text-[13px]" style={{ color: "#6B7A6F" }}>Contact info updating</p>
+                    <p className="text-[13px]" style={{ color: "rgba(246,235,214,0.66)" }}>Contact info updating</p>
                   )}
                   {secondaryPhone ? (
                     <a
                       href={secondaryPhoneHref}
                       className="block text-[13px] mt-1 transition-colors hover:text-[#C8A96B]"
-                      style={{ color: "#6B7A6F" }}
+                      style={{ color: "rgba(246,235,214,0.66)" }}
                     >
                       {secondaryPhone}
                     </a>
@@ -197,13 +202,13 @@ export default async function ContactPage() {
               {/* Branch cards */}
               {branches.map((branch, index) => (
                 <ScrollReveal key={branch.id} delay={(index + 2) * 100}>
-                  <div className="bg-white rounded-2xl p-7 shadow-[0_2px_12px_rgba(22,58,43,0.05)] hover:shadow-[0_8px_32px_rgba(22,58,43,0.09)] transition-shadow duration-500 h-full text-center">
+                  <div className={`${PUBLIC_DARK_CARD} p-7 transition-shadow duration-500 h-full text-center`}>
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#163A2B] text-[#C8A96B] mx-auto mb-5">
                       <MapPin className="h-6 w-6" />
                     </div>
                     <h3
                       className="text-[16px] font-semibold mb-3"
-                      style={{ fontFamily: "var(--sp-font-display)", color: "#163A2B" }}
+                      style={{ fontFamily: "var(--sp-font-display)", color: "#F6EBD6" }}
                     >
                       {branch.name}
                     </h3>
@@ -213,7 +218,7 @@ export default async function ContactPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[13px] leading-relaxed transition-colors hover:text-[#C8A96B]"
-                        style={{ color: "#6B7A6F" }}
+                        style={{ color: "rgba(246,235,214,0.66)" }}
                       >
                         {branch.address}
                       </a>
@@ -248,7 +253,7 @@ export default async function ContactPage() {
                     href="https://www.facebook.com/518084738045813?ref=NONE_xav_ig_profile_page_web"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-[#D4B57A]/10"
                     style={{ borderColor: "rgba(247,243,235,0.25)", color: "rgba(247,243,235,0.9)" }}
                   >
                     <IconFacebook className="h-4 w-4" />
@@ -258,7 +263,7 @@ export default async function ContactPage() {
                     href="https://www.instagram.com/cradlewellnessliving.smbacolod"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-[#D4B57A]/10"
                     style={{ borderColor: "rgba(247,243,235,0.25)", color: "rgba(247,243,235,0.9)" }}
                   >
                     <IconInstagram className="h-4 w-4" />
@@ -268,7 +273,7 @@ export default async function ContactPage() {
                     href="https://www.instagram.com/cradlewellnessliving"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-white/10"
+                    className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide border transition-all duration-300 hover:bg-[#D4B57A]/10"
                     style={{ borderColor: "rgba(247,243,235,0.25)", color: "rgba(247,243,235,0.9)" }}
                   >
                     <IconInstagram className="h-4 w-4" />
@@ -290,7 +295,7 @@ export default async function ContactPage() {
                   {primaryPhone ? (
                     <a
                       href={primaryPhoneHref}
-                      className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[12px] font-medium tracking-widest uppercase border transition-all duration-300 hover:bg-white/10"
+                      className="inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[12px] font-medium tracking-widest uppercase border transition-all duration-300 hover:bg-[#D4B57A]/10"
                       style={{
                         borderColor: "rgba(247,243,235,0.25)",
                         color: "rgba(247,243,235,0.9)",
