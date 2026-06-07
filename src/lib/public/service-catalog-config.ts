@@ -25,21 +25,21 @@ export const PUBLIC_CATALOG_CATEGORY_DETAILS: Record<
     eyebrow: "Body Recovery",
     description:
       "Classic relaxation, specialty bodywork, hot stone, hilot, and recovery-focused massage care.",
-    image: SPA_IMAGES.swedish,
+    image: "/images/spa/categories/massage.jpg",
   },
   "Salon Services": {
     shortName: "Salon",
     eyebrow: "Hair, Nails & Beauty",
     description:
       "Hair care, nail care, lashes, waxing, styling, and makeup services for polished self-care.",
-    image: SPA_IMAGES.contact,
+    image: "/images/spa/categories/salon.jpg",
   },
   "Skin Care Services": {
     shortName: "Skin Care",
     eyebrow: "Face & Body Care",
     description:
       "Facials, body scrubs, skin treatments, laser services, and consultation-led aesthetic care.",
-    image: SPA_IMAGES.aboutSecondary,
+    image: "/images/spa/categories/skin-care.jpg",
   },
   "Divine Renewal Packages": {
     shortName: "Packages",
