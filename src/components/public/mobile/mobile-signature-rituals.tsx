@@ -75,15 +75,17 @@ export function MobileSignatureRituals({
         {rituals.map((ritual, index) => (
           <MobileFadeUp key={ritual.title}>
             <article
-              className={`sticky ${STACK_CLASSES[index]} relative min-h-[548px] overflow-hidden rounded-[30px] border border-[#C8A96A]/24 bg-[#05241D] shadow-[0_28px_72px_rgba(0,0,0,0.36)]`}
+              className={`sticky ${STACK_CLASSES[index]} min-h-[548px] overflow-hidden rounded-[30px] border border-[#C8A96A]/24 bg-[#05241D] shadow-[0_28px_72px_rgba(0,0,0,0.36)]`}
             >
-              <Image
-                src={ritual.image}
-                alt={ritual.title}
-                fill
-                className="object-cover"
-                sizes="calc(100vw - 32px)"
-              />
+              <div className="absolute inset-0">
+                <Image
+                  src={ritual.image}
+                  alt={ritual.title}
+                  fill
+                  className="object-cover"
+                  sizes="calc(100vw - 32px)"
+                />
+              </div>
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_18%,rgba(200,169,106,0.16)_0%,transparent_46%),linear-gradient(to_bottom,rgba(3,27,22,0.18)_0%,rgba(3,27,22,0.38)_48%,rgba(3,27,22,0.96)_100%)]" />
               <div className="relative flex min-h-[548px] flex-col justify-end p-5">
                 <span className="absolute left-4 top-4 rounded-full border border-[#C8A96A]/32 bg-[#061912]/55 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#F3E9D2] backdrop-blur-md">
