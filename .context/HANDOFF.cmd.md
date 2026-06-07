@@ -1,3 +1,20 @@
+## 2026-06-07 - Public Mobile Homepage Warm Hero + Signature Ritual Cards
+
+Status: COMPLETE. The public mobile homepage hero was warmed with an amber image veil, warmer layered overlays, warmer CTA tones, and no-wrap CTA labels while preserving hero copy, layout, carousel image logic, labels, and links.
+
+Signature Ritual mobile cards now use full-background images with side-specific darker gradients behind text, lighter subject areas, top-left label pills, nearby price chips, preserved title/copy/duration, and gold `Book Ritual` buttons linking to `/book`. The large dark glass content panel was removed.
+
+Final ritual image paths/object positions:
+- Glow Ritual: `/images/spa/home/ritual-glow.jpg`, `object-[center_42%]`
+- Recovery Ritual: `/images/spa/home/ritual-recovery.jpg`, `object-[center_35%]`
+- Full Reset Ritual: `/images/spa/home/ritual-full-reset.jpg`, `object-[center_55%]`
+
+Verification: `pnpm type-check` PASS; `pnpm lint` PASS with 0 errors and 2 existing warnings in `scripts/generate-service-image-assets.mjs`; `pnpm build` PASS, 98 routes; `git diff --check` PASS with LF/CRLF notices only; `/` HTTP 200; mobile browser visual check at 390x844 PASS; desktop homepage smoke check at 1280x900 PASS.
+
+Scope guard: no booking/service/backend/Supabase/server action/API/protected portal/auth/RBAC/booking wizard/public services/about/contact/branches changes were made for this task. There are still unrelated pre-existing modified/untracked files in the worktree from other tasks; stage only this task's files and required ritual images.
+
+---
+
 # HANDOFF - PUBLIC-BOOKING-MOBILE-VIEWPORT-001 Public Booking Mobile Viewport Wizard: COMPLETE
 
 ## Status

@@ -4637,3 +4637,34 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - Manual mobile click-through should still verify the live Date & Time bottom sheet after selecting branch, visit type, service, and date, because the in-app browser controller was not exposed and full slot availability depends on local/remote API responsiveness.
+
+---
+
+## 2026-06-07 - Codex (PUBLIC-MOBILE-HOME-WARM-RITUALS-001 - Warm Mobile Hero and Signature Ritual Cards)
+
+**Task:** Warmed the public mobile homepage hero and redesigned only the mobile Signature Ritual cards to match the cinematic warm/dark CTA-card style.
+
+**Files Changed:**
+- `src/components/public/mobile/mobile-home-hero-carousel.tsx` - added a subtle amber image veil, warmer layered hero gradients, a warmer gold primary CTA, a warmer dark secondary CTA, and no-wrap guards for the unchanged hero button labels.
+- `src/components/public/mobile/mobile-signature-rituals.tsx` - replaced the large dark glass content block with full-background image cards, side-specific darker gradients behind text, lighter subject areas, top-left label pills, nearby price chips, preserved title/copy/duration content, and gold `Book Ritual` pills.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - updated task records.
+- `public/images/spa/home/ritual-glow.jpg`, `public/images/spa/home/ritual-recovery.jpg`, `public/images/spa/home/ritual-full-reset.jpg` - supporting homepage ritual images referenced by the current mobile card state.
+
+**Preserved:**
+- Hero copy, hero layout, carousel image logic, button labels, and button hrefs.
+- Ritual names, copy, resolved prices, resolved durations, `/book` links, and final image paths.
+- Choose Your Calm, public services/about/contact/branches, booking flow, service logic, backend/API, Supabase/database, server actions, protected portals, auth/RBAC, and CRM/admin/staff/driver areas were not changed for this task.
+
+**Final Ritual Images/Object Positions:**
+- Glow Ritual: `/images/spa/home/ritual-glow.jpg`, `object-[center_42%]`
+- Recovery Ritual: `/images/spa/home/ritual-recovery.jpg`, `object-[center_35%]`
+- Full Reset Ritual: `/images/spa/home/ritual-full-reset.jpg`, `object-[center_55%]`
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- `/` returned HTTP 200 on `http://localhost:3000`.
+- Mobile browser visual check at 390x844: hero is warmer/readable; Signature Ritual images remain visible; the large dark glass content panel is removed; `Book Ritual` links resolve to `/book`.
+- Desktop homepage browser smoke check at 1280x900: PASS, desktop hero/nav/CTA rendered intact.

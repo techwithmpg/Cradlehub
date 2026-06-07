@@ -47,8 +47,10 @@ export function MobileHomeHeroCarousel() {
         ))}
       </div>
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_24%,rgba(212,181,122,0.18)_0%,rgba(212,181,122,0.05)_34%,transparent_58%),linear-gradient(90deg,rgba(3,27,22,0.78)_0%,rgba(3,27,22,0.42)_46%,rgba(3,27,22,0.12)_100%),linear-gradient(180deg,rgba(3,27,22,0.12)_0%,rgba(3,27,22,0.78)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_72%,rgba(3,27,22,0.62)_0%,rgba(3,27,22,0.22)_38%,transparent_70%)]" />
+      <div className="absolute inset-0 bg-[#B88945]/12 mix-blend-soft-light" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_34%,rgba(212,181,122,0.22)_0%,rgba(212,181,122,0.08)_32%,transparent_58%),radial-gradient(circle_at_18%_78%,rgba(184,137,69,0.16)_0%,transparent_36%),linear-gradient(90deg,rgba(3,27,22,0.76)_0%,rgba(3,27,22,0.44)_44%,rgba(3,27,22,0.16)_78%,rgba(3,27,22,0.06)_100%),linear-gradient(180deg,rgba(3,27,22,0.08)_0%,rgba(3,27,22,0.24)_45%,rgba(3,27,22,0.74)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_72%,rgba(3,27,22,0.46)_0%,rgba(3,27,22,0.16)_40%,transparent_70%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-52 bg-[linear-gradient(180deg,transparent_0%,rgba(3,27,22,0.84)_78%,#031B16_100%)]" />
 
       <div className="relative flex min-h-[100svh] flex-col justify-end px-6 pb-[calc(2.25rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))]">
         <div className="cradle-hero-copy max-w-[330px] [text-shadow:0_2px_22px_rgba(4,17,12,0.72)]">
@@ -69,13 +71,13 @@ export function MobileHomeHeroCarousel() {
           <div className="cradle-hero-fade mt-8 flex flex-col gap-3 min-[360px]:flex-row">
             <Link
               href="/book"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#C8A96A] px-6 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0D2B20] shadow-[0_14px_36px_rgba(200,169,106,0.34)] transition-transform active:scale-[0.98] [font-family:var(--sp-font-body)]"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] px-6 text-[11px] font-bold uppercase tracking-[0.14em] text-[#031B16] shadow-[0_18px_42px_rgba(200,169,106,0.25)] transition-transform active:scale-[0.98] [font-family:var(--sp-font-body)]"
             >
               Book Appointment
             </Link>
             <Link
               href="/services"
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#C8A96A]/85 px-6 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F3E9D2] shadow-[inset_0_0_0_1px_rgba(243,233,210,0.08)] transition-colors active:bg-white/10 [font-family:var(--sp-font-body)]"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-[#D4B57A]/55 bg-[#031B16]/45 px-6 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F6EBD6] shadow-[inset_0_0_0_1px_rgba(243,233,210,0.08)] backdrop-blur-md transition-colors active:bg-white/10 [font-family:var(--sp-font-body)]"
             >
               View Services
             </Link>
