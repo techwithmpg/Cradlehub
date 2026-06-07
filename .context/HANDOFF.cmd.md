@@ -1,3 +1,43 @@
+# HANDOFF - PUBLIC-BOOKING-MOBILE-VIEWPORT-001 Public Booking Mobile Viewport Wizard: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Public mobile `/book` now behaves like a viewport-fitted booking app shell with compact header/progress, internally scrollable active step content, fixed bottom actions, and a mobile Date & Time bottom sheet for available slots.
+
+## What changed
+
+- Updated `src/components/public/booking-wizard.tsx` public mobile shell to use `h-[100dvh] min-h-[100dvh] overflow-hidden` with `min-h-0 flex-1 overflow-hidden` content containment.
+- Moved active step content into an internal `overflow-y-auto overscroll-contain` pane with bottom padding for the fixed action bar.
+- Compact mobile header/progress spacing and reduced mobile Branch, Visit Type, Location, Date & Time, and Details vertical rhythm.
+- Added `MobileTimeBottomSheet`, `TimeSlotsGrid`, `TimeSlotButton`, and `SelectedDateTimeCard` UI-only helpers.
+- Mobile Date & Time now opens the bottom sheet immediately after date selection; time selection uses the existing `onSelectSlot` callback and closes the sheet.
+- Desktop Date & Time keeps its existing calendar/time-grid layout.
+- Updated `src/components/public/booking-service-picker.tsx` so mobile categories/summary stay compact and the service grid can scroll internally in constrained parents.
+- Added `public-site-footer` to `SiteFooter` and mobile-only CSS in `globals.css` to hide the public footer only when `.public-booking-surface` is present, preventing footer-driven body scroll on `/book`.
+
+## Preserved
+
+- Booking step order, branch selection, visit type selection/filtering, service selection, date state, slot fetching, selected slot state, dispatch filtering, therapist selection, validation, submit payloads, server actions, API routes, Supabase/database logic, CRM/admin/staff/driver/protected workspaces, auth/RBAC, and desktop booking layout behavior.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- `GET http://localhost:3000/book`: PASS, status 200
+- Headless Chrome mobile screenshots captured at `.tmp/book-mobile.png` and `.tmp/book-mobile-loaded.png`
+- Targeted source scan found no new TypeScript `any`, `@ts-ignore`, or console logs in touched booking files.
+
+## Notes
+
+- Browser tool discovery did not expose the in-app browser controller in this turn; local headless Chrome was used for mobile screenshots instead.
+- Full manual mobile click-through of the Date & Time bottom sheet still needs a normal browser session and responsive available-slot API data.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were absent; docs equivalents and `.context/*` were read and updated where applicable.
+- Existing uncommitted `.claude/settings.local.json` change was present before this task and was not touched.
+
+---
+
 # HANDOFF - PUBLIC-MOBILE-LOADING-TRANSITIONS-001 Public Mobile Intro and Route Loading: COMPLETE
 
 ## Status

@@ -348,3 +348,17 @@
 - **Symptom:** Tool discovery did not expose the in-app Browser/agent-browser navigation or screenshot controller during this turn.
 - **Impact:** Visual confirmation of the intro animation, route-line timing, and back-navigation behavior was limited to code review, local HTTP route checks, rendered markup checks, and build/lint/type verification.
 - **Resolution:** No code change required. Run manual mobile browser QA at a 390px viewport: clear `sessionStorage`, open `/`, confirm one short intro, navigate among `/services`, `/book`, `/branches`, `/about`, `/contact`, return to `/`, and confirm booking wizard step changes do not trigger the public route line.
+
+---
+
+## 2026-06-06 - PUBLIC-BOOKING-MOBILE-VIEWPORT-001 pre-flight file note
+
+- **Symptom:** Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` were not present at the repository root during pre-flight.
+- **Impact:** No implementation blocker; docs equivalents and `.context/*` files were available and read.
+- **Resolution:** Used `.context/*`, `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, local Next.js docs in `node_modules/next/dist/docs/`, and the Next.js App Router skill guidance.
+
+## 2026-06-06 - PUBLIC-BOOKING-MOBILE-VIEWPORT-001 browser verification limitation
+
+- **Symptom:** Tool discovery did not expose the in-app Browser/agent-browser navigation or screenshot controller during this turn.
+- **Impact:** Full mobile tap-through of branch -> visit -> service -> date -> time bottom sheet could not be automated in the in-app browser. Code-level checks, production build, route smoke check, and headless Chrome mobile screenshots passed.
+- **Resolution:** No code change required. Run manual mobile QA at 390px width on `/book`, select a branch, visit type, service, date, confirm the time bottom sheet opens, select a time, and confirm the selected date/time summary appears while the bottom action bar stays visible.

@@ -4600,3 +4600,40 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Follow-up:**
 - Manual mobile visual QA should verify first homepage session intro, repeat-session skip, `/` back-navigation skip, route line on top-level public navigation, and no line during booking wizard step changes. Tool discovery did not expose the in-app browser controller in this turn.
+
+---
+
+## 2026-06-06 - Codex (PUBLIC-BOOKING-MOBILE-VIEWPORT-001 - Public Booking Mobile Viewport Wizard)
+
+**Task:** Refine the public `/book` mobile booking wizard into a viewport-fitted app-like flow, with mobile Date & Time slots in a bottom sheet instead of below the calendar.
+
+**Files Changed:**
+- `src/components/public/booking-wizard.tsx` - changed the public mobile wizard shell to `h-[100dvh] min-h-[100dvh] overflow-hidden`, added the internal active-step scroll pane, compacted mobile header/progress/short steps, and added the mobile time-slot bottom sheet.
+- `src/components/public/booking-service-picker.tsx` - made the service picker live safely inside constrained-height parents, with mobile category chips fixed above an internally scrollable service grid.
+- `src/components/public/site-footer.tsx` - added a `public-site-footer` hook class.
+- `src/app/globals.css` - added mobile-only `:has(.public-booking-surface)` containment so `/book` does not keep the public footer below the viewport on mobile.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
+- `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - logged the public booking mobile viewport update.
+
+**Behavior:**
+- Public mobile `/book` now uses a viewport-fitted shell with compact booking header/progress, an internally scrollable active-step middle pane, and a fixed bottom action bar.
+- Branch, Visit Type, Location, Date & Time, Therapist, Details, and Success steps now use tighter mobile spacing; naturally long content remains inside the middle scroll region.
+- Services now keep category chips and selected summary compact while the service grid scrolls internally inside the active step area.
+- Date selection on mobile opens a warm dark bottom sheet with available slots, loading/empty/service-required states, dialog semantics, Escape close, focus handoff, safe-area padding, and warm Cradle styling.
+- Selecting a time still calls the existing `onSelectSlot` path, updates the existing `selectedSlot` state, resets therapist selection as before, and closes the mobile sheet.
+- Desktop Date & Time keeps the existing calendar/time-grid layout.
+- Booking step order, branch/service/visit/date/slot/therapist logic, submit payloads, available-slot API behavior, server actions, Supabase/database logic, protected workspaces, CRM/admin/staff/driver portals, auth/RBAC, and public route behavior were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- `/book` smoke check returned HTTP 200 on `http://localhost:3000`.
+- Headless Chrome mobile screenshots captured at 390x844:
+  - `.tmp/book-mobile.png` for initial booking shell/loading state
+  - `.tmp/book-mobile-loaded.png` for loaded Branch step with fixed bottom action bar
+- Targeted scan found no new TypeScript `any`, `@ts-ignore`, or console logs in touched booking files; plain-English "any" matches were copy only.
+
+**Follow-up:**
+- Manual mobile click-through should still verify the live Date & Time bottom sheet after selecting branch, visit type, service, and date, because the in-app browser controller was not exposed and full slot availability depends on local/remote API responsiveness.

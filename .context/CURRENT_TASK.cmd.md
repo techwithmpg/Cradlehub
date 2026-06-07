@@ -1,7 +1,7 @@
 Task ID: PUBLIC-BOOKING-MOBILE-VIEWPORT-001
 Description: Refine the public mobile booking wizard into a viewport-fitted app-like flow with mobile time-slot bottom sheet
 Agent: Codex
-Status: IN PROGRESS
+Status: COMPLETE
 
 Scope:
 - Public `/book` mobile booking UX/layout only.
@@ -30,3 +30,4 @@ Notes:
 - Required `.context/*`, `AGENTS.md`, docs equivalents, and local Next.js 16 docs were read before code edits.
 - Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent; docs equivalents were read where available.
 - Existing uncommitted change present before this task: `.claude/settings.local.json`.
+- Completed with `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, `/book` HTTP 200 smoke check, and mobile headless Chrome screenshots.

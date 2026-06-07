@@ -221,3 +221,11 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Root-mounted route progress is allow-listed to `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact`; booking subroutes/steps, external links, hashes, phone/email links, and protected workspaces are ignored.
 - Booking logic, APIs, Supabase/database logic, server actions, protected portals, auth/RBAC, and middleware were not changed.
 - Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, and local public route smoke checks are passing; lint still reports two pre-existing warnings in `scripts/generate-service-image-assets.mjs`.
+
+## Latest Agent Update (2026-06-06)
+
+- Completed `PUBLIC-BOOKING-MOBILE-VIEWPORT-001`: public mobile `/book` now uses a viewport-fitted wizard shell with compact header/progress, internal active-step scrolling, and fixed bottom actions.
+- Mobile Date & Time opens a warm dark bottom sheet for available slots after date selection; selecting a time still updates the existing `selectedSlot` state through the current callback path.
+- Services now work inside the constrained mobile shell, with category chips and selected summary compact while the service grid scrolls internally.
+- Booking logic, step order, validation, slot fetching/API behavior, submit payloads, Supabase/database logic, server actions, protected portals, auth/RBAC, and desktop layout behavior were not changed.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, `/book` HTTP 200, and headless Chrome mobile screenshots; lint still reports two pre-existing warnings in `scripts/generate-service-image-assets.mjs`.

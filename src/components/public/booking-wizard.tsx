@@ -1011,7 +1011,7 @@ export function BookingWizard({
         <div
           className={
             mode === "public"
-              ? "min-h-0 flex-1 overflow-hidden md:grid md:gap-8 md:overflow-visible lg:grid-cols-3"
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden md:grid md:gap-8 md:overflow-visible lg:grid-cols-3"
               : "grid min-w-0 gap-8 lg:grid-cols-3"
           }
         >
@@ -1027,7 +1027,12 @@ export function BookingWizard({
               ref={stepScrollRef}
               className={
                 mode === "public"
-                  ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-28 md:overflow-visible md:pb-0"
+                  ? [
+                      "min-h-0 flex-1 overscroll-contain md:overflow-visible md:pb-0",
+                      currentStepName === "services"
+                        ? "overflow-hidden pb-0"
+                        : "overflow-y-auto pb-28",
+                    ].join(" ")
                   : ""
               }
             >

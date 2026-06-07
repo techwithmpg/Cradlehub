@@ -257,17 +257,17 @@ export function BookingServicePicker({
 
   if (loading) {
     return (
-      <div>
+      <div className="h-full min-h-0 md:h-auto">
         {/* Mobile loading skeleton */}
-        <div className="block w-full max-w-full overflow-hidden md:hidden">
-          <div className="w-full max-w-full overflow-hidden">
-            <div className="mb-4 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
+        <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden md:hidden">
+          <div className="w-full max-w-full shrink-0 overflow-hidden">
+            <div className="mb-3 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className={`h-9 w-24 shrink-0 rounded-full ${skeletonClassName}`} />
               ))}
             </div>
           </div>
-          <div className="w-full max-w-full overflow-hidden">
+          <div className="min-h-0 w-full max-w-full flex-1 overflow-y-auto overscroll-contain pb-[calc(7rem+env(safe-area-inset-bottom))]">
             <div className="grid w-full max-w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
               {Array.from({ length: 9 }).map((_, i) => (
                 <Skeleton key={i} className={`rounded-2xl ${skeletonClassName}`} style={{ aspectRatio: "4/3" }} />
@@ -319,19 +319,19 @@ export function BookingServicePicker({
   return (
     <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden md:block md:h-auto md:overflow-visible">
       <h2
-        className="mb-1.5 text-[17px] font-semibold md:mb-2 md:text-2xl md:font-medium"
+        className="mb-1.5 shrink-0 text-[17px] font-semibold md:mb-2 md:text-2xl md:font-medium"
         style={WARM_HEADING_STYLE}
       >
         Select services
       </h2>
-      <p className="mb-3 text-[12px] leading-5 md:mb-5 md:text-[14px] md:leading-6" style={WARM_BODY_STYLE}>
+      <p className="mb-3 shrink-0 text-[12px] leading-5 md:mb-5 md:text-[14px] md:leading-6" style={WARM_BODY_STYLE}>
         Choose one or more services for your visit.
       </p>
 
       {/* Selection summary strip */}
       {selected.length > 0 && (
         <div
-          className={`mb-3 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 md:mb-4 md:gap-4 md:px-4 md:py-3 ${WARM_GLASS_CARD}`}
+          className={`mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2.5 md:mb-4 md:gap-4 md:px-4 md:py-3 ${WARM_GLASS_CARD}`}
         >
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
@@ -352,7 +352,7 @@ export function BookingServicePicker({
       )}
 
       {/* ── Mobile layout ─────────────────────────────────────────────────────── */}
-      <div className="block min-h-0 w-full max-w-full flex-1 overflow-hidden md:hidden">
+      <div className="flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden md:hidden">
         {/* Category chips — scrollable row, no page overflow */}
         <div className="w-full max-w-full shrink-0 overflow-hidden">
           <div className="mb-3 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2">
@@ -377,14 +377,14 @@ export function BookingServicePicker({
         </div>
 
         {/* Mobile service grid: 2 → 3 → 4 columns */}
-        {!activeCategory ? (
-          <div
-            className="rounded-2xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-4 py-8 text-center text-[#F6EBD6]/68"
-          >
-            No services in this category yet.
-          </div>
-        ) : (
-          <div className="min-h-0 w-full max-w-full overflow-y-auto overscroll-contain pb-2">
+        <div className="min-h-0 w-full max-w-full flex-1 overflow-y-auto overscroll-contain pb-[calc(7rem+env(safe-area-inset-bottom))]">
+          {!activeCategory ? (
+            <div
+              className="rounded-2xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-4 py-8 text-center text-[#F6EBD6]/68"
+            >
+              No services in this category yet.
+            </div>
+          ) : (
             <div className="grid w-full max-w-full grid-cols-2 gap-2.5 min-[390px]:grid-cols-3 min-[520px]:grid-cols-4">
               {activeCategory.services.map((service) => (
                 <MobileServiceCard
@@ -395,8 +395,8 @@ export function BookingServicePicker({
                 />
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── Desktop layout ─────────────────────────────────────────────────────── */}
