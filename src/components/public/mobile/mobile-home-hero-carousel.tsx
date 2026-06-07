@@ -68,16 +68,16 @@ export function MobileHomeHeroCarousel() {
             moments that deserve gentle attention.
           </p>
 
-          <div className="cradle-hero-fade mt-8 flex flex-col gap-3 min-[360px]:flex-row">
+          <div className="cradle-hero-fade mt-8 flex w-fit max-w-[92vw] items-center gap-2.5 min-[390px]:gap-3">
             <Link
               href="/book"
-              className="inline-flex min-h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] px-6 text-[11px] font-bold uppercase tracking-[0.14em] text-[#031B16] shadow-[0_18px_42px_rgba(200,169,106,0.25)] transition-transform active:scale-[0.98] [font-family:var(--sp-font-body)]"
+              className="inline-flex h-11 min-w-[146px] items-center justify-center rounded-full bg-gradient-to-r from-[#D4B57A] via-[#C8A96A] to-[#B88945] px-4 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-[#031B16] shadow-[0_12px_28px_rgba(200,169,106,0.22)] transition-transform active:scale-[0.98] [font-family:var(--sp-font-body)] min-[390px]:min-w-[154px] min-[390px]:text-[0.65rem] min-[390px]:tracking-[0.16em]"
             >
               Book Appointment
             </Link>
             <Link
               href="/services"
-              className="inline-flex min-h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-[#D4B57A]/55 bg-[#031B16]/45 px-6 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F6EBD6] shadow-[inset_0_0_0_1px_rgba(243,233,210,0.08)] backdrop-blur-md transition-colors active:bg-white/10 [font-family:var(--sp-font-body)]"
+              className="inline-flex h-11 min-w-[128px] items-center justify-center rounded-full border border-[#D4B57A]/55 bg-[#031B16]/45 px-4 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-[#F6EBD6] backdrop-blur-md transition-colors active:bg-white/10 [font-family:var(--sp-font-body)] min-[390px]:min-w-[138px] min-[390px]:text-[0.65rem] min-[390px]:tracking-[0.16em]"
             >
               View Services
             </Link>

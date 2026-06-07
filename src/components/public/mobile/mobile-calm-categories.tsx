@@ -26,6 +26,14 @@ const HOME_CATEGORY_IMAGES: Partial<Record<PublicCatalogCategoryName, string>> =
   "Spa Party Packages": "/images/spa/home/spa-party.jpg",
 };
 
+const HOME_CATEGORY_DESCRIPTIONS: Partial<Record<PublicCatalogCategoryName, string>> = {
+  "Massage Services": "Relaxing bodywork for deep rest and recovery.",
+  "Salon Services": "Beauty care for hair, nails, lashes, and polish.",
+  "Skin Care Services": "Facials and skin treatments for a fresh glow.",
+  "Divine Renewal Packages": "Curated rituals for a longer Cradle escape.",
+  "Spa Party Packages": "Shared spa moments for groups and celebrations.",
+};
+
 export function MobileCalmCategories({ services }: MobileCalmCategoriesProps) {
   const categories = PUBLIC_CATALOG_CATEGORY_NAMES.map((categoryName) => {
     const detail =
@@ -33,8 +41,11 @@ export function MobileCalmCategories({ services }: MobileCalmCategoriesProps) {
     const count = services.filter(
       (service) => service.categoryName === categoryName
     ).length;
+    const description =
+      HOME_CATEGORY_DESCRIPTIONS[categoryName as PublicCatalogCategoryName] ??
+      detail.description;
 
-    return { categoryName, detail, count };
+    return { categoryName, detail, count, description };
   });
 
   return (
@@ -47,7 +58,7 @@ export function MobileCalmCategories({ services }: MobileCalmCategoriesProps) {
       </div>
 
       <div className="space-y-3.5">
-        {categories.map(({ categoryName, detail, count }) => (
+        {categories.map(({ categoryName, detail, count, description }) => (
           <MobileFadeUp key={categoryName}>
             <Link
               href={`/services#${categoryName.toLowerCase().replace(/\s+/g, "-")}`}
@@ -64,18 +75,18 @@ export function MobileCalmCategories({ services }: MobileCalmCategoriesProps) {
               <span className="absolute left-5 top-4 z-10 inline-flex rounded-full border border-[#D4B57A]/34 bg-[#031B16]/42 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#D4B57A] backdrop-blur-md">
                 {detail.eyebrow}
               </span>
-              <div className="absolute bottom-6 left-5 right-[5.25rem] z-10">
+              <div className="absolute bottom-6 left-5 z-10 max-w-[70%] space-y-2">
                 <Sparkles
-                  className="mb-2 h-4 w-4 text-[#D4B57A]"
+                  className="h-4 w-4 text-[#D4B57A]"
                   aria-hidden="true"
                 />
                 <h3 className="text-[30px] font-medium leading-none text-[#F8EEDC] [font-family:var(--sp-font-accent)]">
                   {detail.shortName}
                 </h3>
-                <p className="mt-2 max-w-[245px] text-[12px] leading-5 text-[#F6E8D4]/82">
-                  {detail.description}
+                <p className="text-sm leading-5 text-[#F6EBD6]/82">
+                  {description}
                 </p>
-                <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#D4B57A]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#D4B57A]">
                   {count > 0 ? `${count} treatments` : "View menu"}
                 </p>
               </div>
