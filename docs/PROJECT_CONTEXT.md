@@ -104,10 +104,10 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `DISPATCH-LIVE-001`  |
-| **Completion**      | `Manager dispatch now reads real branch-scoped Supabase dispatch data instead of mock data`        |
+| **Sprint**          | `UI-MOBILE-PRELOAD-002`  |
+| **Completion**      | `Mobile first-visit public preloader now mounts in initial server HTML before landing-page animations`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-06-07` |
+| **Last Updated**    | `2026-06-11` |
 | **Blockers**        | `No build/type blockers; lint has 2 pre-existing warnings in scripts/generate-service-image-assets.mjs`      |
 
 ---
@@ -238,3 +238,21 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Mobile Contact/Branches branch data rows now wrap long names/addresses and keep action labels inside the viewport.
 - Booking logic, service/branch data behavior, Supabase/database logic, server actions, protected portals, auth/RBAC, APIs, and backend behavior were not changed.
 - Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, scoped light-surface source scan, production HTTP 200 checks for `/services`, `/contact`, `/about`, `/branches`, and headless Chrome production screenshots; lint still reports two pre-existing warnings in `scripts/generate-service-image-assets.mjs`.
+
+## Latest Agent Update (2026-06-11)
+
+- Completed `UI-MOBILE-PRELOAD-001`: added `MobileFirstVisitPreloader` for the public Cradle experience.
+- The preloader is mounted on `/` through `src/app/page.tsx` and on public route-group pages through `src/app/(public)/layout.tsx`.
+- It is mobile-only, session-only via `cradle_mobile_preloader_seen`, and uses scoped component keyframes/classes with reduced-motion support.
+- The older mobile homepage `CradleBreathReveal` mount was removed so the new preloader is the only public first-visit splash.
+- Route progress bars, workspace loaders, skeleton loaders, global loading files, protected portals, booking logic, Supabase/database logic, APIs, server actions, auth/RBAC, and middleware were not changed.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, and headless Chrome runtime checks for mobile first visit, repeat session, desktop skip, protected route skip, public navigation skip, and reduced motion.
+
+## Latest Agent Update (2026-06-11)
+
+- Completed `UI-MOBILE-PRELOAD-002`: fixed the public mobile preloader so no-cookie public responses render overlay markup before client hydration or landing-page animations.
+- `/` and the public route-group layout now read `await cookies()` for `cradle_mobile_preloader_seen` and pass `initiallyVisible` to `MobileFirstVisitPreloader`.
+- Mobile first visits set both the session cookie and sessionStorage fallback to `1`; repeat-cookie visits skip server markup, desktop visits remove the overlay without setting the cookie, and protected routes do not mount or mark it.
+- The preloader now uses the approved dark forest, warm gold, and ivory visual treatment with scoped component CSS and a temporary `.sp-public` animation pause guard while visible.
+- Route progress bars, workspace loaders, skeleton loaders, global loading files/CSS, protected portals, booking logic, Supabase/database logic, APIs, server actions, auth/RBAC, and middleware were not changed.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, raw HTML cookie/no-cookie behavior, and headless Chrome CDP checks for mobile first paint, fade removal, repeat-cookie skip, desktop no-cookie skip, and protected-route isolation.

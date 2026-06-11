@@ -770,3 +770,74 @@ Implemented the driver mobile shell refinement. Driver staff now get a single pe
 Driver mobile pages no longer render duplicated fixed navs. `/staff-portal/schedule` now has a driver mobile schedule page showing week-day trip cards while desktop keeps `StaffSchedulePage`. `updateBookingProgressAction` now authorizes assigned drivers by `system_role="driver"` or `staff_type="driver"`, matching the workspace mode resolver. Revalidation now includes driver staff routes and CRM dispatch/live-operation surfaces.
 
 Verification: `pnpm type-check` PASS, `pnpm lint` PASS (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`), `pnpm build` PASS (96 routes). Local unauthenticated route checks for the staff portal driver route set returned 307 -> `/login`; authenticated mobile visual verification still needs a valid driver staff session.
+
+---
+
+# HANDOFF - UI-MOBILE-PRELOAD-001 Mobile First-Visit Public Preloader: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Cradle public pages now have a mobile-only first-visit preloader that appears once per browser session and fades out without touching protected workspaces or global loading systems.
+
+## What changed
+
+- Added `src/components/shared/mobile-first-visit-preloader.tsx`.
+- Mounted `MobileFirstVisitPreloader` in `src/app/page.tsx` for `/`.
+- Mounted `MobileFirstVisitPreloader` in `src/app/(public)/layout.tsx` for public route-group pages like `/book`, `/services`, `/branches`, `/about`, and `/contact`.
+- Removed the older `CradleBreathReveal` mount from `src/components/public/mobile/public-mobile-home.tsx` so two splash experiences do not stack on the homepage.
+
+## Behavior
+
+- Uses `sessionStorage` key `cradle_mobile_preloader_seen`.
+- Shows only at `window.innerWidth <= 768`.
+- Marks the session as seen as soon as it is eligible to show.
+- Fades after the short timing window and removes itself from interaction/DOM.
+- If session storage is restricted, it still shows at most once for that mounted component lifecycle.
+- Reduced motion disables dot/float animation and shortens transition duration.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Headless Chrome runtime check on `http://localhost:3000`: mobile first public visit showed and marked the session; fade removal passed; same-session reload stayed hidden; public navigation after first visit stayed hidden; desktop public visit never showed or marked the session; `/crm` mobile did not show or mark the session; reduced motion disabled dot animation.
+
+## Preserved
+
+Route progress bars, workspace switching loaders, CRM/staff/driver/owner/admin loading states, skeleton loaders, `src/app/loading.tsx`, `src/app/(public)/loading.tsx`, global animation CSS, booking logic, Supabase/database logic, server actions, APIs, auth/RBAC, and middleware were not changed.
+
+---
+
+# HANDOFF - UI-MOBILE-PRELOAD-002 Mobile Preloader First-Paint Fix: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Public first visits now get preloader markup from the server when `cradle_mobile_preloader_seen` is absent, so the mobile overlay can cover the initial landing-page paint instead of appearing after client hydration.
+
+## What changed
+
+- `MobileFirstVisitPreloader` now accepts `initiallyVisible: boolean` and initializes state with `useState(initiallyVisible ? "visible" : "hidden")`.
+- Added `src/lib/public/mobile-preloader.ts` so the cookie/storage key is shared by server and client code.
+- `/` (`src/app/page.tsx`) and the `(public)` layout both use `await cookies()` and pass `initiallyVisible={!hasSeenMobilePreloader}`.
+- Mobile clients set a session cookie and sessionStorage fallback: `cradle_mobile_preloader_seen=1`.
+- Desktop clients remove the server-rendered mobile-hidden overlay immediately without setting the cookie.
+- The component applies the approved dark forest/gold/ivory preloader design and keeps timing at `700ms` minimum visible, `1600ms` maximum visible, and `420ms` fade.
+- A scoped data-attribute pause guard is active only while the overlay is visible: `.sp-reveal`, `.sp-reveal-scale`, and `[data-hero-animation]`.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Raw HTML checks: `/` and `/services` include `cradle-mobile-preloader-overlay` without cookie and omit it with `cradle_mobile_preloader_seen=1`; `/crm` never includes it.
+- Headless Chrome CDP checks on `http://localhost:3000`: mobile first visit had overlay at DOMContentLoaded, set cookie/storage to `1`, and removed overlay by the end of the fade; repeat-cookie mobile hidden; desktop no-cookie hidden with no cookie; protected `/crm` redirected to `/login` with no overlay/cookie.
+
+## Preserved
+
+No changes were made to route progress bars, workspace switching loaders, CRM/staff/driver/owner/admin loading states, skeleton loaders, `src/app/loading.tsx`, `src/app/(public)/loading.tsx`, global animation CSS, booking logic, Supabase/database logic, APIs, server actions, auth/RBAC, or middleware.
+
+## Notes
+
+The in-app browser controller was not exposed. Non-escalated Chrome could not expose DevTools from the sandbox, so the successful browser verification used an approved escalated local headless Chrome run. A first short CDP wait caught the preloader mid-fade on the slow dev server; the follow-up longer CDP pass confirmed final removal.

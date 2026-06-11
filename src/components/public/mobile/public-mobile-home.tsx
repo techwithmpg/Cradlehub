@@ -1,7 +1,6 @@
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { Database } from "@/types/supabase";
-import { CradleBreathReveal } from "./cradle-breath-reveal";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
 import { MobileCalmCategories } from "./mobile-calm-categories";
 import { MobileMostLovedTreatments } from "./mobile-most-loved-treatments";
@@ -51,8 +50,6 @@ export async function PublicMobileHome({ branches = [] }: PublicMobileHomeProps)
 
   return (
     <div className="bg-[#061912] pb-0 text-[#F3E9D2] md:hidden">
-      <CradleBreathReveal />
-
       {/* ── Hero Carousel ─────────────────────────────────────────────────── */}
       <MobileHomeHeroCarousel />
 

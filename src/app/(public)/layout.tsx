@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
+import { MobileFirstVisitPreloader } from "@/components/shared/mobile-first-visit-preloader";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { getPublicBranchesCached } from "@/lib/queries/branches";
+import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
 import {
   BUSINESS_NAME,
   BUSINESS_TAGLINE,
@@ -45,13 +48,19 @@ export const metadata: Metadata = {
 };
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
-  const branches = await getPublicBranchesCached();
+  const [branches, cookieStore] = await Promise.all([
+    getPublicBranchesCached(),
+    cookies(),
+  ]);
+  const hasSeenMobilePreloader =
+    cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
   const primaryPhone = branches[0]?.phone
     ? { label: branches[0].phone, href: `tel:${branches[0].phone.replace(/\s/g, "")}` }
     : undefined;
 
   return (
     <div className="sp-public">
+      <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
       <OfflineBanner />
       <SiteHeader primaryPhone={primaryPhone} />
       <main>{children}</main>

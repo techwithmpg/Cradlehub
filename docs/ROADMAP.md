@@ -167,3 +167,5 @@
 | 2026-06-06 | Logged PUBLIC-MOBILE-LOADING-TRANSITIONS-001 public mobile loading transitions | Track one-session homepage intro, public top route line, and removal of the root full-screen loading bridge from public first load | Codex |
 | 2026-06-06 | Logged PUBLIC-BOOKING-MOBILE-VIEWPORT-001 public booking mobile viewport wizard | Track viewport-fitted `/book` shell, internal step scrolling, fixed bottom actions, compact mobile steps, and mobile Date & Time bottom sheet | Codex |
 | 2026-06-07 | Logged PUBLIC-PAGES-DARK-THEME-001 public pages dark theme pass | Track dark Cradle restyling for `/services`, `/contact`, `/about`, `/branches`, shared service catalog, and scrolled public header | Codex |
+| 2026-06-11 | Logged UI-MOBILE-PRELOAD-001 mobile first-visit public preloader | Track mobile-only, session-only preloader mounted on public pages without changing protected workspaces or global loaders | Codex |
+| 2026-06-11 | Logged UI-MOBILE-PRELOAD-002 mobile preloader first-paint fix | Track cookie-backed server mounting before public landing animations while preserving desktop/protected routes and global loaders | Codex |

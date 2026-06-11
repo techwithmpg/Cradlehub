@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { SiteFooter } from "@/components/public/site-footer";
 import { SiteHeader } from "@/components/public/site-header";
 import { HomePageSections } from "@/components/public/home-page-sections";
 import { PublicMobileHome } from "@/components/public/mobile/public-mobile-home";
+import { MobileFirstVisitPreloader } from "@/components/shared/mobile-first-visit-preloader";
 import { getPublicBranches } from "@/lib/queries/branches";
+import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { LocalBusinessJsonLd, FAQPageJsonLd } from "@/components/seo/structured-data";
 
@@ -15,7 +18,12 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function HomePage() {
-  const branches = await getPublicBranches();
+  const [branches, cookieStore] = await Promise.all([
+    getPublicBranches(),
+    cookies(),
+  ]);
+  const hasSeenMobilePreloader =
+    cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
   const primaryPhone = branches[0]?.phone
     ? { label: branches[0].phone, href: `tel:${branches[0].phone.replace(/\s/g, "")}` }
     : undefined;
@@ -63,6 +71,7 @@ export default async function HomePage() {
 
   return (
     <div className="sp-public">
+      <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
       <SiteHeader primaryPhone={primaryPhone} />
       <main>
         <PublicMobileHome branches={branches} />

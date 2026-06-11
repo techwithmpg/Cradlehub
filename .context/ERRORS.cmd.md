@@ -374,3 +374,17 @@
 - **Symptom:** A pre-existing Next dev server was already running for `E:\cradlehub`, so starting a second `next dev` server on another port failed with Next's "Another next dev server is already running" guard.
 - **Impact:** The existing `localhost:3000` server was not used as the final authoritative visual baseline.
 - **Resolution:** Ran `pnpm build`, started temporary production server `next start --port 3011`, verified `/services`, `/contact`, `/about`, and `/branches` HTTP 200 plus screenshots, then stopped the temporary server.
+
+---
+
+## 2026-06-11 - UI-MOBILE-PRELOAD-001 headless Chrome sandbox retry
+
+- **Symptom:** The first non-escalated headless Chrome runtime verification did not expose a DevTools endpoint from inside the sandbox.
+- **Impact:** Browser-level checks could not run until Chrome was relaunched outside the sandbox.
+- **Resolution:** Re-ran the same local headless Chrome verification with approved escalation. Mobile first-visit, repeat-session, desktop, protected route, and reduced-motion checks all passed.
+
+## 2026-06-11 - UI-MOBILE-PRELOAD-002 headless Chrome verification notes
+
+- **Symptom:** Non-escalated headless Chrome again did not expose a DevTools endpoint from inside the sandbox. The first escalated CDP helper also leaked a PowerShell task result into the WebSocket variable, and one `--dump-dom` attempt returned no DOM output.
+- **Impact:** Browser-level verification needed one corrected escalated CDP rerun and a longer mobile wait because the dev server loaded slowly enough that a short wait caught the overlay mid-fade.
+- **Resolution:** Corrected the CDP helper, reran Chrome with approved escalation, and confirmed mobile first-paint overlay, cookie/storage marking, final fade removal, repeat-cookie skip, desktop no-cookie skip, and protected-route isolation.

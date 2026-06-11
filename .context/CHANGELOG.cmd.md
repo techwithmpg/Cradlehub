@@ -4717,3 +4717,48 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Restyled `/services`, `/contact`, `/about`, `/branches`, the shared public service catalog, and the shared public header onto the dark warm Cradle theme. The full detailed entry for this task was also recorded near the top of this append-only changelog during the same update.
 
 **Verification:** `pnpm type-check` PASS; `pnpm lint` PASS with 2 existing warnings in `scripts/generate-service-image-assets.mjs`; `pnpm build` PASS, 98 routes; production route checks on temporary `http://localhost:3011` returned HTTP 200 for `/services`, `/contact`, `/about`, and `/branches`; final headless Chrome screenshots were captured under `.tmp/public-dark-screens-prod/`.
+
+---
+
+### 2026-06-11 — Codex
+
+**Task:** Added mobile-only first-visit preloader for Cradle public pages.
+
+**Files Changed:**
+- `src/components/shared/mobile-first-visit-preloader.tsx` — added isolated mobile first-visit preloader
+- `src/app/page.tsx` — mounted preloader only on the public homepage
+- `src/app/(public)/layout.tsx` — mounted preloader only on public route-group pages
+- `src/components/public/mobile/public-mobile-home.tsx` — removed the older homepage-only breath reveal mount so the new preloader is the only public first-visit splash
+
+**Roadmap Items Completed:** Phase 5 mobile polish/loading state coverage partial.
+
+**Notes:** Preloader is mobile-only, session-only, and public-site-only. It does not affect CRM, staff portal, driver portal, owner/admin pages, route navigation, workspace switching, or skeleton loaders. No route progress bar, global loading file, workspace loader, skeleton loader, or global animation system was changed.
+
+**Build Status:** ✅ Passing
+
+---
+
+### 2026-06-11 — Codex (UI-MOBILE-PRELOAD-002)
+
+**Task:** Fixed the mobile preloader so first-visit public pages render the overlay in the initial server HTML before landing-page animations can paint.
+
+**Files Changed:**
+- `src/components/shared/mobile-first-visit-preloader.tsx` — changed the preloader to accept `initiallyVisible`, start visible from server-provided state, use a session cookie plus sessionStorage fallback, apply the dark forest/gold/ivory visual treatment, and add a scoped animation pause guard while mounted.
+- `src/lib/public/mobile-preloader.ts` — added shared cookie/storage key constants.
+- `src/app/page.tsx` — reads the session cookie with `await cookies()` and passes `initiallyVisible` for `/`.
+- `src/app/(public)/layout.tsx` — reads the session cookie with `await cookies()` and passes `initiallyVisible` for public route-group pages.
+
+**Behavior:**
+- No-cookie public responses for `/` and public route-group pages include the preloader markup immediately; requests with `cradle_mobile_preloader_seen=1` omit it.
+- Mobile clients set `cradle_mobile_preloader_seen=1` as a session cookie and in `sessionStorage`, then fade/remove the overlay after the short timing window.
+- Desktop clients remove the server-rendered mobile-hidden overlay without setting the cookie.
+- Protected routes do not mount or mark the preloader.
+- Route progress bars, workspace loaders, skeleton loaders, global loading files, protected portals, booking logic, Supabase/database logic, APIs, server actions, auth/RBAC, middleware, and global CSS were not changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Raw HTML checks on `http://localhost:3000`: `/` and `/services` include the overlay without the cookie and omit it with the cookie; `/crm` never includes it.
+- Headless Chrome mobile CDP check: overlay present at DOMContentLoaded on first `/` visit, session cookie/storage set to `1`, overlay removed after fade, repeat-cookie visit hidden, desktop no-cookie visit hidden with no cookie, protected `/crm` redirected to `/login` with no overlay/cookie.
