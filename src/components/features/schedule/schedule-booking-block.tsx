@@ -3,8 +3,9 @@
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import {
-  getTimelineOffsetPx,
-  getTimelineWidthPx,
+  getTimelineBlockPercent,
+  type TimelineDisplayMode,
+  type TimelineRange,
 } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleBooking } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
@@ -46,6 +47,8 @@ type BookingBlockProps = {
   isSelected?: boolean;
   onHoverEnter?: (bookingId: string, x: number, y: number) => void;
   onHoverLeave?: () => void;
+  timelineRange: TimelineRange;
+  timelineMode: TimelineDisplayMode;
 };
 
 export function ScheduleBookingBlock({
@@ -54,12 +57,17 @@ export function ScheduleBookingBlock({
   isSelected,
   onHoverEnter,
   onHoverLeave,
+  timelineRange,
+  timelineMode,
 }: BookingBlockProps) {
-  const left = getTimelineOffsetPx(booking.start_time);
-  const width = getTimelineWidthPx(booking.start_time, booking.end_time);
-  const minWidth = 56;
-  const effectiveWidth = Math.max(width, minWidth);
-  const isCompact = effectiveWidth < 120;
+  const { leftPercent, widthPercent } = getTimelineBlockPercent(
+    booking.start_time,
+    booking.end_time,
+    timelineRange
+  );
+  const isCompact = timelineMode === "fit" || widthPercent < 9;
+  const showDetails = !isCompact && widthPercent >= 9;
+  const showBadges = timelineMode === "expanded" && widthPercent >= 14;
 
   const bg = STATUS_BG[booking.status] ?? "#F5F5F5";
   const border = STATUS_BORDER[booking.status] ?? "#BDBDBD";
@@ -71,8 +79,9 @@ export function ScheduleBookingBlock({
       onClick={() => onClick?.(booking.id)}
       style={{
         position: "absolute",
-        left,
-        width: effectiveWidth,
+        left: `${leftPercent}%`,
+        width: `${widthPercent}%`,
+        minWidth: timelineMode === "expanded" ? 56 : undefined,
         top: 6,
         bottom: 6,
         backgroundColor: bg,
@@ -86,6 +95,7 @@ export function ScheduleBookingBlock({
         cursor: "pointer",
         textAlign: "left",
         overflow: "hidden",
+        maxWidth: `${Math.max(0, 100 - leftPercent)}%`,
         transition: "box-shadow 150ms ease, transform 150ms ease, border-color 150ms ease",
         outline: isSelected ? `2px solid var(--cs-sand)` : "none",
         outlineOffset: 1,
@@ -118,7 +128,7 @@ export function ScheduleBookingBlock({
       >
         {booking.service}
       </div>
-      {!isCompact && (
+      {showDetails && (
         <div
           style={{
             fontSize: "0.6875rem",
@@ -145,7 +155,7 @@ export function ScheduleBookingBlock({
           )}
         </div>
       )}
-      {!isCompact && effectiveWidth >= 180 && (
+      {showBadges && (
         <div
           style={{
             display: "flex",

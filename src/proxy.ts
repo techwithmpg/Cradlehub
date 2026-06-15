@@ -1,14 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
-import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
 import {
   buildWorkspaceAccessFromStaffProfile,
+  canAccessWorkspacePath,
   getWorkspaceSwitchDestination,
-  hasWorkspaceAccess,
-  type WorkspaceAccess,
   type WorkspaceStaffProfile,
 } from "@/lib/auth/workspace-access";
 
@@ -22,47 +20,6 @@ const PROTECTED_PREFIXES = [
   "/dev",
   "/select-workspace",
 ];
-
-function canAccessProtectedPath(
-  pathname: string,
-  role: string,
-  workspaces: readonly WorkspaceAccess[]
-): boolean {
-  if (pathname.startsWith("/select-workspace")) return workspaces.length > 0;
-
-  if (pathname.startsWith("/crm")) {
-    if (!hasWorkspaceAccess(workspaces, "crm")) return false;
-    if (isCsr(role)) return canCsrAccessPath(role, pathname);
-    if (role === "crm") return canCrmAccessPath(pathname);
-    return true;
-  }
-
-  if (pathname.startsWith("/staff-portal")) {
-    return hasWorkspaceAccess(workspaces, "staff_portal");
-  }
-
-  if (pathname.startsWith("/driver")) {
-    return hasWorkspaceAccess(workspaces, "driver");
-  }
-
-  if (pathname.startsWith("/utility")) {
-    return hasWorkspaceAccess(workspaces, "utility");
-  }
-
-  if (pathname.startsWith("/owner")) {
-    return hasWorkspaceAccess(workspaces, "owner");
-  }
-
-  if (pathname.startsWith("/manager")) {
-    return hasWorkspaceAccess(workspaces, "manager");
-  }
-
-  if (pathname.startsWith("/dev")) {
-    return hasWorkspaceAccess(workspaces, "owner");
-  }
-
-  return true;
-}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -130,7 +87,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/account/setup", request.url));
   }
 
-  if (!canAccessProtectedPath(pathname, systemRole, workspaces)) {
+  if (!canAccessWorkspacePath(pathname, systemRole, workspaces)) {
     return NextResponse.redirect(new URL(getWorkspaceSwitchDestination(workspaces), request.url));
   }
 

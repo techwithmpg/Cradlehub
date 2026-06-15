@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,14 @@ type BranchActionState = {
   error?: string;
 };
 
+type BranchFormValues = {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  messenger: string;
+};
+
 const initialState: BranchActionState = {};
 
 function optionalString(formValue: FormDataEntryValue | null): string | undefined {
@@ -30,7 +38,22 @@ function parseSlotInterval(value: FormDataEntryValue | null): 15 | 30 | 60 {
   return 30;
 }
 
+function getBranchFormValues(branch: BranchRow): BranchFormValues {
+  return {
+    name: branch.name ?? "",
+    address: branch.address ?? "",
+    phone: branch.phone ?? "",
+    email: branch.email ?? "",
+    messenger: branch.messenger_link ?? "",
+  };
+}
+
 export function BranchEditForm({ branch }: { branch: BranchRow }) {
+  return <BranchEditFormInner key={branch.id} branch={branch} />;
+}
+
+function BranchEditFormInner({ branch }: { branch: BranchRow }) {
+  const [values, setValues] = useState<BranchFormValues>(() => getBranchFormValues(branch));
   const [state, formAction, pending] = useActionState(
     async (_prev: BranchActionState, formData: FormData): Promise<BranchActionState> => {
       const result = await updateBranchAction({
@@ -50,6 +73,10 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
     },
     initialState
   );
+
+  function updateValue(name: keyof BranchFormValues, value: string) {
+    setValues((current) => ({ ...current, [name]: value }));
+  }
 
   const [toggleState, toggleAction, togglePending] = useActionState(
     async (): Promise<BranchActionState> => {
@@ -115,11 +142,36 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
             </div>
           )}
 
-          <EditField label="Name" name="name" defaultValue={branch.name} />
-          <EditField label="Address" name="address" defaultValue={branch.address} />
-          <EditField label="Phone" name="phone" defaultValue={branch.phone ?? ""} />
-          <EditField label="Email" name="email" defaultValue={branch.email ?? ""} />
-          <EditField label="Messenger" name="messenger" defaultValue={branch.messenger_link ?? ""} />
+          <EditField
+            label="Name"
+            name="name"
+            value={values.name}
+            onChange={(value) => updateValue("name", value)}
+          />
+          <EditField
+            label="Address"
+            name="address"
+            value={values.address}
+            onChange={(value) => updateValue("address", value)}
+          />
+          <EditField
+            label="Phone"
+            name="phone"
+            value={values.phone}
+            onChange={(value) => updateValue("phone", value)}
+          />
+          <EditField
+            label="Email"
+            name="email"
+            value={values.email}
+            onChange={(value) => updateValue("email", value)}
+          />
+          <EditField
+            label="Messenger"
+            name="messenger"
+            value={values.messenger}
+            onChange={(value) => updateValue("messenger", value)}
+          />
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
             <Label htmlFor="edit-slot-interval" style={{ fontSize: "0.8125rem" }}>
@@ -198,18 +250,26 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
 function EditField({
   label,
   name,
-  defaultValue,
+  value,
+  onChange,
 }: {
   label: string;
   name: string;
-  defaultValue: string;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
       <Label htmlFor={`edit-${name}`} style={{ fontSize: "0.8125rem" }}>
         {label}
       </Label>
-      <Input id={`edit-${name}`} name={name} defaultValue={defaultValue} style={{ fontSize: "0.875rem" }} />
+      <Input
+        id={`edit-${name}`}
+        name={name}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        style={{ fontSize: "0.875rem" }}
+      />
     </div>
   );
 }

@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import { createBrowserClient } from "@supabase/ssr";
 import {
-  STAFF_CELL_WIDTH_PX,
-  getTimelineTotalWidthPx,
+  EXPANDED_HOUR_WIDTH_PX,
+  STAFF_CELL_WIDTH_EXPANDED_PX,
+  STAFF_CELL_WIDTH_FIT_PX,
+  buildTimelineRange,
   isToday,
+  type TimelineDisplayMode,
 } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
@@ -28,6 +31,7 @@ type DailyScheduleBoardProps = {
   onHoverEnter?: (bookingId: string, x: number, y: number) => void;
   onHoverLeave?: () => void;
   onStaffClick?: (staffId: string) => void;
+  timelineMode?: TimelineDisplayMode;
 };
 
 function useScheduleRealtime(branchId: string, date: string) {
@@ -74,9 +78,15 @@ export function DailyScheduleBoard({
   onHoverEnter,
   onHoverLeave,
   onStaffClick,
+  timelineMode = "expanded",
 }: DailyScheduleBoardProps) {
   useScheduleRealtime(branchId, date);
   useScheduleDensity();
+
+  const timelineRange = useMemo(() => buildTimelineRange(staffRows), [staffRows]);
+  const staffColumnWidth =
+    timelineMode === "expanded" ? STAFF_CELL_WIDTH_EXPANDED_PX : STAFF_CELL_WIDTH_FIT_PX;
+  const timelineMinWidth = timelineRange.hourCount * EXPANDED_HOUR_WIDTH_PX;
 
   if (staffRows.length === 0) {
     return (
@@ -121,21 +131,43 @@ export function DailyScheduleBoard({
         borderRadius: "var(--cs-r-lg)",
         display: "flex",
         flexDirection: "column",
+        width: "100%",
+        maxWidth: "100%",
       }}
     >
       {/* Fixed-height scrollable board */}
       <div
         style={{
-          overflow: "auto",
-          maxHeight: "calc(100vh - 480px)",
+          overflowX: timelineMode === "expanded" ? "auto" : "hidden",
+          overflowY: "auto",
+          maxHeight: timelineMode === "expanded" ? "calc(100vh - 440px)" : "calc(100vh - 380px)",
           minHeight: 360,
+          maxWidth: "100%",
         }}
       >
-        <div style={{ minWidth: STAFF_CELL_WIDTH_PX + getTimelineTotalWidthPx() }}>
-          <ScheduleTimeHeader />
+        <div
+          style={{
+            width: "100%",
+            minWidth: timelineMode === "expanded" ? staffColumnWidth + timelineMinWidth : 0,
+            maxWidth: timelineMode === "fit" ? "100%" : undefined,
+          }}
+        >
+          <ScheduleTimeHeader
+            timelineRange={timelineRange}
+            timelineMode={timelineMode}
+            staffColumnWidth={staffColumnWidth}
+            timelineMinWidth={timelineMinWidth}
+          />
 
           <div style={{ position: "relative" }}>
-            {showCurrentTime && <ScheduleCurrentTimeIndicator />}
+            {showCurrentTime && (
+              <ScheduleCurrentTimeIndicator
+                timelineRange={timelineRange}
+                timelineMode={timelineMode}
+                staffColumnWidth={staffColumnWidth}
+                timelineMinWidth={timelineMinWidth}
+              />
+            )}
 
             <ScheduleStaffGroup
               groupKey="in_progress"
@@ -148,6 +180,10 @@ export function DailyScheduleBoard({
               onHoverEnter={onHoverEnter}
               onHoverLeave={onHoverLeave}
               onStaffClick={onStaffClick}
+              timelineRange={timelineRange}
+              timelineMode={timelineMode}
+              staffColumnWidth={staffColumnWidth}
+              timelineMinWidth={timelineMinWidth}
             />
 
             <ScheduleStaffGroup
@@ -161,6 +197,10 @@ export function DailyScheduleBoard({
               onHoverEnter={onHoverEnter}
               onHoverLeave={onHoverLeave}
               onStaffClick={onStaffClick}
+              timelineRange={timelineRange}
+              timelineMode={timelineMode}
+              staffColumnWidth={staffColumnWidth}
+              timelineMinWidth={timelineMinWidth}
             />
 
             <ScheduleStaffGroup
@@ -174,6 +214,10 @@ export function DailyScheduleBoard({
               onHoverEnter={onHoverEnter}
               onHoverLeave={onHoverLeave}
               onStaffClick={onStaffClick}
+              timelineRange={timelineRange}
+              timelineMode={timelineMode}
+              staffColumnWidth={staffColumnWidth}
+              timelineMinWidth={timelineMinWidth}
             />
           </div>
         </div>

@@ -11,6 +11,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
+import type { TimelineDisplayMode, TimelineRange } from "@/lib/utils/schedule-timeline";
 import { ScheduleStaffRow } from "./schedule-staff-row";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
@@ -57,6 +58,10 @@ type ScheduleStaffGroupProps = {
   onHoverEnter?: (bookingId: string, x: number, y: number) => void;
   onHoverLeave?: () => void;
   onStaffClick?: (staffId: string) => void;
+  timelineRange: TimelineRange;
+  timelineMode: TimelineDisplayMode;
+  staffColumnWidth: number;
+  timelineMinWidth: number;
 };
 
 export function ScheduleStaffGroup({
@@ -70,6 +75,10 @@ export function ScheduleStaffGroup({
   onHoverEnter,
   onHoverLeave,
   onStaffClick,
+  timelineRange,
+  timelineMode,
+  staffColumnWidth,
+  timelineMinWidth,
 }: ScheduleStaffGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const meta = GROUP_META[groupKey];
@@ -148,6 +157,10 @@ export function ScheduleStaffGroup({
               onHoverEnter={onHoverEnter}
               onHoverLeave={onHoverLeave}
               onStaffClick={onStaffClick}
+              timelineRange={timelineRange}
+              timelineMode={timelineMode}
+              staffColumnWidth={staffColumnWidth}
+              timelineMinWidth={timelineMinWidth}
             />
           ))}
         </div>

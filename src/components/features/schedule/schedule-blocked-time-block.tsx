@@ -1,13 +1,16 @@
 "use client";
 
 import {
-  getTimelineOffsetPx,
-  getTimelineWidthPx,
+  getTimelineBlockPercent,
+  type TimelineDisplayMode,
+  type TimelineRange,
 } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleBlock } from "@/lib/queries/schedule";
 
 type BlockedTimeBlockProps = {
   block: DailyScheduleBlock;
+  timelineRange: TimelineRange;
+  timelineMode: TimelineDisplayMode;
 };
 
 function formatBlockedLabel(reason: string | null): string {
@@ -18,19 +21,26 @@ function formatBlockedLabel(reason: string | null): string {
   return reason;
 }
 
-export function ScheduleBlockedTimeBlock({ block }: BlockedTimeBlockProps) {
-  const left = getTimelineOffsetPx(block.start_time);
-  const width = getTimelineWidthPx(block.start_time, block.end_time);
-  const minWidth = 48;
-  const effectiveWidth = Math.max(width, minWidth);
+export function ScheduleBlockedTimeBlock({
+  block,
+  timelineRange,
+  timelineMode,
+}: BlockedTimeBlockProps) {
+  const { leftPercent, widthPercent } = getTimelineBlockPercent(
+    block.start_time,
+    block.end_time,
+    timelineRange
+  );
+  const isCompact = timelineMode === "fit" || widthPercent < 7;
 
   return (
     <div
       title={block.reason || "Blocked time"}
       style={{
         position: "absolute",
-        left,
-        width: effectiveWidth,
+        left: `${leftPercent}%`,
+        width: `${widthPercent}%`,
+        minWidth: timelineMode === "expanded" ? 48 : undefined,
         top: 8,
         bottom: 8,
         backgroundColor: "#F0EDE8",
@@ -44,22 +54,25 @@ export function ScheduleBlockedTimeBlock({ block }: BlockedTimeBlockProps) {
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
+        maxWidth: `${Math.max(0, 100 - leftPercent)}%`,
       }}
     >
-      <span
-        style={{
-          fontSize: "0.6875rem",
-          color: "#8A7A6A",
-          fontWeight: 500,
-          textAlign: "center",
-          lineHeight: 1.3,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {formatBlockedLabel(block.reason)}
-      </span>
+      {!isCompact && (
+        <span
+          style={{
+            fontSize: "0.6875rem",
+            color: "#8A7A6A",
+            fontWeight: 500,
+            textAlign: "center",
+            lineHeight: 1.3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {formatBlockedLabel(block.reason)}
+        </span>
+      )}
     </div>
   );
 }

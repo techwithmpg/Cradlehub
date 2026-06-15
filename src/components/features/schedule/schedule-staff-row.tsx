@@ -1,12 +1,10 @@
 "use client";
 
 import {
-  SLOT_WIDTH_PX,
-  SLOT_MINUTES,
-  TIMELINE_START_HOUR,
-  TIMELINE_END_HOUR,
-  getTimelineTotalWidthPx,
-  timeToMinutes,
+  getTimelineBlockPercent,
+  getTimelineHourMarks,
+  type TimelineDisplayMode,
+  type TimelineRange,
 } from "@/lib/utils/schedule-timeline";
 import { useScheduleDensity } from "./schedule-density";
 import { ScheduleStaffCell } from "./schedule-staff-cell";
@@ -26,63 +24,90 @@ type StaffRowProps = {
   onHoverEnter?: (bookingId: string, x: number, y: number) => void;
   onHoverLeave?: () => void;
   onStaffClick?: (staffId: string) => void;
+  timelineRange: TimelineRange;
+  timelineMode: TimelineDisplayMode;
+  staffColumnWidth: number;
+  timelineMinWidth: number;
 };
 
-export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick, selectedBookingId, onHoverEnter, onHoverLeave, onStaffClick }: StaffRowProps) {
+export function ScheduleStaffRow({
+  staff,
+  branchResources,
+  date,
+  onBookingClick,
+  selectedBookingId,
+  onHoverEnter,
+  onHoverLeave,
+  onStaffClick,
+  timelineRange,
+  timelineMode,
+  staffColumnWidth,
+  timelineMinWidth,
+}: StaffRowProps) {
   const { metrics } = useScheduleDensity();
-  const totalWidth = getTimelineTotalWidthPx();
   const rowHeight = metrics.rowHeight;
   const isFullyOff = !staff.work_start || !staff.work_end;
-
-  const workStartMin = staff.work_start ? timeToMinutes(staff.work_start) : null;
-  const workEndMin = staff.work_end ? timeToMinutes(staff.work_end) : null;
+  const hourMarks = getTimelineHourMarks(timelineRange);
+  const rowMinWidth = timelineMode === "expanded" ? staffColumnWidth + timelineMinWidth : undefined;
 
   // Pre-compute off-duty segments
-  const offDutyRects: { left: number; width: number }[] = [];
-  if (!isFullyOff && workStartMin !== null && workEndMin !== null) {
-    const startPx = ((workStartMin - TIMELINE_START_HOUR * 60) / SLOT_MINUTES) * SLOT_WIDTH_PX;
-    const endPx = ((workEndMin - TIMELINE_START_HOUR * 60) / SLOT_MINUTES) * SLOT_WIDTH_PX;
+  const offDutyRects: { leftPercent: number; widthPercent: number }[] = [];
+  if (!isFullyOff && staff.work_start && staff.work_end) {
+    const beforeShift = getTimelineBlockPercent(timelineRange.startTime, staff.work_start, timelineRange);
+    const afterShift = getTimelineBlockPercent(staff.work_end, timelineRange.endTime, timelineRange);
 
-    if (startPx > 0) {
-      offDutyRects.push({ left: 0, width: startPx });
+    if (beforeShift.widthPercent > 0) {
+      offDutyRects.push(beforeShift);
     }
-    if (endPx < totalWidth) {
-      offDutyRects.push({ left: endPx, width: totalWidth - endPx });
+    if (afterShift.widthPercent > 0) {
+      offDutyRects.push(afterShift);
     }
   } else if (isFullyOff) {
-    offDutyRects.push({ left: 0, width: totalWidth });
+    offDutyRects.push({ leftPercent: 0, widthPercent: 100 });
   }
 
   return (
-    <div style={{ display: "flex" }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          timelineMode === "expanded"
+            ? `${staffColumnWidth}px minmax(${timelineMinWidth}px, 1fr)`
+            : `${staffColumnWidth}px minmax(0, 1fr)`,
+        width: "100%",
+        minWidth: rowMinWidth,
+      }}
+    >
       <ScheduleStaffCell
         staff={staff}
+        width={staffColumnWidth}
         onClick={onStaffClick ? () => onStaffClick(staff.staff_id) : undefined}
       />
 
       <div
         style={{
           position: "relative",
-          width: totalWidth,
+          width: "100%",
+          minWidth: timelineMode === "expanded" ? timelineMinWidth : 0,
           height: rowHeight,
-          flexShrink: 0,
           backgroundColor: "var(--cs-surface-warm)",
           borderBottom: "1px solid var(--cs-border)",
+          overflow: "hidden",
         }}
       >
         {/* Grid lines */}
-        {Array.from({ length: (TIMELINE_END_HOUR - TIMELINE_START_HOUR) * 2 + 1 }).map((_, i) => {
-          const isHour = i % 2 === 0;
+        {hourMarks.map((mark) => {
+          const left = ((mark.minutes - timelineRange.startMinutes) / timelineRange.totalMinutes) * 100;
           return (
             <div
-              key={i}
+              key={mark.minutes}
               style={{
                 position: "absolute",
-                left: i * SLOT_WIDTH_PX,
+                left: `${left}%`,
                 top: 0,
                 bottom: 0,
                 width: 1,
-                backgroundColor: isHour ? "var(--cs-border)" : "var(--cs-border-soft)",
+                backgroundColor: mark.isBoundary ? "var(--cs-border)" : "var(--cs-border-soft)",
                 zIndex: 1,
               }}
             />
@@ -95,8 +120,8 @@ export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick,
             key={`off-${i}`}
             style={{
               position: "absolute",
-              left: rect.left,
-              width: rect.width,
+              left: `${rect.leftPercent}%`,
+              width: `${rect.widthPercent}%`,
               top: 0,
               bottom: 0,
               backgroundColor: "rgba(200,190,180,0.28)",
@@ -134,7 +159,12 @@ export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick,
 
         {/* Blocked times */}
         {staff.blocks.map((block, bi) => (
-          <ScheduleBlockedTimeBlock key={`block-${bi}`} block={block} />
+          <ScheduleBlockedTimeBlock
+            key={`block-${bi}`}
+            block={block}
+            timelineRange={timelineRange}
+            timelineMode={timelineMode}
+          />
         ))}
 
         {/* Bookings */}
@@ -148,6 +178,8 @@ export function ScheduleStaffRow({ staff, branchResources, date, onBookingClick,
             isSelected={selectedBookingId === booking.id}
             onHoverEnter={onHoverEnter}
             onHoverLeave={onHoverLeave}
+            timelineRange={timelineRange}
+            timelineMode={timelineMode}
           />
         ))}
       </div>

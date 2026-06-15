@@ -246,12 +246,14 @@ export function canCrmAccessPath(pathname: string): boolean {
 // ── Workspace resolution ────────────────────────────────────────────────────
 
 /** Default dashboard path for each role.
- * MVP: owner, manager, and all management variants land at /crm.
+ * Owner lands in the restored Owner workspace.
+ * MVP: manager and management variants still land at /crm while Manager is soft-paused.
  */
 export function getDefaultDashboardPath(role: string): string {
-  // MVP: owner + management roles → CRM (owner/manager workspaces soft-paused)
+  if (role === "owner") return "/owner";
+
+  // MVP: management roles → CRM (manager workspace soft-paused)
   if (
-    role === "owner" ||
     role === "manager" ||
     role === "assistant_manager" ||
     role === "store_manager"

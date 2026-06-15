@@ -388,3 +388,34 @@
 - **Symptom:** Non-escalated headless Chrome again did not expose a DevTools endpoint from inside the sandbox. The first escalated CDP helper also leaked a PowerShell task result into the WebSocket variable, and one `--dump-dom` attempt returned no DOM output.
 - **Impact:** Browser-level verification needed one corrected escalated CDP rerun and a longer mobile wait because the dev server loaded slowly enough that a short wait caught the overlay mid-fade.
 - **Resolution:** Corrected the CDP helper, reran Chrome with approved escalation, and confirmed mobile first-paint overlay, cookie/storage marking, final fade removal, repeat-cookie skip, desktop no-cookie skip, and protected-route isolation.
+
+## 2026-06-11 - CRM-SCHEDULE-UI-001 authenticated visual QA limitation
+
+- **Symptom:** Tool discovery did not expose the in-app Browser/agent-browser controller, and local `/crm/schedule` requests redirect unauthenticated users to `/login`.
+- **Impact:** Full visual inspection of the authenticated CRM Daily Timeline with live schedule data could not be completed from this thread.
+- **Resolution:** Verified with `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, and a local route probe returning `307 /login`. Authenticated CRM browser QA should confirm Fit Day, Expand/Collapse, right-rail behavior, and block alignment with real branch data.
+
+## 2026-06-15 - OWNER-RECONNECT-001 old Owner soft-pause blockers
+
+- **Symptom:** Owner users could not reach `/owner` even though Owner routes, actions, constants, RLS policies, and workspace resolver support still existed.
+- **Impact:** Owners were forced into CRM, Owner nav was hidden, and stale Owner warm-up/nav config could expose `/dev` or prefetch a nonexistent `/owner/settings` route once reactivated.
+- **Root cause:** DEC-MVP-001 soft-paused Owner and Manager by hard-redirecting `/owner/*` and `/manager/*` layouts to `/crm`, hiding Owner nav, and mapping owner role fallback to CRM.
+- **Resolution:** Replaced only the Owner layout redirect with an Owner workspace guard, restored Owner nav/default role resolution, removed stale Owner `/dev` and `/owner/settings` entries, and left Manager soft-paused.
+
+## 2026-06-15 - OWNER-RECONNECT-001 full Vitest residual failure
+
+- **Symptom:** `pnpm test` reports two failures in `tests/lib/bookings/progress.test.ts`: walk-in `not_started -> session_started` is currently allowed, while the tests expect check-in first.
+- **Impact:** Full test suite is not green, but the failing area is booking progress state-machine behavior outside the Owner reconnect files.
+- **Resolution:** No Owner reconnect code changed booking progress logic. Focused Owner workspace tests pass, and `pnpm type-check`, `pnpm lint`, and `pnpm build` pass. Follow-up should reconcile the booking progress implementation and tests separately.
+
+## 2026-06-15 - OWNER-DASHBOARD-REDESIGN-001 full Vitest residual failure
+
+- **Symptom:** `pnpm test` still reports the same two failures in `tests/lib/bookings/progress.test.ts`: walk-in `not_started -> session_started` is allowed by implementation while tests expect check-in first.
+- **Impact:** Full Vitest remains partial, but the failing state-machine area is outside the Owner dashboard redesign. The new owner dashboard tests pass.
+- **Resolution:** No dashboard code changed booking progress transitions. Verified `pnpm test tests/lib/owner/dashboard.test.ts`, `pnpm type-check`, `pnpm lint`, and `pnpm build` successfully. Resolve booking progress implementation/test expectations separately.
+
+## 2026-06-15 - OWNER-DASHBOARD-REDESIGN-001 authenticated browser QA limitation
+
+- **Symptom:** Local browser smoke for `http://localhost:3000/owner` redirected to `/login` because the in-app browser did not have an authenticated Owner session.
+- **Impact:** The protected route/auth guard was verified, but the full dashboard visual with real Owner data could not be inspected in-browser from this unauthenticated session.
+- **Resolution:** Production build and route generation passed; unauthenticated browser smoke captured no local app console errors. Run authenticated Owner QA with a logged-in Owner account to visually confirm spacing, responsive layout, filters, and live data.

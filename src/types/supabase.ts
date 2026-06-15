@@ -2108,6 +2108,86 @@ export type Database = {
           },
         ]
       }
+      payroll_settings: {
+        Row: {
+          id: string
+          payday_rule: string
+          fixed_day: number
+          weekend_adjustment: string
+          reminder_preset: string
+          custom_reminder_days: number
+          include_inactive_employees: boolean
+          default_payment_status: string
+          allow_status_editing: boolean
+          show_total_payroll: boolean
+          tracking_start_month: number
+          tracking_start_year: number
+          continue_reminders_while_unpaid: boolean
+          enabled_payment_methods: string[]
+          show_owner_dashboard_reminder: boolean
+          show_payroll_page_reminder: boolean
+          notify_payroll_due: boolean
+          notify_payroll_fully_paid: boolean
+          created_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          payday_rule?: string
+          fixed_day?: number
+          weekend_adjustment?: string
+          reminder_preset?: string
+          custom_reminder_days?: number
+          include_inactive_employees?: boolean
+          default_payment_status?: string
+          allow_status_editing?: boolean
+          show_total_payroll?: boolean
+          tracking_start_month?: number
+          tracking_start_year?: number
+          continue_reminders_while_unpaid?: boolean
+          enabled_payment_methods?: string[]
+          show_owner_dashboard_reminder?: boolean
+          show_payroll_page_reminder?: boolean
+          notify_payroll_due?: boolean
+          notify_payroll_fully_paid?: boolean
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          payday_rule?: string
+          fixed_day?: number
+          weekend_adjustment?: string
+          reminder_preset?: string
+          custom_reminder_days?: number
+          include_inactive_employees?: boolean
+          default_payment_status?: string
+          allow_status_editing?: boolean
+          show_total_payroll?: boolean
+          tracking_start_month?: number
+          tracking_start_year?: number
+          continue_reminders_while_unpaid?: boolean
+          enabled_payment_methods?: string[]
+          show_owner_dashboard_reminder?: boolean
+          show_payroll_page_reminder?: boolean
+          notify_payroll_due?: boolean
+          notify_payroll_fully_paid?: boolean
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_items: {
         Row: {
           id: string

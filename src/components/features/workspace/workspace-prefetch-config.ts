@@ -95,13 +95,11 @@ export const OWNER_PREFETCH: WorkspacePrefetchConfig = {
     "/owner/spaces-rules",
     "/owner/dispatch",
     "/owner/notifications",
-    "/owner/settings",
   ],
   hover: [
     "/owner/reports",
     "/owner/marketing",
     "/owner/payroll",
-    "/dev",
   ],
 };
 

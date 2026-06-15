@@ -1,4 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  DEFAULT_PAYROLL_SETTINGS,
+  calculatePayrollProgress,
+  computeNextPayrollDate,
+  formatPayrollDate,
+  getCountdownLabel,
+  getMonthBounds,
+  getPayrollReminderMessage,
+  normalizePaymentMethods,
+  toIsoDate,
+  type PayrollPaymentMethod,
+  type PayrollSettings,
+  type ReminderPreset,
+} from "@/lib/payroll/fixed-monthly";
+import { STAFF_TYPE_LABELS, SYSTEM_ROLE_LABELS } from "@/constants/staff-roles";
+import { getStaffAdminName } from "@/lib/staff/display-name";
 
 export type PayrollPeriodRow = {
   id: string;
@@ -62,6 +78,284 @@ export type StaffPayProfileRow = {
   effective_from: string;
   effective_until: string | null;
 };
+
+export type PayrollDashboardStaffRow = {
+  id: string;
+  display_name: string;
+  full_name: string | null;
+  nickname: string | null;
+  role_label: string;
+  branch_id: string | null;
+  branch_name: string | null;
+  avatar_url: string | null;
+  monthly_pay: number;
+  has_monthly_pay: boolean;
+  status: "missing_salary" | "unpaid" | "paid";
+  last_paid_label: string;
+  current_item_id: string | null;
+};
+
+export type PayrollDashboardBranch = {
+  id: string;
+  name: string;
+};
+
+export type PayrollDashboardSummary = {
+  nextPayrollDateLabel: string;
+  nextPayrollPreviewLabel: string;
+  countdownLabel: string;
+  totalMonthlyPayroll: number;
+  paidStaff: number;
+  unpaidStaff: number;
+  totalIncludedStaff: number;
+  payrollProgress: number;
+  reminderMessage: string | null;
+};
+
+export type PayrollDashboardData = {
+  settings: PayrollSettings;
+  payrollMonth: {
+    start: string;
+    end: string;
+  };
+  currentPeriodId: string | null;
+  summary: PayrollDashboardSummary;
+  branches: PayrollDashboardBranch[];
+  staffRows: PayrollDashboardStaffRow[];
+  history: PayrollPeriodRow[];
+};
+
+type PayrollSettingsDbRow = {
+  payday_rule: string;
+  fixed_day: number;
+  weekend_adjustment: string;
+  reminder_preset: string;
+  custom_reminder_days: number;
+  include_inactive_employees: boolean;
+  default_payment_status: string;
+  allow_status_editing: boolean;
+  show_total_payroll: boolean;
+  tracking_start_month: number;
+  tracking_start_year: number;
+  continue_reminders_while_unpaid: boolean;
+  enabled_payment_methods: string[] | null;
+  show_owner_dashboard_reminder: boolean;
+  show_payroll_page_reminder: boolean;
+  notify_payroll_due: boolean;
+  notify_payroll_fully_paid: boolean;
+};
+
+function mapPayrollSettings(row: PayrollSettingsDbRow | null | undefined): PayrollSettings {
+  if (!row) return DEFAULT_PAYROLL_SETTINGS;
+
+  return {
+    paydayRule: row.payday_rule === "last_day_of_month" ? "last_day_of_month" : "fixed_day",
+    fixedDay: Number.isFinite(row.fixed_day) ? row.fixed_day : DEFAULT_PAYROLL_SETTINGS.fixedDay,
+    weekendAdjustment:
+      row.weekend_adjustment === "none" ? "none" : "prior_business_day",
+    reminderPreset: ["none", "1", "2", "3", "5", "7", "custom"].includes(row.reminder_preset)
+      ? (row.reminder_preset as ReminderPreset)
+      : DEFAULT_PAYROLL_SETTINGS.reminderPreset,
+    customReminderDays: row.custom_reminder_days,
+    includeInactiveEmployees: row.include_inactive_employees,
+    defaultPaymentStatus: "unpaid",
+    allowStatusEditing: row.allow_status_editing,
+    showTotalPayroll: row.show_total_payroll,
+    trackingStartMonth: row.tracking_start_month,
+    trackingStartYear: row.tracking_start_year,
+    continueRemindersWhileUnpaid: row.continue_reminders_while_unpaid,
+    enabledPaymentMethods: normalizePaymentMethods(row.enabled_payment_methods),
+    showOwnerDashboardReminder: row.show_owner_dashboard_reminder,
+    showPayrollPageReminder: row.show_payroll_page_reminder,
+    notifyPayrollDue: row.notify_payroll_due,
+    notifyPayrollFullyPaid: row.notify_payroll_fully_paid,
+  };
+}
+
+export async function getPayrollSettings(): Promise<PayrollSettings> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("payroll_settings")
+    .select(
+      `payday_rule, fixed_day, weekend_adjustment, reminder_preset,
+       custom_reminder_days, include_inactive_employees, default_payment_status,
+       allow_status_editing, show_total_payroll, tracking_start_month,
+       tracking_start_year, continue_reminders_while_unpaid, enabled_payment_methods,
+       show_owner_dashboard_reminder, show_payroll_page_reminder,
+       notify_payroll_due, notify_payroll_fully_paid`
+    )
+    .eq("id", "default")
+    .maybeSingle();
+
+  if (error) return DEFAULT_PAYROLL_SETTINGS;
+  return mapPayrollSettings(data as PayrollSettingsDbRow | null);
+}
+
+function roleLabel(row: { staff_type?: string | null; system_role?: string | null }): string {
+  const staffType = row.staff_type as keyof typeof STAFF_TYPE_LABELS | null | undefined;
+  const systemRole = row.system_role as keyof typeof SYSTEM_ROLE_LABELS | null | undefined;
+  if (staffType && STAFF_TYPE_LABELS[staffType]) return STAFF_TYPE_LABELS[staffType];
+  if (systemRole && SYSTEM_ROLE_LABELS[systemRole]) return SYSTEM_ROLE_LABELS[systemRole];
+  return "Staff";
+}
+
+function paymentMethodList(methods: PayrollPaymentMethod[]): string[] {
+  return methods.map((method) => method);
+}
+
+/** Fetch the fixed-monthly Owner Payroll dashboard. */
+export async function getPayrollDashboardData(today = new Date()): Promise<PayrollDashboardData> {
+  const supabase = await createClient();
+  const settings = await getPayrollSettings();
+  const nextPayrollDate = computeNextPayrollDate(settings, today);
+  const payrollMonth = getMonthBounds(nextPayrollDate);
+
+  const periodQuery = supabase
+    .from("payroll_periods")
+    .select("id, paid_at")
+    .eq("period_start", payrollMonth.start)
+    .eq("period_end", payrollMonth.end)
+    .is("branch_id", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  let staffQuery = supabase
+    .from("staff")
+    .select("id, full_name, nickname, system_role, staff_type, branch_id, avatar_url, is_active, branches(name)")
+    .neq("system_role", "owner")
+    .order("full_name", { ascending: true });
+
+  if (!settings.includeInactiveEmployees) {
+    staffQuery = staffQuery.eq("is_active", true);
+  }
+
+  const [periodRes, staffRes, profilesRes, branchesRes, history] = await Promise.all([
+    periodQuery,
+    staffQuery,
+    supabase
+      .from("staff_pay_profiles")
+      .select("id, staff_id, branch_id, base_pay_amount, base_pay_type, effective_from, is_active")
+      .eq("is_active", true)
+      .order("effective_from", { ascending: false }),
+    supabase
+      .from("branches")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
+    getPayrollPeriods(),
+  ]);
+
+  const currentPeriod = periodRes.data?.[0] ?? null;
+  const staffRowsRaw = staffRes.data ?? [];
+  const staffIds = staffRowsRaw.map((staff) => staff.id);
+
+  const itemsRes = currentPeriod && staffIds.length > 0
+    ? await supabase
+        .from("payroll_items")
+        .select("id, staff_id, net_pay, status, updated_at")
+        .eq("payroll_period_id", currentPeriod.id)
+        .in("staff_id", staffIds)
+        .neq("status", "voided")
+    : { data: [] as { id: string; staff_id: string; net_pay: number; status: string; updated_at: string }[] };
+
+  const profileMap = new Map<string, { amount: number; type: string; branchId: string | null }>();
+  for (const profile of profilesRes.data ?? []) {
+    if (!profileMap.has(profile.staff_id)) {
+      profileMap.set(profile.staff_id, {
+        amount: Number(profile.base_pay_amount ?? 0),
+        type: String(profile.base_pay_type ?? "none"),
+        branchId: profile.branch_id ?? null,
+      });
+    }
+  }
+
+  const itemMap = new Map<string, { id: string; status: string; updatedAt: string }>();
+  for (const item of itemsRes.data ?? []) {
+    itemMap.set(item.staff_id, {
+      id: item.id,
+      status: item.status,
+      updatedAt: item.updated_at,
+    });
+  }
+
+  const staffRows: PayrollDashboardStaffRow[] = staffRowsRaw.map((staff) => {
+    const raw = staff as Record<string, unknown>;
+    const profile = profileMap.get(staff.id);
+    const hasMonthlyPay = profile?.type === "monthly" && profile.amount > 0;
+    const item = itemMap.get(staff.id);
+    const isPaid = hasMonthlyPay && item?.status === "paid";
+    const status = !hasMonthlyPay ? "missing_salary" : isPaid ? "paid" : "unpaid";
+    const branch = raw["branches"] as { name?: string | null } | null;
+
+    return {
+      id: staff.id,
+      display_name: getStaffAdminName({
+        full_name: staff.full_name,
+        nickname: (staff as { nickname?: string | null }).nickname ?? null,
+      }),
+      full_name: staff.full_name,
+      nickname: (staff as { nickname?: string | null }).nickname ?? null,
+      role_label: roleLabel(staff),
+      branch_id: staff.branch_id,
+      branch_name: branch?.name ?? null,
+      avatar_url: (staff as { avatar_url?: string | null }).avatar_url ?? null,
+      monthly_pay: hasMonthlyPay ? profile.amount : 0,
+      has_monthly_pay: hasMonthlyPay,
+      status,
+      last_paid_label: isPaid
+        ? new Date(item.updatedAt).toLocaleDateString("en-PH", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : "—",
+      current_item_id: item?.id ?? null,
+    };
+  });
+
+  staffRows.sort((a, b) => {
+    const priority = { missing_salary: 0, unpaid: 1, paid: 2 } as const;
+    const byStatus = priority[a.status] - priority[b.status];
+    if (byStatus !== 0) return byStatus;
+    return a.display_name.localeCompare(b.display_name);
+  });
+
+  const includedRows = staffRows.filter((row) => row.has_monthly_pay);
+  const paidStaff = includedRows.filter((row) => row.status === "paid").length;
+  const unpaidStaff = includedRows.length - paidStaff;
+  const totalMonthlyPayroll = includedRows.reduce((sum, row) => sum + row.monthly_pay, 0);
+  const payrollProgress = calculatePayrollProgress(paidStaff, includedRows.length);
+  const reminderMessage = getPayrollReminderMessage({
+    settings,
+    nextPayrollDate,
+    unpaidStaff,
+    totalIncludedStaff: includedRows.length,
+    today,
+  });
+
+  return {
+    settings: {
+      ...settings,
+      enabledPaymentMethods: paymentMethodList(settings.enabledPaymentMethods) as PayrollPaymentMethod[],
+    },
+    payrollMonth,
+    currentPeriodId: currentPeriod?.id ?? null,
+    summary: {
+      nextPayrollDateLabel: formatPayrollDate(nextPayrollDate),
+      nextPayrollPreviewLabel: toIsoDate(nextPayrollDate),
+      countdownLabel: getCountdownLabel(nextPayrollDate, today),
+      totalMonthlyPayroll,
+      paidStaff,
+      unpaidStaff,
+      totalIncludedStaff: includedRows.length,
+      payrollProgress,
+      reminderMessage,
+    },
+    branches: branchesRes.data ?? [],
+    staffRows,
+    history,
+  };
+}
 
 /** Fetch payroll periods for the owner (all branches). */
 export async function getPayrollPeriods(): Promise<PayrollPeriodRow[]> {

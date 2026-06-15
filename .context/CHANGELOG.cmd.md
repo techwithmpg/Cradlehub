@@ -58,6 +58,75 @@
 **Notes:** Supabase link + type generation happens after this commit (needs keys).
 **Build Status:** ✅ Passing
 
+---
+
+### 2026-06-15 — Codex (OWNER-DASHBOARD-REDESIGN-001)
+
+**Task:** Rebuilt `/owner` Overview to match the approved Owner Dashboard reference while using real CradleHub data and the existing dashboard shell.
+
+**Files Added:**
+- `src/lib/owner/dashboard.ts` — pure dashboard business rules and section load helpers.
+- `src/lib/queries/owner-dashboard.ts` — Owner-only server data loader with section-level error states.
+- `src/components/features/owner/dashboard/*` — Owner overview panels, client-side local filters, and formatting helpers.
+- `tests/lib/owner/dashboard.test.ts` — focused business-rule coverage for dashboard metrics and partial failures.
+
+**Behavior:**
+- `/owner` now renders hero, attention banner, five KPI cards, Today at a Glance, Branch Performance, Revenue Trend, Staff Snapshot, Quick Actions, Payroll Snapshot, and Pending Actions.
+- The page preserves the existing Owner sidebar/header/workspace guard; no global shell, theme primitive, or shadcn primitive was redesigned.
+- Metrics use real tables: `bookings`, `branches`, `staff`, `staff_schedules`, `staff_shift_checkins`, `workspace_notifications`, `workflow_tasks`, and fixed-monthly payroll query data.
+- Today's revenue is paid `bookings.amount_paid` for active bookings scheduled today; completed today requires `session_completed_at` or `completed_at` on today's branch-local date.
+- Staff on shift is schedule-based while `MVP_CHECKIN_PAUSED` remains true; check-in rows are still supported by the pure helper for the future unpaused mode.
+- Query failures are surfaced as section/card-level unavailable states instead of silently turning into zeroes.
+- Pending Approvals from the mockup is implemented as Pending Actions because the current app has notifications/workflow tasks but no formal approvals module.
+
+**Related Cleanup:**
+- `src/app/(dashboard)/owner/branches/[branchId]/branch-edit-form.tsx` now uses a keyed inner form to reset branch edit state without a set-state-in-effect lint violation.
+- `src/components/features/payroll/employee-payroll-table.tsx` no longer syncs derived branch/page values back into state with set-state-in-effect; displayed values continue to come from the derived view.
+
+**Verification:**
+- `pnpm test tests/lib/owner/dashboard.test.ts`: PASS, 13 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS, with existing warnings only in `scripts/generate-service-image-assets.mjs` and payroll test mocks.
+- `pnpm build`: PASS, 97 routes; `/owner` generated as dynamic.
+- `pnpm test`: PARTIAL, 467/469 passing; the two failures remain the known unrelated booking progress state-machine expectations in `tests/lib/bookings/progress.test.ts`.
+- Browser smoke on existing `http://localhost:3000/owner`: redirects unauthenticated users to `/login` and captured no local app console errors. Authenticated Owner visual QA still needs a logged-in Owner session.
+
+**Build Status:** ✅ Passing
+
+---
+
+### 2026-06-15 — Codex (OWNER-RECONNECT-001)
+
+**Task:** Restored the existing Owner workspace entry points without changing CRM, Staff Portal, Driver Portal, public booking, scheduling, dispatch, or database behavior.
+
+**Files Changed:**
+- `src/app/(dashboard)/owner/layout.tsx` — replaced the MVP redirect-to-CRM layout with an Owner workspace guard that redirects unauthenticated users to `/login`, non-owner workspace users to their workspace switch destination, and mounts `OWNER_PREFETCH`.
+- `src/lib/auth/workspace-access.ts` and `src/proxy.ts` — extracted protected workspace path authorization into `canAccessWorkspacePath()` so proxy behavior is test-covered without broadening access.
+- `src/components/features/dashboard/nav-config.ts` — restored Owner role-to-nav resolution, removed Owner `mvpHidden`, kept Manager soft-paused to CRM, and removed the production `/dev` Owner nav link.
+- `src/components/features/workspace/workspace-prefetch-config.ts` — removed stale `/owner/settings` and `/dev` Owner prefetch entries.
+- `src/lib/permissions.ts` — restored owner default dashboard path to `/owner`; Manager and management variants remain `/crm`.
+- `tests/lib/auth/workspace-access.test.ts` — added focused coverage for Owner workspace grants, route authorization, nav visibility, and Owner prefetch route validity.
+- `vitest.config.ts` — added the test-runner alias for the existing TypeScript `@/* -> src/*` path mapping.
+
+**Behavior:**
+- Owners now receive Owner + CRM + Staff Portal workspace access, with `/owner` as the primary workspace and `/select-workspace` when multiple workspaces are available.
+- `/owner/*` is reachable only for users whose workspace resolver includes `owner`.
+- CRM, staff, driver, utility, and public booking flows were not changed.
+- Manager remains soft-paused through its existing layout and role/default routing.
+- No Supabase schema, RLS, migration, or service-role changes were made.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm test tests/lib/auth/workspace-access.test.ts`: PASS, 8 tests
+- `pnpm build`: PASS, 98 routes, including restored `/owner/*` route generation
+- `rg -n "service_role|SUPABASE_SERVICE_ROLE_KEY" src`: only existing `src/lib/supabase/admin.ts`
+- `rg -n "DISABLE ROW LEVEL SECURITY|auth\.uid\(\) IS NOT NULL" supabase`: no matches
+- `rg -n "/owner/settings" src`: no matches
+- `pnpm test`: PARTIAL, 428/430 passing; two unrelated booking progress expectations fail in `tests/lib/bookings/progress.test.ts`
+
+**Build Status:** ✅ Passing
+
 ... [86,000 characters omitted] ...
 
 **Verification:**
@@ -4762,3 +4831,28 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `git diff --check`: PASS with LF/CRLF notices only
 - Raw HTML checks on `http://localhost:3000`: `/` and `/services` include the overlay without the cookie and omit it with the cookie; `/crm` never includes it.
 - Headless Chrome mobile CDP check: overlay present at DOMContentLoaded on first `/` visit, session cookie/storage set to `1`, overlay removed after fade, repeat-cookie visit hidden, desktop no-cookie visit hidden with no cookie, protected `/crm` redirected to `/login` with no overlay/cookie.
+
+---
+
+### 2026-06-11 — Codex (CRM-SCHEDULE-UI-001)
+
+**Task:** Fixed CRM Schedule Daily Timeline to fit its display area with expand mode.
+
+**Files Changed:**
+- `src/components/features/schedule/schedule-workspace.tsx` — updated the CRM Schedule board layout to use `minmax(0, 1fr)` containment, keep the right rail visible in Fit Day mode, and hide it in Expanded mode.
+- `src/components/features/schedule/daily-schedule-board.tsx` — added Fit Day / Expanded behavior, full-width fit containment, expanded horizontal scrolling, sticky header/staff sizing, and shared timeline range props.
+- `src/lib/utils/schedule-timeline.ts` — added computed active-day ranges, fit/expanded timeline sizing constants, percent-based block positioning helpers, half-hour range support, and the 8 AM to 11 PM fallback.
+- `src/components/features/schedule/schedule-time-header.tsx`, `src/components/features/schedule/schedule-staff-row.tsx`, `src/components/features/schedule/schedule-booking-block.tsx`, `src/components/features/schedule/schedule-blocked-time-block.tsx`, `src/components/features/schedule/schedule-current-time-indicator.tsx`, `src/components/features/schedule/schedule-staff-cell.tsx`, `src/components/features/schedule/schedule-staff-group.tsx`, `src/components/features/schedule/schedule-board-panel.tsx` — threaded timeline mode/range through the shared Daily Timeline rendering path so labels, off-duty regions, bookings, blocked time, and the current-time marker align to the same full-day scale.
+
+**Roadmap Items Completed:** CRM schedule UI polish / Phase 5 responsive workspace polish partial.
+
+**Notes:** Daily Timeline now fits the full active day inside its available center column by default. Expanded mode gives detailed horizontal inspection and collapses the CRM right rail. No booking logic, database logic, Supabase schema, mobile preloader, public landing page, workspace loaders, or skeleton loaders were changed.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Local route probe: `http://localhost:3000/crm/schedule` returned `307 /login`, confirming protected route reachability but limiting unauthenticated visual QA.
+
+**Build Status:** ✅ Passing

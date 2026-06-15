@@ -169,3 +169,6 @@
 | 2026-06-07 | Logged PUBLIC-PAGES-DARK-THEME-001 public pages dark theme pass | Track dark Cradle restyling for `/services`, `/contact`, `/about`, `/branches`, shared service catalog, and scrolled public header | Codex |
 | 2026-06-11 | Logged UI-MOBILE-PRELOAD-001 mobile first-visit public preloader | Track mobile-only, session-only preloader mounted on public pages without changing protected workspaces or global loaders | Codex |
 | 2026-06-11 | Logged UI-MOBILE-PRELOAD-002 mobile preloader first-paint fix | Track cookie-backed server mounting before public landing animations while preserving desktop/protected routes and global loaders | Codex |
+| 2026-06-11 | Logged CRM-SCHEDULE-UI-001 Daily Timeline fit/expand polish | Track CRM Schedule Fit Day layout, expanded full-width timeline mode, percent-based active-day positioning, and right-rail behavior | Codex |
+| 2026-06-15 | Logged OWNER-RECONNECT-001 Owner workspace restoration | Restore existing Owner workspace routing, nav, workspace switching, and authorization without database or operational workflow changes | Codex |
+| 2026-06-15 | Logged OWNER-DASHBOARD-REDESIGN-001 Owner Overview dashboard redesign | Track real-data executive Owner dashboard, section-level partial error states, staff/payroll/action summaries, and focused dashboard business-rule tests | Codex |

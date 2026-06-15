@@ -5,6 +5,7 @@ import { ScheduleLegend } from "./schedule-legend";
 import { ScheduleModeSwitcher, type ScheduleViewMode } from "./schedule-mode-switcher";
 import { ScheduleStaffMode } from "./schedule-staff-mode";
 import { ScheduleWeekMode } from "./schedule-week-mode";
+import type { TimelineDisplayMode } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
 
@@ -25,6 +26,7 @@ type ScheduleBoardPanelProps = {
   onScheduleAdjusted?: (feedback: { title: string; description?: string; variant?: "success" | "error" }) => void;
   onStaffClick?: (staffId: string) => void;
   showHeader?: boolean;
+  timelineMode?: TimelineDisplayMode;
 };
 
 export function ScheduleBoardPanel({
@@ -42,6 +44,7 @@ export function ScheduleBoardPanel({
   onScheduleAdjusted,
   onStaffClick,
   showHeader = true,
+  timelineMode = "expanded",
 }: ScheduleBoardPanelProps) {
   return (
     <div
@@ -115,6 +118,7 @@ export function ScheduleBoardPanel({
             onHoverEnter={onHoverEnter}
             onHoverLeave={onHoverLeave}
             onStaffClick={onStaffClick}
+            timelineMode={timelineMode}
           />
         </div>
       )}

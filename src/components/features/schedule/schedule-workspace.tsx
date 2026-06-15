@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { ScheduleToolbar } from "./schedule-toolbar";
 import { ScheduleKpiCards } from "./schedule-kpi-cards";
 import { ScheduleBoardPanel } from "./schedule-board-panel";
@@ -14,6 +15,7 @@ import { ScheduleDensityProvider, ScheduleDensityToggle } from "./schedule-densi
 import { CrmScheduleDetailsPanel } from "./crm-schedule-details-panel";
 import { EditAvailabilityModal } from "@/components/features/crm/schedule/edit-availability-modal";
 import type { ScheduleViewMode } from "./schedule-mode-switcher";
+import type { TimelineDisplayMode } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 import type { Database } from "@/types/supabase";
@@ -133,6 +135,7 @@ export function ScheduleWorkspace({
   const [editingAvailabilityStaffId, setEditingAvailabilityStaffId] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ScheduleViewMode>("day");
+  const [timelineMode, setTimelineMode] = useState<TimelineDisplayMode>("fit");
   const [hoveredPreview, setHoveredPreview] = useState<BookingHoverPreview | null>(null);
   const [adjustmentToast, setAdjustmentToast] = useState<{
     title: string;
@@ -142,6 +145,7 @@ export function ScheduleWorkspace({
 
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCrm = workspaceContext === "crm";
+  const isTimelineExpanded = isCrm && viewMode === "day" && timelineMode === "expanded";
 
   let filteredRows = staffRows;
 
@@ -216,6 +220,10 @@ export function ScheduleWorkspace({
   const handleStaffClick = useCallback((staffId: string) => {
     setSelectedStaffId(staffId);
     setSelectedBookingId(null);
+  }, []);
+
+  const handleTimelineModeToggle = useCallback(() => {
+    setTimelineMode((current) => (current === "expanded" ? "fit" : "expanded"));
   }, []);
 
 
@@ -340,14 +348,65 @@ export function ScheduleWorkspace({
 
       {/* Board area */}
       {isCrm ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "1rem", alignItems: "start" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 }}>
+        <div
+          className={
+            isTimelineExpanded
+              ? "grid grid-cols-1 items-start gap-4"
+              : "grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]"
+          }
+          style={{ width: "100%", maxWidth: "100%" }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
               <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--cs-text)" }}>
                 {branchName} · {new Date(date + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "short", day: "numeric" })}
               </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <ScheduleDensityToggle />
+                {viewMode === "day" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span
+                      style={{
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        color: "var(--cs-crm-text)",
+                        background: "var(--cs-crm-bg)",
+                        border: "1px solid var(--cs-border-soft)",
+                        borderRadius: 999,
+                        padding: "3px 8px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {timelineMode === "expanded" ? "Expanded" : "Fit Day"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleTimelineModeToggle}
+                      aria-label={
+                        timelineMode === "expanded"
+                          ? "Collapse timeline to fit day view"
+                          : "Expand timeline for detailed view"
+                      }
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        border: `1px solid ${timelineMode === "expanded" ? "var(--cs-sand)" : "var(--cs-border-soft)"}`,
+                        background: timelineMode === "expanded" ? "var(--cs-sand-mist)" : "var(--cs-surface)",
+                        color: timelineMode === "expanded" ? "var(--cs-sand)" : "var(--cs-text-secondary)",
+                        borderRadius: 6,
+                        padding: "4px 9px",
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {timelineMode === "expanded" ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                      {timelineMode === "expanded" ? "Collapse" : "Expand"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -365,29 +424,32 @@ export function ScheduleWorkspace({
               onHoverLeave={handleHoverLeave}
               onScheduleAdjusted={handleScheduleAdjusted}
               onStaffClick={handleStaffClick}
+              timelineMode={timelineMode}
             />
 
             {alertList.length > 0 && <ScheduleAlertsPanel alerts={alertList} />}
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", minWidth: 0 }}>
-            <CrmScheduleDetailsPanel
-              staff={selectedStaff}
-              booking={selectedBookingWithStaff?.booking ?? null}
-              availabilityItem={availabilityItemForSelectedStaff}
-              branchResources={branchResources}
-              date={date}
-              branchName={branchName}
-              onClose={handleCloseDetails}
-              canEditAvailability={availabilityItemForSelectedStaff !== null}
-              onEditAvailability={() => {
-                if (availabilityItemForSelectedStaff) {
-                  setEditingAvailabilityStaffId(availabilityItemForSelectedStaff.staff.id);
-                }
-              }}
-            />
-            {rightRailExtras}
-          </div>
+          {!isTimelineExpanded && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", minWidth: 0 }}>
+              <CrmScheduleDetailsPanel
+                staff={selectedStaff}
+                booking={selectedBookingWithStaff?.booking ?? null}
+                availabilityItem={availabilityItemForSelectedStaff}
+                branchResources={branchResources}
+                date={date}
+                branchName={branchName}
+                onClose={handleCloseDetails}
+                canEditAvailability={availabilityItemForSelectedStaff !== null}
+                onEditAvailability={() => {
+                  if (availabilityItemForSelectedStaff) {
+                    setEditingAvailabilityStaffId(availabilityItemForSelectedStaff.staff.id);
+                  }
+                }}
+              />
+              {rightRailExtras}
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>

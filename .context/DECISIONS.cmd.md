@@ -214,19 +214,20 @@ DEC-CRM-003 is superseded.
 - This is Phase 1 of CRM improvement — the redirect change is the safest first step.
 
 ### DEC-MVP-001: Owner and Manager workspaces soft-paused for MVP
-**Status:** ACCEPTED — 2026-05-28
+**Status:** PARTIALLY SUPERSEDED — 2026-06-15
 
 **Decision:**
-Owner and Manager workspaces are soft-paused for MVP. CRM is the main admin/operations command center.
-- owner, manager, assistant_manager, store_manager → routed to /crm on login and on direct URL visit
-- /owner/* and /manager/* routes all redirect to /crm via layout.tsx
+Owner and Manager workspaces were soft-paused for MVP. OWNER-RECONNECT-001 supersedes the Owner portion only; Manager remains soft-paused. CRM remains the main operations command center.
+- owner → routed to /owner when Owner workspace access is present
+- manager, assistant_manager, store_manager → routed to /crm on login and on direct URL visit
+- /owner/* uses an Owner workspace guard; /manager/* routes still redirect to /crm via layout.tsx
 - Owner and Manager page files remain intact for later restoration
-- Active workspaces for MVP: CRM, Staff Portal, Driver, Public Booking
+- Active workspaces after OWNER-RECONNECT-001: Owner, CRM, Staff Portal, Driver, Utility, Public Booking
 
 **Rationale:**
 - CRM already has all the operational tools needed to run the business (bookings, schedule, dispatch, customers, services, availability, staff management).
 - Owner and Manager workspaces overlap heavily with CRM but are less polished and need dedicated attention.
-- Soft-pausing avoids confusion from two near-identical workspaces during early operations.
+- Soft-pausing Manager avoids confusion from near-identical workspaces during early operations.
 - Files are preserved — re-activation is a small routing change, not a rebuild.
 - All CRM permission helpers (`src/lib/auth/crm-permissions.ts`) are typed and ready for granular feature gates.
 

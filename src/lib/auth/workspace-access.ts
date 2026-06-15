@@ -1,3 +1,5 @@
+import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
+
 export type WorkspaceKey =
   | "crm"
   | "staff_portal"
@@ -137,4 +139,45 @@ export function getWorkspaceSwitchDestination(workspaces: readonly WorkspaceAcce
   if (workspaces.length === 0) return "/account/setup";
   if (workspaces.length === 1) return getPrimaryWorkspaceHref(workspaces);
   return "/select-workspace";
+}
+
+export function canAccessWorkspacePath(
+  pathname: string,
+  role: string,
+  workspaces: readonly WorkspaceAccess[]
+): boolean {
+  if (pathname.startsWith("/select-workspace")) return workspaces.length > 0;
+
+  if (pathname.startsWith("/crm")) {
+    if (!hasWorkspaceAccess(workspaces, "crm")) return false;
+    if (isCsr(role)) return canCsrAccessPath(role, pathname);
+    if (role === "crm") return canCrmAccessPath(pathname);
+    return true;
+  }
+
+  if (pathname.startsWith("/staff-portal")) {
+    return hasWorkspaceAccess(workspaces, "staff_portal");
+  }
+
+  if (pathname.startsWith("/driver")) {
+    return hasWorkspaceAccess(workspaces, "driver");
+  }
+
+  if (pathname.startsWith("/utility")) {
+    return hasWorkspaceAccess(workspaces, "utility");
+  }
+
+  if (pathname.startsWith("/owner")) {
+    return hasWorkspaceAccess(workspaces, "owner");
+  }
+
+  if (pathname.startsWith("/manager")) {
+    return hasWorkspaceAccess(workspaces, "manager");
+  }
+
+  if (pathname.startsWith("/dev")) {
+    return hasWorkspaceAccess(workspaces, "owner");
+  }
+
+  return true;
 }

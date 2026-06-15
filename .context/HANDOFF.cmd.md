@@ -841,3 +841,114 @@ No changes were made to route progress bars, workspace switching loaders, CRM/st
 ## Notes
 
 The in-app browser controller was not exposed. Non-escalated Chrome could not expose DevTools from the sandbox, so the successful browser verification used an approved escalated local headless Chrome run. A first short CDP wait caught the preloader mid-fade on the slow dev server; the follow-up longer CDP pass confirmed final removal.
+
+---
+
+# HANDOFF - CRM-SCHEDULE-UI-001 Daily Timeline Fit/Expand: COMPLETE
+
+## Status
+
+Build verified. 98 routes. CRM Schedule Daily Timeline now defaults to a Fit Day view that keeps the right rail visible and fits the active day into the main schedule column. Expanded mode gives the timeline full page width and enables horizontal detail scrolling.
+
+## What changed
+
+- `src/components/features/schedule/schedule-workspace.tsx` now uses a responsive CRM grid with `minmax(0, 1fr)` for the schedule area and a 300px right rail in Fit Day mode.
+- Added a Fit Day / Expanded control beside the existing density controls using `Maximize2` and `Minimize2`.
+- Expanded mode switches the CRM board area to one column and hides the right rail while the timeline is expanded.
+- `DailyScheduleBoard` computes one `TimelineRange` from staff work hours, current overrides, bookings, and blocked times, with an 8 AM to 11 PM fallback.
+- Header labels, grid lines, off-duty overlays, bookings, blocked-time blocks, and the Now indicator all use the same percent-based active-day range.
+- Fit mode has no horizontal scroll; Expanded mode uses a wider per-hour minimum and horizontal scrolling when needed.
+
+## Preserved
+
+No changes were made to the public mobile preloader, public landing page, booking logic, schedule generation logic, Supabase schema/database logic, route/workspace loaders, skeleton loaders, or protected portal data fetching.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm build`: PASS, 98 routes
+- `git diff --check`: PASS with LF/CRLF notices only
+- Local unauthenticated route probe: `/crm/schedule` returned `307 /login`; authenticated visual QA still needs a logged-in CRM session.
+
+---
+
+# HANDOFF - OWNER-RECONNECT-001 Owner Workspace Restoration: COMPLETE
+
+## Status
+
+Build verified. 98 routes. Owner workspace routing, workspace switching, role-to-nav resolution, and route warm-up are restored for Owner users. Manager remains soft-paused to CRM.
+
+## What changed
+
+- `/owner` layout now authorizes with `getCurrentUserWorkspaceAccess()` and `hasWorkspaceAccess(..., "owner")` instead of redirecting every request to `/crm`.
+- Proxy route authorization now delegates protected path checks to `canAccessWorkspacePath()` in `src/lib/auth/workspace-access.ts`, making the existing behavior directly testable.
+- Owner role fallback now resolves to Owner nav; `getDefaultDashboardPath("owner")` returns `/owner`.
+- Owner nav is no longer `mvpHidden` and no longer includes the production Dev Panel link.
+- Owner prefetch no longer includes nonexistent `/owner/settings` or `/dev`.
+- Added focused Vitest coverage in `tests/lib/auth/workspace-access.test.ts`.
+- Added `vitest.config.ts` so tests resolve the app's existing `@/*` TypeScript alias.
+
+## Preserved
+
+CRM, Staff Portal, Driver Portal, Utility Portal, public booking, booking logic, scheduling logic, dispatch/live-map logic, Supabase schema/RLS/migrations, API behavior, and payroll business implementation were not changed. Manager restoration is still deferred.
+
+## Validation
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
+- `pnpm test tests/lib/auth/workspace-access.test.ts`: PASS, 8 tests
+- `pnpm build`: PASS, 98 routes; `/owner/*` routes generated
+- Service-role scan: only existing `src/lib/supabase/admin.ts`
+- Suspicious RLS scan: no matches
+- Stale Owner settings scan: no `/owner/settings` references
+- Full `pnpm test`: PARTIAL, 428/430 passing; two unrelated booking progress tests fail in `tests/lib/bookings/progress.test.ts`
+
+## Remaining Work
+
+- Authenticated Owner browser QA should verify `/owner`, `/owner/bookings`, `/owner/schedule`, `/owner/reports`, `/owner/branches`, `/owner/staff`, `/owner/services`, and `/owner/notifications` with a real Owner session.
+- Payroll route is reachable but payroll business implementation was intentionally not expanded in this task.
+- Resolve the separate booking progress state-machine/test mismatch before treating the full Vitest suite as green.
+
+---
+
+# HANDOFF - OWNER-DASHBOARD-REDESIGN-001 Owner Overview Dashboard: COMPLETE
+
+## Status
+
+Build verified. 97 routes. `/owner` now renders the approved executive-style Owner Overview inside the existing Owner shell, with real Supabase data and section-level unavailable states when a data source fails.
+
+## What changed
+
+- Replaced the old inline Owner Overview page with a thin server page that loads `getOwnerOverviewDashboardData()` and renders `OwnerDashboard`.
+- Added `src/lib/queries/owner-dashboard.ts` for Owner-only auth, branch-local date handling, and server-side section data loading.
+- Added `src/lib/owner/dashboard.ts` for pure dashboard calculations: bookings, completed sessions, paid revenue, active branches/staff, new staff, branch performance normalization, revenue trend, staff snapshot, payroll snapshot, action merging, and owner access checks.
+- Added `src/components/features/owner/dashboard/` for the hero, attention banner, KPI grid, Today at a Glance, Branch Performance, Revenue Trend, Staff Snapshot, Quick Actions, Payroll Snapshot, and Pending Actions cards.
+- Added `tests/lib/owner/dashboard.test.ts` with 13 focused tests covering dashboard business rules and partial failure behavior.
+- Tidied two React lint blockers in already-touched files: keyed `BranchEditForm` reset and payroll staff table derived-view state sync removal.
+
+## Metric definitions
+
+- Today's revenue: sum of paid `bookings.amount_paid` for active, non-closed bookings scheduled on the dashboard date.
+- Completed today: bookings with `session_completed_at` or `completed_at` on the dashboard date in `Asia/Manila`.
+- Staff on shift: schedule-based while `MVP_CHECKIN_PAUSED = true`; check-in based helper path remains covered for future unpaused mode.
+- Pending Actions: merged `workspace_notifications` requiring action and open/in-progress `workflow_tasks`; no separate approvals module exists yet.
+
+## Preserved
+
+No database migrations, RLS changes, global shell redesign, shadcn primitive changes, CRM workflow changes, Staff Portal changes, Driver Portal changes, public booking changes, booking progress changes, or schedule engine changes were made for this dashboard.
+
+## Validation
+
+- `pnpm test tests/lib/owner/dashboard.test.ts`: PASS, 13 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS, with existing warnings only in `scripts/generate-service-image-assets.mjs` and payroll test mocks.
+- `pnpm build`: PASS, 97 routes; `/owner` generated.
+- Browser smoke: existing `http://localhost:3000/owner` redirects unauthenticated browser session to `/login` with no local app console errors.
+- Full `pnpm test`: PARTIAL, 467/469 passing; two known unrelated failures remain in `tests/lib/bookings/progress.test.ts`.
+
+## Remaining Work
+
+- Authenticated Owner browser QA should verify the final `/owner` visual against the mockup with real Owner data.
+- Decide whether to add a formal approvals domain later; current dashboard correctly labels that surface as Pending Actions.
+- Resolve the booking progress state-machine/test mismatch before treating full Vitest as green.

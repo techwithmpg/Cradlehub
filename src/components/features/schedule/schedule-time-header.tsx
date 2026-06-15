@@ -1,30 +1,36 @@
 "use client";
 
 import {
-  TIMELINE_START_HOUR,
-  TIMELINE_END_HOUR,
-  SLOT_WIDTH_PX,
-  STAFF_CELL_WIDTH_PX,
   getHeaderHeightPx,
+  getTimelineHourMarks,
+  type TimelineDisplayMode,
+  type TimelineRange,
 } from "@/lib/utils/schedule-timeline";
-import { formatScheduleTime } from "@/lib/utils/schedule-timeline";
 import { useScheduleDensity } from "./schedule-density";
 
-export function ScheduleTimeHeader() {
+type ScheduleTimeHeaderProps = {
+  timelineRange: TimelineRange;
+  timelineMode: TimelineDisplayMode;
+  staffColumnWidth: number;
+  timelineMinWidth: number;
+};
+
+export function ScheduleTimeHeader({
+  timelineRange,
+  timelineMode,
+  staffColumnWidth,
+  timelineMinWidth,
+}: ScheduleTimeHeaderProps) {
   const { density } = useScheduleDensity();
   const headerHeight = getHeaderHeightPx(density);
-
-  const slots: { label: string; isHour: boolean }[] = [];
-  for (let h = TIMELINE_START_HOUR; h < TIMELINE_END_HOUR; h++) {
-    slots.push({ label: formatScheduleTime(`${String(h).padStart(2, "0")}:00`), isHour: true });
-    slots.push({ label: "", isHour: false });
-  }
-  slots.push({ label: formatScheduleTime(`${String(TIMELINE_END_HOUR).padStart(2, "0")}:00`), isHour: true });
+  const hourMarks = getTimelineHourMarks(timelineRange);
+  const labelIntervalHours = timelineMode === "fit" && timelineRange.hourCount > 10 ? 2 : 1;
 
   return (
     <div
       style={{
-        display: "flex",
+        display: "grid",
+        gridTemplateColumns: `${staffColumnWidth}px minmax(0, 1fr)`,
         height: headerHeight,
         flexShrink: 0,
         position: "sticky",
@@ -32,12 +38,14 @@ export function ScheduleTimeHeader() {
         zIndex: 3,
         backgroundColor: "var(--cs-surface)",
         borderBottom: "1px solid var(--cs-border)",
+        width: "100%",
+        minWidth: timelineMode === "expanded" ? staffColumnWidth + timelineMinWidth : undefined,
       }}
     >
       {/* Corner spacer */}
       <div
         style={{
-          width: STAFF_CELL_WIDTH_PX,
+          width: staffColumnWidth,
           flexShrink: 0,
           borderRight: "1px solid var(--cs-border)",
           position: "sticky",
@@ -48,30 +56,58 @@ export function ScheduleTimeHeader() {
       />
 
       {/* Time labels */}
-      <div style={{ display: "flex", position: "relative" }}>
-        {slots.map((slot, i) => (
+      <div
+        style={{
+          position: "relative",
+          minWidth: timelineMode === "expanded" ? timelineMinWidth : 0,
+          width: "100%",
+          overflow: "hidden",
+        }}
+      >
+        {hourMarks.map((mark, index) => {
+          const elapsedHours = Math.round((mark.minutes - timelineRange.startMinutes) / 60);
+          const isLast = index === hourMarks.length - 1;
+          const showLabel =
+            timelineMode === "expanded" ||
+            index === 0 ||
+            (!isLast && elapsedHours % labelIntervalHours === 0) ||
+            (isLast && timelineRange.hourCount <= 10);
+          const left = ((mark.minutes - timelineRange.startMinutes) / timelineRange.totalMinutes) * 100;
+
+          return (
           <div
-            key={i}
+            key={mark.minutes}
             style={{
-              width: SLOT_WIDTH_PX,
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "flex-end",
-              justifyContent: "flex-start",
-              paddingBottom: 6,
-              paddingLeft: 6,
-              borderRight: slot.isHour
-                ? "1px solid var(--cs-border)"
-                : "1px dashed var(--cs-border-soft)",
-              fontSize: "0.6875rem",
-              color: slot.isHour ? "var(--cs-text-muted)" : "transparent",
-              fontWeight: slot.isHour ? 600 : 400,
-              position: "relative",
+              position: "absolute",
+              left: `${left}%`,
+              top: 0,
+              bottom: 0,
+              width: 1,
+              backgroundColor: mark.isBoundary ? "var(--cs-border)" : "var(--cs-border-soft)",
             }}
           >
-            {slot.label}
+            {showLabel && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: isLast ? undefined : 6,
+                  right: isLast ? 6 : undefined,
+                  bottom: 6,
+                  width: timelineMode === "fit" ? 54 : 72,
+                  fontSize: timelineMode === "fit" && timelineRange.hourCount > 10 ? "0.625rem" : "0.6875rem",
+                  color: "var(--cs-text-muted)",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {mark.label}
+              </span>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

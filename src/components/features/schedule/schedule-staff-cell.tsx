@@ -9,6 +9,7 @@ import { useScheduleDensity } from "./schedule-density";
 
 type StaffCellProps = {
   staff: DailyScheduleStaffRow;
+  width?: number;
   onClick?: () => void;
 };
 
@@ -31,7 +32,7 @@ function formatStaffLabel(staff: DailyScheduleStaffRow): string {
   return staff.staff_tier.charAt(0).toUpperCase() + staff.staff_tier.slice(1);
 }
 
-export function ScheduleStaffCell({ staff, onClick }: StaffCellProps) {
+export function ScheduleStaffCell({ staff, width = STAFF_CELL_WIDTH_PX, onClick }: StaffCellProps) {
   const { metrics } = useScheduleDensity();
   const rowHeight = metrics.rowHeight;
   const isOff = !staff.work_start || !staff.work_end;
@@ -43,7 +44,7 @@ export function ScheduleStaffCell({ staff, onClick }: StaffCellProps) {
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
       style={{
-        width: STAFF_CELL_WIDTH_PX,
+        width,
         height: rowHeight,
         flexShrink: 0,
         backgroundColor: isOff ? "var(--cs-bg)" : "var(--cs-surface)",
@@ -116,6 +117,7 @@ export function ScheduleStaffCell({ staff, onClick }: StaffCellProps) {
             alignItems: "center",
             gap: 4,
             marginTop: metrics.avatarSize <= 24 ? 1 : 3,
+            minWidth: 0,
           }}
         >
           <span
@@ -132,6 +134,10 @@ export function ScheduleStaffCell({ staff, onClick }: StaffCellProps) {
               fontSize: `${metrics.fontSize - 0.125}rem`,
               color: isOff ? "var(--cs-text-muted)" : "#4A7C59",
               fontWeight: 500,
+              minWidth: 0,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             {isOff

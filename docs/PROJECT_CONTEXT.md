@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `UI-MOBILE-PRELOAD-002`  |
-| **Completion**      | `Mobile first-visit public preloader now mounts in initial server HTML before landing-page animations`        |
+| **Sprint**          | `OWNER-DASHBOARD-REDESIGN-001`  |
+| **Completion**      | `Owner Overview dashboard rebuilt with real data, executive layout, and section-level partial error states`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-06-11` |
-| **Blockers**        | `No build/type blockers; lint has 2 pre-existing warnings in scripts/generate-service-image-assets.mjs`      |
+| **Last Updated**    | `2026-06-15` |
+| **Blockers**        | `No build/type blockers; full Vitest has 2 unrelated booking progress failures in tests/lib/bookings/progress.test.ts`      |
 
 ---
 
@@ -256,3 +256,30 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - The preloader now uses the approved dark forest, warm gold, and ivory visual treatment with scoped component CSS and a temporary `.sp-public` animation pause guard while visible.
 - Route progress bars, workspace loaders, skeleton loaders, global loading files/CSS, protected portals, booking logic, Supabase/database logic, APIs, server actions, auth/RBAC, and middleware were not changed.
 - Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, raw HTML cookie/no-cookie behavior, and headless Chrome CDP checks for mobile first paint, fade removal, repeat-cookie skip, desktop no-cookie skip, and protected-route isolation.
+
+## Latest Agent Update (2026-06-11)
+
+- Completed `CRM-SCHEDULE-UI-001`: CRM Schedule Daily Timeline now defaults to Fit Day mode so the full active day fits inside the main schedule column while the right rail remains visible.
+- Added an Expand/Collapse control beside the density controls; Expanded mode hides the CRM right rail and gives the timeline full page width with horizontal scrolling for detail inspection.
+- Timeline range is calculated from staff work hours, current overrides, bookings, and blocked times, with an 8 AM to 11 PM fallback when no active data is available.
+- Booking blocks, blocked-time blocks, off-duty overlays, grid lines, hour labels, and the current-time marker now share percent-based full-day positioning.
+- Public mobile preloader, public landing page, booking logic, schedule generation logic, Supabase schema/database logic, workspace loaders, and skeleton loaders were not changed.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, and a local unauthenticated `/crm/schedule` route probe returning `307 /login`; authenticated visual QA still needs a logged-in CRM session.
+
+## Latest Agent Update (2026-06-15)
+
+- Completed `OWNER-RECONNECT-001`: restored the existing Owner workspace for authorized owner users.
+- `/owner` now uses an Owner workspace guard instead of the old soft-pause redirect to `/crm`, while Manager remains soft-paused to CRM.
+- Owner role/default navigation now resolves to `/owner`; Owner nav is visible again and no longer exposes `/dev`.
+- Owner prefetch no longer warms stale `/owner/settings` or `/dev` routes.
+- No Supabase schema, RLS, migration, CRM workflow, Staff Portal, Driver Portal, public booking, scheduling, dispatch, or payroll business logic changes were made.
+- Verified `pnpm type-check`, `pnpm lint`, focused Owner workspace tests, production `pnpm build`, service-role/RLS/stale-route scans; full `pnpm test` still has two unrelated booking progress failures.
+
+## Latest Agent Update (2026-06-15)
+
+- Completed `OWNER-DASHBOARD-REDESIGN-001`: rebuilt `/owner` Overview to match the approved Owner Dashboard reference inside the existing Owner shell.
+- Added a server-side Owner dashboard loader with real bookings, branches, staff, schedules/check-ins, notifications, workflow tasks, and fixed-monthly payroll data.
+- Dashboard sections now show partial error states instead of silently converting failed queries to zero metrics.
+- Added pure dashboard business-rule helpers and 13 focused Vitest tests for bookings, completed sessions, paid revenue, active branches/staff, action counts, branch normalization, payroll totals, staff on-shift, auth access, empty data, missing payroll setup, and partial failures.
+- No Supabase schema, RLS, migration, global shell, CRM workflow, Staff Portal, Driver Portal, public booking, booking progress, or schedule engine changes were made for the dashboard.
+- Verified `pnpm test tests/lib/owner/dashboard.test.ts`, `pnpm type-check`, `pnpm lint`, `pnpm build`, and unauthenticated `/owner -> /login` browser smoke; full `pnpm test` still has two unrelated booking progress failures.

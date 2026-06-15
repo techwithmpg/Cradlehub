@@ -31,7 +31,6 @@ const OWNER_NAV_ITEMS: NavItem[] = [
   { label: "Payroll", href: "/owner/payroll", icon: "DollarSign" },
   { label: "Services", href: "/owner/services", icon: "Sparkles" },
   { label: "Notifications", href: "/owner/notifications", icon: "Bell" },
-  { label: "Dev Panel", href: "/dev", icon: "Wrench" },
 ];
 
 const MANAGER_NAV_ITEMS: NavItem[] = [
@@ -99,8 +98,6 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
     role: "owner",
     label: "Owner",
     items: OWNER_NAV_ITEMS,
-    // MVP: owner workspace is soft-paused; owner users are routed to CRM.
-    mvpHidden: true,
   },
   manager: {
     role: "manager",
@@ -157,9 +154,12 @@ export function resolveWorkspaceKeyFromPath(pathname: string): string | null {
 }
 
 export function resolveWorkspaceKeyFromRole(role: string): string {
-  // MVP: owner + management roles use the CRM workspace nav
+  if (role === "owner") {
+    return "owner";
+  }
+
+  // MVP: management roles use the CRM workspace nav while Manager remains soft-paused.
   if (
-    role === "owner" ||
     role === "manager" ||
     role === "assistant_manager" ||
     role === "store_manager"
