@@ -6,6 +6,7 @@ import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { isOwner } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { isValidShiftRange } from "@/lib/utils/time-format";
 
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
@@ -18,10 +19,10 @@ const weeklyDaySchema = z
     endTime: timeStr,
   })
   .superRefine((day, ctx) => {
-    if (day.isActive && day.startTime >= day.endTime) {
+    if (day.isActive && !isValidShiftRange(day.startTime, day.endTime)) {
       ctx.addIssue({
         code: "custom",
-        message: "Start time must be before end time.",
+        message: "Shift must be between 1 minute and 16 hours.",
         path: ["endTime"],
       });
     }

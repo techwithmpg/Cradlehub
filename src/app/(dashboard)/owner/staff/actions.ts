@@ -112,6 +112,7 @@ export async function createStaffAction(rawInput: unknown) {
     branch_id:    d.branchId,
     auth_user_id: authUser.user.id,
     full_name:    d.fullName,
+    nickname:     d.nickname ?? null,
     phone:        d.phone       ?? null,
     tier:         d.tier,
     system_role:  d.systemRole,
@@ -130,6 +131,7 @@ export async function createStaffAction(rawInput: unknown) {
     const legacyPayload = {
       branch_id: payload.branch_id,
       full_name: payload.full_name,
+      nickname: payload.nickname,
       phone: payload.phone,
       tier: payload.tier,
       system_role: payload.system_role,

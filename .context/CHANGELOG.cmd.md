@@ -4856,3 +4856,49 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Local route probe: `http://localhost:3000/crm/schedule` returned `307 /login`, confirming protected route reachability but limiting unauthenticated visual QA.
 
 **Build Status:** ✅ Passing
+
+---
+
+### 2026-06-17 — Codex (AUTH-STAFF-RECOVERY-001)
+
+**Task:** Add secure staff password recovery, accessible password visibility controls, and Owner account-access diagnostics without replacing existing Supabase Auth, RBAC, proxy protection, or workspace switching.
+
+**Files Added:**
+- `src/app/(auth)/forgot-password/page.tsx` and `actions.ts` - self-service reset request form with generic response copy.
+- `src/app/auth/callback/route.ts` - Supabase auth code exchange handler with internal redirect sanitization.
+- `src/app/(auth)/reset-password/page.tsx`, `reset-password-form.tsx`, and `actions.ts` - recovery-session password update flow.
+- `src/components/shared/password-input.tsx` - accessible show/hide password input.
+- `src/app/(dashboard)/owner/staff/account-access-actions.ts` - Owner-only diagnostics and staff recovery server actions.
+- `src/components/features/staff/staff-account-access-panel.tsx` - Owner staff preview diagnostics UI.
+- `src/lib/auth/auth-redirects.ts` - callback redirect origin/path helpers.
+- `src/lib/auth/account-access-events.ts` - audit/rate-limit helpers for account access events.
+- `src/lib/auth/staff-account-diagnostics.ts` - pure diagnostic rule builder.
+- `supabase/migrations/20260617000001_staff_account_access_events.sql` - append-only audit/rate-limit table.
+- `tests/lib/auth/auth-redirects.test.ts`, `tests/lib/auth/staff-account-diagnostics.test.ts`, `tests/components/shared/password-input.test.tsx` - focused coverage.
+
+**Files Changed:**
+- `src/app/(auth)/login/page.tsx` - added Forgot Password link and `PasswordInput`.
+- `src/app/onboard/[staffId]/onboard-form.tsx` and `src/app/staff-onboarding/onboarding-form.tsx` - added password visibility controls.
+- `src/components/features/staff/staff-preview-panel.tsx` - mounted Owner-only account access panel.
+- `src/app/(dashboard)/owner/staff/actions.ts` - preserved nickname during direct staff invite creation.
+- `src/types/supabase.ts` - added `staff_account_access_events` table typing.
+- `.context/*`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - updated task records.
+
+**Behavior:**
+- Staff can request a secure password reset from `/forgot-password`; the app returns generic copy regardless of whether the email exists.
+- Supabase recovery links now land on `/auth/callback`, exchange the auth code, and continue to `/reset-password`.
+- Reset-password updates the active recovery session password, records the event, and signs the user out for a fresh login.
+- Owner staff preview can diagnose whether CRM/front desk login is blocked by inactive staff status, missing/stale auth link, missing/unchecked auth email, no CRM workspace access, or no prior sign-in.
+- Owner can send a password reset link for linked staff auth accounts, with audit/rate-limit recording.
+- Service-role access remains server-only.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS with 4 existing warnings outside this task.
+- Focused tests: PASS, 3 files / 9 tests.
+- `pnpm test`: PARTIAL, 39 files passed; 2 known unrelated booking progress tests still fail.
+- `pnpm build`: PASS, 100 routes.
+- Credential/token scan: PASS, no token/password logging matches.
+- Client service-role scan: PASS, no client component imports `createAdminClient`, `SUPABASE_SERVICE_ROLE_KEY`, or `service_role`.
+
+**Build Status:** PASS with known unrelated full-test residuals

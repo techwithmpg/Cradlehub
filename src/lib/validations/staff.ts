@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { STAFF_TYPES } from "@/constants/staff";
+import { isValidShiftRange } from "@/lib/utils/time-format";
 
 // z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
 const uuid = z.guid("Invalid ID");
@@ -51,7 +52,10 @@ export const setScheduleSchema = z
     isActive:  z.boolean().default(true),
     shiftType: z.enum(["single", "opening", "closing"]).default("single"),
   })
-  .refine((d) => d.startTime < d.endTime, "Start time must be before end time");
+  .refine(
+    (d) => isValidShiftRange(d.startTime, d.endTime),
+    "Shift must be between 1 minute and 16 hours"
+  );
 export type SetScheduleInput = z.infer<typeof setScheduleSchema>;
 
 export const createOverrideSchema = z

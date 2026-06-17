@@ -104,10 +104,10 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `OWNER-DASHBOARD-REDESIGN-001`  |
-| **Completion**      | `Owner Overview dashboard rebuilt with real data, executive layout, and section-level partial error states`        |
+| **Sprint**          | `AUTH-STAFF-RECOVERY-001`  |
+| **Completion**      | `Staff password recovery, password visibility controls, and Owner account-access diagnostics added on top of existing Supabase Auth/RBAC`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-06-15` |
+| **Last Updated**    | `2026-06-17` |
 | **Blockers**        | `No build/type blockers; full Vitest has 2 unrelated booking progress failures in tests/lib/bookings/progress.test.ts`      |
 
 ---

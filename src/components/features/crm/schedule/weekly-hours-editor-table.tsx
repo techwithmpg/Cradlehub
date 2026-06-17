@@ -3,20 +3,20 @@
 import { RefreshCcw, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { formatTime12h } from "@/lib/utils/time-format";
+import { formatTime12h, isValidShiftRange } from "@/lib/utils/time-format";
 import { cn } from "@/lib/utils";
 import { WEEK_DAYS } from "./edit-availability-utils";
 import type { WeeklyAvailabilityRow } from "./edit-availability-types";
 
-const TIME_OPTIONS = Array.from({ length: 36 }, (_, index) => {
-  const totalMinutes = 6 * 60 + index * 30;
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const totalMinutes = index * 30;
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 });
 
 function rowIsInvalid(row: WeeklyAvailabilityRow): boolean {
-  return row.isActive && row.startTime >= row.endTime;
+  return row.isActive && !isValidShiftRange(row.startTime, row.endTime);
 }
 
 function TimeSelect({
@@ -147,7 +147,7 @@ export function WeeklyHoursEditorTable({
                 </p>
                 {invalid ? (
                   <p className="mt-1 text-[0.6875rem] font-medium text-[var(--cs-error)]">
-                    Start must be before end.
+                    Use a shift from 1 minute to 16 hours.
                   </p>
                 ) : null}
               </div>
@@ -203,7 +203,8 @@ export function WeeklyHoursEditorTable({
 
       {hasInvalidRows ? (
         <p className="text-xs font-medium text-[var(--cs-error)]">
-          Fix invalid rows before saving changes.
+          Fix invalid rows before saving changes. Overnight shifts are allowed
+          when the total shift is 16 hours or less.
         </p>
       ) : null}
     </div>

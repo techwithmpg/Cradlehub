@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useCallback } from "react";
 import { submitStaffOnboardingAction, type OnboardingFormState } from "./actions";
 import { ONBOARDING_ROLE_OPTIONS, getOnboardingRoleLabel } from "@/lib/staff/onboarding-roles";
+import { PasswordInput } from "@/components/shared/password-input";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 type Branch = { id: string; name: string };
@@ -474,9 +475,8 @@ function Step5Account({ data, onChange, errors }: {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
         <label htmlFor="password" style={labelStyle}>Password *</label>
-        <input
+        <PasswordInput
           id="password"
-          type="password"
           style={inputStyle}
           value={data.password}
           onChange={(e) => onChange("password", e.target.value)}
@@ -509,9 +509,8 @@ function Step5Account({ data, onChange, errors }: {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
         <label htmlFor="confirmPassword" style={labelStyle}>Confirm password *</label>
-        <input
+        <PasswordInput
           id="confirmPassword"
-          type="password"
           style={{
             ...inputStyle,
             borderColor: data.confirmPassword && data.password !== data.confirmPassword

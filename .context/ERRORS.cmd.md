@@ -1,3 +1,13 @@
+## 2026-06-17 - AUTH-STAFF-RECOVERY-001 verification note
+
+- `pnpm test` still reports the known unrelated booking progress failures in `tests/lib/bookings/progress.test.ts`:
+  1. `blocks not_started -> session_started (must check in first)`
+  2. `returns correct actions for walkin not_started`
+- Auth recovery focused tests, type-check, lint, build, credential/token scan, and client service-role scan passed.
+- No new auth-specific blocker was found.
+
+---
+
 ## 2026-05-28 - CRM-MODAL-002 scroll bug diagnosis
 
 - **Symptom:** Edit Service Capabilities modal footer visible, but services continued below viewport with no usable scroll. Expanded category content was cut off behind footer.

@@ -1451,6 +1451,63 @@ export type Database = {
           },
         ]
       }
+      staff_account_access_events: {
+        Row: {
+          actor_staff_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          ip_hash: string | null
+          metadata: Json
+          outcome: string
+          target_auth_user_id: string | null
+          target_email: string | null
+          target_staff_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          actor_staff_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          outcome: string
+          target_auth_user_id?: string | null
+          target_email?: string | null
+          target_staff_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          actor_staff_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          outcome?: string
+          target_auth_user_id?: string | null
+          target_email?: string | null
+          target_staff_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_account_access_events_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_account_access_events_target_staff_id_fkey"
+            columns: ["target_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_onboarding_requests: {
         Row: {
           id: string

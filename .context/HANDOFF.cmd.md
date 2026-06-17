@@ -912,6 +912,41 @@ CRM, Staff Portal, Driver Portal, Utility Portal, public booking, booking logic,
 
 ---
 
+# HANDOFF - AUTH-STAFF-RECOVERY-001 Staff Password Recovery and Account Diagnostics: COMPLETE
+
+## Status
+
+Build verified. 100 routes. Staff password recovery, password visibility controls, and Owner-only account access diagnostics are implemented without replacing the existing Supabase Auth, proxy/RBAC, or workspace-switching system.
+
+## What changed
+
+- Added `/forgot-password` with generic reset responses and Supabase `resetPasswordForEmail` redirecting through `/auth/callback?next=/reset-password`.
+- Added `/auth/callback` route handler using `exchangeCodeForSession` and internal redirect sanitization.
+- Added `/reset-password` guarded by the recovery session, updating the password through `auth.updateUser`, auditing the event, and signing the user out afterward.
+- Added shared `PasswordInput` show/hide control and applied it to login, reset password, staff onboarding, and legacy onboarding password fields.
+- Added Owner staff preview `Account Access` panel with server-side diagnostics for linked auth account, email confirmation, last sign-in, active status, CRM workspace access, and recovery availability.
+- Added Owner-triggered staff password recovery for linked auth accounts with rate-limit/audit recording.
+- Added `staff_account_access_events` migration plus TypeScript table types for password recovery and diagnostic audit events.
+- Preserved existing login action, middleware/proxy, staff RBAC, workspace switching, direct invite flow, and service-role server-only boundary.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, with 4 existing warnings outside this task
+- Focused tests: PASS, 3 files / 9 tests
+- `pnpm test`: PARTIAL, 39 files passed; 2 known unrelated booking progress assertions still fail in `tests/lib/bookings/progress.test.ts`
+- `pnpm build`: PASS, 100 routes
+- Credential/token scan: PASS, no token/password logging matches
+- Client service-role scan: PASS, no client component imports `createAdminClient`, `SUPABASE_SERVICE_ROLE_KEY`, or `service_role`
+
+## Notes
+
+- Owner diagnostics can send recovery only when `staff.auth_user_id` resolves to a Supabase Auth user with an email. Staff rows without an auth link still need invite/account linking first because the `staff` table does not store email.
+- The legacy `/onboard/[staffId]` route remains present but was not expanded.
+- Existing unrelated worktree changes for CRM availability/time-format were present before this task and were left untouched.
+
+---
+
 # HANDOFF - OWNER-DASHBOARD-REDESIGN-001 Owner Overview Dashboard: COMPLETE
 
 ## Status

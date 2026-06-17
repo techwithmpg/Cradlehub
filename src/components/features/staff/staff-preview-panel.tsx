@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StaffRoleBadge, StaffStatusBadge } from "./staff-badges";
+import { StaffAccountAccessPanel } from "./staff-account-access-panel";
 import { getStaffNickname } from "@/lib/staff/display-name";
 import {
   formatStaffDate,
@@ -154,6 +155,8 @@ export function StaffPreviewPanel({
           <DetailRow Icon={UserCheck} label="Status" value={getStaffStatusLabel(status)} />
           <DetailRow Icon={CalendarDays} label="Joined" value={formatStaffDate(staff.created_at)} />
         </dl>
+
+        {isOwner && <StaffAccountAccessPanel key={staff.id} staffId={staff.id} />}
 
         {!isCrm && (
           <div className="mt-5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">

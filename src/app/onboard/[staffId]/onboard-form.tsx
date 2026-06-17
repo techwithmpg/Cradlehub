@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/shared/password-input";
 import { onboardStaffAction } from "@/app/(dashboard)/owner/staff/actions";
 
 type OnboardState = {
@@ -106,22 +107,22 @@ export function OnboardForm({ staffId }: { staffId: string }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           <Label htmlFor="password">Password *</Label>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             placeholder="Min. 6 characters"
+            className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
             required
           />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           <Label htmlFor="confirmPassword">Confirm password *</Label>
-          <Input
+          <PasswordInput
             id="confirmPassword"
             name="confirmPassword"
-            type="password"
             placeholder="Re-enter password"
+            className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
             required
           />
         </div>

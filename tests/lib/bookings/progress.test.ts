@@ -165,14 +165,14 @@ describe("booking progress state machine", () => {
   });
 
   describe("in_spa direct transitions", () => {
-    it("blocks not_started → session_started (must check in first)", () => {
+    it("allows not_started → session_started for assigned staff", () => {
       expect(
         canTransitionBookingProgress({
           bookingType: "in_spa",
           currentStatus: "not_started",
           nextStatus: "session_started",
         })
-      ).toBe(false);
+      ).toBe(true);
     });
 
     it("allows session_started → completed", () => {
@@ -212,7 +212,7 @@ describe("booking progress state machine", () => {
           bookingType: "in_spa",
           currentStatus: "not_started",
         })
-      ).toEqual(["checked_in", "no_show"]);
+      ).toEqual(["checked_in", "session_started", "no_show"]);
     });
 
     it("returns empty for completed", () => {

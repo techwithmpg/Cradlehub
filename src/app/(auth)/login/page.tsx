@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
 import { Mail, Lock, Loader2, AlertCircle } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { PasswordInput } from "@/components/shared/password-input";
 
 const initialState: LoginState = {};
 
@@ -124,23 +126,28 @@ export default function LoginPage() {
 
               {/* Password */}
               <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="password"
-                  className="text-[11.5px] font-semibold uppercase tracking-wide text-[#6B5D52]"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#BFB4AA]" />
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    className={`auth-input${state.fieldErrors?.password ? " is-error" : ""}`}
-                  />
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="password"
+                    className="text-[11.5px] font-semibold uppercase tracking-wide text-[#6B5D52]"
+                  >
+                    Password
+                  </label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-[12px] font-medium text-[#8A6F48] transition hover:text-[#5B4A40]"
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
+                <PasswordInput
+                  id="password"
+                  name="password"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  leadingIcon={<Lock className="h-4 w-4" aria-hidden="true" />}
+                  className={`auth-input${state.fieldErrors?.password ? " is-error" : ""}`}
+                />
                 {state.fieldErrors?.password && (
                   <p className="text-[11px] text-[#8A5A5A]">{state.fieldErrors.password}</p>
                 )}
