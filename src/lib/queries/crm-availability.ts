@@ -5,6 +5,10 @@ import { isServiceStaffType } from "@/constants/staff-roles";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 import { CRM_PENDING_BOOKING_STATUSES } from "@/lib/bookings/crm-booking-status";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import {
+  isTimeWithinScheduleWindows,
+  type ResolvedStaffScheduleSource,
+} from "@/lib/schedule/resolve-staff-schedule";
 
 export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule";
 
@@ -54,6 +58,7 @@ export type CrmAvailabilityStaffRow = {
   checkInId: string | null;
   work_start: string | null;
   work_end: string | null;
+  scheduleSource: ResolvedStaffScheduleSource;
   shifts: StaffShiftEntry[];
   active_booking: {
     id: string;
@@ -99,10 +104,6 @@ function toTimeString(d: Date): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-function isInWorkWindow(nowTime: string, workStart: string, workEnd: string): boolean {
-  return nowTime >= workStart && nowTime <= workEnd;
-}
-
 export async function getCrmAvailabilitySnapshot(params: {
   branchId: string;
   date: string;
@@ -110,22 +111,11 @@ export async function getCrmAvailabilitySnapshot(params: {
 }): Promise<CrmAvailabilitySnapshot> {
   const now = params.now ?? new Date();
   const nowTime = toTimeString(now);
-
-  // day_of_week matching staff_schedules.day_of_week (0=Sun)
-  const dateObj = new Date(params.date + "T00:00:00");
-  const dayOfWeek = dateObj.getDay();
-
   const supabase = await createClient();
 
-  // Five parallel queries
-  const [allStaff, scheduleRows, shiftsResult, checkinsResult, pendingBookingsResult] = await Promise.all([
+  const [allStaff, scheduleRows, checkinsResult, pendingBookingsResult] = await Promise.all([
     getStaffByBranch(params.branchId),
     getDailySchedule({ branchId: params.branchId, date: params.date }),
-    supabase
-      .from("staff_schedules")
-      .select("staff_id, shift_type, start_time, end_time")
-      .eq("day_of_week", dayOfWeek)
-      .eq("is_active", true),
     supabase
       .from("staff_shift_checkins")
       .select("id, staff_id, shift_type, checked_in_at, checked_out_at, status")
@@ -143,18 +133,6 @@ export async function getCrmAvailabilitySnapshot(params: {
   const scheduleMap = new Map<string, DailyScheduleStaffRow>(
     scheduleRows.map((row) => [row.staff_id, row])
   );
-
-  // shift map: staff_id → StaffShiftEntry[]
-  const shiftMap = new Map<string, StaffShiftEntry[]>();
-  for (const row of shiftsResult.data ?? []) {
-    const list = shiftMap.get(row.staff_id) ?? [];
-    list.push({
-      shift_type: (row.shift_type ?? "single") as ShiftType,
-      start_time: row.start_time,
-      end_time: row.end_time,
-    });
-    shiftMap.set(row.staff_id, list);
-  }
 
   // checkin map: staff_id → most recent non-voided check-in for today
   // Prefer checked_in over checked_out when multiple exist.
@@ -179,15 +157,19 @@ export async function getCrmAvailabilitySnapshot(params: {
     const systemRole = member.system_role ?? "";
     const isDriver = systemRole === "driver" || staffType === "driver";
     const isServiceProvider = isServiceStaffType(staffType);
-    const shifts = shiftMap.get(member.id) ?? [];
+    const shifts = (schedule?.schedule_windows ?? []).map((window) => ({
+      shift_type: window.shiftType,
+      start_time: window.startTime,
+      end_time: window.endTime,
+    }));
     const checkin = checkinMap.get(member.id) ?? null;
 
     // ── Schedule status ──────────────────────────────────────────────────────
     let scheduleStatus: ScheduleStatus;
-    if (!schedule || schedule.work_start === null) {
-      scheduleStatus = "no_schedule";
-    } else if (schedule.current_override?.is_day_off === true) {
+    if (schedule?.schedule_is_day_off === true || schedule?.current_override?.is_day_off === true) {
       scheduleStatus = "off_today";
+    } else if (!schedule || shifts.length === 0 || schedule.work_start === null) {
+      scheduleStatus = "no_schedule";
     } else {
       scheduleStatus = "scheduled";
     }
@@ -229,8 +211,13 @@ export async function getCrmAvailabilitySnapshot(params: {
       const confirmed = bookings.find(
         (b) =>
           b.status === "confirmed" &&
-          schedule?.work_start &&
-          isInWorkWindow(nowTime, b.start_time.slice(0, 8), b.end_time.slice(0, 8))
+          isTimeWithinScheduleWindows(nowTime, [
+            {
+              shiftType: "single",
+              startTime: b.start_time.slice(0, 8),
+              endTime: b.end_time.slice(0, 8),
+            },
+          ])
       );
       const activeBkg = inProgress ?? confirmed ?? null;
 
@@ -264,6 +251,7 @@ export async function getCrmAvailabilitySnapshot(params: {
       checkInId: checkin?.id ?? null,
       work_start: schedule?.work_start ?? null,
       work_end: schedule?.work_end ?? null,
+      scheduleSource: schedule?.schedule_source ?? "none",
       shifts,
       active_booking,
       blocks:

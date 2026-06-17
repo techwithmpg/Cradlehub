@@ -276,6 +276,43 @@ function StaffRowActions({
   );
 }
 
+export function StaffShiftCell({ staff }: { staff: CrmAvailabilityStaffRow }) {
+  if (staff.shifts.length === 0) {
+    return <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>—</span>;
+  }
+
+  if (staff.shifts.length === 1) {
+    const shift = staff.shifts[0]!;
+    return (
+      <div>
+        <ShiftTypeBadge shiftType={shift.shift_type} />
+        <div style={{ fontSize: 10, color: "var(--cs-text-subtle)", marginTop: 2 }}>
+          {formatTime12h(shift.start_time)} – {formatTime12h(shift.end_time)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--cs-text-secondary)" }}>
+        {staff.shifts.length} shifts
+      </div>
+      {staff.shifts.map((shift) => (
+        <div
+          key={`${shift.shift_type}-${shift.start_time}-${shift.end_time}`}
+          style={{ display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          <ShiftTypeBadge shiftType={shift.shift_type} />
+          <span style={{ fontSize: 10, color: "var(--cs-text-subtle)", lineHeight: 1.25 }}>
+            {formatTime12h(shift.start_time)} – {formatTime12h(shift.end_time)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Staff List tab ────────────────────────────────────────────────────────────
 
 function StaffListView({
@@ -297,7 +334,7 @@ function StaffListView({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 100px 140px 120px 1fr",
+          gridTemplateColumns: "1fr 100px 180px 120px 1fr",
           gap: 12,
           padding: "7px 14px",
           background: "var(--cs-surface-raised)",
@@ -317,16 +354,13 @@ function StaffListView({
 
       {/* Rows */}
       {staff.map((s) => {
-        const primaryShift = s.shifts[0];
-        const shiftType    = primaryShift?.shift_type ?? "single";
-
         return (
           <div
             key={s.staff_id}
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 100px 140px 120px 1fr",
-              alignItems: "center",
+              gridTemplateColumns: "1fr 100px 180px 120px 1fr",
+              alignItems: s.shifts.length > 1 ? "start" : "center",
               gap: 12,
               padding: "9px 14px",
               borderBottom: "1px solid var(--cs-border-soft)",
@@ -351,16 +385,7 @@ function StaffListView({
 
             {/* Shift */}
             <div>
-              {s.work_start && s.work_end ? (
-                <div>
-                  <ShiftTypeBadge shiftType={shiftType} />
-                  <div style={{ fontSize: 10, color: "var(--cs-text-subtle)", marginTop: 2 }}>
-                    {formatTime12h(s.work_start)} – {formatTime12h(s.work_end)}
-                  </div>
-                </div>
-              ) : (
-                <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>—</span>
-              )}
+              <StaffShiftCell staff={s} />
             </div>
 
             {/* Presence + check-in/out action (each row has its own error state) */}

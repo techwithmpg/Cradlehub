@@ -61,6 +61,7 @@ Thumbs.db
 # Logs
 npm-debug.log*
 pnpm-debug.log*
+.next*.log
 .claude/
 
 # python
@@ -74,4 +75,3 @@ src.zip
 # generated service image artifacts
 docs/service-images/artifacts/
 docs/service-images/generated-batches/
-

@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `AUTH-STAFF-RECOVERY-001`  |
-| **Completion**      | `Staff password recovery, password visibility controls, and Owner account-access diagnostics added on top of existing Supabase Auth/RBAC`        |
+| **Sprint**          | `AUTH-RESET-SUPABASE-CONNECTION-001`  |
+| **Completion**      | `Password reset now uses trusted NEXT_PUBLIC_APP_URL /reset-password links, recovery-session validation, safe reset/login messaging, and focused auth tests`        |
 | **Last Agent**      | `Codex` |
 | **Last Updated**    | `2026-06-17` |
-| **Blockers**        | `No build/type blockers; full Vitest has 2 unrelated booking progress failures in tests/lib/bookings/progress.test.ts`      |
+| **Blockers**        | `No build/type/test blockers; production Supabase Auth URL config and NEXT_PUBLIC_APP_URL must be set to the deployed CradleHub origin`      |
 
 ---
 
@@ -283,3 +283,24 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Added pure dashboard business-rule helpers and 13 focused Vitest tests for bookings, completed sessions, paid revenue, active branches/staff, action counts, branch normalization, payroll totals, staff on-shift, auth access, empty data, missing payroll setup, and partial failures.
 - No Supabase schema, RLS, migration, global shell, CRM workflow, Staff Portal, Driver Portal, public booking, booking progress, or schedule engine changes were made for the dashboard.
 - Verified `pnpm test tests/lib/owner/dashboard.test.ts`, `pnpm type-check`, `pnpm lint`, `pnpm build`, and unauthenticated `/owner -> /login` browser smoke; full `pnpm test` still has two unrelated booking progress failures.
+
+## Latest Agent Update (2026-06-17)
+
+- Completed `CRM-INDIVIDUAL-SCHEDULE-LIVE-SYNC-001`: CRM individual staff schedule saves now verify Supabase returned rows from `staff_schedules` before reporting success.
+- Added a shared effective schedule resolver using priority: date day-off override, date custom override, individual weekly schedule, staff-group fallback, then unscheduled.
+- Live Staff now reads resolved `schedule_windows` from the daily schedule query instead of combining an aggregated daily span with a separate raw active `staff_schedules` query.
+- Multiple shift windows now display in the Live Staff Staff List as `2 shifts` with each opening/closing time range.
+- A saved inactive individual weekly row is treated as an individual day off and no longer falls through to group fallback in Live Staff or booking availability post-filter.
+- `/api/crm/availability` and the CRM Live Availability SWR fetch no longer retain short stale cached responses after schedule saves.
+- Existing RLS/grants were verified for CRM/CSR operational SELECT/INSERT/UPDATE on `staff_schedules`; no new migration was needed because this upsert flow does not require DELETE.
+- Verified `pnpm type-check`, `pnpm test`, `pnpm lint`, `pnpm build`, and the requested swallowed-error scan; authenticated CRM click-through remains a manual QA step.
+
+## Latest Agent Update (2026-06-17)
+
+- Completed `AUTH-RESET-SUPABASE-CONNECTION-001`: self-service and Owner-triggered password recovery now build Supabase reset links from trusted `NEXT_PUBLIC_APP_URL` and land on `/reset-password`.
+- Production reset links reject localhost app URLs; local development still falls back to `http://localhost:3000/reset-password`.
+- `/reset-password` forwards Supabase recovery `code` or `token_hash` params to `/auth/callback`, which exchanges/verifies the recovery session, sanitizes the next path, and marks the recovery session before the password form renders.
+- Password updates require the recovery marker and current Supabase user, apply shared password policy rules, call `auth.updateUser({ password })`, sign out, and return to `/login?passwordUpdated=true`.
+- `/login` shows the reset affordance as `Forgot password?` beside the Password label and now displays a post-reset confirmation banner.
+- Supabase dashboard follow-up: set Site URL to `https://cradlewellnessliving.com`, add redirect URLs for `http://localhost:3000/reset-password` and `https://cradlewellnessliving.com/reset-password`, and replace any Vercel placeholder with the real deployment URL.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm test`, `pnpm build`, focused auth tests, and requested unsafe scans; only the existing server-only Supabase admin client references `SUPABASE_SERVICE_ROLE_KEY`.

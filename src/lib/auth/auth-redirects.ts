@@ -1,6 +1,7 @@
 const DEFAULT_SITE_ORIGIN = "http://localhost:3000";
 export const DEFAULT_AUTH_REDIRECT_PATH = "/select-workspace";
 export const PASSWORD_RESET_PATH = "/reset-password";
+export const PASSWORD_RECOVERY_SESSION_COOKIE = "cradle_password_recovery";
 
 const AUTH_CALLBACK_PATH = "/auth/callback";
 const ALLOWED_REDIRECT_PREFIXES = [
@@ -75,7 +76,7 @@ export function sanitizeAuthRedirectPath(
 
 export function resolveRequestOrigin(
   headers: HeadersLike,
-  fallback = process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_ORIGIN
+  fallback = process.env.NEXT_PUBLIC_APP_URL ?? DEFAULT_SITE_ORIGIN
 ): string {
   const origin = normalizeOrigin(headers.get("origin"));
   if (origin) return origin;
@@ -94,4 +95,32 @@ export function buildAuthCallbackRedirectUrl(origin: string, nextPath = PASSWORD
   const url = new URL(AUTH_CALLBACK_PATH, origin);
   url.searchParams.set("next", sanitizeAuthRedirectPath(nextPath, PASSWORD_RESET_PATH));
   return url.toString();
+}
+
+export function getPublicAppUrl(): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (configuredUrl) {
+    const appUrl = configuredUrl.replace(/\/+$/, "");
+
+    if (process.env.NODE_ENV === "production") {
+      const hostname = new URL(appUrl).hostname;
+
+      if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+        throw new Error("NEXT_PUBLIC_APP_URL must not be localhost in production.");
+      }
+    }
+
+    return appUrl;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    return DEFAULT_SITE_ORIGIN;
+  }
+
+  throw new Error("NEXT_PUBLIC_APP_URL is not configured.");
+}
+
+export function buildPasswordResetRedirectUrl(): string {
+  return `${getPublicAppUrl()}${PASSWORD_RESET_PATH}`;
 }

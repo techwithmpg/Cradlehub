@@ -6,6 +6,7 @@ import { getWorkspaceSwitchDestination } from "@/lib/auth/workspace-access";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { logError } from "@/lib/logger";
+import { LOGIN_FAILURE_MESSAGE } from "./messages";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -47,7 +48,7 @@ export async function loginAction(
   });
 
   if (authError) {
-    return { error: "Invalid email or password. Please try again." };
+    return { error: LOGIN_FAILURE_MESSAGE };
   }
 
   const {

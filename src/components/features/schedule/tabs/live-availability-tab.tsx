@@ -7,7 +7,7 @@ import { Users, Loader2 } from "lucide-react";
 import type { CrmAvailabilitySnapshot } from "@/lib/queries/crm-availability";
 
 async function fetcher(url: string): Promise<CrmAvailabilitySnapshot> {
-  const res = await fetch(url, { credentials: "same-origin" });
+  const res = await fetch(url, { credentials: "same-origin", cache: "no-store" });
   if (!res.ok) throw new Error(`Availability fetch failed: ${res.status}`);
   return res.json();
 }
@@ -16,7 +16,7 @@ export function LiveAvailabilityTab({ branchId, date }: { branchId: string; date
   const { data: snapshot, isLoading } = useSWR<CrmAvailabilitySnapshot>(
     `/api/crm/availability?branchId=${branchId}&date=${date}`,
     fetcher,
-    { revalidateOnFocus: true, dedupingInterval: 15_000 }
+    { revalidateOnFocus: true, revalidateOnMount: true, dedupingInterval: 0 }
   );
 
   if (isLoading) {

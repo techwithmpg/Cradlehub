@@ -40,7 +40,14 @@ export default function ForgotPasswordPage() {
           {state.status === "success" && state.message ? (
             <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-[#CFE8D7] bg-[#EFF8F1] px-3.5 py-3 text-[12.5px] text-[#28633A]">
               <CheckCircle2 className="mt-px h-4 w-4 shrink-0" />
-              <span>{state.message}</span>
+              <span className="whitespace-pre-line">{state.message}</span>
+            </div>
+          ) : null}
+
+          {state.error ? (
+            <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-[#EDCCCC] bg-[#F8EEEE] px-3.5 py-3 text-[12.5px] text-[#5A1A1A]">
+              <AlertCircle className="mt-px h-4 w-4 shrink-0 text-[#8A5A5A]" />
+              <span>{state.error}</span>
             </div>
           ) : null}
 

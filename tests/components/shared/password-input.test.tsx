@@ -21,4 +21,23 @@ describe("PasswordInput", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
     expect(input.getAttribute("type")).toBe("password");
   });
+
+  it("keeps multiple password visibility controls independent", () => {
+    render(
+      <>
+        <PasswordInput aria-label="New password" />
+        <PasswordInput aria-label="Confirm password" />
+      </>
+    );
+
+    const newPassword = screen.getByLabelText("New password");
+    const confirmPassword = screen.getByLabelText("Confirm password");
+    const buttons = screen.getAllByRole("button", { name: "Show password" });
+
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[0]!);
+
+    expect(newPassword.getAttribute("type")).toBe("text");
+    expect(confirmPassword.getAttribute("type")).toBe("password");
+  });
 });

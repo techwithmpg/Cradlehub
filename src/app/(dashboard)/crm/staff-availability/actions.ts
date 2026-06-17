@@ -7,6 +7,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
+  STAFF_SCHEDULE_CONFLICT_TARGET,
+  STAFF_SCHEDULE_RETURNING_COLUMNS,
+  savedRowsMatchRequest,
+  type SavedStaffScheduleRow,
+  type StaffScheduleUpsertRow,
+} from "@/lib/schedule/staff-schedule-write";
+import {
   MANUAL_DAY_OFF_2026,
   MANUAL_SALON_DAY_OFF_2026,
   MANUAL_OPENING_2026,
@@ -25,10 +32,13 @@ const SCHEDULE_MANAGER_ROLES = new Set([
   "crm",
   "csr_head",
   "csr_staff",  // front-desk operational access
+  "csr",
 ]);
 
 const SCHEDULE_PERMISSION_DENIED_MESSAGE =
-  "You do not have permission to edit staff schedules. Please ask an owner or CRM admin.";
+  "You do not have permission to update this staff schedule.";
+const GENERIC_SCHEDULE_SAVE_ERROR = "We could not update this schedule. Please try again.";
+const INVALID_TIME_ERROR = "Please check the start and end times.";
 
 async function requireImportAccess(branchId: string) {
   // Session client — used only for auth checks (respects RLS).
@@ -41,7 +51,8 @@ async function requireImportAccess(branchId: string) {
   if (isDevAuthBypassEnabled()) {
     // Admin client bypasses the RLS policies that only cover manager/owner.
     // The action's own branch+role checks already provide the necessary guard.
-    return { admin: createAdminClient(), userId: "dev-bypass" };
+    const admin = createAdminClient();
+    return { admin, scheduleClient: admin, userId: "dev-bypass" };
   }
 
   const { data: me } = await supabase
@@ -54,12 +65,11 @@ async function requireImportAccess(branchId: string) {
   if (!me) return null;
   if (!SCHEDULE_MANAGER_ROLES.has(me.system_role)) return null;
   // Non-owner must be on the same branch (branch-scoped access for CRM/CSR).
-  if (me.system_role !== "owner" && me.branch_id !== branchId) return null;
+  if (me.system_role !== "owner" && (me.branch_id ?? "").toLowerCase() !== branchId.toLowerCase()) {
+    return null;
+  }
 
-  // Admin client bypasses staff_schedules RLS (INSERT/UPDATE policies only
-  // cover 'manager' and 'owner' roles). The auth gate above already verified
-  // that this user is an allowed role on this branch.
-  return { admin: createAdminClient(), userId: me.id as string };
+  return { admin: createAdminClient(), scheduleClient: supabase, userId: me.id as string };
 }
 
 // ── Input schema ──────────────────────────────────────────────────────────────
@@ -589,7 +599,7 @@ const saveStaffWeeklyScheduleSchema = z
   );
 
 export type SaveStaffWeeklyScheduleResult =
-  | { ok: true; rowsWritten: number }
+  | { ok: true; rowsWritten: number; savedRows: SavedStaffScheduleRow[] }
   | { ok: false; error: string };
 
 /**
@@ -606,7 +616,10 @@ export async function saveStaffWeeklyScheduleAction(
 ): Promise<SaveStaffWeeklyScheduleResult> {
   const parsed = saveStaffWeeklyScheduleSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    const invalidTime = parsed.error.issues.some((issue) =>
+      issue.path.some((part) => part === "times" || part === "start" || part === "end")
+    );
+    return { ok: false, error: invalidTime ? INVALID_TIME_ERROR : "Invalid input" };
   }
 
   const { staffId, branchId, days, times } = parsed.data;
@@ -615,27 +628,26 @@ export async function saveStaffWeeklyScheduleAction(
   if (!ctx) return { ok: false, error: SCHEDULE_PERMISSION_DENIED_MESSAGE };
 
   // Verify staff belongs to this branch
-  const { data: staffRecord, error: verifyErr } = await ctx.admin
+  const { data: staffRecord, error: verifyErr } = await ctx.scheduleClient
     .from("staff")
     .select("id")
     .eq("id", staffId)
     .eq("branch_id", branchId)
     .maybeSingle();
 
-  if (verifyErr) return { ok: false, error: "Could not verify staff record" };
+  if (verifyErr) {
+    console.error("[save-staff-weekly-schedule] staff verification failed", {
+      branchId,
+      staffId,
+      code: verifyErr.code,
+      message: verifyErr.message,
+    });
+    return { ok: false, error: GENERIC_SCHEDULE_SAVE_ERROR };
+  }
   if (!staffRecord) return { ok: false, error: "Staff member not found in this branch" };
 
   // Build 21 rows (7 days × 3 shift types)
-  type ScheduleRow = {
-    staff_id: string;
-    day_of_week: number;
-    start_time: string;
-    end_time: string;
-    is_active: boolean;
-    shift_type: string;
-  };
-
-  const rows: ScheduleRow[] = [];
+  const rows: StaffScheduleUpsertRow[] = [];
 
   for (const day of days) {
     const { dayOfWeek, opening, closing, regular, dayOff } = day;
@@ -668,9 +680,10 @@ export async function saveStaffWeeklyScheduleAction(
     });
   }
 
-  const { error: upsertErr } = await ctx.admin
+  const { data: savedRows, error: upsertErr } = await ctx.scheduleClient
     .from("staff_schedules")
-    .upsert(rows, { onConflict: "staff_id,day_of_week,shift_type" });
+    .upsert(rows, { onConflict: STAFF_SCHEDULE_CONFLICT_TARGET })
+    .select(STAFF_SCHEDULE_RETURNING_COLUMNS);
 
   if (upsertErr) {
     console.error("[save-staff-weekly-schedule] upsert failed", {
@@ -681,13 +694,22 @@ export async function saveStaffWeeklyScheduleAction(
     });
     return {
       ok: false,
-      error:
-        process.env.NODE_ENV === "development"
-          ? `Save failed: ${upsertErr.message}`
-          : "Could not save schedule. Please try again.",
+      error: GENERIC_SCHEDULE_SAVE_ERROR,
     };
   }
 
+  const normalizedSavedRows = (savedRows ?? []) as SavedStaffScheduleRow[];
+  if (!savedRowsMatchRequest({ requestedRows: rows, savedRows: normalizedSavedRows })) {
+    console.error("[save-staff-weekly-schedule] upsert returned unexpected row count", {
+      branchId,
+      staffId,
+      requestedRows: rows.length,
+      savedRows: normalizedSavedRows.length,
+    });
+    return { ok: false, error: GENERIC_SCHEDULE_SAVE_ERROR };
+  }
+
+  revalidatePath("/crm/schedule");
   revalidatePath("/crm/staff-availability");
   revalidatePath("/crm/availability");
   revalidatePath("/crm/today");
@@ -695,5 +717,5 @@ export async function saveStaffWeeklyScheduleAction(
   revalidatePath("/book");
   invalidateCrmWorkspace(branchId);
 
-  return { ok: true, rowsWritten: rows.length };
+  return { ok: true, rowsWritten: normalizedSavedRows.length, savedRows: normalizedSavedRows };
 }

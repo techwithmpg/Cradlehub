@@ -1,3 +1,12 @@
+## 2026-06-17 - AUTH-RESET-SUPABASE-CONNECTION-001 verification/config note
+
+- Password-reset implementation validation passed: `pnpm type-check`, `pnpm lint` (0 errors, 4 existing warnings), `pnpm test` (49 files / 513 tests), `pnpm build` (100 routes), and requested unsafe scans.
+- Production configuration still matters outside the repo: set Vercel/host `NEXT_PUBLIC_APP_URL` to the deployed CradleHub origin and configure Supabase Auth Site URL/Redirect URLs for `https://cradlewellnessliving.com` and `/reset-password`.
+- The service-role scan still finds `src/lib/supabase/admin.ts`, which is expected and server-only; no client service-role exposure was introduced.
+- Authenticated manual QA should still click a real Supabase recovery email in local/prod to confirm the provider email template uses the configured `/reset-password` redirect.
+
+---
+
 ## 2026-06-17 - AUTH-STAFF-RECOVERY-001 verification note
 
 - `pnpm test` still reports the known unrelated booking progress failures in `tests/lib/bookings/progress.test.ts`:
@@ -5,6 +14,16 @@
   2. `returns correct actions for walkin not_started`
 - Auth recovery focused tests, type-check, lint, build, credential/token scan, and client service-role scan passed.
 - No new auth-specific blocker was found.
+
+---
+
+## 2026-06-17 - CRM-INDIVIDUAL-SCHEDULE-LIVE-SYNC-001 findings and QA note
+
+- **Silent schedule save risk found and fixed:** Both CRM individual schedule save paths could report success without selecting saved `staff_schedules` rows back. The fixed actions now use the verified `staff_id,day_of_week,shift_type` conflict target, chain `.select(...)`, verify returned row count, and return safe CRM-facing errors.
+- **Live Staff source mismatch found and fixed:** Live Staff combined `get_daily_schedule` work spans with a separate raw active `staff_schedules` query for shift labels. It now uses resolved `schedule_windows` from the shared resolver.
+- **Group fallback mismatch found and fixed in app resolver:** Inactive individual rows now mean individual day off and do not fall through to group fallback in Live Staff or booking availability post-filter.
+- **RLS finding:** Existing migrations cover authenticated table grants plus branch-scoped SELECT/INSERT/UPDATE for operational CRM/CSR roles on `staff_schedules`; no new RLS migration was needed for the upsert flow. Operational DELETE remains not broadened.
+- **Authenticated visual QA limitation:** Code-level validation passed, but a real CRM-authorized browser session is still needed for manual modal/table confirmation.
 
 ---
 

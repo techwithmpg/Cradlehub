@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, ClipboardCopy, History, Loader2, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShiftDefinitionCard } from "./shift-definition-card";
@@ -395,6 +396,7 @@ function StaffScheduleEditorForm({
   onSelectStaff: (staffId: string) => void;
   onBackToGeneral: () => void;
 }) {
+  const router = useRouter();
   const groupKey = getGroupKeyForStaffType(item.staff.staff_type);
   const groupConfig = getGroupScheduleConfig(groupKey);
   const groupRules = useMemo(() => rulesByGroup[groupKey] ?? [], [groupKey, rulesByGroup]);
@@ -469,14 +471,15 @@ function StaffScheduleEditorForm({
       if (result.ok) {
         setDirty(false);
         setEditingTimes(false);
-        setFeedback({ tone: "success", message: `Saved ${result.rowsWritten} schedule rows.` });
+        setFeedback({ tone: "success", message: "Schedule updated successfully." });
+        router.refresh();
       } else {
         setFeedback({ tone: "error", message: result.error });
       }
 
       window.setTimeout(() => setFeedback(null), 3500);
     });
-  }, [activeTimes, branchId, item.staff.id, pattern]);
+  }, [activeTimes, branchId, item.staff.id, pattern, router]);
 
   return (
     <div className="space-y-5">

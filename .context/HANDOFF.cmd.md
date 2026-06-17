@@ -1,3 +1,90 @@
+## HANDOFF - AUTH-RESET-SUPABASE-CONNECTION-001: COMPLETE
+
+## Status
+
+Build verified. 100 routes. The password-reset flow now builds Supabase recovery links from the trusted public app URL and lands users on `/reset-password` before returning them to login after the update.
+
+## What changed
+
+- Added `NEXT_PUBLIC_APP_URL` reset-link helpers in `src/lib/auth/auth-redirects.ts`, including development `http://localhost:3000` fallback and production rejection of localhost app URLs.
+- Updated self-service `/forgot-password` and Owner staff recovery to call `resetPasswordForEmail()` with `${NEXT_PUBLIC_APP_URL}/reset-password`.
+- Updated `/reset-password` to forward `code` or `token_hash&type=recovery` params through `/auth/callback?next=/reset-password`, so the route handler performs the Supabase exchange and sets the recovery-session marker cookie.
+- Updated `/auth/callback` to handle PKCE `code` and recovery `token_hash` callbacks, sanitize `next`, and mark password recovery sessions without routing into a workspace.
+- Added shared password policy validation and reset form states for checking, invalid/expired links, success redirect, and password requirements.
+- Split `/login` into a server page plus client form so `/login?passwordUpdated=true` can show the post-reset success banner.
+- Login failure copy now says the email/password may be incorrect and points users to reset their password.
+- Added `.next*.log` to `.gitignore` so local Next dev logs stay out of commits.
+
+## Supabase Dashboard/Env
+
+- Production env: `NEXT_PUBLIC_APP_URL=https://cradlewellnessliving.com` or the real deployed CradleHub origin.
+- Supabase Auth Site URL: `https://cradlewellnessliving.com`.
+- Supabase Auth Redirect URLs should include `http://localhost:3000/reset-password` and `https://cradlewellnessliving.com/reset-password`.
+- If the project uses a Vercel preview/production domain, replace any `https://your-project.vercel.app/reset-password` placeholder with the real deployment URL.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, 0 errors, 4 existing warnings
+- `pnpm test`: PASS, 49 files / 513 tests
+- `pnpm build`: PASS, 100 routes
+- Focused auth reset tests: PASS
+- Unsafe scans: no `your-project.vercel.app` reset URL, no `localhost:3000/reset-password` in `src`, no password console logging, no password local/session storage. Service-role scan only finds the expected server-only `src/lib/supabase/admin.ts`.
+
+## Manual QA
+
+- Use a real Supabase recovery email locally and in production after dashboard configuration is saved.
+- On `/login`, the reset affordance is `Forgot password?` beside the Password label.
+
+---
+
+## HANDOFF - CRM-INDIVIDUAL-SCHEDULE-LIVE-SYNC-001: COMPLETE
+
+## Status
+
+Build verified. CRM individual staff schedule saves now confirm database rows before success, and Live Staff reads one resolved effective schedule source instead of combining stale/partial sources.
+
+## What changed
+
+- Added shared schedule resolver in `src/lib/schedule/resolve-staff-schedule.ts`.
+- Added `getResolvedStaffSchedulesForDate()` to load `staff_schedules`, `schedule_overrides`, and staff group rules into that resolver.
+- Updated `getDailySchedule()` to expose `schedule_source`, `schedule_is_day_off`, and exact `schedule_windows`, with `work_start/work_end` derived from the same resolved windows.
+- Updated Live Staff availability to use resolved windows instead of a separate raw active `staff_schedules` query.
+- Updated booking availability post-filter to use the same resolver, including inactive individual rows as individual day off.
+- Updated both individual weekly save actions to upsert on `staff_id,day_of_week,shift_type`, chain `.select(...)`, verify returned row count, log technical context server-side, and show safe UI errors.
+- Standardized success copy to `Schedule updated successfully.`
+- Removed short-lived stale caching from `/api/crm/availability` and the `/crm/schedule` Live Availability SWR fetch.
+- Updated the Live Staff Staff List shift cell to show every resolved shift window.
+
+## Resolver Priority
+
+1. Date-specific day-off override
+2. Date-specific custom schedule override
+3. Individual weekly schedule, including inactive individual rows as individual day off
+4. Staff-group schedule fallback
+5. No valid schedule -> unscheduled
+
+## Database/RLS
+
+- Table written: `staff_schedules`
+- Verified conflict key: `staff_id, day_of_week, shift_type`
+- Existing table grants and branch-scoped RLS policies allow CRM/CSR operational roles to SELECT/INSERT/UPDATE `staff_schedules`.
+- No new RLS migration was added because this task does not require `staff_schedules` DELETE.
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm test`: PASS, 43 files / 493 tests
+- `pnpm lint`: PASS, with existing warnings only
+- `pnpm build`: PASS, 100 routes
+- Requested swallowed-error scan: only existing notification audio empty catches, no schedule-related matches
+
+## Remaining Manual QA
+
+- Use a real CRM-authorized session to save an individual schedule from `/crm/staff-availability` and `/crm/schedule`, confirm the success message, modal close timing, immediate Live Staff row update, refresh persistence, date/day-off override priority, multi-shift display, branch filtering, and public booking availability.
+
+---
+
 ## 2026-06-07 - Public Mobile Homepage Warm Hero + Signature Ritual Cards
 
 Status: COMPLETE. The public mobile homepage hero was warmed with an amber image veil, warmer layered overlays, warmer CTA tones, and no-wrap CTA labels while preserving hero copy, layout, carousel image logic, labels, and links.

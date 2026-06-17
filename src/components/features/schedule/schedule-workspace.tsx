@@ -298,8 +298,8 @@ export function ScheduleWorkspace({
   const handleAvailabilitySaved = useCallback(
     (message?: string) => {
       setAdjustmentToast({
-        title: "Saved",
-        description: message ?? "Staff availability updated.",
+        title: "Schedule updated successfully.",
+        description: message && message !== "Schedule updated successfully." ? message : undefined,
         variant: "success",
       });
       window.setTimeout(() => setAdjustmentToast(null), 3500);

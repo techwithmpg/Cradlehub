@@ -158,7 +158,7 @@ function EditAvailabilityModalContent({
       }
 
       setBaselineRows(draftRows);
-      onSaved("Availability updated.");
+      onSaved("Schedule updated successfully.");
       onOpenChange(false);
     });
   }

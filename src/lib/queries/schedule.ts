@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
+import {
+  getScheduleWindowSpan,
+  type ResolvedStaffScheduleSource,
+  type ResolvedStaffScheduleWindow,
+} from "@/lib/schedule/resolve-staff-schedule";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 
 export type DailyScheduleBooking = {
@@ -39,33 +45,37 @@ export type DailyScheduleStaffRow = {
   work_start: string | null;
   work_end: string | null;
   current_override: DailyScheduleOverride | null;
+  schedule_source: ResolvedStaffScheduleSource;
+  schedule_is_day_off: boolean;
+  schedule_windows: ResolvedStaffScheduleWindow[];
   bookings: DailyScheduleBooking[];
   blocks: DailyScheduleBlock[];
 };
 
-type ScheduleStaffNameRow = {
+type ScheduleStaffMetaRow = {
   id: string;
   full_name: string;
   nickname: string | null;
+  staff_type: string | null;
 };
 
-async function loadStaffNameMap(
+async function loadStaffMetaMap(
   supabase: Awaited<ReturnType<typeof createClient>>,
   staffIds: string[]
-): Promise<Map<string, string>> {
+): Promise<Map<string, ScheduleStaffMetaRow>> {
   if (staffIds.length === 0) return new Map();
 
   const { data, error } = await supabase
     .from("staff")
-    .select("id, full_name, nickname")
+    .select("id, full_name, nickname, staff_type")
     .in("id", staffIds);
 
   if (error) return new Map();
 
   return new Map(
-    ((data ?? []) as ScheduleStaffNameRow[]).map((staff) => [
+    ((data ?? []) as ScheduleStaffMetaRow[]).map((staff) => [
       staff.id,
-      getStaffAdminName(staff),
+      staff,
     ])
   );
 }
@@ -89,7 +99,7 @@ export async function getDailySchedule(params: {
   const staffIds = Array.from(
     new Set(rows.map((row) => row.staff_id).filter((id): id is string => Boolean(id)))
   );
-  const staffNameMap = await loadStaffNameMap(supabase, staffIds);
+  const staffMetaMap = await loadStaffMetaMap(supabase, staffIds);
   const [blocksResult, overridesResult] = staffIds.length > 0
     ? await Promise.all([
         supabase
@@ -133,19 +143,39 @@ export async function getDailySchedule(params: {
     }
   }
 
-  return rows.map((r) => ({
-    staff_id: r.staff_id,
-    staff_name: staffNameMap.get(r.staff_id) ?? r.staff_name,
-    staff_tier: r.staff_tier,
-    work_start: r.work_start,
-    work_end: r.work_end,
-    current_override: overridesByStaff.get(r.staff_id) ?? null,
-    bookings: (r.bookings as DailyScheduleBooking[] | null) ?? [],
-    blocks:
-      blocksByStaff.get(r.staff_id) ??
-      ((r.blocks as Array<Omit<DailyScheduleBlock, "id">> | null) ?? []).map((block, index) => ({
-        id: `rpc-block-${r.staff_id}-${params.date}-${index}`,
-        ...block,
-      })),
-  }));
+  const resolvedSchedules = await getResolvedStaffSchedulesForDate({
+    supabase,
+    branchId: params.branchId,
+    date: params.date,
+    staff: staffIds.map((id) => ({
+      id,
+      staff_type: staffMetaMap.get(id)?.staff_type ?? null,
+    })),
+  });
+
+  return rows.map((r) => {
+    const resolved = resolvedSchedules.get(r.staff_id);
+    const span = resolved ? getScheduleWindowSpan(resolved.windows) : null;
+
+    return {
+      staff_id: r.staff_id,
+      staff_name: staffMetaMap.has(r.staff_id)
+        ? getStaffAdminName(staffMetaMap.get(r.staff_id)!)
+        : r.staff_name,
+      staff_tier: r.staff_tier,
+      work_start: span?.startTime ?? null,
+      work_end: span?.endTime ?? null,
+      current_override: overridesByStaff.get(r.staff_id) ?? null,
+      schedule_source: resolved?.source ?? "none",
+      schedule_is_day_off: resolved?.isDayOff ?? false,
+      schedule_windows: resolved?.windows ?? [],
+      bookings: (r.bookings as DailyScheduleBooking[] | null) ?? [],
+      blocks:
+        blocksByStaff.get(r.staff_id) ??
+        ((r.blocks as Array<Omit<DailyScheduleBlock, "id">> | null) ?? []).map((block, index) => ({
+          id: `rpc-block-${r.staff_id}-${params.date}-${index}`,
+          ...block,
+        })),
+    };
+  });
 }

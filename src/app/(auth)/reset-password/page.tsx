@@ -1,14 +1,70 @@
-import Link from "next/link";
-import { AlertCircle } from "lucide-react";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import {
+  PASSWORD_RECOVERY_SESSION_COOKIE,
+  PASSWORD_RESET_PATH,
+} from "@/lib/auth/auth-redirects";
 import { createClient } from "@/lib/supabase/server";
 import { ResetPasswordForm } from "./reset-password-form";
 
-export default async function ResetPasswordPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+type ResetPasswordSearchParams = Promise<
+  Record<string, string | string[] | undefined>
+>;
+
+function getSearchParam(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function redirectRecoveryParamsToCallback(params: {
+  code: string | null;
+  tokenHash: string | null;
+  type: string | null;
+}) {
+  const callbackParams = new URLSearchParams();
+  callbackParams.set("next", PASSWORD_RESET_PATH);
+
+  if (params.code) {
+    callbackParams.set("code", params.code);
+  } else if (params.tokenHash && params.type === "recovery") {
+    callbackParams.set("token_hash", params.tokenHash);
+    callbackParams.set("type", params.type);
+  }
+
+  redirect(`/auth/callback?${callbackParams.toString()}`);
+}
+
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: ResetPasswordSearchParams;
+}) {
+  const params = await searchParams;
+  const code = getSearchParam(params.code);
+  const tokenHash = getSearchParam(params.token_hash);
+  const type = getSearchParam(params.type);
+
+  if (code || (tokenHash && type === "recovery")) {
+    redirectRecoveryParamsToCallback({ code, tokenHash, type });
+  }
+
+  const hasProviderError =
+    Boolean(getSearchParam(params.error)) || Boolean(getSearchParam(params.error_description));
+  const cookieStore = await cookies();
+  const hasRecoverySession =
+    cookieStore.get(PASSWORD_RECOVERY_SESSION_COOKIE)?.value === "1";
+  let email: string | null = null;
+  let hasValidRecoverySession = false;
+
+  if (hasRecoverySession && !hasProviderError) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    email = user?.email ?? null;
+    hasValidRecoverySession = Boolean(user);
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#F5F2EE] px-5 py-14 sm:px-8">
@@ -30,22 +86,10 @@ export default async function ResetPasswordPage() {
             </p>
           </div>
 
-          {user ? (
-            <ResetPasswordForm email={user.email ?? null} />
-          ) : (
-            <>
-              <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-[#EDCCCC] bg-[#F8EEEE] px-3.5 py-3 text-[12.5px] text-[#5A1A1A]">
-                <AlertCircle className="mt-px h-4 w-4 shrink-0 text-[#8A5A5A]" />
-                <span>Your reset link has expired. Request a new password reset link.</span>
-              </div>
-              <Link
-                href="/forgot-password"
-                className="cs-btn cs-btn-primary cs-btn-lg w-full justify-center"
-              >
-                Request new link
-              </Link>
-            </>
-          )}
+          <ResetPasswordForm
+            email={email}
+            initialHasRecoverySession={hasValidRecoverySession}
+          />
         </div>
       </div>
     </main>

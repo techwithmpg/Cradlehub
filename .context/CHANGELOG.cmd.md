@@ -4902,3 +4902,103 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Client service-role scan: PASS, no client component imports `createAdminClient`, `SUPABASE_SERVICE_ROLE_KEY`, or `service_role`.
 
 **Build Status:** PASS with known unrelated full-test residuals
+
+---
+
+### 2026-06-17 — Codex (CRM-INDIVIDUAL-SCHEDULE-LIVE-SYNC-001)
+
+**Task:** Fix individual staff schedule saves so CRM Live Staff immediately shows the confirmed schedule instead of stale/group-fallback data.
+
+**Files Added:**
+- `src/lib/schedule/resolve-staff-schedule.ts` — shared effective schedule resolver with override, individual, group, unscheduled, multi-window, weekday, and overnight helpers.
+- `src/lib/queries/resolved-staff-schedules.ts` — branch/date loader that feeds the resolver from `staff_schedules`, `schedule_overrides`, and staff group rules.
+- `src/lib/schedule/staff-schedule-write.ts` — verified staff schedule upsert conflict target, returned columns, and saved-row confirmation helper.
+- `tests/lib/schedule/resolve-staff-schedule.test.ts` — focused resolver priority, day-off, group fallback, multi-shift, weekday, and overnight coverage.
+- `tests/lib/schedule/staff-schedule-write.test.ts` — conflict target and returned-row verification coverage.
+- `tests/components/crm/availability-staff-shift-cell.test.tsx` — Live Staff multi-shift display coverage.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/staff-availability/actions.ts` — individual schedule save now includes `csr`, verifies staff branch with the session/RLS client for real users, upserts on `staff_id,day_of_week,shift_type`, selects saved rows back, checks row count, revalidates `/crm/schedule`, and returns safe user errors.
+- `src/lib/actions/crm-schedule-availability.ts` — CRM schedule modal weekly save now selects saved rows back, checks row count, normalizes branch comparison, logs technical context server-side, and returns safe permission/time/generic errors.
+- `src/lib/queries/schedule.ts` — daily schedule rows now use the shared resolver for `work_start`, `work_end`, `schedule_source`, `schedule_is_day_off`, and `schedule_windows`.
+- `src/lib/queries/crm-availability.ts` — Live Staff now reads resolved schedule windows from `getDailySchedule` instead of a separate raw active `staff_schedules` query.
+- `src/lib/engine/availability.ts` — booking availability post-filter now uses the shared resolver and treats inactive individual rows as individual day off rather than falling through to group rules.
+- `src/components/features/crm/availability/crm-availability-client.tsx` — Staff List shift cell now renders every resolved shift window and shows `2 shifts` for multi-window schedules.
+- `src/components/features/staff-schedule/individual-schedule-editor.tsx` — after confirmed save, shows `Schedule updated successfully.` and refreshes the current route.
+- `src/components/features/crm/schedule/edit-availability-modal.tsx` and `src/components/features/schedule/schedule-workspace.tsx` — standardized successful save copy.
+- `src/app/api/crm/availability/route.ts` and `src/components/features/schedule/tabs/live-availability-tab.tsx` — removed short-lived availability caching and SWR dedupe that could keep stale Live Staff data after save.
+
+**Behavior:**
+- CRM individual weekly schedule saves no longer report success before Supabase returns the saved rows.
+- Date-specific day-off overrides win first, then custom date overrides, individual weekly schedules, group fallback, then unscheduled.
+- A saved individual day off is treated as individual schedule state and no longer displays the group fallback.
+- Live Staff now displays the exact resolved opening/closing/single windows instead of mixing an aggregated daily span with the first raw active shift row.
+- Existing group rules are not overwritten by individual staff edits.
+- Booking availability keeps using the same effective schedule priority through the post-filter guard.
+- No new realtime subscription was added; same-session freshness uses confirmed save, route revalidation/cache invalidation, router refresh, and no-store availability fetches.
+
+**Database/RLS Findings:**
+- `staff_schedules` unique key is `staff_schedules_staff_day_shift_unique` on `staff_id, day_of_week, shift_type`.
+- `20260521000001_data_api_explicit_grants.sql` grants authenticated SELECT/INSERT/UPDATE/DELETE on `staff_schedules`.
+- `20260529000002_crm_csr_schedule_rls.sql` provides branch-scoped SELECT/INSERT/UPDATE policies for `manager`, `assistant_manager`, `store_manager`, `crm`, `csr_head`, `csr_staff`, and `csr`.
+- `schedule_overrides` has branch-scoped operational `FOR ALL`.
+- No forward RLS migration was added because the fixed save flow uses upsert, not delete; operational `staff_schedules` DELETE remains intentionally not broadened by this task.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm test`: PASS, 43 files / 493 tests
+- `pnpm lint`: PASS, with 4 existing warnings outside this task
+- `pnpm build`: PASS, 100 routes
+- Swallowed-error scan: only existing notification audio empty catches, no schedule-related matches
+
+**Manual QA Note:**
+- Authenticated CRM browser click-through still needs a real CRM-authorized session to confirm the full modal/table flow visually with production-like data.
+
+---
+
+### 2026-06-17 — Codex (AUTH-RESET-SUPABASE-CONNECTION-001)
+
+**Task:** Connect local and production CradleHub password reset to Supabase Auth URL configuration and the `/reset-password` recovery flow.
+
+**Files Added:**
+- `src/app/(auth)/login/login-form.tsx` — client login form split from the server page so query-param success messaging can render cleanly.
+- `src/app/(auth)/login/messages.ts` — shared login/reset copy outside the `"use server"` action module.
+- `src/lib/auth/password-policy.ts` — shared reset password requirements and validation helper.
+- `tests/app/auth/forgot-password-actions.test.ts` — reset-request redirect, production URL, missing URL, and cooldown coverage.
+- `tests/app/auth/login-actions.test.ts` and `tests/app/auth/login-form.test.tsx` — reset-guided login error and post-reset success banner coverage.
+- `tests/app/auth/reset-password-actions.test.ts` — password policy, mismatch, recovery marker, update, sign-out, and marker cleanup coverage.
+- `tests/app/auth/callback-route.test.ts` — recovery callback/session marker, redirect sanitization, and token-hash callback coverage.
+- `tests/lib/auth/password-policy.test.ts` — shared password policy coverage.
+
+**Files Changed:**
+- `src/lib/auth/auth-redirects.ts` — added `NEXT_PUBLIC_APP_URL` helpers, `/reset-password` URL construction, recovery marker cookie name, and production localhost rejection.
+- `src/app/(auth)/forgot-password/actions.ts` and `page.tsx` — reset requests now send Supabase to `/reset-password`, keep safe/generic copy, show safe request errors, and preserve audit/rate-limit logging.
+- `src/app/(dashboard)/owner/staff/account-access-actions.ts` — Owner-triggered recovery uses the same trusted reset redirect helper.
+- `src/app/auth/callback/route.ts` — handles PKCE `code` and recovery `token_hash`, sanitizes `next`, and sets the recovery-session marker for reset links.
+- `src/app/(auth)/reset-password/page.tsx`, `reset-password-form.tsx`, and `actions.ts` — route recovery params through the callback, verify recovery marker/user before update, show invalid/checking/success states, apply password policy, sign out after update, and return to login.
+- `src/app/(auth)/login/actions.ts` and `page.tsx` — login failure now points users to password reset and `/login?passwordUpdated=true` renders a confirmation banner.
+- `tests/lib/auth/auth-redirects.test.ts` and `tests/components/shared/password-input.test.tsx` — expanded URL guard and independent password visibility coverage.
+- `.env.example` — documented the production `NEXT_PUBLIC_APP_URL` expectation.
+- `.gitignore` — ignored local `.next*.log` files.
+- `.context/*`, `docs/PROJECT_CONTEXT.md`, and `docs/ROADMAP.md` — updated task records.
+
+**Behavior:**
+- Staff reset emails now use `${NEXT_PUBLIC_APP_URL}/reset-password`; development can fall back to `http://localhost:3000`, while production refuses localhost.
+- Supabase recovery redirects landing on `/reset-password?code=...` or `/reset-password?token_hash=...&type=recovery` are exchanged through `/auth/callback` before the form renders.
+- Password updates require the recovery-session marker and current Supabase user, update the password once through `auth.updateUser({ password })`, delete the marker, sign out, and redirect to `/login?passwordUpdated=true`.
+- `/login` exposes the reset affordance as `Forgot password?` beside the Password label and gives reset-guided copy after failed login.
+- Production setup must set Supabase Auth Site URL to `https://cradlewellnessliving.com` and include redirect URLs for `http://localhost:3000/reset-password` and `https://cradlewellnessliving.com/reset-password`; replace any placeholder Vercel redirect with the real deployment URL.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, 0 errors and 4 existing warnings
+- `pnpm test`: PASS, 49 files / 513 tests
+- `pnpm build`: PASS, 100 routes
+- Focused auth reset tests: PASS
+- `rg -n "your-project\.vercel\.app|localhost:3000/reset-password" src`: PASS, no matches
+- `rg -n "SUPABASE_SERVICE_ROLE_KEY|service_role" src`: only existing server-only `src/lib/supabase/admin.ts`
+- `rg -n "console\.(log|debug).*password|password.*console\.(log|debug)" src`: PASS, no matches
+- `rg -n "localStorage.*password|sessionStorage.*password" src`: PASS, no matches
+
+**Manual QA Note:**
+- Click a real local and production Supabase recovery email after dashboard URL configuration is saved to confirm the provider email template lands on `/reset-password`.

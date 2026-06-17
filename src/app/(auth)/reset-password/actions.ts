@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { z } from "zod";
 import {
   getEmailDomain,
@@ -8,17 +8,42 @@ import {
   normalizeAuditEmail,
   recordStaffAccountAccessEvent,
 } from "@/lib/auth/account-access-events";
+import { PASSWORD_RECOVERY_SESSION_COOKIE } from "@/lib/auth/auth-redirects";
+import {
+  getPasswordValidationError,
+  PASSWORD_REQUIREMENT_MESSAGE,
+} from "@/lib/auth/password-policy";
 import { logError } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
 
 const resetPasswordSchema = z
   .object({
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string().min(8, "Confirm your password"),
+    password: z.string(),
+    confirmPassword: z.string(),
   })
-  .refine((value) => value.password === value.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "Passwords do not match",
+  .superRefine((value, ctx) => {
+    const passwordError = getPasswordValidationError(value.password);
+    if (passwordError) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: PASSWORD_REQUIREMENT_MESSAGE,
+      });
+    }
+
+    if (!value.confirmPassword) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["confirmPassword"],
+        message: "Confirm your password",
+      });
+    } else if (value.password !== value.confirmPassword) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["confirmPassword"],
+        message: "Passwords do not match",
+      });
+    }
   });
 
 export type ResetPasswordState = {
@@ -51,7 +76,15 @@ export async function updatePasswordAction(
   }
 
   const headerStore = await headers();
+  const cookieStore = await cookies();
   const requestContext = getStaffAccountAccessRequestContext(headerStore);
+
+  if (cookieStore.get(PASSWORD_RECOVERY_SESSION_COOKIE)?.value !== "1") {
+    return {
+      error: "This password-reset link is invalid or has expired.",
+    };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -60,7 +93,7 @@ export async function updatePasswordAction(
 
   if (userError || !user) {
     return {
-      error: "Your reset link has expired. Request a new password reset link.",
+      error: "This password-reset link is invalid or has expired.",
     };
   }
 
@@ -91,14 +124,23 @@ export async function updatePasswordAction(
       targetEmailDomain: getEmailDomain(user.email),
     });
     return {
-      error: "Password could not be updated. Request a new reset link and try again.",
+      error: "We could not update your password. Please request a new reset link.",
     };
   }
 
-  await supabase.auth.signOut();
+  const { error: signOutError } = await supabase.auth.signOut();
+  cookieStore.delete(PASSWORD_RECOVERY_SESSION_COOKIE);
+
+  if (signOutError) {
+    logError("auth.password_update_sign_out_failed", {
+      error: signOutError,
+      userId: user.id,
+      targetEmailDomain: getEmailDomain(user.email),
+    });
+  }
 
   return {
     status: "success",
-    message: "Password updated. Sign in again with your new password.",
+    message: "Your password has been updated. Redirecting you to sign in.",
   };
 }

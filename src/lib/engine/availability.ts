@@ -14,6 +14,13 @@ import {
   toLocalYmd,
 } from "./slot-time";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
+import {
+  doesDurationFitWithinScheduleWindow,
+  getScheduleGroupKeyForStaffType,
+  resolveScheduleForStaffDay,
+  type GroupScheduleRuleSourceRow,
+  type IndividualScheduleSourceRow,
+} from "@/lib/schedule/resolve-staff-schedule";
 
 type StaffProviderRow = {
   id: string;
@@ -41,8 +48,10 @@ type ServiceTiming = ServiceCapabilityContext & {
 
 type StaffScheduleRow = {
   staff_id: string;
+  shift_type: string | null;
   start_time: string;
   end_time: string;
+  is_active: boolean;
 };
 
 type ScheduleOverrideRow = {
@@ -59,9 +68,6 @@ type BlockingBookingRow = {
   status: string | null;
   hold_expires_at: string | null;
 };
-
-// Represents a single valid work window (one shift_type row, or a group rule row)
-type WorkingWindow = { start: string; end: string };
 
 const AVAILABILITY_RPC_ROW_LIMIT = 10000;
 
@@ -211,10 +217,9 @@ async function filterSlotsToWorkingWindows(params: {
   const [schedulesResult, overridesResult] = await Promise.all([
     params.supabase
       .from("staff_schedules")
-      .select("staff_id, start_time, end_time")
+      .select("staff_id, shift_type, start_time, end_time, is_active")
       .in("staff_id", staffIds)
-      .eq("day_of_week", dayOfWeek)
-      .eq("is_active", true),
+      .eq("day_of_week", dayOfWeek),
     params.supabase
       .from("schedule_overrides")
       .select("staff_id, start_time, end_time, is_day_off")
@@ -229,12 +234,16 @@ async function filterSlotsToWorkingWindows(params: {
     throw new Error(`Schedule override query failed: ${overridesResult.error.message}`);
   }
 
-  // Build a multi-window map (one entry per shift_type row, e.g. opening + closing)
-  const individualWindowsByStaff = new Map<string, WorkingWindow[]>();
+  const individualRowsByStaff = new Map<string, IndividualScheduleSourceRow[]>();
   for (const row of (schedulesResult.data ?? []) as StaffScheduleRow[]) {
-    const windows = individualWindowsByStaff.get(row.staff_id) ?? [];
-    windows.push({ start: row.start_time, end: row.end_time });
-    individualWindowsByStaff.set(row.staff_id, windows);
+    const rows = individualRowsByStaff.get(row.staff_id) ?? [];
+    rows.push({
+      shift_type: row.shift_type ?? "single",
+      start_time: row.start_time,
+      end_time: row.end_time,
+      is_active: row.is_active,
+    });
+    individualRowsByStaff.set(row.staff_id, rows);
   }
 
   const overridesByStaff = new Map<string, ScheduleOverrideRow>();
@@ -242,14 +251,14 @@ async function filterSlotsToWorkingWindows(params: {
     overridesByStaff.set(row.staff_id, row);
   }
 
-  // Group fallback: only needed for staff who have no individual schedule and
+  // Group fallback: only needed for staff who have no individual schedule rows and
   // no day-off override. These staff members got their slots from the RPC's
   // group-rule branch; the TypeScript filter must honour the same source.
   const staffNeedingGroupLookup = staffIds.filter(
-    (id) => !individualWindowsByStaff.has(id) && !overridesByStaff.get(id)?.is_day_off
+    (id) => !individualRowsByStaff.has(id) && !overridesByStaff.get(id)?.is_day_off
   );
 
-  const groupWindowsByStaff = new Map<string, WorkingWindow[]>();
+  const groupRulesByStaff = new Map<string, GroupScheduleRuleSourceRow[]>();
 
   if (staffNeedingGroupLookup.length > 0) {
     const staffTypeResult = await params.supabase
@@ -264,7 +273,11 @@ async function filterSlotsToWorkingWindows(params: {
         staffTypeRows.map((s) => [s.id, s.staff_type])
       );
       const staffTypesNeeded = [
-        ...new Set(staffTypeRows.map((s) => s.staff_type).filter((t): t is string => t !== null)),
+        ...new Set(
+          staffTypeRows
+            .flatMap((s) => [getScheduleGroupKeyForStaffType(s.staff_type), s.staff_type])
+            .filter((t): t is string => t !== null)
+        ),
       ];
 
       if (staffTypesNeeded.length > 0) {
@@ -283,7 +296,7 @@ async function filterSlotsToWorkingWindows(params: {
 
           const rulesResult = await params.supabase
             .from("staff_group_schedule_rules")
-            .select("group_id, start_time, end_time, is_day_off")
+            .select("group_id, shift_type, start_time, end_time, is_active, is_day_off")
             .in("group_id", groupIds)
             .eq("day_of_week", dayOfWeek)
             .eq("is_active", true);
@@ -291,29 +304,32 @@ async function filterSlotsToWorkingWindows(params: {
           if (!rulesResult.error && rulesResult.data) {
             type GroupRuleRow = {
               group_id: string;
+              shift_type: string | null;
               start_time: string | null;
               end_time: string | null;
+              is_active: boolean | null;
               is_day_off: boolean;
             };
             const ruleRows = rulesResult.data as GroupRuleRow[];
 
             for (const [staffId, staffType] of staffTypeMap) {
-              if (!staffType) continue;
-              // Find all active non-day-off rules for this staff type
-              const matchingWindows: WorkingWindow[] = ruleRows
-                .filter(
-                  (r) =>
-                    groupKeyById.get(r.group_id) === staffType &&
-                    !r.is_day_off &&
-                    r.start_time !== null &&
-                    r.end_time !== null
-                )
-                .map((r) => ({ start: r.start_time!, end: r.end_time! }));
+              const candidateKeys = [
+                getScheduleGroupKeyForStaffType(staffType),
+                staffType,
+              ].filter((value): value is string => Boolean(value));
+              const matchingRules = ruleRows
+                .filter((r) => candidateKeys.includes(groupKeyById.get(r.group_id) ?? ""))
+                .map((r) => ({
+                  shift_type: r.shift_type ?? "single",
+                  start_time: r.start_time,
+                  end_time: r.end_time,
+                  is_active: r.is_active,
+                  is_day_off: r.is_day_off,
+                }));
 
-              if (matchingWindows.length > 0) {
-                groupWindowsByStaff.set(staffId, matchingWindows);
+              if (matchingRules.length > 0) {
+                groupRulesByStaff.set(staffId, matchingRules);
               }
-              // If group rule has is_day_off=TRUE for all rules, no windows added → slot correctly dropped
             }
           }
         }
@@ -323,32 +339,21 @@ async function filterSlotsToWorkingWindows(params: {
 
   return uniqueSlotsByStaffAndTime(
     params.slots.filter((slot) => {
-      const override = overridesByStaff.get(slot.staff_id);
-      if (override?.is_day_off) return false;
-
-      let windows: WorkingWindow[];
-
-      if (override?.start_time && override?.end_time) {
-        // Override with explicit times replaces all shift windows
-        windows = [{ start: override.start_time, end: override.end_time }];
-      } else if (individualWindowsByStaff.has(slot.staff_id)) {
-        windows = individualWindowsByStaff.get(slot.staff_id)!;
-      } else {
-        // No individual schedule — use group rule windows
-        windows = groupWindowsByStaff.get(slot.staff_id) ?? [];
-      }
-
-      if (windows.length === 0) return false;
-
-      const slotStart = timeToMinutes(slot.slot_time);
-      const slotEnd   = slotStart + params.totalBlockMinutes;
-
-      // Slot must fit fully inside at least one valid working window
-      return windows.some((w) => {
-        const workStart = timeToMinutes(w.start);
-        const workEnd   = timeToMinutes(w.end);
-        return slotStart >= workStart && slotEnd <= workEnd;
+      const resolved = resolveScheduleForStaffDay({
+        override: overridesByStaff.get(slot.staff_id) ?? null,
+        individualRows: individualRowsByStaff.get(slot.staff_id) ?? [],
+        groupRules: groupRulesByStaff.get(slot.staff_id) ?? [],
       });
+
+      if (!resolved.isWorking) return false;
+
+      return resolved.windows.some((window) =>
+        doesDurationFitWithinScheduleWindow({
+          slotStartTime: slot.slot_time,
+          durationMinutes: params.totalBlockMinutes,
+          window,
+        })
+      );
     })
   );
 }

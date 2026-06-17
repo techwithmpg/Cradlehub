@@ -3,11 +3,7 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import type { User } from "@supabase/supabase-js";
-import {
-  buildAuthCallbackRedirectUrl,
-  PASSWORD_RESET_PATH,
-  resolveRequestOrigin,
-} from "@/lib/auth/auth-redirects";
+import { buildPasswordResetRedirectUrl } from "@/lib/auth/auth-redirects";
 import {
   getEmailDomain,
   getStaffAccountAccessRequestContext,
@@ -243,10 +239,34 @@ export async function sendStaffPasswordRecoveryAction(
     };
   }
 
-  const redirectTo = buildAuthCallbackRedirectUrl(
-    resolveRequestOrigin(headerStore),
-    PASSWORD_RESET_PATH
-  );
+  let redirectTo: string;
+  try {
+    redirectTo = buildPasswordResetRedirectUrl();
+  } catch (error) {
+    await recordStaffAccountAccessEvent({
+      eventType: "owner_password_recovery_sent",
+      outcome: "error",
+      actorStaffId: ctx.actorStaffId,
+      targetStaffId: staffResult.staff.id,
+      targetAuthUserId: staffResult.staff.auth_user_id,
+      targetEmail: email,
+      requestContext,
+      metadata: {
+        flow: "owner-support",
+        reason: "missing_public_app_url",
+      },
+    });
+    logError("auth.owner_password_recovery_app_url_missing", {
+      error,
+      targetEmailDomain: getEmailDomain(email),
+      targetStaffId: staffResult.staff.id,
+    });
+    return {
+      success: false,
+      error: "Password recovery email could not be sent. Try again later.",
+    };
+  }
+
   const { error } = await ctx.supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
   await recordStaffAccountAccessEvent({

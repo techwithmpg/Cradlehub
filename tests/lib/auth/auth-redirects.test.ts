@@ -1,11 +1,49 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildAuthCallbackRedirectUrl,
+  buildPasswordResetRedirectUrl,
+  getPublicAppUrl,
   resolveRequestOrigin,
   sanitizeAuthRedirectPath,
 } from "@/lib/auth/auth-redirects";
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("auth redirect helpers", () => {
+  it("builds public app URLs from NEXT_PUBLIC_APP_URL without duplicate slashes", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://cradlewellnessliving.com///");
+
+    expect(getPublicAppUrl()).toBe("https://cradlewellnessliving.com");
+    expect(buildPasswordResetRedirectUrl()).toBe(
+      "https://cradlewellnessliving.com/reset-password"
+    );
+  });
+
+  it("uses localhost only as the development public app URL fallback", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    vi.stubEnv("NODE_ENV", "development");
+
+    expect(buildPasswordResetRedirectUrl()).toBe("http://localhost:3000/reset-password");
+  });
+
+  it("fails when the production public app URL is missing", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => getPublicAppUrl()).toThrow("NEXT_PUBLIC_APP_URL is not configured.");
+  });
+
+  it("rejects localhost app URLs in production", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+    vi.stubEnv("NODE_ENV", "production");
+
+    expect(() => getPublicAppUrl()).toThrow(
+      "NEXT_PUBLIC_APP_URL must not be localhost in production."
+    );
+  });
+
   it("allows expected internal workspace paths", () => {
     expect(sanitizeAuthRedirectPath("/reset-password")).toBe("/reset-password");
     expect(sanitizeAuthRedirectPath("/crm/bookings?view=today")).toBe(
