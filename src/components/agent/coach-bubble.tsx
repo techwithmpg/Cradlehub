@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgentCoachContext } from "@/components/agent/agent-context-provider";
-import { getCrmProactiveGreeting } from "@/lib/agents/crm/prompts";
+import { getProactiveGreeting } from "@/lib/agents/prompts";
 import type { AgentMessage, AgentSuggestedAction } from "@/lib/agents/types";
 
 const TOOL_ACTIONS = new Set([
@@ -22,7 +22,7 @@ function useCoachChat() {
   const [history, setHistory] = React.useState<AgentMessage[]>(() => [
     {
       role: "assistant",
-      content: getCrmProactiveGreeting(context),
+      content: getProactiveGreeting(context),
     },
   ]);
   const [input, setInput] = React.useState("");
@@ -237,7 +237,11 @@ export function CoachBubble() {
               </div>
               <div>
                 <p className="text-sm font-medium text-primary-foreground">Cradle Coach</p>
-                <p className="text-[10px] text-primary-foreground/80">Ask me how to use the CRM</p>
+                <p className="text-[10px] text-primary-foreground/80">
+                  {context.workspace === "owner"
+                    ? "Ask me how to run your business"
+                    : "Ask me how to use the CRM"}
+                </p>
               </div>
             </div>
             <Button

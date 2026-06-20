@@ -2,7 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createOrUpdateWorkflowTask } from "@/lib/notifications/workflow-task-store";
 import { getAvailableSlots } from "@/lib/engine/availability";
 import { logError } from "@/lib/logger";
-import type { AgentSessionContext } from "@/lib/agents/types";
+import type { AgentSessionContext, AgentWorkspace } from "@/lib/agents/types";
+import type { NotificationWorkspace } from "@/lib/notifications/types";
 
 export type ToolResult = {
   ok: boolean;
@@ -67,10 +68,12 @@ async function createReminderTask(
 
   const dueAt = new Date(Date.now() + dueMinutes * 60_000).toISOString();
 
+  const scope = workspaceToNotificationScope(context.workspace);
+
   await createOrUpdateWorkflowTask({
     branchId: context.branchId,
-    workspaceScope: "crm",
-    assignedToRole: "crm",
+    workspaceScope: scope,
+    assignedToRole: scope,
     taskType: "agent_reminder",
     title,
     body,
@@ -87,7 +90,7 @@ async function createReminderTask(
 
   return {
     ok: true,
-    message: `Reminder created: "${title}". You'll see it in your CRM notifications.`,
+    message: `Reminder created: "${title}". You'll see it in your notifications.`,
   };
 }
 
@@ -178,5 +181,19 @@ export async function resolveServiceIdByName(
     return (data?.id as string | null) ?? null;
   } catch {
     return null;
+  }
+}
+
+function workspaceToNotificationScope(workspace: AgentWorkspace): NotificationWorkspace {
+  switch (workspace) {
+    case "owner":
+      return "owner";
+    case "manager":
+      return "manager";
+    case "staff-portal":
+      return "staff";
+    case "crm":
+    default:
+      return "crm";
   }
 }

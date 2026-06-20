@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getApiContext } from "@/lib/api/get-api-context";
 import { logError } from "@/lib/logger";
-import { isAgentCoachEnabled } from "@/lib/agents/config";
+import { isAgentCoachEnabled, isWorkspaceEnabled } from "@/lib/agents/config";
 import { executeAgentTool, isSupportedTool } from "@/lib/agents/tools";
 import { logAgentInteraction } from "@/lib/agents/audit";
 import type { AgentSessionContext } from "@/lib/agents/types";
@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unsupported or missing tool" }, { status: 400 });
   }
 
-  if (!context || context.workspace !== "crm") {
-    return NextResponse.json({ error: "Unsupported workspace" }, { status: 400 });
+  if (!context || !isWorkspaceEnabled(context.workspace)) {
+    return NextResponse.json({ error: "Unsupported or disabled workspace" }, { status: 400 });
   }
 
   // Enforce the user can only act within their own branch.

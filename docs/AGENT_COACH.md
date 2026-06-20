@@ -8,7 +8,7 @@ Cradle Coach is an AI agent swarm that helps CradleHub users learn the system, c
 
 ## Current Scope
 
-- **Workspace:** CRM (`/crm/*`)
+- **Workspaces:** CRM (`/crm/*`) and Owner (`/owner/*`)
 - **Capabilities:**
   - Answer natural-language questions about CRM pages
   - Offer proactive tips when the user is idle for 45 seconds
@@ -20,11 +20,11 @@ Cradle Coach is an AI agent swarm that helps CradleHub users learn the system, c
 
 ## How It Works
 
-1. The CRM layout mounts `AgentCoachProvider`, `CoachBubble`, and `InlineTip`.
+1. The CRM and Owner layouts mount `AgentCoachProvider`, `CoachBubble`, and `InlineTip`.
 2. `AgentCoachProvider` tracks page route and idle state from mouse/keyboard events.
 3. `CoachBubble` opens a chat sheet. The first message is a context-aware greeting.
 4. `InlineTip` fetches a proactive tip from `/api/agent/coach` when the user is idle.
-5. `/api/agent/coach` calls Claude with a CRM-specific system prompt and returns a structured reply + up to 3 actions.
+5. `/api/agent/coach` calls Claude with a workspace-specific system prompt and returns a structured reply + up to 3 actions.
 6. `/api/agent/act` executes confirmed tool actions (create reminder, check slots, pre-fill booking).
 7. `logAgentInteraction` writes every interaction and tool execution to `agent_audit_logs`.
 
@@ -51,11 +51,14 @@ AGENT_COACH_WORKSPACES=crm,owner,manager,staff-portal
 | `src/lib/agents/config.ts` | Feature flags |
 | `src/lib/agents/audit.ts` | Audit logging |
 | `src/lib/agents/crm/prompts.ts` | CRM prompts and actions |
+| `src/lib/agents/owner/prompts.ts` | Owner prompts and actions |
+| `src/lib/agents/prompts.ts` | Workspace prompt dispatcher |
 | `src/app/api/agent/coach/route.ts` | LLM endpoint |
 | `src/components/agent/agent-context-provider.tsx` | Context + idle detection |
 | `src/components/agent/coach-bubble.tsx` | Chat UI |
 | `src/components/agent/inline-tip.tsx` | Proactive tip UI |
 | `src/app/(dashboard)/crm/layout.tsx` | CRM mount point |
+| `src/app/(dashboard)/owner/layout.tsx` | Owner mount point |
 | `supabase/migrations/20260620140000_agent_audit_logs.sql` | Audit table migration |
 
 ## Extending to New Workspaces

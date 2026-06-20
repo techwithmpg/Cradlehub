@@ -7,14 +7,18 @@ import { z } from "zod";
 import { getApiContext } from "@/lib/api/get-api-context";
 import { logError } from "@/lib/logger";
 import { isAgentCoachEnabled, isWorkspaceEnabled } from "@/lib/agents/config";
-import { buildCrmSystemPrompt, getCrmSuggestedAction } from "@/lib/agents/crm/prompts";
-import { getCrmProactiveGreeting } from "@/lib/agents/crm/prompts";
+import {
+  buildSystemPrompt,
+  getProactiveGreeting,
+  getSuggestedAction,
+  isSupportedCoachWorkspace,
+} from "@/lib/agents/prompts";
 import { logAgentInteraction, buildSessionId } from "@/lib/agents/audit";
 import type { CoachRequestBody, CoachResponse, AgentMessage } from "@/lib/agents/types";
 
 const primitivePayloadSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 const coachResponseSchema = z.object({
-  content: z.string().describe("Friendly, concise reply to the CRM user. 1-3 sentences."),
+  content: z.string().describe("Friendly, concise reply to the user. 1-3 sentences."),
   actions: z
     .array(
       z.object({
@@ -48,23 +52,24 @@ export async function POST(req: NextRequest) {
   }
 
   const { context, message, history } = body;
+  const workspace = context?.workspace;
 
-  if (!context || context.workspace !== "crm") {
+  if (!context || !isSupportedCoachWorkspace(workspace)) {
     return NextResponse.json(
-      { error: "Unsupported workspace. CRM coach is the only workspace enabled." },
+      { error: "Unsupported workspace. Supported workspaces: crm, owner." },
       { status: 400 }
     );
   }
 
-  if (!isWorkspaceEnabled(context.workspace)) {
+  if (!isWorkspaceEnabled(workspace)) {
     return NextResponse.json({ error: "Workspace not enabled for coach" }, { status: 403 });
   }
 
   const sessionId = context.sessionId ?? buildSessionId(context);
 
   try {
-    const system = buildCrmSystemPrompt(context);
-    const proactiveGreeting = getCrmProactiveGreeting(context);
+    const system = buildSystemPrompt(context);
+    const proactiveGreeting = getProactiveGreeting(context);
 
     const messages = [
       ...(history ?? []).map((m) => ({
@@ -83,14 +88,14 @@ export async function POST(req: NextRequest) {
       messages,
       schema: coachResponseSchema,
       schemaName: "CoachResponse",
-      schemaDescription: "A helpful CRM coach reply with up to 3 suggested actions.",
+      schemaDescription: "A helpful coach reply with up to 3 suggested actions.",
       temperature: 0.7,
     });
 
-    // Enforce only known CRM action keys for safety.
+    // Enforce only known workspace action keys for safety.
     const safeActions = object.actions
       .map((a) => {
-        const known = a.action ? getCrmSuggestedAction(a.action) : undefined;
+        const known = a.action ? getSuggestedAction(workspace, a.action) : undefined;
         if (!known) {
           return {
             ...a,
