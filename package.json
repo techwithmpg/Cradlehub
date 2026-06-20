@@ -17,6 +17,7 @@
     "db:list": "supabase migration list --project-ref lsrbwqhvzjfpiabeolkv"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.85",
     "@base-ui/react": "^1.4.1",
     "@googlemaps/markerclusterer": "^2.6.2",
     "@hookform/resolvers": "^5.2.2",
@@ -26,6 +27,7 @@
     "@supabase/supabase-js": "^2.106.2",
     "@vercel/speed-insights": "^2.0.0",
     "@vis.gl/react-google-maps": "^1.8.3",
+    "ai": "^6.0.208",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

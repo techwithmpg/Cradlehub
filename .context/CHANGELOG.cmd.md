@@ -5002,3 +5002,151 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Manual QA Note:**
 - Click a real local and production Supabase recovery email after dashboard URL configuration is saved to confirm the provider email template lands on `/reset-password`.
+
+---
+
+### 2026-06-17 - Codex (RLS-GROUP-SCHEDULE-RULES-001)
+
+**Task:** Repair production RLS and server authorization for CRM/front-desk staff group schedule rule saves.
+
+**Files Added:**
+- `supabase/migrations/20260617123431_fix_staff_group_schedule_rules_rls.sql` - forward-only explicit branch-aware SELECT/INSERT/UPDATE/DELETE policies and least-privilege Data API grants.
+- `tests/lib/actions/staff-schedule-groups.test.ts` - server-action authorization, branch isolation, safe-error, verified-upsert, delete, and revalidation coverage.
+
+**Files Changed:**
+- `src/lib/actions/staff-schedule-groups.ts` - authenticated active-staff and target-group authorization before upsert/delete, centralized role checks, safe errors, returned-row confirmation, and Schedule route revalidation.
+- `.context/*`, `docs/PROJECT_CONTEXT.md`, and `docs/ROADMAP.md` - task findings, deployment evidence, verification, and handoff records.
+
+**Root Cause:**
+- The production CRM/CSR write policy included `crm`, `csr_head`, and `csr_staff` but omitted the active legacy `csr` role. A same-branch `csr` could read the parent group through staff read policies, then failed the INSERT side of the upsert with PostgreSQL `42501`.
+
+**Production Result:**
+- Migration `20260617123431` is applied and recorded on project `lsrbwqhvzjfpiabeolkv`.
+- RLS remains enabled. Owner is unrestricted; approved Manager and CRM/front-desk roles are branch-scoped; ordinary staff, driver, utility, cross-branch users, and anonymous clients cannot write.
+- Anonymous table grants were removed. Authenticated grants are SELECT-only on schedule groups and SELECT/INSERT/UPDATE/DELETE on group rules, with RLS enforcing row scope.
+- Live rollback-only tests passed all 14 authorization cases. Production row counts and schedule/availability RPC results remained unchanged, and no test rows persisted.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, 0 errors and 4 existing warnings
+- `pnpm test`: PASS, 50 files / 519 tests
+- `pnpm build`: PASS, 100 routes
+- `git diff --check`: PASS, line-ending notices only
+
+**Manual QA Note:**
+- Authenticated browser save remains pending because no CRM/front-desk credentials or existing authenticated browser session were available. Live RLS verification used real active production auth identities in rollback-only authenticated-role transactions without bypassing RLS.
+
+---
+
+### 2026-06-17 - Codex (CRM-DAILY-TIMELINE-REPLACEMENT-001)
+
+**Task:** Replace only the CRM Schedule module's Daily Timeline tab with the approved role-aware operations board.
+
+**Daily Timeline Replaced:**
+- Replaced the old `DailyTimelineTab -> ScheduleWorkspace` composition with a CRM-specific operational board using existing resolved schedules, bookings, blocked periods, overrides, branch context, and realtime route refresh.
+- Added staff-type tabs, branch/shift/status/search filters, opening/regular/closing/day-off bands, sticky staff identities, fixed timeline grid, booking and blocked-time overlays, current-time marker, coverage rail, selected staff/booking details, quick actions, available staff, and daily summary.
+
+**Cleanup and Preservation:**
+- Removed `daily-timeline-right-rail.tsx` and the unreferenced `crm-schedule-view.tsx`.
+- Retained shared `ScheduleWorkspace`, `DailyScheduleBoard`, schedule resolution, timeline utilities, and Owner/Manager schedule pages.
+- Preserved `/crm/schedule`, module tab/date URL state, Live Availability, Schedule Setup, Coverage Issues, Staff Schedule, Weekly Rules, Individual Adjustments, Overrides, booking availability, schedule saving, RLS, and CRM authorization.
+- Quick actions reuse `/crm/bookings/new`, `/crm/availability`, and `/crm/staff-availability` deep links instead of rebuilding setup forms.
+
+**Error and State Handling:**
+- Daily schedule load errors now render inside the Daily tab so other Schedule tabs stay usable.
+- Staff-type selection persists in `?staffType=` through module tab switches; date and active module tab continue using existing URL conventions.
+- Live availability status uses a server-seeded, minute-updated client clock to avoid hydration drift.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS, 0 errors and 4 existing warnings
+- `pnpm test`: PASS, 51 files / 525 tests
+- `pnpm build`: PASS, 100 routes
+- Responsive component-tree browser QA at 1440x1000 and 390x844: PASS, no page overflow, error overlay, or console errors
+- Daily -> Live Availability -> Daily switching, staff-type persistence, search/clear filters, and booking selection: PASS
+- Temporary QA route removed before build; route count remains unchanged
+
+**Manual QA Note:**
+- An authenticated CRM session was unavailable, so one final protected-route visual pass with live branch data remains recommended.
+
+---
+
+### 2026-06-17 - Codex (CRM-AUTHORIZATION-CONSISTENCY-001)
+
+**Task:** Fix CRM Staff service assignments and align the local staff-service authorization/save path.
+
+**Files Added:**
+- `supabase/migrations/20260617141348_crm_staff_service_capabilities_rpc.sql` - transactional SECURITY INVOKER staff service capability replacement RPC plus branch-scoped `staff_services` operational RLS policies.
+- `src/lib/staff/service-assignment-state.ts` - deterministic local assignment replacement helper.
+- `tests/lib/staff/service-assignment-state.test.ts` - local-state replacement regression tests.
+- `docs/CRM_AUTHORIZATION_INVENTORY.md` - focused CRM authorization inventory and live DB inspection status.
+
+**Files Changed:**
+- `src/lib/actions/crm-staff-services.ts` - now validates CRM staff-service access, calls `replace_staff_service_capabilities`, returns authoritative saved service IDs, logs safe technical errors, avoids raw DB messages, and revalidates affected CRM/public surfaces.
+- `src/lib/queries/crm-services.ts` - no longer hides `staff_services` SELECT errors as empty assignments; assignment reads are scoped through active branch staff and requested active service IDs.
+- `src/components/features/crm/staff/*` - passes assignment-load errors to the Staff UI, avoids false empty summaries, updates local assignment rows immediately after save, and removes timeout-based modal close dependency.
+- `src/lib/auth/crm-permissions.ts` - exports the CRM staff-service role source and owner-only cross-branch helper.
+- `src/types/supabase.ts` - adds the new RPC type.
+- `src/app/(dashboard)/crm/staff/page.tsx` - distinguishes assignment query failure from legitimate empty data.
+
+**Immediate Culprits Fixed:**
+- Hidden `staff_services` read errors were previously converted to `[]`, causing the table to display `No services assigned`.
+- Staff service saves previously used separate delete and insert requests, risking capability loss if insertion failed.
+- The UI relied on `router.refresh()` plus a timeout instead of updating from the saved authoritative service IDs.
+
+**Database Design:**
+- New RPC validates authenticated actor, CRM role, target staff, branch scope, privileged target protection for non-owner roles, active branch services, and duplicate service IDs before changing rows.
+- Replacement happens inside one PostgreSQL function call, so any failure rolls back the full delete/insert sequence.
+- RLS remains enabled; the RPC is SECURITY INVOKER, not a service-role bypass.
+
+**Verification:**
+- `npx tsc --noEmit`: PASS
+- `npx vitest tests/lib/staff/service-assignment-state.test.ts`: PASS, 3 tests
+- `pnpm lint`: PASS, 0 errors and 4 pre-existing warnings
+- `pnpm test`: PASS, 52 files / 528 tests
+- `pnpm build`: PASS, 100 routes
+
+**Blocked / Manual Follow-up:**
+- Live Supabase policy inspection and migration dry-run are blocked from this environment because `supabase db query --linked` and `supabase db push --linked --dry-run` hung.
+- Local `supabase db lint --local --schema public` could not connect because local Postgres was not running.
+- Apply migration `20260617141348` from an environment with working Supabase access, inspect `pg_policies`, then run a real authenticated CRM save on `/crm/staff?tab=assignments`.
+
+---
+
+## 2026-06-20 - Kimi (AGENT-CRM-COACH-001 - CRM AI Coach)
+
+**Task:** Build the first CradleHub AI agent — a CRM Coach that guides front-desk/CRM users, detects idle users, offers proactive tips, answers questions, and suggests one-click actions.
+
+**Files Changed:**
+- `.env.example` - added `ANTHROPIC_API_KEY` and `AGENT_COACH_WORKSPACES`.
+- `src/lib/agents/types.ts` - shared agent types, workspaces, messages, and suggested actions.
+- `src/lib/agents/config.ts` - feature flags and workspace enablement.
+- `src/lib/agents/audit.ts` - immutable audit logging to `agent_audit_logs`.
+- `src/lib/agents/crm/prompts.ts` - CRM system prompt, suggested actions, proactive greetings.
+- `src/app/api/agent/coach/route.ts` - Claude 3.5 Sonnet coach endpoint with structured output.
+- `src/components/agent/agent-context-provider.tsx` - page context + idle detection provider.
+- `src/components/agent/coach-bubble.tsx` - floating chat bubble with sheet UI.
+- `src/components/agent/inline-tip.tsx` - proactive tip after 45s of inactivity.
+- `src/app/(dashboard)/crm/layout.tsx` - mounts coach components in CRM workspace.
+- `supabase/migrations/20260620140000_agent_audit_logs.sql` - audit table + owner RLS policy.
+- `src/types/supabase.ts` - added `agent_audit_logs` table types.
+
+**Behavior:**
+- CRM users see a floating "Cradle Coach" button on every `/crm/*` page.
+- Opening the chat shows a context-aware greeting and answers natural-language questions.
+- Coach replies include up to 3 suggested one-click actions (links only, suggest-only, no data mutations).
+- After 45 seconds of inactivity, a proactive inline tip appears with relevant guidance.
+- Every interaction is logged to `agent_audit_logs` for owner review.
+- The coach is disabled unless `ANTHROPIC_API_KEY` is configured.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 4 pre-existing warnings)
+- `pnpm test -- --run`: PASS, 52 files / 528 tests
+- `pnpm build`: PASS, 101 routes
+
+**Follow-up:**
+- Apply migration `20260620140000_agent_audit_logs.sql` to the live Supabase project.
+- Add `ANTHROPIC_API_KEY` to `.env.local` and production environment variables.
+- Build an owner-facing review UI for `agent_audit_logs`.
+- Expand coach to owner/manager/staff-portal workspaces and add one-click confirm actions.

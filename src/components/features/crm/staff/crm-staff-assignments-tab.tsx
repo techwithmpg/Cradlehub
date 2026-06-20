@@ -23,12 +23,16 @@ type Props = {
   activeServices: ServiceLite[];
   providerStaff: StaffForServicePanel[];
   providerAssignments: ServiceAssignmentRow[];
+  providerAssignmentsError: string | null;
+  onStaffServicesSaved: (staffId: string, serviceIds: string[]) => void;
 };
 
 export function CrmStaffAssignmentsTab({
   activeServices,
   providerStaff,
   providerAssignments,
+  providerAssignmentsError,
+  onStaffServicesSaved,
 }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -125,15 +129,25 @@ export function CrmStaffAssignmentsTab({
         });
         if (result.ok) {
           toast.success("Service capabilities updated.");
+          onStaffServicesSaved(editingStaff.id, result.serviceIds);
+          setServicesDraft(result.serviceIds);
+          setEditingStaff(null);
           router.refresh();
-          setTimeout(() => setEditingStaff(null), 1200);
         } else {
           toast.error(result.message ?? "Could not update service capabilities.");
         }
       });
     },
-    [editingStaff, router]
+    [editingStaff, onStaffServicesSaved, router]
   );
+
+  if (providerAssignmentsError) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        {providerAssignmentsError}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

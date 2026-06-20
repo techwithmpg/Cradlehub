@@ -46,6 +46,32 @@ export type BranchStaffAndAssignments = {
   assignments: ServiceAssignmentRow[];
 };
 
+export class CrmServiceAssignmentQueryError extends Error {
+  constructor(message = "Service assignments could not be loaded.") {
+    super(message);
+    this.name = "CrmServiceAssignmentQueryError";
+  }
+}
+
+type QueryFailure = {
+  branchId: string;
+  table: "staff" | "staff_services";
+  operation: "select";
+  code?: string;
+  message?: string;
+};
+
+function throwCrmServiceAssignmentQueryError(failure: QueryFailure): never {
+  console.error("[crm/services] assignment query failed", {
+    table: failure.table,
+    operation: failure.operation,
+    errorCode: failure.code,
+    safeMessage: "service assignment data could not be loaded",
+    branchId: failure.branchId,
+  });
+  throw new CrmServiceAssignmentQueryError();
+}
+
 // ── Queries ───────────────────────────────────────────────────────────────────
 
 /**
@@ -62,34 +88,57 @@ export async function getBranchStaffAndServiceAssignments(
   if (serviceIds.length === 0) return { staff: [], assignments: [] };
 
   const supabase = await createClient();
+  const uniqueServiceIds = Array.from(new Set(serviceIds));
 
-  const [staffRes, assignRes] = await Promise.all([
-    supabase
-      .from("staff")
-      .select(
-        "id, full_name, staff_type, system_role, " +
-        "nickname, phone, branch_id, tier, is_head, is_active, avatar_url, " +
-        "branches(id, name)"
-      )
-      .eq("branch_id", branchId)
-      .eq("is_active", true)
-      .order("full_name"),
-    supabase
-      .from("staff_services")
-      .select("staff_id, service_id")
-      .in("service_id", serviceIds),
-  ]);
+  const staffRes = await supabase
+    .from("staff")
+    .select(
+      "id, full_name, staff_type, system_role, " +
+      "nickname, phone, branch_id, tier, is_head, is_active, avatar_url, " +
+      "branches(id, name)"
+    )
+    .eq("branch_id", branchId)
+    .eq("is_active", true)
+    .order("full_name");
 
-  if (staffRes.error) throw new Error(staffRes.error.message);
+  if (staffRes.error) {
+    throwCrmServiceAssignmentQueryError({
+      branchId,
+      table: "staff",
+      operation: "select",
+      code: staffRes.error.code,
+      message: staffRes.error.message,
+    });
+  }
+
+  const staff = (staffRes.data ?? []) as unknown as StaffForServicePanel[];
+  const staffIds = staff.map((member) => member.id);
+
+  if (staffIds.length === 0) {
+    return { staff, assignments: [] };
+  }
+
+  const assignRes = await supabase
+    .from("staff_services")
+    .select("staff_id, service_id")
+    .in("staff_id", staffIds)
+    .in("service_id", uniqueServiceIds);
+
+  if (assignRes.error) {
+    throwCrmServiceAssignmentQueryError({
+      branchId,
+      table: "staff_services",
+      operation: "select",
+      code: assignRes.error.code,
+      message: assignRes.error.message,
+    });
+  }
 
   return {
     // Two-step cast: the Supabase inferred type for the extended select string
     // does not overlap directly with StaffForServicePanel, but the runtime
     // shape is correct (every selected column matches the type definition).
-    staff: (staffRes.data ?? []) as unknown as StaffForServicePanel[],
-    // Don't throw if assignment query fails — treat as empty (no assignments)
-    assignments: assignRes.error
-      ? []
-      : ((assignRes.data ?? []) as ServiceAssignmentRow[]),
+    staff,
+    assignments: (assignRes.data ?? []) as ServiceAssignmentRow[],
   };
 }

@@ -17,8 +17,20 @@ export default async function CrmSchedulePage({
   const selectedDate = params.date ?? today;
   const supabase = await createClient();
 
-  const [staffRows, availabilityItems, stats, resourcesResult, readiness] = await Promise.all([
-    getDailySchedule({ branchId, date: selectedDate }).catch(() => []),
+  const [dailyScheduleResult, availabilityItems, stats, resourcesResult, readiness] = await Promise.all([
+    getDailySchedule({ branchId, date: selectedDate })
+      .then((data) => ({ data, error: null }))
+      .catch((error: unknown) => {
+        console.error("[crm/schedule] daily timeline load failed", {
+          branchId,
+          date: selectedDate,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return {
+          data: [],
+          error: "Refresh the timeline or open Schedule Setup.",
+        };
+      }),
     getStaffWithAvailability(branchId).catch(() => []),
     getManagerDashboardStats(branchId, selectedDate),
     supabase
@@ -29,6 +41,7 @@ export default async function CrmSchedulePage({
       .order("sort_order"),
     getCrmReadinessCached(branchId).catch(() => null),
   ]);
+  const staffRows = dailyScheduleResult.data;
 
   return (
     <ScheduleWorkspaceShell
@@ -40,6 +53,8 @@ export default async function CrmSchedulePage({
       branchResources={resourcesResult.data ?? []}
       stats={stats}
       readiness={readiness}
+      dailyTimelineError={dailyScheduleResult.error}
+      dailyTimelineNow={new Date().toISOString()}
     />
   );
 }

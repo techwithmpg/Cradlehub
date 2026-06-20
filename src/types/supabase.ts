@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_audit_logs: {
+        Row: {
+          action: Json | null
+          created_at: string
+          id: string
+          message: Json | null
+          metadata: Json
+          page: string
+          role: string
+          session_id: string
+          type: string
+          user_id: string
+          workspace: string
+        }
+        Insert: {
+          action?: Json | null
+          created_at?: string
+          id?: string
+          message?: Json | null
+          metadata?: Json
+          page: string
+          role: string
+          session_id: string
+          type: string
+          user_id: string
+          workspace: string
+        }
+        Update: {
+          action?: Json | null
+          created_at?: string
+          id?: string
+          message?: Json | null
+          metadata?: Json
+          page?: string
+          role?: string
+          session_id?: string
+          type?: string
+          user_id?: string
+          workspace?: string
+        }
+        Relationships: []
+      }
       blocked_times: {
         Row: {
           block_date: string
@@ -2437,6 +2479,12 @@ export type Database = {
       get_effective_price: {
         Args: { p_branch_id: string; p_service_id: string }
         Returns: number
+      }
+      replace_staff_service_capabilities: {
+        Args: { p_service_ids?: string[]; p_target_staff_id: string }
+        Returns: {
+          service_id: string
+        }[]
       }
       update_booking_progress: {
         Args: { p_booking_id: string; p_next_status: string }

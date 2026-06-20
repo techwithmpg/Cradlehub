@@ -423,3 +423,40 @@ Root `src/app/loading.tsx` renders only a non-branded dark mobile paint guard so
 
 **Rationale:**
 The homepage lives at `src/app/page.tsx`, while the rest of the public pages live under `src/app/(public)`. A root-mounted but allow-listed route line is the smallest way to persist across `/` and `(public)` transitions without touching booking logic or protected workspaces. The intro emits an active-state event so route progress does not start while the intro is playing.
+
+### DEC-CRM-STAFF-SERVICES-001: Staff service capability replacement is database-atomic
+**Status:** ACCEPTED - 2026-06-17
+
+**Decision:**
+CRM Staff service capability replacement uses the `replace_staff_service_capabilities` PostgreSQL RPC instead of a Server Action performing separate `delete()` and `insert()` calls.
+
+**Pattern:**
+- The Server Action still performs session/user, CRM-role, branch, and protected-target checks for friendly errors.
+- The RPC is SECURITY INVOKER, so authenticated table grants and RLS remain the row-level enforcement layer.
+- The RPC validates actor, target staff, branch scope, active branch services, duplicate service IDs, and privileged target protection before deleting anything.
+- The RPC returns the final authoritative service IDs; the client updates local assignment rows from that return value before calling `router.refresh()`.
+
+**Rationale:**
+A delete-then-insert sequence can lose previous assignments if insert fails. A SECURITY INVOKER RPC gives one database transaction without using the service-role key or disabling RLS, while the returned rows prevent the current UI session from showing stale assignment data.
+
+---
+
+## 2026-06-20 — Kimi: Agent Swarm Architecture Decision
+
+**Decision:** Start the CradleHub agent swarm with a single CRM Coach before expanding to owner/manager/staff-portal.
+
+**Rationale:**
+- CRM users are struggling the most with the system; highest ROI target.
+- A narrow scope (guide + suggest-only actions + proactive tips) lets us validate LLM integration, audit logging, and UX before adding auto-actions.
+- Using the existing `ai` SDK + OpenAI provider integrates cleanly with Next.js App Router.
+- All agent interactions are logged to `agent_audit_logs` for trust and iterative improvement.
+
+**Trade-offs:**
+- Suggest-only initially means no automated data changes; users must click suggested links.
+- Proactive tips fire after 45s of inactivity; may need tuning based on user feedback.
+- Owner review UI not included in MVP; audit logs must be queried via Supabase Studio.
+
+**Consequences:**
+- New dependency on OpenAI API key.
+- New table `agent_audit_logs` requires migration.
+- Future agents can reuse `src/lib/agents/` core and `/api/agent/coach` route pattern.

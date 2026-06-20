@@ -14,33 +14,22 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import {
+  CRM_STAFF_SERVICE_ROLES,
+  canManageStaffServices,
+  canManageStaffServicesAcrossBranches,
+} from "@/lib/auth/crm-permissions";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const CRM_STAFF_SERVICE_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
-]);
-
-const HIGH_PRIVILEGE_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-]);
+const CRM_STAFF_SERVICE_ROLE_SET = new Set<string>(CRM_STAFF_SERVICE_ROLES);
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
 type StaffServiceCtx = {
   supabase: Awaited<ReturnType<typeof createClient>>;
   me: { id: string; branch_id: string | null; system_role: string };
-  isHighPrivilege: boolean;
+  canManageAcrossBranches: boolean;
 };
 
 async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
@@ -55,11 +44,13 @@ async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (me && CRM_STAFF_SERVICE_ROLES.has(me.system_role as string)) {
+  if (me && canManageStaffServices(me.system_role as string)) {
     return {
       supabase,
       me: me as { id: string; branch_id: string | null; system_role: string },
-      isHighPrivilege: HIGH_PRIVILEGE_ROLES.has(me.system_role as string),
+      canManageAcrossBranches: canManageStaffServicesAcrossBranches(
+        me.system_role as string
+      ),
     };
   }
 
@@ -68,7 +59,9 @@ async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
     return {
       supabase,
       me: { id: "dev", branch_id: mock.branch_id, system_role: mock.system_role },
-      isHighPrivilege: true,
+      canManageAcrossBranches: canManageStaffServicesAcrossBranches(
+        mock.system_role
+      ),
     };
   }
 
@@ -89,8 +82,66 @@ const updateStaffServicesSchema = z.object({
 // ── Action ─────────────────────────────────────────────────────────────────────
 
 export type CrmStaffServicesResult =
-  | { ok: true; message: string }
-  | { ok: false; message: string };
+  | { ok: true; message: string; serviceIds: string[] }
+  | {
+      ok: false;
+      message: string;
+      code:
+        | "INVALID_INPUT"
+        | "UNAUTHORIZED"
+        | "BRANCH_MISMATCH"
+        | "INVALID_SERVICE"
+        | "SAVE_FAILED";
+    };
+
+type StaffServiceRpcError = {
+  code?: string;
+  message?: string;
+  details?: string | null;
+};
+
+type StaffServiceRpcRow = {
+  service_id: string;
+};
+
+const SAFE_SAVE_FAILED_MESSAGE =
+  "We could not save the selected services. Your previous assignments were not changed.";
+
+function mapStaffServiceRpcError(error: StaffServiceRpcError): {
+  code: Extract<CrmStaffServicesResult, { ok: false }>["code"];
+  message: string;
+} {
+  const message = error.message ?? "";
+  if (
+    message.includes("crm_staff_services_branch_mismatch") ||
+    message.includes("crm_staff_services_privileged_target")
+  ) {
+    return {
+      code: "BRANCH_MISMATCH",
+      message: "You do not have permission to update service assignments for this branch.",
+    };
+  }
+
+  if (message.includes("crm_staff_services_invalid_service")) {
+    return {
+      code: "INVALID_SERVICE",
+      message:
+        "One or more selected services are not active for this staff member's branch.",
+    };
+  }
+
+  if (
+    message.includes("crm_staff_services_not_authenticated") ||
+    message.includes("crm_staff_services_not_authorized")
+  ) {
+    return {
+      code: "UNAUTHORIZED",
+      message: "Unauthorized. CRM access is required.",
+    };
+  }
+
+  return { code: "SAVE_FAILED", message: SAFE_SAVE_FAILED_MESSAGE };
+}
 
 /**
  * Replace all service capabilities for a staff member.
@@ -98,7 +149,7 @@ export type CrmStaffServicesResult =
  * Validates:
  * - CRM operational role
  * - Branch scope: target staff must belong to the caller's branch (non-owners)
- * - Clears then re-inserts staff_services rows
+ * - Delegates replacement to the transactional staff_services RPC
  */
 export async function updateStaffServicesFromCrmAction(
   rawInput: unknown
@@ -108,51 +159,122 @@ export async function updateStaffServicesFromCrmAction(
     const first = parsed.error.issues[0];
     // Provide the path so future debugging is instant (e.g. "serviceIds[2]: Invalid service ID")
     const path = first?.path.length ? `${first.path.join(".")}: ` : "";
-    return { ok: false, message: `${path}${first?.message ?? "Invalid input"}` };
+    return {
+      ok: false,
+      code: "INVALID_INPUT",
+      message: `${path}${first?.message ?? "Invalid input"}`,
+    };
   }
-  const { staffId, serviceIds } = parsed.data;
+  const { staffId } = parsed.data;
+  const serviceIds = Array.from(new Set(parsed.data.serviceIds));
 
   const ctx = await requireCrmStaffServiceAccess();
-  if (!ctx) return { ok: false, message: "Unauthorized. CRM access is required." };
+  if (!ctx) {
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "Unauthorized. CRM access is required.",
+    };
+  }
 
-  // Branch scope check for non-owner roles
-  if (!ctx.isHighPrivilege) {
-    const { data: targetStaff } = await ctx.supabase
-      .from("staff")
-      .select("branch_id, system_role")
-      .eq("id", staffId)
-      .maybeSingle();
+  if (!CRM_STAFF_SERVICE_ROLE_SET.has(ctx.me.system_role)) {
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "Unauthorized. CRM access is required.",
+    };
+  }
 
-    if (!targetStaff || targetStaff.branch_id !== ctx.me.branch_id) {
-      return { ok: false, message: "You can only manage staff in your own branch." };
+  const { data: targetStaff, error: targetStaffError } = await ctx.supabase
+    .from("staff")
+    .select("branch_id, system_role")
+    .eq("id", staffId)
+    .maybeSingle();
+
+  if (targetStaffError) {
+    console.error("[crm/staff-services] target staff lookup failed", {
+      operation: "select",
+      table: "staff",
+      errorCode: targetStaffError.code,
+      safeMessage: "target staff lookup failed",
+      staffId,
+      actorRole: ctx.me.system_role,
+      branchId: ctx.me.branch_id,
+    });
+    return { ok: false, code: "SAVE_FAILED", message: SAFE_SAVE_FAILED_MESSAGE };
+  }
+
+  if (!targetStaff) {
+    return {
+      ok: false,
+      code: "BRANCH_MISMATCH",
+      message: "You do not have permission to update service assignments for this branch.",
+    };
+  }
+
+  if (
+    !ctx.canManageAcrossBranches &&
+    (!ctx.me.branch_id || targetStaff.branch_id !== ctx.me.branch_id)
+  ) {
+    return {
+      ok: false,
+      code: "BRANCH_MISMATCH",
+      message: "You do not have permission to update service assignments for this branch.",
+    };
+  }
+
+  if (
+    !ctx.canManageAcrossBranches &&
+    ["owner", "manager", "assistant_manager", "store_manager"].includes(
+      targetStaff.system_role as string
+    )
+  ) {
+    return {
+      ok: false,
+      code: "BRANCH_MISMATCH",
+      message: "You do not have permission to update service assignments for this staff member.",
+    };
+  }
+
+  const { data, error } = await ctx.supabase.rpc(
+    "replace_staff_service_capabilities",
+    {
+      p_target_staff_id: staffId,
+      p_service_ids: serviceIds,
     }
+  );
+
+  if (error) {
+    console.error("[crm/staff-services] atomic replace failed", {
+      operation: "rpc",
+      table: "staff_services",
+      rpc: "replace_staff_service_capabilities",
+      errorCode: error.code,
+      safeMessage: "staff service capability replacement failed",
+      branchId: targetStaff.branch_id,
+      staffId,
+      actorRole: ctx.me.system_role,
+    });
+    const mapped = mapStaffServiceRpcError(error);
+    return { ok: false, ...mapped };
   }
 
-  // Delete current assignments
-  const { error: delErr } = await ctx.supabase
-    .from("staff_services")
-    .delete()
-    .eq("staff_id", staffId);
-
-  if (delErr) {
-    return { ok: false, message: `Failed to update assignments: ${delErr.message}` };
-  }
-
-  // Insert new assignments (deduplicated)
-  if (serviceIds.length > 0) {
-    const unique = Array.from(new Set(serviceIds));
-    const rows = unique.map((serviceId) => ({ staff_id: staffId, service_id: serviceId }));
-    const { error: insErr } = await ctx.supabase.from("staff_services").insert(rows);
-    if (insErr) {
-      return { ok: false, message: `Failed to save service assignments: ${insErr.message}` };
-    }
-  }
+  const savedServiceIds = ((data ?? []) as StaffServiceRpcRow[]).map(
+    (row) => row.service_id
+  );
 
   revalidatePath("/crm/staff");
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
+  revalidatePath("/crm/today");
+  revalidatePath("/book");
+  revalidatePath("/services");
   revalidatePath("/owner/staff");
   revalidatePath("/manager/staff");
 
-  return { ok: true, message: `Service capabilities updated (${serviceIds.length} assigned).` };
+  return {
+    ok: true,
+    message: `Service capabilities updated (${savedServiceIds.length} assigned).`,
+    serviceIds: savedServiceIds,
+  };
 }

@@ -32,12 +32,24 @@ export type CrmWorkspaceRole = (typeof CRM_WORKSPACE_ROLES)[number];
 // ── Role groups (internal) ────────────────────────────────────────────────────
 
 const OWNER_ROLE = "owner" as const;
-const MANAGEMENT_ROLES: readonly string[] = [
+export const CRM_MANAGEMENT_ROLES = [
   "owner",
   "manager",
   "assistant_manager",
   "store_manager",
-];
+] as const;
+export const CRM_BRANCH_OPERATIONAL_ROLES = [
+  "manager",
+  "assistant_manager",
+  "store_manager",
+  "crm",
+  "csr_head",
+  "csr_staff",
+  "csr",
+] as const;
+export const CRM_STAFF_SERVICE_ROLES = CRM_WORKSPACE_ROLES;
+
+const MANAGEMENT_ROLES: readonly string[] = CRM_MANAGEMENT_ROLES;
 const CSR_ELEVATED_ROLES: readonly string[] = ["crm", "csr_head"];
 const CSR_BASIC_ROLES: readonly string[] = ["csr_staff", "csr"];
 
@@ -110,6 +122,11 @@ export function canManageStaffServices(role: string): boolean {
     CSR_ELEVATED_ROLES.includes(role) ||
     CSR_BASIC_ROLES.includes(role)
   );
+}
+
+/** Owner is the only CRM role with cross-branch staff-service authority. */
+export function canManageStaffServicesAcrossBranches(role: string): boolean {
+  return role === OWNER_ROLE;
 }
 
 /** Can update service visibility (public / csr_only) for branch services.

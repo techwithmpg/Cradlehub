@@ -44,6 +44,7 @@ type Props = {
   branches: StaffProfileBranch[];
   services: StaffProfileService[];
   staffServiceIds: string[];
+  serviceAssignmentsError?: string | null;
   reviewerSystemRole: string;
   onEditServices: () => void;
   onSuccess: () => void;
@@ -63,6 +64,7 @@ export function CrmEditStaffProfileModal({
   branches,
   services,
   staffServiceIds,
+  serviceAssignmentsError,
   reviewerSystemRole,
   onEditServices,
   onSuccess,
@@ -78,6 +80,7 @@ export function CrmEditStaffProfileModal({
       branches={branches}
       services={services}
       staffServiceIds={staffServiceIds}
+      serviceAssignmentsError={serviceAssignmentsError}
       reviewerSystemRole={reviewerSystemRole}
       onEditServices={onEditServices}
       onSuccess={onSuccess}
@@ -92,6 +95,7 @@ function ModalContent({
   branches,
   services,
   staffServiceIds,
+  serviceAssignmentsError,
   reviewerSystemRole,
   onEditServices,
   onSuccess,
@@ -313,6 +317,7 @@ function ModalContent({
             draft={draft}
             branches={branches}
             assignedServices={assignedServices}
+            serviceAssignmentsError={serviceAssignmentsError}
             disabled={isProtected || isSaving}
             canEditBranch={canEditBranch}
             canEditSystemRole={canEditSystemRole}
@@ -348,6 +353,7 @@ function ActiveTabContent({
   draft,
   branches,
   assignedServices,
+  serviceAssignmentsError,
   disabled,
   canEditBranch,
   canEditSystemRole,
@@ -359,6 +365,7 @@ function ActiveTabContent({
   draft: StaffProfileDraft;
   branches: StaffProfileBranch[];
   assignedServices: StaffProfileService[];
+  serviceAssignmentsError?: string | null;
   disabled: boolean;
   canEditBranch: boolean;
   canEditSystemRole: boolean;
@@ -399,6 +406,7 @@ function ActiveTabContent({
       <EditStaffServiceCapabilitiesTab
         services={assignedServices}
         onEditServices={onEditServices}
+        loadError={serviceAssignmentsError}
         disabled={disabled}
       />
     );

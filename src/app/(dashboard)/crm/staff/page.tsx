@@ -133,6 +133,7 @@ export default async function CrmStaffPage({
   let activeServices: ServiceLite[] = [];
   let providerStaff: StaffForServicePanel[] = [];
   let providerAssignments: ServiceAssignmentRow[] = [];
+  let providerAssignmentsError: string | null = null;
 
   if (servicesResult.status === "fulfilled") {
     const services = servicesResult.value as ServiceLite[];
@@ -161,6 +162,8 @@ export default async function CrmStaffPage({
           branchId,
           error: err instanceof Error ? err.message : String(err),
         });
+        providerAssignmentsError =
+          "Service assignments could not be loaded. Please refresh and try again.";
       }
     }
   } else {
@@ -170,6 +173,8 @@ export default async function CrmStaffPage({
         ? servicesResult.reason.message
         : String(servicesResult.reason),
     });
+    providerAssignmentsError =
+      "Service assignments could not be loaded. Please refresh and try again.";
   }
 
   // Onboarding requests stay permission-gated, but are preloaded so the
@@ -196,6 +201,7 @@ export default async function CrmStaffPage({
         activeServices={activeServices}
         providerStaff={providerStaff}
         providerAssignments={providerAssignments}
+        providerAssignmentsError={providerAssignmentsError}
         onboardingRequests={onboardingRequests}
         reviewerSystemRole={ctx.me.system_role}
         reviewerBranchId={ctx.me.branch_id}

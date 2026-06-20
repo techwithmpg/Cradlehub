@@ -22,7 +22,9 @@ type Props = {
   branches: BranchLite[];
   activeServices: ServiceLite[];
   providerAssignments: ServiceAssignmentRow[];
+  providerAssignmentsError: string | null;
   reviewerSystemRole: string;
+  onStaffServicesSaved: (staffId: string, serviceIds: string[]) => void;
 };
 
 export function CrmStaffManagementTab({
@@ -31,7 +33,9 @@ export function CrmStaffManagementTab({
   branches,
   activeServices,
   providerAssignments,
+  providerAssignmentsError,
   reviewerSystemRole,
+  onStaffServicesSaved,
 }: Props) {
   const router = useRouter();
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
@@ -58,11 +62,15 @@ export function CrmStaffManagementTab({
 
   const handleManageServices = useCallback(
     (staff: StaffMember) => {
+      if (providerAssignmentsError) {
+        toast.error(providerAssignmentsError);
+        return;
+      }
       const ids = getCurrentServiceIds(staff.id);
       setServicesDraft(ids);
       setServicesStaff(staff);
     },
-    [getCurrentServiceIds]
+    [getCurrentServiceIds, providerAssignmentsError]
   );
 
   const handleToggleActive = useCallback(
@@ -99,14 +107,16 @@ export function CrmStaffManagementTab({
         });
         if (result.ok) {
           toast.success("Service capabilities updated.");
+          onStaffServicesSaved(servicesStaff.id, result.serviceIds);
+          setServicesDraft(result.serviceIds);
+          setServicesStaff(null);
           router.refresh();
-          setTimeout(() => setServicesStaff(null), 1200);
         } else {
           toast.error(result.message ?? "Could not update service capabilities.");
         }
       });
     },
-    [servicesStaff, router]
+    [onStaffServicesSaved, servicesStaff, router]
   );
 
   const handleEditSuccess = useCallback(() => {
@@ -136,6 +146,7 @@ export function CrmStaffManagementTab({
         branches={branches}
         services={serviceRows}
         staffServiceIds={editingStaff ? getCurrentServiceIds(editingStaff.id) : []}
+        serviceAssignmentsError={providerAssignmentsError}
         reviewerSystemRole={reviewerSystemRole}
         onEditServices={() => {
           if (editingStaff) {

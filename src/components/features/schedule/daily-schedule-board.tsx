@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { mutate } from "swr";
 import { createBrowserClient } from "@supabase/ssr";
 import {
   EXPANDED_HOUR_WIDTH_PX,
@@ -34,7 +33,7 @@ type DailyScheduleBoardProps = {
   timelineMode?: TimelineDisplayMode;
 };
 
-function useScheduleRealtime(branchId: string, date: string) {
+export function useScheduleRealtime(branchId: string, date: string) {
   const router = useRouter();
 
   useEffect(() => {
@@ -54,9 +53,6 @@ function useScheduleRealtime(branchId: string, date: string) {
           filter: `branch_id=eq.${branchId}`,
         },
         () => {
-          // Invalidate SWR cache (used by CrmScheduleView)
-          void mutate(`/api/crm/schedule?date=${date}`);
-          // Also refresh Next.js router state for non-SWR pages (owner/manager)
           router.refresh();
         }
       )

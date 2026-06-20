@@ -28,15 +28,7 @@ export function ScheduleWorkspaceHeader({
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: "1rem",
-        marginBottom: "1.25rem",
-      }}
-    >
+    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.2rem" }}>
           <h1
@@ -87,9 +79,10 @@ export function ScheduleWorkspaceHeader({
         </p>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:shrink-0">
         {/* Date navigator */}
         <div
+          className="min-w-0 flex-1 sm:flex-none"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -126,7 +119,7 @@ export function ScheduleWorkspaceHeader({
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              minWidth: 160,
+              minWidth: 0,
               justifyContent: "center",
             }}
           >

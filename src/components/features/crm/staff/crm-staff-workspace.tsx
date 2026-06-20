@@ -7,6 +7,7 @@ import type {
 } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import type { Database } from "@/types/supabase";
+import { replaceStaffServiceAssignmentRows } from "@/lib/staff/service-assignment-state";
 import { CrmSegmentTabs } from "@/components/features/crm/premium/crm-segment-tabs";
 import type { CrmSegmentTab } from "@/components/features/crm/premium/crm-segment-tabs";
 import { CrmStaffApplicationsTab } from "./crm-staff-applications-tab";
@@ -45,6 +46,7 @@ type CrmStaffWorkspaceProps = {
   activeServices: ServiceLite[];
   providerStaff: StaffForServicePanel[];
   providerAssignments: ServiceAssignmentRow[];
+  providerAssignmentsError: string | null;
   onboardingRequests: OnboardingRequest[];
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
@@ -53,6 +55,29 @@ type CrmStaffWorkspaceProps = {
 
 export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<StaffTab>(props.initialTab);
+  const [assignmentOverrides, setAssignmentOverrides] = useState<
+    Record<string, string[]>
+  >({});
+
+  const providerAssignments = useMemo(
+    () =>
+      Object.entries(assignmentOverrides).reduce(
+        (rows, [staffId, serviceIds]) =>
+          replaceStaffServiceAssignmentRows(rows, staffId, serviceIds),
+        props.providerAssignments
+      ),
+    [assignmentOverrides, props.providerAssignments]
+  );
+
+  const handleStaffServicesSaved = useCallback(
+    (staffId: string, serviceIds: string[]) => {
+      setAssignmentOverrides((current) => ({
+        ...current,
+        [staffId]: serviceIds,
+      }));
+    },
+    []
+  );
 
   const tabs = useMemo<CrmSegmentTab[]>(
     () => [
@@ -65,7 +90,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
       {
         key: "assignments",
         label: "Service Assignments",
-        count: props.providerAssignments.length,
+        count: providerAssignments.length,
       },
       { key: "status", label: "Status", count: props.pendingStaff.length },
     ],
@@ -74,7 +99,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
       props.canReviewOnboarding,
       props.onboardingRequests.length,
       props.pendingStaff.length,
-      props.providerAssignments.length,
+      providerAssignments.length,
     ]
   );
 
@@ -115,8 +140,10 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           pendingStaff={props.pendingStaff}
           branches={props.branches}
           activeServices={props.activeServices}
-          providerAssignments={props.providerAssignments}
+          providerAssignments={providerAssignments}
+          providerAssignmentsError={props.providerAssignmentsError}
           reviewerSystemRole={props.reviewerSystemRole}
+          onStaffServicesSaved={handleStaffServicesSaved}
         />
       </div>
 
@@ -125,7 +152,9 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           branchId={props.branchId}
           activeServices={props.activeServices}
           providerStaff={props.providerStaff}
-          providerAssignments={props.providerAssignments}
+          providerAssignments={providerAssignments}
+          providerAssignmentsError={props.providerAssignmentsError}
+          onStaffServicesSaved={handleStaffServicesSaved}
         />
       </div>
 

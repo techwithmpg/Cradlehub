@@ -2,10 +2,84 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { canAdjustStaffSchedule, isOwner } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/types/supabase";
 
 const uuid = z.guid("Invalid ID");
+const GROUP_RULE_PERMISSION_ERROR =
+  "You do not have permission to update schedule rules for this branch.";
+const GROUP_RULE_SAVE_ERROR = "We could not save the schedule rules. Please try again.";
+
+type StaffGroupScheduleRule = Database["public"]["Tables"]["staff_group_schedule_rules"]["Row"];
+type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
+type GroupRuleMutationResult = {
+  success: boolean;
+  error?: string;
+  rule?: StaffGroupScheduleRule;
+};
+
+async function authorizeGroupRuleMutation(
+  supabase: ServerSupabaseClient,
+  groupId: string
+): Promise<{ authorized: true } | { authorized: false; error: string }> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    console.error("[staff-group-schedule-rules] user lookup failed", userError);
+    return { authorized: false, error: GROUP_RULE_SAVE_ERROR };
+  }
+  if (!user) return { authorized: false, error: GROUP_RULE_PERMISSION_ERROR };
+
+  const { data: actor, error: actorError } = await supabase
+    .from("staff")
+    .select("id, system_role, branch_id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (actorError) {
+    console.error("[staff-group-schedule-rules] actor lookup failed", actorError);
+    return { authorized: false, error: GROUP_RULE_SAVE_ERROR };
+  }
+  if (!actor || !canAdjustStaffSchedule(actor.system_role)) {
+    return { authorized: false, error: GROUP_RULE_PERMISSION_ERROR };
+  }
+
+  const { data: group, error: groupError } = await supabase
+    .from("staff_schedule_groups")
+    .select("id, branch_id")
+    .eq("id", groupId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (groupError) {
+    console.error("[staff-group-schedule-rules] group lookup failed", groupError);
+    return { authorized: false, error: GROUP_RULE_SAVE_ERROR };
+  }
+  if (!group || (!isOwner(actor.system_role) && actor.branch_id !== group.branch_id)) {
+    return { authorized: false, error: GROUP_RULE_PERMISSION_ERROR };
+  }
+
+  return { authorized: true };
+}
+
+function getSafeMutationError(error: { code?: string; message: string }): string {
+  if (error.code === "42501" || /row-level security|permission denied/i.test(error.message)) {
+    return GROUP_RULE_PERMISSION_ERROR;
+  }
+  return GROUP_RULE_SAVE_ERROR;
+}
+
+function revalidateGroupRulePaths() {
+  revalidatePath("/crm/schedule");
+  revalidatePath("/crm/staff-availability");
+  revalidatePath("/crm/availability");
+}
 
 const upsertGroupRuleSchema = z.object({
   groupId: uuid,
@@ -21,7 +95,7 @@ export type UpsertGroupRuleInput = z.infer<typeof upsertGroupRuleSchema>;
 
 export async function upsertStaffGroupScheduleRuleAction(
   input: UpsertGroupRuleInput
-): Promise<{ success: boolean; error?: string }> {
+): Promise<GroupRuleMutationResult> {
   try {
     const parsed = upsertGroupRuleSchema.safeParse(input);
     if (!parsed.success) {
@@ -29,8 +103,10 @@ export async function upsertStaffGroupScheduleRuleAction(
     }
 
     const supabase = await createClient();
+    const access = await authorizeGroupRuleMutation(supabase, parsed.data.groupId);
+    if (!access.authorized) return { success: false, error: access.error };
 
-    const { error } = await supabase
+    const { data: rule, error } = await supabase
       .from("staff_group_schedule_rules")
       .upsert(
         {
@@ -43,19 +119,20 @@ export async function upsertStaffGroupScheduleRuleAction(
           is_active: parsed.data.isActive,
         },
         { onConflict: "group_id,day_of_week,shift_type" }
-      );
+      )
+      .select("*")
+      .single();
 
     if (error) {
       console.error("[upsertStaffGroupScheduleRuleAction] failed", error);
-      return { success: false, error: error.message };
+      return { success: false, error: getSafeMutationError(error) };
     }
 
-    revalidatePath("/crm/staff-availability");
-    revalidatePath("/crm/availability");
-    return { success: true };
+    revalidateGroupRulePaths();
+    return { success: true, rule };
   } catch (err) {
     console.error("[upsertStaffGroupScheduleRuleAction] exception", err);
-    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { success: false, error: GROUP_RULE_SAVE_ERROR };
   }
 }
 
@@ -77,25 +154,27 @@ export async function deleteStaffGroupScheduleRuleAction(
     }
 
     const supabase = await createClient();
+    const access = await authorizeGroupRuleMutation(supabase, parsed.data.groupId);
+    if (!access.authorized) return { success: false, error: access.error };
 
     const { error } = await supabase
       .from("staff_group_schedule_rules")
       .delete()
       .eq("group_id", parsed.data.groupId)
       .eq("day_of_week", parsed.data.dayOfWeek)
-      .eq("shift_type", parsed.data.shiftType);
+      .eq("shift_type", parsed.data.shiftType)
+      .select("id");
 
     if (error) {
       console.error("[deleteStaffGroupScheduleRuleAction] failed", error);
-      return { success: false, error: error.message };
+      return { success: false, error: getSafeMutationError(error) };
     }
 
-    revalidatePath("/crm/staff-availability");
-    revalidatePath("/crm/availability");
+    revalidateGroupRulePaths();
     return { success: true };
   } catch (err) {
     console.error("[deleteStaffGroupScheduleRuleAction] exception", err);
-    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+    return { success: false, error: GROUP_RULE_SAVE_ERROR };
   }
 }
 

@@ -4,7 +4,7 @@
  * CrmBookingsView
  *
  * Client shell that wraps BookingsWorkspace with SWR.
- * Same pattern as CrmScheduleView — instant from cache, silent background revalidation.
+ * Uses the same cache-first pattern as other CRM data views.
  */
 
 import useSWR from "swr";

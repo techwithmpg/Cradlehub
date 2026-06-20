@@ -109,6 +109,8 @@ export function ScheduleWorkspaceShell({
   branchResources,
   stats,
   readiness,
+  dailyTimelineError,
+  dailyTimelineNow,
 }: {
   branchId: string;
   branchName: string;
@@ -118,6 +120,8 @@ export function ScheduleWorkspaceShell({
   branchResources: ResourceRow[];
   stats: { total: number; confirmed: number; in_progress: number; completed: number; cancelled: number; no_show: number };
   readiness: ReadinessResult | null;
+  dailyTimelineError: string | null;
+  dailyTimelineNow: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -223,8 +227,8 @@ export function ScheduleWorkspaceShell({
             date={date}
             staffRows={staffRows}
             availabilityItems={availabilityItems}
-            branchResources={branchResources}
-            stats={stats}
+            loadError={dailyTimelineError}
+            initialNow={dailyTimelineNow}
           />
         );
       case "availability":
@@ -291,23 +295,26 @@ export function ScheduleWorkspaceShell({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+    <div className="px-3 py-3 md:px-0 md:py-0" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       <ScheduleWorkspaceHeader branchName={branchName} date={date} onDateChange={handleDateChange} />
 
       <ScheduleWorkspaceTabs activeTab={activeTab} onTabChange={setTab} tabBadges={tabBadges} />
 
-      <ScheduleStatusChipRow
-        readinessStatus={readinessStatus}
-        readinessIssues={readinessIssues}
-        availableStaffCount={availableStaffCount}
-        coverageIssueCount={coverageIssueCount}
-        roomsAvailable={roomsAvailable}
-        totalRooms={totalRooms}
-        conflictCount={alerts.roomConflicts}
-        onSwitchTab={setTab}
-      />
-
-      <ScheduleMetricGrid metrics={metrics} />
+      {activeTab !== "daily" ? (
+        <>
+          <ScheduleStatusChipRow
+            readinessStatus={readinessStatus}
+            readinessIssues={readinessIssues}
+            availableStaffCount={availableStaffCount}
+            coverageIssueCount={coverageIssueCount}
+            roomsAvailable={roomsAvailable}
+            totalRooms={totalRooms}
+            conflictCount={alerts.roomConflicts}
+            onSwitchTab={setTab}
+          />
+          <ScheduleMetricGrid metrics={metrics} />
+        </>
+      ) : null}
 
       {/* Main content area */}
       {activeTab === "daily" || activeTab === "setup" || activeTab === "staff" ? (

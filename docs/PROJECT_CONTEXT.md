@@ -304,3 +304,31 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - `/login` shows the reset affordance as `Forgot password?` beside the Password label and now displays a post-reset confirmation banner.
 - Supabase dashboard follow-up: set Site URL to `https://cradlewellnessliving.com`, add redirect URLs for `http://localhost:3000/reset-password` and `https://cradlewellnessliving.com/reset-password`, and replace any Vercel placeholder with the real deployment URL.
 - Verified `pnpm type-check`, `pnpm lint`, `pnpm test`, `pnpm build`, focused auth tests, and requested unsafe scans; only the existing server-only Supabase admin client references `SUPABASE_SERVICE_ROLE_KEY`.
+
+## Latest Agent Update (2026-06-17)
+
+- Deployed `RLS-GROUP-SCHEDULE-RULES-001` to production project `lsrbwqhvzjfpiabeolkv` as migration `20260617123431`.
+- Root cause was the legacy `csr` system role missing from the live CRM/CSR group-rule write policy; its same-branch INSERT `WITH CHECK` failed with PostgreSQL `42501`.
+- Group-rule RLS now uses explicit authenticated command policies: Owner-wide access, branch-scoped Manager/CRM/front-desk writes, update old/new-row checks, branch-readable staff SELECT, and no anonymous table grants.
+- Server upsert/delete actions now independently verify Auth user, active staff role, centralized schedule permission, active target group, and branch ownership before using the normal session client.
+- Live rollback-only authorization tests passed 14 cases. Schedule data remained intact at 58 group rules and 401 individual schedules, while daily schedule and booking availability RPCs continued returning data.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm test` (50 files / 519 tests), and `pnpm build` (100 routes). Authenticated browser save is still pending because no CRM/front-desk test session was available.
+
+## Latest Agent Update (2026-06-17)
+
+- Completed `CRM-DAILY-TIMELINE-REPLACEMENT-001`: replaced only the CRM Schedule Daily Timeline tab with the approved role-aware operations board.
+- The existing `/crm/schedule` route, module header, URL-driven date/tab state, Live Availability, Schedule Setup, Coverage Issues, and Staff Schedule tabs remain.
+- The board reuses resolved schedule windows, overrides, bookings, blocked periods, branch context, and realtime refresh; no database, schedule engine, availability, save, RLS, or authorization behavior changed.
+- Added operational staff groups, filters, sticky timeline rows, current-time status, coverage, contextual selection, existing-workflow quick actions, available staff, and daily summary.
+- Removed the Daily-only right rail and unreferenced legacy CRM SWR wrapper while retaining shared Owner/Manager schedule components.
+- Verified type-check, lint, 51 test files / 525 tests, 100-route production build, and responsive browser QA at 1440x1000 and 390x844. Authenticated live-data visual QA remains a manual follow-up.
+
+## Latest Agent Update (2026-06-17)
+
+- Completed the local code portion of `CRM-AUTHORIZATION-CONSISTENCY-001`: CRM Staff service capability saves now use a transactional SECURITY INVOKER RPC instead of a non-atomic delete-then-insert Server Action sequence.
+- Added migration `20260617141348_crm_staff_service_capabilities_rpc.sql` with `replace_staff_service_capabilities`, explicit branch-scoped `staff_services` operational policies, authenticated table grants, and locked-down function execute grants.
+- Assignment reads now distinguish query/RLS failure from legitimate empty data and are scoped through active staff in the current branch.
+- CRM Staff Management and Service Assignments update local state from the authoritative returned service IDs before route refresh, so the table/editor no longer depend on a timeout or stale props.
+- Added `docs/CRM_AUTHORIZATION_INVENTORY.md` for the focused role/RLS/action inventory and documented remaining broader drift candidates.
+- Verified `npx tsc --noEmit`, focused assignment-state test, `pnpm lint`, `pnpm test` (52 files / 528 tests), and `pnpm build` (100 routes).
+- Live Supabase inspection/application is still pending because `supabase db query --linked` and `supabase db push --linked --dry-run` hung from this environment; apply and verify the migration from a working Supabase connection before marking the live DB work complete.

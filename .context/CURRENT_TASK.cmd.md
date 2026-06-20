@@ -1,34 +1,46 @@
-# Current Task - AUTH-RESET-SUPABASE-CONNECTION-001
+# Current Task - AGENT-CRM-COACH-001
 
-Status: COMPLETE
-Started: 2026-06-17
-Completed: 2026-06-17
+Status: CODE_COMPLETE_LOCAL / LIVE_DB_BLOCKED
+Started: 2026-06-20
+Local code completed: 2026-06-20
 
 ## Description
 
-Connect the CradleHub local and production password-recovery flow to the configured Supabase Auth reset URLs.
+Build the first CradleHub AI agent — a CRM Coach that guides CRM/front-desk users through the system, detects idle users, offers proactive inline tips, answers natural-language questions, and suggests one-click actions. All interactions are logged for owner review.
 
-## Trace Checklist
+## Implemented
 
-- Read repository context, Supabase Auth guidance, and installed Next.js App Router docs before implementation.
-- Audit existing login, forgot-password, reset-password, auth callback, Supabase client, proxy, and role-routing behavior.
-- Reuse the existing Supabase clients and auth callback; do not create duplicate recovery routes.
-- Add or reuse a trusted public app URL helper backed by `NEXT_PUBLIC_APP_URL`.
-- Ensure reset requests call Supabase Auth with a `/reset-password` redirect built from the trusted app URL.
-- Ensure recovery sessions are established before password update and never route into a workspace before update.
-- Preserve Owner, CRM, Staff, Driver, Utility, workspace switching, proxy protection, booking, scheduling, and dispatch behavior.
-- Add focused tests for URL construction, reset request behavior, login messaging, callback routing, password validation/update, and password visibility where practical.
-- Run type-check, lint, tests, build, and requested unsafe scans.
-- Update context documentation after implementation.
+- Installed `ai` and `@ai-sdk/anthropic` for LLM calls.
+- Added `ANTHROPIC_API_KEY` and `AGENT_COACH_WORKSPACES` to `.env.example`.
+- Created agent core under `src/lib/agents/`:
+  - `types.ts` — shared agent types and action keys
+  - `config.ts` — feature flags and workspace enablement
+  - `audit.ts` — immutable audit logging to `agent_audit_logs`
+  - `crm/prompts.ts` — CRM system prompt, suggested actions, proactive greetings
+- Created `/api/agent/coach` POST route using Claude 3.5 Sonnet with structured output (reply + up to 3 actions).
+- Created client components:
+  - `src/components/agent/agent-context-provider.tsx` — tracks page context and idle state
+  - `src/components/agent/coach-bubble.tsx` — floating chat bubble with sheet UI
+  - `src/components/agent/inline-tip.tsx` — proactive tip that appears after 45s of inactivity
+- Mounted coach in `src/app/(dashboard)/crm/layout.tsx` so it appears on every CRM page.
+- Added migration `supabase/migrations/20260620140000_agent_audit_logs.sql` with RLS policy for owner review.
+- Updated generated `src/types/supabase.ts` with the new `agent_audit_logs` table.
 
-## Status Notes
+## Verification
 
-- Pre-flight context and project docs read; root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `ARCHITECTURE.md` are absent, so `docs/` equivalents were used.
-- Supabase and Next.js task guidance loaded; official Supabase changelog/docs fetch required escalated network access after sandbox refusal.
-- Implemented trusted `NEXT_PUBLIC_APP_URL` password-reset redirect construction with development localhost fallback and production localhost rejection.
-- Self-service and Owner-triggered recovery now send users to `/reset-password`; `/reset-password` redirects PKCE/token-hash recovery params through `/auth/callback` to establish the Supabase session and recovery marker before rendering the update form.
-- Login now shows the reset affordance as `Forgot password?` beside the Password label and shows a password-updated confirmation after successful reset.
-- Password update now requires the recovery marker plus a current Supabase user, applies shared password policy validation, calls `auth.updateUser({ password })` once, signs out, and returns to `/login?passwordUpdated=true`.
-- Supabase dashboard/env follow-up: production `NEXT_PUBLIC_APP_URL` must be the deployed CradleHub origin, and Supabase Auth URL configuration should include Site URL `https://cradlewellnessliving.com` plus redirect URLs `http://localhost:3000/reset-password` and `https://cradlewellnessliving.com/reset-password`; replace any placeholder Vercel URL with the real deployment URL if a Vercel preview/production domain is used.
-- Verification passed: `pnpm type-check`, `pnpm lint` (0 errors, 4 existing warnings), `pnpm test` (49 files / 513 tests), `pnpm build` (100 routes), and requested unsafe scans.
-- Unsafe scan note: only `src/lib/supabase/admin.ts` references `SUPABASE_SERVICE_ROLE_KEY`, and it is the existing server-only admin client. No localhost reset URL, placeholder Vercel reset URL, password console logging, or password storage matches were found in `src`.
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 4 pre-existing warnings)
+- `pnpm test -- --run`: PASS, 52 files / 528 tests
+- `pnpm build`: PASS, 101 routes
+
+## Blocked / Pending
+
+- The new `agent_audit_logs` migration has not been applied to the live Supabase project from this environment.
+- `ANTHROPIC_API_KEY` must be added to `.env.local` (and to production env vars) for the coach to respond.
+- Owner review UI for `agent_audit_logs` is not yet built; owners can query via Supabase Studio for now.
+- Inline tips fetch once per idle episode; future work can refine frequency and add page-specific triggers.
+
+## Do Not Disturb
+
+- Existing booking lifecycle, schedule engine, RLS policies, and auth routing were not changed.
+- Only the CRM workspace is enabled by default; owner/manager/staff-portal expansion is planned.

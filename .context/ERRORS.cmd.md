@@ -424,6 +424,22 @@
 - **Impact:** Full visual inspection of the authenticated CRM Daily Timeline with live schedule data could not be completed from this thread.
 - **Resolution:** Verified with `pnpm type-check`, `pnpm lint`, `pnpm build`, `git diff --check`, and a local route probe returning `307 /login`. Authenticated CRM browser QA should confirm Fit Day, Expand/Collapse, right-rail behavior, and block alignment with real branch data.
 
+## 2026-06-17 - RLS-GROUP-SCHEDULE-RULES-001 production RLS failure
+
+- **Symptom:** Saving a new weekly group rule returned `new row violates row-level security policy for table "staff_group_schedule_rules"`.
+- **Impact:** Active front-desk users carrying the legacy `csr` system role could read same-branch groups but could not create missing opening/closing rule rows.
+- **Root cause:** The live CRM/CSR ALL policy omitted `csr` from its role array. The INSERT `WITH CHECK` therefore evaluated false even though actor and target group belonged to the same branch.
+- **Resolution:** Applied forward migration `20260617123431_fix_staff_group_schedule_rules_rls.sql` with explicit command policies, complete approved role coverage, branch checks through the existing auth helpers, Owner-wide access, update old/new-row checks, and least-privilege grants. Added matching server-action checks and focused tests.
+
+## 2026-06-17 - RLS-GROUP-SCHEDULE-RULES-001 verification limitations
+
+- **Symptom:** Supabase MCP SQL/advisor calls returned permission errors or timeouts, and linked CLI SQL required an unavailable database-password connection path.
+- **Impact:** Migration deployment and catalog verification could not use those two preferred interfaces.
+- **Resolution:** Used the already-authorized Supabase Management API path to inspect catalog state, apply the exact migration atomically, record migration history, and run rollback-only live policy tests. Manual policy/grant/index/helper audits passed; the Supabase advisor endpoint itself could not be run.
+- **Symptom:** No authenticated CRM/front-desk browser tab or test credentials were available.
+- **Impact:** The final UI click-through save could not be performed.
+- **Resolution:** Verified production RLS with real active production auth identities under `authenticated` role in rollback-only transactions, plus six server-action tests. Interactive browser save remains a named manual follow-up.
+
 ## 2026-06-15 - OWNER-RECONNECT-001 old Owner soft-pause blockers
 
 - **Symptom:** Owner users could not reach `/owner` even though Owner routes, actions, constants, RLS policies, and workspace resolver support still existed.
@@ -448,3 +464,23 @@
 - **Symptom:** Local browser smoke for `http://localhost:3000/owner` redirected to `/login` because the in-app browser did not have an authenticated Owner session.
 - **Impact:** The protected route/auth guard was verified, but the full dashboard visual with real Owner data could not be inspected in-browser from this unauthenticated session.
 - **Resolution:** Production build and route generation passed; unauthenticated browser smoke captured no local app console errors. Run authenticated Owner QA with a logged-in Owner account to visually confirm spacing, responsive layout, filters, and live data.
+
+## 2026-06-17 - CRM-DAILY-TIMELINE-REPLACEMENT-001 authenticated browser limitation
+
+- **Symptom:** The local in-app browser redirected `/crm/schedule` to `/login` because it had no authenticated CRM session.
+- **Impact:** The final board could not be inspected through the protected route with live branch data.
+- **Resolution:** Rendered the real `ScheduleWorkspaceShell` and new `DailyTimelineTab` component tree through a temporary fixture-backed QA route, verified desktop/mobile layout and interactions, then deleted that route before the production build. The real protected route, authorization, queries, and route count remain unchanged; an authenticated live-data visual pass remains manual.
+
+## 2026-06-17 - CRM-AUTHORIZATION-CONSISTENCY-001 Supabase linked-project CLI hang
+
+- **Symptom:** `supabase db query --linked` hung for both the policy query and a minimal `select current_database(), current_user;` probe. The minimal probe timed out after 124 seconds with no result.
+- **Impact:** Live `pg_policies`, grants, and helper function definitions could not be inspected from this thread.
+- **Follow-up:** Re-run the policy/grant inspection from an environment with working Supabase Management API access or direct DB credentials before declaring the live DB portion complete.
+
+- **Symptom:** `supabase db push --linked --dry-run` also hung and was manually terminated.
+- **Impact:** Migration `20260617141348_crm_staff_service_capabilities_rpc.sql` was created locally but not dry-run or applied against the linked project from this thread.
+- **Follow-up:** Apply the migration separately, then run an authenticated CRM/front-desk save test on `/crm/staff?tab=assignments`.
+
+- **Symptom:** `supabase db lint --local --schema public` failed because local Postgres `127.0.0.1:54322` is not running.
+- **Impact:** Local database lint for the new migration could not run.
+- **Follow-up:** Start the local Supabase stack or lint against a reachable database.
