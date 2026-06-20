@@ -2,46 +2,39 @@
 
 ## Current Task
 
-AGENT-CRM-COACH-001 — CRM AI Coach MVP is code-complete locally.
+AGENT-CRM-COACH-002 — CRM Coach now has three one-click tools.
 
 ## What Was Done
 
-- Built a Claude 3.5 Sonnet powered CRM coach:
-  - `/api/agent/coach` route with structured output
-  - Floating `CoachBubble` chat UI on all `/crm/*` pages
-  - Proactive `InlineTip` after 45 seconds of inactivity
-  - Audit logging to `agent_audit_logs`
-- Added migration `20260620140000_agent_audit_logs.sql`.
-- Updated `.env.example` with `ANTHROPIC_API_KEY` and `AGENT_COACH_WORKSPACES`.
-- All checks pass: type-check, lint, tests, build.
+- Added tool layer in `src/lib/agents/tools.ts`:
+  - `create_reminder_task` — creates a CRM workflow task
+  - `check_available_slots` — queries availability for a service/date
+  - `prefill_walk_in_booking` — opens booking form with pre-filled details
+- Added `/api/agent/act` route to execute confirmed tool actions.
+- Updated CRM prompt to describe when to use each tool.
+- Updated `CoachBubble` to show confirm buttons and display tool results.
+- All tool executions are audited in `agent_audit_logs`.
+- All checks pass.
 
 ## Blockers / Pending
 
-1. Live Supabase migration not yet applied (same network/CLI hang issue as previous tasks).
-2. `ANTHROPIC_API_KEY` must be added to `.env.local` and production env vars.
-3. Owner review UI for audit logs not built.
+1. Live Supabase migration `20260620140000_agent_audit_logs.sql` not yet applied.
+2. `ANTHROPIC_API_KEY` must be in `.env.local` / production env.
 
 ## Next Logical Steps
 
-1. Apply the migration to live Supabase once CLI connectivity is restored.
-2. Add `ANTHROPIC_API_KEY` to environment.
-3. Smoke-test the coach in `/crm/today`:
-   - Open the chat bubble
-   - Ask "How do I create a walk-in booking?"
-   - Leave the page idle for 45s and confirm the inline tip appears
-4. Expand to owner/manager/staff-portal workspaces.
-5. Add safe one-click actions with confirm flow (e.g., pre-fill booking form, create workflow task).
+1. Add more tools:
+   - Record payment reminder
+   - Assign therapist to booking
+   - Check booking status
+2. Build follow-up/escalation agent that creates tasks when CRM/owner do not act.
+3. Expand coach to owner/manager/staff-portal workspaces.
+4. Apply pending migration and smoke-test tools in `/crm/today`.
 
 ## Files to Know
 
-- `src/lib/agents/` — core agent logic
+- `src/lib/agents/tools.ts` — tool implementations
+- `src/app/api/agent/act/route.ts` — tool execution endpoint
 - `src/app/api/agent/coach/route.ts` — LLM endpoint
-- `src/components/agent/` — UI components
-- `src/app/(dashboard)/crm/layout.tsx` — CRM mount point
-- `supabase/migrations/20260620140000_agent_audit_logs.sql` — pending migration
-
-## Notes
-
-- The coach is suggest-only. It does not mutate data.
-- Only the CRM workspace is enabled by default (`AGENT_COACH_WORKSPACES=crm`).
-- All agent interactions are logged for owner review.
+- `src/components/agent/coach-bubble.tsx` — chat UI
+- `src/lib/agents/crm/prompts.ts` — tool descriptions for the LLM

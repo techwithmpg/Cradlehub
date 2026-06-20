@@ -5150,3 +5150,35 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Add `ANTHROPIC_API_KEY` to `.env.local` and production environment variables.
 - Build an owner-facing review UI for `agent_audit_logs`.
 - Expand coach to owner/manager/staff-portal workspaces and add one-click confirm actions.
+
+---
+
+## 2026-06-20 - Kimi (AGENT-CRM-COACH-002 - Agent Tools)
+
+**Task:** Add three one-click agent tools to the CRM Coach: create reminder task, check available slots, and pre-fill walk-in booking.
+
+**Files Changed:**
+- `src/lib/agents/types.ts` - added tool action keys.
+- `src/lib/agents/tools.ts` - new tool implementations.
+- `src/lib/agents/crm/prompts.ts` - CRM prompt now describes available tools and when to use them.
+- `src/app/api/agent/act/route.ts` - new endpoint to execute confirmed tool actions.
+- `src/app/api/agent/coach/route.ts` - passes tool-capable actions through.
+- `src/components/agent/coach-bubble.tsx` - chat UI now handles tool confirmation, execution, and result display.
+- `.context/CURRENT_TASK.cmd.md` - updated task description.
+
+**Behavior:**
+- Coach can suggest `create_reminder_task`, `check_available_slots`, or `prefill_walk_in_booking`.
+- User taps the action button to confirm.
+- `/api/agent/act` runs the tool server-side and returns a result message.
+- Every tool execution is logged to `agent_audit_logs`.
+- All actions remain suggest-only; nothing happens without user confirmation.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS (0 errors, 4 pre-existing warnings)
+- `pnpm test -- --run`: PASS, 52 files / 528 tests
+- `pnpm build`: PASS, 102 routes
+
+**Follow-up:**
+- Add more tools: record payment reminder, assign therapist, check booking status.
+- Build follow-up/escalation agent for overdue bookings and tasks.

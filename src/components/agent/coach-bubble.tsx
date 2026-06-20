@@ -10,6 +10,12 @@ import { useAgentCoachContext } from "@/components/agent/agent-context-provider"
 import { getCrmProactiveGreeting } from "@/lib/agents/crm/prompts";
 import type { AgentMessage, AgentSuggestedAction } from "@/lib/agents/types";
 
+const TOOL_ACTIONS = new Set([
+  "create_reminder_task",
+  "check_available_slots",
+  "prefill_walk_in_booking",
+]);
+
 function useCoachChat() {
   const { context } = useAgentCoachContext();
   const [open, setOpen] = React.useState(false);
@@ -69,41 +75,142 @@ function useCoachChat() {
     callCoach(trimmed);
   }, [input, isLoading, callCoach]);
 
-  return { open, setOpen, history, input, setInput, isLoading, sendMessage };
+  const addMessage = React.useCallback((msg: AgentMessage) => {
+    setHistory((prev) => [...prev, msg]);
+  }, []);
+
+  return { open, setOpen, history, input, setInput, isLoading, sendMessage, addMessage, context, sessionId };
 }
 
-function SuggestedActions({ actions }: { actions: AgentSuggestedAction[] }) {
+function ActionButton({
+  action,
+  context,
+  sessionId,
+  onResult,
+}: {
+  action: AgentSuggestedAction;
+  context: ReturnType<typeof useAgentCoachContext>["context"];
+  sessionId: string | undefined;
+  onResult: (msg: AgentMessage) => void;
+}) {
+  const [executing, setExecuting] = React.useState(false);
+  const isTool = action.action && TOOL_ACTIONS.has(action.action);
+
+  if (!isTool && action.href) {
+    return (
+      <Button
+        key={action.id}
+        variant="outline"
+        size="xs"
+        asChild
+        className="h-auto rounded-full px-2 py-0.5 text-[10px]"
+      >
+        <a href={action.href}>{action.label}</a>
+      </Button>
+    );
+  }
+
+  if (!isTool) {
+    return (
+      <Button
+        key={action.id}
+        variant="outline"
+        size="xs"
+        className="h-auto rounded-full px-2 py-0.5 text-[10px]"
+      >
+        {action.label}
+      </Button>
+    );
+  }
+
+  const runTool = async () => {
+    setExecuting(true);
+    try {
+      const res = await fetch("/api/agent/act", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tool: action.action,
+          params: action.payload ?? {},
+          context: { ...context, sessionId },
+        }),
+      });
+
+      const result = (await res.json().catch(() => ({ ok: false, message: "Failed to run action." }))) as {
+        ok: boolean;
+        message: string;
+        data?: Record<string, unknown>;
+      };
+
+      if (result.ok && result.data?.href && typeof result.data.href === "string") {
+        window.location.href = result.data.href;
+        return;
+      }
+
+      onResult({
+        role: "assistant",
+        content: result.ok ? `✅ ${result.message}` : `❌ ${result.message}`,
+      });
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  return (
+    <Button
+      key={action.id}
+      variant="outline"
+      size="xs"
+      className="h-auto rounded-full px-2 py-0.5 text-[10px]"
+      onClick={runTool}
+      disabled={executing}
+    >
+      {executing ? <Loader2 className="mr-1 size-3 animate-spin" /> : null}
+      {action.label}
+    </Button>
+  );
+}
+
+function SuggestedActions({
+  actions,
+  context,
+  sessionId,
+  onResult,
+}: {
+  actions: AgentSuggestedAction[];
+  context: ReturnType<typeof useAgentCoachContext>["context"];
+  sessionId: string | undefined;
+  onResult: (msg: AgentMessage) => void;
+}) {
   if (!actions || actions.length === 0) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      {actions.map((action) =>
-        action.href ? (
-          <Button
-            key={action.id}
-            variant="outline"
-            size="xs"
-            asChild
-            className="h-auto rounded-full px-2 py-0.5 text-[10px]"
-          >
-            <a href={action.href}>{action.label}</a>
-          </Button>
-        ) : (
-          <Button
-            key={action.id}
-            variant="outline"
-            size="xs"
-            className="h-auto rounded-full px-2 py-0.5 text-[10px]"
-          >
-            {action.label}
-          </Button>
-        )
-      )}
+      {actions.map((action) => (
+        <ActionButton
+          key={action.id}
+          action={action}
+          context={context}
+          sessionId={sessionId}
+          onResult={onResult}
+        />
+      ))}
     </div>
   );
 }
 
 export function CoachBubble() {
-  const { open, setOpen, history, input, setInput, isLoading, sendMessage } = useCoachChat();
+  const {
+    open,
+    setOpen,
+    history,
+    input,
+    setInput,
+    isLoading,
+    sendMessage,
+    addMessage,
+    context,
+    sessionId,
+  } = useCoachChat();
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -177,7 +284,12 @@ export function CoachBubble() {
                   >
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                     {msg.role === "assistant" && msg.actions && (
-                      <SuggestedActions actions={msg.actions} />
+                      <SuggestedActions
+                        actions={msg.actions}
+                        context={context}
+                        sessionId={sessionId}
+                        onResult={addMessage}
+                      />
                     )}
                   </div>
                 </div>

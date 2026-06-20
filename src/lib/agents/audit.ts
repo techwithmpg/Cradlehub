@@ -1,5 +1,3 @@
-import "server-only";
-
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import type { AgentSessionContext, AgentMessage, AgentSuggestedAction } from "@/lib/agents/types";

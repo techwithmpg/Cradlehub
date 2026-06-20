@@ -448,7 +448,7 @@ A delete-then-insert sequence can lose previous assignments if insert fails. A S
 **Rationale:**
 - CRM users are struggling the most with the system; highest ROI target.
 - A narrow scope (guide + suggest-only actions + proactive tips) lets us validate LLM integration, audit logging, and UX before adding auto-actions.
-- Using the existing `ai` SDK + OpenAI provider integrates cleanly with Next.js App Router.
+- Using the existing `ai` SDK + Anthropic provider integrates cleanly with Next.js App Router.
 - All agent interactions are logged to `agent_audit_logs` for trust and iterative improvement.
 
 **Trade-offs:**
@@ -457,6 +457,6 @@ A delete-then-insert sequence can lose previous assignments if insert fails. A S
 - Owner review UI not included in MVP; audit logs must be queried via Supabase Studio.
 
 **Consequences:**
-- New dependency on OpenAI API key.
+- New dependency on Anthropic API key.
 - New table `agent_audit_logs` requires migration.
 - Future agents can reuse `src/lib/agents/` core and `/api/agent/coach` route pattern.

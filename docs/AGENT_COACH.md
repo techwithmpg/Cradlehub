@@ -24,8 +24,9 @@ Cradle Coach is an AI agent swarm that helps CradleHub users learn the system, c
 2. `AgentCoachProvider` tracks page route and idle state from mouse/keyboard events.
 3. `CoachBubble` opens a chat sheet. The first message is a context-aware greeting.
 4. `InlineTip` fetches a proactive tip from `/api/agent/coach` when the user is idle.
-5. `/api/agent/coach` calls Claude 3.5 Sonnet with a CRM-specific system prompt and returns a structured reply + up to 3 actions.
-6. `logAgentInteraction` writes every interaction to `agent_audit_logs`.
+5. `/api/agent/coach` calls Claude with a CRM-specific system prompt and returns a structured reply + up to 3 actions.
+6. `/api/agent/act` executes confirmed tool actions (create reminder, check slots, pre-fill booking).
+7. `logAgentInteraction` writes every interaction and tool execution to `agent_audit_logs`.
 
 ## Configuration
 
@@ -82,3 +83,19 @@ Table: `public.agent_audit_logs`
 | `created_at` | Timestamp |
 
 RLS allows only active `owner` role users to read the logs.
+
+## Available Tools
+
+All tools are **suggest-only**. The assistant proposes an action; the user taps to confirm before anything happens.
+
+| Tool | What it does | Example prompt |
+|---|---|---|
+| `create_reminder_task` | Creates a CRM `workflow_task` with title, body, and due time | "Remind me to call Anna about her booking" |
+| `check_available_slots` | Calls `get_available_slots` for a service on a date | "When is Anna free for Swedish massage tomorrow?" |
+| `prefill_walk_in_booking` | Opens `/crm/bookings/new` with branch/customer/service/date pre-filled | "Book a walk-in for customer X tomorrow" |
+
+To add a new tool:
+1. Add the action key to `AgentActionKey` in `src/lib/agents/types.ts`.
+2. Implement the tool in `src/lib/agents/tools.ts`.
+3. Describe it in `src/lib/agents/crm/prompts.ts`.
+4. Handle any special UI behavior in `src/components/agent/coach-bubble.tsx`.

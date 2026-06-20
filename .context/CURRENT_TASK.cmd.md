@@ -17,11 +17,16 @@ Build the first CradleHub AI agent — a CRM Coach that guides CRM/front-desk us
   - `config.ts` — feature flags and workspace enablement
   - `audit.ts` — immutable audit logging to `agent_audit_logs`
   - `crm/prompts.ts` — CRM system prompt, suggested actions, proactive greetings
-- Created `/api/agent/coach` POST route using Claude 3.5 Sonnet with structured output (reply + up to 3 actions).
+- Created `/api/agent/coach` POST route using Anthropic Claude (`claude-sonnet-4-6`) with structured output (reply + up to 3 actions).
 - Created client components:
   - `src/components/agent/agent-context-provider.tsx` — tracks page context and idle state
-  - `src/components/agent/coach-bubble.tsx` — floating chat bubble with sheet UI
+  - `src/components/agent/coach-bubble.tsx` — floating chat bubble widget with one-click tool confirmation
   - `src/components/agent/inline-tip.tsx` — proactive tip that appears after 45s of inactivity
+- Added agent tools under `src/lib/agents/tools.ts`:
+  - `create_reminder_task` — creates a CRM workflow task/reminder
+  - `check_available_slots` — queries `get_available_slots` for a service/date
+  - `prefill_walk_in_booking` — opens `/crm/bookings/new` with pre-filled details
+- Added `/api/agent/act` route to execute tool actions with user confirmation and audit logging.
 - Mounted coach in `src/app/(dashboard)/crm/layout.tsx` so it appears on every CRM page.
 - Added migration `supabase/migrations/20260620140000_agent_audit_logs.sql` with RLS policy for owner review.
 - Updated generated `src/types/supabase.ts` with the new `agent_audit_logs` table.
@@ -39,6 +44,7 @@ Build the first CradleHub AI agent — a CRM Coach that guides CRM/front-desk us
 - `ANTHROPIC_API_KEY` must be added to `.env.local` (and to production env vars) for the coach to respond.
 - Owner review UI for `agent_audit_logs` is not yet built; owners can query via Supabase Studio for now.
 - Inline tips fetch once per idle episode; future work can refine frequency and add page-specific triggers.
+- Tool execution currently requires the assistant to suggest the tool and the user to tap confirm. Future work can add more tools (e.g., record payment reminder, assign therapist).
 
 ## Do Not Disturb
 

@@ -1,5 +1,3 @@
-import "server-only";
-
 import type { CreateNotificationInput, CreateWorkflowTaskInput, NotificationDedupeInput, ResolveWorkflowTaskInput } from "./types";
 
 export const OPEN_NOTIFICATION_STATUSES = ["unread", "read"] as const;

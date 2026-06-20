@@ -25,6 +25,9 @@ export type AgentActionKey =
   | "view_today_schedule"
   | "view_staff_availability"
   | "create_workflow_task"
+  | "create_reminder_task"
+  | "check_available_slots"
+  | "prefill_walk_in_booking"
   | "dismiss";
 
 export type AgentMessage = {

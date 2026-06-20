@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+
 import { z } from "zod";
 
 import { getApiContext } from "@/lib/api/get-api-context";
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     ];
 
     const { object } = await generateObject({
-      model: anthropic("claude-3-5-sonnet-20241022"),
+      model: anthropic("claude-sonnet-4-6"),
       system,
       messages,
       schema: coachResponseSchema,
