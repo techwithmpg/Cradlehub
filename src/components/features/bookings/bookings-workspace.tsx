@@ -4,22 +4,16 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   CalendarDays,
-  CheckCircle2,
-  Clock3,
-  CreditCard,
-  DoorOpen,
+  Filter,
   Plus,
   RefreshCw,
-  Sparkles,
-  Users,
-  type LucideIcon,
+  Search,
 } from "lucide-react";
 import { BookingsTable } from "./bookings-table";
-import { CallbackFollowupPanel } from "./callback-followup-panel";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export type WorkspaceContext = "owner" | "manager" | "crm";
 
@@ -57,12 +51,10 @@ export type WorkspaceBookingRow = {
 };
 
 export type BookingWorkspaceTab =
-  | "needs-confirmation"
-  | "confirmed"
-  | "waiting"
-  | "in-service"
-  | "completed"
-  | "callback-followup";
+  | "needs-action"
+  | "upcoming"
+  | "active"
+  | "completed";
 
 export type Branch = { id: string; name: string };
 
@@ -90,28 +82,11 @@ type BookingsWorkspaceProps = {
 };
 
 const WORKFLOW_TABS: Array<{ key: BookingWorkspaceTab; label: string }> = [
-  { key: "needs-confirmation", label: "Needs Confirmation" },
-  { key: "confirmed", label: "Confirmed" },
-  { key: "waiting", label: "Waiting / Arrived" },
-  { key: "in-service", label: "In Service" },
+  { key: "needs-action", label: "Needs Action" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "active", label: "Active" },
   { key: "completed", label: "Completed" },
-  { key: "callback-followup", label: "Callback Follow-up" },
 ];
-
-const TAB_HINTS: Record<BookingWorkspaceTab, string> = {
-  "needs-confirmation": "Confirm booking -> moves to Confirmed tab.",
-  confirmed: "When guest arrives -> mark Customer Arrived and assign room if needed.",
-  waiting: "Assign a room/bed or keep the guest waiting until a room is ready.",
-  "in-service": "Track active sessions and complete service when done.",
-  completed: "Completed bookings stay here for review and receipt follow-up.",
-  "callback-followup": "Follow up with customers who need a callback, reschedule, or conversion.",
-};
-
-function readPricePaid(metadata: Record<string, unknown> | null | undefined): number {
-  if (!metadata) return 0;
-  const n = Number(metadata.price_paid ?? 0);
-  return Number.isFinite(n) ? n : 0;
-}
 
 function isNotStartedProgress(status: string | null | undefined): boolean {
   return !status || status === "not_started";
@@ -126,22 +101,64 @@ function isHomeServiceBooking(booking: WorkspaceBookingRow): boolean {
   );
 }
 
+function hasPaymentIssue(booking: WorkspaceBookingRow): boolean {
+  if (isBookingClosedForCrm(booking.status)) return false;
+  const paymentStatus = booking.payment_status ?? "unpaid";
+  return ["unpaid", "pending", "pending_payment"].includes(paymentStatus);
+}
+
+function hasAssignmentIssue(booking: WorkspaceBookingRow): boolean {
+  if (isHomeServiceBooking(booking) || isBookingClosedForCrm(booking.status)) return false;
+  return booking.status === "confirmed" && !booking.resource_id;
+}
+
+function hasFollowUpMetadata(booking: WorkspaceBookingRow): boolean {
+  const followup = booking.metadata?.crm_followup;
+  if (!followup || typeof followup !== "object" || Array.isArray(followup)) return false;
+  const result = (followup as { result?: unknown }).result;
+  return result === "no_answer" || result === "reschedule" || result === "confirm_later";
+}
+
+function bookingNeedsAction(booking: WorkspaceBookingRow): boolean {
+  return (
+    !isBookingClosedForCrm(booking.status) &&
+    (
+      isCrmPendingBookingStatus(booking.status) ||
+      hasPaymentIssue(booking) ||
+      hasAssignmentIssue(booking) ||
+      hasFollowUpMetadata(booking)
+    )
+  );
+}
+
 function bookingMatchesTab(booking: WorkspaceBookingRow, tab: BookingWorkspaceTab): boolean {
   const progress = booking.booking_progress_status ?? null;
+  const isClosed =
+    isBookingClosedForCrm(booking.status) ||
+    booking.status === "cancelled" ||
+    booking.status === "no_show" ||
+    progress === "completed" ||
+    progress === "no_show";
+  const isActive =
+    booking.status === "in_progress" ||
+    progress === "checked_in" ||
+    progress === "travel_started" ||
+    progress === "arrived" ||
+    progress === "session_started";
 
   switch (tab) {
-    case "needs-confirmation":
-      return isCrmPendingBookingStatus(booking.status);
-    case "confirmed":
-      return booking.status === "confirmed" && (isNotStartedProgress(progress) || progress === "travel_started");
-    case "waiting":
-      return progress === "checked_in" || progress === "arrived";
-    case "in-service":
-      return booking.status === "in_progress" || progress === "session_started";
+    case "needs-action":
+      return bookingNeedsAction(booking);
+    case "upcoming":
+      return !isClosed && !isActive && !bookingNeedsAction(booking) && (
+        booking.status === "confirmed" ||
+        booking.status === "scheduled" ||
+        isNotStartedProgress(progress)
+      );
+    case "active":
+      return !isClosed && isActive;
     case "completed":
-      return booking.status === "completed" || progress === "completed";
-    case "callback-followup":
-      return false;
+      return isClosed;
   }
 }
 
@@ -177,87 +194,6 @@ function applySecondaryFilters(
 
 function buildClearHref(basePath: string, activeTab: BookingWorkspaceTab): string {
   return `${basePath}?tab=${activeTab}`;
-}
-
-function metricLabel(value: number, singular: string, plural = `${singular}s`): string {
-  return `${value} ${value === 1 ? singular : plural}`;
-}
-
-function computeCommandMetrics(bookings: WorkspaceBookingRow[], cashSummary?: DailyCashSummaryData | null) {
-  const needsConfirmation = bookings.filter((booking) => bookingMatchesTab(booking, "needs-confirmation")).length;
-  const confirmed = bookings.filter((booking) => bookingMatchesTab(booking, "confirmed")).length;
-  const waiting = bookings.filter((booking) => bookingMatchesTab(booking, "waiting")).length;
-  const inService = bookings.filter((booking) => bookingMatchesTab(booking, "in-service")).length;
-  const completed = bookings.filter((booking) => bookingMatchesTab(booking, "completed")).length;
-  const roomsReady = bookings.filter(
-    (booking) =>
-      booking.resource_id &&
-      !isBookingClosedForCrm(booking.status) &&
-      booking.booking_progress_status !== "session_started"
-  ).length;
-  const collection =
-    cashSummary != null
-      ? cashSummary.total_collected
-      : bookings
-          .filter((booking) => booking.payment_status === "paid" && !isBookingClosedForCrm(booking.status))
-          .reduce((sum, booking) => sum + (booking.amount_paid ?? 0), 0);
-  const expected =
-    cashSummary != null
-      ? cashSummary.total_expected
-      : bookings
-          .filter((booking) => !isBookingClosedForCrm(booking.status))
-          .reduce((sum, booking) => sum + readPricePaid(booking.metadata), 0);
-
-  return {
-    needsConfirmation,
-    confirmed,
-    waiting,
-    inService,
-    completed,
-    roomsReady,
-    collection,
-    expected,
-  };
-}
-
-function CommandKpiCard({
-  icon: Icon,
-  label,
-  value,
-  helper,
-  accent,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number | string;
-  helper: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "min-w-[168px] flex-1 rounded-2xl border bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]",
-        accent ? "border-[var(--cs-sand)]" : "border-[var(--cs-border-soft)]"
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
-          <Icon size={17} />
-        </span>
-        <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-            {label}
-          </div>
-          <div className="mt-1 text-2xl font-semibold leading-none text-[var(--cs-text)] tabular-nums">
-            {value}
-          </div>
-          <div className="mt-1 text-[11px] leading-4 text-[var(--cs-text-muted)]">
-            {helper}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function WorkflowTabBar({
@@ -320,8 +256,6 @@ export function BookingsWorkspace({
   search,
   initialTab,
   bookings,
-  waitlistRows = [],
-  cashSummary,
   statusAction,
   paymentAction,
   initialSelectedId,
@@ -332,11 +266,11 @@ export function BookingsWorkspace({
   const dispatchHref = basePath.replace(/\/bookings$/, "/dispatch");
   const initialBookingTab = deriveTabForBooking(bookings.find((booking) => booking.id === initialSelectedId));
   const [activeTab, setActiveTab] = useState<BookingWorkspaceTab>(
-    initialTab ?? initialBookingTab ?? "needs-confirmation"
+    initialTab ?? initialBookingTab ?? "needs-action"
   );
+  const [showFilters, setShowFilters] = useState(Boolean(statusFilter || typeFilter || branchFilter));
   const tabBookings = bookings.filter((booking) => bookingMatchesTab(booking, activeTab));
   const visibleBookings = applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter);
-  const metrics = computeCommandMetrics(bookings, cashSummary);
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
     weekday: "long",
     month: "long",
@@ -348,11 +282,9 @@ export function BookingsWorkspace({
   const tabItems = WORKFLOW_TABS.map((tab) => ({
     key: tab.key,
     label: tab.label,
-    count:
-      tab.key === "callback-followup"
-        ? waitlistRows.length
-        : bookings.filter((booking) => bookingMatchesTab(booking, tab.key)).length,
+    count: bookings.filter((booking) => bookingMatchesTab(booking, tab.key)).length,
   }));
+  const needsActionCount = tabItems.find((tab) => tab.key === "needs-action")?.count ?? 0;
 
   function handleTabChange(nextTab: BookingWorkspaceTab) {
     setActiveTab(nextTab);
@@ -368,22 +300,16 @@ export function BookingsWorkspace({
   }
 
   return (
-    <div className="crm-fade-up -m-2 space-y-4 rounded-[28px] bg-[var(--cs-bg)] p-2 sm:-m-4 sm:space-y-5 sm:p-4">
-      <section className="rounded-3xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4 shadow-[var(--cs-shadow-sm)] sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="crm-fade-up -m-2 space-y-4 bg-[var(--cs-bg)] p-2 sm:-m-4 sm:space-y-5 sm:p-4">
+      <section className="space-y-4 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--cs-sand-dark)]">
-              <Sparkles size={13} />
-              Front Desk Workflow
-            </div>
             <h1 className="font-display text-2xl font-semibold leading-tight text-[var(--cs-text)] sm:text-3xl">
-              Bookings Command Center
+              Bookings
             </h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--cs-text-secondary)]">
-              Confirm bookings, manage arrivals, and assign rooms quickly.
-              {branchName && !isOwner ? (
-                <span className="font-semibold text-[var(--cs-sand-dark)]"> {branchName}</span>
-              ) : null}
+            <p className="mt-1 text-sm leading-6 text-[var(--cs-text-secondary)]">
+              {bookings.length} booking{bookings.length !== 1 ? "s" : ""} · {needsActionCount} need action · {dateLabel}
+              {branchName && !isOwner ? <span> · {branchName}</span> : null}
             </p>
           </div>
 
@@ -405,74 +331,35 @@ export function BookingsWorkspace({
           </div>
         </div>
 
-        <div className="mt-5 flex gap-3 overflow-x-auto pb-1">
-          <CommandKpiCard
-            icon={Clock3}
-            label="Needs Confirmation"
-            value={metrics.needsConfirmation}
-            helper={metricLabel(metrics.needsConfirmation, "new request")}
-            accent
-          />
-          <CommandKpiCard
-            icon={CheckCircle2}
-            label="Confirmed Today"
-            value={metrics.confirmed}
-            helper={metricLabel(metrics.confirmed, "booking")}
-          />
-          <CommandKpiCard
-            icon={Users}
-            label="Waiting / Arrived"
-            value={metrics.waiting}
-            helper={metricLabel(metrics.waiting, "guest")}
-          />
-          <CommandKpiCard
-            icon={Sparkles}
-            label="In Service"
-            value={metrics.inService}
-            helper={metricLabel(metrics.inService, "guest")}
-          />
-          <CommandKpiCard
-            icon={DoorOpen}
-            label="Rooms Ready"
-            value={metrics.roomsReady}
-            helper={metricLabel(metrics.roomsReady, "room assignment")}
-          />
-          <CommandKpiCard
-            icon={CreditCard}
-            label="Today's Collection"
-            value={formatCurrency(metrics.collection)}
-            helper={metrics.expected > 0 ? `of ${formatCurrency(metrics.expected)} expected` : "no expected total"}
-          />
-        </div>
-      </section>
+        <form method="get" className="grid gap-3">
+          <input type="hidden" name="tab" value={activeTab} />
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+              <input
+                type="search"
+                name="search"
+                defaultValue={search ?? ""}
+                placeholder="Search customer, phone, staff, or booking ID"
+                aria-label="Search bookings"
+                className="h-10 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] pl-9 pr-3 text-sm text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-sand)]"
+              />
+            </div>
+            <WorkflowTabBar tabs={tabItems} activeKey={activeTab} onSelect={handleTabChange} />
+            <button
+              type="button"
+              onClick={() => setShowFilters((current) => !current)}
+              className="cs-btn cs-btn-secondary h-10 rounded-xl px-3"
+              aria-expanded={showFilters}
+            >
+              <Filter size={14} />
+              Filters
+            </button>
+          </div>
 
-      <WorkflowTabBar tabs={tabItems} activeKey={activeTab} onSelect={handleTabChange} />
-
-      <div className="flex items-center gap-2 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-3 py-2 text-xs font-medium text-[var(--cs-text-secondary)] shadow-[var(--cs-shadow-xs)]">
-        <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--cs-sand)]" />
-        <span>{TAB_HINTS[activeTab]}</span>
-      </div>
-
-      {activeTab === "callback-followup" ? (
-        <CallbackFollowupPanel rows={waitlistRows} />
-      ) : (
-        <>
-          <section className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]">
-            <form method="get" className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="tab" value={activeTab} />
-
-              <div className="relative min-w-[220px] flex-1">
-                <input
-                  type="search"
-                  name="search"
-                  defaultValue={search ?? ""}
-                  placeholder="Search customer, phone, staff, or booking ID"
-                  aria-label="Search bookings"
-                  className="h-10 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 text-sm text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-sand)]"
-                />
-              </div>
-
-              <label className="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 text-sm text-[var(--cs-text-secondary)]">
+          {showFilters ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-2">
+              <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text-secondary)]">
                 <CalendarDays size={15} />
                 <input
                   type="date"
@@ -482,13 +369,12 @@ export function BookingsWorkspace({
                   className="bg-transparent text-sm text-[var(--cs-text)] outline-none"
                 />
               </label>
-
               {isOwner && branches && branches.length > 0 ? (
                 <select
                   name="branch"
                   defaultValue={branchFilter ?? ""}
                   aria-label="Filter by branch"
-                  className="h-10 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]"
+                  className="h-9 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]"
                 >
                   <option value="">All Branches</option>
                   {branches.map((branch) => (
@@ -501,7 +387,7 @@ export function BookingsWorkspace({
                 name="type"
                 defaultValue={typeFilter ?? ""}
                 aria-label="Filter by type"
-                className="h-10 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]"
+                className="h-9 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]"
               >
                 <option value="">All Sources</option>
                 <option value="walkin">Walk-in</option>
@@ -509,36 +395,36 @@ export function BookingsWorkspace({
                 <option value="home_service">Home Service</option>
               </select>
 
-              <button type="submit" className="cs-btn h-10 rounded-xl bg-[var(--cs-crm-text)] px-4 text-[var(--cs-text-inverse)]">
+              <button type="submit" className="cs-btn h-9 rounded-lg bg-[var(--cs-crm-text)] px-4 text-[var(--cs-text-inverse)]">
                 Filter
               </button>
 
               {hasFilters ? (
-                <Link href={buildClearHref(basePath, activeTab)} className="cs-btn cs-btn-ghost h-10 rounded-xl px-3">
+                <Link href={buildClearHref(basePath, activeTab)} className="cs-btn cs-btn-ghost h-9 rounded-lg px-3">
                   Clear
                 </Link>
               ) : null}
-            </form>
-
-            <div className="mt-2 text-xs text-[var(--cs-text-muted)]">
-              {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in this workflow for {dateLabel}
             </div>
-          </section>
+          ) : null}
+        </form>
 
-          <BookingsTable
-            bookings={visibleBookings}
-            allBookings={bookings}
-            viewerRole={viewerRole}
-            dispatchHref={dispatchHref}
-            search={search}
-            statusAction={statusAction}
-            paymentAction={paymentAction}
-            initialSelectedId={initialSelectedId}
-            confirmPaymentAction={confirmPaymentAction}
-            onBookingsChanged={onBookingsChanged}
-          />
-        </>
-      )}
+        <div className="text-xs text-[var(--cs-text-muted)]">
+          {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
+        </div>
+      </section>
+
+      <BookingsTable
+        bookings={visibleBookings}
+        allBookings={bookings}
+        viewerRole={viewerRole}
+        dispatchHref={dispatchHref}
+        search={search}
+        statusAction={statusAction}
+        paymentAction={paymentAction}
+        initialSelectedId={initialSelectedId}
+        confirmPaymentAction={confirmPaymentAction}
+        onBookingsChanged={onBookingsChanged}
+      />
     </div>
   );
 }

@@ -26,23 +26,24 @@ export type WorkspacePrefetchConfig = {
 // ── CRM ───────────────────────────────────────────────────────────────────────
 
 export const CRM_PREFETCH: WorkspacePrefetchConfig = {
-  // mirrors the 7 sidebar items
+  // mirrors the primary daily CRM sidebar items only. System Management stays
+  // deliberate: no automatic mount/idle prefetch.
   immediate: [
     "/crm",
     "/crm/today",
     "/crm/bookings",
     "/crm/schedule",
     "/crm/customers",
-    "/crm/setup",
-    "/crm/staff-applications",
     "/crm/dispatch",
   ],
   idle: [],
-  // hidden routes — still live, prefetch only on direct navigation
+  // hidden and secondary routes stay live, but wait for explicit navigation.
   hover: [
-    "/crm/control",
     "/crm/live-operations",
     "/crm/availability",
+    "/crm/setup",
+    "/crm/staff",
+    "/crm/staff-applications",
     "/crm/staff-availability",
     "/crm/services",
     "/crm/spaces-rules",

@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
+import { redirect } from "next/navigation";
 import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/schedule-setup-workspace";
 import { ScheduleSetupHealthSummary } from "@/components/features/staff-schedule/schedule-setup-health-summary";
 import { ManualScheduleImport } from "@/components/features/staff-schedule/manual-schedule-import";
@@ -16,6 +17,28 @@ import { CrmTabNav, SCHEDULE_TABS } from "@/components/features/crm/crm-tab-nav"
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MANAGEMENT_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager"]);
+
+async function assertManagementAccess(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  if (isSuperAdmin(user.id)) return;
+
+  const { data: me } = await supabase
+    .from("staff")
+    .select("system_role")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!me || !MANAGEMENT_ROLES.has(me.system_role)) {
+    redirect("/crm");
+  }
+}
 
 /**
  * Returns true for owners and super-admins — the only roles that can
@@ -80,7 +103,7 @@ export default async function CrmStaffAvailabilityPage({
 }) {
   const [params, defaultBranchId, ownerAccess] = await Promise.all([
     searchParams,
-    getManagerBranchId(),
+    assertManagementAccess().then(() => getManagerBranchId()),
     canSwitchBranches(),
   ]);
 
@@ -112,7 +135,7 @@ export default async function CrmStaffAvailabilityPage({
   return (
     <section className="space-y-5">
       <PageHeader
-        title="Schedule Setup Center"
+        title="Staff & Scheduling"
         description="Set staff schedules, day-offs, and blocked time used by online booking, walk-ins, and home-service planning."
       />
 

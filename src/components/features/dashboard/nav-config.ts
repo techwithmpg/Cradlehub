@@ -14,6 +14,7 @@ export type WorkspaceNav = {
   label: string;
   items?: NavItem[];
   groups?: NavGroup[];
+  systemItems?: NavItem[];
   /** When true, this workspace is hidden from the nav/switcher during MVP. */
   mvpHidden?: boolean;
 };
@@ -48,30 +49,26 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
   { label: "Settings", href: "/manager/settings", icon: "Settings" },
 ];
 
-// ── CRM / front-desk navigation ───────────────────────────────────────────────
-// 7 top-level items only. Related pages become tabs inside each section.
-// Routes removed from nav are NOT deleted — they stay live and will be
-// redirected to tab URLs in Phase 3:
-//   /crm/control           → /crm/today?tab=control
-//   /crm/reconciliation    → /crm/today?panel=reconciliation
-//   /crm/waitlist          → /crm/bookings?tab=waitlist
-//   /crm/availability      → /crm/schedule?tab=availability
-//   /crm/staff-availability → /crm/schedule?tab=setup
-//   /crm/repeats           → /crm/customers?tab=repeats
-//   /crm/lapsed            → /crm/customers?tab=lapsed
-//   /crm/services          → /crm/setup?tab=services
-//   /crm/spaces-rules      → /crm/setup?tab=spaces-rules
-//   /crm/live-operations   → /crm/dispatch?tab=live-map
-//   /crm/notifications     → header bell / action center
+// ── CRM navigation ────────────────────────────────────────────────────────────
+// Latest stabilization direction keeps daily operations simple and moves setup
+// tools into a quieter System Management area. Routes stay stable for now.
 
 const CRM_NAV_ITEMS: NavItem[] = [
-  { label: "Today",        href: "/crm/today",              icon: "LayoutDashboard" },
-  { label: "Bookings",     href: "/crm/bookings",           icon: "ClipboardList"   },
-  { label: "Schedule",     href: "/crm/schedule",           icon: "CalendarDays"    },
-  { label: "Customers",    href: "/crm/customers",          icon: "Users"           },
-  { label: "Setup Center", href: "/crm/setup",              icon: "Wrench"          },
-  { label: "Staff",        href: "/crm/staff",              icon: "UserCheck"       },
-  { label: "Dispatch",     href: "/crm/dispatch",           icon: "Truck"           },
+  { label: "Work Queue",   href: "/crm/today",     icon: "LayoutDashboard" },
+  { label: "Bookings",     href: "/crm/bookings",  icon: "ClipboardList"   },
+  { label: "Schedule",     href: "/crm/schedule",  icon: "CalendarDays"    },
+  { label: "Customers",    href: "/crm/customers", icon: "Users"           },
+  { label: "Home Service", href: "/crm/dispatch",  icon: "Truck"           },
+];
+
+const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [
+  { label: "Staff & Access",       href: "/crm/staff",                    icon: "UserCheck"      },
+  { label: "Services & Providers", href: "/crm/setup?tab=services",       icon: "Sparkles"       },
+  { label: "Rooms & Resources",    href: "/crm/setup?tab=spaces",         icon: "Building2"      },
+  { label: "Booking Rules",        href: "/crm/setup?tab=booking_rules",  icon: "ClipboardCheck" },
+  { label: "Schedule Management",  href: "/crm/staff-availability",       icon: "CalendarClock"  },
+  { label: "System Health",        href: "/crm/setup?tab=health",         icon: "Activity"       },
+  { label: "Close Day",            href: "/crm/reconciliation",           icon: "DollarSign"     },
 ];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
@@ -108,17 +105,23 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
   },
   crm: {
     role: "crm",
-    label: "CRM",
+    label: "Front Desk",
     items: CRM_NAV_ITEMS,
+  },
+  crm_admin: {
+    role: "crm_admin",
+    label: "Front Desk",
+    items: CRM_NAV_ITEMS,
+    systemItems: CRM_SYSTEM_NAV_ITEMS,
   },
   csr_head: {
     role: "csr_head",
-    label: "CSR Head",
+    label: "Front Desk",
     items: CRM_NAV_ITEMS,
   },
   csr_staff: {
     role: "csr_staff",
-    label: "CSR Staff",
+    label: "Front Desk",
     items: CRM_NAV_ITEMS,
   },
   staff: {
@@ -181,4 +184,19 @@ export function resolveWorkspaceKeyFromRole(role: string): string {
     return role;
   }
   return "staff";
+}
+
+export function resolveCrmNavKeyFromRole(role: string): string {
+  if (
+    role === "owner" ||
+    role === "manager" ||
+    role === "assistant_manager" ||
+    role === "store_manager"
+  ) {
+    return "crm_admin";
+  }
+
+  if (role === "csr_head") return "csr_head";
+  if (role === "csr_staff" || role === "csr") return "csr_staff";
+  return "crm";
 }

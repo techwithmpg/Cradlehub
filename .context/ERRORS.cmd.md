@@ -484,3 +484,17 @@
 - **Symptom:** `supabase db lint --local --schema public` failed because local Postgres `127.0.0.1:54322` is not running.
 - **Impact:** Local database lint for the new migration could not run.
 - **Follow-up:** Start the local Supabase stack or lint against a reachable database.
+
+## 2026-06-30 - CRM-STABILIZATION-HANDOFF-2026-06-30 pre-flight / stale-handoff risk
+
+- **Symptom:** The latest focused stabilization prompt asks agents to read root `PROJECT_CONTEXT.md`, `AGENT_RULES.md`, and `ROADMAP.md`, but those files are not present at the repository root in this checkout. Equivalent files exist under `docs/`, and root `AGENTS.md` plus `CLAUDE.md` exist.
+- **Impact:** A future agent following the prompt literally may think required governance files are missing and stop, or may read stale `.context`/`docs` records that point to old CRM Coach / observability work.
+- **Resolution:** Updated `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/CURRENT_TASK.cmd.md`, `docs/HANDOFF.cmd.md`, and `docs/FRONT_DESK_REFACTOR_PROGRESS.md` to point to the active CRM stabilization/refactor. Future agents should read the `docs/` equivalents when root files are absent.
+- **Follow-up:** Keep both `.context/*.cmd.md` and `docs/*.cmd.md` synchronized until the project chooses one canonical agent-memory location.
+
+## 2026-06-30 - CRM-STABILIZATION-CHECKPOINT-1-NAV-SHELL-2026-06-30 remaining access/header gap
+
+- **Symptom:** Checkpoint 1 implements the approved sidebar labels and a collapsed System Management section, but the latest prompt also asks for broader CRM user access to occasional system editing and a compact CRM header with current page title, branch, search, notifications, persistent New Booking, and user menu.
+- **Impact:** The sidebar checkpoint is verified, but the full CRM shell objective is not complete. Ordinary CRM/CSR users may still be redirected away from current setup/staff/schedule-management pages because those page gates were intentionally preserved in this nav-only pass. Adding a global New Booking button now would also duplicate existing page-level New Booking buttons.
+- **Resolution:** No permission or header code was changed in this checkpoint. System Management follows the existing management-authorized route model. The next agent should review page gates/action permissions/RLS before broadening setup access, and handle header New Booking only while removing duplicate page-level buttons.
+- **Follow-up:** Continue with Checkpoint 2 Work Queue simplification, then schedule a dedicated CRM header/access review before claiming the complete CRM shell is done.

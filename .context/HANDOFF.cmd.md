@@ -2,39 +2,79 @@
 
 ## Current Task
 
-AGENT-CRM-COACH-002 — CRM Coach now has three one-click tools.
+CRM-STABILIZATION-CHECKPOINT-2-BOOKINGS-QUICK-BOOKING-2026-06-30 — Bookings / Quick Booking is locally complete and authenticated-browser verified; broader Work Queue stabilization remains in progress.
 
-## What Was Done
+## Latest User Intent
 
-- Added tool layer in `src/lib/agents/tools.ts`:
-  - `create_reminder_task` — creates a CRM workflow task
-  - `check_available_slots` — queries availability for a service/date
-  - `prefill_walk_in_booking` — opens booking form with pre-filled details
-- Added `/api/agent/act` route to execute confirmed tool actions.
-- Updated CRM prompt to describe when to use each tool.
-- Updated `CoachBubble` to show confirm buttons and display tool results.
-- All tool executions are audited in `agent_audit_logs`.
-- All checks pass.
+The user explicitly asked to keep progress logged so another AI agent can resume if Codex credit runs out.
 
-## Blockers / Pending
+The focused stabilization prompt is the operational guardrail: production-safe small checkpoints, no broad rebuilds, preserve working behavior, and do not claim CRM workflows work until UI actions are traced through server actions/API, auth, Supabase/RLS, constraints, invalidation, and feedback.
 
-1. Live Supabase migration `20260620140000_agent_audit_logs.sql` not yet applied.
-2. `ANTHROPIC_API_KEY` must be in `.env.local` / production env.
+## What Was Done Most Recently
+
+- Resumed from the interrupted Bookings / Quick Booking diff without restarting Work Queue work.
+- Completed `/crm/bookings/new` as a CRM Quick Booking form for walk-in, phone, standard future, and home-service bookings.
+- Aligned the form contract with `createInhouseBookingMultiSchema` and `createInhouseBookingMultiAction`, including existing-customer selection, inline customer creation, home-service address data, payment pending/paid handling, metadata, room/staff assignment, and clear human errors.
+- Kept the existing booking server action; no duplicate booking action was introduced.
+- Completed Bookings grouping into Needs Action, Upcoming, Active, and Completed while preserving search, one Filters control, drawer, existing mutations, and row action structure.
+- Added date-aware Quick Booking redirects so successful saves open `/crm/bookings?date=...&bookingId=...`.
+- Used a temporary CRM verifier account for browser QA, then disabled/unlinked its staff row and deleted the auth user.
+
+## Validation
+
+- `npm run type-check`: PASS
+- `npm run lint`: PASS with 4 unrelated existing warnings:
+  - `scripts/generate-service-image-assets.mjs`: unused `FALLBACK_IMAGE_URL`, unused `generationPrompt`
+  - `tests/components/payroll/employee-payroll-table.test.tsx`: two unused `_staffId` warnings
+- `npm run build`: PASS, 103 app routes
+- Authenticated CRM browser QA: PASS for creating walk-in, phone, future, and home-service bookings; Bookings tabs; drawer open; no browser console/runtime logs.
+- RLS errors: none surfaced in the verified authenticated flows.
+- `npm run test`: not run for this checkpoint.
+
+## Current Worktree
+
+There are uncommitted changes. Do not revert user/previous-agent work.
+
+Run:
+
+```bash
+git status --short --branch
+```
+
+Known changed areas:
+
+- `src/lib/queries/crm-context.ts`
+- `src/components/features/dashboard/nav-config.ts`
+- `src/components/features/dashboard/sidebar.tsx`
+- `src/components/features/workspace/workspace-prefetch-config.ts`
+- `src/app/(dashboard)/crm/today/page.tsx`
+- `src/app/(dashboard)/crm/bookings/page.tsx`
+- `src/app/(dashboard)/crm/control/page.tsx`
+- `src/app/(dashboard)/crm/live-operations/page.tsx`
+- CRM setup/staff/staff-availability route gating files
+- Dashboard header/sidebar/nav/readiness/workspace-access files
+- `.context/*`, `docs/*` handoff files
+- `docs/FRONT_DESK_REFACTOR_PROGRESS.md`
+
+## Important Direction Reconciliation
+
+Checkpoint 1 reconciled the visible sidebar labels toward:
+
+- `Work Queue`
+- `Bookings`
+- `Schedule`
+- `Customers`
+- `Home Service`
+- collapsed `System Management`
+
+However, System Management follows the current management-authorized route gates. The latest prompt's broader statement that ordinary CRM users may occasionally edit system tools still needs an explicit permission/page-gate review before exposing setup pages to all CRM/CSR roles.
 
 ## Next Logical Steps
 
-1. Add more tools:
-   - Record payment reminder
-   - Assign therapist to booking
-   - Check booking status
-2. Build follow-up/escalation agent that creates tasks when CRM/owner do not act.
-3. Expand coach to owner/manager/staff-portal workspaces.
-4. Apply pending migration and smoke-test tools in `/crm/today`.
-
-## Files to Know
-
-- `src/lib/agents/tools.ts` — tool implementations
-- `src/app/api/agent/act/route.ts` — tool execution endpoint
-- `src/app/api/agent/coach/route.ts` — LLM endpoint
-- `src/components/agent/coach-bubble.tsx` — chat UI
-- `src/lib/agents/crm/prompts.ts` — tool descriptions for the LLM
+1. Read `docs/FRONT_DESK_REFACTOR_PROGRESS.md` first.
+2. Inspect current diffs before editing.
+3. Do not restart the Bookings / Quick Booking checkpoint; it has passing type-check, lint, build, and authenticated browser coverage.
+4. Continue remaining Checkpoint 2 Work Queue / Today / Control Center simplification without deleting working routes.
+5. Keep `/crm/control` alive as compatibility until its useful UI is safely folded into Work Queue.
+6. Review CRM header requirements separately: current page title, branch, global search, notifications, persistent New Booking, and user menu. Avoid adding duplicate New Booking buttons without removing page-level duplicates.
+7. Trace each additional CRM action end-to-end before claiming readiness.

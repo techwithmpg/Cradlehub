@@ -137,9 +137,13 @@ function IssueRow({ issue }: { issue: ReadinessIssue }) {
 type WorkspaceReadinessIndicatorProps = {
   /** null when getCrmReadiness failed — renders a safe fallback. */
   readiness: ReadinessResult | null;
+  canOpenAdminSetup?: boolean;
 };
 
-export function WorkspaceReadinessIndicator({ readiness }: WorkspaceReadinessIndicatorProps) {
+export function WorkspaceReadinessIndicator({
+  readiness,
+  canOpenAdminSetup = false,
+}: WorkspaceReadinessIndicatorProps) {
   const [open, setOpen] = useState(false);
 
   // Close popover on Escape
@@ -265,7 +269,7 @@ export function WorkspaceReadinessIndicator({ readiness }: WorkspaceReadinessInd
           >
             {!readiness ? (
               <div style={{ fontSize: 12, color: "var(--cs-text-muted)", padding: "8px 0" }}>
-                Could not load readiness status. Try refreshing or open Setup Center.
+                Could not load readiness status. Try refreshing or open Admin & Setup.
               </div>
             ) : totalCount === 0 ? (
               <div
@@ -292,35 +296,37 @@ export function WorkspaceReadinessIndicator({ readiness }: WorkspaceReadinessInd
           </div>
 
           {/* Footer */}
-          <div
-            style={{
-              padding: "10px 12px",
-              borderTop: "1px solid var(--cs-border-soft)",
-              flexShrink: 0,
-            }}
-          >
-            <Link
-              href="/crm/setup"
+          {canOpenAdminSetup ? (
+            <div
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 4,
-                width: "100%",
-                fontSize: 11,
-                fontWeight: 600,
-                color: "var(--cs-text-secondary)",
-                textDecoration: "none",
-                padding: "7px 10px",
-                border: "1px solid var(--cs-border-soft)",
-                borderRadius: 8,
-                background: "var(--cs-surface)",
-                transition: "background 0.15s",
+                padding: "10px 12px",
+                borderTop: "1px solid var(--cs-border-soft)",
+                flexShrink: 0,
               }}
             >
-              Open Setup Center ›
-            </Link>
-          </div>
+              <Link
+                href="/crm/setup"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  width: "100%",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--cs-text-secondary)",
+                  textDecoration: "none",
+                  padding: "7px 10px",
+                  border: "1px solid var(--cs-border-soft)",
+                  borderRadius: 8,
+                  background: "var(--cs-surface)",
+                  transition: "background 0.15s",
+                }}
+              >
+                Open Admin & Setup ›
+              </Link>
+            </div>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>

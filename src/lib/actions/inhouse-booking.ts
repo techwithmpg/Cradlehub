@@ -53,6 +53,10 @@ function minutesToTime(mins: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
 }
 
+function normalizeTimeForInsert(time: string): string {
+  return time.length === 5 ? `${time}:00` : time;
+}
+
 function computeEndTimeLocal(startTime: string, totalMinutes: number): string | null {
   const start = timeToMinutes(startTime);
   const end = start + totalMinutes;
@@ -79,6 +83,11 @@ export async function createInhouseBookingMultiAction(
 
   const d: CreateInhouseBookingMultiInput = parsed.data;
   const deliveryType = d.deliveryType ?? (d.type === "home_service" ? "home_service" : "in_spa");
+  const crmBookingMode =
+    d.crmBookingMode ?? (deliveryType === "home_service" ? "home_service" : "walkin");
+  const startTime = normalizeTimeForInsert(d.startTime);
+  const paymentReceived = d.paymentReceived ?? crmBookingMode === "walkin";
+  const cleanPhone = d.phone.replace(/\s/g, "");
 
   const supabase = await createClient();
   const {
@@ -125,10 +134,10 @@ export async function createInhouseBookingMultiAction(
   // Home service requires address details
   if (deliveryType === "home_service") {
     if (!d.homeServiceAddress?.trim()) {
-      return { ok: false, code: "HS_ADDRESS_MISSING", message: "Full address is required for home service bookings." };
+      return { ok: false, code: "HS_ADDRESS_MISSING", message: "Enter the complete home-service address." };
     }
     if (!d.homeServiceBarangay?.trim() && !d.homeServiceCity?.trim()) {
-      return { ok: false, code: "HS_LOCATION_MISSING", message: "Barangay or city is required for home service bookings." };
+      return { ok: false, code: "HS_LOCATION_MISSING", message: "Enter the complete home-service address." };
     }
   }
 
@@ -137,7 +146,7 @@ export async function createInhouseBookingMultiAction(
     staffId: d.staffId ?? "auto",
     serviceIds: d.serviceIds,
     bookingDate: d.date,
-    startTime: d.startTime,
+    startTime,
     operatorId: staff?.id ?? "dev-bypass",
   };
 
@@ -146,7 +155,7 @@ export async function createInhouseBookingMultiAction(
       branchId: resolvedBranchId,
       bookingType: d.type,
       date: d.date,
-      startTime: d.startTime,
+      startTime,
     });
     if (!rulesCheck.ok) {
       return {
@@ -162,7 +171,7 @@ export async function createInhouseBookingMultiAction(
         branchId: resolvedBranchId,
         serviceIds: d.serviceIds,
         date: d.date,
-        startTime: d.startTime,
+        startTime,
       });
     } else {
       const candidateSlots = await getAvailableSlotsMulti({
@@ -174,7 +183,7 @@ export async function createInhouseBookingMultiAction(
         (slot) =>
           slot.staff_id === d.staffId &&
           slot.available &&
-          slot.slot_time.startsWith(d.startTime.substring(0, 5))
+          slot.slot_time.startsWith(startTime.substring(0, 5))
       );
       if (!exact) {
         throw new SlotUnavailableError();
@@ -196,23 +205,31 @@ export async function createInhouseBookingMultiAction(
       (sum, s) => sum + s.duration_minutes + s.buffer_before + s.buffer_after,
       0
     );
-    const combinedEndTime = computeEndTimeLocal(d.startTime, totalMinutesCombined);
+    const combinedEndTime = computeEndTimeLocal(startTime, totalMinutesCombined);
 
     // ── Auto-assign room if not provided ──────────────────────────────────
     if (deliveryType !== "home_service" && !resolvedResourceId && combinedEndTime) {
       resolvedResourceId = await autoAssignBookingResource({
         branchId: resolvedBranchId,
         date: d.date,
-        startTime: d.startTime,
+        startTime,
         endTime: combinedEndTime,
       });
 
       if (!resolvedResourceId) {
-        return {
-          ok: false,
-          code: "RESOURCE_UNAVAILABLE",
-          message: "No room/bed is available for this time. Please assign a space manually or choose another time.",
-        };
+        const { count: activeResourceCount, error: resourceCountError } = await admin
+          .from("branch_resources")
+          .select("id", { count: "exact", head: true })
+          .eq("branch_id", resolvedBranchId)
+          .eq("is_active", true);
+
+        if (resourceCountError || (activeResourceCount ?? 0) > 0) {
+          return {
+            ok: false,
+            code: "RESOURCE_UNAVAILABLE",
+            message: "The selected room is unavailable.",
+          };
+        }
       }
     }
 
@@ -221,33 +238,54 @@ export async function createInhouseBookingMultiAction(
       const isAvailable = await isResourceAvailable({
         resourceId: d.resourceId,
         date: d.date,
-        startTime: d.startTime,
+        startTime,
         endTime: combinedEndTime,
       });
       if (!isAvailable) {
         return {
           ok: false,
           code: "RESOURCE_UNAVAILABLE",
-          message: "The selected room/bed is already booked for this time.",
+          message: "The selected room is unavailable.",
         };
       }
     }
 
-    const { data: customerId, error: customerError } = await admin.rpc("upsert_customer", {
-      p_phone: d.phone,
-      p_full_name: d.fullName,
-      p_email: d.email || undefined,
-    });
+    let resolvedCustomerId = d.customerId ?? null;
+    if (resolvedCustomerId) {
+      const { data: existingCustomer, error: existingCustomerError } = await admin
+        .from("customers")
+        .select("id")
+        .eq("id", resolvedCustomerId)
+        .maybeSingle();
 
-    if (customerError || !customerId) {
-      logBookingError(logContext, customerError ?? new Error("upsert_customer returned no ID"));
-      return {
-        ok: false,
-        code: "CUSTOMER_ERROR",
-        message: "Failed to create or find customer record. Please check the phone number and name.",
-      };
+      if (existingCustomerError || !existingCustomer) {
+        logBookingError(logContext, existingCustomerError ?? new Error("selected customer not found"));
+        return {
+          ok: false,
+          code: "CUSTOMER_ERROR",
+          message: "Select a customer.",
+        };
+      }
+    } else {
+      const { data: customerId, error: customerError } = await admin.rpc("upsert_customer", {
+        p_phone: cleanPhone,
+        p_full_name: d.fullName,
+        p_email: d.email || undefined,
+      });
+
+      if (customerError || !customerId) {
+        logBookingError(logContext, customerError ?? new Error("upsert_customer returned no ID"));
+        return {
+          ok: false,
+          code: "CUSTOMER_ERROR",
+          message: "Select a customer.",
+        };
+      }
+      resolvedCustomerId = String(customerId);
     }
-    const resolvedCustomerId = String(customerId);
+    if (!resolvedCustomerId) {
+      return { ok: false, code: "CUSTOMER_ERROR", message: "Select a customer." };
+    }
 
     const { data: servicesData, error: servicesError } = await admin
       .from("services")
@@ -338,10 +376,13 @@ export async function createInhouseBookingMultiAction(
 
       hsAddressData = {
         full_address:      d.homeServiceAddress,
+        address_details:   d.homeServiceAddressDetails ?? null,
         barangay:          d.homeServiceBarangay ?? null,
         city:              d.homeServiceCity ?? null,
         landmark:          d.homeServiceLandmark ?? null,
         parking_notes:     d.homeServiceParkingNotes ?? null,
+        delivery_notes:    d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
+        customer_notes:    d.homeServiceCustomerNotes ?? d.homeServiceParkingNotes ?? null,
         zone:              d.homeServiceZone ?? "unknown",
         formatted_address: geocoded?.formattedAddress ?? null,
         place_id:          geocoded?.placeId ?? null,
@@ -356,8 +397,8 @@ export async function createInhouseBookingMultiAction(
       const dispatchResult = await checkHomeServiceDispatchConflict({
         branchId: resolvedBranchId,
         bookingDate: d.date,
-        startTime: d.startTime,
-        endTime: combinedEndTime ?? d.startTime,
+        startTime,
+        endTime: combinedEndTime ?? startTime,
         selectedZone: d.homeServiceZone ?? "unknown",
         selectedLat: geocoded?.lat ?? null,
         selectedLng: geocoded?.lng ?? null,
@@ -379,7 +420,7 @@ export async function createInhouseBookingMultiAction(
     }
 
     const insertedIds: string[] = [];
-    let currentStart = d.startTime;
+    let currentStart = startTime;
 
     for (const serviceId of d.serviceIds) {
       const service = servicesById.get(serviceId);
@@ -415,12 +456,16 @@ export async function createInhouseBookingMultiAction(
         service_name:          service.name,
         duration_minutes:      Number(service.duration_minutes),
         customer_notes:        d.notes ?? null,
+        crm_booking_mode:      crmBookingMode,
+        source:                "crm_quick_booking",
+        payment_received:      paymentReceived,
         ...(hsAddressData && { home_service_address: hsAddressData }),
         ...(hsAddressData && { dispatch: dispatchData }),
       };
 
       const servicePrice = overrideByServiceId.get(service.id)?.custom_price ?? service.price;
-      const amountPaid = Number(servicePrice);
+      const amountPaid = paymentReceived ? Number(servicePrice) : 0;
+      const paymentMethod = paymentReceived ? (d.paymentMethod ?? "pay_on_site") : "pay_on_site";
 
       const { data: booking, error: bookingError } = await admin
         .from("bookings")
@@ -436,8 +481,12 @@ export async function createInhouseBookingMultiAction(
           type:         d.type,
           delivery_type: deliveryType,
           status:       "confirmed",
-          payment_method:    d.paymentMethod,
-          payment_status:    "paid",
+          booking_progress_status:
+            d.markArrived && deliveryType !== "home_service" ? "checked_in" : "not_started",
+          checked_in_at:
+            d.markArrived && deliveryType !== "home_service" ? new Date().toISOString() : null,
+          payment_method:    paymentMethod,
+          payment_status:    paymentReceived ? "paid" : "pending",
           payment_reference: d.paymentReference ?? null,
           amount_paid:       amountPaid,
           hold_expires_at:   null,
@@ -481,11 +530,14 @@ export async function createInhouseBookingMultiAction(
           old_payment_status:    null,
           old_amount_paid:       null,
           old_payment_reference: null,
-          new_payment_method:    d.paymentMethod,
-          new_payment_status:    "paid",
+          new_payment_method:    paymentMethod,
+          new_payment_status:    paymentReceived ? "paid" : "pending",
           new_amount_paid:       amountPaid,
           new_payment_reference: d.paymentReference ?? null,
-          reason:                d.paymentNote?.trim() || "CRM in-house booking — payment recorded at creation",
+          reason:                d.paymentNote?.trim() ||
+            (paymentReceived
+              ? "CRM quick booking - payment recorded at creation"
+              : "CRM quick booking - payment pending"),
         })
         .then(({ error: logErr }) => {
           if (logErr) console.error("[CRM_BOOKING] payment_log insert failed", logErr.message);
@@ -506,7 +558,7 @@ export async function createInhouseBookingMultiAction(
         recipientStaffId: resolvedStaffId,
         type:             isHomeService ? "home_service_assigned" : "booking_assigned",
         title:            isHomeService ? `Home Service booking — ${d.fullName}` : `New booking — ${d.fullName}`,
-        body:             `${d.fullName} has a confirmed ${isHomeService ? "Home Service " : ""}booking for ${serviceNames} on ${d.date} at ${d.startTime}.`,
+        body:             `${d.fullName} has a confirmed ${isHomeService ? "Home Service " : ""}booking for ${serviceNames} on ${d.date} at ${startTime}.`,
         entityType:       "booking",
         entityId:         insertedIds[0],
         actionHref:       "/staff-portal/schedule",
@@ -525,7 +577,7 @@ export async function createInhouseBookingMultiAction(
           targetWorkspace: "crm",
           type: "home_service_location_review",
           title: `Home Service location review needed — ${d.fullName}`,
-          body: `${d.fullName}'s Home Service booking on ${d.date} at ${d.startTime} needs location or driver review.`,
+          body: `${d.fullName}'s Home Service booking on ${d.date} at ${startTime} needs location or driver review.`,
           entityType: "booking",
           entityId: insertedIds[0],
           actionHref: "/crm/today",
@@ -543,7 +595,7 @@ export async function createInhouseBookingMultiAction(
           targetWorkspace: "crm",
           type: "home_service_dispatch_conflict",
           title: `Home Service dispatch conflict — ${d.fullName}`,
-          body: `${d.fullName}'s Home Service booking on ${d.date} at ${d.startTime} may clash with another location or driver capacity.`,
+          body: `${d.fullName}'s Home Service booking on ${d.date} at ${startTime} may clash with another location or driver capacity.`,
           entityType: "booking",
           entityId: insertedIds[0],
           actionHref: "/crm/today",
@@ -575,7 +627,14 @@ export async function createInhouseBookingMultiAction(
       serviceCount: insertedIds.length,
     });
 
-    revalidateOperationalBookingSurfaces(resolvedBranchId);
+    try {
+      revalidateOperationalBookingSurfaces(resolvedBranchId);
+    } catch (revalidateErr) {
+      logBookingError(
+        logContext,
+        revalidateErr instanceof Error ? revalidateErr : new Error(String(revalidateErr))
+      );
+    }
 
     return { ok: true, bookingId: insertedIds[0]! };
   } catch (error) {
@@ -583,7 +642,7 @@ export async function createInhouseBookingMultiAction(
       return {
         ok: false,
         code: "SLOT_UNAVAILABLE",
-        message: "No available therapist for this time slot. Please select another time or therapist.",
+        message: "No therapist is available at the selected time.",
       };
     }
 

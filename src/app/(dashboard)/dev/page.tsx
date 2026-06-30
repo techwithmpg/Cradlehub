@@ -104,7 +104,7 @@ const CATEGORIES: DevCategory[] = [
       { icon: "🏠", label: "Spaces & Rules", href: "/crm/spaces-rules" },
       { icon: "🟢", label: "Live Operations", href: "/crm/live-operations", description: "Real-time branch status and active booking monitor." },
       { icon: "📡", label: "Dispatch", href: "/crm/dispatch", description: "Home service dispatch queue." },
-      { icon: "🎛️", label: "Control", href: "/crm/control" },
+      { icon: "🎛️", label: "Work Queue", href: "/crm/today?filter=all" },
       { icon: "📝", label: "Staff Applications", href: "/crm/staff-applications" },
       { icon: "📣", label: "Notifications", href: "/crm/notifications", description: "Open front-desk waitlist, payment, and Home Service action items." },
     ],

@@ -14,7 +14,7 @@ type EmergencyLink = {
 
 const EMERGENCY_LINKS: EmergencyLink[] = [
   { label: "Reassign / Review Booking", href: "/crm/bookings" },
-  { label: "Open Control Center",       href: "/crm/control" },
+  { label: "Open Work Queue",           href: "/crm/today?filter=exceptions" },
   { label: "Open Dispatch",             href: "/crm/dispatch" },
   { label: "Mark Staff Unavailable",    href: "/crm/availability" },
   { label: "Review Alerts",             href: "/crm/notifications" },

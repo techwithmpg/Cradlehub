@@ -39,12 +39,10 @@ async function fetcher(url: string): Promise<BookingsApiPayload> {
 
 function parseTab(raw: string | null): BookingWorkspaceTab | undefined {
   switch (raw) {
-    case "needs-confirmation":
-    case "confirmed":
-    case "waiting":
-    case "in-service":
+    case "needs-action":
+    case "upcoming":
+    case "active":
     case "completed":
-    case "callback-followup":
       return raw;
     default:
       return undefined;
@@ -56,11 +54,11 @@ function tabFromStatus(status: string | undefined): BookingWorkspaceTab | undefi
     case "pending":
     case "pending_payment":
     case "pending_crm_confirmation":
-      return "needs-confirmation";
+      return "needs-action";
     case "confirmed":
-      return "confirmed";
+      return "upcoming";
     case "in_progress":
-      return "in-service";
+      return "active";
     case "completed":
       return "completed";
     default:

@@ -1,41 +1,12 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getCrmBookingsCommandCenterRows, getDailyPaymentSummary } from "@/lib/queries/bookings";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { CrmBookingsView } from "@/components/features/bookings/crm-bookings-view";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { confirmBookingPaymentAction } from "./actions";
 import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
-
-async function getCrmContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("branch_id, branches(name), system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
-
-  if (!me && isDevAuthBypassEnabled()) {
-    const mock = getDevBypassLayoutStaff();
-    return { branchId: mock.branch_id, branchName: mock.branches.name, role: mock.system_role };
-  }
-
-  if (!me?.branch_id || !allowedRoles.includes(me.system_role)) redirect("/login");
-
-  return {
-    branchId:   me.branch_id as string,
-    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
-    role:       me.system_role,
-  };
-}
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function CrmBookingsPage({
   searchParams,
@@ -51,7 +22,7 @@ export default async function CrmBookingsPage({
     openRoomAssignment?: string;
   }>;
 }) {
-  const { branchId, branchName, role } = await getCrmContext();
+  const { branchId, branchName, role } = await getFrontDeskContext();
   const params = await searchParams;
   const today  = new Date().toISOString().split("T")[0]!;
 
@@ -60,13 +31,13 @@ export default async function CrmBookingsPage({
   let date = params.date ?? today;
 
   if (bookingId && !params.date) {
-    const supabase = await createClient();
-    const { data: ref } = await supabase
+    const admin = createAdminClient();
+    const { data: ref } = await admin
       .from("bookings")
-      .select("booking_date")
+      .select("booking_date, branch_id")
       .eq("id", bookingId)
       .maybeSingle();
-    if (ref?.booking_date) date = ref.booking_date;
+    if (ref?.booking_date && ref.branch_id === branchId) date = ref.booking_date;
   }
 
   const [bookings, cashSummary, waitlistResult] = await Promise.all([

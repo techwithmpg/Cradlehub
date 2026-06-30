@@ -95,6 +95,10 @@ function formatLongBookingDate(date: string): string {
 }
 
 function sourceLabel(booking: WorkspaceBookingRow): string {
+  const crmMode = booking.metadata?.crm_booking_mode;
+  if (crmMode === "phone") return "Phone Booking";
+  if (crmMode === "standard_future") return "Future Booking";
+  if (crmMode === "walkin") return "Walk-in";
   if (isHomeServiceBooking(booking)) return "Home Service";
   if (booking.type === "online") return "Online";
   if (booking.type === "walkin") return "Walk-in";
@@ -232,6 +236,128 @@ type BookingModalState =
   | { type: "room"; booking: WorkspaceBookingRow }
   | null;
 
+function hasOutstandingPayment(booking: WorkspaceBookingRow): boolean {
+  const paymentStatus = booking.payment_status ?? "unpaid";
+  if (!["unpaid", "pending", "pending_payment"].includes(paymentStatus)) return false;
+  const price = readPricePaid(booking.metadata);
+  return price <= 0 || booking.amount_paid < price;
+}
+
+function PrimaryRowAction({
+  booking,
+  paymentAction,
+  onSelect,
+  onOpenFollowup,
+  onOpenArrival,
+  onOpenRoomAssignment,
+  onBookingsChanged,
+}: {
+  booking: WorkspaceBookingRow;
+  paymentAction?: ActionFn;
+  onSelect: () => void;
+  onOpenFollowup: (initialResult: BookingFollowupResult) => void;
+  onOpenArrival: () => void;
+  onOpenRoomAssignment: () => void;
+  onBookingsChanged?: () => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const progress = booking.booking_progress_status ?? null;
+  const isHomeService = isHomeServiceBooking(booking);
+  const isClosed = isClosedOperationalBooking(booking);
+  const isPendingConfirmation = isCrmPendingBookingStatus(booking.status);
+  const isActive = booking.status === "in_progress" || progress === "session_started";
+
+  function runServiceStart() {
+    startTransition(async () => {
+      const result = await crmStartServiceAction({ bookingId: booking.id });
+      if (!result.success) {
+        toast.error(result.error ?? "Could not start service.");
+        return;
+      }
+      toast.success("Service started.");
+      onBookingsChanged?.();
+      router.refresh();
+    });
+  }
+
+  if (isPendingConfirmation) {
+    return (
+      <PrimaryTableButton onClick={() => onOpenFollowup("confirmed")}>
+        Call & Confirm
+      </PrimaryTableButton>
+    );
+  }
+
+  if (hasOutstandingPayment(booking) && paymentAction) {
+    return (
+      <PaymentActionMenu
+        bookingId={booking.id}
+        paymentStatus={booking.payment_status ?? "unpaid"}
+        paymentMethod={booking.payment_method ?? "pay_on_site"}
+        amountPaid={booking.amount_paid ?? 0}
+        pricePaid={readPricePaid(booking.metadata)}
+        paymentAction={paymentAction}
+        onUpdate={onBookingsChanged}
+        triggerLabel="Review Payment"
+        triggerVariant="panelSecondary"
+        fullWidth
+      />
+    );
+  }
+
+  if (isClosed) {
+    return <PrimaryTableButton onClick={onSelect}>View Record</PrimaryTableButton>;
+  }
+
+  if (!isHomeService && booking.status === "confirmed" && isNotStartedProgress(progress)) {
+    return <PrimaryTableButton onClick={onOpenArrival}>Mark Arrived</PrimaryTableButton>;
+  }
+
+  if (!isHomeService && progress === "checked_in" && !booking.resource_id) {
+    return <PrimaryTableButton onClick={onOpenRoomAssignment}>Resolve Room</PrimaryTableButton>;
+  }
+
+  if (!isHomeService && progress === "checked_in" && booking.resource_id) {
+    return (
+      <PrimaryTableButton onClick={runServiceStart} disabled={isPending}>
+        {isPending ? "Starting..." : "Start Service"}
+      </PrimaryTableButton>
+    );
+  }
+
+  if (isHomeService && booking.status === "confirmed" && isNotStartedProgress(progress)) {
+    return <PrimaryTableButton onClick={() => router.push("/crm/dispatch")}>Open Dispatch</PrimaryTableButton>;
+  }
+
+  if (isActive) {
+    return <PrimaryTableButton onClick={onSelect}>View Progress</PrimaryTableButton>;
+  }
+
+  return <PrimaryTableButton onClick={onSelect}>Open</PrimaryTableButton>;
+}
+
+function PrimaryTableButton({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 text-xs font-semibold text-[var(--cs-text)] transition-colors hover:border-[var(--cs-border-strong)] hover:bg-[var(--cs-sand-tint)] disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {children}
+    </button>
+  );
+}
+
 export function BookingsTable({
   bookings,
   allBookings,
@@ -366,14 +492,12 @@ export function BookingsTable({
         .bw-row-selected .bw-td:first-child { box-shadow: inset 4px 0 0 var(--cs-sand); }
         .bw-row:last-child .bw-td { border-bottom: none; }
         .bw-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bw-col-time { width: 112px; }
         .bw-col-customer { width: 190px; }
-        .bw-col-service { width: 190px; }
-        .bw-col-time { width: 106px; }
-        .bw-col-source { width: 118px; }
-        .bw-col-status { width: 128px; }
-        .bw-col-payment { width: 104px; }
-        .bw-col-amount { width: 98px; }
-        .bw-col-next { width: 140px; }
+        .bw-col-service { width: 230px; }
+        .bw-col-assignment { width: 190px; }
+        .bw-col-status { width: 132px; }
+        .bw-col-primary { width: 156px; }
         .bw-col-actions { width: 54px; white-space: nowrap; text-align: right; }
         .bw-pagination { border-top: 1px solid var(--cs-border-soft); background: var(--cs-surface-warm);
           display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
@@ -390,7 +514,7 @@ export function BookingsTable({
           .bw-panel { display: block; }
         }
         @media (max-width: 980px) {
-          .bw-col-source, .bw-col-amount { display: none; }
+          .bw-col-assignment { display: none; }
         }
         @media (max-width: 760px) {
           .bw-table-wrap { display: none; }
@@ -416,14 +540,12 @@ export function BookingsTable({
           <table className="bw-table">
             <thead>
               <tr>
+                <th className="bw-th bw-col-time">Time</th>
                 <th className="bw-th bw-col-customer">Customer</th>
                 <th className="bw-th bw-col-service">Service</th>
-                <th className="bw-th bw-col-time">Time</th>
-                <th className="bw-th bw-col-source">Source/Type</th>
+                <th className="bw-th bw-col-assignment">Assignment</th>
                 <th className="bw-th bw-col-status">Status</th>
-                <th className="bw-th bw-col-payment">Payment</th>
-                <th className="bw-th bw-col-amount">Amount</th>
-                <th className="bw-th bw-col-next">Next Action</th>
+                <th className="bw-th bw-col-primary">Primary Action</th>
                 <th className="bw-th bw-col-actions" aria-label="Actions" />
               </tr>
             </thead>
@@ -434,10 +556,12 @@ export function BookingsTable({
                 const resource = readFirst(booking.branch_resources);
                 const staff = readFirst(booking.staff);
                 const staffName = staff ? getStaffAdminName(staff) : "Unassigned";
-                const price = readPricePaid(booking.metadata);
                 const isSelected = booking.id === selected?.id;
                 const shortId = booking.id.slice(0, 8).toUpperCase();
-                const nextAction = getNextActionLabel(booking);
+                const assignmentLabel = [
+                  staffName,
+                  resource?.name ?? (isHomeServiceBooking(booking) ? "Home service" : "Room TBD"),
+                ].filter(Boolean).join(" · ");
 
                 return (
                   <tr
@@ -446,6 +570,15 @@ export function BookingsTable({
                     onClick={() => setSelectedId(booking.id)}
                     aria-selected={isSelected}
                   >
+                    <td className="bw-td bw-col-time">
+                      <div className="text-sm font-semibold text-[var(--cs-text)]">
+                        {formatTime(booking.start_time)}
+                      </div>
+                      <div className="text-[11px] text-[var(--cs-text-muted)]">
+                        {formatBookingDate(booking.booking_date)}
+                      </div>
+                    </td>
+
                     <td className="bw-td bw-col-customer">
                       <div className="flex min-w-0 items-center gap-3">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-bold text-[var(--cs-sand-dark)]">
@@ -466,50 +599,34 @@ export function BookingsTable({
                       <div className="bw-truncate text-sm font-medium text-[var(--cs-text)]" title={service?.name ?? undefined}>
                         {service?.name ?? "Service"}
                       </div>
-                      <div
-                        className="bw-truncate text-[11px] text-[var(--cs-text-muted)]"
-                        title={[staffName, resource?.name].filter(Boolean).join(" / ")}
-                      >
+                      <div className="mt-1">
+                        <SourcePill booking={booking} />
+                      </div>
+                    </td>
+
+                    <td className="bw-td bw-col-assignment">
+                      <div className="bw-truncate text-sm font-medium text-[var(--cs-text)]" title={assignmentLabel}>
                         {staffName}
-                        {resource ? ` / ${resource.name}` : ""}
                       </div>
-                    </td>
-
-                    <td className="bw-td bw-col-time">
-                      <div className="text-sm font-semibold text-[var(--cs-text)]">
-                        {formatTime(booking.start_time)}
+                      <div className="bw-truncate text-[11px] text-[var(--cs-text-muted)]">
+                        {resource?.name ?? (isHomeServiceBooking(booking) ? "Home service" : "Room TBD")}
                       </div>
-                      <div className="text-[11px] text-[var(--cs-text-muted)]">
-                        {formatBookingDate(booking.booking_date)}
-                      </div>
-                    </td>
-
-                    <td className="bw-td bw-col-source">
-                      <SourcePill booking={booking} />
                     </td>
 
                     <td className="bw-td bw-col-status">
                       <OperationalStatusPill booking={booking} />
                     </td>
 
-                    <td className="bw-td bw-col-payment">
-                      <PaymentStatusBadge status={booking.payment_status} />
-                    </td>
-
-                    <td className="bw-td bw-col-amount">
-                      {price > 0 ? (
-                        <span className="whitespace-nowrap text-[0.8125rem] font-semibold text-[var(--cs-text)]">
-                          {formatCurrency(price)}
-                        </span>
-                      ) : (
-                        <span className="text-[var(--cs-text-muted)]">-</span>
-                      )}
-                    </td>
-
-                    <td className="bw-td bw-col-next">
-                      <span className="inline-flex rounded-full bg-[var(--cs-sand-tint)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cs-sand-dark)]">
-                        {nextAction}
-                      </span>
+                    <td className="bw-td bw-col-primary" onClick={(event) => event.stopPropagation()}>
+                      <PrimaryRowAction
+                        booking={booking}
+                        paymentAction={paymentAction}
+                        onSelect={() => setSelectedId(booking.id)}
+                        onOpenFollowup={(initialResult) => setModalState({ type: "followup", booking, initialResult })}
+                        onOpenArrival={() => setModalState({ type: "arrival", booking })}
+                        onOpenRoomAssignment={() => setModalState({ type: "room", booking })}
+                        onBookingsChanged={handleBookingsChanged}
+                      />
                     </td>
 
                     <td className="bw-td bw-col-actions" onClick={(event) => event.stopPropagation()}>

@@ -10,64 +10,57 @@
 
 | Field              | Value                                                      |
 |--------------------|------------------------------------------------------------|
-| **Agent**          | Claude Code (Sonnet 4.6)                                  |
-| **Date**           | 2026-05-15                                                |
-| **Tasks Completed**| Phase 4 (offline resilience) + Phase 5 (observability) + Data API grants fix |
-| **Tasks Remaining**| See "What's Next" below                                   |
-| **Build Status**   | ✅ Passing — type-check clean, lint 0 errors, build OK    |
-| **Mood**           | All grants applied — Data API fully forward-compatible    |
+| **Agent**          | Codex                                                     |
+| **Date**           | 2026-06-30                                                |
+| **Tasks Completed**| CRM stabilization Checkpoint 1 sidebar/nav shell           |
+| **Tasks Remaining**| Work Queue simplification, CRM header, Bookings tabs, Schedule split, Customers/Home Service/System Management pages |
+| **Build Status**   | `npm run type-check`, `npm run lint`, `npm run build`, and `git diff --check` passed |
+| **Mood**           | Sidebar is aligned; the bigger workflow simplification still needs careful steps |
 
 ---
 
 ## What I Did
 
-**Supabase Data API Grants fix (this session):**
-- `20260521000001` failed with `42P01: relation "public.role_definitions" does not exist`
-  — that table and `job_title_definitions` don't exist in the live DB despite appearing in migrations
-- Created `supabase/migrations/20260521000002_data_api_explicit_grants_fix.sql`:
-  - Grants for 13 remaining tables (branch_resources through schedule_health_checks)
-  - All 11 function execute grants that never ran (the root cause of `[layout] staff lookup error {}`)
-  - Excludes `role_definitions`, `job_title_definitions` (non-existent), `staff_location_snapshots` (no migration)
-- Updated `docs/audits/SUPABASE_DATA_API_GRANTS_AUDIT.md` to reflect corrected state
+**CRM Checkpoint 1:**
+- Changed CRM sidebar primary nav to `Work Queue`, `Bookings`, `Schedule`, `Customers`, and `Home Service`.
+- Removed visible primary `Admin & Setup` competition from the CRM nav.
+- Added a collapsed bottom `SYSTEM / System Management` section for management-authorized CRM workspace users.
+- Linked System Management to the current routes/deep links:
+  - Staff & Access: `/crm/staff`
+  - Services & Providers: `/crm/setup?tab=services`
+  - Rooms & Resources: `/crm/setup?tab=spaces`
+  - Booking Rules: `/crm/setup?tab=booking_rules`
+  - Schedule Management: `/crm/staff-availability`
+  - System Health: `/crm/setup?tab=health`
+  - Close Day: `/crm/reconciliation`
+- Adjusted CRM background prefetching so only primary daily routes are warmed automatically.
 
-**Supabase Data API Grants (prior session):**
-- Audited all public schema tables — confirmed no explicit GRANT statements existed
-- Created `supabase/migrations/20260521000001_data_api_explicit_grants.sql` — partially applied
-  (sections 1-2 through staff_service_categories ran successfully)
-- Created audit doc, migration guidelines doc, and SQL verification script
-
-**Phase 4 — Offline Resilience:**
-- Created `src/hooks/use-network-status.ts` — `useSyncExternalStore` hook for `isOnline`, no lint issues
-- Created `src/components/shared/offline-banner.tsx` — fixed-position offline/back-online banner
-- Mounted `<OfflineBanner />` in `(dashboard)/layout.tsx` and `(public)/layout.tsx`
-- Added offline guard to `booking-wizard.tsx`, `booking-action-menu.tsx`, `booking-progress-actions.tsx`
-- Created `docs/audits/OFFLINE_RESILIENCE_PLAN.md`
-
-**Phase 5 — Production Observability:**
-- Improved `src/lib/logger.ts`: added `logInfo`, `logBusinessEvent`, `emit()` helper; structured JSON output
-- Added `logError` + `logBusinessEvent` to all critical booking, staff, scheduling, branch, and notification code paths
-- Replaced all raw `console.*` calls with logger or dev-only guards
-- Fixed pre-existing bug in `manager/walkin/actions.ts`: `resolvedStaffId` → `d.staffId`
-- Created `docs/audits/PRODUCTION_OBSERVABILITY_PLAN.md`
+**Preserved:**
+- Existing CRM routes and compatibility redirects.
+- Existing server actions, mutations, Supabase queries, RLS behavior, and route files.
+- Previous shared `getFrontDeskContext()` work.
 
 ---
 
 ## What's Next
 
-1. **Verify the layout error is gone** — The `[layout] staff lookup error {}` should no longer appear now that `get_auth_role()`, `get_auth_branch_id()`, and `get_auth_staff_id()` have execute grants for the `authenticated` role. Test by logging in as any staff member.
-2. **RLS policy gaps** — `departments` and `staff_service_categories` have RLS enabled but no policies. Add `SELECT` policies for `authenticated` if these tables are ever queried via `createClient()`.
-3. **Sentry integration** — Client error boundaries need a proper error tracking SDK. `@sentry/nextjs` is the recommended approach. See PRODUCTION_OBSERVABILITY_PLAN.md § "Recommended Next Steps".
-2. **Owner/manager staff update logging** — `logBusinessEvent` for `system_role` changes and `is_active` toggles in owner staff actions (not done in Phase 5, noted in plan).
-3. **Vercel Log Drain** — Connect a drain to route structured JSON logs to Datadog/Axiom for search and alerting.
-4. **ROADMAP** — Check off Phase 4 and Phase 5 completion markers.
+1. Continue with Checkpoint 2: simplify Work Queue by merging the useful Today/Control concepts without deleting `/crm/control`.
+2. Keep route compatibility while moving visible labels from Front Desk/Dispatch toward Work Queue/Home Service.
+3. Handle CRM header requirements in a dedicated pass: current page title, branch, search, notifications, persistent New Booking, user menu.
+4. Before exposing System Management to ordinary CRM/CSR roles, review page gates and action/RLS permissions deliberately.
+5. Trace at least one critical CRM action end-to-end before claiming action readiness.
 
 ---
 
 ## Watch Out For
 
-- ⚠️ `proxy.ts` imports `logError` from `@/lib/logger`. The logger is edge-safe (no Node.js built-ins). If the logger ever imports a Node.js module, middleware will break at runtime.
-- ⚠️ `src/lib/logger.ts` is NOT marked `"server-only"` — it can be imported in client components (outputs to browser console). This is intentional for now; if a log drain SDK is added, mark it server-only.
-- ⚠️ Two pre-existing lint warnings in `staff-onboarding/onboarding-form.tsx` (unused vars). Not introduced in Phase 5.
+- The latest prompt says production usable by tomorrow. Favor small, safe, verifiable fixes.
+- Do not use service-role from browser code.
+- Do not hide controls as a substitute for server-side authorization.
+- Do not leave visible buttons that do nothing.
+- Do not add a global CRM New Booking button until page-level duplicate buttons are addressed.
+- Authenticated CRM browser QA is still missing unless the next agent has a real CRM/front-desk session.
+- Package scripts in this repo are `npm run type-check`, `npm run lint`, `npm run build`, and `npm run test`; older docs mention pnpm, but use scripts that actually exist.
 
 ---
 
@@ -75,19 +68,21 @@
 
 | File | Why It Matters |
 |------|----------------|
-| `src/lib/logger.ts` | Central structured logger — all logging flows through here |
-| `docs/audits/PRODUCTION_OBSERVABILITY_PLAN.md` | Full Phase 5 plan, gaps, and next steps |
-| `docs/audits/OFFLINE_RESILIENCE_PLAN.md` | Phase 4 plan and sw.js notes |
-| `src/hooks/use-network-status.ts` | Network status hook — used by offline guards |
-| `src/components/shared/offline-banner.tsx` | Offline/back-online banner |
+| `docs/FRONT_DESK_REFACTOR_PROGRESS.md` | Detailed CRM/front-desk refactor checkpoint and next-pickup log |
+| `.context/CURRENT_TASK.cmd.md` | Current active task for repo-standard agent memory |
+| `.context/HANDOFF.cmd.md` | Short next-agent pickup note |
+| `src/lib/queries/crm-context.ts` | New shared Front Desk/CRM context helper |
+| `src/components/features/dashboard/nav-config.ts` | Current sidebar destinations and labels |
+| `src/components/features/dashboard/sidebar.tsx` | Collapsed System Management renderer |
+| `src/components/features/workspace/workspace-prefetch-config.ts` | CRM automatic route warm-up behavior |
+| `src/components/features/crm/crm-tab-nav.tsx` | Still contains overlapping legacy secondary CRM tab routes |
 
 ---
 
 ## Environment / Setup Notes
 
-- Build verified with `pnpm build` — passes with no errors
-- `pnpm type-check` — clean
-- `pnpm lint` — 0 errors, 2 pre-existing warnings
+- Latest checkpoint used `npm run type-check`, `npm run lint`, `npm run build`, and `git diff --check`; all passed.
+- Lint currently has 4 unrelated warnings recorded in `docs/FRONT_DESK_REFACTOR_PROGRESS.md`.
 
 ---
 

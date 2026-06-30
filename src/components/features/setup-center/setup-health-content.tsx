@@ -125,8 +125,8 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
         ? "All confirmed bookings assigned"
         : `${d.unassignedTodayCount} need therapist`,
       status: d.unassignedTodayCount === 0 ? "ready" : "error",
-      actionLabel: d.unassignedTodayCount > 0 ? "Review Bookings" : undefined,
-      actionHref: "/crm/control",
+      actionLabel: d.unassignedTodayCount > 0 ? "Open Work Queue" : undefined,
+      actionHref: "/crm/today?filter=exceptions",
     },
   ];
 }
@@ -135,9 +135,9 @@ const SHORTCUTS = [
   { icon: "🗓️", label: "Fix Schedules", description: "Set up missing staff schedules", href: "/crm/staff-availability" },
   { icon: "✨", label: "Assign Therapists", description: "Assign providers to services", href: "/crm/services" },
   { icon: "🏠", label: "Edit Rooms & Rules", description: "Manage rooms and booking rules", href: "/crm/spaces-rules" },
-  { icon: "📋", label: "Review Bookings", description: "Check today's bookings", href: "/crm/control" },
+  { icon: "📋", label: "Work Queue", description: "Check today's booking exceptions", href: "/crm/today?filter=exceptions" },
   { icon: "🚗", label: "Open Dispatch", description: "Manage home-service trips", href: "/crm/dispatch" },
-  { icon: "📊", label: "Daily Operations", description: "Return to front-desk center", href: "/crm/today" },
+  { icon: "📊", label: "Work Queue", description: "Return to today's prioritized CRM queue", href: "/crm/today" },
 ];
 
 const TIPS = [

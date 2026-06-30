@@ -1,0 +1,66 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e2]:
+    - complementary [ref=f8e4]:
+      - generic [ref=f8e6]:
+        - link "Cradle Wellness Living" [ref=f8e7] [cursor=pointer]:
+          - /url: /
+          - img "Cradle Wellness Living" [ref=f8e8]
+        - generic [ref=f8e38]:
+          - generic [ref=f8e39]: CradleHub
+          - generic [ref=f8e40]: Cradle Wellness Main Spa
+      - generic [ref=f8e42]:
+        - generic [ref=f8e43]: ✦
+        - generic [ref=f8e44]:
+          - generic [ref=f8e45]: FRONT DESK WORKSPACE
+          - generic [ref=f8e46]: Front-desk access
+      - navigation [ref=f8e47]:
+        - link "Work Queue" [ref=f8e48] [cursor=pointer]:
+          - /url: /crm/today
+          - img [ref=f8e49]
+          - generic [ref=f8e54]: Work Queue
+        - link "Bookings" [ref=f8e55] [cursor=pointer]:
+          - /url: /crm/bookings
+          - img [ref=f8e56]
+          - generic [ref=f8e59]: Bookings
+        - link "Schedule" [ref=f8e60] [cursor=pointer]:
+          - /url: /crm/schedule
+          - img [ref=f8e61]
+          - generic [ref=f8e63]: Schedule
+        - link "Customers" [ref=f8e64] [cursor=pointer]:
+          - /url: /crm/customers
+          - img [ref=f8e65]
+          - generic [ref=f8e70]: Customers
+        - link "Home Service" [ref=f8e71] [cursor=pointer]:
+          - /url: /crm/dispatch
+          - img [ref=f8e72]
+          - generic [ref=f8e77]: Home Service
+      - generic [ref=f8e79]:
+        - generic [ref=f8e81]: CQ
+        - generic [ref=f8e82]:
+          - generic [ref=f8e83]: Codex QA Work Queue
+          - generic [ref=f8e84]: FRONT DESK WORKSPACE
+    - generic [ref=f8e85]:
+      - banner [ref=f8e87]:
+        - generic [ref=f8e88]:
+          - generic [ref=f8e90]: Front Desk Workspace
+          - generic [ref=f8e91]: · Front-desk access
+        - generic [ref=f8e92]:
+          - generic [ref=f8e93]: Tue, Jun 30
+          - 'button "System readiness: System: 2 issues. 2 total issues. Click to review." [ref=f8e95] [cursor=pointer]':
+            - generic [ref=f8e96]: ⚠️
+            - generic [ref=f8e97]: "System: 2 issues"
+            - generic [ref=f8e98]: ▾
+          - button "Notifications" [ref=f8e101]:
+            - img [ref=f8e102]
+          - group [ref=f8e106]:
+            - generic "CQ Codex" [ref=f8e107] [cursor=pointer]:
+              - generic [ref=f8e109]: CQ
+              - generic [ref=f8e110]: Codex
+              - img [ref=f8e111]
+      - main [ref=f8e113]:
+        - button "Open Cradle Coach" [ref=f8e135]:
+          - img
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f8e141] [cursor=pointer]:
+    - img [ref=f8e142]
+  - alert [ref=f8e145]

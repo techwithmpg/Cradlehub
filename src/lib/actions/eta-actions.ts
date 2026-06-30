@@ -159,6 +159,7 @@ export async function refreshHomeServiceEtaAction(
 
   revalidatePath("/manager/control");
   revalidatePath("/crm/control");
+  revalidatePath("/crm/today");
 
   return { ok: true, eta: liveEta };
 }

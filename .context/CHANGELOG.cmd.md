@@ -5182,3 +5182,97 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Follow-up:**
 - Add more tools: record payment reminder, assign therapist, check booking status.
 - Build follow-up/escalation agent for overdue bookings and tasks.
+
+---
+
+## 2026-06-30 - Codex (CRM-STABILIZATION-HANDOFF-2026-06-30)
+
+**Task:** Update the active CRM stabilization/refactor handoff so future agents can resume safely if the current Codex session stops.
+
+**Files Changed:**
+- `.context/CURRENT_TASK.cmd.md` - replaced stale CRM Coach active task with the current CRM stabilization/refactor state.
+- `.context/HANDOFF.cmd.md` - replaced stale CRM Coach next-agent note with current CRM stabilization pickup guidance.
+- `.context/CHANGELOG.cmd.md` - appended this handoff update.
+- `.context/ERRORS.cmd.md` - logged pre-flight path mismatch / stale handoff risk.
+- `docs/CURRENT_TASK.cmd.md` - mirrored the active CRM stabilization task.
+- `docs/HANDOFF.cmd.md` - mirrored next-agent pickup guidance.
+- `docs/CHANGELOG.cmd.md` - appended docs-side handoff update.
+- `docs/ERRORS.cmd.md` - logged docs-side pre-flight path mismatch / stale handoff risk.
+- `docs/PROJECT_CONTEXT.md` - updated current status/latest agent update for CRM stabilization.
+- `docs/ROADMAP.md` - added roadmap changelog entry for the CRM stabilization handoff.
+- `docs/FRONT_DESK_REFACTOR_PROGRESS.md` - added agent continuation protocol and latest prompt direction reconciliation.
+
+**Notes:**
+- No application code was changed during this handoff-only update.
+- The prior code checkpoint remains: richer `getFrontDeskContext()` plus Today/Bookings/Control/Live Operations context consolidation.
+- Latest CRM prompt wants `Work Queue`, `Bookings`, `Schedule`, `Customers`, `Home Service`, plus collapsed `System Management`; older checkpoint still says `Front Desk`, `Dispatch`, and `Admin & Setup`.
+
+**Validation:**
+- Not rerun for this docs-only update.
+- Last code checkpoint passed `npm run type-check`, `npm run lint`, and `npm run build`.
+
+---
+
+## 2026-06-30 - Codex (CRM-STABILIZATION-CHECKPOINT-1-NAV-SHELL-2026-06-30)
+
+**Task:** Implement Checkpoint 1 of the focused CRM stabilization prompt: update the CRM sidebar primary destinations and move management tools into a quiet collapsed System Management section.
+
+**Files Changed:**
+- `src/components/features/dashboard/nav-config.ts` - changed CRM primary labels to `Work Queue`, `Bookings`, `Schedule`, `Customers`, and `Home Service`; added System Management link definitions for existing setup/staff/schedule/reconciliation routes.
+- `src/components/features/dashboard/sidebar.tsx` - added query-aware nav highlighting, hover-prefetch opt-out support for secondary links, and a bottom collapsed `SYSTEM / System Management` section with gear icon.
+- `src/components/features/workspace/workspace-prefetch-config.ts` - limited CRM automatic prefetching to primary daily routes; secondary system routes remain explicit-navigation only.
+- `.context/CURRENT_TASK.cmd.md` and `docs/CURRENT_TASK.cmd.md` - updated active task to this checkpoint.
+
+**Behavior:**
+- Management-authorized CRM workspace users now see the approved five daily CRM destinations.
+- `Admin & Setup` no longer competes as a primary CRM sidebar item.
+- System tools remain available through a visually quieter collapsed System Management area.
+- Existing route paths were preserved: `/crm/today`, `/crm/bookings`, `/crm/schedule`, `/crm/customers`, `/crm/dispatch`, `/crm/setup`, `/crm/staff`, `/crm/staff-availability`, and `/crm/reconciliation`.
+- System Management links use current routes/deep links instead of creating a new manager workspace or new route tree.
+
+**Verification:**
+- `npm run type-check`: PASS
+- `npm run lint`: PASS with 4 unrelated existing warnings in `scripts/generate-service-image-assets.mjs` and `tests/components/payroll/employee-payroll-table.test.tsx`.
+- `npm run build`: PASS, 103 generated app routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+**Remaining Risks / Follow-up:**
+- Header work from the prompt is not complete in this checkpoint: compact CRM page title, branch/search/New Booking header behavior still needs a dedicated pass.
+- System Management follows the current management-authorized route gates. The latest prompt's broader "CRM users can occasionally edit system tools" direction still needs a deliberate permission/page-gate review before exposing those tools to ordinary CRM/CSR roles.
+- No authenticated browser click-through was performed; protected CRM action flows still need a real CRM/front-desk session before claiming workflow readiness.
+
+---
+
+## 2026-06-30 - Codex (CRM-BOOKINGS-QUICK-BOOKING-COMPLETION-2026-06-30)
+
+**Task:** Finish the interrupted CRM Bookings / Quick Booking checkpoint without restarting the Work Queue refactor.
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/bookings/new/page.tsx` - loads branch services, staff, resources, customer prefill, and booking rules for the CRM Quick Booking form.
+- `src/components/features/bookings/quick-booking-form.tsx` - added the CRM form for walk-in, phone, future, and home-service bookings with customer search, inline customer entry, More Options, next-slot selection, and date-aware success redirect.
+- `src/lib/actions/inhouse-booking.ts` - aligned schema/action payload handling, customer upsert, home-service metadata, payment pending/paid state, resource fallback, checked-in walk-ins, safe errors, and best-effort revalidation.
+- `src/lib/validations/booking.ts` - added the Quick Booking contract fields and clearer validation messages.
+- `src/components/features/bookings/bookings-workspace.tsx` - finalized Needs Action, Upcoming, Active, and Completed grouping.
+- `src/app/(dashboard)/crm/bookings/page.tsx` - branch-scoped booking date lookup for bookingId links.
+- `src/app/api/customers/search/route.ts` - aligned CRM role access with the page/action role gate.
+- `src/lib/bookings/revalidate-booking-surfaces.ts` - revalidates schedule and dispatch booking surfaces.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/FRONT_DESK_REFACTOR_PROGRESS.md` - concise verification/handoff updates.
+
+**Behavior:**
+- Quick Booking now supports walk-in, phone, standard future, and home-service modes through the existing `createInhouseBookingMultiAction`.
+- New customers can be created inline; existing customers can be searched by name or phone.
+- Home service captures address, city/barangay, landmark, and location notes without requiring a room.
+- Next Available searches forward and respects branch booking rules before choosing a slot.
+- Successful saves open the Bookings drawer with `date` and `bookingId` in the URL.
+- Payment state is no longer hard-coded paid: walk-ins default paid, phone/future/home-service default pending unless payment is recorded.
+
+**Verification:**
+- `npm run type-check`: PASS
+- `npm run lint`: PASS with 4 unrelated existing warnings.
+- `npm run build`: PASS, 103 app routes.
+- Authenticated CRM browser QA: PASS for walk-in, phone, future, and home-service booking creation; Bookings tabs; booking drawer; no browser console/runtime logs.
+- RLS errors: none surfaced during verified authenticated flows.
+
+**Notes:**
+- A temporary CRM verifier account was created for QA, then disabled/unlinked and deleted from Supabase Auth after verification.
+- QA bookings created during browser verification remain in the database as synthetic test records.

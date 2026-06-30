@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     .eq("auth_user_id", user.id)
     .single();
 
-  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
   if (!me || !allowedRoles.includes(me.system_role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

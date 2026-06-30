@@ -133,6 +133,7 @@ export async function assignBookingDriverAction(rawInput: unknown): Promise<{
 
   revalidatePath("/manager/control");
   revalidatePath("/crm/control");
+  revalidatePath("/crm/today");
   revalidatePath("/driver");
   invalidateCrmWorkspace(booking.branch_id);
 

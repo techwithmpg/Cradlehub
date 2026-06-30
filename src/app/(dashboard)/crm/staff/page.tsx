@@ -23,7 +23,6 @@ export const metadata = { title: "Staff | Front Desk" };
 
 const ALLOWED_ROLES = new Set([
   "owner", "manager", "assistant_manager", "store_manager",
-  "crm", "csr", "csr_head", "csr_staff",
 ]);
 
 async function getCrmStaffPageContext() {

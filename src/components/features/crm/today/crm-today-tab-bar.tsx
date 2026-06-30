@@ -6,15 +6,13 @@ export type TodayTabKey =
   | "overview"
   | "control-center"
   | "payments"
-  | "actions"
-  | "end-of-day";
+  | "actions";
 
 const TABS: { key: TodayTabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "control-center", label: "Control Center" },
   { key: "payments", label: "Payments Pending" },
   { key: "actions", label: "Action Required" },
-  { key: "end-of-day", label: "End of Day" },
 ];
 
 export function CrmTodayTabBar({

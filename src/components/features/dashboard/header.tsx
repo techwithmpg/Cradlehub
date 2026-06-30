@@ -32,17 +32,18 @@ function profileHref(workspaces: readonly WorkspaceAccess[]): string {
     : "/select-workspace";
 }
 
-function settingsHref(role: string): string {
+function settingsHref(role: string): string | null {
   if (role === "owner") return "/owner";
   if (role === "manager" || role === "assistant_manager" || role === "store_manager") {
-    return "/manager/settings";
+    return "/crm/setup";
   }
-  return "/crm/setup";
+  return null;
 }
 
 export function Header({ role, fullName, displayName, avatarUrl, readiness, workspaces = [] }: HeaderProps) {
   const canSwitchWorkspace = workspaces.length > 1;
   const headerName = displayName ?? fullName;
+  const settingsDestination = settingsHref(role);
 
   return (
     <header style={{
@@ -77,7 +78,10 @@ export function Header({ role, fullName, displayName, avatarUrl, readiness, work
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
 
-        <WorkspaceReadinessIndicator readiness={readiness ?? null} />
+        <WorkspaceReadinessIndicator
+          readiness={readiness ?? null}
+          canOpenAdminSetup={settingsDestination === "/crm/setup"}
+        />
 
         <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
 
@@ -129,10 +133,12 @@ export function Header({ role, fullName, displayName, avatarUrl, readiness, work
               </WorkspaceSwitchLink>
             ) : null}
 
-            <Link className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30" href={settingsHref(role)}>
-              <Settings className="size-4" />
-              Settings
-            </Link>
+            {settingsDestination ? (
+              <Link className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30" href={settingsDestination}>
+                <Settings className="size-4" />
+                Settings
+              </Link>
+            ) : null}
 
             <a className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--cs-sand)]/30" href="mailto:support@cradlewellnessliving.com">
               <HelpCircle className="size-4" />

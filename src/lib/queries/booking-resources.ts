@@ -1,4 +1,5 @@
 import type { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -18,7 +19,7 @@ export type BookingRowWithResource<T extends { resource_id?: string | null }> =
 export async function attachBranchResources<
   T extends { resource_id?: string | null },
 >(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   rows: T[]
 ): Promise<BookingRowWithResource<T>[]> {
   const resourceIds = Array.from(
@@ -37,7 +38,8 @@ export async function attachBranchResources<
     }));
   }
 
-  const { data, error } = await supabase
+  const resourceClient = createAdminClient();
+  const { data, error } = await resourceClient
     .from("branch_resources")
     .select("id, name, type, capacity")
     .in("id", resourceIds);

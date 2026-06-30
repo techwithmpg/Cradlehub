@@ -460,3 +460,25 @@ A delete-then-insert sequence can lose previous assignments if insert fails. A S
 - New dependency on Anthropic API key.
 - New table `agent_audit_logs` requires migration.
 - Future agents can reuse `src/lib/agents/` core and `/api/agent/coach` route pattern.
+
+---
+
+### DEC-CRM-STABILIZATION-001: Latest CRM visible navigation direction supersedes older Front Desk labels
+**Status:** ACCEPTED - 2026-06-30
+
+**Decision:**
+For the next CRM stabilization/refactor pass, visible navigation should reconcile toward the latest prompt:
+- Daily operations: `Work Queue`, `Bookings`, `Schedule`, `Customers`, `Home Service`
+- Secondary system tools: collapsed `System Management`
+
+Older route names and internal identifiers may remain during stabilization. In particular, helpers like `getFrontDeskContext()` and existing `/crm/*` routes do not need a risky global rename just because user-facing copy is changing.
+
+**Rationale:**
+- The latest prompt explicitly prioritizes production usability by tomorrow and warns against broad redesign or uncontrolled internal renames.
+- Route compatibility and live workflow preservation are more important than perfect internal naming.
+- Existing checkpoint work used `Front Desk`, `Dispatch`, and `Admin & Setup`; future agents need a documented bridge so they do not fight the existing code or undo working changes.
+
+**Consequences:**
+- Update user-facing labels deliberately and keep redirects/deep links until old links are migrated.
+- Treat Work Queue/Home Service/System Management as product copy, not an instruction to rename all internal `crm` or `frontDesk` identifiers.
+- Continue to verify CRM actions through server auth/RLS/database behavior before declaring completion.

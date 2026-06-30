@@ -30,7 +30,7 @@ const TILES: ShortcutTile[] = [
     icon: "📋",
     label: "Review Bookings",
     description: "Process pending requests and assign today’s bookings.",
-    href: "/crm/control",
+    href: "/crm/today?filter=exceptions",
   },
   {
     icon: "🚗",
@@ -40,8 +40,8 @@ const TILES: ShortcutTile[] = [
   },
   {
     icon: "📊",
-    label: "Daily Operations",
-    description: "Return to today’s front-desk command center.",
+    label: "Work Queue",
+    description: "Return to today’s prioritized CRM queue.",
     href: "/crm/today",
   },
 ];

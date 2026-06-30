@@ -1,14 +1,19 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { getCrmPendingBookingQueue, getTodaysSchedule } from "@/lib/queries/bookings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
-import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getActionRequiredNotificationsAction } from "@/lib/notifications/queries";
 import { getCrmTodaySnapshot } from "@/lib/queries/crm-today";
 import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReadinessResult } from "@/types/readiness";
 import { CrmTodayShell } from "@/components/features/crm/today/crm-today-shell";
-import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import { getBranchBookingDriverIds, getDriverNamesByIds, getAvailableBranchDrivers, assignBookingDriverAction } from "@/lib/actions/driver-actions";
+import { getLatestLocationsForActiveHomeServiceTrips } from "@/lib/actions/location-actions";
+import { getOrCreateCustomerTrackingLinkAction, getActiveTrackingTokensForBookings } from "@/lib/actions/tracking-link-actions";
+import { refreshHomeServiceEtaAction } from "@/lib/actions/eta-actions";
+import { parseLiveEta } from "@/lib/bookings/ops-warnings";
+import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { updateWorkQueueBookingStatusAction } from "./actions";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -25,10 +30,15 @@ type BookingRow = {
   end_time: string;
   status: string;
   type: string;
+  resource_id: string | null;
+  delivery_type?: string | null;
   travel_buffer_mins: number | null;
   payment_status?: string;
   payment_method?: string;
   amount_paid?: number;
+  payment_reference?: string | null;
+  booking_progress_status?: string;
+  metadata?: Record<string, unknown> | null;
   customers: Relation<CustomerRel>;
   services:  Relation<ServiceRel>;
   staff:     Relation<StaffRel>;
@@ -40,49 +50,30 @@ function first<T>(v: Relation<T>): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
-// ── Auth helper ───────────────────────────────────────────────────────────────
-
-async function getCsrContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("branch_id, branches(name), system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
-  const devBypass = isDevAuthBypassEnabled();
-
-  if (!me && devBypass) {
-    const mock = getDevBypassLayoutStaff();
-    return { branchId: mock.branch_id, branchName: mock.branches.name, role: mock.system_role };
-  }
-
-  if (!me || !allowedRoles.includes(me.system_role) || !me.branch_id) redirect("/login");
-
-  return {
-    branchId:   me.branch_id as string,
-    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
-    role:       me.system_role,
-  };
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function CrmTodayPage() {
-  const { branchId, branchName, role } = await getCsrContext();
+  const { branchId, branchName, role } = await getFrontDeskContext();
   const today   = new Date().toISOString().split("T")[0]!;
 
-  const [rawBookings, pendingQueue, snapshot, actionNotifications, readiness] = await Promise.all([
+  const [
+    rawBookings,
+    pendingQueue,
+    snapshot,
+    actionNotifications,
+    readiness,
+    driverIdMap,
+    availableDrivers,
+    locationMap,
+  ] = await Promise.all([
     getTodaysSchedule(branchId, today),
     getCrmPendingBookingQueue(branchId, today),
     getCrmTodaySnapshot({ branchId, date: today }),
     getActionRequiredNotificationsAction(3),
     getCrmReadinessCached(branchId).catch(() => null),
+    getBranchBookingDriverIds(branchId, today),
+    getAvailableBranchDrivers(branchId),
+    getLatestLocationsForActiveHomeServiceTrips(branchId, today),
   ]);
 
   const bookingsById = new Map<string, BookingRow>();
@@ -100,13 +91,44 @@ export default async function CrmTodayPage() {
     return dateCompare !== 0 ? dateCompare : a.start_time.localeCompare(b.start_time);
   });
 
+  const resourceIds = [...new Set(bookings.map((booking) => booking.resource_id).filter(Boolean) as string[])];
+  const resourceNameMap = new Map<string, string>();
+  if (resourceIds.length > 0) {
+    const supabase = createAdminClient();
+    const { data: resources } = await supabase
+      .from("branch_resources")
+      .select("id, name")
+      .in("id", resourceIds);
+    for (const resource of resources ?? []) {
+      resourceNameMap.set(resource.id, resource.name);
+    }
+  }
+
+  const hsBookingIds = bookings
+    .filter((b) => b.type === "home_service" || b.delivery_type === "home_service")
+    .map((b) => b.id);
+  const trackingMap = await getActiveTrackingTokensForBookings(hsBookingIds);
+  const driverIds = [...new Set(Object.values(driverIdMap).filter(Boolean) as string[])];
+  const driverNameMap = await getDriverNamesByIds(driverIds);
+
   // Build queue data for the interactive panel
   const queueData = bookings.map((b) => {
-    const meta = (b as { metadata?: unknown }).metadata as Record<string, unknown> | null;
+    const meta = b.metadata ?? null;
     const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
     const dispatch = meta?.dispatch as Record<string, unknown> | null;
     const priceRaw = meta?.price_paid;
     const pricePaid = typeof priceRaw === "number" && Number.isFinite(priceRaw) ? priceRaw : 0;
+    const rawLat = hsAddr?.lat;
+    const rawLng = hsAddr?.lng;
+    const destLat =
+      typeof rawLat === "number" ? rawLat :
+      typeof rawLat === "string" ? parseFloat(rawLat) : null;
+    const destLng =
+      typeof rawLng === "number" ? rawLng :
+      typeof rawLng === "string" ? parseFloat(rawLng) : null;
+    const liveEta = parseLiveEta(dispatch?.live_eta);
+    const isHomeService = b.type === "home_service" || b.delivery_type === "home_service";
+
     return {
       id:                    b.id,
       booking_date:          b.booking_date,
@@ -119,25 +141,33 @@ export default async function CrmTodayPage() {
       payment_method:        b.payment_method,
       amount_paid:           b.amount_paid,
       price_paid:            pricePaid,
+      payment_reference:     b.payment_reference ?? null,
       customer_name:         first(b.customers)?.full_name ?? null,
       service_name:          first(b.services)?.name ?? null,
       service_duration:      first(b.services)?.duration_minutes ?? null,
       staff_name:            first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
-      resource_name:         first(b.branch_resources)?.name ?? null,
+      resource_name:         b.resource_id
+        ? (resourceNameMap.get(b.resource_id) ?? first(b.branch_resources)?.name ?? null)
+        : first(b.branch_resources)?.name ?? null,
+      booking_progress_status: b.booking_progress_status,
       hs_zone:               typeof hsAddr?.zone === "string" ? hsAddr.zone : null,
       hs_address:            typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
       hs_city:               typeof hsAddr?.city === "string" ? hsAddr.city : null,
       hs_map_url:            typeof hsAddr?.map_url === "string" ? hsAddr.map_url : null,
       dispatch_warning:      typeof dispatch?.dispatch_warning === "string" ? dispatch.dispatch_warning : null,
       needs_location_review: dispatch?.needs_location_review === true,
+      driver_id:             driverIdMap[b.id] ?? null,
+      driver_name:           driverIdMap[b.id] ? (driverNameMap[driverIdMap[b.id]!] ?? null) : null,
+      no_driver_warning:     isHomeService && !driverIdMap[b.id],
+      last_location_at:      locationMap[b.id]?.recorded_at ?? null,
+      tracking_token:        trackingMap[b.id]?.token ?? null,
+      tracking_url:          trackingMap[b.id]?.url ?? null,
+      tracking_message:      trackingMap[b.id]?.message ?? null,
+      dest_lat:              typeof destLat === "number" && Number.isFinite(destLat) ? destLat : null,
+      dest_lng:              typeof destLng === "number" && Number.isFinite(destLng) ? destLng : null,
+      live_eta:              liveEta,
     };
   });
-
-  const upcoming = bookings.filter(
-    (b) => b.booking_date === today && b.status === "confirmed"
-  );
-  const nextAppt = [...upcoming].sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
-  const pendingBookingCount = queueData.filter((b) => isCrmPendingBookingStatus(b.status)).length;
 
   const roleLabel =
     role === "owner"             ? "Owner"
@@ -165,8 +195,13 @@ export default async function CrmTodayPage() {
       actionNotifications={actionNotifications}
       readinessIssues={readinessIssues}
       readinessStatus={readinessStatus}
-      nextApptId={nextAppt?.id}
-      pendingBookingCount={pendingBookingCount}
+      viewerRole={role}
+      paymentAction={updateBookingPaymentAction}
+      statusAction={updateWorkQueueBookingStatusAction}
+      assignDriverAction={assignBookingDriverAction}
+      availableDrivers={availableDrivers}
+      getTrackingLinkAction={getOrCreateCustomerTrackingLinkAction}
+      refreshEtaAction={refreshHomeServiceEtaAction}
     />
   );
 }

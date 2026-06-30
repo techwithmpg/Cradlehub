@@ -1,0 +1,16 @@
+[     496ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2431
+[     526ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2431
+[     562ms] [LOG] %c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2431
+[ 3647301ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2431
+[ 3653042ms] [ERROR] Failed to load resource: net::ERR_NETWORK_IO_SUSPENDED @ http://localhost:3000/api/agent/coach:0
+[ 3653044ms] [ERROR] Failed to load resource: net::ERR_NETWORK_IO_SUSPENDED @ http://localhost:3000/crm/today?filter=all:0
+[ 3653091ms] [ERROR] %o
+
+%s TypeError: network error The above error occurred in the <CrmTodayPage> component. It was handled by the <ErrorBoundaryHandler> error boundary. @ http://localhost:3000/_next/static/chunks/07yg_next_dist_client_0b4wa42._.js:1998
+[ 3653098ms] [ERROR] TypeError: network error @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:3272
+[ 3653099ms] [ERROR] TypeError: network error @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:3272
+[ 3653106ms] [ERROR] Failed to load resource: net::ERR_NETWORK_IO_SUSPENDED @ http://localhost:3000/__nextjs_original-stack-frames:0
+[ 4830316ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2790
+[ 4831293ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2431
+[ 4831409ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2431
+[ 4832081ms] [LOG] [Fast Refresh] done in 781ms @ http://localhost:3000/_next/static/chunks/07yg_next_dist_0egfuq6._.js:2431

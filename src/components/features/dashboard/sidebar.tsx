@@ -1,16 +1,23 @@
 "use client";
 
 import Link            from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback }    from "react";
 import {
   LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
   UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
   Menu, X, TrendingUp, BookOpen, Clock, UserCheck, Activity,
-  ChevronRight, Truck, Wrench, Monitor,
+  ChevronRight, ChevronDown, Truck, Wrench, Monitor,
   MapPin, Settings, Bell, DollarSign, User, ClipboardCheck,
 } from "lucide-react";
-import { NAV_CONFIG, resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole, type NavGroup, type NavItem } from "./nav-config";
+import {
+  NAV_CONFIG,
+  resolveCrmNavKeyFromRole,
+  resolveWorkspaceKeyFromPath,
+  resolveWorkspaceKeyFromRole,
+  type NavGroup,
+  type NavItem,
+} from "./nav-config";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { getStaffAdminName, getStaffDisplayName } from "@/lib/staff/display-name";
 
@@ -43,21 +50,21 @@ const WORKSPACE_META: Record<string, {
     icon:     "▸",
   },
   csr: {
-    label:    "CSR WORKSPACE",
+    label:    "FRONT DESK WORKSPACE",
     sublabel: "Customer service access",
     accent:   "var(--cs-csr-accent)",
     accentBg: "rgba(138, 122, 90, 0.15)",
     icon:     "◇",
   },
   csr_head: {
-    label:    "CSR HEAD WORKSPACE",
+    label:    "FRONT DESK WORKSPACE",
     sublabel: "Front-desk supervisor access",
     accent:   "var(--cs-csr-head-accent)",
     accentBg: "rgba(122, 106, 74, 0.15)",
     icon:     "◈",
   },
   csr_staff: {
-    label:    "CSR WORKSPACE",
+    label:    "FRONT DESK WORKSPACE",
     sublabel: "Front-desk access",
     accent:   "var(--cs-csr-staff-accent)",
     accentBg: "rgba(154, 138, 106, 0.15)",
@@ -98,41 +105,88 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 type NavLinkProps = {
   item:     NavItem;
   pathname: string;
+  search:   string;
   accent:   string;
   onNav?:   () => void;
+  prefetchOnHover?: boolean;
+  variant?: "primary" | "system";
 };
 
-function NavLink({ item, pathname, accent, onNav }: NavLinkProps) {
+function hrefPath(href: string): string {
+  return href.split("?")[0] || href;
+}
+
+function isQueryHrefActive(href: string, pathname: string, search: string): boolean {
+  const [path, query = ""] = href.split("?");
+  if (pathname !== path) return false;
+  if (!query) return true;
+
+  const expected = new URLSearchParams(query);
+  const current = new URLSearchParams(search);
+
+  for (const [key, value] of expected.entries()) {
+    if (current.get(key) !== value) return false;
+  }
+
+  return true;
+}
+
+function isNavActive(item: NavItem, pathname: string, search: string): boolean {
+  const path = hrefPath(item.href);
+  const isRootSection = ["/manager", "/owner", "/crm", "/staff-portal", "/driver", "/utility", "/dev"].includes(path);
+
+  if (item.href.includes("?")) {
+    return isQueryHrefActive(item.href, pathname, search);
+  }
+
+  return isRootSection
+    ? pathname === path
+    : pathname === path || pathname.startsWith(path + "/");
+}
+
+function NavLink({
+  item,
+  pathname,
+  search,
+  accent,
+  onNav,
+  prefetchOnHover = true,
+  variant = "primary",
+}: NavLinkProps) {
   const Icon          = ICON_MAP[item.icon];
   const router        = useRouter();
-  const isRootSection = ["/manager", "/owner", "/crm", "/staff-portal", "/driver", "/utility", "/dev"].includes(item.href);
-  const isActive      = isRootSection
-    ? pathname === item.href
-    : pathname === item.href || pathname.startsWith(item.href + "/");
+  const isActive      = isNavActive(item, pathname, search);
+  const isSystem      = variant === "system";
 
   const handleMouseEnter = useCallback(() => {
+    if (!prefetchOnHover) return;
     try {
       router.prefetch(item.href);
     } catch {
       // Best-effort prefetch.
     }
-  }, [router, item.href]);
+  }, [prefetchOnHover, router, item.href]);
 
   return (
     <Link
       href={item.href}
+      prefetch={prefetchOnHover ? undefined : false}
       onClick={onNav}
       onMouseEnter={handleMouseEnter}
       style={{
         display:         "flex",
         alignItems:      "center",
-        gap:             9,
-        padding:         "8px 10px",
+        gap:             isSystem ? 8 : 9,
+        padding:         isSystem ? "6px 8px" : "8px 10px",
         borderRadius:    "var(--cs-r-sm)",
-        marginBottom:    2,
-        fontSize:        13,
+        marginBottom:    isSystem ? 1 : 2,
+        fontSize:        isSystem ? 12 : 13,
         fontWeight:      isActive ? 500 : 400,
-        color:           isActive ? "var(--cs-text-inverse)" : "var(--cs-sidebar-text)",
+        color:           isActive
+          ? "var(--cs-text-inverse)"
+          : isSystem
+            ? "var(--cs-sidebar-muted)"
+            : "var(--cs-sidebar-text)",
         backgroundColor: isActive ? "var(--cs-sidebar-active)" : "transparent",
         textDecoration:  "none",
         transition:      "background-color var(--cs-duration) var(--cs-ease), color var(--cs-duration) var(--cs-ease)",
@@ -150,9 +204,9 @@ function NavLink({ item, pathname, accent, onNav }: NavLinkProps) {
           background:   accent,
         }} />
       )}
-      {Icon && <Icon size={15} strokeWidth={isActive ? 2.25 : 1.75} />}
+      {Icon && <Icon size={isSystem ? 14 : 15} strokeWidth={isActive ? 2.25 : 1.75} />}
       <span style={{ flex: 1 }}>{item.label}</span>
-      {isActive && (
+      {isActive && !isSystem && (
         <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--cs-sidebar-muted)", flexShrink: 0 }} />
       )}
     </Link>
@@ -169,20 +223,25 @@ type SidebarProps = {
 
 type SidebarContentProps = SidebarProps & {
   pathname: string;
+  search:   string;
   onNav?:   () => void;
 };
 
-function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathname, onNav }: SidebarContentProps) {
+function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathname, search, onNav }: SidebarContentProps) {
+  const [systemOpen, setSystemOpen] = useState(false);
   const roleWorkspaceKey = resolveWorkspaceKeyFromRole(role);
   const pathWorkspaceKey = resolveWorkspaceKeyFromPath(pathname);
   const workspaceKey = pathWorkspaceKey ?? roleWorkspaceKey;
-  const nav          = NAV_CONFIG[workspaceKey];
+  const navKey = pathWorkspaceKey === "crm" ? resolveCrmNavKeyFromRole(role) : workspaceKey;
+  const nav          = NAV_CONFIG[navKey];
   const pathMeta = WORKSPACE_META[pathWorkspaceKey ?? ""] ?? WORKSPACE_META[roleWorkspaceKey] ?? WORKSPACE_META["staff"]!;
   const meta     = pathMeta;
   const displayName = pathname.startsWith("/staff-portal")
     ? getStaffDisplayName({ full_name: fullName, nickname })
     : getStaffAdminName({ full_name: fullName, nickname });
   if (!nav) return null;
+  const systemItems = nav.systemItems ?? [];
+  const hasActiveSystemItem = systemItems.some((item) => isNavActive(item, pathname, search));
 
   return (
     <aside style={{
@@ -297,15 +356,81 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
                   {group.label}
                 </div>
                 {group.items.map((item: NavItem) => (
-                  <NavLink key={item.href} item={item} pathname={pathname} accent={meta.accent} onNav={onNav} />
+                  <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} />
                 ))}
               </div>
             ))
           : (nav.items ?? []).map((item: NavItem) => (
-              <NavLink key={item.href} item={item} pathname={pathname} accent={meta.accent} onNav={onNav} />
+              <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} />
             ))
         }
       </nav>
+
+      {systemItems.length > 0 && (
+        <div style={{
+          borderTop: "1px solid var(--cs-sidebar-border)",
+          padding:   "10px 8px 8px",
+        }}>
+          <div style={{
+            padding:       "0 8px 6px",
+            fontSize:      9.5,
+            fontWeight:    600,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color:         "var(--cs-sidebar-muted)",
+          }}>
+            SYSTEM
+          </div>
+          <button
+            type="button"
+            aria-expanded={systemOpen}
+            onClick={() => setSystemOpen((open) => !open)}
+            style={{
+              width:           "100%",
+              display:         "flex",
+              alignItems:      "center",
+              gap:             9,
+              padding:         "7px 10px",
+              border:          "1px solid var(--cs-sidebar-border)",
+              borderRadius:    "var(--cs-r-sm)",
+              backgroundColor: hasActiveSystemItem ? "rgba(255,255,255,0.06)" : "transparent",
+              color:           hasActiveSystemItem ? "var(--cs-sidebar-text)" : "var(--cs-sidebar-muted)",
+              cursor:          "pointer",
+              fontSize:        12,
+              fontWeight:      500,
+              textAlign:       "left",
+            }}
+          >
+            <Settings size={14} strokeWidth={1.75} />
+            <span style={{ flex: 1 }}>System Management</span>
+            <ChevronDown
+              size={13}
+              strokeWidth={1.75}
+              style={{
+                transition: "transform var(--cs-duration) var(--cs-ease)",
+                transform:  systemOpen ? "rotate(180deg)" : "rotate(0deg)",
+              }}
+            />
+          </button>
+
+          {systemOpen && (
+            <div style={{ paddingTop: 6 }}>
+              {systemItems.map((item) => (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  pathname={pathname}
+                  search={search}
+                  accent={meta.accent}
+                  onNav={onNav}
+                  prefetchOnHover={false}
+                  variant="system"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bottom – user */}
       <div style={{
@@ -347,6 +472,8 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
 
 export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: SidebarProps) {
   const pathname        = usePathname();
+  const searchParams    = useSearchParams();
+  const search          = searchParams.toString();
   const [open, setOpen] = useState(false);
   // /manager routes now redirect to /crm (MVP soft-pause), but keep the check
   // for safety in case a direct navigation somehow reaches this component.
@@ -365,6 +492,7 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
           avatarUrl={avatarUrl}
           branchName={branchName}
           pathname={pathname}
+          search={search}
         />
       </div>
 
@@ -425,6 +553,7 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
               avatarUrl={avatarUrl}
               branchName={branchName}
               pathname={pathname}
+              search={search}
               onNav={() => setOpen(false)}
             />
           </div>

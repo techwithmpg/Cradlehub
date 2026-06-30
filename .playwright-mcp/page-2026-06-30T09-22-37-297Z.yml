@@ -1,0 +1,195 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - complementary [ref=f5e4]:
+      - generic [ref=f5e6]:
+        - link "Cradle Wellness Living" [ref=f5e7] [cursor=pointer]:
+          - /url: /
+          - img "Cradle Wellness Living" [ref=f5e8]
+        - generic [ref=f5e38]:
+          - generic [ref=f5e39]: CradleHub
+          - generic [ref=f5e40]: Cradle Wellness Main Spa
+      - generic [ref=f5e42]:
+        - generic [ref=f5e43]: ✦
+        - generic [ref=f5e44]:
+          - generic [ref=f5e45]: FRONT DESK WORKSPACE
+          - generic [ref=f5e46]: Front-desk access
+      - navigation [ref=f5e47]:
+        - link "Work Queue" [ref=f5e48] [cursor=pointer]:
+          - /url: /crm/today
+          - img [ref=f5e50]
+          - generic [ref=f5e55]: Work Queue
+          - img [ref=f5e56]
+        - link "Bookings" [ref=f5e58] [cursor=pointer]:
+          - /url: /crm/bookings
+          - img [ref=f5e59]
+          - generic [ref=f5e62]: Bookings
+        - link "Schedule" [ref=f5e63] [cursor=pointer]:
+          - /url: /crm/schedule
+          - img [ref=f5e64]
+          - generic [ref=f5e66]: Schedule
+        - link "Customers" [ref=f5e67] [cursor=pointer]:
+          - /url: /crm/customers
+          - img [ref=f5e68]
+          - generic [ref=f5e73]: Customers
+        - link "Home Service" [ref=f5e74] [cursor=pointer]:
+          - /url: /crm/dispatch
+          - img [ref=f5e75]
+          - generic [ref=f5e80]: Home Service
+      - generic [ref=f5e82]:
+        - generic [ref=f5e84]: CQ
+        - generic [ref=f5e85]:
+          - generic [ref=f5e86]: Codex QA Work Queue
+          - generic [ref=f5e87]: FRONT DESK WORKSPACE
+    - generic [ref=f5e88]:
+      - banner [ref=f5e90]:
+        - generic [ref=f5e91]:
+          - generic [ref=f5e93]: Front Desk Workspace
+          - generic [ref=f5e94]: · Front-desk access
+        - generic [ref=f5e95]:
+          - generic [ref=f5e96]: Tue, Jun 30
+          - 'button "System readiness: System: 2 issues. 2 total issues. Click to review." [ref=f5e98] [cursor=pointer]':
+            - generic [ref=f5e99]: ⚠️
+            - generic [ref=f5e100]: "System: 2 issues"
+            - generic [ref=f5e101]: ▾
+          - button "Notifications" [ref=f5e104]:
+            - img [ref=f5e105]
+          - group [ref=f5e109]:
+            - generic "CQ Codex" [ref=f5e110] [cursor=pointer]:
+              - generic [ref=f5e112]: CQ
+              - generic [ref=f5e113]: Codex
+              - img [ref=f5e114]
+      - main [ref=f5e116]:
+        - generic [ref=f5e117]:
+          - generic [ref=f5e118]:
+            - generic [ref=f5e119]:
+              - generic [ref=f5e120]:
+                - heading "Work Queue" [level=1] [ref=f5e121]
+                - generic [ref=f5e122]: CSR Staff
+              - paragraph [ref=f5e123]: One prioritized list for confirmations, follow-up, exceptions, and home-service work.
+              - paragraph [ref=f5e124]: Cradle Wellness Main Spa · Tuesday, June 30
+            - link "+ New Booking" [ref=f5e125] [cursor=pointer]:
+              - /url: /crm/bookings/new
+          - region "Work queue summary" [ref=f5e126]:
+            - generic [ref=f5e127]:
+              - img [ref=f5e129]
+              - generic [ref=f5e131]:
+                - generic [ref=f5e132]:
+                  - generic [ref=f5e133]: "3"
+                  - generic [ref=f5e134]: Needs Action
+                - generic [ref=f5e135]: Confirmations, follow-ups, and exceptions
+            - generic [ref=f5e136]:
+              - img [ref=f5e138]
+              - generic [ref=f5e140]:
+                - generic [ref=f5e141]:
+                  - generic [ref=f5e142]: "3"
+                  - generic [ref=f5e143]: Today
+                - generic [ref=f5e144]: Bookings in today's branch schedule
+            - generic [ref=f5e145]:
+              - img [ref=f5e147]
+              - generic [ref=f5e150]:
+                - generic [ref=f5e151]:
+                  - generic [ref=f5e152]: "1"
+                  - generic [ref=f5e153]: Home Service
+                - generic [ref=f5e154]: Dispatch and travel-aware bookings
+          - generic [ref=f5e155]:
+            - main [ref=f5e156]:
+              - generic [ref=f5e157]:
+                - generic [ref=f5e158]:
+                  - generic [ref=f5e159]:
+                    - heading "Prioritized Actions" [level=2] [ref=f5e160]
+                    - paragraph [ref=f5e161]: Work the first clear next step for each booking.
+                  - link "New booking" [ref=f5e162] [cursor=pointer]:
+                    - /url: /crm/bookings/new
+                - tablist "Work queue filters" [ref=f5e163]:
+                  - tab "All 3" [ref=f5e164] [cursor=pointer]:
+                    - text: All
+                    - generic [ref=f5e165]: "3"
+                  - tab "Confirmations 1" [selected] [ref=f5e166] [cursor=pointer]:
+                    - text: Confirmations
+                    - generic [ref=f5e167]: "1"
+                  - tab "Follow-up 1" [ref=f5e168] [cursor=pointer]:
+                    - text: Follow-up
+                    - generic [ref=f5e169]: "1"
+                  - tab "Exceptions 1" [ref=f5e170] [cursor=pointer]:
+                    - text: Exceptions
+                    - generic [ref=f5e171]: "1"
+                - article [ref=f5e173]:
+                  - generic [ref=f5e174]:
+                    - generic [ref=f5e175]: 10:00 AM
+                    - generic [ref=f5e176]: 60m
+                  - generic [ref=f5e177]:
+                    - generic [ref=f5e178]:
+                      - strong [ref=f5e179]: MPG Tech
+                      - generic [ref=f5e180]: confirmation
+                      - generic [ref=f5e181]: Online booking
+                    - generic [ref=f5e182]: Swedish Massage 60min · Online · Renalyn M. Juanillo · CALMANTE 1
+                    - generic [ref=f5e183]:
+                      - generic [ref=f5e184]: Confirm the booking details with the client.
+                      - generic [ref=f5e185]: Check the schedule, staff, and payment before moving it into today's flow.
+                  - generic [ref=f5e186]:
+                    - button "Confirm" [ref=f5e188] [cursor=pointer]:
+                      - text: Confirm
+                      - generic [ref=f5e189]: ▾
+                    - group [ref=f5e190]:
+                      - generic "More actions" [ref=f5e191] [cursor=pointer]:
+                        - img [ref=f5e192]
+            - complementary [ref=f5e196]:
+              - generic [ref=f5e197]:
+                - generic [ref=f5e200]:
+                  - img [ref=f5e201]
+                  - text: Fast Actions
+                - generic [ref=f5e202]:
+                  - link "New walk-in" [ref=f5e203] [cursor=pointer]:
+                    - /url: /crm/bookings/new?type=walkin
+                    - generic [ref=f5e204]: New walk-in
+                    - img [ref=f5e205]
+                  - link "Add follow-up" [ref=f5e207] [cursor=pointer]:
+                    - /url: /crm/customers?tab=followup
+                    - generic [ref=f5e208]: Add follow-up
+                    - img [ref=f5e209]
+                  - link "Check schedule" [ref=f5e211] [cursor=pointer]:
+                    - /url: /crm/schedule
+                    - generic [ref=f5e212]: Check schedule
+                    - img [ref=f5e213]
+              - generic [ref=f5e215]:
+                - generic [ref=f5e216]:
+                  - generic [ref=f5e218]:
+                    - img [ref=f5e219]
+                    - text: Readiness
+                  - button "Review" [ref=f5e223] [cursor=pointer]
+                - generic [ref=f5e224]:
+                  - generic [ref=f5e225]:
+                    - generic [ref=f5e226]: Status
+                    - generic [ref=f5e227]: Review warnings
+                  - generic [ref=f5e228]:
+                    - generic [ref=f5e229]: Critical
+                    - generic [ref=f5e230]: "0"
+                  - generic [ref=f5e231]:
+                    - generic [ref=f5e232]: Warnings
+                    - generic [ref=f5e233]: "2"
+              - generic [ref=f5e234]:
+                - generic [ref=f5e237]:
+                  - img [ref=f5e238]
+                  - text: Staff Coverage
+                - generic [ref=f5e243]:
+                  - generic [ref=f5e244]:
+                    - generic [ref=f5e245]: Available
+                    - generic [ref=f5e246]: 41/41
+                  - generic [ref=f5e247]:
+                    - generic [ref=f5e248]: Busy
+                    - generic [ref=f5e249]: "0"
+                  - generic [ref=f5e250]:
+                    - generic [ref=f5e251]: Not checked in
+                    - generic [ref=f5e252]: "0"
+          - generic [ref=f5e253]: Signed in as CSR Staff · Cradle Wellness Main Spa
+        - button "Open Cradle Coach" [ref=f5e255]:
+          - img
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f5e261] [cursor=pointer]:
+    - generic [ref=f5e264]:
+      - text: Rendering
+      - generic [ref=f5e265]:
+        - generic [ref=f5e266]: .
+        - generic [ref=f5e267]: .
+        - generic [ref=f5e268]: .
+  - alert [ref=f5e269]

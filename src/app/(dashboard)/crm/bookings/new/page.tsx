@@ -1,118 +1,160 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
-import { Button } from "@/components/ui/button";
-import { BookingWizard } from "@/components/public/booking-wizard";
-import { createClient } from "@/lib/supabase/server";
-import type { VisitType } from "@/lib/bookings/visit-type-availability";
+import { QuickBookingForm, type QuickBookingCustomerOption, type QuickBookingMode } from "@/components/features/bookings/quick-booking-form";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
+import { getBranchServices } from "@/lib/queries/branches";
+import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 
-type CrmBookingType = "walkin" | "home_service";
-
-function normalizeCrmBookingType(
-  value: string | string[] | undefined,
-): CrmBookingType {
-  const raw = Array.isArray(value) ? value[0] : value;
-  return raw === "home_service" ? "home_service" : "walkin";
-}
-
-function getInitialVisitType(crmType: CrmBookingType): VisitType {
-  return crmType === "home_service" ? "home_service" : "in_spa";
-}
-
-type StaffContext = {
-  branch_id: string | null;
-  system_role: string;
+type SearchParams = {
+  customerId?: string;
+  mode?: string;
+  type?: string;
+  name?: string;
+  phone?: string;
 };
 
-type CustomerPrefill = {
-  fullName: string;
-  phone: string;
-  email: string | null;
+type ServiceRelation = {
+  id?: string;
+  name?: string;
+  is_active?: boolean;
+  price?: number | string | null;
+  duration_minutes?: number | null;
+} | Array<{
+  id?: string;
+  name?: string;
+  is_active?: boolean;
+  price?: number | string | null;
+  duration_minutes?: number | null;
+}> | null;
+
+type BranchServiceRow = {
+  custom_price?: number | string | null;
+  available_in_spa?: boolean;
+  available_home_service?: boolean;
+  services?: ServiceRelation;
 };
 
-async function getDefaultBranchId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+type StaffRow = {
+  id: string;
+  full_name: string;
+  nickname: string | null;
+  is_active: boolean | null;
+  staff_type: string | null;
+  system_role: string | null;
+  staff_services: { service_id: string }[] | null;
+};
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data } = await supabase
-    .from("staff")
-    .select("branch_id, system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  const me = (data ?? null) as StaffContext | null;
-  const allowedRoles = ["owner", "crm", "csr", "csr_head", "csr_staff"];
-  if (!me || !allowedRoles.includes(me.system_role)) {
-    redirect("/crm");
-  }
-
-  return me.branch_id;
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-async function getCustomerPrefill(customerId: string | undefined): Promise<CustomerPrefill | null> {
+function normalizeQuickBookingMode(params: SearchParams): QuickBookingMode {
+  const raw = params.mode ?? params.type ?? "walkin";
+  if (raw === "phone") return "phone";
+  if (raw === "future" || raw === "standard_future") return "standard_future";
+  if (raw === "home_service") return "home_service";
+  return "walkin";
+}
+
+async function getCustomerPrefill(customerId: string | undefined): Promise<QuickBookingCustomerOption | null> {
   if (!customerId) return null;
-  const supabase = await createClient();
-  const { data } = await supabase
+  const admin = createAdminClient();
+  const { data } = await admin
     .from("customers")
-    .select("full_name, phone, email")
+    .select("id, full_name, phone, email")
     .eq("id", customerId)
     .maybeSingle();
 
   if (!data) return null;
   return {
+    id: data.id,
     fullName: data.full_name,
     phone: data.phone,
     email: data.email,
   };
 }
 
+async function getQuickBookingOptions(branchId: string) {
+  const admin = createAdminClient();
+  const [branchServices, staffResult, resourcesResult] = await Promise.all([
+    getBranchServices(branchId, { publicOnly: false }),
+    admin
+      .from("staff")
+      .select("id, full_name, nickname, is_active, staff_type, system_role, staff_services(service_id)")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("full_name", { ascending: true }),
+    admin
+      .from("branch_resources")
+      .select("id, name, type, capacity")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+  ]);
+
+  const services = (branchServices as BranchServiceRow[])
+    .map((row) => {
+      const service = firstRelation(row.services);
+      if (!service?.id || !service.name || service.is_active === false) return null;
+      return {
+        id: service.id,
+        name: service.name,
+        price: Number(row.custom_price ?? service.price ?? 0),
+        durationMinutes: Number(service.duration_minutes ?? 0),
+        availableInSpa: row.available_in_spa ?? true,
+        availableHomeService: row.available_home_service ?? false,
+      };
+    })
+    .filter((service): service is NonNullable<typeof service> => service !== null);
+
+  const staff = ((staffResult.data ?? []) as unknown as StaffRow[])
+    .filter((member) =>
+      canActAsBookingServiceProvider(member, (member.staff_services ?? []).length > 0)
+    )
+    .map((member) => ({
+      id: member.id,
+      name: member.full_name,
+      nickname: member.nickname,
+      serviceIds: (member.staff_services ?? []).map((row) => row.service_id),
+    }));
+
+  const resources = (resourcesResult.data ?? []).map((resource) => ({
+    id: resource.id,
+    name: resource.name,
+    type: resource.type,
+    capacity: resource.capacity,
+  }));
+
+  return { services, staff, resources };
+}
+
 export default async function CrmBookingWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customerId?: string; type?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const defaultBranchId = await getDefaultBranchId();
-  const customerPrefill = await getCustomerPrefill(params.customerId);
-
-  const crmBookingType = normalizeCrmBookingType(params.type);
-  const initialVisitType = getInitialVisitType(crmBookingType);
-
-  const pageTitle =
-    crmBookingType === "home_service"
-      ? "New Home Service Booking"
-      : "New Walk-in Booking";
-  const pageDescription =
-    crmBookingType === "home_service"
-      ? "Start a home-service booking with address and dispatch details."
-      : "Create an in-spa booking for a customer at the front desk.";
+  const { branchId, branchName } = await getFrontDeskContext();
+  const [customerPrefill, options, bookingRules] = await Promise.all([
+    getCustomerPrefill(params.customerId),
+    getQuickBookingOptions(branchId),
+    getBranchBookingRulesOrDefault(branchId),
+  ]);
 
   return (
-    <div>
-      <PageHeader
-        title={pageTitle}
-        description={pageDescription}
-        action={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/crm/today">Back to Today</Link>
-          </Button>
-        }
-      />
-
-      <BookingWizard
-        key={`${defaultBranchId ?? "none"}-${params.customerId ?? "new"}-${crmBookingType}`}
-        mode="inhouse"
-        initialBranchId={defaultBranchId}
-        initialCustomer={customerPrefill}
-        initialVisitType={initialVisitType}
-      />
-    </div>
+    <QuickBookingForm
+      branchId={branchId}
+      branchName={branchName}
+      bookingRules={bookingRules}
+      initialMode={normalizeQuickBookingMode(params)}
+      initialCustomer={customerPrefill}
+      initialName={params.name ?? ""}
+      initialPhone={params.phone ?? ""}
+      services={options.services}
+      staff={options.staff}
+      resources={options.resources}
+    />
   );
 }

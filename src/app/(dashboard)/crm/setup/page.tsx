@@ -20,7 +20,6 @@ import type { ConflictBooking } from "@/components/features/spaces-rules/spaces-
 
 const ALLOWED_ROLES = new Set([
   "owner", "manager", "assistant_manager", "store_manager",
-  "crm", "csr", "csr_head", "csr_staff",
 ]);
 
 type PageContext = {
@@ -140,7 +139,7 @@ export default async function CrmSetupPage({
     return (
       <section className="space-y-5">
         <PageHeader
-          title="Setup Center"
+          title="Admin & Setup"
           description="Configure services, providers, spaces, and booking readiness."
           icon="🛠️"
         />
@@ -221,7 +220,7 @@ export default async function CrmSetupPage({
   return (
     <section className="space-y-5">
       <PageHeader
-        title="Setup Center"
+        title="Admin & Setup"
         description="Configure services, providers, spaces, and booking readiness."
         icon="🛠️"
       />

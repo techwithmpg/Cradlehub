@@ -45,8 +45,8 @@ function workspaceMeta(
     case "crm":
       return {
         key,
-        label: "CRM / Front Desk",
-        description: "Manage customers, bookings, staff and front desk operations.",
+        label: "Front Desk",
+        description: "Manage customers, bookings, dispatch and front-desk operations.",
         href: "/crm",
         priority: 10,
         branchName,

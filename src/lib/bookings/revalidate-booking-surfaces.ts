@@ -6,6 +6,8 @@ const CRM_BOOKING_SURFACE_PATHS = [
   "/crm/today",
   "/crm/bookings",
   "/crm/bookings/new",
+  "/crm/schedule",
+  "/crm/dispatch",
   "/crm/control",
 ] as const;
 

@@ -33,7 +33,7 @@ export function CrmTodayHeader({
               fontFamily: "var(--font-display)",
             }}
           >
-            Today
+            Work Queue
           </h1>
           <span
             style={{
@@ -58,7 +58,7 @@ export function CrmTodayHeader({
             lineHeight: 1.5,
           }}
         >
-          Daily command center for bookings, payments, staff, and closing work.
+          One prioritized list for confirmations, follow-up, exceptions, and home-service work.
         </p>
         <p
           style={{

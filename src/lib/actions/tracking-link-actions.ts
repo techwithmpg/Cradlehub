@@ -127,6 +127,7 @@ export async function getOrCreateCustomerTrackingLinkAction(rawInput: unknown): 
 
   revalidatePath("/manager/control");
   revalidatePath("/crm/control");
+  revalidatePath("/crm/today");
 
   const url = `${siteUrl()}/track/${token}`;
   return { ok: true, token, url, message: buildTrackingMessage(url) };
@@ -156,6 +157,7 @@ export async function deactivateCustomerTrackingLinksAction(rawInput: unknown): 
 
   revalidatePath("/manager/control");
   revalidatePath("/crm/control");
+  revalidatePath("/crm/today");
 
   return { ok: true };
 }

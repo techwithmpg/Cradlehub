@@ -1,0 +1,228 @@
+{
+  "url": "http://localhost:3000/crm/today",
+  "text": "CradleHub\nCradle Wellness Main Spa\n✦\nFRONT DESK WORKSPACE\nFront-desk access\nWork Queue\nBookings\nSchedule\nCustomers\nHome Service\nCQ\nCodex QA Work Queue\nFRONT DESK WORKSPACE\nFront Desk Workspace\n· Front-desk access\nTue, Jun 30\n⚠️\nSystem: 2 issues\n▾\nCQ\nCodex\nWork Queue\nCSR STAFF\n\nOne prioritized list for confirmations, follow-up, exceptions, and home-service work.\n\nCradle Wellness Main Spa · Tuesday, June 30\n\n+ New Booking\n3\nNeeds Action\nConfirmations, follow-ups, and exceptions\n3\nToday\nBookings in today's branch schedule\n1\nHome Service\nDispatch and travel-aware bookings\nPrioritized Actions\n\nWork the first clear next step for each booking.\n\nNew booking\nAll\n3\nConfirmations\n1\nFollow-up\n0\nExceptions\n2\n2:00 PM\n90m\npatem\nException\nHome Service\nSwedish Massage 90min · Home service · Ma. Mayrose B. Apostol\nDriver needed · QA Zone · Codex QA Residence, Bacolod City\nAssign a driver before dispatch.\nHome-service bookings need a driver before the trip can be tracked.\n⚠️ Assign driver\n11:30 AM\n60m\nMPG Tech\nException\nOnline Booking\nDeep Tissue 60min · Online · Marjoery Alfaro Magada\nChoose a room or chair before the client arrives.\nThe booking is confirmed but no branch resource is assigned.\nAssign resource\n10:00 AM\n60m\nMPG Tech\nConfirmation\nOnline Booking\nSwedish Massage 60min · Online · Renalyn M. Juanillo\nConfirm the booking details with the client.\nCheck the schedule, staff, and payment before moving it into today's flow.\nConfirm\n▾\nFast Actions\nNew walk-in\nAdd follow-up\nCheck schedule\nReadiness\nReview\nStatus\nReview warnings\nCritical\n0\nWarnings\n2\nStaff Coverage\nAvailable\n41/41\nBusy\n0\nNot checked in\n0\nSigned in as CSR Staff · Cradle Wellness Main Spa",
+  "buttons": [
+    {
+      "text": "",
+      "href": "/",
+      "aria": "Cradle Wellness Living",
+      "role": null
+    },
+    {
+      "text": "Work Queue",
+      "href": "/crm/today",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Bookings",
+      "href": "/crm/bookings",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Schedule",
+      "href": "/crm/schedule",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Customers",
+      "href": "/crm/customers",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Home Service",
+      "href": "/crm/dispatch",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "",
+      "href": null,
+      "aria": "Open menu",
+      "role": null
+    },
+    {
+      "text": "⚠️System: 2 issues2▾",
+      "href": null,
+      "aria": "System readiness: System: 2 issues. 2 total issues. Click to review.",
+      "role": null
+    },
+    {
+      "text": "",
+      "href": null,
+      "aria": "Notifications",
+      "role": null
+    },
+    {
+      "text": "My Profile",
+      "href": "/staff-portal/profile",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Switch Workspace",
+      "href": "/select-workspace",
+      "aria": "Switch Workspace",
+      "role": null
+    },
+    {
+      "text": "Help & Support",
+      "href": "mailto:support@cradlewellnessliving.com",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Logout",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "+ New Booking",
+      "href": "/crm/bookings/new",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "New booking",
+      "href": "/crm/bookings/new",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "All3",
+      "href": null,
+      "aria": null,
+      "role": "tab"
+    },
+    {
+      "text": "Confirmations1",
+      "href": null,
+      "aria": null,
+      "role": "tab"
+    },
+    {
+      "text": "Follow-up0",
+      "href": null,
+      "aria": null,
+      "role": "tab"
+    },
+    {
+      "text": "Exceptions2",
+      "href": null,
+      "aria": null,
+      "role": "tab"
+    },
+    {
+      "text": "⚠️ Assign driver",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Open booking",
+      "href": "/crm/bookings?bookingId=a1bab08e-e07f-4fa3-95ec-62c92a40053d",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Payment ▾",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Status ▾",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Create tracking",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Refresh ETA",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Assign resource",
+      "href": "/crm/bookings?bookingId=9d404150-09c2-45b1-aae7-427deebf3b9c",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Open booking",
+      "href": "/crm/bookings?bookingId=9d404150-09c2-45b1-aae7-427deebf3b9c",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Payment ▾",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Status ▾",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Confirm ▾",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Open booking",
+      "href": "/crm/bookings?bookingId=2eeb68c7-a877-4358-be7a-e0ec896afefd",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Payment ▾",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "New walk-in",
+      "href": "/crm/bookings/new?type=walkin",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Add follow-up",
+      "href": "/crm/customers?tab=followup",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Check schedule",
+      "href": "/crm/schedule",
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "Review",
+      "href": null,
+      "aria": null,
+      "role": null
+    },
+    {
+      "text": "",
+      "href": null,
+      "aria": "Open Cradle Coach",
+      "role": null
+    }
+  ]
+}

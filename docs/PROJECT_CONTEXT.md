@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `AUTH-RESET-SUPABASE-CONNECTION-001`  |
-| **Completion**      | `Password reset now uses trusted NEXT_PUBLIC_APP_URL /reset-password links, recovery-session validation, safe reset/login messaging, and focused auth tests`        |
+| **Sprint**          | `CRM-STABILIZATION-CHECKPOINT-1-NAV-SHELL-2026-06-30`  |
+| **Completion**      | `CRM sidebar/nav shell Checkpoint 1 complete: Work Queue, Bookings, Schedule, Customers, Home Service, collapsed System Management for current management-authorized tools`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-06-17` |
-| **Blockers**        | `No build/type/test blockers; production Supabase Auth URL config and NEXT_PUBLIC_APP_URL must be set to the deployed CradleHub origin`      |
+| **Last Updated**    | `2026-06-30` |
+| **Blockers**        | `CRM implementation remains in progress; header, Work Queue simplification, broader system-tool access review, authenticated workflow QA, and action/RLS tracing remain required`      |
 
 ---
 
@@ -332,3 +332,21 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Added `docs/CRM_AUTHORIZATION_INVENTORY.md` for the focused role/RLS/action inventory and documented remaining broader drift candidates.
 - Verified `npx tsc --noEmit`, focused assignment-state test, `pnpm lint`, `pnpm test` (52 files / 528 tests), and `pnpm build` (100 routes).
 - Live Supabase inspection/application is still pending because `supabase db query --linked` and `supabase db push --linked --dry-run` hung from this environment; apply and verify the migration from a working Supabase connection before marking the live DB work complete.
+
+## Latest Agent Update (2026-06-30)
+
+- Active task is now `CRM-STABILIZATION-HANDOFF-2026-06-30`.
+- The latest CRM direction has been logged for future agents: primary daily navigation should move toward `Work Queue`, `Bookings`, `Schedule`, `Customers`, and `Home Service`; secondary configuration should live under collapsed `System Management`.
+- The prior code checkpoint added richer `getFrontDeskContext()` in `src/lib/queries/crm-context.ts` and replaced duplicated CRM context lookups in Today, Bookings, Control, and Live Operations pages.
+- The dedicated continuation log is `docs/FRONT_DESK_REFACTOR_PROGRESS.md`.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/CURRENT_TASK.cmd.md`, and `docs/HANDOFF.cmd.md` were updated so agents do not resume stale CRM Coach / observability tasks.
+- No source behavior changed in the handoff-only update; last code checkpoint passed `npm run type-check`, `npm run lint`, and `npm run build`.
+
+## Latest Agent Update (2026-06-30)
+
+- Completed `CRM-STABILIZATION-CHECKPOINT-1-NAV-SHELL-2026-06-30`: CRM sidebar primary navigation now shows `Work Queue`, `Bookings`, `Schedule`, `Customers`, and `Home Service`.
+- Added a collapsed bottom `SYSTEM / System Management` section for current management-authorized CRM setup tools.
+- System Management links reuse existing CRM routes/deep links and no routes, server actions, Supabase logic, RLS, or database behavior were changed.
+- CRM workspace prefetching now warms only primary daily routes automatically; secondary/system routes wait for explicit navigation.
+- Verified `npm run type-check`, `npm run lint` (4 unrelated existing warnings), `npm run build`, and `git diff --check`.
+- Remaining work: Work Queue/Control consolidation, compact CRM header, duplicate New Booking cleanup, broader system-tool access review, and authenticated action/RLS workflow QA.

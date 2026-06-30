@@ -111,8 +111,8 @@ function deriveIssues(d: Omit<CrmSetupHealthData, "issues">): SetupIssue[] {
       title: `${d.unassignedTodayCount} confirmed booking${d.unassignedTodayCount > 1 ? "s" : ""} today with no therapist assigned`,
       detail: `${d.unassignedTodayCount} confirmed booking${d.unassignedTodayCount > 1 ? "s are" : " is"} missing a staff assignment. These need to be assigned before service can begin.`,
       impact: "Bookings may start without a therapist ready.",
-      fixHref: "/crm/control",
-      fixLabel: "Open Control Center",
+      fixHref: "/crm/today?filter=exceptions",
+      fixLabel: "Open Work Queue",
     });
   }
 

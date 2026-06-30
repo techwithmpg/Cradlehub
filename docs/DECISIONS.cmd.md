@@ -109,3 +109,26 @@
 - Positive: Any agent can onboard in seconds, no repeated work, decisions are preserved
 - Negative: Requires discipline to maintain (enforced via AGENT_RULES.md)
 - Trade-offs: Small overhead per session, massive time savings overall
+
+---
+
+### DEC-CRM-STABILIZATION-001: Latest CRM visible navigation direction supersedes older Front Desk labels
+
+**Date:** 2026-06-30
+**Agent:** Codex
+**Status:** ACCEPTED
+
+**Context:** The active CRM refactor handoff still contains older visible labels such as `Front Desk`, `Dispatch`, and `Admin & Setup`. The latest user-provided CRM prompts now target a production-stabilization pass with daily navigation named `Work Queue`, `Bookings`, `Schedule`, `Customers`, and `Home Service`, plus a collapsed `System Management` area.
+
+**Decision:** Reconcile visible CRM navigation toward the latest Work Queue/Home Service/System Management direction while preserving existing `/crm/*` routes, server actions, database identifiers, and helper names until a safe incremental migration is complete.
+
+**Rationale:** Production usability and workflow reliability matter more than a sweeping rename. Internal helpers such as `getFrontDeskContext()` may remain during stabilization even if user-facing labels change.
+
+**Alternatives Considered:**
+1. Global internal rename from CRM/Front Desk to Work Queue/System Management — too risky during stabilization.
+2. Keep older Front Desk labels indefinitely — conflicts with latest product direction.
+
+**Consequences:**
+- Future agents should update labels, nav grouping, redirects, and deep links deliberately.
+- Do not delete old routes until linked notifications, actions, and bookmarks are migrated.
+- Do not claim completion until CRM actions are verified through server auth, Supabase/RLS, database constraints, and UI refresh behavior.

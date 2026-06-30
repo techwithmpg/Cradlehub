@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
@@ -252,7 +253,8 @@ export async function markBookingConfirmedAction(rawInput: unknown): Promise<{ s
     });
   }
 
-  const { data: updatedRows, error } = await ctx.supabase
+  const admin = createAdminClient();
+  const { data: updatedRows, error } = await admin
     .from("bookings")
     .update(updatePayload)
     .eq("id", booking.id)
@@ -283,7 +285,8 @@ export async function recordBookingFollowupAction(rawInput: unknown): Promise<{ 
     return { success: false, error: "This booking can no longer be updated." };
   }
 
-  const { data: updatedRows, error } = await ctx.supabase
+  const admin = createAdminClient();
+  const { data: updatedRows, error } = await admin
     .from("bookings")
     .update({
       metadata: withFollowupMetadata(booking.metadata, {
@@ -334,7 +337,8 @@ export async function markBookingArrivedAction(rawInput: unknown): Promise<{ suc
   }
 
   const now = new Date().toISOString();
-  const { data: updatedRows, error } = await ctx.supabase
+  const admin = createAdminClient();
+  const { data: updatedRows, error } = await admin
     .from("bookings")
     .update({
       booking_progress_status: "checked_in",
@@ -379,7 +383,8 @@ export async function getRoomAssignmentOptionsAction(rawInput: unknown): Promise
     };
   }
 
-  const { data: resources, error: resourcesError } = await ctx.supabase
+  const admin = createAdminClient();
+  const { data: resources, error: resourcesError } = await admin
     .from("branch_resources")
     .select("id, name, type, capacity, is_active")
     .eq("branch_id", booking.branch_id)
@@ -456,7 +461,8 @@ export async function assignBookingRoomAction(rawInput: unknown): Promise<{ succ
     return { success: false, error: "Room assignment does not apply to home-service bookings." };
   }
 
-  const { data: resource, error: resourceError } = await ctx.supabase
+  const admin = createAdminClient();
+  const { data: resource, error: resourceError } = await admin
     .from("branch_resources")
     .select("id, branch_id, is_active")
     .eq("id", parsed.data.resourceId)
@@ -479,7 +485,7 @@ export async function assignBookingRoomAction(rawInput: unknown): Promise<{ succ
     return { success: false, error: "The selected room is no longer available for this time." };
   }
 
-  const { data: updatedRows, error } = await ctx.supabase
+  const { data: updatedRows, error } = await admin
     .from("bookings")
     .update({ resource_id: resource.id })
     .eq("id", booking.id)
@@ -570,6 +576,8 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     return { success: false, error: "Booking not found" };
   }
 
+  const admin = createAdminClient();
+
   // Status check
   if (!CONFIRMABLE_STATUSES.has(booking.status)) {
     return { success: false, error: `Booking cannot be confirmed from status "${booking.status}"` };
@@ -615,7 +623,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
   }
 
   // Payment audit log
-  await supabase.from("booking_payment_logs").insert({
+  await admin.from("booking_payment_logs").insert({
     booking_id:            bookingId,
     changed_by:            me.id === "dev" ? null : me.id,
     old_payment_method:    booking.payment_method ?? null,
@@ -641,7 +649,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     hold_expires_at:   null,
   };
 
-  const { data: updatedBooking, error: updateErr } = await supabase
+  const { data: updatedBooking, error: updateErr } = await admin
     .from("bookings")
     .update(updatePayload)
     .eq("id", bookingId)
@@ -658,7 +666,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
         payment_reference: paymentReference ?? null,
         amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
       };
-      const { data: fallbackRows, error: fallbackErr } = await supabase
+      const { data: fallbackRows, error: fallbackErr } = await admin
         .from("bookings")
         .update(payloadNoHold)
         .eq("id", bookingId)
@@ -751,7 +759,8 @@ export async function crmStartServiceAction(
   // the direct-start migration (20260603000001) has been applied to the DB.
   // All three fields are written atomically in one UPDATE statement.
   const now = new Date().toISOString();
-  const { data: updatedRows, error } = await ctx.supabase
+  const admin = createAdminClient();
+  const { data: updatedRows, error } = await admin
     .from("bookings")
     .update({
       status:                   "in_progress",
@@ -805,7 +814,8 @@ export async function crmCompleteServiceAction(
 
   // Direct update — reliable regardless of booking_progress_status current value.
   const now = new Date().toISOString();
-  const { data: updatedRows, error } = await ctx.supabase
+  const admin = createAdminClient();
+  const { data: updatedRows, error } = await admin
     .from("bookings")
     .update({
       status:                   "completed",

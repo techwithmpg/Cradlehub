@@ -113,6 +113,7 @@ export async function recordStaffLocationSnapshotAction(rawInput: unknown): Prom
   revalidatePath("/driver");
   revalidatePath("/manager/control");
   revalidatePath("/crm/control");
+  revalidatePath("/crm/today");
 
   return { ok: true, message: "Location updated" };
 }

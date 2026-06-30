@@ -87,13 +87,16 @@ export type CreateWalkinBookingInput = z.infer<typeof createWalkinBookingSchema>
 // ── In-house wizard booking (CRM/Manager): multi-service + optional therapist ──
 export const createInhouseBookingMultiSchema = z.object({
   branchId:         uuid.optional(), // defaults to operator's branch when omitted
-  serviceIds:       z.array(uuid).min(1, "Select at least one service").max(5, "Maximum 5 services per booking"),
+  customerId:       uuid.optional(),
+  serviceIds:       z.array(uuid).min(1, "Select a service.").max(5, "Maximum 5 services per booking"),
   staffId:          uuid.optional(), // undefined = auto-assign by seniority
   resourceId:       uuid.optional().nullable(),
   date:             anyDate,
   startTime:        timeStr,
   type:             z.enum(["walkin", "home_service"]).default("walkin"),
   deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
+  crmBookingMode:   z.enum(["walkin", "phone", "home_service", "standard_future"]).optional(),
+  markArrived:      z.boolean().optional(),
   travelBufferMins: z.number().int().min(0).max(240).optional(),
   fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
   phone,
@@ -116,9 +119,19 @@ export const createInhouseBookingMultiSchema = z.object({
   homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
   homeServiceMapUrl:           z.string().url().max(1000).optional(),
   // Payment capture — required for CRM in-house bookings
-  paymentMethod:    z.enum(["cash", "gcash", "maya", "card", "other"], { message: "Please select a payment method." }),
+  paymentReceived:  z.boolean().optional(),
+  paymentMethod:    z.enum(["cash", "gcash", "maya", "card", "other"], { message: "Please select a payment method." }).optional(),
   paymentReference: z.string().max(100).optional(),
   paymentNote:      z.string().max(500).optional(),
+}).superRefine((data, ctx) => {
+  const paymentReceived = data.paymentReceived ?? true;
+  if (paymentReceived && !data.paymentMethod) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Please select a payment method.",
+      path: ["paymentMethod"],
+    });
+  }
 });
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 

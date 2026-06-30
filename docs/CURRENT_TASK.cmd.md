@@ -10,13 +10,13 @@
 
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
-| **Task ID**      | `PHASE-5`                                        |
-| **Description**  | Production Observability — COMPLETE              |
-| **Agent**        | Claude Code (Sonnet 4.6)                        |
-| **Started**      | 2026-05-15                                      |
-| **Status**       | `DONE`                                          |
+| **Task ID**      | `CRM-STABILIZATION-CHECKPOINT-1-NAV-SHELL-2026-06-30` |
+| **Description**  | Update the CRM sidebar to Work Queue, Bookings, Schedule, Customers, Home Service, with collapsed System Management |
+| **Agent**        | Codex                                           |
+| **Started**      | 2026-06-30                                      |
+| **Status**       | `REVIEW / CHECKPOINT_1_COMPLETE`                |
 | **Branch**       | `main`                                          |
-| **Blocked By**   | `—`                                             |
+| **Blocked By**   | Manual authenticated workflow QA is still needed for protected CRM flows |
 
 ---
 
@@ -35,7 +35,16 @@
 
 ## Notes
 
-_Write anything the next agent needs to know about the current state of work._
+Latest attached direction supersedes the older visible naming in parts of the existing handoff. Checkpoint 1 status:
+
+- Target daily CRM nav: `Work Queue`, `Bookings`, `Schedule`, `Customers`, `Home Service`.
+- Target secondary area: collapsed `System Management`.
+- Implemented in `src/components/features/dashboard/nav-config.ts`, `src/components/features/dashboard/sidebar.tsx`, and `src/components/features/workspace/workspace-prefetch-config.ts`.
+- Preserve old routes and redirects; this checkpoint is a shell/navigation update, not a broad page rebuild.
+- Validation passed: `npm run type-check`, `npm run lint`, `npm run build`, `git diff --check`.
+- Next checkpoint should simplify Work Queue / Today / Control Center. Header work and broader system-tool permission review remain pending.
+- Do not start broad redesign work before tracing existing CRM actions, permissions, RLS, validation, and refresh behavior.
+- Canonical live handoff for this refactor is `docs/FRONT_DESK_REFACTOR_PROGRESS.md`; `.context/CURRENT_TASK.cmd.md` and `.context/HANDOFF.cmd.md` also contain the latest pickup notes.
 
 ---
 

@@ -127,3 +127,48 @@ the `authenticated` role.
 **Build Status:** N/A — SQL migration only, no source code changes
 
 ---
+
+### 2026-06-30 — Codex
+
+**Task:** Update current CRM stabilization/refactor handoff records so another AI agent can resume safely if the current Codex session stops.
+
+**Files Changed:**
+- `.context/CURRENT_TASK.cmd.md` — replaced stale CRM Coach active task with current CRM stabilization/refactor state.
+- `.context/HANDOFF.cmd.md` — replaced stale CRM Coach handoff with current CRM pickup guidance.
+- `.context/CHANGELOG.cmd.md` — appended matching handoff entry.
+- `.context/ERRORS.cmd.md` — logged pre-flight path mismatch / stale handoff risk.
+- `docs/CURRENT_TASK.cmd.md` — mirrored active CRM task.
+- `docs/HANDOFF.cmd.md` — mirrored current pickup guidance.
+- `docs/CHANGELOG.cmd.md` — appended this entry.
+- `docs/ERRORS.cmd.md` — logged docs-side pre-flight note.
+- `docs/PROJECT_CONTEXT.md` — updated current status/latest update.
+- `docs/ROADMAP.md` — logged CRM stabilization handoff.
+- `docs/FRONT_DESK_REFACTOR_PROGRESS.md` — added continuation protocol and latest navigation direction.
+
+**Notes:**
+- No app/source behavior changed in this docs-only update.
+- Latest CRM direction: primary nav should move toward `Work Queue`, `Bookings`, `Schedule`, `Customers`, `Home Service`; secondary tools should live under collapsed `System Management`.
+- Previous code checkpoint still stands: `getFrontDeskContext()` exists and target CRM daily pages now reuse it.
+
+**Build Status:** Not rerun — documentation-only handoff update. Last code checkpoint passed `npm run type-check`, `npm run lint`, and `npm run build`.
+
+---
+
+### 2026-06-30 — Codex
+
+**Task:** Complete CRM stabilization Checkpoint 1 for the sidebar/navigation shell.
+
+**Files Changed:**
+- `src/components/features/dashboard/nav-config.ts` — CRM primary nav is now `Work Queue`, `Bookings`, `Schedule`, `Customers`, `Home Service`; management tools were moved to System Management definitions.
+- `src/components/features/dashboard/sidebar.tsx` — added collapsed `SYSTEM / System Management` bottom section, gear icon, query-aware active matching, and prefetch opt-out for secondary links.
+- `src/components/features/workspace/workspace-prefetch-config.ts` — CRM auto-prefetch now warms only primary daily routes.
+- `.context/*`, `docs/*`, and `docs/FRONT_DESK_REFACTOR_PROGRESS.md` — updated checkpoint status and next-agent notes.
+
+**Notes:**
+- Existing CRM routes were preserved. No database logic, server actions, route deletes, or Supabase changes were made.
+- System Management remains aligned with the current management-authorized page gates; broader CRM/CSR system-tool access is still a documented follow-up.
+- The CRM header and page-level Work Queue/Bookings/Schedule simplification remain pending checkpoints.
+
+**Build Status:** Passing — `npm run type-check`, `npm run lint` (4 unrelated existing warnings), `npm run build`, and `git diff --check` passed.
+
+---

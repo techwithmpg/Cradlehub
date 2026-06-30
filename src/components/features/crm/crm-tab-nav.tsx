@@ -9,10 +9,7 @@ export type CrmTabItem = {
 // ── Per-section tab configs ───────────────────────────────────────────────────
 
 export const TODAY_TABS: CrmTabItem[] = [
-  { label: "Overview",         href: "/crm/today"   },
-  { label: "Control Center",   href: "/crm/control" },
-  { label: "Payments Pending", disabled: true        },
-  { label: "Action Required",  disabled: true        },
+  { label: "Work Queue", href: "/crm/today" },
 ];
 
 export const BOOKINGS_TABS: CrmTabItem[] = [
