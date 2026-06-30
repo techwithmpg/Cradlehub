@@ -35,6 +35,8 @@ type EditAvailabilityModalProps = {
   item: EditAvailabilityStaffItem | null;
   branchId: string;
   branchName: string;
+  initialTab?: AvailabilityTab;
+  initialDate?: string;
   onOpenChange: (open: boolean) => void;
   onSaved: (message?: string) => void;
 };
@@ -54,6 +56,8 @@ export function EditAvailabilityModal({
   item,
   branchId,
   branchName,
+  initialTab = "weekly",
+  initialDate,
   onOpenChange,
   onSaved,
 }: EditAvailabilityModalProps) {
@@ -61,11 +65,13 @@ export function EditAvailabilityModal({
 
   return (
     <EditAvailabilityModalContent
-      key={item.staff.id}
+      key={`${item.staff.id}-${initialTab}-${initialDate ?? ""}`}
       open={open}
       item={item}
       branchId={branchId}
       branchName={branchName}
+      initialTab={initialTab}
+      initialDate={initialDate}
       onOpenChange={onOpenChange}
       onSaved={onSaved}
     />
@@ -84,10 +90,12 @@ function EditAvailabilityModalContent({
   item,
   branchId,
   branchName,
+  initialTab = "weekly",
+  initialDate,
   onOpenChange,
   onSaved,
 }: EditAvailabilityModalContentProps) {
-  const [activeTab, setActiveTab] = useState<AvailabilityTab>("weekly");
+  const [activeTab, setActiveTab] = useState<AvailabilityTab>(initialTab);
   const [baselineRows, setBaselineRows] = useState<WeeklyAvailabilityRow[]>(
     () => buildWeeklyRows(item)
   );
@@ -245,6 +253,8 @@ function EditAvailabilityModalContent({
             <BlockTimeEditorTab
               staffId={item.staff.id}
               blockedTimes={item.blockedTimes}
+              initialDate={initialDate}
+              initiallyShowForm={initialTab === "blocks"}
               onDirtyChange={setBlockFormDirty}
               onChanged={handleTabMutation}
             />

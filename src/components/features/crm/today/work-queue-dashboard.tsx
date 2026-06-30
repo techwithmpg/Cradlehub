@@ -7,6 +7,7 @@ import { CrmPanel } from "./crm-panel";
 import { CrmDrawer, useCrmDrawer } from "./crm-drawer";
 import { CrmReadinessDetail } from "./crm-readiness-detail";
 import { WorkQueuePanel, type WorkQueueBooking } from "./work-queue-panel";
+import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import type { AvailableDriver } from "@/components/features/control-console/driver-assign-menu";
 import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
 import { getWorkQueueNextAction } from "@/lib/crm/work-queue-next-actions";
@@ -50,6 +51,7 @@ export function WorkQueueDashboard({
   refreshEtaAction?: (bookingId: string) => Promise<EtaRefreshResult>;
 }) {
   const readinessDrawer = useCrmDrawer();
+  const { openBookingModal } = useAdministrativeBookingModal();
   const actionRows = queueData.map((booking) =>
     getWorkQueueNextAction({
       status: booking.status,
@@ -135,7 +137,7 @@ export function WorkQueueDashboard({
             }
           >
             <div style={{ display: "grid", gap: "0.5rem" }}>
-              <SideLink href="/crm/bookings/new?type=walkin" label="New walk-in" />
+              <SideButton label="New walk-in" onClick={() => openBookingModal({ mode: "walkin" })} />
               <SideLink href="/crm/customers?tab=followup" label="Add follow-up" />
               <SideLink href="/crm/schedule" label="Check schedule" />
             </div>
@@ -309,6 +311,33 @@ function SideLink({ href, label }: { href: string; label: string }) {
       <span>{label}</span>
       <MessageSquare size={14} style={{ color: "var(--cs-text-muted)" }} />
     </Link>
+  );
+}
+
+function SideButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        minHeight: 36,
+        padding: "0 0.75rem",
+        borderRadius: "var(--cs-r-sm)",
+        border: "1px solid var(--cs-border-soft)",
+        color: "var(--cs-text)",
+        background: "var(--cs-surface-warm)",
+        textDecoration: "none",
+        fontSize: "0.8125rem",
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      <span>{label}</span>
+      <MessageSquare size={14} style={{ color: "var(--cs-text-muted)" }} />
+    </button>
   );
 }
 

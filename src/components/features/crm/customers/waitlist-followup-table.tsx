@@ -1,10 +1,10 @@
 "use client";
 
 import { useTransition } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { updateWaitlistStatusAction } from "@/app/(dashboard)/crm/waitlist/actions";
 import { firstRelation, daysSinceDate } from "./lib/customer-segments";
 import { CalendarPlus } from "lucide-react";
@@ -177,26 +177,34 @@ export function WaitlistFollowupTable({ rows }: WaitlistFollowupTableProps) {
                     {row.status === "waiting" && (
                       <>
                         <WaitlistActionButton row={row} target="contacted" label="Follow Up" />
-                        <Link
-                          href={`/crm/bookings/new?phone=${encodeURIComponent(row.customer_phone)}&name=${encodeURIComponent(row.customer_name)}`}
+                        <OpenAdministrativeBookingButton
+                          mode={row.visit_type === "home_service" ? "home_service" : "standard_future"}
+                          name={row.customer_name}
+                          phone={row.customer_phone}
+                          date={row.preferred_date ?? undefined}
+                          time={row.preferred_time?.slice(0, 5)}
                           onClick={(e) => e.stopPropagation()}
                           className="cs-btn cs-btn-primary cs-btn-sm inline-flex items-center gap-1"
                         >
                           <CalendarPlus size={12} />
                           <span className="hidden sm:inline">Book</span>
-                        </Link>
+                        </OpenAdministrativeBookingButton>
                       </>
                     )}
                     {row.status === "contacted" && (
                       <>
-                        <Link
-                          href={`/crm/bookings/new?phone=${encodeURIComponent(row.customer_phone)}&name=${encodeURIComponent(row.customer_name)}`}
+                        <OpenAdministrativeBookingButton
+                          mode={row.visit_type === "home_service" ? "home_service" : "standard_future"}
+                          name={row.customer_name}
+                          phone={row.customer_phone}
+                          date={row.preferred_date ?? undefined}
+                          time={row.preferred_time?.slice(0, 5)}
                           onClick={(e) => e.stopPropagation()}
                           className="cs-btn cs-btn-primary cs-btn-sm inline-flex items-center gap-1"
                         >
                           <CalendarPlus size={12} />
                           <span className="hidden sm:inline">Book</span>
-                        </Link>
+                        </OpenAdministrativeBookingButton>
                         <WaitlistActionButton row={row} target="converted" label="Convert" />
                         <WaitlistActionButton row={row} target="expired" label="Expire" variant="ghost" />
                       </>

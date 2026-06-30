@@ -12,7 +12,9 @@ import { CRM_PREFETCH } from "@/components/features/workspace/workspace-prefetch
 import { AgentCoachProvider } from "@/components/agent/agent-context-provider";
 import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
+import { AdministrativeBookingModalProvider } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
+import { getQuickBookingContext } from "@/lib/queries/quick-booking-options";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { isWorkspaceEnabled } from "@/lib/agents/config";
 
@@ -25,6 +27,23 @@ export default async function CrmLayout({
   const me = ctx?.me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
   const coachEnabled = isWorkspaceEnabled("crm");
   const canShowCoach = coachEnabled && ctx?.user.id && me?.branch_id;
+  const branchId = me?.branch_id ?? null;
+  const branchName = (me?.branches as { name: string } | null)?.name ?? "Your Branch";
+  const bookingContext = branchId ? await getQuickBookingContext(branchId) : null;
+  const workspaceContent = branchId && bookingContext ? (
+    <AdministrativeBookingModalProvider
+      branchId={branchId}
+      branchName={branchName}
+      bookingRules={bookingContext.bookingRules}
+      services={bookingContext.services}
+      staff={bookingContext.staff}
+      resources={bookingContext.resources}
+    >
+      {children}
+    </AdministrativeBookingModalProvider>
+  ) : (
+    children
+  );
 
   return (
     <>
@@ -36,15 +55,15 @@ export default async function CrmLayout({
           workspace="crm"
           role={me.system_role}
           branchId={me.branch_id}
-          branchName={(me.branches as { name: string } | null)?.name ?? "Your Branch"}
+          branchName={branchName}
           userId={ctx.user.id}
         >
-          {children}
+          {workspaceContent}
           <CoachBubble />
           <InlineTip />
         </AgentCoachProvider>
       ) : (
-        children
+        workspaceContent
       )}
     </>
   );

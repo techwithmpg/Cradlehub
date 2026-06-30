@@ -1,12 +1,12 @@
-# Current Task - CRM-STABILIZATION-CHECKPOINT-2-WORK-QUEUE-2026-06-30
+# Current Task - CRM-SCHEDULE-WORKSPACE-COMPLETION-2026-07-01
 
-Status: IN_PROGRESS
-Started: 2026-06-30
-Last updated: 2026-06-30
+Status: COMPLETE LOCALLY; authenticated CRM Schedule QA remains PENDING
+Started: 2026-07-01
+Last updated: 2026-07-01
 
 ## Description
 
-Implement Checkpoint 2 of the CRM stabilization/simplification pass: convert the current Today / Front Desk page into the visible `Work Queue`, merge useful Control Center actions without keeping `/crm/control` as a competing workspace, and preserve existing CRM actions/routes.
+Complete the active CRM Schedule workspace before authenticated QA while preserving the shared administrative booking modal and prior Schedule modal-action work.
 
 Latest attached direction supersedes the older "Front Desk only" wording for visible navigation:
 
@@ -15,7 +15,41 @@ Latest attached direction supersedes the older "Front Desk only" wording for vis
 - Do not rebuild stable parts. Stabilization and action reliability are more important than visual polish.
 - Keep old CRM routes and redirects alive; this checkpoint is a shell/navigation update, not a page or database rewrite.
 
-## Most Recent Implemented Checkpoint
+## Latest Implementation - 2026-07-01
+
+- Added explicit staff selection state shared by Daily Timeline and Full Schedule; no row is auto-selected from `visibleRows[0]`.
+- Updated the Selected Staff card no-selection copy and added active actions for Edit Profile, Edit Capabilities, and View Full Schedule.
+- Reused existing staff profile, staff service-capabilities, full schedule calendar, availability editor, block-time, check-availability, and administrative booking modal surfaces from inside `/crm/schedule`.
+- Added in-place Edit Capabilities wiring through `StaffServiceEditorSheet` and `updateStaffServicesFromCrmAction`, with `/crm/schedule` revalidation after save.
+- Added timeline lane assignment in `src/lib/utils/schedule-timeline.ts` and applied it to Daily Timeline booking blocks so overlapping bookings render as separate vertical lanes.
+- Added the Schedule header view toggle:
+  - `Daily Timeline`
+  - `Full Schedule + Live Bookings`
+- Added `src/components/features/schedule/tabs/full-schedule-live-bookings-view.tsx` as a master-detail view with staff list, Day/Week mode, layer toggles, live bookings, shifts, blocks, overrides, no-shift states, and conflict flags.
+- Full Schedule booking clicks now open the in-Schedule booking detail panel using the real booking id; they do not navigate away from `/crm/schedule`.
+- Permission/RLS audit did not require a new migration. Existing relevant coverage remains:
+  - `supabase/migrations/20260529000002_crm_csr_schedule_rls.sql`
+  - `supabase/migrations/20260529000003_crm_csr_staff_update_rls.sql`
+  - `supabase/migrations/20260617141348_crm_staff_service_capabilities_rpc.sql`
+
+## Previous Implementation - 2026-06-30
+
+- Added shared quick-booking option loaders and customer prefill action:
+  - `src/lib/queries/quick-booking-options.ts`
+  - `src/lib/actions/administrative-booking.ts`
+- Mounted `AdministrativeBookingModalProvider` in the CRM layout.
+- Extended `QuickBookingForm` for modal use: prefilled service/staff/date/time, stay-vs-redirect success behavior, cancel/success callbacks, and dirty-state reporting.
+- Converted major CRM New Booking triggers to modal buttons across Bookings, Today/Work Queue, Customers, Waitlist, Setup flow cards, direct customer profile, and Schedule header.
+- Preserved `/crm/bookings/new` as the direct/legacy full-page route, now backed by the same shared option helpers.
+- Added active Schedule modal actions:
+  - Add Booking opens the shared booking modal with selected staff/date/time where available.
+  - Check Availability opens an in-context availability modal and can hand off selected slots to booking creation.
+  - Edit Staff Profile opens the existing CRM staff profile modal after loading full staff data.
+  - View Full Schedule opens the existing staff schedule calendar modal.
+  - Adjust Staff / Block Staff Time open the existing availability editor, with block-time opening directly on the block form and selected date.
+- Converted Schedule quick actions away from old `/crm/staff-availability` deep links inside the Schedule workspace where practical.
+
+## Earlier Implemented Checkpoints
 
 - Completed the interrupted Bookings / Quick Booking checkpoint:
   - Replaced `/crm/bookings/new` with a CRM Quick Booking form for walk-in, phone, future, and home-service modes.
@@ -39,6 +73,15 @@ Uncommitted changes are present. Do not revert them unless the user explicitly a
 
 Changed areas include:
 
+- Schedule workspace completion files:
+  - `src/components/features/schedule/workspace/schedule-workspace-header.tsx`
+  - `src/components/features/schedule/workspace/schedule-workspace-shell.tsx`
+  - `src/components/features/schedule/tabs/daily-timeline-tab.tsx`
+  - `src/components/features/schedule/tabs/daily-timeline-selection-card.tsx`
+  - `src/components/features/schedule/tabs/daily-timeline-staff-row.tsx`
+  - `src/components/features/schedule/tabs/full-schedule-live-bookings-view.tsx`
+  - `src/lib/actions/crm-staff-services.ts`
+  - `src/lib/utils/schedule-timeline.ts`
 - Checkpoint 1 sidebar/nav shell files:
   - `src/components/features/dashboard/nav-config.ts`
   - `src/components/features/dashboard/sidebar.tsx`
@@ -59,20 +102,27 @@ Run `git status --short --branch` before continuing.
 
 ## Validation Last Run
 
-- `npm run type-check`: PASS (after Bookings / Quick Booking completion)
-- `npm run lint`: PASS with 4 unrelated warnings:
+- `npm run type-check`: PASS
+- `npm run lint`: PASS with 4 unrelated existing warnings:
   - `scripts/generate-service-image-assets.mjs`: unused `FALLBACK_IMAGE_URL`, unused `generationPrompt`.
   - `tests/components/payroll/employee-payroll-table.test.tsx`: two unused `_staffId` warnings.
 - `npm run build`: PASS, 103 app routes
-- Authenticated CRM browser pass: PASS for walk-in, phone, future, home-service creation; Bookings tabs; drawer open; browser logs empty.
-- RLS/runtime errors: none surfaced during authenticated create flows.
+- `git diff --check`: PASS, line-ending notices only
+- Browser smoke via `agent-browser` on existing `http://localhost:3000`:
+  - `/crm/schedule` redirects unauthenticated browser session to `/login`; login page loads with content and no Next.js error overlay.
+- Browser console/errors on the unauthenticated smoke route: no page errors; only normal dev/HMR/Speed Insights messages.
+- Authenticated CRM Schedule modal/browser flow: NOT RUN in this checkpoint because no authenticated CRM browser session was available.
 - `npm run test`: NOT RUN for this checkpoint.
 
 ## Next Agent Pickup
 
-1. Read the two latest attached prompts if available in the session, plus `docs/FRONT_DESK_REFACTOR_PROGRESS.md`.
-2. Checkpoint 1 nav shell is implemented, but not committed.
-3. Bookings / Quick Booking is complete and browser-verified; do not restart it unless the user reports a regression.
-4. Continue with remaining Checkpoint 2 Work Queue / Today / Control Center simplification carefully, reduce competing dashboards, and keep one primary action per row.
-5. Before exposing System Management to ordinary CRM/CSR roles, review page gates and action/RLS permissions deliberately. Current sidebar System Management follows the existing management-authorized route model.
-6. Do not claim additional workflows work until traced through UI -> Server Action/API -> Supabase/RLS -> refresh feedback.
+1. Read `docs/FRONT_DESK_REFACTOR_PROGRESS.md` first.
+2. Inspect current diffs before editing.
+3. Do not rebuild the shared booking modal, Schedule modal wiring, or new Full Schedule view from scratch; type-check, lint, and build are passing.
+4. Recommended next step is an authenticated CRM browser pass:
+   - Open `/crm/schedule` and verify Daily Timeline selection, no-selection disabled actions, Add Booking, Check Availability, Edit Staff Profile, Edit Capabilities, View Full Schedule, Adjust Staff, and Block Staff Time.
+   - Switch to `Full Schedule + Live Bookings`, select staff, toggle Day/Week and layers, open a live booking detail, and confirm conflicts/layers render correctly.
+   - Save at least one safe staff capability edit only if using a disposable/test staff record.
+   - Confirm internal CRM New Booking triggers still open the shared modal and do not navigate to `/crm/bookings/new`.
+5. Keep `/crm/bookings/new` alive for direct links, agent fallback, and compatibility.
+6. Continue broader Work Queue / Today simplification only after authenticated Schedule QA if possible.

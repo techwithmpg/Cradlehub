@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { CalendarDays, ChevronRight, UserRound } from "lucide-react";
+import { CalendarDays, Sparkles, UserRound } from "lucide-react";
 import type { DailyScheduleBooking, DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import { formatScheduleTime } from "@/lib/utils/schedule-timeline";
 import { getStaffTypeLabel, getTimelineStatus } from "./daily-timeline-operations";
@@ -10,6 +9,9 @@ type Props = {
   staffType: string | null;
   date: string;
   now: Date | null;
+  onEditProfile: () => void;
+  onEditCapabilities: () => void;
+  onViewFullSchedule: () => void;
 };
 
 function getInitials(name: string): string {
@@ -25,12 +27,50 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-export function DailyTimelineSelectionCard({ staff, booking, staffType, date, now }: Props) {
+export function DailyTimelineSelectionCard({
+  staff,
+  booking,
+  staffType,
+  date,
+  now,
+  onEditProfile,
+  onEditCapabilities,
+  onViewFullSchedule,
+}: Props) {
   if (!staff) {
     return (
       <section className="rounded-lg border border-[var(--cs-border)] bg-white p-4 shadow-sm">
         <h3 className="text-sm font-bold text-[var(--cs-text)]">Selected Staff</h3>
-        <p className="mt-3 text-xs text-[var(--cs-text-muted)]">Select a staff row or booking to inspect it.</p>
+        <p className="mt-3 text-xs font-semibold text-[var(--cs-text)]">No staff selected</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--cs-text-muted)]">
+          Select a staff member to view and manage their profile, capabilities, and schedule.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            disabled
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-muted)] disabled:opacity-60"
+          >
+            <UserRound className="size-3" />
+            Edit Profile
+          </button>
+          <button
+            type="button"
+            disabled
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-muted)] disabled:opacity-60"
+          >
+            <Sparkles className="size-3" />
+            Edit Capabilities
+          </button>
+          <button
+            type="button"
+            disabled
+            className="col-span-2 flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-muted)] disabled:opacity-60"
+          >
+            <CalendarDays className="size-3" />
+            View Full Schedule
+          </button>
+        </div>
       </section>
     );
   }
@@ -72,14 +112,34 @@ export function DailyTimelineSelectionCard({ staff, booking, staffType, date, no
         </div>
       )}
 
-      <Link
-        href={booking ? "/crm/bookings" : "/crm/staff-availability?tab=individual"}
-        className="mt-3 flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-secondary)] hover:bg-stone-100"
-      >
-        {booking ? <CalendarDays className="size-3" /> : <UserRound className="size-3" />}
-        {booking ? "View Bookings" : "View Full Schedule"}
-        <ChevronRight className="size-3" />
-      </Link>
+      <div className="mt-3 grid gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={onEditProfile}
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-secondary)] transition hover:bg-stone-100 hover:text-emerald-800"
+          >
+            <UserRound className="size-3" />
+            Edit Profile
+          </button>
+          <button
+            type="button"
+            onClick={onEditCapabilities}
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-secondary)] transition hover:bg-stone-100 hover:text-emerald-800"
+          >
+            <Sparkles className="size-3" />
+            Edit Capabilities
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={onViewFullSchedule}
+          className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-secondary)] transition hover:bg-stone-100 hover:text-emerald-800"
+        >
+          <CalendarDays className="size-3" />
+          View Full Schedule
+        </button>
+      </div>
     </section>
   );
 }

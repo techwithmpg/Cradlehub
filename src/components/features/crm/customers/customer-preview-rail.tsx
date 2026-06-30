@@ -7,6 +7,7 @@ import { CrmPreviewRailShell } from "@/components/features/crm/premium/crm-previ
 import { CrmStatusBadge } from "@/components/features/crm/premium/crm-status-badge";
 import { CrmLoadingShimmer } from "@/components/features/crm/premium/crm-loading-shimmer";
 import { CrmMotionSection } from "@/components/features/crm/premium/crm-motion-section";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { getCustomerProfileAction, updateCustomerAction } from "@/app/(dashboard)/crm/actions";
 import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-toast";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -322,13 +323,14 @@ export function CustomerPreviewRail({
                 Quick Actions
               </div>
               <div className="flex flex-col gap-1.5">
-                <Link
-                  href={`/crm/bookings/new?customerId=${customer.id}`}
+                <OpenAdministrativeBookingButton
+                  mode="standard_future"
+                  customerId={customer.id}
                   className="cs-btn cs-btn-primary justify-start text-xs"
                 >
                   <Calendar size={14} />
                   New Booking
-                </Link>
+                </OpenAdministrativeBookingButton>
                 <Link
                   href={`/crm/${customer.id}`}
                   className="cs-btn cs-btn-secondary justify-start text-xs"

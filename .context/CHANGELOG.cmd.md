@@ -5276,3 +5276,83 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Notes:**
 - A temporary CRM verifier account was created for QA, then disabled/unlinked and deleted from Supabase Auth after verification.
 - QA bookings created during browser verification remain in the database as synthetic test records.
+
+---
+
+## 2026-06-30 - Codex (CRM-ADMIN-BOOKING-MODALS-SCHEDULE-ACTIONS-2026-06-30)
+
+**Task:** Add the shared administrative booking modal and wire active CRM Schedule actions to in-context modals.
+
+**Files Added:**
+- `src/lib/queries/quick-booking-options.ts`
+- `src/lib/actions/administrative-booking.ts`
+- `src/components/features/bookings/administrative-booking-modal-provider.tsx`
+- `src/components/features/crm/schedule/check-availability-modal.tsx`
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/layout.tsx` - mounts the administrative booking modal provider for CRM routes.
+- `src/app/(dashboard)/crm/bookings/new/page.tsx` - now uses shared quick-booking option helpers while preserving direct route access.
+- `src/components/features/bookings/quick-booking-form.tsx` - supports modal prefill, stay-on-success behavior, cancel/success callbacks, and dirty-state reporting.
+- Major CRM booking trigger surfaces under Bookings, Today/Work Queue, Customers, Waitlist, Setup flow cards, direct customer profile, and Schedule header now open the modal instead of routing to `/crm/bookings/new`.
+- `src/app/(dashboard)/crm/schedule/actions.ts` - added branch-authorized staff profile payload loading for the Schedule profile modal.
+- Schedule Daily Timeline components now open Add Booking, Check Availability, Edit Staff Profile, View Full Schedule, Adjust Staff, and Block Staff Time modals in place.
+- Existing availability/block-time editor now supports `initialTab` and selected-date block form prefill.
+
+**Behavior:**
+- Internal CRM New Booking triggers use the shared modal while `/crm/bookings/new` remains available for direct/legacy access.
+- Schedule users can create bookings, check slots, inspect staff, view complete schedules, and block time without leaving `/crm/schedule`.
+- Check Availability can select an available slot and hand it directly to the booking modal with service/staff/date/time prefilled.
+- Unsaved booking and schedule editor protections remain in place.
+
+**Verification:**
+- `npm run type-check`: PASS
+- `npm run lint`: PASS with 4 unrelated existing warnings.
+- `npm run build`: PASS, 103 app routes.
+- Browser smoke via `agent-browser`: public home route loads with content and no Next.js error overlay; unauthenticated `/crm/schedule` redirects to `/login`, which loads with content and no Next.js error overlay.
+
+**Remaining Manual QA:**
+- Authenticated CRM browser pass is still needed for the new modal flows because this session did not have an authenticated CRM browser state.
+
+---
+
+## 2026-07-01 - Codex (CRM-SCHEDULE-WORKSPACE-COMPLETION-2026-07-01)
+
+**Task:** Complete the active CRM Schedule workspace before authenticated QA while preserving the shared administrative booking modal and existing CRM routes.
+
+**Files Added:**
+- `src/components/features/schedule/tabs/full-schedule-live-bookings-view.tsx`
+
+**Files Changed:**
+- `src/components/features/schedule/workspace/schedule-workspace-header.tsx` - adds the Daily Timeline / Full Schedule + Live Bookings view toggle.
+- `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` - owns shared staff/booking selection and `view` query-param state across Schedule views.
+- `src/components/features/schedule/tabs/daily-timeline-tab.tsx` - removes first-visible-staff fallback and wires explicit selection plus shared modal actions.
+- `src/components/features/schedule/tabs/daily-timeline-selection-card.tsx` - adds no-selection copy and Edit Profile, Edit Capabilities, and View Full Schedule actions.
+- `src/components/features/schedule/tabs/daily-timeline-staff-row.tsx` - renders overlapping bookings in vertical lanes with conflict indicators.
+- `src/lib/utils/schedule-timeline.ts` - adds reusable timeline lane assignment utilities.
+- `src/lib/actions/crm-staff-services.ts` - revalidates `/crm/schedule` after staff capability updates.
+
+**Behavior:**
+- Schedule no longer auto-selects staff; profile/capability/full-schedule actions require an explicit staff selection and show selection feedback when needed.
+- Daily Timeline and Full Schedule share selected staff and selected booking state inside `/crm/schedule`.
+- Full Schedule + Live Bookings provides a master-detail staff schedule with Day/Week mode, layer toggles, shifts, live bookings, blocked time, overrides, no-shift states, and conflict flags.
+- Booking blocks use lane assignment so overlapping bookings remain visible instead of stacking on top of one another.
+- Full Schedule booking clicks open the in-Schedule booking detail panel using the real booking id.
+- Edit Capabilities reuses the existing staff service-capabilities sheet and server action rather than introducing a new mutation path.
+
+**Permissions / Migrations:**
+- No new migration was added.
+- Existing relevant coverage remains in:
+  - `supabase/migrations/20260529000002_crm_csr_schedule_rls.sql`
+  - `supabase/migrations/20260529000003_crm_csr_staff_update_rls.sql`
+  - `supabase/migrations/20260617141348_crm_staff_service_capabilities_rpc.sql`
+- Supabase changelog was checked on 2026-07-01; no new-table Data API exposure change applies because this checkpoint added no tables.
+
+**Verification:**
+- `npm run type-check`: PASS
+- `npm run lint`: PASS with 4 unrelated existing warnings.
+- `npm run build`: PASS, 103 app routes.
+- `git diff --check`: PASS, line-ending notices only.
+- Browser smoke via `agent-browser`: unauthenticated `/crm/schedule` redirects to `/login`, login renders, and no page errors are reported.
+
+**Remaining Manual QA:**
+- Authenticated CRM Schedule browser pass is still needed for Daily Timeline actions, Full Schedule + Live Bookings, Edit Capabilities save, conflict/lane inspection, and booking-detail panel verification.

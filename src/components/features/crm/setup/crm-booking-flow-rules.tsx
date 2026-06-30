@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * CrmBookingFlowRules
  *
@@ -11,8 +13,12 @@
  */
 
 import Link from "next/link";
+import {
+  type AdministrativeBookingMode,
+  OpenAdministrativeBookingButton,
+} from "@/components/features/bookings/administrative-booking-modal-provider";
 
-type FlowLink = { label: string; href: string };
+type FlowLink = { label: string; href?: string; bookingMode?: AdministrativeBookingMode };
 
 type BookingFlowCard = {
   title: string;
@@ -46,7 +52,7 @@ const FLOW_CARDS: BookingFlowCard[] = [
       "CRM bookings can use daily staff check-in, live availability, room readiness, current bookings, and operational status before confirming service.",
     links: [
       { label: "Live Availability", href: "/crm/availability" },
-      { label: "New Walk-in",       href: "/crm/bookings/new?type=walkin" },
+      { label: "New Walk-in",       bookingMode: "walkin" },
       { label: "Today",             href: "/crm/today" },
     ],
   },
@@ -58,7 +64,7 @@ const FLOW_CARDS: BookingFlowCard[] = [
     description:
       "Home-service bookings use address/location, travel buffer, therapist availability, driver/dispatch readiness, and home-service rules.",
     links: [
-      { label: "New Home Service", href: "/crm/bookings/new?type=home_service" },
+      { label: "New Home Service", bookingMode: "home_service" },
       { label: "Dispatch",         href: "/crm/dispatch" },
       { label: "Spaces & Rules",   href: "/crm/spaces-rules" },
     ],
@@ -111,25 +117,42 @@ function FlowCard({ card }: { card: BookingFlowCard }) {
 
       {/* Links */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-        {card.links.map((link) => (
-          <Link
-            key={link.href + link.label}
-            href={link.href}
-            style={{
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              color: "var(--cs-brand)",
-              textDecoration: "none",
-              padding: "3px 10px",
-              borderRadius: 20,
-              border: "1px solid var(--cs-border-soft)",
-              background: "var(--cs-surface-warm)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {link.label} →
-          </Link>
-        ))}
+        {card.links.map((link) => {
+          const style = {
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "var(--cs-brand)",
+            textDecoration: "none",
+            padding: "3px 10px",
+            borderRadius: 20,
+            border: "1px solid var(--cs-border-soft)",
+            background: "var(--cs-surface-warm)",
+            whiteSpace: "nowrap",
+          } satisfies React.CSSProperties;
+
+          if (link.bookingMode) {
+            return (
+              <OpenAdministrativeBookingButton
+                key={link.label}
+                mode={link.bookingMode}
+                showIcon={false}
+                style={style}
+              >
+                {link.label} {"->"}
+              </OpenAdministrativeBookingButton>
+            );
+          }
+
+          return (
+            <Link
+              key={(link.href ?? "") + link.label}
+              href={link.href ?? "#"}
+              style={style}
+            >
+              {link.label} →
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

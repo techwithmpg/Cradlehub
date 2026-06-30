@@ -59,6 +59,17 @@ export type TimelineHourMark = {
   isBoundary: boolean;
 };
 
+export type TimelineLaneEvent = {
+  id: string;
+  start_time: string;
+  end_time: string;
+};
+
+export type TimelineLaneAssignment = {
+  lane: number;
+  laneCount: number;
+};
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -203,6 +214,49 @@ export function getTimelineBlockPercent(
     leftPercent: getTimelineOffsetPercent(startTime, range),
     widthPercent: getTimelineWidthPercent(startTime, endTime, range),
   };
+}
+
+export function assignTimelineLanes<T extends TimelineLaneEvent>(
+  events: T[]
+): Map<string, TimelineLaneAssignment> {
+  const sorted = [...events].sort((a, b) => {
+    const startDiff = timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
+    if (startDiff !== 0) return startDiff;
+    return timeToMinutes(b.end_time) - timeToMinutes(a.end_time);
+  });
+  const active: Array<{ id: string; end: number; lane: number }> = [];
+  const assignments = new Map<string, TimelineLaneAssignment>();
+  let maxLane = 0;
+
+  for (const event of sorted) {
+    const start = timeToMinutes(event.start_time);
+    const end = Math.max(start + 1, timeToMinutes(event.end_time));
+
+    for (let index = active.length - 1; index >= 0; index--) {
+      if (active[index]!.end <= start) {
+        active.splice(index, 1);
+      }
+    }
+
+    const used = new Set(active.map((item) => item.lane));
+    let lane = 0;
+    while (used.has(lane)) lane++;
+
+    active.push({ id: event.id, end, lane });
+    maxLane = Math.max(maxLane, lane + 1);
+    for (const item of active) {
+      assignments.set(item.id, {
+        lane: item.lane,
+        laneCount: Math.max(maxLane, active.length),
+      });
+    }
+  }
+
+  for (const assignment of assignments.values()) {
+    assignment.laneCount = maxLane;
+  }
+
+  return assignments;
 }
 
 export function getCurrentTimePercent(range: TimelineRange): number | null {

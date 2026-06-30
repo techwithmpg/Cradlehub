@@ -15,6 +15,13 @@ type Props = {
   date: string;
   now: Date | null;
   onStaffSelect: (staffId: string) => void;
+  onEditStaffProfile: () => void;
+  onEditStaffCapabilities: () => void;
+  onViewFullSchedule: () => void;
+  onAddBooking: () => void;
+  onCheckAvailability: () => void;
+  onAdjustStaff: () => void;
+  onBlockStaffTime: () => void;
 };
 
 export function DailyTimelineOperationsRail(props: Props) {
@@ -27,8 +34,16 @@ export function DailyTimelineOperationsRail(props: Props) {
         staffType={props.selectedStaffType}
         date={props.date}
         now={props.now}
+        onEditProfile={props.onEditStaffProfile}
+        onEditCapabilities={props.onEditStaffCapabilities}
+        onViewFullSchedule={props.onViewFullSchedule}
       />
-      <DailyTimelineActionsCard />
+      <DailyTimelineActionsCard
+        onAddBooking={props.onAddBooking}
+        onCheckAvailability={props.onCheckAvailability}
+        onAdjustStaff={props.onAdjustStaff}
+        onBlockStaffTime={props.onBlockStaffTime}
+      />
       <DailyTimelineAvailableCard rows={props.rows} date={props.date} now={props.now} onStaffSelect={props.onStaffSelect} />
     </aside>
   );

@@ -12,6 +12,7 @@ import {
 import { BookingsTable } from "./bookings-table";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import { cn } from "@/lib/utils";
 
@@ -323,10 +324,14 @@ export function BookingsWorkspace({
               Refresh
             </button>
             {isCrm ? (
-              <Link href="/crm/bookings/new" className="cs-btn h-9 rounded-xl bg-[var(--cs-crm-text)] px-3 text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)] hover:bg-[var(--cs-success-text)]">
+              <OpenAdministrativeBookingButton
+                mode="standard_future"
+                date={date}
+                className="cs-btn h-9 rounded-xl bg-[var(--cs-crm-text)] px-3 text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)] hover:bg-[var(--cs-success-text)]"
+              >
                 <Plus size={14} />
                 New Booking
-              </Link>
+              </OpenAdministrativeBookingButton>
             ) : null}
           </div>
         </div>

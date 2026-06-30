@@ -5,6 +5,7 @@ import { CalendarDays, ChevronDown } from "lucide-react";
 import { CrmPanel } from "../crm-panel";
 import { CrmEmptyState } from "../crm-empty-state";
 import { CrmBookingFlowRow, CrmBookingFlowRowMobile } from "../crm-booking-flow-row";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import type { BookingListItemData } from "../crm-booking-list-item";
 import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 
@@ -131,8 +132,15 @@ export function TodayOverviewTab({
           <CrmEmptyState
             title="No active bookings"
             description="Confirmed and in-progress bookings will appear here when the day starts."
-            actionLabel="New Booking"
-            actionHref="/crm/bookings/new"
+            action={
+              <OpenAdministrativeBookingButton
+                mode="standard_future"
+                label="New Booking ->"
+                showIcon={false}
+                variant="ghost"
+                className="mt-1 h-auto p-0 text-[0.8125rem] font-semibold text-[var(--cs-sand)] hover:bg-transparent"
+              />
+            }
           />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>

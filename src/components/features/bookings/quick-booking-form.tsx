@@ -67,9 +67,23 @@ type QuickBookingFormProps = {
   initialCustomer?: QuickBookingCustomerOption | null;
   initialName?: string;
   initialPhone?: string;
+  initialServiceId?: string;
+  initialStaffId?: string;
+  initialDate?: string;
+  initialTime?: string;
   services: QuickBookingServiceOption[];
   staff: QuickBookingStaffOption[];
   resources: QuickBookingResourceOption[];
+  successBehavior?: "redirect" | "stay";
+  onCancel?: () => void;
+  onSuccess?: (result: {
+    bookingId: string;
+    date: string;
+    mode: QuickBookingMode;
+    customerId?: string;
+    isHomeService: boolean;
+  }) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type CustomerSearchRow = {
@@ -174,12 +188,24 @@ export function QuickBookingForm({
   initialCustomer = null,
   initialName = "",
   initialPhone = "",
+  initialServiceId = "",
+  initialStaffId = "",
+  initialDate,
+  initialTime,
   services,
   staff,
   resources,
+  successBehavior = "redirect",
+  onCancel,
+  onSuccess,
+  onDirtyChange,
 }: QuickBookingFormProps) {
   const router = useRouter();
   const formId = useId();
+  const [initialDateValue] = useState(() => initialDate ?? todayYmd());
+  const [initialTimeValue] = useState(() =>
+    initialTime ? initialTime.slice(0, 5) : nextQuarterTime()
+  );
   const seededCustomerQuery = initialCustomer?.fullName || initialName || initialPhone || "";
   const [mode, setMode] = useState<QuickBookingMode>(initialMode);
   const [selectedCustomer, setSelectedCustomer] = useState<QuickBookingCustomerOption | null>(
@@ -191,9 +217,9 @@ export function QuickBookingForm({
   const [fullName, setFullName] = useState(initialCustomer?.fullName ?? initialName);
   const [phone, setPhone] = useState(initialCustomer?.phone ?? initialPhone);
   const [email, setEmail] = useState(initialCustomer?.email ?? "");
-  const [serviceId, setServiceId] = useState("");
-  const [date, setDate] = useState(todayYmd());
-  const [time, setTime] = useState(nextQuarterTime());
+  const [serviceId, setServiceId] = useState(initialServiceId);
+  const [date, setDate] = useState(initialDateValue);
+  const [time, setTime] = useState(initialTimeValue);
   const [notes, setNotes] = useState("");
   const [homeServiceAddress, setHomeServiceAddress] = useState("");
   const [homeServiceCity, setHomeServiceCity] = useState("");
@@ -203,7 +229,7 @@ export function QuickBookingForm({
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash" | "maya" | "card" | "other" | "">(
     initialMode === "walkin" ? "cash" : ""
   );
-  const [staffId, setStaffId] = useState("");
+  const [staffId, setStaffId] = useState(initialStaffId);
   const [resourceId, setResourceId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -250,6 +276,61 @@ export function QuickBookingForm({
       slotMinutes <= endMinutes
     );
   };
+
+  const dirty = useMemo(
+    () =>
+      mode !== initialMode ||
+      selectedCustomer?.id !== initialCustomer?.id ||
+      customerQuery !== seededCustomerQuery ||
+      fullName !== (initialCustomer?.fullName ?? initialName) ||
+      phone !== (initialCustomer?.phone ?? initialPhone) ||
+      email !== (initialCustomer?.email ?? "") ||
+      serviceId !== initialServiceId ||
+      date !== initialDateValue ||
+      time !== initialTimeValue ||
+      notes !== "" ||
+      homeServiceAddress !== "" ||
+      homeServiceCity !== "" ||
+      homeServiceLandmark !== "" ||
+      homeServiceNotes !== "" ||
+      paymentReceived !== (initialMode === "walkin") ||
+      paymentMethod !== (initialMode === "walkin" ? "cash" : "") ||
+      staffId !== initialStaffId ||
+      resourceId !== "",
+    [
+      customerQuery,
+      date,
+      email,
+      fullName,
+      homeServiceAddress,
+      homeServiceCity,
+      homeServiceLandmark,
+      homeServiceNotes,
+      initialCustomer,
+      initialDateValue,
+      initialMode,
+      initialName,
+      initialPhone,
+      initialServiceId,
+      initialStaffId,
+      initialTimeValue,
+      mode,
+      notes,
+      paymentMethod,
+      paymentReceived,
+      phone,
+      resourceId,
+      selectedCustomer,
+      serviceId,
+      seededCustomerQuery,
+      staffId,
+      time,
+    ]
+  );
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     const query = customerQuery.trim();
@@ -454,11 +535,20 @@ export function QuickBookingForm({
       }
 
       toast.success("Booking saved", { description: "The booking is now in the CRM workspace." });
-      const params = new URLSearchParams({
-        date,
+      onSuccess?.({
         bookingId: result.bookingId,
+        date,
+        mode,
+        customerId: selectedCustomer?.id,
+        isHomeService,
       });
-      router.push(`/crm/bookings?${params.toString()}`);
+      if (successBehavior === "redirect") {
+        const params = new URLSearchParams({
+          date,
+          bookingId: result.bookingId,
+        });
+        router.push(`/crm/bookings?${params.toString()}`);
+      }
       router.refresh();
     } catch {
       const message = "Could not save booking. Please try again.";
@@ -839,7 +929,10 @@ export function QuickBookingForm({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
-                onClick={() => router.push("/crm/bookings")}
+                onClick={() => {
+                  if (onCancel) onCancel();
+                  else router.push("/crm/bookings");
+                }}
                 disabled={isSaving}
                 className="cs-btn cs-btn-secondary h-11 rounded-xl px-4"
               >

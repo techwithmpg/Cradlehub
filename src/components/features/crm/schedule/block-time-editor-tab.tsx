@@ -15,6 +15,8 @@ import type { BlockedTime } from "./edit-availability-types";
 type BlockTimeEditorTabProps = {
   staffId: string;
   blockedTimes: BlockedTime[];
+  initialDate?: string;
+  initiallyShowForm?: boolean;
   onDirtyChange: (isDirty: boolean) => void;
   onChanged: (message: string) => void;
 };
@@ -60,12 +62,15 @@ function getReasonClass(reason: string): string {
 export function BlockTimeEditorTab({
   staffId,
   blockedTimes,
+  initialDate,
+  initiallyShowForm = false,
   onDirtyChange,
   onChanged,
 }: BlockTimeEditorTabProps) {
   const [items, setItems] = useState<BlockedTime[]>(blockedTimes);
-  const [showForm, setShowForm] = useState(false);
-  const [blockDate, setBlockDate] = useState("");
+  const initialBlockDate = initialDate ?? "";
+  const [showForm, setShowForm] = useState(initiallyShowForm);
+  const [blockDate, setBlockDate] = useState(initialBlockDate);
   const [startTime, setStartTime] = useState("12:00");
   const [endTime, setEndTime] = useState("13:00");
   const [reason, setReason] = useState<BlockReason>("break");
@@ -74,12 +79,11 @@ export function BlockTimeEditorTab({
 
   const formIsDirty = useMemo(
     () =>
-      showForm ||
-      blockDate !== "" ||
+      blockDate !== initialBlockDate ||
       startTime !== "12:00" ||
       endTime !== "13:00" ||
       reason !== "break",
-    [blockDate, endTime, reason, showForm, startTime]
+    [blockDate, endTime, initialBlockDate, reason, startTime]
   );
 
   useEffect(() => {
@@ -88,7 +92,7 @@ export function BlockTimeEditorTab({
 
   function resetForm() {
     setShowForm(false);
-    setBlockDate("");
+    setBlockDate(initialBlockDate);
     setStartTime("12:00");
     setEndTime("13:00");
     setReason("break");

@@ -2,6 +2,7 @@
 
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import {
+  assignTimelineLanes,
   formatScheduleTime,
   getTimelineBlockPercent,
   type TimelineHourMark,
@@ -59,10 +60,13 @@ export function DailyTimelineStaffRow({
 }: Props) {
   const status = getTimelineStatus(row, date, now);
   const conflictIds = new Set(alerts.flatMap((alert) => alert.bookingIds));
+  const bookingLanes = assignTimelineLanes(row.bookings);
+  const laneCount = Math.max(1, ...Array.from(bookingLanes.values()).map((item) => item.laneCount));
+  const rowMinHeight = Math.max(88, 58 + laneCount * 30 + (row.blocks.length > 0 ? 28 : 0));
 
   return (
     <div
-      className={selected ? "grid min-h-[72px] bg-emerald-50/40" : "grid min-h-[72px] bg-white hover:bg-stone-50/70"}
+      className={selected ? "grid bg-emerald-50/40" : "grid bg-white hover:bg-stone-50/70"}
       style={{ gridTemplateColumns: `210px minmax(${timelineMinWidth}px, 1fr)` }}
     >
       <button
@@ -81,8 +85,8 @@ export function DailyTimelineStaffRow({
       </button>
 
       <div
-        className="relative min-h-[72px] overflow-hidden border-b border-[var(--cs-border-soft)]"
-        style={{ minWidth: timelineMinWidth }}
+        className="relative overflow-hidden border-b border-[var(--cs-border-soft)]"
+        style={{ minWidth: timelineMinWidth, minHeight: rowMinHeight }}
         onClick={() => onStaffSelect(row.staff_id)}
       >
         {hourMarks.slice(0, -1).map((mark) => (
@@ -103,8 +107,8 @@ export function DailyTimelineStaffRow({
               onClick={() => onStaffSelect(row.staff_id)}
               className={
                 closing
-                  ? "absolute top-2 h-14 overflow-hidden rounded-md border border-sky-200 bg-sky-50/90 px-2 text-left text-sky-900"
-                  : "absolute top-2 h-14 overflow-hidden rounded-md border border-emerald-200 bg-emerald-50/90 px-2 text-left text-emerald-900"
+                  ? "absolute top-2 h-9 overflow-hidden rounded-md border border-sky-200 bg-sky-50/90 px-2 text-left text-sky-900"
+                  : "absolute top-2 h-9 overflow-hidden rounded-md border border-emerald-200 bg-emerald-50/90 px-2 text-left text-emerald-900"
               }
               style={{ left: `${position.leftPercent}%`, width: `${position.widthPercent}%`, minWidth: 36 }}
               title={`${formatScheduleTime(window.startTime)} - ${formatScheduleTime(window.endTime)}`}
@@ -119,6 +123,8 @@ export function DailyTimelineStaffRow({
 
         {row.bookings.map((booking) => {
           const position = getTimelineBlockPercent(booking.start_time, booking.end_time, range);
+          const lane = bookingLanes.get(booking.id)?.lane ?? 0;
+          const hasConflict = conflictIds.has(booking.id);
           return (
             <button
               key={booking.id}
@@ -127,11 +133,20 @@ export function DailyTimelineStaffRow({
                 event.stopPropagation();
                 onBookingSelect(row.staff_id, booking.id);
               }}
-              className={`absolute top-2 z-10 h-7 overflow-hidden rounded border px-1.5 text-left text-[9px] font-semibold shadow-sm ${getBookingClass(booking.status, booking.type, conflictIds.has(booking.id))}`}
-              style={{ left: `${position.leftPercent}%`, width: `${position.widthPercent}%`, minWidth: 42 }}
+              className={`absolute z-10 h-7 overflow-hidden rounded border px-1.5 text-left text-[9px] font-semibold shadow-sm ${getBookingClass(booking.status, booking.type, hasConflict)}`}
+              style={{
+                left: `${position.leftPercent}%`,
+                top: 44 + lane * 30,
+                width: `${position.widthPercent}%`,
+                minWidth: 54,
+              }}
               title={`${booking.service} - ${booking.customer}`}
+              aria-label={`${hasConflict ? "Conflict: " : ""}${booking.service} for ${booking.customer}, ${formatScheduleTime(booking.start_time)} to ${formatScheduleTime(booking.end_time)}`}
             >
-              <span className="block truncate">{booking.service}</span>
+              <span className="block truncate">
+                {hasConflict ? "! " : ""}
+                {formatScheduleTime(booking.start_time)} {booking.service}
+              </span>
             </button>
           );
         })}

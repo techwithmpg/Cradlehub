@@ -7,12 +7,14 @@ export function CrmEmptyState({
   description,
   actionLabel,
   actionHref,
+  action,
   icon,
 }: {
   title: string;
   description?: string;
   actionLabel?: string;
   actionHref?: string;
+  action?: React.ReactNode;
   icon?: React.ReactNode;
 }) {
   return (
@@ -68,7 +70,9 @@ export function CrmEmptyState({
           {description}
         </div>
       )}
-      {actionLabel && actionHref && (
+      {action ? (
+        action
+      ) : actionLabel && actionHref ? (
         <Link
           href={actionHref}
           style={{
@@ -81,7 +85,7 @@ export function CrmEmptyState({
         >
           {actionLabel} →
         </Link>
-      )}
+      ) : null}
     </div>
   );
 }

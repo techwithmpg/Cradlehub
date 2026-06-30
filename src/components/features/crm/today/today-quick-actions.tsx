@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import {
+  type AdministrativeBookingMode,
+  useAdministrativeBookingModal,
+} from "@/components/features/bookings/administrative-booking-modal-provider";
 
 type Action = {
   label: string;
   description: string;
-  href: string;
+  href?: string;
+  bookingMode?: AdministrativeBookingMode;
   primary?: boolean;
 };
 
@@ -13,13 +18,13 @@ const ACTIONS: Action[] = [
   {
     label: "New Walk-in",
     description: "Create an in-spa booking for a customer at the front desk.",
-    href: "/crm/bookings/new?type=walkin",
+    bookingMode: "walkin",
     primary: true,
   },
   {
     label: "New Home Service",
     description: "Start a home-service booking with address and dispatch details.",
-    href: "/crm/bookings/new?type=home_service",
+    bookingMode: "home_service",
   },
   {
     label: "Online Requests",
@@ -39,6 +44,8 @@ const ACTIONS: Action[] = [
 ];
 
 export function TodayQuickActions() {
+  const { openBookingModal } = useAdministrativeBookingModal();
+
   return (
     <div
       style={{
@@ -47,31 +54,49 @@ export function TodayQuickActions() {
         flexWrap: "wrap",
       }}
     >
-      {ACTIONS.map((action) => (
-        <Link
-          key={action.href}
-          href={action.href}
+      {ACTIONS.map((action) => {
+        const style = {
+          padding: "8px 16px",
+          borderRadius: 8,
+          backgroundColor: action.primary
+            ? "var(--cs-sand)"
+            : "var(--cs-surface)",
+          color: action.primary ? "#fff" : "var(--cs-text)",
+          fontSize: "0.8125rem",
+          fontWeight: 500,
+          textDecoration: "none",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          border: action.primary ? "none" : "1px solid var(--cs-border)",
+          transition: "all 0.15s",
+        } satisfies React.CSSProperties;
+
+        if (action.bookingMode) {
+          return (
+            <button
+              key={action.label}
+              type="button"
+              title={action.description}
+              style={{ ...style, cursor: "pointer" }}
+              onClick={() => openBookingModal({ mode: action.bookingMode })}
+            >
+              {action.label}
+            </button>
+          );
+        }
+
+        return (
+          <Link
+            key={action.href}
+            href={action.href ?? "#"}
           title={action.description}
-          style={{
-            padding: "8px 16px",
-            borderRadius: 8,
-            backgroundColor: action.primary
-              ? "var(--cs-sand)"
-              : "var(--cs-surface)",
-            color: action.primary ? "#fff" : "var(--cs-text)",
-            fontSize: "0.8125rem",
-            fontWeight: 500,
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            border: action.primary ? "none" : "1px solid var(--cs-border)",
-            transition: "all 0.15s",
-          }}
-        >
-          {action.label}
-        </Link>
-      ))}
+            style={style}
+          >
+            {action.label}
+          </Link>
+        );
+      })}
     </div>
   );
 }

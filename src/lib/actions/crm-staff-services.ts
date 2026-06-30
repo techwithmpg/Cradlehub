@@ -266,6 +266,7 @@ export async function updateStaffServicesFromCrmAction(
   revalidatePath("/crm/staff");
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
+  revalidatePath("/crm/schedule");
   revalidatePath("/crm/today");
   revalidatePath("/book");
   revalidatePath("/services");

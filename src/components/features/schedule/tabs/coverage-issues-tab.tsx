@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SchedulePanel } from "../workspace/schedule-panel";
 import { ScheduleEmptyState } from "../workspace/schedule-empty-state";
 import { ScheduleActionTile } from "../workspace/schedule-action-tile";
@@ -20,6 +21,8 @@ async function fetcher(url: string): Promise<CoverageData> {
 }
 
 export function CoverageIssuesTab({ branchId }: { branchId: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, isLoading } = useSWR<CoverageData>(
     `/api/crm/staff-schedule/overview?branchId=${branchId}`,
     fetcher,
@@ -58,6 +61,12 @@ export function CoverageIssuesTab({ branchId }: { branchId: string }) {
   );
 
   const totalIssues = noSchedule.length + noOpeningToday.length;
+
+  function switchTab(tab: "setup" | "staff") {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
 
   if (totalIssues === 0 && onLeaveToday.length === 0) {
     return (
@@ -143,9 +152,9 @@ export function CoverageIssuesTab({ branchId }: { branchId: string }) {
 
       <SchedulePanel title="Quick Actions">
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <ScheduleActionTile label="Open Schedule Setup" href="/crm/staff-availability" primary />
-          <ScheduleActionTile label="View Staff List" href="/crm/staff-availability?tab=individual" />
-          <ScheduleActionTile label="Add Override" href="/crm/staff-availability?tab=overrides" />
+          <ScheduleActionTile label="Open Schedule Setup" onClick={() => switchTab("setup")} primary />
+          <ScheduleActionTile label="View Staff List" onClick={() => switchTab("staff")} />
+          <ScheduleActionTile label="Add Override" onClick={() => switchTab("staff")} />
         </div>
       </SchedulePanel>
     </div>

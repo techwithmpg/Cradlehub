@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 
 export function CrmTodayHeader({
   branchName,
@@ -71,8 +71,10 @@ export function CrmTodayHeader({
         </p>
       </div>
 
-      <Link
-        href="/crm/bookings/new"
+      <OpenAdministrativeBookingButton
+        mode="standard_future"
+        label="+ New Booking"
+        showIcon={false}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -93,9 +95,7 @@ export function CrmTodayHeader({
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLElement).style.opacity = "1";
         }}
-      >
-        + New Booking
-      </Link>
+      />
     </div>
   );
 }

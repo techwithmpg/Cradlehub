@@ -13,8 +13,7 @@ export const TODAY_TABS: CrmTabItem[] = [
 ];
 
 export const BOOKINGS_TABS: CrmTabItem[] = [
-  { label: "Today's Bookings", href: "/crm/bookings"     },
-  { label: "New Booking",      href: "/crm/bookings/new" },
+  { label: "Today's Bookings", href: "/crm/bookings" },
 ];
 
 export const SCHEDULE_TABS: CrmTabItem[] = [

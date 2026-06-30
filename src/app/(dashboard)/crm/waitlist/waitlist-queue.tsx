@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { updateWaitlistStatusAction } from "./actions";
 
 type WaitlistRow = {
@@ -217,8 +217,13 @@ export function WaitlistQueue({
                       )}
                       {row.status === "contacted" && (
                         <>
-                          <Link
-                            href={`/crm/bookings/new?phone=${encodeURIComponent(row.customer_phone)}&name=${encodeURIComponent(row.customer_name)}`}
+                          <OpenAdministrativeBookingButton
+                            mode={row.visit_type === "home_service" ? "home_service" : "standard_future"}
+                            name={row.customer_name}
+                            phone={row.customer_phone}
+                            date={row.preferred_date ?? undefined}
+                            time={row.preferred_time?.slice(0, 5)}
+                            showIcon={false}
                             style={{
                               padding: "3px 8px", borderRadius: 4, border: "none",
                               backgroundColor: "var(--cs-sand)", color: "#fff",
@@ -227,7 +232,7 @@ export function WaitlistQueue({
                             }}
                           >
                             Book
-                          </Link>
+                          </OpenAdministrativeBookingButton>
                           <StatusButton requestId={row.id} current={row.status} target="converted" label="Mark Converted" />
                           <StatusButton requestId={row.id} current={row.status} target="expired" label="Expire" />
                         </>

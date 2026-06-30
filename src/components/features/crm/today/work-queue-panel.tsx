@@ -7,6 +7,7 @@ import { Copy, ExternalLink, MoreHorizontal, RefreshCw } from "lucide-react";
 import { BookingActionMenu } from "@/components/features/dashboard/booking-action-menu";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import { DriverAssignMenu, type AvailableDriver } from "@/components/features/control-console/driver-assign-menu";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
 import {
   getWorkQueueNextAction,
@@ -319,9 +320,12 @@ export function WorkQueuePanel({
             Work the first clear next step for each booking.
           </p>
         </div>
-        <Link href="/crm/bookings/new" style={secondaryLinkStyle}>
-          New booking
-        </Link>
+        <OpenAdministrativeBookingButton
+          mode="standard_future"
+          label="New booking"
+          showIcon={false}
+          style={secondaryLinkStyle}
+        />
       </div>
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "1rem" }} role="tablist" aria-label="Work queue filters">

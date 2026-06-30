@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   BriefcaseBusiness,
   CalendarClock,
@@ -40,6 +39,9 @@ type Props = {
   filters: TimelineFilters;
   onGroupChange: (group: StaffGroupKey) => void;
   onFiltersChange: (filters: TimelineFilters) => void;
+  onCheckAvailability: () => void;
+  onBlockStaffTime: () => void;
+  onOpenScheduleSetup: () => void;
 };
 
 export function DailyTimelineToolbar({
@@ -49,6 +51,9 @@ export function DailyTimelineToolbar({
   filters,
   onGroupChange,
   onFiltersChange,
+  onCheckAvailability,
+  onBlockStaffTime,
+  onOpenScheduleSetup,
 }: Props) {
   const setFilter = <Key extends keyof TimelineFilters>(key: Key, value: TimelineFilters[Key]) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -62,27 +67,30 @@ export function DailyTimelineToolbar({
           Daily operations
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/crm/availability"
+          <button
+            type="button"
+            onClick={onCheckAvailability}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-50"
           >
             <Search className="size-3.5" />
             Check Availability
-          </Link>
-          <Link
-            href="/crm/staff-availability?tab=individual"
+          </button>
+          <button
+            type="button"
+            onClick={onBlockStaffTime}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text-secondary)] transition hover:bg-[var(--cs-surface-warm)]"
           >
             <CalendarClock className="size-3.5" />
             Block Staff Time
-          </Link>
-          <Link
-            href="/crm/staff-availability"
+          </button>
+          <button
+            type="button"
+            onClick={onOpenScheduleSetup}
             className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white transition hover:bg-emerald-900"
           >
             <Settings2 className="size-3.5" />
             Open Schedule Setup
-          </Link>
+          </button>
         </div>
       </div>
 

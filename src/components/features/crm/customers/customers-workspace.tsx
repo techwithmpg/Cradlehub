@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/features/dashboard/page-header";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { CrmMotionSection } from "@/components/features/crm/premium/crm-motion-section";
 import { CustomerSegmentTabs, type CustomerTab } from "./customer-segment-tabs";
 import { CustomerKpiRow, type KpiData } from "./customer-kpi-row";
@@ -57,13 +58,13 @@ export function CustomersWorkspace({
         title="Customers"
         description="Search, view, and manage guest records."
         action={
-          <Link
-            href="/crm/bookings/new"
+          <OpenAdministrativeBookingButton
+            mode="standard_future"
             className="cs-btn cs-btn-primary inline-flex items-center gap-1.5"
           >
             <UserSearch size={14} />
             + New Booking
-          </Link>
+          </OpenAdministrativeBookingButton>
         }
       />
 

@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { CrmTableShell } from "@/components/features/crm/premium/crm-table-shell";
 import { CrmTableRow } from "@/components/features/crm/premium/crm-table-row";
 import { CrmEmptyState } from "@/components/features/crm/premium/crm-empty-state";
 import { CrmStatusBadge } from "@/components/features/crm/premium/crm-status-badge";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import type { CrmStatusVariant } from "@/components/features/crm/premium/crm-status-badge";
 import { computeSegment, daysSinceDate, initials } from "./lib/customer-segments";
 import type { CustomerListItem, Segment } from "./lib/customer-segments";
@@ -120,14 +120,15 @@ export function AllCustomersTable({ rows, selectedId, onSelect }: AllCustomersTa
                       <Eye size={12} />
                       <span className="hidden sm:inline">View</span>
                     </button>
-                    <Link
-                      href={`/crm/bookings/new?customerId=${customer.id}`}
+                    <OpenAdministrativeBookingButton
+                      mode="standard_future"
+                      customerId={customer.id}
                       onClick={(e) => e.stopPropagation()}
                       className="cs-btn cs-btn-primary cs-btn-sm inline-flex items-center gap-1"
                     >
                       <CalendarPlus size={12} />
                       <span className="hidden sm:inline">Book</span>
-                    </Link>
+                    </OpenAdministrativeBookingButton>
                   </div>
                 </td>
               </CrmTableRow>

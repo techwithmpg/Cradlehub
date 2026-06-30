@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/features/dashboard/page-header";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { CustomerNotesForm } from "@/components/features/dashboard/customer-notes-form";
@@ -193,8 +194,11 @@ export default async function CustomerProfilePage({
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {segment && <CustomerSegmentBadge segment={segment} />}
-            <Link
-              href={`/crm/bookings/new?customerId=${customer.id}`}
+            <OpenAdministrativeBookingButton
+              mode="standard_future"
+              customerId={customer.id}
+              label="Book again"
+              showIcon={false}
               style={{
                 padding: "6px 12px",
                 borderRadius: 6,
@@ -205,9 +209,7 @@ export default async function CustomerProfilePage({
                 fontWeight: 500,
                 textDecoration: "none",
               }}
-            >
-              Book again
-            </Link>
+            />
           </div>
         }
       />
@@ -435,7 +437,7 @@ export default async function CustomerProfilePage({
                   icon: "➕",
                   label: "Book again",
                   soon: false,
-                  href: `/crm/bookings/new?customerId=${customer.id}`,
+                  booking: true,
                 },
                 { icon: "📝", label: "Add note", soon: false, scrollTo: "notes" },
                 { icon: "✏️", label: "Edit customer", soon: true },
@@ -459,10 +461,32 @@ export default async function CustomerProfilePage({
                     <span>{action.icon}</span>
                     {action.label}
                   </div>
+                ) : action.booking ? (
+                  <OpenAdministrativeBookingButton
+                    key={action.label}
+                    mode="standard_future"
+                    customerId={customer.id}
+                    showIcon={false}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-start",
+                      gap: 8,
+                      padding: "0.625rem 0.5rem",
+                      borderRadius: "var(--cs-r-sm)",
+                      color: "var(--cs-text-secondary)",
+                      fontSize: "0.8125rem",
+                      textDecoration: "none",
+                      transition: "var(--cs-trans)",
+                    }}
+                  >
+                    <span>{action.icon}</span>
+                    {action.label}
+                  </OpenAdministrativeBookingButton>
                 ) : (
                   <Link
                     key={action.label}
-                    href={action.href ?? "#notes"}
+                    href={action.scrollTo ? `#${action.scrollTo}` : "#"}
                     style={{
                       display: "flex",
                       alignItems: "center",

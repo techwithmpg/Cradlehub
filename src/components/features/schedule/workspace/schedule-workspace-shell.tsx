@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Calendar,
@@ -10,7 +10,7 @@ import {
   Users,
   AlertTriangle,
 } from "lucide-react";
-import { ScheduleWorkspaceHeader } from "./schedule-workspace-header";
+import { ScheduleWorkspaceHeader, type ScheduleViewMode } from "./schedule-workspace-header";
 import { ScheduleWorkspaceTabs, type ScheduleTabKey } from "./schedule-workspace-tabs";
 import { ScheduleStatusChipRow } from "./schedule-status-chip-row";
 import { ScheduleMetricGrid, type ScheduleMetricItem } from "./schedule-metric-grid";
@@ -19,6 +19,8 @@ import { SchedulePanel } from "./schedule-panel";
 import { ScheduleActionTile } from "./schedule-action-tile";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
+import { CheckAvailabilityModal } from "@/components/features/crm/schedule/check-availability-modal";
 
 const DailyTimelineTab = dynamic(() => import("../tabs/daily-timeline-tab").then((m) => m.DailyTimelineTab), {
   loading: () => <TabSkeleton rows={6} />,
@@ -35,6 +37,10 @@ const CoverageIssuesTab = dynamic(() => import("../tabs/coverage-issues-tab").th
 const StaffScheduleTab = dynamic(() => import("../tabs/staff-schedule-tab").then((m) => m.StaffScheduleTab), {
   loading: () => <TabSkeleton rows={4} />,
 });
+const FullScheduleLiveBookingsView = dynamic(
+  () => import("../tabs/full-schedule-live-bookings-view").then((m) => m.FullScheduleLiveBookingsView),
+  { loading: () => <TabSkeleton rows={6} /> }
+);
 
 function TabSkeleton({ rows = 4 }: { rows?: number }) {
   return (
@@ -51,12 +57,18 @@ import type { ReadinessResult } from "@/types/readiness";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 
 const TAB_PARAM = "tab";
+const VIEW_PARAM = "view";
 const DEFAULT_TAB: ScheduleTabKey = "daily";
+const DEFAULT_VIEW: ScheduleViewMode = "daily_timeline";
 
 function getTabFromSearchParams(sp: URLSearchParams): ScheduleTabKey {
   const raw = sp.get(TAB_PARAM);
   const valid: ScheduleTabKey[] = ["daily", "availability", "setup", "coverage", "staff"];
   return valid.includes(raw as ScheduleTabKey) ? (raw as ScheduleTabKey) : DEFAULT_TAB;
+}
+
+function getViewModeFromSearchParams(sp: URLSearchParams): ScheduleViewMode {
+  return sp.get(VIEW_PARAM) === "full" ? "full_schedule" : DEFAULT_VIEW;
 }
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
@@ -125,7 +137,12 @@ export function ScheduleWorkspaceShell({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { openBookingModal } = useAdministrativeBookingModal();
   const activeTab = getTabFromSearchParams(searchParams);
+  const viewMode = getViewModeFromSearchParams(searchParams);
+  const [checkAvailabilityOpen, setCheckAvailabilityOpen] = useState(false);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   const setTab = useCallback(
     (tab: ScheduleTabKey) => {
@@ -144,6 +161,16 @@ export function ScheduleWorkspaceShell({
     (nextDate: string) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("date", nextDate);
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  const setViewMode = useCallback(
+    (mode: ScheduleViewMode) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete(TAB_PARAM);
+      params.set(VIEW_PARAM, mode === "full_schedule" ? "full" : "daily");
       router.replace(`?${params.toString()}`, { scroll: false });
     },
     [router, searchParams]
@@ -221,15 +248,36 @@ export function ScheduleWorkspaceShell({
     switch (activeTab) {
       case "daily":
         return (
-          <DailyTimelineTab
-            branchId={branchId}
-            branchName={branchName}
-            date={date}
-            staffRows={staffRows}
-            availabilityItems={availabilityItems}
-            loadError={dailyTimelineError}
-            initialNow={dailyTimelineNow}
-          />
+          <>
+            <div className={viewMode === "daily_timeline" ? "block" : "hidden"}>
+              <DailyTimelineTab
+                branchId={branchId}
+                branchName={branchName}
+                date={date}
+                staffRows={staffRows}
+                availabilityItems={availabilityItems}
+                loadError={dailyTimelineError}
+                initialNow={dailyTimelineNow}
+                selectedStaffId={selectedStaffId}
+                selectedBookingId={selectedBookingId}
+                onSelectedStaffChange={setSelectedStaffId}
+                onSelectedBookingChange={setSelectedBookingId}
+              />
+            </div>
+            <div className={viewMode === "full_schedule" ? "block" : "hidden"}>
+              <FullScheduleLiveBookingsView
+                branchId={branchId}
+                branchName={branchName}
+                date={date}
+                staffRows={staffRows}
+                availabilityItems={availabilityItems}
+                selectedStaffId={selectedStaffId}
+                selectedBookingId={selectedBookingId}
+                onSelectedStaffChange={setSelectedStaffId}
+                onSelectedBookingChange={setSelectedBookingId}
+              />
+            </div>
+          </>
         );
       case "availability":
         return <LiveAvailabilityTab branchId={branchId} date={date} />;
@@ -258,10 +306,14 @@ export function ScheduleWorkspaceShell({
       <>
         <SchedulePanel title="Quick Actions">
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <ScheduleActionTile label="Add Booking" href="/crm/bookings/new" primary />
-            <ScheduleActionTile label="Block Staff Time" href="/crm/schedule" />
-            <ScheduleActionTile label="Check Availability" href="/crm/availability" />
-            <ScheduleActionTile label="Open Schedule Setup" href="/crm/staff-availability" />
+            <ScheduleActionTile
+              label="Add Booking"
+              onClick={() => openBookingModal({ mode: "standard_future", date })}
+              primary
+            />
+            <ScheduleActionTile label="Block Staff Time" onClick={() => setTab("staff")} />
+            <ScheduleActionTile label="Check Availability" onClick={() => setCheckAvailabilityOpen(true)} />
+            <ScheduleActionTile label="Open Schedule Setup" onClick={() => setTab("setup")} />
           </div>
         </SchedulePanel>
 
@@ -296,7 +348,13 @@ export function ScheduleWorkspaceShell({
 
   return (
     <div className="px-3 py-3 md:px-0 md:py-0" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <ScheduleWorkspaceHeader branchName={branchName} date={date} onDateChange={handleDateChange} />
+      <ScheduleWorkspaceHeader
+        branchName={branchName}
+        date={date}
+        viewMode={viewMode}
+        onDateChange={handleDateChange}
+        onViewModeChange={setViewMode}
+      />
 
       <ScheduleWorkspaceTabs activeTab={activeTab} onTabChange={setTab} tabBadges={tabBadges} />
 
@@ -322,6 +380,12 @@ export function ScheduleWorkspaceShell({
       ) : (
         <ScheduleContentGrid main={renderTabContent()} rightRail={renderRightRail()} />
       )}
+
+      <CheckAvailabilityModal
+        open={checkAvailabilityOpen}
+        onOpenChange={setCheckAvailabilityOpen}
+        initialDate={date}
+      />
     </div>
   );
 }

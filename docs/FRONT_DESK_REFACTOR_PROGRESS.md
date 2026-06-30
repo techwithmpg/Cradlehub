@@ -1,6 +1,6 @@
 # Front Desk Refactor Progress
 
-Last updated: 2026-06-30
+Last updated: 2026-07-01
 
 ## Current Checkpoint
 
@@ -9,6 +9,10 @@ This document is the handoff marker for the Front Desk CRM simplification work. 
 Checkpoint 1 status: complete locally and verified. The sidebar/nav shell now reflects the latest approved primary CRM destinations while keeping existing routes alive.
 
 Bookings / Quick Booking checkpoint status: complete locally and authenticated-browser verified. The interrupted Quick Booking form/schema/action patch has been finished without replacing the existing booking action.
+
+Administrative booking modal / Schedule actions checkpoint status: complete locally with type-check, lint, build, and unauthenticated browser smoke verification. Authenticated CRM browser QA is still needed for the new modal flows.
+
+Schedule workspace completion checkpoint status: complete locally with type-check, lint, build, `git diff --check`, and unauthenticated browser smoke verification. Authenticated CRM browser QA is still needed for protected Schedule actions and staff capability mutation.
 
 ## Agent Continuation Protocol
 
@@ -69,6 +73,44 @@ Bookings / Quick Booking completion:
 - Quick Booking success redirects to `/crm/bookings?date=...&bookingId=...` so the created booking drawer opens on the correct date.
 - Bookings groups are Needs Action, Upcoming, Active, and Completed. Active progress states no longer also appear in Upcoming.
 
+Administrative booking modal / Schedule actions completion:
+
+- Added shared booking option helpers in `src/lib/queries/quick-booking-options.ts` and customer prefill action in `src/lib/actions/administrative-booking.ts`.
+- Mounted `AdministrativeBookingModalProvider` in the CRM layout.
+- Extended `QuickBookingForm` so it can run inside a modal with service/staff/date/time prefill, stay-on-success behavior, cancel/success callbacks, and dirty-state reporting.
+- Converted major internal CRM New Booking triggers to modal buttons across Bookings, Today/Work Queue, Customers, Waitlist, Setup flow cards, direct customer profile, and Schedule header.
+- Preserved `/crm/bookings/new` for direct/legacy access.
+- Added active CRM Schedule modal actions:
+  - Add Booking opens the shared booking modal.
+  - Check Availability opens an in-context availability modal with slot-to-booking handoff.
+  - Edit Staff Profile opens the existing CRM staff profile modal after a branch-authorized data load.
+  - View Full Schedule opens the existing staff schedule calendar modal.
+  - Adjust Staff / Block Staff Time open the existing availability editor, including direct block-time tab/date prefill.
+- Converted Schedule quick actions away from old `/crm/staff-availability` deep links inside the Schedule workspace where practical.
+
+Schedule workspace completion:
+
+- Daily Timeline now requires explicit staff selection; it no longer falls back to the first visible staff row.
+- Selected staff and selected booking state are owned by the Schedule workspace shell and shared between Daily Timeline and Full Schedule.
+- The Selected Staff card now has a clear no-selection state and active Edit Profile, Edit Capabilities, and View Full Schedule actions.
+- Staff-specific actions guard against missing selection and stay inside `/crm/schedule`.
+- Edit Capabilities reuses `StaffServiceEditorSheet` and `updateStaffServicesFromCrmAction`; the server action now revalidates `/crm/schedule` after save.
+- Added reusable overlap-lane calculation in `src/lib/utils/schedule-timeline.ts`.
+- Daily Timeline and Full Schedule use lane assignment so overlapping live bookings render as separate vertical lanes with conflict markers instead of visually colliding.
+- The Schedule header has a Daily Timeline / Full Schedule + Live Bookings toggle backed by the `view` query param.
+- Added `src/components/features/schedule/tabs/full-schedule-live-bookings-view.tsx`:
+  - master-detail staff list and schedule panel
+  - Day/Week mode
+  - layer toggles for shifts, bookings, blocks, and overrides
+  - live booking overlays
+  - blocked time, overrides/day off, no-shift states
+  - conflict flags for day off, outside shift, blocked-time overlap, and booking overlap
+  - booking detail panel handoff using the real booking id
+- Permission/RLS audit found no new migration requirement for this checkpoint. Existing relevant migrations remain:
+  - `supabase/migrations/20260529000002_crm_csr_schedule_rls.sql`
+  - `supabase/migrations/20260529000003_crm_csr_staff_update_rls.sql`
+  - `supabase/migrations/20260617141348_crm_staff_service_capabilities_rpc.sql`
+
 ## Guardrails Confirmed
 
 - Read the attached "Front Desk CRM Workspace" prompt.
@@ -81,7 +123,7 @@ Bookings / Quick Booking completion:
   - `node_modules/next/dist/docs/01-app/02-guides/data-security.md`
 - Read the local Next.js and Supabase skills.
 - Checked Supabase changelog via `Invoke-WebRequest https://supabase.com/changelog.md`.
-  - Relevant recent notes: Data API exposure changes for new tables, pg_graphql breaking changes, Node.js 20 support deprecation, self-hosted auth URL change. No schema changes are planned in this phase.
+  - Relevant recent notes: Data API exposure changes for new tables, pg_graphql breaking changes, Node.js 20 support deprecation, self-hosted auth URL change. No new table or schema migration was added in the Schedule workspace checkpoint.
 
 ## Route Audit Snapshot
 
@@ -242,18 +284,21 @@ Use these exact scripts; do not invent `typecheck`.
 
 ## Validation Results
 
-Last run after Bookings / Quick Booking completion:
+Last run after Schedule workspace completion:
 
-- `npm run type-check` — passed.
-- `npm run lint` — passed with 4 warnings unrelated to this refactor:
+- `npm run type-check` - passed.
+- `npm run lint` - passed with 4 warnings unrelated to this refactor:
   - `scripts/generate-service-image-assets.mjs`: unused `FALLBACK_IMAGE_URL`, unused `generationPrompt`.
   - `tests/components/payroll/employee-payroll-table.test.tsx`: two unused `_staffId` warnings.
-- `npm run build` — passed, 103 app routes.
-- Authenticated CRM browser QA — passed for walk-in, phone, future, and home-service creation; Bookings tabs; drawer open; no browser console/runtime logs.
-- RLS errors — none surfaced during the authenticated create flows.
-- `npm run test` — not run in this checkpoint.
+- `npm run build` - passed, 103 app routes.
+- `git diff --check` - passed with line-ending notices only.
+- Browser smoke via `agent-browser` on existing `http://localhost:3000`:
+  - `/crm/schedule` redirects unauthenticated browser session to `/login`; login page loads with content and no Next.js error overlay.
+  - Browser console/errors show no page errors; only normal dev/HMR/Speed Insights messages.
+- Authenticated CRM Schedule modal/browser QA - not run for this checkpoint because no authenticated CRM browser state was available.
+- `npm run test` - not run in this checkpoint.
 
-Docs-only handoff update after that checkpoint:
+Prior docs-only handoff update after the previous checkpoint:
 
 - Read the two latest CRM prompts and repo/context handoff files.
 - Updated `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/CURRENT_TASK.cmd.md`, `docs/HANDOFF.cmd.md`, this file, changelogs, and pre-flight error notes.
@@ -285,14 +330,23 @@ Docs-only handoff update after that checkpoint:
 - [x] Finish CRM Bookings four-group mapping: Needs Action, Upcoming, Active, Completed.
 - [x] Finish CRM Quick Booking for walk-in, phone, future, and home-service modes.
 - [x] Verify at least one booking through authenticated CRM UI; completed all four requested booking modes.
+- [x] Add shared administrative booking modal and Schedule modal actions.
+- [x] Add explicit Schedule staff selection and prevent first-row auto-selection.
+- [x] Add Daily Timeline booking overlap lanes.
+- [x] Add Full Schedule + Live Bookings view with live booking overlays and conflict flags.
+- [ ] Authenticated-browser verify protected Schedule actions and staff capability mutation.
 
 ## Next Recommended Step
 
-Bookings / Quick Booking is locally complete. The next implementation pass should continue the remaining Work Queue part of Checkpoint 2:
+Schedule workspace completion is locally complete. The next implementation pass should:
 
-1. Simplify Work Queue / Today / Control Center without deleting old routes.
-2. Keep `/crm/control` alive as compatibility until useful controls are folded into Work Queue.
-3. Review CRM header requirements separately: current page title, branch, search, notifications, persistent New Booking, and user menu.
-4. Avoid adding a global New Booking button until duplicate page-level New Booking buttons are addressed.
-5. Review system-tool access before exposing System Management to ordinary CRM/CSR roles; current page gates remain management-authorized.
-6. Trace one high-priority CRM action end-to-end before moving to larger UI claims.
+1. Run an authenticated CRM browser pass for `/crm/schedule` Daily Timeline staff selection, no-selection disabled actions, Add Booking, Check Availability, Edit Staff Profile, Edit Capabilities, View Full Schedule, Adjust Staff, and Block Staff Time.
+2. Switch to `Full Schedule + Live Bookings` and verify Day/Week mode, layer toggles, staff selection, booking detail panel, overlap lanes, and conflict flags.
+3. Save a staff capability edit only against a disposable/test staff record and confirm revalidation/feedback.
+4. Confirm internal CRM New Booking triggers still open the shared modal and do not navigate to `/crm/bookings/new`.
+5. Keep `/crm/bookings/new` alive as compatibility for direct links and agent fallback.
+6. Continue the remaining Work Queue / Today / Control Center simplification without deleting old routes.
+7. Keep `/crm/control` alive as compatibility until useful controls are folded into Work Queue.
+8. Review CRM header requirements separately: current page title, branch, search, notifications, persistent New Booking, and user menu.
+9. Review system-tool access before exposing System Management to ordinary CRM/CSR roles; current page gates remain management-authorized.
+10. Trace each additional CRM action end-to-end before moving to larger UI claims.

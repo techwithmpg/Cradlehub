@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/features/dashboard/empty-state";
+import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { daysSinceDate, initials } from "./lib/customer-segments";
 import type { CustomerListItem } from "./lib/customer-segments";
 import { safeFormatDate } from "./lib/customer-formatters";
@@ -115,14 +115,15 @@ export function LapsedClientsTable({ rows, selectedId, onSelect }: LapsedClients
                       <Eye size={12} />
                       <span className="hidden sm:inline">View</span>
                     </button>
-                    <Link
-                      href={`/crm/bookings/new?customerId=${customer.id}`}
+                    <OpenAdministrativeBookingButton
+                      mode="standard_future"
+                      customerId={customer.id}
                       onClick={(e) => e.stopPropagation()}
                       className="cs-btn cs-btn-primary cs-btn-sm inline-flex items-center gap-1"
                     >
                       <CalendarPlus size={12} />
                       <span className="hidden sm:inline">Book</span>
-                    </Link>
+                    </OpenAdministrativeBookingButton>
                   </div>
                 </td>
               </tr>
