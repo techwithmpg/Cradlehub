@@ -2,6 +2,8 @@
 
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
+import { BRANCH_TIMEZONE, getBranchTime, toLocalYmd } from "@/lib/engine/slot-time";
+import { isToday as isScheduleToday } from "@/lib/utils/schedule-timeline";
 import { cn } from "@/lib/utils";
 
 export type ScheduleViewMode = "daily_timeline" | "full_schedule";
@@ -9,29 +11,34 @@ export type ScheduleViewMode = "daily_timeline" | "full_schedule";
 export function ScheduleWorkspaceHeader({
   branchName,
   date,
+  initialNow,
   viewMode,
   onDateChange,
   onViewModeChange,
 }: {
   branchName: string;
   date: string;
+  initialNow: string;
   viewMode: ScheduleViewMode;
   onDateChange: (date: string) => void;
   onViewModeChange: (mode: ScheduleViewMode) => void;
 }) {
-  const dateObj = new Date(date + "T00:00:00");
+  const dateObj = new Date(`${date}T00:00:00+08:00`);
+  const now = new Date(initialNow);
   const dateLabel = dateObj.toLocaleDateString("en-PH", {
     weekday: "long",
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: BRANCH_TIMEZONE,
   });
-  const isToday = date === new Date().toISOString().split("T")[0];
+  const isToday = isScheduleToday(date, now);
 
   function shiftDate(days: number) {
-    const d = new Date(dateObj);
+    const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
+    const d = new Date(year, month - 1, day);
     d.setDate(d.getDate() + days);
-    onDateChange(d.toISOString().split("T")[0]!);
+    onDateChange(toLocalYmd(d));
   }
 
   return (
@@ -176,7 +183,7 @@ export function ScheduleWorkspaceHeader({
         {!isToday && (
           <button
             type="button"
-            onClick={() => onDateChange(new Date().toISOString().split("T")[0]!)}
+            onClick={() => onDateChange(getBranchTime(now, BRANCH_TIMEZONE).ymd)}
             style={{
               padding: "6px 12px",
               fontSize: "0.75rem",

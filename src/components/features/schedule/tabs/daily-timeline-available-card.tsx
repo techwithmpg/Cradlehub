@@ -25,7 +25,7 @@ export function DailyTimelineAvailableCard({ rows, date, now, onStaffSelect }: P
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-bold text-[var(--cs-text)]">
           <Users className="size-4 text-emerald-700" />
-          Available {isToday(date) ? "Now" : "On Date"}
+          Available {now && isToday(date, now) ? "Now" : "On Date"}
         </h3>
         <span className="text-[10px] font-semibold tabular-nums text-[var(--cs-text-muted)]">{available.length}</span>
       </div>

@@ -64,7 +64,7 @@ export function DailyTimelineBoard({
   const range = buildTimelineRange(rows);
   const hourMarks = getTimelineHourMarks(range);
   const timelineMinWidth = Math.max(760, range.hourCount * 76);
-  const currentTimePercent = isToday(date) ? getCurrentTimePercent(range) : null;
+  const currentTimePercent = now && isToday(date, now) ? getCurrentTimePercent(range, now) : null;
 
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--cs-border)] bg-white shadow-sm">

@@ -351,6 +351,7 @@ export function ScheduleWorkspaceShell({
       <ScheduleWorkspaceHeader
         branchName={branchName}
         date={date}
+        initialNow={dailyTimelineNow}
         viewMode={viewMode}
         onDateChange={handleDateChange}
         onViewModeChange={setViewMode}

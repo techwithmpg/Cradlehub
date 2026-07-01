@@ -1,5 +1,6 @@
 import type { ScheduleDensity } from "@/components/features/schedule/schedule-density";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import { BRANCH_TIMEZONE, getBranchTime } from "@/lib/engine/slot-time";
 
 export const DEFAULT_TIMELINE_START_HOUR = 8;
 export const DEFAULT_TIMELINE_END_HOUR = 23;
@@ -259,9 +260,11 @@ export function assignTimelineLanes<T extends TimelineLaneEvent>(
   return assignments;
 }
 
-export function getCurrentTimePercent(range: TimelineRange): number | null {
-  const now = new Date();
-  const totalMins = now.getHours() * MINUTES_PER_HOUR + now.getMinutes();
+export function getCurrentTimePercent(
+  range: TimelineRange,
+  now: Date = new Date()
+): number | null {
+  const totalMins = Math.floor(getBranchTime(now, BRANCH_TIMEZONE).minutesIntoDay);
   if (totalMins < range.startMinutes || totalMins > range.endMinutes) return null;
   return clamp(((totalMins - range.startMinutes) / range.totalMinutes) * 100, 0, 100);
 }
@@ -311,13 +314,23 @@ export function getTimeSlots(range: TimelineRange = getDefaultTimelineRange()): 
   return slots;
 }
 
-export function getCurrentTimePx(range: TimelineRange = getDefaultTimelineRange()): number | null {
-  const percent = getCurrentTimePercent(range);
+export function getCurrentTimePx(
+  range: TimelineRange = getDefaultTimelineRange(),
+  now: Date = new Date()
+): number | null {
+  const percent = getCurrentTimePercent(range, now);
   if (percent === null) return null;
   return (percent / 100) * getTimelineTotalWidthPx(range);
 }
 
-export function isToday(dateStr: string): boolean {
-  const today = new Date().toISOString().split("T")[0];
-  return dateStr === today;
+function toScheduleDateString(date: Date | string): string {
+  if (date instanceof Date) {
+    return getBranchTime(date, BRANCH_TIMEZONE).ymd;
+  }
+
+  return date.split("T")[0] ?? date;
+}
+
+export function isToday(date: Date | string, now: Date = new Date()): boolean {
+  return toScheduleDateString(date) === getBranchTime(now, BRANCH_TIMEZONE).ymd;
 }

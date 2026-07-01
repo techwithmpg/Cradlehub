@@ -23,7 +23,7 @@ export function toLocalYmd(date: Date): string {
  * This is the correct way to compare slot times against "now" when the server
  * runs in UTC but the branch business operates in a different timezone.
  */
-function getBranchTime(
+export function getBranchTime(
   now: Date,
   timezone: string
 ): { ymd: string; minutesIntoDay: number } {
