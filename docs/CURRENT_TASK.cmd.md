@@ -10,13 +10,13 @@
 
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
-| **Task ID**      | `CRM-STABILIZATION-CHECKPOINT-1-NAV-SHELL-2026-06-30` |
-| **Description**  | Update the CRM sidebar to Work Queue, Bookings, Schedule, Customers, Home Service, with collapsed System Management |
+| **Task ID**      | `ATTENDANCE-REFIT-005` |
+| **Description**  | Refit the CRM Attendance workspace UI/actions while preserving existing Attendance QR, scan, device, service-session, and Supabase logic |
 | **Agent**        | Codex                                           |
-| **Started**      | 2026-06-30                                      |
-| **Status**       | `REVIEW / CHECKPOINT_1_COMPLETE`                |
+| **Started**      | 2026-07-02                                      |
+| **Status**       | `BLOCKED`                                      |
 | **Branch**       | `main`                                          |
-| **Blocked By**   | Manual authenticated workflow QA is still needed for protected CRM flows |
+| **Blocked By**   | Authenticated CRM/browser Attendance QA remains pending because the local browser session redirects to `/login` |
 
 ---
 
@@ -35,16 +35,22 @@
 
 ## Notes
 
-Latest attached direction supersedes the older visible naming in parts of the existing handoff. Checkpoint 1 status:
+ATTENDANCE-REFIT-005 status:
 
-- Target daily CRM nav: `Work Queue`, `Bookings`, `Schedule`, `Customers`, `Home Service`.
-- Target secondary area: collapsed `System Management`.
-- Implemented in `src/components/features/dashboard/nav-config.ts`, `src/components/features/dashboard/sidebar.tsx`, and `src/components/features/workspace/workspace-prefetch-config.ts`.
-- Preserve old routes and redirects; this checkpoint is a shell/navigation update, not a broad page rebuild.
-- Validation passed: `npm run type-check`, `npm run lint`, `npm run build`, `git diff --check`.
-- Next checkpoint should simplify Work Queue / Today / Control Center. Header work and broader system-tool permission review remain pending.
-- Do not start broad redesign work before tracing existing CRM actions, permissions, RLS, validation, and refresh behavior.
-- Canonical live handoff for this refactor is `docs/FRONT_DESK_REFACTOR_PROGRESS.md`; `.context/CURRENT_TASK.cmd.md` and `.context/HANDOFF.cmd.md` also contain the latest pickup notes.
+- Refit `/crm/attendance` into one client-owned workspace with local state tabs for Overview, Records, Sessions, QR Codes, Devices, Exceptions, and Reports.
+- Tab changes now use `window.history.replaceState()` through shared helpers instead of Next router navigation/refresh or route links.
+- Removed KPI-card rows and rebuilt Overview around live staff status, recent scans, active service sessions, exceptions, and compact quick actions.
+- Rebuilt QR Codes around a compact selectable QR list, branded preview, reusable print layouts, SVG/PNG/print/copy helpers, QR info, generation actions, and deactivate flow.
+- Records, Sessions, Devices, Exceptions, and Reports now render compact operational tables/filters/dialogs while preserving the existing data/action paths.
+- Attendance server actions now return typed `AttendanceActionResult` values instead of redirecting to status query params, preventing `NEXT_REDIRECT` surfacing in the UI.
+- Fixed CRM Attendance sidebar icon by changing the nav icon to supported `ClipboardCheck`.
+- Validation passed: `npx tsc --noEmit --pretty false`, targeted Attendance Vitest helpers, `npm run lint` (4 unrelated existing warnings), `npm run build`, and full `npm test -- --run` outside sandbox (60 files / 564 tests).
+- Browser smoke reached the existing local dev server; unauthenticated `/crm/attendance` redirects to `/login`, login renders, and no Next/Vite error overlay is present.
+- Authenticated CRM/browser QA for tabs, actions, activation, and scan flows remains pending.
+- Final pnpm continuation completed: `pnpm type-check` PASS, `pnpm lint` PASS with 0 warnings, `pnpm test` PASS (60 files / 564 tests), and `pnpm build` PASS (104 app routes).
+- The four prior lint warnings were fixed in `scripts/generate-service-image-assets.mjs` and `tests/components/payroll/employee-payroll-table.test.tsx`; no eslint suppressions, `any`, or `@ts-ignore` were used.
+- Browser visual QA at 1440, 1280, 1024, 768, and 375 px is still blocked by login redirect because no authenticated Supabase CRM/front-desk browser session is available. Blocker screenshots are in `.codex-artifacts/attendance-qr-qa/`.
+- Phone scan verification and QR identity preservation checks remain pending until authenticated export/print flows can be exercised.
 
 ---
 

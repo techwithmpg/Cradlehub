@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiContext } from "@/lib/api/get-api-context";
+import { getCrmApiContext } from "@/lib/api/get-api-context";
 import { getCrmBookingsCommandCenterRows, getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
 import { logError } from "@/lib/logger";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 export async function GET(req: NextRequest) {
-  const ctx = await getApiContext();
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getCrmApiContext();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const ctx = auth.context;
 
   const { searchParams } = req.nextUrl;
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
   const date = searchParams.get("date") ?? today;
   const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight");
   try {

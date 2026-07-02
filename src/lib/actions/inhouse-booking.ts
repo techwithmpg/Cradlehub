@@ -20,6 +20,8 @@ import { SlotUnavailableError } from "@/types/errors";
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 type CreateInhouseBookingResult =
   | { ok: true; bookingId: string }
@@ -106,7 +108,7 @@ export async function createInhouseBookingMultiAction(
     .maybeSingle();
 
   const staff = (me ?? null) as StaffAuthContext | null;
-  const bookingRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
+  const staffRole = staff ? canonicalizeSystemRole(staff.system_role) : null;
 
   if (isDevAuthBypassEnabled()) {
     // Dev bypass: allow booking creation with explicit branchId
@@ -118,7 +120,7 @@ export async function createInhouseBookingMultiAction(
       };
     }
     // Continue with dev bypass using the provided branchId
-  } else if (!staff || !bookingRoles.includes(staff.system_role)) {
+  } else if (!staff || !staffRole || !canAccessCrmWorkspace(staffRole)) {
     return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to create bookings." };
   }
 

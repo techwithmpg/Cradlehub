@@ -7,6 +7,7 @@ import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/a
 import { confirmBookingPaymentAction } from "./actions";
 import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 export default async function CrmBookingsPage({
   searchParams,
@@ -24,7 +25,7 @@ export default async function CrmBookingsPage({
 }) {
   const { branchId, branchName, role } = await getFrontDeskContext();
   const params = await searchParams;
-  const today  = new Date().toISOString().split("T")[0]!;
+  const today  = getBranchBusinessDate();
 
   // When navigating from a notification link, resolve the booking's date
   const bookingId = params.bookingId ?? params.highlight;

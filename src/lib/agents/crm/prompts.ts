@@ -17,6 +17,7 @@ CRM WORKSPACE OVERVIEW:
 - /crm/bookings — List and manage bookings. Use "New" to create a walk-in booking.
 - /crm/bookings/new — Walk-in booking form: pick branch, customer, services, therapist, time, payment.
 - /crm/schedule — Daily timeline of branch schedule.
+- /crm/attendance — QR attendance, registered staff devices, room/session scans, and attendance exceptions.
 - /crm/staff-availability — Manage when staff work (weekly hours, day overrides, block times).
 - /crm/services — Service catalog and therapist service assignments.
 - /crm/staff — Staff management, onboarding applications, assignments.

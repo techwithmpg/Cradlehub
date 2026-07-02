@@ -1,3 +1,13 @@
+## 2026-07-02 - ATTENDANCE-REFIT-005 NEXT_REDIRECT and browser QA notes
+
+- **Symptom:** Routine Attendance mutations such as QR generation could expose `NEXT_REDIRECT`-style behavior in the UI and made tab/action flows feel like route work instead of local workspace updates.
+- **Root cause:** Attendance server actions used redirect/status-query patterns for normal success/error feedback. Under Server Actions, redirects are control-flow exceptions; surfacing them from routine mutations created confusing UX and could show framework internals.
+- **Resolution:** `src/app/(dashboard)/crm/attendance/actions.ts` now returns typed `AttendanceActionResult` payloads. The client workspace handles toasts, inline notices, and local state updates without `redirect()`, `router.refresh()`, or status query params for routine actions.
+- **Related performance root cause:** Tab switches were URL/route driven. The refit keeps one mounted client workspace and mirrors tab state with `window.history.replaceState()`, so switching Overview/Records/Sessions/QR Codes/Devices/Exceptions/Reports does not tear down local state.
+- **Browser verification limitation:** Existing local dev server reached `http://localhost:3000/crm/attendance`, but unauthenticated browser traffic redirected to `/login`. `agent-browser` verified the login page has content and no Next/Vite overlay. Authenticated Attendance browser QA still needs a valid CRM/front-desk session.
+
+---
+
 ## 2026-06-17 - AUTH-RESET-SUPABASE-CONNECTION-001 verification/config note
 
 - Password-reset implementation validation passed: `pnpm type-check`, `pnpm lint` (0 errors, 4 existing warnings), `pnpm test` (49 files / 513 tests), `pnpm build` (100 routes), and requested unsafe scans.
@@ -498,3 +508,51 @@
 - **Impact:** The sidebar checkpoint is verified, but the full CRM shell objective is not complete. Ordinary CRM/CSR users may still be redirected away from current setup/staff/schedule-management pages because those page gates were intentionally preserved in this nav-only pass. Adding a global New Booking button now would also duplicate existing page-level New Booking buttons.
 - **Resolution:** No permission or header code was changed in this checkpoint. System Management follows the existing management-authorized route model. The next agent should review page gates/action permissions/RLS before broadening setup access, and handle header New Booking only while removing duplicate page-level buttons.
 - **Follow-up:** Continue with Checkpoint 2 Work Queue simplification, then schedule a dedicated CRM header/access review before claiming the complete CRM shell is done.
+
+## 2026-07-02 - ATTENDANCE-QR-001 Supabase type generation / scheduling notes
+
+- **Symptom:** `npm run db:types` failed because the script still passes removed Supabase CLI option `--project-ref`.
+- **Impact:** The automated type-generation script cannot currently refresh `src/types/supabase.ts`.
+- **Resolution:** Generated linked types manually with the current CLI syntax, but the linked production schema omitted unrelated local surfaces needed by existing code. Restored the baseline `src/types/supabase.ts` and manually augmented it for the new attendance tables, booking/check-in columns, and RPC.
+- **Follow-up:** Fix the package `db:types` script and reconcile unrelated live/local schema drift separately from Attendance.
+
+- **Symptom:** `pg_cron` is not installed on the linked Supabase project.
+- **Impact:** Migration `20260702075213_attendance_qr_system.sql` created `complete_due_service_sessions`, but the optional cron scheduling block did not create an automatic job.
+- **Resolution:** Verified the RPC exists and can be called manually/server-side.
+- **Follow-up:** Decide whether to enable/install `pg_cron` or invoke the RPC from app/server infrastructure.
+
+- **Symptom:** Two zero-byte `_tmp_14412_*` files in the repo root could not be removed with scoped `Remove-Item -LiteralPath`; PowerShell returned Access denied.
+- **Impact:** They remain as untracked files in `git status`.
+- **Resolution:** No broad cleanup was attempted to avoid touching unrelated worktree state.
+- **Follow-up:** Remove them manually after closing any process lock, or leave them ignored until a safe cleanup window.
+
+## 2026-07-02 - ATTENDANCE-QR-001 qr_points branch FK failure
+
+- **Symptom:** Creating the Attendance QR returned `insert or update on table "qr_points" violates foreign key constraint "qr_points_branch_id_fkey"`.
+- **Impact:** QR generation failed because the insert used a branch id that does not exist in `public.branches`.
+- **Root cause:** `getAttendanceActionContext()` returned the dev-bypass mock branch id `00000000-0000-0000-0000-000000000000` whenever dev bypass was enabled, even when the authenticated user had a real staff branch. The linked DB check confirmed no zero UUID branch exists.
+- **Resolution:** Added a server-only dev-bypass branch resolver that uses `DEV_BYPASS_BRANCH_ID` when valid or the first active real branch. Attendance actions now prefer real staff branch context and validate branch existence before inserts.
+- **Verification:** `npx tsc --noEmit --pretty false` passed, `npm run lint` passed with the same four unrelated warnings, and linked DB verification resolved fallback branch `c1000000-0000-0000-0000-000000000002`.
+
+## 2026-07-02 - ATTENDANCE-REFIT-005 final verification blockers
+
+- **Symptom:** Sandboxed `pnpm type-check` failed before the script started with Windows `EPERM` unlinking `_tmp_*` files.
+- **Impact:** Final script results could not be trusted from the restricted sandbox.
+- **Resolution:** Ran final checks outside the restricted sandbox with `CI=true`. Results: `pnpm type-check` PASS, `pnpm lint` PASS with 0 warnings, `pnpm test` PASS (60 files / 564 tests), and `pnpm build` PASS (104 app routes).
+
+- **Symptom:** `pnpm lint` originally reported four `@typescript-eslint/no-unused-vars` warnings.
+- **Resolution:** Fixed all four without eslint suppressions, `any`, or `@ts-ignore`:
+  - `scripts/generate-service-image-assets.mjs:26`: removed unused `FALLBACK_IMAGE_URL`.
+  - `scripts/generate-service-image-assets.mjs:523`: replaced unused `generationPrompt` destructuring with explicit `appManifestEntry()`.
+  - `tests/components/payroll/employee-payroll-table.test.tsx:17`: kept typed mock argument and used `void staffId`.
+  - `tests/components/payroll/employee-payroll-table.test.tsx:18`: kept typed mock argument and used `void staffId`.
+
+- **Symptom:** Browser visual QA for `/crm/attendance?tab=qr` redirected to `/login` at 1440, 1280, 1024, 768, and 375 px.
+- **Impact:** The QR list/preview layout, real interactions, export buttons, print/PDF flow, public-link truncation, Deactivate confirmation, and mobile stacking could not be approved in-browser.
+- **Root cause:** The local browser has no authenticated Supabase CRM/front-desk session. `DEV_AUTH_BYPASS=true` does not create a user session; `src/proxy.ts` checks `supabase.auth.getUser()` before the dev bypass path.
+- **Evidence:** Blocker screenshots saved at `E:\cradlehub\.codex-artifacts\attendance-qr-qa\blocked-login-1440.png`, `...\blocked-login-1024.png`, and `...\blocked-login-375.png`. Browser errors were empty; console showed only normal dev/HMR/Speed Insights messages.
+- **Follow-up:** Rerun authenticated browser QA with a valid CRM/front-desk session and complete the requested viewport, interaction, export, phone-scan, and QR identity checks.
+
+- **Symptom:** After dependency restoration, `pnpm exec supabase --version` reports `The process cannot access the file because it is being used by another process.`
+- **Impact:** App verification is not affected, but local Supabase CLI commands may need a retry after the Windows file lock clears.
+- **Resolution:** Restored the Supabase package binary and top-level shim; do not stop unrelated Node processes just to clear the lock.

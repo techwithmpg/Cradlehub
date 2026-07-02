@@ -18,7 +18,8 @@ import {
 } from "@/lib/auth/crm-permissions";
 import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import { createClient } from "@/lib/supabase/server";
-import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 
 type BranchRelation = { name: string | null } | { name: string | null }[] | null;
@@ -150,14 +151,15 @@ export const getFrontDeskContext = cache(async function getFrontDeskContext(): P
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me && isDevAuthBypassEnabled()) {
-    const mock = getDevBypassLayoutStaff();
-    const role = mock.system_role;
+  if ((!me || !canAccessCrmWorkspace(me.system_role) || !me.branch_id) && isDevAuthBypassEnabled()) {
+    const devBranch = await getDevBypassBranchContext();
+    if (!devBranch) redirect("/login");
+    const role = devBranch.role;
     return {
       userId: user.id,
       role,
-      branchId: mock.branch_id,
-      branchName: mock.branches.name,
+      branchId: devBranch.branchId,
+      branchName: devBranch.branchName,
       capabilities: buildFrontDeskCapabilities(role),
       allowedDestinations: buildAllowedFrontDeskDestinations(role),
     };

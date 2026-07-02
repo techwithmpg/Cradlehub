@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiContext } from "@/lib/api/get-api-context";
+import { getCrmApiContext } from "@/lib/api/get-api-context";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
 import { getScheduleSetupOverview } from "@/lib/queries/staff-schedule-groups";
 
 export async function GET(request: NextRequest) {
   void request.url;
-  const ctx = await getApiContext();
-  if (!ctx) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getCrmApiContext();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const ctx = auth.context;
 
   try {
     const [items, overview] = await Promise.all([

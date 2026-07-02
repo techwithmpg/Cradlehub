@@ -8,6 +8,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import {
+  getCrmApiAccessForRole,
+  type CrmApiAccessDenied,
+} from "@/lib/auth/crm-api-access";
 
 export type ApiUserContext = {
   userId: string;
@@ -15,6 +20,14 @@ export type ApiUserContext = {
   branchName: string;
   role: string;
 };
+
+export type ApiAccessDenied = CrmApiAccessDenied;
+
+export type CrmApiContextResult =
+  | { ok: true; context: ApiUserContext }
+  | ApiAccessDenied;
+
+export { getCrmApiAccessForRole };
 
 export async function getApiContext(): Promise<ApiUserContext | null> {
   try {
@@ -51,7 +64,7 @@ export async function getApiContext(): Promise<ApiUserContext | null> {
         userId: user.id,
         branchId: mock.branch_id,
         branchName: (mock.branches as { name: string }).name,
-        role: mock.system_role,
+        role: canonicalizeSystemRole(mock.system_role),
       };
     }
 
@@ -62,9 +75,25 @@ export async function getApiContext(): Promise<ApiUserContext | null> {
       branchId: me.branch_id as string,
       branchName:
         (me.branches as { name: string } | null)?.name ?? "Your Branch",
-      role: me.system_role,
+      role: canonicalizeSystemRole(me.system_role),
     };
   } catch {
     return null;
   }
+}
+
+export async function getCrmApiContext(): Promise<CrmApiContextResult> {
+  const context = await getApiContext();
+  if (!context) return { ok: false, status: 401, error: "Unauthorized" };
+
+  const denied = getCrmApiAccessForRole(context.role);
+  if (denied) return denied.status === 401 ? denied : { ...denied, status: 403 };
+
+  return {
+    ok: true,
+    context: {
+      ...context,
+      role: canonicalizeSystemRole(context.role),
+    },
+  };
 }

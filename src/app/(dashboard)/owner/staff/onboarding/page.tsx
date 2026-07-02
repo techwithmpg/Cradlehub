@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllBranches } from "@/lib/queries/branches";
 import { OnboardingReviewList } from "@/components/features/staff-onboarding/onboarding-review-list";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canReviewStaffOnboarding } from "@/lib/permissions";
 
 export const metadata = { title: "Onboarding Requests" };
 
@@ -19,7 +21,7 @@ async function requireOwnerOrManager() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"].includes(me.system_role)) {
+  if (!me || !canReviewStaffOnboarding(me.system_role)) {
     redirect("/owner");
   }
 
@@ -33,6 +35,7 @@ export default async function OwnerOnboardingPage({
 }) {
   const me = await requireOwnerOrManager();
   const { status = "submitted" } = await searchParams;
+  const reviewerSystemRole = canonicalizeSystemRole(me.system_role);
 
   const admin = createAdminClient();
   const [requestsResult, branches] = await Promise.all([
@@ -80,7 +83,7 @@ export default async function OwnerOnboardingPage({
       <OnboardingReviewList
         requests={requests}
         branches={branches.map((b) => ({ id: b.id, name: b.name }))}
-        reviewerSystemRole={me.system_role}
+        reviewerSystemRole={reviewerSystemRole}
         reviewerBranchId={me.branch_id}
       />
     </div>

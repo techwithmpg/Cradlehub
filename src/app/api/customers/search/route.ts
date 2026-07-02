@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { searchCustomers } from "@/lib/queries/customers";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -18,8 +20,8 @@ export async function GET(request: NextRequest) {
     .eq("auth_user_id", user.id)
     .single();
 
-  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
-  if (!me || !allowedRoles.includes(me.system_role)) {
+  const role = me ? canonicalizeSystemRole(me.system_role) : null;
+  if (!me || !role || !canAccessCrmWorkspace(role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ customers: [] });
   }
 
-  const branchId = me.system_role === "owner" ? null : me.branch_id;
+  const branchId = role === "owner" ? null : me.branch_id;
   const customers = await searchCustomers(q, branchId);
   return NextResponse.json({ customers });
 }

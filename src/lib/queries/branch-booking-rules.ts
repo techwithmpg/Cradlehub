@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import type { BookingType } from "@/types";
 import type { Database } from "@/types/supabase";
 import {
@@ -148,12 +151,10 @@ async function canManageBranchRules(branchId: string): Promise<boolean> {
 
   const staff = (me ?? null) as StaffAuthContext | null;
   if (!staff) return false;
-  if (staff.system_role === "owner") return true;
+  const role = canonicalizeSystemRole(staff.system_role);
+  if (role === "owner") return true;
 
-  return (
-    ["manager", "assistant_manager", "store_manager"].includes(staff.system_role) &&
-    staff.branch_id === branchId
-  );
+  return canManageCrmSetup(role) && staff.branch_id === branchId;
 }
 
 export async function updateBranchBookingRules(
@@ -208,6 +209,7 @@ export async function updateBranchBookingRules(
   invalidateTag(cacheTags.branchBookingRules(input.branchId));
   revalidatePath(`/owner/branches/${input.branchId}`);
   revalidatePath("/owner/branches");
+  revalidatePath("/crm/setup");
   // Keep /book path revalidation so the booking wizard's route-level cache clears.
   revalidatePath("/book");
 
@@ -259,7 +261,7 @@ export function isBookingDateAllowedByRules({
   const requested = dateFromYmd(date);
   if (!requested) return false;
 
-  const today = new Date();
+  const today = new Date(`${getBranchBusinessDate()}T00:00:00`);
   today.setHours(0, 0, 0, 0);
 
   const maxDate = new Date(today);

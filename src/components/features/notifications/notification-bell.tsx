@@ -16,17 +16,15 @@ import {
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { NotificationBellDropdown } from "./notification-bell-dropdown";
 import { BookingNotificationSound } from "./booking-notification-sound";
+import { canonicalizeSystemRole } from "@/constants/staff";
 
 // Roles that handle booking payments and should hear actionable-booking sounds.
-const SOUND_ROLES = new Set(["crm", "manager", "csr", "csr_head", "csr_staff", "owner"]);
+const SOUND_ROLES = new Set(["crm", "manager", "owner"]);
 
 const WORKSPACE_HREF: Record<string, string> = {
   owner: "/owner/notifications",
   manager: "/manager",
   crm: "/crm/notifications",
-  csr_head: "/crm/notifications",
-  csr_staff: "/crm/notifications",
-  csr: "/crm/notifications",
   staff: "/staff-portal/notifications",
   driver: "/driver",
   utility: "/utility",
@@ -38,7 +36,8 @@ export function NotificationBell({ role }: { role: string }) {
   const [open, setOpen] = useState(false);
   const [fetching, setFetching] = useState(false);
 
-  const href = WORKSPACE_HREF[role] ?? "/owner/notifications";
+  const canonicalRole = canonicalizeSystemRole(role);
+  const href = WORKSPACE_HREF[canonicalRole] ?? "/owner/notifications";
 
   const refreshNotifications = useCallback(async () => {
     setFetching(true);
@@ -137,7 +136,7 @@ export function NotificationBell({ role }: { role: string }) {
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <div data-notification-bell className="relative shrink-0">
-        {SOUND_ROLES.has(role) && <BookingNotificationSound />}
+        {SOUND_ROLES.has(canonicalRole) && <BookingNotificationSound />}
 
         <PopoverTrigger
           aria-expanded={open}

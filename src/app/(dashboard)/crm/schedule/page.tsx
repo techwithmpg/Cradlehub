@@ -4,16 +4,17 @@ import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
 import { createClient } from "@/lib/supabase/server";
-import { getManagerContext } from "@/lib/queries/manager-context";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 export default async function CrmSchedulePage({
   searchParams,
 }: {
   searchParams: Promise<{ date?: string; tab?: string }>;
 }) {
-  const { branchId, branchName } = await getManagerContext();
+  const { branchId, branchName } = await getFrontDeskContext();
   const params = await searchParams;
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
   const selectedDate = params.date ?? today;
   const supabase = await createClient();
 

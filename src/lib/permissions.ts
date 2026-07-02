@@ -44,14 +44,6 @@ export function isCsr(role: string): boolean {
   return isFrontDeskRole(role);
 }
 
-export function isCsrHead(role: string): boolean {
-  return isFrontDeskRole(role);
-}
-
-export function isCsrStaff(role: string): boolean {
-  return isFrontDeskRole(role);
-}
-
 // ── Navigation permissions ──────────────────────────────────────────────────
 
 export type NavPermission =
@@ -190,21 +182,21 @@ export function canViewDailySummary(role: string): boolean {
 
 // ── Route access permissions ────────────────────────────────────────────────
 
-/** Routes that CSR roles are explicitly allowed to access */
-export const CSR_ALLOWED_PREFIXES = [
+/** Routes that front-desk roles are explicitly allowed to access */
+export const FRONT_DESK_ALLOWED_PREFIXES = [
   "/crm",
   "/manager/schedule",
   "/manager/bookings",
 ];
 
 /** Routes that CRM role can access across workspaces */
-export const CRM_ALLOWED_PREFIXES = [
+export const FRONT_DESK_WORKSPACE_PREFIXES = [
   "/crm",
   "/manager/bookings",
 ];
 
-/** Routes that are blocked for all CSR roles */
-export const CSR_BLOCKED_PREFIXES = [
+/** Routes that are blocked for all front-desk roles */
+export const FRONT_DESK_BLOCKED_PREFIXES = [
   "/owner",
   "/dev",
   "/manager/staff",
@@ -215,37 +207,38 @@ export const CSR_BLOCKED_PREFIXES = [
 ];
 
 /**
- * CRM sub-routes blocked for front-desk staff (csr_staff + legacy csr).
+ * CRM sub-routes blocked for front-desk staff.
  * All /crm/* routes are now accessible to all CRM/front-desk roles.
  * Page-level edit permissions still protect specific actions within each page.
  */
-export const CSR_STAFF_BLOCKED_CRM_PREFIXES: readonly string[] = [];
+export const FRONT_DESK_BLOCKED_CRM_PREFIXES: readonly string[] = [];
 
-/** Check if a pathname is accessible by a CSR role */
+export const CSR_ALLOWED_PREFIXES = FRONT_DESK_ALLOWED_PREFIXES;
+export const CRM_ALLOWED_PREFIXES = FRONT_DESK_WORKSPACE_PREFIXES;
+export const CSR_BLOCKED_PREFIXES = FRONT_DESK_BLOCKED_PREFIXES;
+export const CSR_STAFF_BLOCKED_CRM_PREFIXES = FRONT_DESK_BLOCKED_CRM_PREFIXES;
+
+/** Check if a pathname is accessible by a front-desk role */
 export function canCsrAccessPath(role: string, pathname: string): boolean {
   if (!isFrontDeskRole(role)) return true;
 
-  // CSR cannot access blocked prefixes
-  if (CSR_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
+  if (FRONT_DESK_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
     return false;
   }
 
-  if (isCsrStaff(role)) {
-    if (CSR_STAFF_BLOCKED_CRM_PREFIXES.some((p) => pathname.startsWith(p))) {
-      return false;
-    }
+  if (FRONT_DESK_BLOCKED_CRM_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return false;
   }
 
-  // CSR can access allowed prefixes
-  return CSR_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p));
+  return FRONT_DESK_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
 /** Check if CRM role can access a pathname outside /crm */
 export function canCrmAccessPath(pathname: string): boolean {
-  if (CSR_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
+  if (FRONT_DESK_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
     return false;
   }
-  return CRM_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p));
+  return FRONT_DESK_WORKSPACE_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
 // ── Workspace resolution ────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { SYSTEM_ROLE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import { updateWorkQueueBookingStatusAction } from "./actions";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ function first<T>(v: Relation<T>): T | null {
 
 export default async function CrmTodayPage() {
   const { branchId, branchName, role } = await getFrontDeskContext();
-  const today   = new Date().toISOString().split("T")[0]!;
+  const today   = getBranchBusinessDate();
 
   const [
     rawBookings,
@@ -179,7 +180,7 @@ export default async function CrmTodayPage() {
   const readinessIssues = readinessResult.issues;
   const readinessStatus = readinessResult.status;
 
-  const dateLabel = new Date().toLocaleDateString("en-PH", {
+  const dateLabel = new Date(`${today}T00:00:00`).toLocaleDateString("en-PH", {
     weekday: "long", month: "long", day: "numeric",
   });
 

@@ -49,27 +49,6 @@ const WORKSPACE_META: Record<string, {
     accentBg: "rgba(90, 122, 138, 0.15)",
     icon:     "▸",
   },
-  csr: {
-    label:    "FRONT DESK WORKSPACE",
-    sublabel: "Front-desk access",
-    accent:   "var(--cs-csr-accent)",
-    accentBg: "rgba(138, 122, 90, 0.15)",
-    icon:     "◇",
-  },
-  csr_head: {
-    label:    "FRONT DESK WORKSPACE",
-    sublabel: "Front-desk access",
-    accent:   "var(--cs-csr-accent)",
-    accentBg: "rgba(138, 122, 90, 0.15)",
-    icon:     "◇",
-  },
-  csr_staff: {
-    label:    "FRONT DESK WORKSPACE",
-    sublabel: "Front-desk access",
-    accent:   "var(--cs-csr-accent)",
-    accentBg: "rgba(138, 122, 90, 0.15)",
-    icon:     "◇",
-  },
   crm: {
     label:    "FRONT DESK WORKSPACE",
     sublabel: "Front-desk access",

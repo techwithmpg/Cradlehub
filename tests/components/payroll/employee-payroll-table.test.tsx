@@ -14,8 +14,14 @@ import type {
 } from "../../../src/lib/queries/payroll";
 
 const refreshMock = vi.fn();
-const markPaidMock = vi.fn(async (_staffId: string) => ({ ok: true as const, data: undefined }));
-const markUnpaidMock = vi.fn(async (_staffId: string) => ({ ok: true as const, data: undefined }));
+const markPaidMock = vi.fn(async (staffId: string) => {
+  void staffId;
+  return { ok: true as const, data: undefined };
+});
+const markUnpaidMock = vi.fn(async (staffId: string) => {
+  void staffId;
+  return { ok: true as const, data: undefined };
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: refreshMock }),

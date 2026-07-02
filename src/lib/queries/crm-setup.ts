@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getBranchBookingRulesOrDefault } from "./branch-booking-rules";
 import { SERVICE_STAFF_TYPES } from "@/constants/staff-roles";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -123,8 +124,8 @@ function deriveIssues(d: Omit<CrmSetupHealthData, "issues">): SetupIssue[] {
 
 export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealthData> {
   const supabase = await createClient();
-  const today = new Date().toISOString().split("T")[0]!;
-  const dayOfWeek = new Date().getDay(); // 0=Sun
+  const today = getBranchBusinessDate();
+  const dayOfWeek = new Date(today + "T00:00:00").getDay();
 
   const serviceStaffTypes = SERVICE_STAFF_TYPES as readonly string[];
 

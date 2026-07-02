@@ -13,6 +13,9 @@ import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { logError, logBusinessEvent } from "@/lib/logger";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 
 const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -41,9 +44,9 @@ async function getOperationsContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
-  if (!me || !me.branch_id || !allowedRoles.includes(me.system_role)) return null;
-  return { supabase, me };
+  const role = me ? canonicalizeSystemRole(me.system_role) : null;
+  if (!me || !me.branch_id || !role || !canAccessCrmWorkspace(role)) return null;
+  return { supabase, me: { ...me, system_role: role } };
 }
 
 // ── Status transition ──────────────────────────────────────────────────────
@@ -118,9 +121,9 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     .from("bookings")
     .update(updates)
     .eq("id", parsed.data.bookingId);
-  const { error } = await (
+  const { data: updatedRows, error } = await (
     me.system_role !== "owner" ? _statusUpdateQ.eq("branch_id", me.branch_id) : _statusUpdateQ
-  );
+  ).select("id, branch_id");
 
   if (error) {
     logError("booking.status.change_failed", {
@@ -133,10 +136,17 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     });
     return { success: false, error: error.message };
   }
+  const updatedBooking = updatedRows?.[0] ?? null;
+  if (!updatedBooking) {
+    return {
+      success: false,
+      error: "Booking status could not be updated. It may belong to another branch or no longer exist.",
+    };
+  }
 
   logBusinessEvent("booking.status.changed", {
     bookingId: parsed.data.bookingId,
-    branchId: me.branch_id,
+    branchId: updatedBooking.branch_id,
     actorId: me.id,
     workspace: me.system_role,
     nextStatus: parsed.data.status,
@@ -190,7 +200,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     }
   }
 
-  revalidateOperationalBookingSurfaces(me.branch_id);
+  revalidateOperationalBookingSurfaces(updatedBooking.branch_id);
   return { success: true };
 }
 
@@ -341,11 +351,18 @@ export async function editBookingAction(rawInput: unknown) {
     .from("bookings")
     .update(updates)
     .eq("id", bookingId);
-  const { error } = await (
+  const { data: updatedRows, error } = await (
     me.system_role !== "owner" ? _editUpdateQ.eq("branch_id", me.branch_id) : _editUpdateQ
-  );
+  ).select("id, branch_id");
 
   if (error) return { success: false, error: error.message };
+  const updatedBooking = updatedRows?.[0] ?? null;
+  if (!updatedBooking) {
+    return {
+      success: false,
+      error: "Booking could not be updated. It may belong to another branch or no longer exist.",
+    };
+  }
 
   // Notify newly assigned therapist if staff changed
   if (changes.staffId && changes.staffId !== current.staff_id) {
@@ -388,7 +405,7 @@ export async function editBookingAction(rawInput: unknown) {
     });
   }
 
-  revalidateOperationalBookingSurfaces(me.branch_id);
+  revalidateOperationalBookingSurfaces(updatedBooking.branch_id);
   return { success: true };
 }
 
@@ -416,6 +433,10 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     me.system_role !== "owner" ? _paymentBeforeQ.eq("branch_id", me.branch_id) : _paymentBeforeQ
   ).single();
 
+  if (!before) {
+    return { success: false, error: "Booking not found" };
+  }
+
   const isSignificantChange =
     (before?.payment_status === "paid" && paymentStatus !== "paid") ||
     ((before?.amount_paid ?? 0) > amountPaid);
@@ -424,35 +445,18 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     return { success: false, error: "Reason is required for voids, refunds, or corrections" };
   }
 
-  // Insert audit log
-  await supabase.from("booking_payment_logs").insert({
-    booking_id:            bookingId,
-    changed_by:            me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
-    old_payment_method:    before?.payment_method ?? null,
-    old_payment_status:    before?.payment_status ?? null,
-    old_amount_paid:       before?.amount_paid ?? null,
-    old_payment_reference: before?.payment_reference ?? null,
-    new_payment_method:    paymentMethod,
-    new_payment_status:    paymentStatus,
-    new_amount_paid:       amountPaid,
-    new_payment_reference: paymentReference ?? null,
-    reason:                reason?.trim() ?? null,
+  const paymentResult = await recordBookingPaymentChange(supabase, {
+    bookingId,
+    branchId: me.system_role === "owner" ? null : me.branch_id,
+    paymentMethod,
+    paymentStatus,
+    amountPaid,
+    paymentReference,
+    reason,
+    changedByStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
   });
 
-  const _paymentUpdateQ = supabase
-    .from("bookings")
-    .update({
-      payment_method:    paymentMethod,
-      payment_status:    paymentStatus,
-      amount_paid:       amountPaid,
-      payment_reference: paymentReference ?? null,
-    })
-    .eq("id", bookingId);
-  const { error } = await (
-    me.system_role !== "owner" ? _paymentUpdateQ.eq("branch_id", me.branch_id) : _paymentUpdateQ
-  );
-
-  if (error) return { success: false, error: error.message };
+  if (!paymentResult.ok) return { success: false, error: paymentResult.error };
 
   const needsPaymentFollowUp =
     paymentStatus === "unpaid" ||
@@ -463,7 +467,7 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     await resolveNotificationsForEntity("booking", bookingId, "crm", "payment_pending");
   } else {
     await createNotification({
-      branchId: before?.branch_id ?? me.branch_id,
+      branchId: paymentResult.booking.branch_id,
       targetWorkspace: "crm",
       type: "payment_pending",
       title: "Payment needs follow-up",
@@ -476,6 +480,6 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     });
   }
 
-  revalidateOperationalBookingSurfaces(me.branch_id);
+  revalidateOperationalBookingSurfaces(paymentResult.booking.branch_id);
   return { success: true };
 }

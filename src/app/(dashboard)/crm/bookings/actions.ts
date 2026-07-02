@@ -13,6 +13,9 @@ import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-
 import { revalidatePath } from "next/cache";
 import { logError } from "@/lib/logger";
 import { z } from "zod";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 
 const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -55,9 +58,9 @@ async function getCrmActionsContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
-  if (!me || !me.branch_id || !allowedRoles.includes(me.system_role)) return null;
-  return { supabase, me };
+  const role = me ? canonicalizeSystemRole(me.system_role) : null;
+  if (!me || !me.branch_id || !role || !canAccessCrmWorkspace(role)) return null;
+  return { supabase, me: { ...me, system_role: role } };
 }
 
 const CONFIRMABLE_STATUSES = new Set(["pending_payment", "pending_crm_confirmation", "pending"]);
@@ -586,8 +589,6 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     return { success: false, error: "Booking not found" };
   }
 
-  const admin = createAdminClient();
-
   // Status check
   if (!CONFIRMABLE_STATUSES.has(booking.status)) {
     return { success: false, error: `Booking cannot be confirmed from status "${booking.status}"` };
@@ -632,70 +633,23 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     }
   }
 
-  // Payment audit log
-  await admin.from("booking_payment_logs").insert({
-    booking_id:            bookingId,
-    changed_by:            me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
-    old_payment_method:    booking.payment_method ?? null,
-    old_payment_status:    booking.payment_status ?? null,
-    old_amount_paid:       booking.amount_paid ?? null,
-    old_payment_reference: booking.payment_reference ?? null,
-    new_payment_method:    paymentMethod,
-    new_payment_status:    "paid",
-    new_amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
-    new_payment_reference: paymentReference ?? null,
-    reason:                note?.trim() || "CRM payment confirmation",
+  const paymentResult = await recordBookingPaymentChange(supabase, {
+    bookingId,
+    branchId: me.system_role === "owner" ? null : booking.branch_id,
+    paymentMethod,
+    paymentStatus: "paid",
+    amountPaid: amountPaid ?? booking.amount_paid ?? 0,
+    paymentReference,
+    reason: note?.trim() || "CRM payment confirmation",
+    changedByStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
+    nextStatus: "confirmed",
+    clearHold: true,
   });
 
-  type BookingUpdate = Database["public"]["Tables"]["bookings"]["Update"];
-
-  // Confirm booking + clear hold
-  const updatePayload: BookingUpdate = {
-    status:            "confirmed",
-    payment_method:    paymentMethod,
-    payment_status:    "paid",
-    payment_reference: paymentReference ?? null,
-    amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
-    hold_expires_at:   null,
-  };
-
-  const { data: updatedBooking, error: updateErr } = await admin
-    .from("bookings")
-    .update(updatePayload)
-    .eq("id", bookingId)
-    .eq("branch_id", booking.branch_id)
-    .select("id");
-
-  if (updateErr) {
-    if (updateErr.code === "42703") {
-      // Retry without hold_expires_at (column not yet present)
-      const payloadNoHold: BookingUpdate = {
-        status:            "confirmed",
-        payment_method:    paymentMethod,
-        payment_status:    "paid",
-        payment_reference: paymentReference ?? null,
-        amount_paid:       amountPaid ?? booking.amount_paid ?? 0,
-      };
-      const { data: fallbackRows, error: fallbackErr } = await admin
-        .from("bookings")
-        .update(payloadNoHold)
-        .eq("id", bookingId)
-        .eq("branch_id", booking.branch_id)
-        .select("id");
-      if (fallbackErr) return { success: false, error: fallbackErr.message };
-      if (!fallbackRows || fallbackRows.length === 0) {
-        return {
-          success: false,
-          error: "Booking could not be confirmed. You may not have permission to update this booking. Contact your manager.",
-        };
-      }
-    } else {
-      return { success: false, error: updateErr.message };
-    }
-  } else if (!updatedBooking || updatedBooking.length === 0) {
+  if (!paymentResult.ok) {
     return {
       success: false,
-      error: "Booking could not be confirmed. You may not have permission to update this booking. Contact your manager.",
+      error: paymentResult.error,
     };
   }
 

@@ -1,4 +1,4 @@
-import { STAFF_TYPE_LABELS, SYSTEM_ROLE_LABELS } from "@/constants/staff";
+import { STAFF_TYPE_LABELS, SYSTEM_ROLE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import { getStaffAdminName, getStaffKnownAsLabel } from "@/lib/staff/display-name";
 import type { Database } from "@/types/supabase";
 
@@ -68,9 +68,6 @@ const NON_TIER_ROLES = new Set([
   "assistant_manager",
   "store_manager",
   "crm",
-  "csr",
-  "csr_head",
-  "csr_staff",
   "service_head",
   "driver",
   "utility",
@@ -177,7 +174,7 @@ function isNonTierJobTitle(jobTitle: string | null): boolean {
 export function getStaffDisplayMeta(member: StaffMember): StaffDisplayMeta {
   const jobTitle = cleanOptionalText(member.job_title);
   const staffType = cleanOptionalText(member.staff_type);
-  const role = member.system_role;
+  const role = canonicalizeSystemRole(member.system_role);
   const roleLabel = getPrimaryRoleLabel(member);
   const staffTypeLabel = getStaffTypeLabelForDisplay(member);
   const badgeLabel = getSystemRoleLabel(role);
@@ -311,7 +308,7 @@ export function staffMatchesFilters(member: StaffMember, filters: StaffFilters):
   return (
     (!query || searchableText.includes(query)) &&
     (filters.branchId === "all" || filters.branchId === branchId) &&
-    (filters.role === "all" || filters.role === member.system_role) &&
+    (filters.role === "all" || filters.role === canonicalizeSystemRole(member.system_role)) &&
     (filters.status === "all" || filters.status === status)
   );
 }

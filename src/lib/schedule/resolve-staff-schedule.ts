@@ -77,7 +77,7 @@ export function getScheduleGroupKeyForStaffType(
   staffType: string | null | undefined
 ): string | null {
   if (!staffType) return null;
-  if (staffType === "csr" || staffType === "csr_staff" || staffType === "csr_head") {
+  if (staffType === "csr") {
     return "csr";
   }
   if (staffType === "driver") return "driver";

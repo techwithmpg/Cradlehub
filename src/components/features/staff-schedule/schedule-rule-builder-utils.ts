@@ -154,7 +154,7 @@ export function getRuleShiftType(kind: ShiftKind): RuleShiftType {
 }
 
 export function getGroupKeyForStaffType(staffType: string | null | undefined): string {
-  if (staffType === "csr" || staffType === "csr_staff" || staffType === "csr_head") {
+  if (staffType === "csr") {
     return "csr";
   }
   if (staffType === "driver") return "driver";

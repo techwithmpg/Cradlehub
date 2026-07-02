@@ -5,20 +5,12 @@ import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { resolveServiceImage } from "@/lib/service-images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import type { Database } from "@/types/supabase";
 
 // Force this route to always run dynamically — prevents any edge/CDN caching
 // that would serve stale service data after a CRM home-service toggle.
 export const dynamic = "force-dynamic";
-
-const INHOUSE_CONTEXT_ROLES = new Set([
-  "owner",
-  "manager",
-  "crm",
-  "csr",
-  "csr_head",
-  "csr_staff",
-]);
 
 type BranchRow = Pick<
   Database["public"]["Tables"]["branches"]["Row"],
@@ -108,7 +100,7 @@ async function canUseInhouseContext(): Promise<boolean> {
     .eq("is_active", true)
     .maybeSingle();
 
-  return !!me?.system_role && INHOUSE_CONTEXT_ROLES.has(me.system_role);
+  return canAccessCrmWorkspace(me?.system_role ?? "");
 }
 
 export async function GET(request: NextRequest) {

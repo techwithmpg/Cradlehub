@@ -212,6 +212,233 @@ export type Database = {
           },
         ]
       }
+      attendance_corrections: {
+        Row: {
+          applied_at: string | null
+          approved_by: string | null
+          branch_id: string
+          checkin_id: string | null
+          correction_type: string
+          created_at: string
+          id: string
+          new_values: Json
+          previous_values: Json
+          reason: string
+          requested_by: string | null
+          staff_id: string | null
+          status: string
+        }
+        Insert: {
+          applied_at?: string | null
+          approved_by?: string | null
+          branch_id: string
+          checkin_id?: string | null
+          correction_type: string
+          created_at?: string
+          id?: string
+          new_values?: Json
+          previous_values?: Json
+          reason: string
+          requested_by?: string | null
+          staff_id?: string | null
+          status?: string
+        }
+        Update: {
+          applied_at?: string | null
+          approved_by?: string | null
+          branch_id?: string
+          checkin_id?: string | null
+          correction_type?: string
+          created_at?: string
+          id?: string
+          new_values?: Json
+          previous_values?: Json
+          reason?: string
+          requested_by?: string | null
+          staff_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_corrections_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_checkin_id_fkey"
+            columns: ["checkin_id"]
+            isOneToOne: false
+            referencedRelation: "staff_shift_checkins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_exceptions: {
+        Row: {
+          branch_id: string
+          checkin_id: string | null
+          created_at: string
+          detected_at: string
+          exception_type: string
+          id: string
+          message: string
+          metadata: Json
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          scan_event_id: string | null
+          severity: string
+          staff_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          checkin_id?: string | null
+          created_at?: string
+          detected_at?: string
+          exception_type: string
+          id?: string
+          message: string
+          metadata?: Json
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          scan_event_id?: string | null
+          severity?: string
+          staff_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          checkin_id?: string | null
+          created_at?: string
+          detected_at?: string
+          exception_type?: string
+          id?: string
+          message?: string
+          metadata?: Json
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          scan_event_id?: string | null
+          severity?: string
+          staff_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_exceptions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_checkin_id_fkey"
+            columns: ["checkin_id"]
+            isOneToOne: false
+            referencedRelation: "staff_shift_checkins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_scan_event_id_fkey"
+            columns: ["scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_settings: {
+        Row: {
+          active_service_blocks_clock_out: boolean
+          branch_id: string
+          clock_in_early_grace_minutes: number
+          clock_in_late_grace_minutes: number
+          clock_out_early_grace_minutes: number
+          clock_out_late_grace_minutes: number
+          created_at: string
+          duplicate_scan_window_seconds: number
+          overnight_shift_cutoff_time: string
+          require_registered_device_for_attendance: boolean
+          updated_at: string
+        }
+        Insert: {
+          active_service_blocks_clock_out?: boolean
+          branch_id: string
+          clock_in_early_grace_minutes?: number
+          clock_in_late_grace_minutes?: number
+          clock_out_early_grace_minutes?: number
+          clock_out_late_grace_minutes?: number
+          created_at?: string
+          duplicate_scan_window_seconds?: number
+          overnight_shift_cutoff_time?: string
+          require_registered_device_for_attendance?: boolean
+          updated_at?: string
+        }
+        Update: {
+          active_service_blocks_clock_out?: boolean
+          branch_id?: string
+          clock_in_early_grace_minutes?: number
+          clock_in_late_grace_minutes?: number
+          clock_out_early_grace_minutes?: number
+          clock_out_late_grace_minutes?: number
+          created_at?: string
+          duplicate_scan_window_seconds?: number
+          overnight_shift_cutoff_time?: string
+          require_registered_device_for_attendance?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_settings_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: true
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           amount_paid: number
@@ -236,8 +463,17 @@ export type Database = {
           payment_status: string
           resource_id: string | null
           service_id: string
+          session_auto_completed_at: string | null
           session_completed_at: string | null
+          session_completion_source: string | null
+          session_due_at: string | null
+          session_duration_minutes_snapshot: number | null
+          session_extended_at: string | null
+          session_extended_by: string | null
+          session_extension_reason: string | null
+          session_start_scan_event_id: string | null
           session_started_at: string | null
+          session_started_from_resource_id: string | null
           staff_id: string
           start_time: string
           status: string
@@ -269,8 +505,17 @@ export type Database = {
           payment_status?: string
           resource_id?: string | null
           service_id: string
+          session_auto_completed_at?: string | null
           session_completed_at?: string | null
+          session_completion_source?: string | null
+          session_due_at?: string | null
+          session_duration_minutes_snapshot?: number | null
+          session_extended_at?: string | null
+          session_extended_by?: string | null
+          session_extension_reason?: string | null
+          session_start_scan_event_id?: string | null
           session_started_at?: string | null
+          session_started_from_resource_id?: string | null
           staff_id: string
           start_time: string
           status?: string
@@ -302,8 +547,17 @@ export type Database = {
           payment_status?: string
           resource_id?: string | null
           service_id?: string
+          session_auto_completed_at?: string | null
           session_completed_at?: string | null
+          session_completion_source?: string | null
+          session_due_at?: string | null
+          session_duration_minutes_snapshot?: number | null
+          session_extended_at?: string | null
+          session_extended_by?: string | null
+          session_extension_reason?: string | null
+          session_start_scan_event_id?: string | null
           session_started_at?: string | null
+          session_started_from_resource_id?: string | null
           staff_id?: string
           start_time?: string
           status?: string
@@ -346,6 +600,27 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_session_extended_by_fkey"
+            columns: ["session_extended_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_session_start_scan_event_id_fkey"
+            columns: ["session_start_scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_session_started_from_resource_id_fkey"
+            columns: ["session_started_from_resource_id"]
+            isOneToOne: false
+            referencedRelation: "branch_resources"
             referencedColumns: ["id"]
           },
           {
@@ -1715,8 +1990,333 @@ export type Database = {
           },
         ]
       }
+      device_activation_tokens: {
+        Row: {
+          branch_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          metadata: Json
+          requested_by: string | null
+          staff_id: string
+          token_hash: string
+          used_at: string | null
+          used_by_device_id: string | null
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          metadata?: Json
+          requested_by?: string | null
+          staff_id: string
+          token_hash: string
+          used_at?: string | null
+          used_by_device_id?: string | null
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          metadata?: Json
+          requested_by?: string | null
+          staff_id?: string
+          token_hash?: string
+          used_at?: string | null
+          used_by_device_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_activation_tokens_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_activation_tokens_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_activation_tokens_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_activation_tokens_used_by_device_id_fkey"
+            columns: ["used_by_device_id"]
+            isOneToOne: false
+            referencedRelation: "staff_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qr_points: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          label: string
+          metadata: Json
+          point_type: string
+          public_code: string
+          requires_registered_device: boolean
+          resource_id: string | null
+          scan_behavior: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          label: string
+          metadata?: Json
+          point_type: string
+          public_code: string
+          requires_registered_device?: boolean
+          resource_id?: string | null
+          scan_behavior?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          metadata?: Json
+          point_type?: string
+          public_code?: string
+          requires_registered_device?: boolean
+          resource_id?: string | null
+          scan_behavior?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_points_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_points_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_points_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "branch_resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qr_scan_events: {
+        Row: {
+          action: string
+          booking_id: string | null
+          branch_id: string | null
+          checkin_id: string | null
+          created_at: string
+          device_id: string | null
+          id: string
+          ip_address: unknown | null
+          message: string | null
+          metadata: Json
+          outcome: string
+          qr_point_id: string | null
+          reason_code: string | null
+          request_id: string | null
+          resource_id: string | null
+          scan_type: string
+          staff_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          booking_id?: string | null
+          branch_id?: string | null
+          checkin_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          ip_address?: unknown | null
+          message?: string | null
+          metadata?: Json
+          outcome: string
+          qr_point_id?: string | null
+          reason_code?: string | null
+          request_id?: string | null
+          resource_id?: string | null
+          scan_type: string
+          staff_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          booking_id?: string | null
+          branch_id?: string | null
+          checkin_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          ip_address?: unknown | null
+          message?: string | null
+          metadata?: Json
+          outcome?: string
+          qr_point_id?: string | null
+          reason_code?: string | null
+          request_id?: string | null
+          resource_id?: string | null
+          scan_type?: string
+          staff_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_scan_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scan_events_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scan_events_checkin_id_fkey"
+            columns: ["checkin_id"]
+            isOneToOne: false
+            referencedRelation: "staff_shift_checkins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scan_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "staff_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scan_events_qr_point_id_fkey"
+            columns: ["qr_point_id"]
+            isOneToOne: false
+            referencedRelation: "qr_points"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scan_events_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "branch_resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scan_events_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_devices: {
+        Row: {
+          branch_id: string
+          created_at: string
+          device_fingerprint_hash: string
+          device_label: string | null
+          id: string
+          last_seen_at: string | null
+          metadata: Json
+          revoked_at: string | null
+          revoked_by: string | null
+          staff_id: string
+          status: string
+          trusted_after: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          device_fingerprint_hash: string
+          device_label?: string | null
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          revoked_at?: string | null
+          revoked_by?: string | null
+          staff_id: string
+          status?: string
+          trusted_after?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          device_fingerprint_hash?: string
+          device_label?: string | null
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          revoked_at?: string | null
+          revoked_by?: string | null
+          staff_id?: string
+          status?: string
+          trusted_after?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_devices_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_devices_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_devices_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_shift_checkins: {
         Row: {
+          attendance_status: string
           id: string
           staff_id: string
           branch_id: string
@@ -1724,13 +2324,26 @@ export type Database = {
           shift_type: string
           checked_in_at: string
           checked_out_at: string | null
+          clock_in_method: string | null
+          clock_in_scan_event_id: string | null
+          clock_out_method: string | null
+          clock_out_scan_event_id: string | null
           status: string
           recorded_by: string | null
           notes: string | null
+          early_leave_minutes: number
+          exception_state: string
+          late_minutes: number
+          overtime_minutes: number
+          scheduled_end_at: string | null
+          scheduled_start_at: string | null
+          source_qr_point_id: string | null
+          worked_minutes: number
           created_at: string
           updated_at: string
         }
         Insert: {
+          attendance_status?: string
           id?: string
           staff_id: string
           branch_id: string
@@ -1738,13 +2351,26 @@ export type Database = {
           shift_type?: string
           checked_in_at?: string
           checked_out_at?: string | null
+          clock_in_method?: string | null
+          clock_in_scan_event_id?: string | null
+          clock_out_method?: string | null
+          clock_out_scan_event_id?: string | null
           status?: string
           recorded_by?: string | null
           notes?: string | null
+          early_leave_minutes?: number
+          exception_state?: string
+          late_minutes?: number
+          overtime_minutes?: number
+          scheduled_end_at?: string | null
+          scheduled_start_at?: string | null
+          source_qr_point_id?: string | null
+          worked_minutes?: number
           created_at?: string
           updated_at?: string
         }
         Update: {
+          attendance_status?: string
           id?: string
           staff_id?: string
           branch_id?: string
@@ -1752,9 +2378,21 @@ export type Database = {
           shift_type?: string
           checked_in_at?: string
           checked_out_at?: string | null
+          clock_in_method?: string | null
+          clock_in_scan_event_id?: string | null
+          clock_out_method?: string | null
+          clock_out_scan_event_id?: string | null
           status?: string
           recorded_by?: string | null
           notes?: string | null
+          early_leave_minutes?: number
+          exception_state?: string
+          late_minutes?: number
+          overtime_minutes?: number
+          scheduled_end_at?: string | null
+          scheduled_start_at?: string | null
+          source_qr_point_id?: string | null
+          worked_minutes?: number
           created_at?: string
           updated_at?: string
         }
@@ -1778,6 +2416,27 @@ export type Database = {
             columns: ["recorded_by"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_shift_checkins_clock_in_scan_event_id_fkey"
+            columns: ["clock_in_scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_shift_checkins_clock_out_scan_event_id_fkey"
+            columns: ["clock_out_scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_shift_checkins_source_qr_point_id_fkey"
+            columns: ["source_qr_point_id"]
+            isOneToOne: false
+            referencedRelation: "qr_points"
             referencedColumns: ["id"]
           },
         ]
@@ -2449,6 +3108,14 @@ export type Database = {
       get_auth_branch_id: { Args: never; Returns: string }
       get_auth_role: { Args: never; Returns: string }
       get_auth_staff_id: { Args: never; Returns: string }
+      complete_due_service_sessions: {
+        Args: { p_limit?: number }
+        Returns: {
+          booking_id: string
+          branch_id: string
+          completed_at: string
+        }[]
+      }
       get_available_slots: {
         Args: {
           p_branch_id: string

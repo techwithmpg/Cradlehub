@@ -6,18 +6,11 @@ import { CheckInExplainer } from "@/components/features/crm/availability/checkin
 import { StartDayChecklist } from "@/components/features/crm/availability/start-day-checklist";
 import { LiveAvailabilityImpactCard } from "@/components/features/crm/availability/live-availability-impact-card";
 import { AvailabilityRelatedTools } from "@/components/features/crm/availability/availability-related-tools";
-import { getManagerBranchId } from "@/lib/queries/manager-context";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getCrmAvailabilitySnapshot, type CrmAvailabilitySnapshot } from "@/lib/queries/crm-availability";
 import { PageHelpDisclosure } from "@/components/shared/page-help-disclosure";
 import { CrmTabNav, SCHEDULE_TABS } from "@/components/features/crm/crm-tab-nav";
-
-function todayDateString(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 async function getPageData(branchId: string): Promise<{
   snapshot: CrmAvailabilitySnapshot | null;
@@ -26,7 +19,7 @@ async function getPageData(branchId: string): Promise<{
   try {
     const snapshot = await getCrmAvailabilitySnapshot({
       branchId,
-      date: todayDateString(),
+      date: getBranchBusinessDate(),
     });
     return { snapshot, error: null };
   } catch (err) {
@@ -39,8 +32,8 @@ async function getPageData(branchId: string): Promise<{
 }
 
 export default async function CrmAvailabilityPage() {
-  const branchId = await getManagerBranchId();
-  const { snapshot, error } = await getPageData(branchId);
+  const context = await getFrontDeskContext();
+  const { snapshot, error } = await getPageData(context.branchId);
 
   return (
     <section className="space-y-5">

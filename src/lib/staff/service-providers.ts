@@ -1,4 +1,4 @@
-import { isServiceStaffType } from "@/constants/staff-roles";
+import { canonicalizeSystemRole, isServiceStaffType } from "@/constants/staff-roles";
 
 const NON_SERVICE_SYSTEM_ROLES = new Set([
   "owner",
@@ -6,9 +6,6 @@ const NON_SERVICE_SYSTEM_ROLES = new Set([
   "assistant_manager",
   "store_manager",
   "crm",
-  "csr",
-  "csr_head",
-  "csr_staff",
   "driver",
   "utility",
 ]);
@@ -27,7 +24,7 @@ export type ServiceCapabilityContext = {
 };
 
 export function isNonServiceSystemRole(role: string | null | undefined): boolean {
-  return role ? NON_SERVICE_SYSTEM_ROLES.has(role) : false;
+  return role ? NON_SERVICE_SYSTEM_ROLES.has(canonicalizeSystemRole(role)) : false;
 }
 
 export function canActAsBookingServiceProvider(

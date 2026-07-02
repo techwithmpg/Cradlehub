@@ -11,6 +11,7 @@ import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { SlotUnavailableError } from "@/types/errors";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { canManageBookings } from "@/lib/auth/crm-permissions";
 
 export async function createWalkinBookingAction(rawInput: unknown) {
   const parsed = createWalkinBookingSchema.safeParse(rawInput);
@@ -33,8 +34,6 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
-
   if (!me && isDevAuthBypassEnabled()) {
     // Dev bypass: allow walk-in creation with a dummy branch
     // This requires a real branch_id to validate slots — fall through to error
@@ -42,7 +41,7 @@ export async function createWalkinBookingAction(rawInput: unknown) {
     return { success: false, error: "Dev bypass active but no branch_id available. Create a staff record with branch_id to test walk-in bookings." };
   }
 
-  if (!me || !allowedRoles.includes(me.system_role)) {
+  if (!me || !canManageBookings(me.system_role)) {
     return { success: false, error: "Unauthorized" };
   }
   if (!me.branch_id) {

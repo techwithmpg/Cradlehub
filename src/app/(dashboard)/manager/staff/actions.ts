@@ -9,6 +9,7 @@ import {
 } from "@/lib/validations/staff";
 import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
+import { canAdjustStaffSchedule } from "@/lib/permissions";
 
 async function getManagerContext() {
   const supabase = await createClient();
@@ -33,10 +34,7 @@ async function getManagerContext() {
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
-  const SCHEDULE_EDIT_ROLES = new Set([
-    "owner", "manager", "assistant_manager", "store_manager", "crm", "csr_head", "csr_staff", "csr",
-  ]);
-  if (!me || !SCHEDULE_EDIT_ROLES.has(me.system_role)) return null;
+  if (!me || !canAdjustStaffSchedule(me.system_role)) return null;
   return { supabase, me };
 }
 

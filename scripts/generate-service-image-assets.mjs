@@ -23,7 +23,6 @@ const SERVICE_IMAGE_URL_BASE = "/images/services";
 const SERVICE_IMAGE_ABSOLUTE_DIR = "E:/cradlehub/public/images/services";
 const FALLBACK_IMAGE_SOURCE = "public/images/spa/booking.jpg";
 const FALLBACK_IMAGE_FILE = "_fallback-spa-service.jpg";
-const FALLBACK_IMAGE_URL = `${SERVICE_IMAGE_URL_BASE}/${FALLBACK_IMAGE_FILE}`;
 
 const KNOWN_CATEGORY_NAMES = {
   "20046468-5119-4687-8011-223f12f00b5c": { name: "Salon Services", display_order: 2 },
@@ -373,6 +372,21 @@ function writeJson(filePath, value) {
   fs.writeFileSync(path.join(ROOT, filePath), `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function appManifestEntry(entry) {
+  return {
+    id: entry.id,
+    name: entry.name,
+    slug: entry.slug,
+    category: entry.category,
+    categoryId: entry.categoryId,
+    filename: entry.filename,
+    localPath: entry.localPath,
+    imageUrl: entry.imageUrl,
+    imageAlt: entry.imageAlt,
+    batch: entry.batch,
+  };
+}
+
 function writeText(filePath, value) {
   fs.writeFileSync(path.join(ROOT, filePath), value);
 }
@@ -520,7 +534,7 @@ function main() {
   const serviceRows = parseInsertRows(readText(SOURCE_SERVICE_SQL));
   const categories = categoryMapFromSql(SOURCE_CATEGORY_SQL);
   const manifest = buildManifest(serviceRows, categories);
-  const appManifest = manifest.map(({ generationPrompt, ...entry }) => entry);
+  const appManifest = manifest.map(appManifestEntry);
 
   ensureDir("src/data");
   ensureDir("docs/service-images");

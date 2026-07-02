@@ -5,8 +5,8 @@ import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypas
 import { resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-
-const ALLOWED_ROLES = ["owner", "manager", "crm", "csr", "csr_head", "csr_staff"];
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 async function requireCrm() {
   const supabase = await createClient();
@@ -25,7 +25,8 @@ async function requireCrm() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !ALLOWED_ROLES.includes(me.system_role) || !me.branch_id) return null;
+  const role = me ? canonicalizeSystemRole(me.system_role) : null;
+  if (!me || !role || !canAccessCrmWorkspace(role) || !me.branch_id) return null;
   return { supabase, staffId: me.id as string, branchId: me.branch_id as string };
 }
 

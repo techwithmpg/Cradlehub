@@ -59,6 +59,7 @@ const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Work Queue",   href: "/crm/today",     icon: "LayoutDashboard" },
   { label: "Bookings",     href: "/crm/bookings",  icon: "ClipboardList"   },
   { label: "Schedule",     href: "/crm/schedule",  icon: "CalendarDays"    },
+  { label: "Attendance",   href: "/crm/attendance", icon: "ClipboardCheck"  },
   { label: "Customers",    href: "/crm/customers", icon: "Users"           },
   { label: "Home Service", href: "/crm/dispatch",  icon: "Truck"           },
 ];
@@ -107,11 +108,6 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
   },
   crm: {
     role: "crm",
-    label: "Front Desk",
-    items: CRM_NAV_ITEMS,
-  },
-  crm_admin: {
-    role: "crm_admin",
     label: "Front Desk",
     items: CRM_NAV_ITEMS,
     systemItems: CRM_SYSTEM_NAV_ITEMS,
@@ -174,15 +170,6 @@ export function resolveWorkspaceKeyFromRole(role: string): string {
 }
 
 export function resolveCrmNavKeyFromRole(role: string): string {
-  const canonicalRole = canonicalizeSystemRole(role);
-  if (
-    canonicalRole === "owner" ||
-    canonicalRole === "manager" ||
-    canonicalRole === "assistant_manager" ||
-    canonicalRole === "store_manager"
-  ) {
-    return "crm_admin";
-  }
-
+  void role;
   return "crm";
 }

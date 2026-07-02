@@ -482,3 +482,38 @@ Older route names and internal identifiers may remain during stabilization. In p
 - Update user-facing labels deliberately and keep redirects/deep links until old links are migrated.
 - Treat Work Queue/Home Service/System Management as product copy, not an instruction to rename all internal `crm` or `frontDesk` identifiers.
 - Continue to verify CRM actions through server auth/RLS/database behavior before declaring completion.
+
+---
+
+### DEC-ATTENDANCE-REFIT-001: Attendance tabs are local client state; actions return typed results
+**Status:** ACCEPTED - 2026-07-02
+
+**Decision:**
+The CRM Attendance workspace stays on one route, `/crm/attendance`, with a single mounted client workspace. Tabs are local client state mirrored into the URL with `window.history.replaceState()` through shared tab helpers. Routine Attendance mutations return typed `AttendanceActionResult` payloads instead of redirecting to status query params.
+
+**Rationale:**
+- Front-desk users need Attendance tabs to feel instant and preserve local filters, selected QR point, selected print format, activation links, and dialogs.
+- URL-driven tab switches caused unnecessary route work and made the page feel slow.
+- Server Action redirects are control-flow exceptions; using them for normal QR/device/exception/session feedback can surface `NEXT_REDIRECT` and framework internals.
+- Typed action results let the client show toasts/notices and update local data without changing the route or reloading the workspace.
+
+**Consequences:**
+- Future Attendance tabs should plug into the existing local-state tab helper instead of adding route-level tab pages or router refreshes.
+- Use `redirect()` only for true navigation boundaries, not routine in-place mutations.
+- Keep backend/scan/RLS behavior authoritative; client local updates are optimistic display synchronization around server-returned results.
+
+---
+
+### DEC-ATTENDANCE-VERIFY-002: Do not fabricate authenticated QR visual QA without a real CRM session
+**Status:** ACCEPTED - 2026-07-02
+
+**Decision:**
+Final Attendance QR verification may report automated checks as passing, but authenticated visual QA, export interactions, phone scans, and QR identity preservation must remain open until a valid Supabase CRM/front-desk browser session is available. Do not add temporary production-route bypasses or claim QR layout approval from the unauthenticated login redirect.
+
+**Rationale:**
+`src/proxy.ts` requires a real Supabase user for protected CRM routes before dev bypass skips staff-record checks. Starting `pnpm dev` with process-local `DEV_AUTH_BYPASS=true` still redirected `/crm/attendance?tab=qr` to `/login`. The task is visual/export verification, so approving it without seeing the protected QR UI would be misleading.
+
+**Consequences:**
+- It is acceptable to document the auth blocker with screenshots and console evidence.
+- Future QA should reuse a real CRM/front-desk browser session or explicit test credentials, then rerun the requested viewport, interaction, export, scan, and identity checks.
+- Avoid app-logic changes whose only purpose is to bypass the protected route for verification.

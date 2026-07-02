@@ -18,12 +18,10 @@ import {
 } from "@/components/features/crm/staff/service-row-adapter";
 import { canReviewStaffOnboarding } from "@/lib/permissions";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 export const metadata = { title: "Staff | Front Desk" };
-
-const ALLOWED_ROLES = new Set([
-  "owner", "manager", "assistant_manager", "store_manager",
-]);
 
 async function getCrmStaffPageContext() {
   const supabase = await createClient();
@@ -53,7 +51,8 @@ async function getCrmStaffPageContext() {
         }
       : null);
 
-  if (!resolvedMe || !ALLOWED_ROLES.has(resolvedMe.system_role)) {
+  const canonicalRole = resolvedMe ? canonicalizeSystemRole(resolvedMe.system_role) : null;
+  if (!resolvedMe || !canonicalRole || !canAccessCrmWorkspace(canonicalRole)) {
     return { status: "unauthorized" as const };
   }
 
@@ -69,7 +68,7 @@ async function getCrmStaffPageContext() {
     me: resolvedMe,
     branchId: resolvedMe.branch_id,
     branchName: resolvedMe.branches?.name ?? "Your Branch",
-    canReviewOnboarding: canReviewStaffOnboarding(resolvedMe.system_role),
+    canReviewOnboarding: canReviewStaffOnboarding(canonicalRole),
   };
 }
 
@@ -180,7 +179,10 @@ export default async function CrmStaffPage({
   // Applications panel can switch internally without a route fetch.
   let onboardingRequests: Awaited<ReturnType<typeof fetchOnboardingRequests>> = [];
   if (ctx.canReviewOnboarding) {
-    onboardingRequests = await fetchOnboardingRequests(ctx.me.system_role, ctx.me.branch_id);
+    onboardingRequests = await fetchOnboardingRequests(
+      canonicalizeSystemRole(ctx.me.system_role),
+      ctx.me.branch_id
+    );
   }
 
   return (

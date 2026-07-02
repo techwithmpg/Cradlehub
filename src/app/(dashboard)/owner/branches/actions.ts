@@ -8,6 +8,7 @@ import { createBranchSchema, updateBranchSchema } from "@/lib/validations/branch
 import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { logBusinessEvent } from "@/lib/logger";
+import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -49,13 +50,7 @@ async function requireOwnerOrBranchManager(branchId: string) {
 
   if (!me) return null;
   if (me.system_role === "owner") return supabase;
-  if (
-    [
-      "manager", "assistant_manager", "store_manager",
-      "crm", "csr_head", "csr_staff", "csr",
-    ].includes(me.system_role) &&
-    me.branch_id === branchId
-  ) return supabase;
+  if (canManageCrmSetup(me.system_role) && me.branch_id === branchId) return supabase;
   return null;
 }
 
@@ -456,7 +451,7 @@ export async function getMyBranchBookingRulesAction() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || (me.system_role !== "manager" && me.system_role !== "owner")) {
+  if (!me || !canManageCrmSetup(me.system_role)) {
     return { error: "Unauthorized" };
   }
   if (!me.branch_id) return { error: "No branch assigned" };

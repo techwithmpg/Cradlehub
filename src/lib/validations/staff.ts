@@ -1,23 +1,16 @@
 import { z } from "zod";
-import { STAFF_TYPES, canonicalizeSystemRole } from "@/constants/staff";
+import { STAFF_TYPES, SYSTEM_ROLES, canonicalizeSystemRole } from "@/constants/staff";
 import { isValidShiftRange } from "@/lib/utils/time-format";
 
 // z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
 const systemRoleInputSchema = z
-  .enum([
-    "manager",
-    "crm",
-    "csr",
-    "csr_head",
-    "csr_staff",
-    "staff",
-    "service_head",
-    "service_staff",
-    "driver",
-    "utility",
-  ])
+  .string()
+  .refine(
+    (role) => SYSTEM_ROLES.includes(role as (typeof SYSTEM_ROLES)[number]),
+    "Invalid system role"
+  )
   .transform((role) => canonicalizeSystemRole(role));
 const optionalNickname = z.preprocess(
   (value) => {

@@ -27,6 +27,36 @@
 
 ## Error Log
 
+### ERR-004: Attendance Server Actions Surfaced Redirect Control Flow
+
+**Date:** 2026-07-02
+**Agent:** Codex
+**Severity:** MEDIUM
+**Status:** FIXED
+
+**Symptom:** Routine Attendance actions could behave like redirects and surface `NEXT_REDIRECT`-style framework control flow instead of normal CRM feedback.
+**Root Cause:** Attendance Server Actions used redirect/status-query flows for ordinary mutation results. Server Action redirects are exceptions by design, so they are a poor fit for in-place QR/device/exception/session actions.
+**Fix / Workaround:** Attendance actions now return typed `AttendanceActionResult` payloads. The client workspace shows toasts/notices and updates local state without route refreshes or status query params.
+**Files Involved:** `src/app/(dashboard)/crm/attendance/actions.ts`, `src/components/features/attendance/attendance-workspace.tsx`, `src/components/features/attendance/*`.
+**Prevention:** Use typed action result objects for in-place CRM mutations; reserve `redirect()` for true navigation boundaries.
+
+---
+
+### ERR-003: Attendance Authenticated Browser QA Blocked By Login Redirect
+
+**Date:** 2026-07-02
+**Agent:** Codex
+**Severity:** LOW
+**Status:** OPEN
+
+**Symptom:** Local `/crm/attendance` browser smoke redirects unauthenticated sessions to `/login`.
+**Root Cause:** Protected CRM routes require a valid Supabase user session before route access; the local browser did not have an authenticated CRM/front-desk session.
+**Fix / Workaround:** `agent-browser` verified the login page renders content and no Next/Vite overlay is present. Authenticated CRM Attendance QA still needs a valid session.
+**Files Involved:** `src/proxy.ts`, `src/app/(dashboard)/crm/attendance/page.tsx`, `src/components/features/attendance/*`.
+**Prevention:** Do not claim authenticated Attendance UI/action readiness until a real CRM/front-desk browser session has clicked through tabs, QR actions, activation, and scan flows.
+
+---
+
 ### ERR-001: CRM Stabilization Prompt References Root Governance Files Absent In This Checkout
 
 **Date:** 2026-06-30
@@ -82,3 +112,39 @@
 | Server Action not working | Ensure `'use server'` is at top of file. Ensure form uses `action=` not `onSubmit`. |
 | Supabase types out of date | Regenerate with `pnpm db:types` after any schema change. |
 | CSS variables not theming | Check variable names match shadcn/ui's expected format in `globals.css`. |
+
+---
+
+### ERR-004: Attendance Final QR Visual QA Still Blocked By Missing Authenticated Session
+
+**Date:** 2026-07-02
+**Agent:** Codex
+**Severity:** MEDIUM
+**Status:** OPEN
+
+**Symptom:** `/crm/attendance?tab=qr` redirected to `/login` at 1440, 1280, 1024, 768, and 375 px. Process-local `DEV_AUTH_BYPASS=true` did not open the protected route.
+
+**Root Cause:** `src/proxy.ts` requires `supabase.auth.getUser()` before dev bypass skips staff-record checks. The local browser has no authenticated Supabase CRM/front-desk session.
+
+**Impact:** QR list/preview visual parity, real interactions, PNG/SVG/print export, phone scans, deactivate confirmation, and QR identity preservation could not be approved.
+
+**Evidence:** Blocker screenshots were saved to `.codex-artifacts/attendance-qr-qa/blocked-login-1440.png`, `blocked-login-1024.png`, and `blocked-login-375.png`. Browser page errors were empty.
+
+**Follow-up:** Rerun authenticated Attendance QR QA with a valid CRM/front-desk browser session or explicit test credentials.
+
+---
+
+### ERR-005: Attendance Final Verification Tooling Notes
+
+**Date:** 2026-07-02
+**Agent:** Codex
+**Severity:** LOW
+**Status:** WORKAROUND
+
+**Symptom:** Sandboxed pnpm scripts failed before execution with Windows `EPERM` unlinking `_tmp_*` files.
+
+**Resolution:** Final checks ran outside the restricted sandbox with `CI=true`: `pnpm type-check`, `pnpm lint`, `pnpm test`, and `pnpm build` passed.
+
+**Symptom:** The local Supabase CLI binary/shim was restored after dependency recovery, but `pnpm exec supabase --version` currently reports a Windows file-lock error.
+
+**Follow-up:** Retry Supabase CLI commands after the lock clears; app verification is unaffected.

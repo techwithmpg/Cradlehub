@@ -38,8 +38,7 @@ async function requireImportAccess(branchId: string) {
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
-    // Admin client bypasses the RLS policies that only cover manager/owner.
-    // The action's own branch+role checks already provide the necessary guard.
+    // Dev bypass has no real auth session, so it uses the admin client.
     const admin = createAdminClient();
     return { admin, scheduleClient: admin, userId: "dev-bypass" };
   }
@@ -330,7 +329,7 @@ export async function applyManualScheduleImportAction(
   // so resolveScheduleForStaffDay can classify each staff member correctly.
   const staffIds = resolvedMatches.map((m) => m.staffId);
 
-  const { data: verifiedStaff, error: verifyErr } = await ctx.admin
+  const { data: verifiedStaff, error: verifyErr } = await ctx.scheduleClient
     .from("staff")
     .select("id, staff_type, system_role")
     .eq("branch_id", branchId)
@@ -460,10 +459,9 @@ export async function applyManualScheduleImportAction(
     return { ok: false, error: "No schedule rows to write" };
   }
 
-  // Batch upsert — safe to re-run, overwrites existing rows for same conflict key.
-  // Uses admin client to bypass RLS (INSERT/UPDATE policies only cover manager/owner;
-  // crm/csr_head are allowed at the action level above).
-  const { error: upsertErr } = await ctx.admin
+  // Batch upsert through the authenticated client so schedule RLS remains the
+  // database enforcement layer after the server-side branch and role checks.
+  const { error: upsertErr } = await ctx.scheduleClient
     .from("staff_schedules")
     .upsert(rows, { onConflict: "staff_id,day_of_week,shift_type" });
 

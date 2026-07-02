@@ -33,6 +33,7 @@ export const CRM_PREFETCH: WorkspacePrefetchConfig = {
     "/crm/today",
     "/crm/bookings",
     "/crm/schedule",
+    "/crm/attendance",
     "/crm/customers",
     "/crm/dispatch",
   ],
@@ -124,8 +125,6 @@ export const DRIVER_PREFETCH: WorkspacePrefetchConfig = {
 
 export const WORKSPACE_PREFETCH_CONFIGS: Record<string, WorkspacePrefetchConfig> = {
   crm: CRM_PREFETCH,
-  csr_head: CRM_PREFETCH,
-  csr_staff: CRM_PREFETCH,
   manager: MANAGER_PREFETCH,
   owner: OWNER_PREFETCH,
   staff: STAFF_PORTAL_PREFETCH,

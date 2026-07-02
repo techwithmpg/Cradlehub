@@ -17,6 +17,7 @@ import type { SetupTab } from "@/components/features/crm/setup/crm-setup-workspa
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import type { ConflictBooking } from "@/components/features/spaces-rules/spaces-rules-utils";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ export default async function CrmSetupPage({
   const initialTab = resolveTab(params.tab);
 
   const supabase = await createClient();
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
 
   // ── Phase 1: parallel data fetching ────────────────────────────────────────
   const [

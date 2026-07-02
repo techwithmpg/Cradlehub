@@ -5,8 +5,9 @@ import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypas
 import { getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { getReconciliationsAction } from "./actions";
 import { ReconciliationForm } from "./reconciliation-form";
-
-const ALLOWED_ROLES = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   draft:     { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" },
@@ -31,7 +32,8 @@ async function getContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !ALLOWED_ROLES.includes(me.system_role) || !me.branch_id) redirect("/login");
+  const role = me ? canonicalizeSystemRole(me.system_role) : null;
+  if (!me || !role || !canAccessCrmWorkspace(role) || !me.branch_id) redirect("/login");
 
   return {
     branchId:   me.branch_id as string,
@@ -41,7 +43,12 @@ async function getContext() {
 
 export default async function ReconciliationPage() {
   const { branchId, branchName } = await getContext();
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
+  const todayLabel = new Date(`${today}T00:00:00`).toLocaleDateString("en-PH", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   const [summary, historyResult] = await Promise.all([
     getDailyPaymentSummary(branchId, today).catch(() => null),
@@ -83,7 +90,7 @@ export default async function ReconciliationPage() {
                   marginBottom: "1rem",
                 }}
               >
-                System Records — {new Date().toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}
+                System Records — {todayLabel}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
                 {[

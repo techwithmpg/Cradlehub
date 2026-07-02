@@ -172,3 +172,72 @@ the `authenticated` role.
 **Build Status:** Passing — `npm run type-check`, `npm run lint` (4 unrelated existing warnings), `npm run build`, and `git diff --check` passed.
 
 ---
+
+### 2026-07-02 — Codex
+
+**Task:** Refit the complete CRM Attendance workspace UI/actions while preserving the existing QR attendance database, public scan routes, device activation, service-session logic, and Supabase security model.
+
+**Files Changed / Added:**
+- Added Attendance tab helpers, QR URL helpers, print layouts, export filenames, and focused helper tests under `src/lib/attendance/*` and `tests/lib/attendance/*`.
+- Split the Attendance UI into `attendance-header`, `attendance-tabs`, shared UI helpers, Overview widgets, Records, Sessions, QR Codes, Devices, Exceptions, and Reports tab components.
+- Updated `/crm/attendance` page/workspace and Attendance server actions to use local tab state and typed action results instead of redirect/status-query mutation flows.
+- Updated QR Codes with compact list + selected branded preview, format selection, PNG/SVG/print/copy helpers, QR information, generate missing, generate attendance QR, and deactivate QR.
+- Fixed the CRM Attendance sidebar icon by switching to supported `ClipboardCheck`.
+- Updated `.context/*`, `docs/*`, roadmap, decisions, errors, and handoff notes.
+
+**Behavior:**
+- `/crm/attendance` remains the single protected route.
+- Overview, Records, Sessions, QR Codes, Devices, Exceptions, and Reports switch instantly with client local state and `window.history.replaceState()`.
+- Attendance tab panels stay mounted so filters, selected QR/format, activation links, and dialogs survive tab switches.
+- KPI-card rows were removed; Overview now centers live staff, recent scans, active sessions, exceptions, and quick actions.
+- Attendance server actions return typed success/error payloads and no longer surface `NEXT_REDIRECT` for routine QR/device/exception/session mutations.
+
+**Validation:**
+- `npx tsc --noEmit --pretty false`: PASS
+- Targeted Attendance Vitest helpers: PASS, 4 files / 14 tests.
+- `npm run lint`: PASS with 4 unrelated existing warnings.
+- `npm run build`: PASS, 104 app routes.
+- `npm test -- --run`: PASS outside sandbox, 60 files / 564 tests.
+- `git diff --check`: PASS, line-ending notices only.
+- Browser smoke: unauthenticated `/crm/attendance` redirects to `/login`, login renders, no Next/Vite overlay.
+
+**Remaining QA:**
+- Authenticated browser QA remains needed for the live Attendance workspace tabs, QR generation/deactivation, device activation, public scan flows, and room/resource service-session scans.
+
+---
+
+### 2026-07-02 — Codex
+
+**Task:** Final Attendance QR verification continuation using `pnpm`.
+
+**Files Changed:**
+- `scripts/generate-service-image-assets.mjs` - removed unused `FALLBACK_IMAGE_URL` and replaced the unused `generationPrompt` rest destructure with explicit app-manifest projection.
+- `tests/components/payroll/employee-payroll-table.test.tsx` - preserved typed payroll mock arguments and marked them intentionally unused with `void staffId`.
+- `.context/*`, `docs/*`, roadmap, project context, errors, and handoff notes - updated final verification state.
+
+**Original Four Lint Warnings Resolved:**
+- `scripts/generate-service-image-assets.mjs:26`, `@typescript-eslint/no-unused-vars`: removed unused fallback URL constant.
+- `scripts/generate-service-image-assets.mjs:523`, `@typescript-eslint/no-unused-vars`: replaced unused `generationPrompt` destructuring with `appManifestEntry()`.
+- `tests/components/payroll/employee-payroll-table.test.tsx:17`, `@typescript-eslint/no-unused-vars`: retained mock signature and used `void staffId`.
+- `tests/components/payroll/employee-payroll-table.test.tsx:18`, `@typescript-eslint/no-unused-vars`: retained mock signature and used `void staffId`.
+
+**Validation:**
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS, 0 warnings.
+- `pnpm test`: PASS, 60 files / 564 tests.
+- `pnpm build`: PASS, 104 app routes.
+
+**Browser / Export QA:**
+- `/crm/attendance?tab=qr` checked at 1440, 1280, 1024, 768, and 375 px widths.
+- Every viewport redirected to `/login`; no authenticated Supabase CRM/front-desk browser session is available in this thread.
+- Blocker screenshots:
+  - `E:\cradlehub\.codex-artifacts\attendance-qr-qa\blocked-login-1440.png`
+  - `E:\cradlehub\.codex-artifacts\attendance-qr-qa\blocked-login-1024.png`
+  - `E:\cradlehub\.codex-artifacts\attendance-qr-qa\blocked-login-375.png`
+- No Next/Vite overlay or page errors were detected in the blocked login state.
+
+**Remaining QA:**
+- Authenticated QR visual QA, real QR interactions, phone scans for PNG/SVG/print output, and QR identity preservation checks remain pending.
+- `pnpm exec supabase --version` currently hits a Windows file-lock error after dependency restoration; retry after the lock clears before Supabase CLI work.
+
+---

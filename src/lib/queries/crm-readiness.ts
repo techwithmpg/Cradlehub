@@ -32,6 +32,7 @@ import { getCrmTodaySnapshotCached, getCrmSetupHealthCached } from "./workspace-
 import type { CrmAvailabilitySummary } from "./crm-availability";
 import type { DispatchStats } from "./dispatch-queries";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import {
   buildReadinessResult,
   sortReadinessIssues,
@@ -776,7 +777,7 @@ async function getDispatchMissingReadinessIssues(
 export async function getCrmReadinessIssues(
   branchId: string
 ): Promise<ReadinessIssue[]> {
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
   // day_of_week matches staff_schedules.day_of_week convention (0 = Sunday).
   const dayOfWeek = new Date(today + "T00:00:00").getDay();
   const allIssues: ReadinessIssue[] = [];

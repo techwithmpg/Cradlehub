@@ -1,4 +1,4 @@
-import { isServiceStaffType } from "@/constants/staff";
+import { isFrontDeskRole, isServiceStaffType } from "@/constants/staff";
 
 export type StaffPortalMode = "basic" | "therapist" | "driver" | "crm_staff";
 
@@ -13,7 +13,7 @@ type StaffModeFields = {
  * Priority:
  *   driver   → system_role=driver OR staff_type=driver
  *   therapist → staff_type is a service provider type (therapist, nail_tech, aesthetician, salon_head)
- *   crm_staff → system_role is a CRM/CSR role (multi-access user)
+ *   crm_staff → system_role is a CRM/front-desk role (multi-access user)
  *   basic     → everything else (utility, admin assistant, front desk on staff portal, etc.)
  */
 export function getStaffPortalMode(staff: StaffModeFields): StaffPortalMode {
@@ -22,7 +22,7 @@ export function getStaffPortalMode(staff: StaffModeFields): StaffPortalMode {
 
   if (role === "driver" || type === "driver") return "driver";
   if (isServiceStaffType(type)) return "therapist";
-  if (["crm", "csr", "csr_head", "csr_staff"].includes(role)) return "crm_staff";
+  if (isFrontDeskRole(role)) return "crm_staff";
   return "basic";
 }
 

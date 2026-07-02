@@ -7,6 +7,8 @@ import { emitWorkflowEvent } from "@/lib/notifications/workflow-signals";
 import { mapPreferredRoleToStaffType } from "@/lib/staff/onboarding-roles";
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 import { logError, logBusinessEvent } from "@/lib/logger";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canReviewStaffOnboarding, isOwner } from "@/lib/permissions";
 
 export type OnboardingFormState = {
   success?: boolean;
@@ -339,9 +341,8 @@ export async function rejectOnboardingAction(input: {
 
   if (!me) return { success: false, error: "No active staff record found" };
 
-  // Allow owner, manager, and CSR roles to reject for MVP
-  const canReject = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"].includes(me.system_role);
-  if (!canReject) {
+  const actorRole = canonicalizeSystemRole(me.system_role);
+  if (!canReviewStaffOnboarding(actorRole)) {
     return { success: false, error: "You do not have permission to reject applications." };
   }
 
@@ -359,7 +360,7 @@ export async function rejectOnboardingAction(input: {
   }
 
   // Branch scope check for non-owners
-  if (!["owner"].includes(me.system_role)) {
+  if (!isOwner(actorRole)) {
     if (request.requested_branch_id && request.requested_branch_id !== me.branch_id) {
       return { success: false, error: "You can only reject requests for your own branch" };
     }

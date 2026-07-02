@@ -7,7 +7,8 @@
  *   owner                             — full cross-branch access
  *   manager, assistant_manager,
  *   store_manager                     — management access
- *   crm, csr, csr_head, csr_staff     — one equal branch-scoped Front Desk level
+ *   crm                               — one branch-scoped Front Desk level
+ *   legacy front-desk aliases         — canonicalized to crm
  */
 
 import {
@@ -91,13 +92,18 @@ export function canManageCustomers(role: string): boolean {
 }
 
 /** Can edit staff operational profiles (name, phone, type, active status).
- *  Owner + management + CRM elevated roles. */
+ *  Owner + management + front-desk roles. */
 export function canManageOperationalStaff(role: string): boolean {
   return isCrmOperationalRole(role);
 }
 
+/** Prompt-facing alias for operational staff management. */
+export function canManageCrmOperationalStaff(role: string): boolean {
+  return canManageOperationalStaff(role);
+}
+
 /** Can assign and reassign staff to bookings / shifts.
- *  Owner + management + CRM elevated roles. */
+ *  Owner + management + front-desk roles. */
 export function canManageStaffAssignments(role: string): boolean {
   return isCrmOperationalRole(role);
 }
@@ -108,13 +114,18 @@ export function canManageStaffServices(role: string): boolean {
   return isCrmOperationalRole(role);
 }
 
+/** Prompt-facing alias for staff capability management. */
+export function canManageStaffCapabilities(role: string): boolean {
+  return canManageStaffServices(role);
+}
+
 /** Owner is the only CRM role with cross-branch staff-service authority. */
 export function canManageStaffServicesAcrossBranches(role: string): boolean {
   return canonicalizeSystemRole(role) === OWNER_ROLE;
 }
 
-/** Can update service visibility (public / csr_only) for branch services.
- *  Owner + management + CRM elevated roles. */
+/** Can update service visibility (public / internal) for branch services.
+ *  Owner + management + front-desk roles. */
 export function canUpdateServiceVisibility(role: string): boolean {
   return isCrmOperationalRole(role);
 }
@@ -123,6 +134,11 @@ export function canUpdateServiceVisibility(role: string): boolean {
  *  Available to all CRM/front-desk roles; branch scope still applies. */
 export function canManageResources(role: string): boolean {
   return isCrmOperationalRole(role);
+}
+
+/** Prompt-facing alias for branch resource management. */
+export function canManageBranchResources(role: string): boolean {
+  return canManageResources(role);
 }
 
 /** Can view and act on the dispatch queue.

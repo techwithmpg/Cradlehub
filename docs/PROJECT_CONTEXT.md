@@ -350,3 +350,49 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - CRM workspace prefetching now warms only primary daily routes automatically; secondary/system routes wait for explicit navigation.
 - Verified `npm run type-check`, `npm run lint` (4 unrelated existing warnings), `npm run build`, and `git diff --check`.
 - Remaining work: Work Queue/Control consolidation, compact CRM header, duplicate New Booking cleanup, broader system-tool access review, and authenticated action/RLS workflow QA.
+
+## Latest Agent Update (2026-07-02)
+
+- Completed local implementation of `ATTENDANCE-QR-001`: CRM `/crm/attendance`, public `/scan/[publicCode]`, and public `/scan/activate/[token]` are wired.
+- Added migration `20260702075213_attendance_qr_system.sql` with QR points, devices, activation tokens, scan events, exceptions, corrections/settings, booking/check-in extensions, RLS/grants, and `complete_due_service_sessions`.
+- Applied the migration to the linked Supabase project via `db query --linked --file` and verified live tables, columns, RPC, grants, and policies; migration history may still need reconciliation because this was not a `db push`.
+- `pg_cron` is not installed on the linked project, so automatic due-session completion was not scheduled.
+- Added `qrcode`/`@types/qrcode`, server-only attendance helpers, CRM actions, QR SVG rendering, device activation cookies, scan engine logic, and focused timing tests.
+- Verified `npx tsc --noEmit --pretty false`, `npm run lint` (same 4 unrelated existing warnings), `npx vitest run src/lib/attendance/time.test.ts`, and `npm run build` (104 routes).
+- Remaining work: authenticated CRM/browser QA for activation, attendance scans, room/resource session scans, and blocked/revoked/wrong-branch duplicate flows; fix stale `db:types` script separately.
+
+## Latest Agent Update (2026-07-02 - FK Follow-up)
+
+- Fixed Attendance QR creation failing with `qr_points_branch_id_fkey`.
+- Root cause was dev bypass returning zero UUID branch `00000000-0000-0000-0000-000000000000` before the Attendance action checked the authenticated staff branch.
+- Added `src/lib/dev-bypass-server.ts` to resolve dev bypass to `DEV_BYPASS_BRANCH_ID` when valid, otherwise the first active real branch.
+- Attendance actions now prefer the real staff branch and validate branch existence before settings/QR inserts.
+- Verified `npx tsc --noEmit --pretty false`, `npm run lint`, and linked DB branch checks; attempted `npm run build` after this fix timed out without a result.
+
+## Latest Agent Update (2026-07-02 - Attendance Refit)
+
+- Completed `ATTENDANCE-REFIT-005`: refit `/crm/attendance` into one compact client-owned operational workspace across Overview, Records, Sessions, QR Codes, Devices, Exceptions, and Reports.
+- Tab switching now uses local state plus `window.history.replaceState()`; routine tab changes do not use route links, router refresh/navigation, or redirects.
+- Attendance server actions now return typed `AttendanceActionResult` payloads instead of redirecting to status query params, resolving the `NEXT_REDIRECT` symptom for routine QR/device/exception/session mutations.
+- Removed Attendance KPI-card rows and rebuilt Overview around live staff, recent scans, active sessions, exceptions requiring attention, and quick actions.
+- Reworked QR Codes into a compact selectable QR list plus selected branded preview with print formats, PNG/SVG/print/copy helpers, QR information, generation, and deactivate actions.
+- Fixed the CRM Attendance sidebar icon by switching to supported `ClipboardCheck`.
+- Added focused helper tests for tab parsing, QR public URL/base URL guards, print SVG layout, and export filenames.
+- Verified `npx tsc --noEmit --pretty false`, targeted Attendance Vitest helpers, `npm run lint` (4 unrelated existing warnings), `npm run build` (104 routes), full `npm test -- --run` outside sandbox (60 files / 564 tests), and `git diff --check` (line-ending notices only).
+- Browser smoke on the existing local dev server confirmed unauthenticated `/crm/attendance` redirects to `/login`, the login page renders, and no Next/Vite overlay is present. Authenticated CRM Attendance browser QA remains pending.
+
+## Latest Agent Update (2026-07-02 - Attendance Final Verification Continuation)
+
+- Completed the requested final verification cleanup with `pnpm`.
+- Fixed all four prior lint warnings:
+  - Removed unused `FALLBACK_IMAGE_URL`.
+  - Replaced unused `generationPrompt` rest destructuring with explicit app-manifest projection.
+  - Preserved payroll mock staff-id signatures with `void staffId` instead of suppressing lint.
+- Final checks pass:
+  - `pnpm type-check`
+  - `pnpm lint` with 0 warnings
+  - `pnpm test` (60 files / 564 tests)
+  - `pnpm build` (104 app routes)
+- Browser QA for `/crm/attendance?tab=qr` remains blocked by missing authenticated Supabase CRM/front-desk session. The route redirects to `/login` at 1440, 1280, 1024, 768, and 375 px; process-local `DEV_AUTH_BYPASS=true` does not bypass `src/proxy.ts`'s real-user requirement.
+- Blocker screenshots were captured in `.codex-artifacts/attendance-qr-qa/`.
+- Still pending before marking the QR refit fully complete: authenticated QR layout visual QA, real QR interactions, PNG/SVG/print export scans with a phone camera, and QR identity preservation checks before/after preview/export.

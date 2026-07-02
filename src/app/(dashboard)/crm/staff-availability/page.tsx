@@ -1,67 +1,21 @@
 import { PageHeader } from "@/components/features/dashboard/page-header";
-import { redirect } from "next/navigation";
 import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/schedule-setup-workspace";
 import { ScheduleSetupHealthSummary } from "@/components/features/staff-schedule/schedule-setup-health-summary";
 import { ManualScheduleImport } from "@/components/features/staff-schedule/manual-schedule-import";
 import { BranchSwitcher } from "@/components/features/staff-schedule/branch-switcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getAllBranches } from "@/lib/queries/branches";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
 import { getScheduleSetupOverview } from "@/lib/queries/staff-schedule-groups";
-import { createClient } from "@/lib/supabase/server";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 import { CrmTabNav, SCHEDULE_TABS } from "@/components/features/crm/crm-tab-nav";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { isOwner } from "@/lib/permissions";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MANAGEMENT_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager"]);
-
-async function assertManagementAccess(): Promise<void> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  if (isSuperAdmin(user.id)) return;
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!me || !MANAGEMENT_ROLES.has(me.system_role)) {
-    redirect("/crm");
-  }
-}
-
-/**
- * Returns true for owners and super-admins — the only roles that can
- * view and configure staff from branches other than their own.
- */
-async function canSwitchBranches(): Promise<boolean> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  if (isSuperAdmin(user.id)) return true;
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  return me?.system_role === "owner";
-}
 
 async function getPageData(branchId: string): Promise<{
   items: StaffScheduleItem[];
@@ -101,11 +55,12 @@ export default async function CrmStaffAvailabilityPage({
 }: {
   searchParams: Promise<{ branch?: string }>;
 }) {
-  const [params, defaultBranchId, ownerAccess] = await Promise.all([
+  const [params, context] = await Promise.all([
     searchParams,
-    assertManagementAccess().then(() => getManagerBranchId()),
-    canSwitchBranches(),
+    getFrontDeskContext(),
   ]);
+  const defaultBranchId = context.branchId;
+  const ownerAccess = isOwner(canonicalizeSystemRole(context.role));
 
   // Owners may switch to any active branch via ?branch=<uuid>
   let branchId = defaultBranchId;

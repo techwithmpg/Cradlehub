@@ -29,7 +29,7 @@ export const STAFF_GROUPS: Array<{
 }> = [
   { key: "all", label: "All Staff", staffTypes: [] },
   { key: "therapist", label: "Therapists", staffTypes: ["therapist"] },
-  { key: "front_desk", label: "CRM / Front Desk", staffTypes: ["csr", "csr_staff", "csr_head"] },
+  { key: "front_desk", label: "CRM / Front Desk", staffTypes: ["csr"] },
   { key: "salon", label: "Salon", staffTypes: ["nail_tech", "salon_head"] },
   { key: "aesthetician", label: "Aestheticians", staffTypes: ["aesthetician", "facialist"] },
   { key: "utility", label: "Utility", staffTypes: ["utility"] },
@@ -51,7 +51,7 @@ export function getStaffGroupKey(staffType: string | null | undefined): StaffGro
 
 export function getStaffTypeLabel(staffType: string | null | undefined): string {
   if (!staffType) return "Staff member";
-  if (staffType === "csr" || staffType === "csr_staff" || staffType === "csr_head") {
+  if (staffType === "csr") {
     return "CRM / Front Desk";
   }
   return staffType

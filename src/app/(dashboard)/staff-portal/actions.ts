@@ -17,6 +17,8 @@ import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features
 import { revalidatePath } from "next/cache";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canManageBookings } from "@/lib/auth/crm-permissions";
 import type { Database } from "@/types/supabase";
 
 const STAFF_PORTAL_PATHS = [
@@ -633,8 +635,9 @@ export async function updateBookingProgressAction({
   const isAssignedStaff = booking.staff_id === me.id;
   const isAssignedDriver =
     (booking as { driver_id?: string | null }).driver_id === me.id;
-  const isManager = ["owner", "manager"].includes(me.system_role);
-  const isCsr = ["csr", "csr_head", "csr_staff"].includes(me.system_role);
+  const role = canonicalizeSystemRole(me.system_role);
+  const isManager = ["owner", "manager", "assistant_manager", "store_manager"].includes(role);
+  const canManageOperationalProgress = canManageBookings(role);
   const isDriver = me.system_role === "driver" || me.staff_type === "driver";
 
   // Categorize the requested action
@@ -666,7 +669,7 @@ export async function updateBookingProgressAction({
     };
   }
 
-  if (isCsrAction && !isCsr && !isManager && !isAssignedStaff) {
+  if (isCsrAction && !canManageOperationalProgress && !isAssignedStaff) {
     return {
       ok: false,
       code: "PERMISSION_DENIED",
@@ -791,9 +794,8 @@ export async function autoCompleteDueSessionAction(
 
   // Permission: assigned staff, or manager/owner
   const isAssignedStaff = booking.staff_id === me.id;
-  const isManager = ["owner", "manager"].includes(me.system_role);
-  const isCrm = ["crm", "csr_head", "csr_staff", "csr"].includes(me.system_role);
-  if (!isAssignedStaff && !isManager && !isCrm) {
+  const canManageOperationalProgress = canManageBookings(me.system_role);
+  if (!isAssignedStaff && !canManageOperationalProgress) {
     return { ok: false, code: "PERMISSION_DENIED", message: "Only assigned staff or managers may auto-complete." };
   }
 

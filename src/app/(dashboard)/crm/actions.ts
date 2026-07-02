@@ -14,6 +14,8 @@ import {
 import { getBookingsByCustomer } from "@/lib/queries/bookings";
 import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 // ── Auth: CRM/Front-desk + owner only ─────────────────────────────────────
 async function requireCrmAccess() {
@@ -34,12 +36,12 @@ async function requireCrmAccess() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const allowedRoles = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
-  if (!me || !allowedRoles.includes(me.system_role)) return null;
+  const role = me ? canonicalizeSystemRole(me.system_role) : null;
+  if (!me || !role || !canAccessCrmWorkspace(role)) return null;
 
   return {
     supabase,
-    branchId: me.system_role === "owner" ? null : me.branch_id,
+    branchId: role === "owner" ? null : me.branch_id,
   };
 }
 

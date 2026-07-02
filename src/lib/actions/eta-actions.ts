@@ -6,17 +6,8 @@ import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import type { LiveEtaData } from "@/lib/bookings/ops-warnings";
 import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
-
-const ALLOWED_ROLES = [
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr",
-  "csr_head",
-  "csr_staff",
-];
+import { canonicalizeSystemRole } from "@/constants/staff";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 export type EtaRefreshResult =
   | { ok: true; eta: LiveEtaData }
@@ -49,7 +40,8 @@ export async function refreshHomeServiceEtaAction(
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !ALLOWED_ROLES.includes(me.system_role)) {
+  const role = me ? canonicalizeSystemRole(me.system_role) : null;
+  if (!me || !role || !canAccessCrmWorkspace(role)) {
     return { ok: false, error: "Not authorized" };
   }
 

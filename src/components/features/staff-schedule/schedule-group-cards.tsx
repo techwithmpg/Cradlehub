@@ -14,7 +14,7 @@ export type StaffGroupDef = {
 
 export const STAFF_GROUPS: StaffGroupDef[] = [
   { id: "therapist", label: "Therapists", icon: UserRound, staffTypes: ["therapist"] },
-  { id: "csr", label: "CRM / Front Desk", icon: BriefcaseBusiness, staffTypes: ["csr", "csr_staff", "csr_head"] },
+  { id: "csr", label: "CRM / Front Desk", icon: BriefcaseBusiness, staffTypes: ["csr"] },
   { id: "driver", label: "Drivers", icon: CarFront, staffTypes: ["driver"] },
   { id: "utility", label: "Utility", icon: Wrench, staffTypes: ["utility"] },
   { id: "nail_tech", label: "Salon / Nail Tech", icon: Sparkles, staffTypes: ["nail_tech", "salon_head"] },

@@ -64,6 +64,13 @@ export function getBranchTime(
   }
 }
 
+export function getBranchBusinessDate(
+  now: Date = new Date(),
+  timezone: string = BRANCH_TIMEZONE
+): string {
+  return getBranchTime(now, timezone).ymd;
+}
+
 /**
  * Returns true when the slot start datetime is now or in the past.
  *

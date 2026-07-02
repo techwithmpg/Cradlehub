@@ -29,7 +29,6 @@ describe("Daily Timeline operations model", () => {
   it("maps operational staff types into role-aware groups", () => {
     expect(getStaffGroupKey("therapist")).toBe("therapist");
     expect(getStaffGroupKey("csr")).toBe("front_desk");
-    expect(getStaffGroupKey("csr_staff")).toBe("front_desk");
     expect(getStaffGroupKey("nail_tech")).toBe("salon");
     expect(getStaffGroupKey("unknown_role")).toBe("other");
   });
