@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import {
   setScheduleSchema,
   createOverrideSchema,
@@ -16,7 +16,15 @@ async function getManagerContext() {
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
-    return { supabase, me: { id: "dev", branch_id: "dev", system_role: "manager" } };
+    const mock = getDevBypassLayoutStaff();
+    return {
+      supabase,
+      me: {
+        id: null,
+        branch_id: mock.branch_id,
+        system_role: "manager",
+      },
+    };
   }
 
   const { data: me } = await supabase
@@ -81,7 +89,7 @@ export async function createScheduleOverrideAction(rawInput: unknown) {
         start_time:    parsed.data.startTime ?? null,
         end_time:      parsed.data.endTime   ?? null,
         reason:        parsed.data.reason    ?? null,
-        created_by:    ctx.me.id,
+        created_by:    ctx.me.id ?? null,
       },
       { onConflict: "staff_id,override_date" }
     );
@@ -112,7 +120,7 @@ export async function createBlockedTimeAction(rawInput: unknown) {
       start_time: parsed.data.startTime,
       end_time:   parsed.data.endTime,
       reason:     parsed.data.reason,
-      created_by: ctx.me.id,
+      created_by: ctx.me.id ?? null,
     });
 
   if (error) return { success: false, error: error.message };

@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { canManageResources } from "@/lib/auth/crm-permissions";
+import { canonicalizeSystemRole } from "@/constants/staff";
 import { createBranchResourceSchema, updateBranchResourceSchema } from "@/lib/validations/branch";
 import { revalidatePath } from "next/cache";
 
@@ -23,16 +25,12 @@ async function requireOwnerOrManager(branchId?: string) {
   
   if (!me) return null;
   
+  const role = canonicalizeSystemRole(me.system_role);
   // Owner can manage any branch
-  if (me.system_role === "owner") return supabase;
+  if (role === "owner") return supabase;
 
   // Branch-scoped staff (managers + CRM ops) can manage only their own branch.
-  // crm / csr_head included for MVP practical-setup access (Phase 6).
-  if (
-    ["manager", "assistant_manager", "store_manager", "crm", "csr_head"].includes(
-      me.system_role
-    )
-  ) {
+  if (canManageResources(role)) {
     if (branchId && me.branch_id !== branchId) return null;
     return supabase;
   }

@@ -3,7 +3,7 @@
 /**
  * CRM Service Provider Assignment Actions
  *
- * MVP Note: CRM setup roles (owner, manager, crm, csr_head, csr_staff, csr) are
+ * MVP Note: CRM setup roles (owner, management, and Front Desk/CRM) are
  * permitted to manage service-provider assignments so daily operations can start
  * immediately. Once the system is stable, this can be tightened to manager/owner only.
  *
@@ -22,7 +22,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
-import { SERVICE_STAFF_TYPES } from "@/constants/staff-roles";
+import { SERVICE_STAFF_TYPES, canonicalizeSystemRole } from "@/constants/staff-roles";
+import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,18 +32,6 @@ export type ActionResult =
   | { ok: false; message: string };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-/** Roles allowed to manage provider assignments from the CRM workspace (MVP). */
-const CRM_SETUP_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
-]);
 
 /**
  * High-privilege roles that can manage any branch (not tied to a specific branch_id).
@@ -81,7 +70,7 @@ type CrmSetupContext = {
  *
  * High-privilege roles (owner, manager, etc.) are allowed to operate on any
  * branch — their branchId may be null if they have no personal branch assignment.
- * Branch-scoped roles (crm, csr_head) must have a branch_id set.
+ * Branch-scoped Front Desk roles must have a branch_id set.
  */
 async function requireCrmSetupAccess(): Promise<CrmSetupContext | null> {
   const supabase = await createClient();
@@ -99,14 +88,15 @@ async function requireCrmSetupAccess(): Promise<CrmSetupContext | null> {
     .maybeSingle();
 
   if (me) {
-    if (!CRM_SETUP_ROLES.has(me.system_role as string)) return null;
-    const isHighPrivilege = HIGH_PRIVILEGE_ROLES.has(me.system_role as string);
-    // Branch-scoped roles (crm, csr_head) must have a branch assigned
+    const role = canonicalizeSystemRole(me.system_role as string);
+    if (!canManageCrmSetup(role)) return null;
+    const isHighPrivilege = HIGH_PRIVILEGE_ROLES.has(role);
+    // Branch-scoped Front Desk roles must have a branch assigned
     if (!isHighPrivilege && !me.branch_id) return null;
     return {
       supabase,
       branchId: (me.branch_id as string | null) ?? null,
-      systemRole: me.system_role as string,
+      systemRole: role,
       isHighPrivilege,
     };
   }
@@ -117,7 +107,7 @@ async function requireCrmSetupAccess(): Promise<CrmSetupContext | null> {
     return {
       supabase,
       branchId: mock.branch_id,
-      systemRole: mock.system_role,
+      systemRole: canonicalizeSystemRole(mock.system_role),
       isHighPrivilege: true, // mock is always "owner"
     };
   }
@@ -231,7 +221,7 @@ type StaffEligibility = {
 
 function isValidServiceProvider(s: StaffEligibility): boolean {
   if (!s.is_active) return false;
-  if (HARD_EXCLUDED_SYSTEM_ROLES.has(s.system_role)) return false;
+  if (HARD_EXCLUDED_SYSTEM_ROLES.has(canonicalizeSystemRole(s.system_role))) return false;
   return SERVICE_STAFF_TYPE_SET.has(s.staff_type);
 }
 
@@ -315,7 +305,7 @@ export async function assignProviderToServiceAction(
         message: "Inactive staff cannot be assigned as service providers.",
       };
     }
-    if (HARD_EXCLUDED_SYSTEM_ROLES.has(staff.system_role as string)) {
+    if (HARD_EXCLUDED_SYSTEM_ROLES.has(canonicalizeSystemRole(staff.system_role as string))) {
       return {
         ok: false,
         message: "Drivers and utility staff cannot be assigned as service providers.",

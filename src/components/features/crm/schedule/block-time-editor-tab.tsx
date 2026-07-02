@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Check, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import {
-  createBlockedTimeAction,
-  deleteBlockedTimeAction,
-} from "@/app/(dashboard)/manager/staff/actions";
+  createCrmBlockedTimeAction,
+  deleteCrmBlockedTimeAction,
+} from "@/lib/actions/crm-schedule-availability";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatTime12h } from "@/lib/utils/time-format";
@@ -14,6 +14,7 @@ import type { BlockedTime } from "./edit-availability-types";
 
 type BlockTimeEditorTabProps = {
   staffId: string;
+  branchId: string;
   blockedTimes: BlockedTime[];
   initialDate?: string;
   initiallyShowForm?: boolean;
@@ -61,6 +62,7 @@ function getReasonClass(reason: string): string {
 
 export function BlockTimeEditorTab({
   staffId,
+  branchId,
   blockedTimes,
   initialDate,
   initiallyShowForm = false,
@@ -110,7 +112,8 @@ export function BlockTimeEditorTab({
 
     startTransition(async () => {
       setFeedback(null);
-      const result = await createBlockedTimeAction({
+      const result = await createCrmBlockedTimeAction({
+        branchId,
         staffId,
         blockDate,
         startTime,
@@ -118,17 +121,17 @@ export function BlockTimeEditorTab({
         reason,
       });
 
-      if (!result.success) {
-        setFeedback(result.error ?? "Failed to add block time.");
+      if (!result.ok) {
+        setFeedback(result.message ?? "Failed to add block time.");
         return;
       }
 
       const nextItem: BlockedTime = {
-        id: `pending-${staffId}-${blockDate}-${startTime}`,
-        block_date: blockDate,
-        start_time: startTime,
-        end_time: endTime,
-        reason,
+        id: result.block.id,
+        block_date: result.block.block_date,
+        start_time: result.block.start_time,
+        end_time: result.block.end_time,
+        reason: result.block.reason,
       };
       setItems((current) =>
         [...current, nextItem].sort(
@@ -138,22 +141,26 @@ export function BlockTimeEditorTab({
         )
       );
       resetForm();
-      onChanged("Block time saved.");
+      onChanged(result.message);
     });
   }
 
   function removeBlock(blockId: string) {
     startTransition(async () => {
       setFeedback(null);
-      const result = await deleteBlockedTimeAction(blockId);
+      const result = await deleteCrmBlockedTimeAction({
+        branchId,
+        staffId,
+        blockId,
+      });
 
-      if (!result.success) {
-        setFeedback(result.error ?? "Failed to remove block time.");
+      if (!result.ok) {
+        setFeedback(result.message ?? "Failed to remove block time.");
         return;
       }
 
       setItems((current) => current.filter((item) => item.id !== blockId));
-      onChanged("Block time removed.");
+      onChanged(result.message);
     });
   }
 

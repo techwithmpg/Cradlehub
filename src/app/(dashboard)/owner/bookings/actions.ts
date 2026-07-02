@@ -28,7 +28,7 @@ async function requireOwner() {
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
-    return { supabase, me: { id: "dev", system_role: "owner" } };
+    return { supabase, me: { id: null as string | null, system_role: "owner" } };
   }
 
   const { data: me } = await supabase
@@ -86,11 +86,13 @@ export async function ownerUpdateBookingStatusAction(rawInput: unknown) {
 
   // Set attribution for trigger (fire-and-forget — non-critical).
   // set_config is a Postgres built-in, not in generated Supabase types — cast required.
-  try {
-    await (ctx.supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
-      .rpc("set_config", { setting: "app.current_staff_id", value: ctx.me.id, is_local: true });
-  } catch {
-    // Non-critical: trigger attribution may not run, booking update proceeds
+  if (ctx.me.id) {
+    try {
+      await (ctx.supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
+        .rpc("set_config", { setting: "app.current_staff_id", value: ctx.me.id, is_local: true });
+    } catch {
+      // Non-critical: trigger attribution may not run, booking update proceeds
+    }
   }
 
   // Fetch branch_id for cache invalidation (owner is cross-branch).
@@ -199,7 +201,7 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
   // Insert audit log
   await ctx.supabase.from("booking_payment_logs").insert({
     booking_id:            bookingId,
-    changed_by:            ctx.me.id,
+    changed_by:            ctx.me.id ?? null,
     old_payment_method:    before?.payment_method ?? null,
     old_payment_status:    before?.payment_status ?? null,
     old_amount_paid:       before?.amount_paid ?? null,

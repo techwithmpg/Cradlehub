@@ -3,9 +3,8 @@ import { PageHeader }   from "@/components/features/dashboard/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { canManageResources } from "@/lib/auth/crm-permissions";
 import { DatePickerForm } from "./date-picker-form";
-
-const ALLOWED_ROLES = ["owner", "manager", "crm", "csr_head"];
 
 type Resource = {
   id: string;
@@ -80,7 +79,7 @@ async function getManagerContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !ALLOWED_ROLES.includes(me.system_role) || !me.branch_id) redirect("/login");
+  if (!me || !canManageResources(me.system_role) || !me.branch_id) redirect("/login");
 
   return {
     supabase,

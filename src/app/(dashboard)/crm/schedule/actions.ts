@@ -6,6 +6,8 @@ import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services"
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { canonicalizeSystemRole } from "@/constants/staff";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { isOwner } from "@/lib/permissions";
 import { logError } from "@/lib/logger";
@@ -35,17 +37,6 @@ const fullScheduleSchema = z
 const staffProfileSchema = z.object({
   staffId: uuid,
 });
-
-const SCHEDULE_VIEW_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
-]);
 
 const GROUP_KEY_BY_STAFF_TYPE: Record<string, string> = {
   therapist: "therapist",
@@ -242,10 +233,11 @@ async function getActorContext(
   if (error) return { ok: false, error: error.message };
   const actor = me as ActorStaffRow | null;
   if (!actor) return { ok: false, error: "No active staff record is linked to your account." };
-  if (!SCHEDULE_VIEW_ROLES.has(actor.system_role)) {
+  const actorRole = canonicalizeSystemRole(actor.system_role);
+  if (!canAccessCrmWorkspace(actorRole)) {
     return { ok: false, error: "Your role does not have permission to view full schedules." };
   }
-  if (!isOwner(actor.system_role)) {
+  if (!isOwner(actorRole)) {
     const actorBranch = actor.branch_id?.toLowerCase() ?? "";
     const targetBranch = targetBranchId?.toLowerCase() ?? "";
     if (!actorBranch || actorBranch !== targetBranch) {
@@ -292,16 +284,17 @@ async function getStaffProfileActionContext(): Promise<
   if (error) return { ok: false, error: "Could not verify your staff access." };
   const actor = me as ActorStaffRow | null;
   if (!actor) return { ok: false, error: "No active staff record is linked to your account." };
-  if (!SCHEDULE_VIEW_ROLES.has(actor.system_role)) {
+  const actorRole = canonicalizeSystemRole(actor.system_role);
+  if (!canAccessCrmWorkspace(actorRole)) {
     return { ok: false, error: "You do not have permission to edit staff profiles." };
   }
 
   return {
     ok: true,
-    context: {
-      actorBranchId: actor.branch_id,
-      actorRole: actor.system_role,
-    },
+      context: {
+        actorBranchId: actor.branch_id,
+        actorRole,
+      },
   };
 }
 

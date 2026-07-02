@@ -2,7 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
@@ -23,9 +24,14 @@ async function requireManagerOrCrm() {
   if (!user) return { error: "Not logged in" } as const;
 
   if (isDevAuthBypassEnabled()) {
+    const mock = getDevBypassLayoutStaff();
     return {
       supabase,
-      me: { id: "dev", branch_id: "dev", system_role: "manager" as const },
+      me: {
+        id: "00000000-0000-0000-0000-000000000000",
+        branch_id: mock.branch_id,
+        system_role: mock.system_role,
+      },
     };
   }
 
@@ -38,17 +44,7 @@ async function requireManagerOrCrm() {
 
   if (!me) return { error: "No active staff record" } as const;
 
-  const allowed = [
-    "owner",
-    "manager",
-    "assistant_manager",
-    "store_manager",
-    "crm",
-    "csr_head",
-    "csr_staff",
-    "csr",
-  ];
-  if (!allowed.includes(me.system_role))
+  if (!canAccessCrmWorkspace(me.system_role))
     return { error: "Insufficient permissions" } as const;
 
   return { supabase, me };

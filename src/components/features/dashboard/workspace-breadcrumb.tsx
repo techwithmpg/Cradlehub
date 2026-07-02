@@ -1,15 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import { resolveWorkspaceKeyFromPath, resolveWorkspaceKeyFromRole } from "./nav-config";
 
 const WORKSPACE_LABEL: Record<string, string> = {
   owner: "Owner Workspace",
   manager: "Manager Workspace",
   crm: "Front Desk Workspace",
-  csr: "Front Desk Workspace",
-  csr_head: "Front Desk Workspace",
-  csr_staff: "Front Desk Workspace",
   staff: "Staff Workspace",
   driver: "Driver Workspace",
   utility: "Utility Workspace",
@@ -20,10 +18,7 @@ const ROLE_LABEL: Record<string, string> = {
   manager: "Manager access",
   assistant_manager: "Asst. Manager access",
   store_manager: "Store Manager access",
-  crm: "CRM access",
-  csr: "Front-desk access",
-  csr_head: "CSR Head access",
-  csr_staff: "CSR Staff access",
+  crm: "Front Desk access",
   staff: "Staff access",
   service_head: "Service Head access",
   service_staff: "Service Staff access",
@@ -36,9 +31,6 @@ const ROLE_ACCENT: Record<string, string> = {
   manager: "var(--cs-manager-accent)",
   assistant_manager: "var(--cs-manager-accent)",
   store_manager: "var(--cs-manager-accent)",
-  csr: "var(--cs-csr-accent)",
-  csr_head: "var(--cs-csr-head-accent)",
-  csr_staff: "var(--cs-csr-staff-accent)",
   crm: "var(--cs-crm-accent)",
   staff: "var(--cs-staff-accent)",
   driver: "var(--cs-sand)",
@@ -47,13 +39,14 @@ const ROLE_ACCENT: Record<string, string> = {
 
 export function WorkspaceBreadcrumb({ role }: { role: string }) {
   const pathname = usePathname();
+  const canonicalRole = canonicalizeSystemRole(role);
   const pathKey = resolveWorkspaceKeyFromPath(pathname);
-  const roleKey = resolveWorkspaceKeyFromRole(role);
+  const roleKey = resolveWorkspaceKeyFromRole(canonicalRole);
 
   const workspaceKey = pathKey ?? roleKey;
   const workspaceLabel = WORKSPACE_LABEL[workspaceKey] ?? "Dashboard";
-  const roleLabel = ROLE_LABEL[role] ?? role;
-  const accent = ROLE_ACCENT[role] ?? "var(--cs-sand)";
+  const roleLabel = ROLE_LABEL[canonicalRole] ?? canonicalRole;
+  const accent = ROLE_ACCENT[canonicalRole] ?? "var(--cs-sand)";
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 40 }} className="md:pl-0">

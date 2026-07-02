@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { CalendarDays, Check, Plus, Trash2 } from "lucide-react";
 import {
-  createScheduleOverrideAction,
-  deleteScheduleOverrideAction,
-} from "@/app/(dashboard)/manager/staff/actions";
+  deleteCrmScheduleOverrideAction,
+  upsertCrmScheduleOverrideAction,
+} from "@/lib/actions/crm-schedule-availability";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +14,7 @@ import type { ScheduleOverride } from "./edit-availability-types";
 
 type DayOverridesEditorTabProps = {
   staffId: string;
+  branchId: string;
   overrides: ScheduleOverride[];
   onDirtyChange: (isDirty: boolean) => void;
   onChanged: (message: string) => void;
@@ -35,6 +36,7 @@ function getOverrideType(override: ScheduleOverride): string {
 
 export function DayOverridesEditorTab({
   staffId,
+  branchId,
   overrides,
   onDirtyChange,
   onChanged,
@@ -82,7 +84,8 @@ export function DayOverridesEditorTab({
 
     startTransition(async () => {
       setFeedback(null);
-      const result = await createScheduleOverrideAction({
+      const result = await upsertCrmScheduleOverrideAction({
+        branchId,
         staffId,
         overrideDate,
         isDayOff,
@@ -90,18 +93,18 @@ export function DayOverridesEditorTab({
         endTime: isDayOff ? undefined : endTime,
       });
 
-      if (!result.success) {
-        setFeedback(result.error ?? "Failed to save day override.");
+      if (!result.ok) {
+        setFeedback(result.message ?? "Failed to save day override.");
         return;
       }
 
       const nextItem: ScheduleOverride = {
-        id: `pending-${staffId}-${overrideDate}`,
-        override_date: overrideDate,
-        is_day_off: isDayOff,
-        start_time: isDayOff ? null : startTime,
-        end_time: isDayOff ? null : endTime,
-        reason: null,
+        id: result.override.id,
+        override_date: result.override.override_date,
+        is_day_off: result.override.is_day_off,
+        start_time: result.override.start_time,
+        end_time: result.override.end_time,
+        reason: result.override.reason,
       };
       setItems((current) =>
         [
@@ -110,22 +113,26 @@ export function DayOverridesEditorTab({
         ].sort((a, b) => a.override_date.localeCompare(b.override_date))
       );
       resetForm();
-      onChanged("Day override saved.");
+      onChanged(result.message);
     });
   }
 
   function removeOverride(overrideId: string) {
     startTransition(async () => {
       setFeedback(null);
-      const result = await deleteScheduleOverrideAction(overrideId);
+      const result = await deleteCrmScheduleOverrideAction({
+        branchId,
+        staffId,
+        overrideId,
+      });
 
-      if (!result.success) {
-        setFeedback(result.error ?? "Failed to remove day override.");
+      if (!result.ok) {
+        setFeedback(result.message ?? "Failed to remove day override.");
         return;
       }
 
       setItems((current) => current.filter((item) => item.id !== overrideId));
-      onChanged("Day override removed.");
+      onChanged(result.message);
     });
   }
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { updateBookingStatusSchema, editBookingSchema, updateBookingPaymentSchema } from "@/lib/validations/booking";
 import { assertSlotAvailable } from "@/lib/engine/availability";
 import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
@@ -14,6 +14,8 @@ import { createNotification, resolveNotificationsForEntity } from "@/lib/notific
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { logError, logBusinessEvent } from "@/lib/logger";
 
+const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
+
 // ── Auth helper ────────────────────────────────────────────────────────────
 async function getOperationsContext() {
   const supabase = await createClient();
@@ -21,7 +23,15 @@ async function getOperationsContext() {
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
-    return { supabase, me: { id: "dev", branch_id: "dev", system_role: "owner" } };
+    const mock = getDevBypassLayoutStaff();
+    return {
+      supabase,
+      me: {
+        id: DEV_BYPASS_STAFF_ID,
+        branch_id: mock.branch_id,
+        system_role: mock.system_role,
+      },
+    };
   }
 
   const { data: me } = await supabase
@@ -47,18 +57,19 @@ export async function updateBookingStatusAction(rawInput: unknown) {
   if (!ctx) return { success: false, error: "Unauthorized" };
   const { supabase, me } = ctx;
 
-  // CSR Staff cannot cancel bookings — only CSR Head+ can
   if (parsed.data.status === "cancelled" && !canCancelBooking(me.system_role)) {
     return { success: false, error: "You do not have permission to cancel bookings" };
   }
 
   // Set attribution for trigger (fire-and-forget — non-critical).
   // set_config is a Postgres built-in, not in generated Supabase types — cast required.
-  try {
-    await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
-      .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
-  } catch {
-    // Non-critical: trigger attribution may not run, booking update proceeds
+  if (me.id !== DEV_BYPASS_STAFF_ID) {
+    try {
+      await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
+        .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
+    } catch {
+      // Non-critical: trigger attribution may not run, booking update proceeds
+    }
   }
 
   const updates: Database["public"]["Tables"]["bookings"]["Update"] = {
@@ -100,7 +111,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     .select("staff_id, branch_id, booking_date, start_time")
     .eq("id", parsed.data.bookingId);
   const { data: bookingBefore } = await (
-    me.branch_id !== "dev" ? _statusBeforeQ.eq("branch_id", me.branch_id) : _statusBeforeQ
+    me.system_role !== "owner" ? _statusBeforeQ.eq("branch_id", me.branch_id) : _statusBeforeQ
   ).single();
 
   const _statusUpdateQ = supabase
@@ -108,7 +119,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     .update(updates)
     .eq("id", parsed.data.bookingId);
   const { error } = await (
-    me.branch_id !== "dev" ? _statusUpdateQ.eq("branch_id", me.branch_id) : _statusUpdateQ
+    me.system_role !== "owner" ? _statusUpdateQ.eq("branch_id", me.branch_id) : _statusUpdateQ
   );
 
   if (error) {
@@ -196,7 +207,6 @@ export async function editBookingAction(rawInput: unknown) {
 
   const { bookingId, notes, ...changes } = parsed.data;
 
-  // CSR Staff cannot reassign therapists — only CSR Head+ can
   if (changes.staffId && !canReassignBooking(me.system_role)) {
     return { success: false, error: "You do not have permission to reassign therapists" };
   }
@@ -207,7 +217,7 @@ export async function editBookingAction(rawInput: unknown) {
     .select("*")
     .eq("id", bookingId);
   const { data: current } = await (
-    me.branch_id !== "dev" ? _editCurrentQ.eq("branch_id", me.branch_id) : _editCurrentQ
+    me.system_role !== "owner" ? _editCurrentQ.eq("branch_id", me.branch_id) : _editCurrentQ
   ).single();
 
   if (!current) return { success: false, error: "Booking not found" };
@@ -318,11 +328,13 @@ export async function editBookingAction(rawInput: unknown) {
 
   // Set attribution so trigger writes changed_by to booking_events (fire-and-forget — non-critical).
   // set_config is a Postgres built-in, not in generated Supabase types — cast required.
-  try {
-    await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
-      .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
-  } catch {
-    // Non-critical: trigger attribution may not run, booking update proceeds
+  if (me.id !== DEV_BYPASS_STAFF_ID) {
+    try {
+      await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
+        .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
+    } catch {
+      // Non-critical: trigger attribution may not run, booking update proceeds
+    }
   }
 
   const _editUpdateQ = supabase
@@ -330,7 +342,7 @@ export async function editBookingAction(rawInput: unknown) {
     .update(updates)
     .eq("id", bookingId);
   const { error } = await (
-    me.branch_id !== "dev" ? _editUpdateQ.eq("branch_id", me.branch_id) : _editUpdateQ
+    me.system_role !== "owner" ? _editUpdateQ.eq("branch_id", me.branch_id) : _editUpdateQ
   );
 
   if (error) return { success: false, error: error.message };
@@ -401,7 +413,7 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     .select("branch_id, payment_method, payment_status, amount_paid, payment_reference")
     .eq("id", bookingId);
   const { data: before } = await (
-    me.branch_id !== "dev" ? _paymentBeforeQ.eq("branch_id", me.branch_id) : _paymentBeforeQ
+    me.system_role !== "owner" ? _paymentBeforeQ.eq("branch_id", me.branch_id) : _paymentBeforeQ
   ).single();
 
   const isSignificantChange =
@@ -415,7 +427,7 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
   // Insert audit log
   await supabase.from("booking_payment_logs").insert({
     booking_id:            bookingId,
-    changed_by:            me.id === "dev" ? null : me.id,
+    changed_by:            me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
     old_payment_method:    before?.payment_method ?? null,
     old_payment_status:    before?.payment_status ?? null,
     old_amount_paid:       before?.amount_paid ?? null,
@@ -437,7 +449,7 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     })
     .eq("id", bookingId);
   const { error } = await (
-    me.branch_id !== "dev" ? _paymentUpdateQ.eq("branch_id", me.branch_id) : _paymentUpdateQ
+    me.system_role !== "owner" ? _paymentUpdateQ.eq("branch_id", me.branch_id) : _paymentUpdateQ
   );
 
   if (error) return { success: false, error: error.message };

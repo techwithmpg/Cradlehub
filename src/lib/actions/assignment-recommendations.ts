@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { logError } from "@/lib/logger";
 import { z } from "zod";
 import {
@@ -22,17 +23,6 @@ const recommendSchema = z.object({
 
 // ── Auth helper ────────────────────────────────────────────────────────────────
 
-const RECOMMENDATION_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
-]);
-
 type RecCtx =
   | { error: string }
   | { supabase: Awaited<ReturnType<typeof createClient>>; me: { id: string; branch_id: string; system_role: string } };
@@ -43,9 +33,14 @@ async function requireRecommendationAccess(): Promise<RecCtx> {
   if (!user) return { error: "Not logged in" };
 
   if (isDevAuthBypassEnabled()) {
+    const mock = getDevBypassLayoutStaff();
     return {
       supabase,
-      me: { id: "dev", branch_id: "dev", system_role: "manager" },
+      me: {
+        id: "00000000-0000-0000-0000-000000000000",
+        branch_id: mock.branch_id,
+        system_role: mock.system_role,
+      },
     };
   }
 
@@ -57,7 +52,7 @@ async function requireRecommendationAccess(): Promise<RecCtx> {
     .maybeSingle();
 
   if (!me) return { error: "No active staff record" };
-  if (!RECOMMENDATION_ROLES.has(me.system_role))
+  if (!canAccessCrmWorkspace(me.system_role))
     return { error: "Insufficient permissions" };
 
   return { supabase, me: { id: me.id, branch_id: me.branch_id, system_role: me.system_role } };

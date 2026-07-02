@@ -243,6 +243,7 @@ function EditAvailabilityModalContent({
           {activeTab === "overrides" ? (
             <DayOverridesEditorTab
               staffId={item.staff.id}
+              branchId={branchId}
               overrides={item.overrides}
               onDirtyChange={setOverrideFormDirty}
               onChanged={handleTabMutation}
@@ -252,6 +253,7 @@ function EditAvailabilityModalContent({
           {activeTab === "blocks" ? (
             <BlockTimeEditorTab
               staffId={item.staff.id}
+              branchId={branchId}
               blockedTimes={item.blockedTimes}
               initialDate={initialDate}
               initiallyShowForm={initialTab === "blocks"}

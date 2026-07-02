@@ -8,8 +8,11 @@
 // ── Roles ───────────────────────────────────────────────────────────────────
 
 import {
+  FRONT_DESK_ROLE_ALIASES,
   SYSTEM_ROLE_LABELS,
   SYSTEM_ROLES,
+  canonicalizeSystemRole,
+  isFrontDeskRole,
   type SystemRole,
 } from "@/constants/staff-roles";
 
@@ -21,12 +24,10 @@ export const ROLE_LABELS: Record<string, string> = { ...SYSTEM_ROLE_LABELS };
 
 const OWNERS: readonly string[] = ["owner"];
 const MANAGERS: readonly string[] = ["owner", "manager", "assistant_manager", "store_manager"];
-const CSR_ROLES: readonly string[] = ["csr_head", "csr_staff", "csr"];
-const CRM_ROLES: readonly string[] = ["crm"];
+const CRM_ROLES: readonly string[] = FRONT_DESK_ROLE_ALIASES;
 const BOOKING_OPERATIONS: readonly string[] = [
   ...MANAGERS,
   ...CRM_ROLES,
-  ...CSR_ROLES,
 ];
 
 // ── Permission helpers ──────────────────────────────────────────────────────
@@ -36,19 +37,19 @@ export function isOwner(role: string): boolean {
 }
 
 export function isManager(role: string): boolean {
-  return MANAGERS.includes(role);
+  return MANAGERS.includes(canonicalizeSystemRole(role));
 }
 
 export function isCsr(role: string): boolean {
-  return CSR_ROLES.includes(role);
+  return isFrontDeskRole(role);
 }
 
 export function isCsrHead(role: string): boolean {
-  return role === "csr_head";
+  return isFrontDeskRole(role);
 }
 
 export function isCsrStaff(role: string): boolean {
-  return role === "csr_staff" || role === "csr";
+  return isFrontDeskRole(role);
 }
 
 // ── Navigation permissions ──────────────────────────────────────────────────
@@ -78,109 +79,113 @@ const NAV_PERMISSION_MAP: Record<NavPermission, readonly string[]> = {
   reports: MANAGERS,
   dev_panel: OWNERS,
   operations: MANAGERS,
-  repeats: [...MANAGERS, "crm", "csr_head"],
-  lapsed: [...MANAGERS, "crm", "csr_head"],
+  repeats: [...MANAGERS, ...CRM_ROLES],
+  lapsed: [...MANAGERS, ...CRM_ROLES],
 };
 
 export function canViewNav(role: string, permission: NavPermission): boolean {
-  return NAV_PERMISSION_MAP[permission].includes(role);
+  return NAV_PERMISSION_MAP[permission].includes(canonicalizeSystemRole(role));
 }
 
 // ── Action permissions ──────────────────────────────────────────────────────
 
 /** Can create in-house / walk-in / phone bookings */
 export function canCreateBooking(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can view booking details and lists */
 export function canViewBookings(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can update basic booking details (notes, type, reschedule if allowed) */
 export function canUpdateBooking(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
-/** Can cancel bookings (CSR Head + managers + owner) */
+/** Can cancel bookings (all CRM/front-desk roles + management) */
 export function canCancelBooking(role: string): boolean {
-  return MANAGERS.includes(role) || isCsrHead(role);
+  const canonicalRole = canonicalizeSystemRole(role);
+  return MANAGERS.includes(canonicalRole) || isFrontDeskRole(role);
 }
 
 /** Can reassign therapist for a booking */
 export function canReassignBooking(role: string): boolean {
-  return MANAGERS.includes(role) || isCsrHead(role);
+  const canonicalRole = canonicalizeSystemRole(role);
+  return MANAGERS.includes(canonicalRole) || isFrontDeskRole(role);
 }
 
 /** Can change booking status (start, complete, no-show — all ops roles) */
 export function canChangeBookingStatus(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can view customer records */
 export function canViewCustomers(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can create customer records */
 export function canCreateCustomer(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can update basic customer contact details */
 export function canUpdateCustomer(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can delete customer records (owner/manager only) */
 export function canDeleteCustomer(role: string): boolean {
-  return MANAGERS.includes(role);
+  return MANAGERS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can view staff schedule / availability */
 export function canViewSchedule(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can manually adjust one staff member's availability */
 export function canAdjustStaffSchedule(role: string): boolean {
-  return MANAGERS.includes(role) || role === "crm" || isCsrHead(role) || isCsrStaff(role);
+  const canonicalRole = canonicalizeSystemRole(role);
+  return MANAGERS.includes(canonicalRole) || canonicalRole === "crm";
 }
 
 /** Can manage services (owner/manager only) */
 export function canManageServices(role: string): boolean {
-  return MANAGERS.includes(role);
+  return MANAGERS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can manage staff records (owner/manager only) */
 export function canManageStaff(role: string): boolean {
-  return MANAGERS.includes(role);
+  return MANAGERS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can approve staff onboarding applications (owner/manager/CRM/CSR for MVP) */
 export function canReviewStaffOnboarding(role: string): boolean {
-  return MANAGERS.includes(role) || CSR_ROLES.includes(role) || CRM_ROLES.includes(role);
+  const canonicalRole = canonicalizeSystemRole(role);
+  return MANAGERS.includes(canonicalRole) || canonicalRole === "crm";
 }
 
 /** Can manage branches (owner/manager only) */
 export function canManageBranches(role: string): boolean {
-  return MANAGERS.includes(role);
+  return MANAGERS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can view owner-level reports (owner/manager only) */
 export function canViewOwnerReports(role: string): boolean {
-  return MANAGERS.includes(role);
+  return MANAGERS.includes(canonicalizeSystemRole(role));
 }
 
 /** Can access dev panel (owner only) */
 export function canAccessDevPanel(role: string): boolean {
-  return isOwner(role);
+  return isOwner(canonicalizeSystemRole(role));
 }
 
-/** Can view daily booking summary (all ops + CSR Head) */
+/** Can view daily booking summary (all booking operations roles) */
 export function canViewDailySummary(role: string): boolean {
-  return BOOKING_OPERATIONS.includes(role);
+  return BOOKING_OPERATIONS.includes(canonicalizeSystemRole(role));
 }
 
 // ── Route access permissions ────────────────────────────────────────────────
@@ -218,7 +223,7 @@ export const CSR_STAFF_BLOCKED_CRM_PREFIXES: readonly string[] = [];
 
 /** Check if a pathname is accessible by a CSR role */
 export function canCsrAccessPath(role: string, pathname: string): boolean {
-  if (!isCsr(role)) return true;
+  if (!isFrontDeskRole(role)) return true;
 
   // CSR cannot access blocked prefixes
   if (CSR_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
@@ -250,27 +255,27 @@ export function canCrmAccessPath(pathname: string): boolean {
  * MVP: manager and management variants still land at /crm while Manager is soft-paused.
  */
 export function getDefaultDashboardPath(role: string): string {
-  if (role === "owner") return "/owner";
+  const canonicalRole = canonicalizeSystemRole(role);
+  if (canonicalRole === "owner") return "/owner";
 
   // MVP: management roles → CRM (manager workspace soft-paused)
   if (
-    role === "manager" ||
-    role === "assistant_manager" ||
-    role === "store_manager"
+    canonicalRole === "manager" ||
+    canonicalRole === "assistant_manager" ||
+    canonicalRole === "store_manager"
   ) {
     return "/crm";
   }
-  if (isCsr(role)) return "/crm";
-  if (role === "crm") return "/crm";
-  if (role === "driver") return "/driver";
-  if (role === "utility") return "/utility";
+  if (canonicalRole === "crm") return "/crm";
+  if (canonicalRole === "driver") return "/driver";
+  if (canonicalRole === "utility") return "/utility";
   if (
-    role === "staff" ||
-    role === "therapist" ||
-    role === "masseuse" ||
-    role === "service_provider" ||
-    role === "service_head" ||
-    role === "service_staff"
+    canonicalRole === "staff" ||
+    canonicalRole === "therapist" ||
+    canonicalRole === "masseuse" ||
+    canonicalRole === "service_provider" ||
+    canonicalRole === "service_head" ||
+    canonicalRole === "service_staff"
   ) {
     return "/staff-portal";
   }

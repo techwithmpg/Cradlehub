@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import "server-only";
 import {
+  canAccessCrmWorkspace,
   canConfirmPayments,
   canManageBookings,
   canManageCrmSetup,
@@ -15,11 +16,10 @@ import {
   canManageStaffServicesAcrossBranches,
   canUpdateServiceVisibility,
 } from "@/lib/auth/crm-permissions";
+import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import { createClient } from "@/lib/supabase/server";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
-
-const CRM_ROLES = ["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"];
 
 type BranchRelation = { name: string | null } | { name: string | null }[] | null;
 
@@ -114,11 +114,12 @@ export const getCrmContext = cache(async function getCrmContext() {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (!me || !CRM_ROLES.includes(me.system_role)) redirect("/login");
+  if (!me || !canAccessCrmWorkspace(me.system_role)) redirect("/login");
 
+  const role = canonicalizeSystemRole(me.system_role);
   return {
-    role: me.system_role,
-    branchId: me.system_role === "owner" ? null : me.branch_id,
+    role,
+    branchId: role === "owner" ? null : me.branch_id,
   };
 });
 
@@ -162,9 +163,9 @@ export const getFrontDeskContext = cache(async function getFrontDeskContext(): P
     };
   }
 
-  if (!me || !CRM_ROLES.includes(me.system_role) || !me.branch_id) redirect("/login");
+  if (!me || !canAccessCrmWorkspace(me.system_role) || !me.branch_id) redirect("/login");
 
-  const role = me.system_role;
+  const role = canonicalizeSystemRole(me.system_role);
   return {
     userId: user.id,
     role,

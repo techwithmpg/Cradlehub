@@ -1,10 +1,24 @@
 import { z } from "zod";
-import { STAFF_TYPES } from "@/constants/staff";
+import { STAFF_TYPES, canonicalizeSystemRole } from "@/constants/staff";
 import { isValidShiftRange } from "@/lib/utils/time-format";
 
 // z.string().uuid() is stricter in Zod v4 and can reject some existing IDs.
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
+const systemRoleInputSchema = z
+  .enum([
+    "manager",
+    "crm",
+    "csr",
+    "csr_head",
+    "csr_staff",
+    "staff",
+    "service_head",
+    "service_staff",
+    "driver",
+    "utility",
+  ])
+  .transform((role) => canonicalizeSystemRole(role));
 const optionalNickname = z.preprocess(
   (value) => {
     if (typeof value !== "string") return value;
@@ -20,7 +34,7 @@ export const createStaffSchema = z.object({
   nickname:   optionalNickname,
   phone:      z.string().min(7).max(20).optional(),
   tier:       z.enum(["senior", "mid", "junior", "head", "n/a"]),
-  systemRole: z.enum(["manager", "crm", "csr", "csr_head", "csr_staff", "staff", "service_head", "service_staff", "driver", "utility"]),
+  systemRole: systemRoleInputSchema,
   staffType:  z.enum(STAFF_TYPES).default("therapist"),
   isHead:     z.boolean().default(false),
   email:      z.string().email("Valid email required for system access"),
@@ -34,7 +48,7 @@ export const updateStaffSchema = z.object({
   nickname:   optionalNickname,
   phone:      z.string().min(7).max(20).optional(),
   tier:       z.enum(["senior", "mid", "junior", "head", "n/a"]).optional(),
-  systemRole: z.enum(["manager", "crm", "csr", "csr_head", "csr_staff", "staff", "service_head", "service_staff", "driver", "utility"]).optional(),
+  systemRole: systemRoleInputSchema.optional(),
   staffType:  z.enum(STAFF_TYPES).optional(),
   isHead:     z.boolean().optional(),
   branchId:   uuid.optional(),

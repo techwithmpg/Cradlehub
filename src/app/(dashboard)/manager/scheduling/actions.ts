@@ -39,7 +39,13 @@ async function requireManager() {
     if (!branchId) return null;
     return {
       supabase,
-      me: { id: "dev", branch_id: branchId, system_role: "manager", full_name: "Dev User", branches: null },
+      me: {
+        id: "00000000-0000-0000-0000-000000000000",
+        branch_id: branchId,
+        system_role: "manager",
+        full_name: "Dev User",
+        branches: null,
+      },
     };
   }
 

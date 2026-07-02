@@ -69,7 +69,7 @@ function RequestCard({
   
   // Smart default role assignment
   const initialRole = () => {
-    if (request.preferred_role === "csr") return approvalCheck.assignableRoles.includes("csr_staff") ? "csr_staff" : "staff";
+    if (request.preferred_role === "csr") return approvalCheck.assignableRoles.includes("crm") ? "crm" : "staff";
     if (request.preferred_role === "driver") return approvalCheck.assignableRoles.includes("driver") ? "driver" : "staff";
     if (request.preferred_role === "utility") return approvalCheck.assignableRoles.includes("utility") ? "utility" : "staff";
     return approvalCheck.assignableRoles.includes("staff") ? "staff" : (approvalCheck.assignableRoles[0] ?? "staff");

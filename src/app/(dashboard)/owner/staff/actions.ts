@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { canonicalizeSystemRole } from "@/constants/staff";
 import { createStaffSchema, updateStaffSchema } from "@/lib/validations/staff";
 import type { Database } from "@/types/supabase";
 import { revalidatePath } from "next/cache";
@@ -32,9 +33,6 @@ const STAFF_OPERATIONAL_ROLES = [
   "assistant_manager",
   "store_manager",
   "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
 ] as const;
 
 async function requireOwnerOrManager() {
@@ -43,13 +41,21 @@ async function requireOwnerOrManager() {
   if (!user) return { error: "Not logged in" } as const;
 
   if (isDevAuthBypassEnabled()) {
-    return { supabase, admin: createAdminClient(), me: { id: "dev", branch_id: "dev", system_role: "owner" } };
+    return {
+      supabase,
+      admin: createAdminClient(),
+      me: {
+        id: "00000000-0000-0000-0000-000000000000",
+        branch_id: "00000000-0000-0000-0000-000000000000",
+        system_role: "owner",
+      },
+    };
   }
 
   const { data: me } = await supabase
     .from("staff").select("id, branch_id, system_role").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
   if (!me) return { error: "No active staff record linked to this account" } as const;
-  if (!(STAFF_OPERATIONAL_ROLES as readonly string[]).includes(me.system_role)) {
+  if (!(STAFF_OPERATIONAL_ROLES as readonly string[]).includes(canonicalizeSystemRole(me.system_role))) {
     return { error: "Access requires owner, manager, or CRM role" } as const;
   }
   return { supabase, admin: createAdminClient(), me };
@@ -169,12 +175,11 @@ const SENSITIVE_SYSTEM_ROLES = new Set([
 
 const MANAGER_SAFE_ROLES = new Set([
   "staff",
-  "csr_staff",
-  "csr_head",
   "crm",
-  "csr",
   "driver",
   "utility",
+  "service_head",
+  "service_staff",
 ]);
 
 // ── Update staff profile (owner or manager) ───────────────────────────────
@@ -202,7 +207,8 @@ export async function updateStaffAction(rawInput: unknown) {
 
   const { staffId, serviceIds, ...updates } = parsed.data;
   // All non-owner roles are branch-scoped (managers and CRM operational roles alike)
-  const isBranchScoped = ctx.me.system_role !== "owner";
+  const actorRole = canonicalizeSystemRole(ctx.me.system_role);
+  const isBranchScoped = actorRole !== "owner";
 
   // Branch-scoped roles: branch scope + protected account + role safety checks
   if (isBranchScoped) {
@@ -224,17 +230,19 @@ export async function updateStaffAction(rawInput: unknown) {
       return { success: false, error: "You can only assign staff to your own branch." };
     }
 
-    if (updates.systemRole !== undefined && !MANAGER_SAFE_ROLES.has(updates.systemRole)) {
+    if (updates.systemRole !== undefined && !MANAGER_SAFE_ROLES.has(canonicalizeSystemRole(updates.systemRole))) {
       return { success: false, error: "This role requires owner approval." };
     }
   }
 
+  const nextSystemRole =
+    updates.systemRole !== undefined ? canonicalizeSystemRole(updates.systemRole) : undefined;
   const updatePayload = {
     ...(updates.fullName   !== undefined && { full_name:    updates.fullName }),
     ...(updates.nickname   !== undefined && { nickname:     updates.nickname }),
     ...(updates.phone      !== undefined && { phone:        updates.phone }),
     ...(updates.tier       !== undefined && { tier:         updates.tier }),
-    ...(updates.systemRole !== undefined && { system_role:  updates.systemRole }),
+    ...(nextSystemRole    !== undefined && { system_role:  nextSystemRole }),
     ...(updates.staffType  !== undefined && { staff_type:   updates.staffType }),
     ...(updates.isHead     !== undefined && { is_head:      updates.isHead }),
     ...(updates.branchId   !== undefined && { branch_id:    updates.branchId }),
@@ -303,7 +311,8 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
   const ctx = await requireOwnerOrManager();
   if ("error" in ctx) return { success: false, error: ctx.error } as const;
 
-  const isBranchScoped = ctx.me.system_role !== "owner";
+  const actorRole = canonicalizeSystemRole(ctx.me.system_role);
+  const isBranchScoped = actorRole !== "owner";
   if (isBranchScoped) {
     const { data: target } = await ctx.supabase
       .from("staff")

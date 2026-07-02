@@ -13,6 +13,7 @@ import { getOrCreateCustomerTrackingLinkAction, getActiveTrackingTokensForBookin
 import { refreshHomeServiceEtaAction } from "@/lib/actions/eta-actions";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { SYSTEM_ROLE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import { updateWorkQueueBookingStatusAction } from "./actions";
 
 // ── Local types ───────────────────────────────────────────────────────────────
@@ -169,13 +170,10 @@ export default async function CrmTodayPage() {
     };
   });
 
+  const canonicalRole = canonicalizeSystemRole(role);
   const roleLabel =
-    role === "owner"             ? "Owner"
-    : role === "manager"         ? "Manager"
-    : role === "assistant_manager" ? "Asst. Manager"
-    : role === "store_manager"   ? "Store Manager"
-    : role === "csr_head"        ? "CSR Head"
-    : "CSR Staff";
+    SYSTEM_ROLE_LABELS[canonicalRole as keyof typeof SYSTEM_ROLE_LABELS] ??
+    "CRM";
 
   const readinessResult = readiness ?? buildReadinessResult([]);
   const readinessIssues = readinessResult.issues;

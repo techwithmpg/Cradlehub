@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { confirmBookingPaymentSchema } from "@/lib/validations/booking";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
@@ -13,6 +13,8 @@ import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-
 import { revalidatePath } from "next/cache";
 import { logError } from "@/lib/logger";
 import { z } from "zod";
+
+const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
 
 // Staff-portal paths to refresh after service lifecycle changes
 const STAFF_PORTAL_PATHS = [
@@ -35,7 +37,15 @@ async function getCrmActionsContext() {
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
-    return { supabase, me: { id: "dev", branch_id: "dev", system_role: "crm" } };
+    const mock = getDevBypassLayoutStaff();
+    return {
+      supabase,
+      me: {
+        id: DEV_BYPASS_STAFF_ID,
+        branch_id: mock.branch_id,
+        system_role: mock.system_role,
+      },
+    };
   }
 
   const { data: me } = await supabase
@@ -149,7 +159,7 @@ function isHomeServiceBooking(booking: { type?: string | null; delivery_type?: s
 }
 
 function canAccessBookingBranch(ctx: CrmActionContext, branchId: string): boolean {
-  return ctx.me.branch_id === "dev" || ctx.me.system_role === "owner" || ctx.me.branch_id === branchId;
+  return ctx.me.system_role === "owner" || ctx.me.branch_id === branchId;
 }
 
 function normalizeProgress(status: string | null | undefined): string {
@@ -249,7 +259,7 @@ export async function markBookingConfirmedAction(rawInput: unknown): Promise<{ s
     updatePayload.metadata = withFollowupMetadata(booking.metadata, {
       result: "confirmed",
       note: parsed.data.note,
-      actorId: ctx.me.id === "dev" ? null : ctx.me.id,
+      actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
     });
   }
 
@@ -293,7 +303,7 @@ export async function recordBookingFollowupAction(rawInput: unknown): Promise<{ 
         result: parsed.data.result,
         note: parsed.data.note,
         followUpAt: parsed.data.followUpAt,
-        actorId: ctx.me.id === "dev" ? null : ctx.me.id,
+        actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
       }),
     })
     .eq("id", booking.id)
@@ -572,7 +582,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
   } catch { /* non-critical — fall back to generic label */ }
 
   // Branch guard (owner bypasses)
-  if (me.system_role !== "owner" && me.branch_id !== "dev" && booking.branch_id !== me.branch_id) {
+  if (me.system_role !== "owner" && booking.branch_id !== me.branch_id) {
     return { success: false, error: "Booking not found" };
   }
 
@@ -625,7 +635,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
   // Payment audit log
   await admin.from("booking_payment_logs").insert({
     booking_id:            bookingId,
-    changed_by:            me.id === "dev" ? null : me.id,
+    changed_by:            me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
     old_payment_method:    booking.payment_method ?? null,
     old_payment_status:    booking.payment_status ?? null,
     old_amount_paid:       booking.amount_paid ?? null,

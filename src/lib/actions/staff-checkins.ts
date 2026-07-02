@@ -5,6 +5,7 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
+import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,10 +44,6 @@ const checkoutInputSchema = z.object({
 });
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
-
-const CHECKIN_OPERATOR_ROLES = new Set([
-  "owner", "manager", "assistant_manager", "store_manager", "crm", "csr_head", "csr_staff",
-]);
 
 type CheckinContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -91,7 +88,7 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
   const effectiveBranchId = me.branch_id;
 
   const isSelf     = me.id === staffId;
-  const isOperator = CHECKIN_OPERATOR_ROLES.has(me.system_role);
+  const isOperator = canAccessCrmWorkspace(me.system_role);
 
   if (!isSelf && !isOperator) {
     return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to check in other staff." };
@@ -167,7 +164,7 @@ export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<Ch
   const { staffId, shiftDate, shiftType } = parsed.data;
 
   const isSelf     = me.id === staffId;
-  const isOperator = CHECKIN_OPERATOR_ROLES.has(me.system_role);
+  const isOperator = canAccessCrmWorkspace(me.system_role);
 
   if (!isSelf && !isOperator) {
     return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to check out other staff." };

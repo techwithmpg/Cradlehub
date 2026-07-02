@@ -9,6 +9,8 @@ import { getBranchStaffAndServiceAssignments } from "@/lib/queries/crm-services"
 import { getBranchWithFullDetail } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { canManageCrmSetup, canManageResources } from "@/lib/auth/crm-permissions";
+import { canonicalizeSystemRole } from "@/constants/staff";
 import { SetupHealthContent } from "@/components/features/setup-center/setup-health-content";
 import { CrmSetupWorkspace } from "@/components/features/crm/setup/crm-setup-workspace";
 import type { SetupTab } from "@/components/features/crm/setup/crm-setup-workspace";
@@ -17,10 +19,6 @@ import type { ActiveBranchService } from "@/components/features/manager-settings
 import type { ConflictBooking } from "@/components/features/spaces-rules/spaces-rules-utils";
 
 // ── Auth ────────────────────────────────────────────────────────────────────
-
-const ALLOWED_ROLES = new Set([
-  "owner", "manager", "assistant_manager", "store_manager",
-]);
 
 type PageContext = {
   branchId: string;
@@ -49,14 +47,15 @@ async function getPageContext(): Promise<PageContext> {
     };
   }
 
-  if (!me || !ALLOWED_ROLES.has(me.system_role as string) || !me.branch_id) {
+  const role = me ? canonicalizeSystemRole(me.system_role as string) : "";
+  if (!me || !canManageCrmSetup(role) || !me.branch_id) {
     redirect("/crm");
   }
 
   return {
     branchId:   me.branch_id as string,
     branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
-    role:       me.system_role as string,
+    role,
   };
 }
 
@@ -214,8 +213,8 @@ export default async function CrmSetupPage({
         })
       : [];
 
-  const canManageResources = ALLOWED_ROLES.has(role);
-  const canEditRules = ["owner", "manager", "assistant_manager", "store_manager"].includes(role);
+  const canManageResourceRows = canManageResources(role);
+  const canEditRules = canManageCrmSetup(role);
 
   return (
     <section className="space-y-5">
@@ -251,7 +250,7 @@ export default async function CrmSetupPage({
           rules,
           bookings,
           canSwitchBranch:    false,
-          canManageResources,
+          canManageResources: canManageResourceRows,
           canEditRules,
         }}
       />

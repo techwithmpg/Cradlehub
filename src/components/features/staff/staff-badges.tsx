@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import {
   getStaffDisplayMeta,
   getStaffStatusLabel,
@@ -15,16 +16,13 @@ const statusClassNames: Record<StaffStatus, string> = {
 };
 
 function getRoleClassName(role: string): string {
-  if (role === "owner") return "border-[#DED0E7] bg-[var(--cs-owner-bg)] text-[var(--cs-owner-text)]";
-  if (role === "manager" || role === "assistant_manager" || role === "store_manager") {
+  const canonicalRole = canonicalizeSystemRole(role);
+  if (canonicalRole === "owner") return "border-[#DED0E7] bg-[var(--cs-owner-bg)] text-[var(--cs-owner-text)]";
+  if (canonicalRole === "manager" || canonicalRole === "assistant_manager" || canonicalRole === "store_manager") {
     return "border-[#CFDAE2] bg-[var(--cs-manager-bg)] text-[var(--cs-manager-text)]";
   }
-  if (role === "crm") return "border-[#D0E6D7] bg-[var(--cs-crm-bg)] text-[var(--cs-crm-text)]";
-  if (role === "csr_head") return "border-[#E4D8B6] bg-[var(--cs-csr-head-bg)] text-[var(--cs-csr-head-text)]";
-  if (role === "csr" || role === "csr_staff") {
-    return "border-[#E7DDC8] bg-[var(--cs-csr-staff-bg)] text-[var(--cs-csr-staff-text)]";
-  }
-  if (role === "driver" || role === "utility") {
+  if (canonicalRole === "crm") return "border-[#D0E6D7] bg-[var(--cs-crm-bg)] text-[var(--cs-crm-text)]";
+  if (canonicalRole === "driver" || canonicalRole === "utility") {
     return "border-[var(--cs-border)] bg-[var(--cs-neutral-bg)] text-[var(--cs-neutral-text)]";
   }
   return "border-[#E1D2CA] bg-[var(--cs-staff-bg)] text-[var(--cs-staff-text)]";

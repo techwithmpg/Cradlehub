@@ -1,3 +1,5 @@
+import { canonicalizeSystemRole } from "@/constants/staff-roles";
+
 export type NavItem = {
   label: string;
   href: string;
@@ -114,16 +116,6 @@ export const NAV_CONFIG: Record<string, WorkspaceNav> = {
     items: CRM_NAV_ITEMS,
     systemItems: CRM_SYSTEM_NAV_ITEMS,
   },
-  csr_head: {
-    role: "csr_head",
-    label: "Front Desk",
-    items: CRM_NAV_ITEMS,
-  },
-  csr_staff: {
-    role: "csr_staff",
-    label: "Front Desk",
-    items: CRM_NAV_ITEMS,
-  },
   staff: {
     role: "staff",
     label: "Staff",
@@ -157,46 +149,40 @@ export function resolveWorkspaceKeyFromPath(pathname: string): string | null {
 }
 
 export function resolveWorkspaceKeyFromRole(role: string): string {
-  if (role === "owner") {
+  const canonicalRole = canonicalizeSystemRole(role);
+  if (canonicalRole === "owner") {
     return "owner";
   }
 
   // MVP: management roles use the CRM workspace nav while Manager remains soft-paused.
   if (
-    role === "manager" ||
-    role === "assistant_manager" ||
-    role === "store_manager"
+    canonicalRole === "manager" ||
+    canonicalRole === "assistant_manager" ||
+    canonicalRole === "store_manager"
   ) {
     return "crm";
   }
-  if (role === "csr_head") {
-    return "csr_head";
-  }
-  if (role === "csr_staff" || role === "csr") {
-    return "csr_staff";
-  }
   if (
-    role === "crm" ||
-    role === "staff" ||
-    role === "driver" ||
-    role === "utility"
+    canonicalRole === "crm" ||
+    canonicalRole === "staff" ||
+    canonicalRole === "driver" ||
+    canonicalRole === "utility"
   ) {
-    return role;
+    return canonicalRole;
   }
   return "staff";
 }
 
 export function resolveCrmNavKeyFromRole(role: string): string {
+  const canonicalRole = canonicalizeSystemRole(role);
   if (
-    role === "owner" ||
-    role === "manager" ||
-    role === "assistant_manager" ||
-    role === "store_manager"
+    canonicalRole === "owner" ||
+    canonicalRole === "manager" ||
+    canonicalRole === "assistant_manager" ||
+    canonicalRole === "store_manager"
   ) {
     return "crm_admin";
   }
 
-  if (role === "csr_head") return "csr_head";
-  if (role === "csr_staff" || role === "csr") return "csr_staff";
   return "crm";
 }

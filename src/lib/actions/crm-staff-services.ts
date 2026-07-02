@@ -13,6 +13,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { canonicalizeSystemRole } from "@/constants/staff";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import {
   CRM_STAFF_SERVICE_ROLES,
@@ -45,22 +46,32 @@ async function requireCrmStaffServiceAccess(): Promise<StaffServiceCtx | null> {
     .maybeSingle();
 
   if (me && canManageStaffServices(me.system_role as string)) {
+    const role = canonicalizeSystemRole(me.system_role as string);
     return {
       supabase,
-      me: me as { id: string; branch_id: string | null; system_role: string },
+      me: {
+        id: me.id as string,
+        branch_id: me.branch_id as string | null,
+        system_role: role,
+      },
       canManageAcrossBranches: canManageStaffServicesAcrossBranches(
-        me.system_role as string
+        role
       ),
     };
   }
 
   if (isDevAuthBypassEnabled()) {
     const mock = getDevBypassLayoutStaff();
+    const role = canonicalizeSystemRole(mock.system_role);
     return {
       supabase,
-      me: { id: "dev", branch_id: mock.branch_id, system_role: mock.system_role },
+      me: {
+        id: "00000000-0000-0000-0000-000000000000",
+        branch_id: mock.branch_id,
+        system_role: role,
+      },
       canManageAcrossBranches: canManageStaffServicesAcrossBranches(
-        mock.system_role
+        role
       ),
     };
   }

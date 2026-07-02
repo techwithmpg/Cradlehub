@@ -1,4 +1,5 @@
-import { canCrmAccessPath, canCsrAccessPath, isCsr } from "@/lib/permissions";
+import { FRONT_DESK_ROLE_ALIASES, canonicalizeSystemRole } from "@/constants/staff-roles";
+import { canCrmAccessPath } from "@/lib/permissions";
 
 export type WorkspaceKey =
   | "crm"
@@ -26,7 +27,7 @@ export type WorkspaceStaffProfile = {
   branches?: { name: string | null } | { name: string | null }[] | null;
 };
 
-const CRM_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager", "crm", "csr", "csr_head", "csr_staff"]);
+const CRM_ROLES = new Set(["owner", "manager", "assistant_manager", "store_manager", ...FRONT_DESK_ROLE_ALIASES]);
 const MANAGER_ROLES = new Set(["manager", "assistant_manager", "store_manager"]);
 const STAFF_PORTAL_EXCLUDED_PRIMARY_ROLES = new Set(["driver", "utility"]);
 
@@ -104,7 +105,7 @@ export function buildWorkspaceAccessFromStaffProfile(
 ): WorkspaceAccess[] {
   if (!profile?.system_role) return [];
 
-  const role = profile.system_role;
+  const role = canonicalizeSystemRole(profile.system_role);
   const staffType = profile.staff_type ?? null;
   const branchName = branchNameFromProfile(profile);
   const byKey = new Map<WorkspaceKey, WorkspaceAccess>();
@@ -150,8 +151,7 @@ export function canAccessWorkspacePath(
 
   if (pathname.startsWith("/crm")) {
     if (!hasWorkspaceAccess(workspaces, "crm")) return false;
-    if (isCsr(role)) return canCsrAccessPath(role, pathname);
-    if (role === "crm") return canCrmAccessPath(pathname);
+    if (canonicalizeSystemRole(role) === "crm") return canCrmAccessPath(pathname);
     return true;
   }
 

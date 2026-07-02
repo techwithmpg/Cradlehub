@@ -4,7 +4,7 @@ import { useActionState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
-import { STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff";
+import { STAFF_TYPES, STAFF_TYPE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import type { Database } from "@/types/supabase";
 import type { StaffMember } from "./staff-management-utils";
 
@@ -13,7 +13,7 @@ type ServiceRow = Database["public"]["Tables"]["services"]["Row"] & {
   service_categories: { id: string; name: string } | null;
 };
 type Tier = "senior" | "mid" | "junior" | "head" | "n/a";
-type StaffRole = "manager" | "crm" | "csr" | "csr_head" | "csr_staff" | "staff" | "driver";
+type StaffRole = "manager" | "crm" | "staff" | "service_head" | "service_staff" | "driver" | "utility";
 type StaffType = (typeof STAFF_TYPES)[number];
 
 type StaffActionState = {
@@ -26,19 +26,20 @@ const initialState: StaffActionState = {};
 const OWNER_ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: "manager", label: "Manager" },
   { value: "crm", label: "CRM" },
-  { value: "csr_head", label: "CSR Head" },
-  { value: "csr_staff", label: "CSR Staff" },
-  { value: "csr", label: "CSR (legacy)" },
   { value: "staff", label: "Staff" },
+  { value: "service_head", label: "Service Head" },
+  { value: "service_staff", label: "Service Staff" },
   { value: "driver", label: "Driver" },
+  { value: "utility", label: "Utility" },
 ];
 
 const MANAGER_ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: "crm", label: "CRM" },
-  { value: "csr_head", label: "CSR Head" },
-  { value: "csr_staff", label: "CSR Staff" },
-  { value: "csr", label: "CSR (legacy)" },
   { value: "staff", label: "Staff" },
+  { value: "service_head", label: "Service Head" },
+  { value: "service_staff", label: "Service Staff" },
+  { value: "driver", label: "Driver" },
+  { value: "utility", label: "Utility" },
 ];
 
 const SENSITIVE_SYSTEM_ROLES = new Set([
@@ -98,6 +99,7 @@ export function StaffEditForm({
   const isManager = workspaceContext === "manager" || workspaceContext === "crm";
   const isProtected = isManager && SENSITIVE_SYSTEM_ROLES.has(staffMember.system_role);
   const roleOptions = isManager ? MANAGER_ROLE_OPTIONS : OWNER_ROLE_OPTIONS;
+  const defaultSystemRole = canonicalizeSystemRole(staffMember.system_role) as StaffRole;
 
   const [state, formAction, pending] = useActionState(
     async (_prev: StaffActionState, formData: FormData): Promise<StaffActionState> => {
@@ -236,7 +238,7 @@ export function StaffEditForm({
             id="systemRole"
             name="systemRole"
             label="System access role"
-            defaultValue={staffMember.system_role}
+            defaultValue={defaultSystemRole}
           >
             {roleOptions.map((r) => (
               <option key={r.value} value={r.value}>

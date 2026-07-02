@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { updateStaffAction } from "@/app/(dashboard)/owner/staff/actions";
-import { STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff";
+import { STAFF_TYPES, STAFF_TYPE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import {
   getStaffStatus,
   getStaffStatusLabel,
@@ -27,11 +27,11 @@ type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
 
 const MANAGER_ROLE_OPTIONS = [
   { value: "crm",      label: "CRM" },
-  { value: "csr_head", label: "CSR Head" },
-  { value: "csr_staff",label: "CSR Staff" },
-  { value: "csr",      label: "CSR (legacy)" },
   { value: "staff",    label: "Staff" },
+  { value: "service_head", label: "Service Head" },
+  { value: "service_staff", label: "Service Staff" },
   { value: "driver",   label: "Driver" },
+  { value: "utility",  label: "Utility" },
 ] as const;
 
 const SENSITIVE_SYSTEM_ROLES = new Set([
@@ -79,7 +79,7 @@ function fromMember(member: StaffMember, serviceIds: string[]): Draft {
     fullName:   member.full_name,
     nickname:   member.nickname ?? "",
     phone:      member.phone ?? "",
-    systemRole: member.system_role,
+    systemRole: canonicalizeSystemRole(member.system_role),
     staffType:  member.staff_type ?? "therapist",
     isHead:     member.is_head ?? false,
     tier:       member.tier ?? "n/a",

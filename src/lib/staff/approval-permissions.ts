@@ -8,9 +8,12 @@
  */
 
 import {
+  CRM_ASSIGNABLE_SYSTEM_ROLES,
   MANAGER_ASSIGNABLE_SYSTEM_ROLES,
   OWNER_ASSIGNABLE_SYSTEM_ROLES,
   SENSITIVE_SYSTEM_ROLES as STAFF_SENSITIVE_SYSTEM_ROLES,
+  canonicalizeSystemRole,
+  isFrontDeskRole,
 } from "@/constants/staff";
 import { isOwner, isManager } from "@/lib/permissions";
 
@@ -27,7 +30,7 @@ export const OPERATIONAL_SYSTEM_ROLES = [
 ] as const;
 
 export function isSensitiveSystemRole(role: string): boolean {
-  return SENSITIVE_SYSTEM_ROLES.includes(role as (typeof SENSITIVE_SYSTEM_ROLES)[number]);
+  return SENSITIVE_SYSTEM_ROLES.includes(canonicalizeSystemRole(role) as (typeof SENSITIVE_SYSTEM_ROLES)[number]);
 }
 
 export function isOperationalSystemRole(role: string): boolean {
@@ -66,7 +69,10 @@ export function canApproveStaffOnboarding({
   requestedSystemRole,
 }: CanApproveStaffOnboardingInput): CanApproveResult {
   // ── Owner ───────────────────────────────────────────────────────────────
-  if (isOwner(approverRole)) {
+  const canonicalApproverRole = canonicalizeSystemRole(approverRole);
+  const canonicalRequestedRole = canonicalizeSystemRole(requestedSystemRole);
+
+  if (isOwner(canonicalApproverRole)) {
     return {
       allowed: true,
       assignableRoles: [...OWNER_ASSIGNABLE_SYSTEM_ROLES],
@@ -74,7 +80,7 @@ export function canApproveStaffOnboarding({
   }
 
   // ── Manager ─────────────────────────────────────────────────────────────
-  if (isManager(approverRole)) {
+  if (isManager(canonicalApproverRole)) {
     if (targetBranchId && approverBranchId && targetBranchId !== approverBranchId) {
       return {
         allowed: false,
@@ -89,30 +95,29 @@ export function canApproveStaffOnboarding({
   }
 
   // ── CRM / CSR ───────────────────────────────────────────────────────────
-  const isCrmOrCsr = ["crm", "csr", "csr_head", "csr_staff"].includes(approverRole);
-  if (isCrmOrCsr) {
+  if (isFrontDeskRole(approverRole)) {
     // Branch scope check
     if (targetBranchId && approverBranchId && targetBranchId !== approverBranchId) {
       return {
         allowed: false,
         reason: "You can only approve staff for your own branch.",
-        assignableRoles: ["staff", "csr_staff", "driver", "utility"],
+        assignableRoles: [...CRM_ASSIGNABLE_SYSTEM_ROLES],
       };
     }
 
     // Cannot approve management roles
-    if (isSensitiveSystemRole(requestedSystemRole)) {
+    if (isSensitiveSystemRole(canonicalRequestedRole)) {
       return {
         allowed: false,
         reason: "Management and admin roles require owner or manager approval.",
-        assignableRoles: ["staff", "csr_staff", "driver", "utility"],
+        assignableRoles: [...CRM_ASSIGNABLE_SYSTEM_ROLES],
       };
     }
 
     // Can only assign operational roles
     return {
       allowed: true,
-      assignableRoles: ["staff", "csr_staff", "driver", "utility"],
+      assignableRoles: [...CRM_ASSIGNABLE_SYSTEM_ROLES],
     };
   }
 

@@ -1,3 +1,4 @@
+import { canonicalizeSystemRole } from "@/constants/staff";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type { Database } from "@/types/supabase";
 
@@ -35,7 +36,7 @@ export function createStaffProfileDraft(
     staffType: staffMember.staff_type ?? "therapist",
     tier: staffMember.tier ?? "n/a",
     isHead: Boolean(staffMember.is_head),
-    systemRole: staffMember.system_role,
+    systemRole: canonicalizeSystemRole(staffMember.system_role),
     isActive: Boolean(staffMember.is_active),
   };
 }

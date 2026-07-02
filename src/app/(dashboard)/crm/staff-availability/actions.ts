@@ -6,6 +6,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
+import { canonicalizeSystemRole, isFrontDeskRole } from "@/constants/staff";
+import { canAdjustStaffSchedule, isOwner } from "@/lib/permissions";
 import {
   STAFF_SCHEDULE_CONFLICT_TARGET,
   STAFF_SCHEDULE_RETURNING_COLUMNS,
@@ -21,19 +23,6 @@ import {
 import type { DayOfWeek } from "@/lib/schedule/manual-schedule-2026";
 
 // ── Permission ─────────────────────────────────────────────────────────────────
-
-// Roles that may manage staff schedules operationally.
-// csr_staff included so front-desk/CRM staff can configure schedules for MVP.
-const SCHEDULE_MANAGER_ROLES = new Set([
-  "owner",
-  "manager",
-  "assistant_manager",
-  "store_manager",
-  "crm",
-  "csr_head",
-  "csr_staff",  // front-desk operational access
-  "csr",
-]);
 
 const SCHEDULE_PERMISSION_DENIED_MESSAGE =
   "You do not have permission to update this staff schedule.";
@@ -63,9 +52,10 @@ async function requireImportAccess(branchId: string) {
     .maybeSingle();
 
   if (!me) return null;
-  if (!SCHEDULE_MANAGER_ROLES.has(me.system_role)) return null;
+  const role = canonicalizeSystemRole(me.system_role);
+  if (!canAdjustStaffSchedule(role)) return null;
   // Non-owner must be on the same branch (branch-scoped access for CRM/CSR).
-  if (me.system_role !== "owner" && (me.branch_id ?? "").toLowerCase() !== branchId.toLowerCase()) {
+  if (!isOwner(role) && (me.branch_id ?? "").toLowerCase() !== branchId.toLowerCase()) {
     return null;
   }
 
@@ -230,10 +220,7 @@ function resolveScheduleForStaffDay(
   const isCrm =
     staffType.includes("csr") ||
     staffType.includes("front") ||
-    systemRole === "crm" ||
-    systemRole === "csr_staff" ||
-    systemRole === "csr_head" ||
-    systemRole === "csr";
+    isFrontDeskRole(systemRole);
 
   const isDriver = staffType.includes("driver") || systemRole === "driver";
   const isUtility = staffType.includes("utility");

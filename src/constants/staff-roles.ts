@@ -16,15 +16,28 @@ export const SYSTEM_ROLES = [
 
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
+export const FRONT_DESK_ROLE_ALIASES = [
+  "crm",
+  "csr",
+  "csr_head",
+  "csr_staff",
+] as const satisfies readonly SystemRole[];
+
+export type FrontDeskRoleAlias = (typeof FRONT_DESK_ROLE_ALIASES)[number];
+
+export const ACTIVE_SYSTEM_ROLES = SYSTEM_ROLES.filter(
+  (role) => role === "crm" || !FRONT_DESK_ROLE_ALIASES.includes(role as FrontDeskRoleAlias)
+) as SystemRole[];
+
 export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
   owner: "Owner",
   manager: "Manager",
   assistant_manager: "Assistant Manager",
   store_manager: "Store Manager",
   crm: "CRM",
-  csr: "CSR",
-  csr_head: "CSR Head",
-  csr_staff: "CSR Staff",
+  csr: "CRM",
+  csr_head: "CRM",
+  csr_staff: "CRM",
   staff: "Staff",
   service_head: "Service Head",
   service_staff: "Service Staff",
@@ -38,9 +51,9 @@ export const SYSTEM_ROLE_DESCRIPTIONS: Record<SystemRole, string> = {
   assistant_manager: "Manager workspace for assistant branch leadership.",
   store_manager: "Manager workspace for store-level leadership.",
   crm: "CRM workspace for customer records, reports, and booking support.",
-  csr: "Legacy front-desk access.",
-  csr_head: "Front-desk supervisor access.",
-  csr_staff: "Front-desk booking and customer support access.",
+  csr: "Legacy CRM alias. New records are stored as CRM.",
+  csr_head: "Legacy CRM alias. New records are stored as CRM.",
+  csr_staff: "Legacy CRM alias. New records are stored as CRM.",
   staff: "Staff portal access.",
   service_head: "Staff portal access for service supervisors.",
   service_staff: "Staff portal access for service providers.",
@@ -54,19 +67,16 @@ export type SystemRoleOption = {
   description: string;
 };
 
-export const SYSTEM_ROLE_OPTIONS = SYSTEM_ROLES.map((role) => ({
+export const SYSTEM_ROLE_OPTIONS = ACTIVE_SYSTEM_ROLES.map((role) => ({
   value: role,
   label: SYSTEM_ROLE_LABELS[role],
   description: SYSTEM_ROLE_DESCRIPTIONS[role],
 })) satisfies SystemRoleOption[];
 
-export const OWNER_ASSIGNABLE_SYSTEM_ROLES = SYSTEM_ROLES;
+export const OWNER_ASSIGNABLE_SYSTEM_ROLES = ACTIVE_SYSTEM_ROLES;
 
 export const MANAGER_ASSIGNABLE_SYSTEM_ROLES = [
   "crm",
-  "csr_head",
-  "csr_staff",
-  "csr",
   "staff",
   "service_head",
   "service_staff",
@@ -75,6 +85,17 @@ export const MANAGER_ASSIGNABLE_SYSTEM_ROLES = [
 ] as const satisfies readonly SystemRole[];
 
 export type ManagerAssignableSystemRole = (typeof MANAGER_ASSIGNABLE_SYSTEM_ROLES)[number];
+
+export const CRM_ASSIGNABLE_SYSTEM_ROLES = [
+  "crm",
+  "staff",
+  "service_head",
+  "service_staff",
+  "driver",
+  "utility",
+] as const satisfies readonly SystemRole[];
+
+export type CrmAssignableSystemRole = (typeof CRM_ASSIGNABLE_SYSTEM_ROLES)[number];
 
 export const HIGH_LEVEL_SYSTEM_ROLES = [
   "owner",
@@ -158,6 +179,17 @@ export function isSystemRole(value: string): value is SystemRole {
   return SYSTEM_ROLES.includes(value as SystemRole);
 }
 
+export function isFrontDeskRole(value: string | null | undefined): value is FrontDeskRoleAlias {
+  return FRONT_DESK_ROLE_ALIASES.includes(value as FrontDeskRoleAlias);
+}
+
+export function canonicalizeSystemRole<T extends string | null | undefined>(
+  role: T
+): T extends string ? string : T {
+  if (typeof role !== "string") return role as T extends string ? string : T;
+  return (isFrontDeskRole(role) ? "crm" : role) as T extends string ? string : T;
+}
+
 export function isManagerAssignableSystemRole(value: string): value is ManagerAssignableSystemRole {
   return MANAGER_ASSIGNABLE_SYSTEM_ROLES.includes(value as ManagerAssignableSystemRole);
 }
@@ -167,8 +199,10 @@ export function isSensitiveSystemRole(value: string): boolean {
 }
 
 export function getAssignableSystemRoles(assignerRole: string): readonly SystemRole[] {
-  if (assignerRole === "owner") return OWNER_ASSIGNABLE_SYSTEM_ROLES;
-  if (MANAGER_ACCESS_ROLES.has(assignerRole)) return MANAGER_ASSIGNABLE_SYSTEM_ROLES;
+  const role = canonicalizeSystemRole(assignerRole);
+  if (role === "owner") return OWNER_ASSIGNABLE_SYSTEM_ROLES;
+  if (MANAGER_ACCESS_ROLES.has(role)) return MANAGER_ASSIGNABLE_SYSTEM_ROLES;
+  if (role === "crm") return CRM_ASSIGNABLE_SYSTEM_ROLES;
   return [];
 }
 
