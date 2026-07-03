@@ -5531,3 +5531,15 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Real phone scanning is not complete: attendance PNG, room SVG, and print/PDF preview still need scanning with a phone camera against real exported artifacts.
 - QR identity preservation still needs live browser confirmation before/after preview/export for QR point ID, public code, scan URL, and version.
 - Local Supabase CLI package binary exists after dependency restoration, but `pnpm exec supabase --version` currently hits a Windows file-lock error: `The process cannot access the file because it is being used by another process.` Retry after the lock clears if Supabase CLI work is needed.
+
+## 2026-07-03 - ATTENDANCE-SCHEDULE-REPAIR-002
+
+- Stabilized the CRM Schedule Daily Timeline failure path by logging the real branch/date/error message instead of an empty object, returning a safe operator-facing error, and applying `Cache-Control: private, no-store` to both success and failure responses.
+- Updated the daily schedule query to select and carry `schedule_overrides.shift_type`, fail loudly on staff metadata, blocked-time, and override query errors, and preserve shift-type labels for timed overrides in the live schedule views.
+- Rewired the Schedule workspace around live SWR data, explicit refresh tokens, and derived selected staff/booking IDs so setup changes refresh the current tab without a router refresh or stale local selection effects.
+- Fixed the Attendance QR insert mapper regression by passing the inserted QR row through the expected `mapQrPoint` shape.
+- Added focused schedule tests covering missing `schedule_overrides.shift_type` and staff metadata query failures.
+- Live database verification through the Supabase pooler confirmed `schedule_overrides.shift_type` exists, has the expected check constraint, contains no invalid values, and `get_daily_schedule` returns rows for the active SM branch on 2026-07-03.
+- Validation passed with `npx tsc --noEmit`, `npm run lint`, focused schedule Vitest coverage, full `npx vitest run`, `npm run build`, and `git diff --check`.
+- `pnpm db:push` and `pnpm db:types` remain blocked by the local pnpm/Supabase CLI environment: ignored Supabase build scripts, EPERM rename/unlink failures, and migration history not synchronized for `20260703022600`.
+- Security note: a live database password was pasted during repair. Rotate the Supabase database password before production deployment.

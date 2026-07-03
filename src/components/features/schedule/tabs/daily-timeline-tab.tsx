@@ -20,7 +20,6 @@ import {
 import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-services";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { AvailabilityTab } from "@/components/features/crm/schedule/edit-availability-types";
-import { useScheduleRealtime } from "../daily-schedule-board";
 import { buildDailyTimelineAlerts } from "./daily-timeline-alerts";
 import { DailyTimelineBoard } from "./daily-timeline-board";
 import {
@@ -49,6 +48,10 @@ type Props = {
   selectedBookingId: string | null;
   onSelectedStaffChange: (staffId: string | null) => void;
   onSelectedBookingChange: (bookingId: string | null) => void;
+  isRefreshing?: boolean;
+  liveErrorMessage?: string | null;
+  onRetryLiveData: () => void | Promise<void>;
+  onScheduleChanged: () => void | Promise<void>;
 };
 
 function parseStaffGroup(value: string | null): StaffGroupKey {
@@ -67,6 +70,10 @@ export function DailyTimelineTab({
   selectedBookingId,
   onSelectedStaffChange,
   onSelectedBookingChange,
+  isRefreshing = false,
+  liveErrorMessage = null,
+  onRetryLiveData,
+  onScheduleChanged,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,8 +97,6 @@ export function DailyTimelineTab({
   const [checkAvailabilityOpen, setCheckAvailabilityOpen] = useState(false);
   const [isSavingCapabilities, startSavingCapabilities] = useTransition();
   const activeGroup = parseStaffGroup(searchParams.get("staffType"));
-
-  useScheduleRealtime(branchId, date);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -295,17 +300,17 @@ export function DailyTimelineTab({
     (message?: string) => {
       toast.success(message ?? "Availability updated.");
       setAvailabilityEditor(null);
-      router.refresh();
+      void onScheduleChanged();
     },
-    [router]
+    [onScheduleChanged]
   );
 
   const handleProfileUpdated = useCallback(() => {
     toast.success("Staff profile updated.");
     setProfileStaffId(null);
     setProfileData(null);
-    router.refresh();
-  }, [router]);
+    void onScheduleChanged();
+  }, [onScheduleChanged]);
 
   const handleToggleCapability = useCallback((serviceId: string) => {
     setCapabilitiesDraft((current) =>
@@ -336,17 +341,19 @@ export function DailyTimelineTab({
         );
         setCapabilitiesStaffId(null);
         setCapabilitiesData(null);
-        router.refresh();
+        void onScheduleChanged();
       });
     },
-    [capabilitiesStaffId, router]
+    [capabilitiesStaffId, onScheduleChanged]
   );
 
   if (loadError) {
     return (
       <DailyTimelineErrorState
         message={loadError}
-        onRetry={() => router.refresh()}
+        onRetry={() => {
+          void onRetryLiveData();
+        }}
         onOpenScheduleSetup={handleOpenScheduleSetup}
       />
     );
@@ -365,6 +372,32 @@ export function DailyTimelineTab({
         onBlockStaffTime={handleBlockStaffTime}
         onOpenScheduleSetup={handleOpenScheduleSetup}
       />
+
+      {isRefreshing || liveErrorMessage ? (
+        <div
+          className={
+            liveErrorMessage
+              ? "flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900"
+              : "flex items-center gap-2 rounded-lg border border-[var(--cs-border-soft)] bg-white px-3 py-2 text-xs font-semibold text-[var(--cs-text-muted)]"
+          }
+        >
+          <span className="inline-flex items-center gap-2">
+            {liveErrorMessage ? <AlertTriangle className="size-3.5" /> : <Loader2 className="size-3.5 animate-spin" />}
+            {liveErrorMessage ?? "Refreshing schedule..."}
+          </span>
+          {liveErrorMessage ? (
+            <button
+              type="button"
+              onClick={() => {
+                void onRetryLiveData();
+              }}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-amber-200 bg-white px-2 text-[11px] font-bold text-amber-900"
+            >
+              <RefreshCw className="size-3" /> Retry
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-3">

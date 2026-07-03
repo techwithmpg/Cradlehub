@@ -40,7 +40,7 @@ describe("resolveScheduleForStaffDay", () => {
 
   it("uses date-specific custom schedule overrides before individual schedules", () => {
     const resolved = resolveScheduleForStaffDay({
-      override: { is_day_off: false, start_time: "12:00", end_time: "18:00" },
+      override: { is_day_off: false, shift_type: "single", start_time: "12:00", end_time: "18:00" },
       individualRows: [
         {
           shift_type: "single",
@@ -54,6 +54,104 @@ describe("resolveScheduleForStaffDay", () => {
     expect(resolved.source).toBe("override");
     expect(resolved.windows).toEqual([
       { shiftType: "single", startTime: "12:00", endTime: "18:00" },
+    ]);
+  });
+
+  it("preserves explicit opening shift type on timed overrides", () => {
+    const resolved = resolveScheduleForStaffDay({
+      override: { is_day_off: false, shift_type: "opening", start_time: "11:00", end_time: "16:00" },
+      individualRows: [
+        {
+          shift_type: "opening",
+          start_time: "10:00",
+          end_time: "17:30",
+          is_active: true,
+        },
+      ],
+    });
+
+    expect(resolved.source).toBe("override");
+    expect(resolved.windows).toEqual([
+      { shiftType: "opening", startTime: "11:00", endTime: "16:00" },
+    ]);
+  });
+
+  it("preserves explicit closing shift type on timed overrides", () => {
+    const resolved = resolveScheduleForStaffDay({
+      override: { is_day_off: false, shift_type: "closing", start_time: "15:00", end_time: "21:00" },
+      individualRows: [
+        {
+          shift_type: "closing",
+          start_time: "14:00",
+          end_time: "22:30",
+          is_active: true,
+        },
+      ],
+    });
+
+    expect(resolved.windows).toEqual([
+      { shiftType: "closing", startTime: "15:00", endTime: "21:00" },
+    ]);
+  });
+
+  it("preserves explicit single shift type on timed overrides", () => {
+    const resolved = resolveScheduleForStaffDay({
+      override: { is_day_off: false, shift_type: "single", start_time: "10:00", end_time: "18:00" },
+      individualRows: [
+        {
+          shift_type: "single",
+          start_time: "09:00",
+          end_time: "17:00",
+          is_active: true,
+        },
+      ],
+    });
+
+    expect(resolved.windows).toEqual([
+      { shiftType: "single", startTime: "10:00", endTime: "18:00" },
+    ]);
+  });
+
+  it("falls back to the matching individual shift type for legacy timed overrides", () => {
+    const resolved = resolveScheduleForStaffDay({
+      override: { is_day_off: false, shift_type: null, start_time: "14:00", end_time: "22:30" },
+      individualRows: [
+        {
+          shift_type: "opening",
+          start_time: "10:00",
+          end_time: "17:30",
+          is_active: true,
+        },
+        {
+          shift_type: "closing",
+          start_time: "14:00",
+          end_time: "22:30",
+          is_active: true,
+        },
+      ],
+    });
+
+    expect(resolved.windows).toEqual([
+      { shiftType: "closing", startTime: "14:00", endTime: "22:30" },
+    ]);
+  });
+
+  it("falls back to group rules for legacy timed overrides when no individual schedule exists", () => {
+    const resolved = resolveScheduleForStaffDay({
+      override: { is_day_off: false, shift_type: null, start_time: "14:00", end_time: "22:30" },
+      groupRules: [
+        {
+          shift_type: "closing",
+          start_time: "14:00",
+          end_time: "22:30",
+          is_active: true,
+          is_day_off: false,
+        },
+      ],
+    });
+
+    expect(resolved.windows).toEqual([
+      { shiftType: "closing", startTime: "14:00", endTime: "22:30" },
     ]);
   });
 

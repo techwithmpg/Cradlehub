@@ -102,6 +102,7 @@ export function DayOverridesEditorTab({
         id: result.override.id,
         override_date: result.override.override_date,
         is_day_off: result.override.is_day_off,
+        shift_type: result.override.shift_type,
         start_time: result.override.start_time,
         end_time: result.override.end_time,
         reason: result.override.reason,

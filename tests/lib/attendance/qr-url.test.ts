@@ -1,8 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildActivationUrl, buildScanUrl, getAppBaseUrl, maskPublicCode } from "@/lib/attendance/qr-url";
 
 describe("attendance QR URL helpers", () => {
+  beforeEach(() => {
+    vi.stubEnv("APP_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -12,8 +19,54 @@ describe("attendance QR URL helpers", () => {
     expect(getAppBaseUrl({ configuredUrl: "https://cradle.example.com/app///" })).toBe("https://cradle.example.com/app");
   });
 
+  it("prefers APP_URL over public and Vercel URL fallbacks", () => {
+    vi.stubEnv("APP_URL", "https://server.example.com/");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://public.example.com/");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://site.example.com/");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "vercel.example.com");
+
+    expect(getAppBaseUrl()).toBe("https://server.example.com");
+  });
+
+  it("falls back through public URL environment variables", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "public.example.com/");
+    expect(getAppBaseUrl()).toBe("https://public.example.com");
+
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://site.example.com/");
+    expect(getAppBaseUrl()).toBe("https://site.example.com");
+
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "vercel.example.com/");
+    expect(getAppBaseUrl()).toBe("https://vercel.example.com");
+  });
+
   it("falls back to the request origin when no configured URL is present", () => {
     expect(getAppBaseUrl({ origin: "https://frontdesk.example.com", configuredUrl: "" })).toBe("https://frontdesk.example.com");
+  });
+
+  it("skips localhost configuration in production and uses the public request origin", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+
+    expect(
+      getAppBaseUrl({
+        origin: "https://www.cradlewellnessliving.com",
+        nodeEnv: "production",
+      })
+    ).toBe("https://www.cradlewellnessliving.com");
+  });
+
+  it("keeps searching configured URLs after a localhost production value", () => {
+    vi.stubEnv("APP_URL", "http://localhost:3000");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://www.cradlewellnessliving.com/");
+
+    expect(getAppBaseUrl({ origin: null, nodeEnv: "production" })).toBe(
+      "https://www.cradlewellnessliving.com"
+    );
+  });
+
+  it("uses localhost only outside production", () => {
+    expect(getAppBaseUrl({ configuredUrl: "", origin: null, nodeEnv: "development" })).toBe("http://localhost:3000");
   });
 
   it("rejects localhost public QR links in production", () => {

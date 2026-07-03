@@ -21,6 +21,12 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { CheckAvailabilityModal } from "@/components/features/crm/schedule/check-availability-modal";
+import {
+  type DailyScheduleApiResponse,
+  type ScheduleStats,
+  useLiveDailySchedule,
+} from "../hooks/use-live-daily-schedule";
+import { useScheduleRealtime } from "../hooks/use-schedule-realtime";
 
 const DailyTimelineTab = dynamic(() => import("../tabs/daily-timeline-tab").then((m) => m.DailyTimelineTab), {
   loading: () => <TabSkeleton rows={6} />,
@@ -116,11 +122,11 @@ export function ScheduleWorkspaceShell({
   branchId,
   branchName,
   date,
-  staffRows,
+  staffRows: initialStaffRows,
   availabilityItems,
-  branchResources,
-  stats,
-  readiness,
+  branchResources: initialBranchResources,
+  stats: initialStats,
+  readiness: initialReadiness,
   dailyTimelineError,
   dailyTimelineNow,
 }: {
@@ -130,7 +136,7 @@ export function ScheduleWorkspaceShell({
   staffRows: DailyScheduleStaffRow[];
   availabilityItems: StaffScheduleItem[];
   branchResources: ResourceRow[];
-  stats: { total: number; confirmed: number; in_progress: number; completed: number; cancelled: number; no_show: number };
+  stats: ScheduleStats;
   readiness: ReadinessResult | null;
   dailyTimelineError: string | null;
   dailyTimelineNow: string;
@@ -143,6 +149,59 @@ export function ScheduleWorkspaceShell({
   const [checkAvailabilityOpen, setCheckAvailabilityOpen] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+
+  const fallbackScheduleData = useMemo<DailyScheduleApiResponse>(
+    () => ({
+      branchId,
+      branchName,
+      staffRows: initialStaffRows,
+      branchResources: initialBranchResources,
+      stats: initialStats,
+      readiness: initialReadiness,
+    }),
+    [branchId, branchName, initialBranchResources, initialReadiness, initialStaffRows, initialStats]
+  );
+  const {
+    data: liveScheduleData,
+    mutate: refreshDailySchedule,
+    isValidating,
+    error: liveScheduleError,
+  } = useLiveDailySchedule({
+    date,
+    fallbackData: fallbackScheduleData,
+  });
+  const scheduleData = liveScheduleData ?? fallbackScheduleData;
+  const staffRows = scheduleData.staffRows;
+  const branchResources = scheduleData.branchResources;
+  const stats = scheduleData.stats;
+  const readiness = scheduleData.readiness;
+  const validSelectedStaffId =
+    selectedStaffId && staffRows.some((row) => row.staff_id === selectedStaffId)
+      ? selectedStaffId
+      : null;
+  const validSelectedBookingId =
+    selectedBookingId &&
+    staffRows.some((row) => row.bookings.some((booking) => booking.id === selectedBookingId))
+      ? selectedBookingId
+      : null;
+  const liveScheduleErrorMessage =
+    liveScheduleError instanceof Error
+      ? liveScheduleError.message
+      : liveScheduleError
+        ? "The live schedule could not be refreshed."
+        : null;
+
+  const handleScheduleChanged = useCallback(async () => {
+    await refreshDailySchedule();
+  }, [refreshDailySchedule]);
+
+  useScheduleRealtime({
+    branchId,
+    date,
+    onInvalidate: () => {
+      void handleScheduleChanged();
+    },
+  });
 
   const setTab = useCallback(
     (tab: ScheduleTabKey) => {
@@ -258,10 +317,14 @@ export function ScheduleWorkspaceShell({
                 availabilityItems={availabilityItems}
                 loadError={dailyTimelineError}
                 initialNow={dailyTimelineNow}
-                selectedStaffId={selectedStaffId}
-                selectedBookingId={selectedBookingId}
+                selectedStaffId={validSelectedStaffId}
+                selectedBookingId={validSelectedBookingId}
                 onSelectedStaffChange={setSelectedStaffId}
                 onSelectedBookingChange={setSelectedBookingId}
+                isRefreshing={isValidating}
+                liveErrorMessage={liveScheduleErrorMessage}
+                onRetryLiveData={handleScheduleChanged}
+                onScheduleChanged={handleScheduleChanged}
               />
             </div>
             <div className={viewMode === "full_schedule" ? "block" : "hidden"}>
@@ -271,10 +334,11 @@ export function ScheduleWorkspaceShell({
                 date={date}
                 staffRows={staffRows}
                 availabilityItems={availabilityItems}
-                selectedStaffId={selectedStaffId}
-                selectedBookingId={selectedBookingId}
+                selectedStaffId={validSelectedStaffId}
+                selectedBookingId={validSelectedBookingId}
                 onSelectedStaffChange={setSelectedStaffId}
                 onSelectedBookingChange={setSelectedBookingId}
+                onScheduleChanged={handleScheduleChanged}
               />
             </div>
           </>
@@ -282,7 +346,7 @@ export function ScheduleWorkspaceShell({
       case "availability":
         return <LiveAvailabilityTab branchId={branchId} date={date} />;
       case "setup":
-        return <ScheduleSetupTab branchId={branchId} />;
+        return <ScheduleSetupTab branchId={branchId} onScheduleChanged={handleScheduleChanged} />;
       case "coverage":
         return <CoverageIssuesTab branchId={branchId} />;
       case "staff":
@@ -291,6 +355,7 @@ export function ScheduleWorkspaceShell({
             branchId={branchId}
             branchName={branchName}
             initialItems={availabilityItems}
+            onScheduleChanged={handleScheduleChanged}
           />
         );
       default:

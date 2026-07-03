@@ -19,6 +19,7 @@ export function QrToolbar({
   onGenerateQr,
   onExportSelected,
   onPrintSelected,
+  urlActionsDisabled,
 }: {
   branchName: string;
   query: string;
@@ -32,6 +33,7 @@ export function QrToolbar({
   onGenerateQr: () => void;
   onExportSelected: () => void;
   onPrintSelected: () => void;
+  urlActionsDisabled: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between">
@@ -68,12 +70,12 @@ export function QrToolbar({
           <Plus data-icon="inline-start" />
           Generate QR
         </Button>
-        <Button type="button" variant="outline" size="lg" onClick={onExportSelected}>
+        <Button type="button" variant="outline" size="lg" disabled={urlActionsDisabled} onClick={onExportSelected}>
           <FileArchive data-icon="inline-start" />
           Export Selected
           <ChevronDown data-icon="inline-end" className="size-4" />
         </Button>
-        <Button type="button" variant="outline" size="lg" onClick={onPrintSelected}>
+        <Button type="button" variant="outline" size="lg" disabled={urlActionsDisabled} onClick={onPrintSelected}>
           <Printer data-icon="inline-start" />
           Print Selected
         </Button>

@@ -20,12 +20,23 @@ async function fetcher(url: string): Promise<SetupData> {
   return res.json();
 }
 
-export function ScheduleSetupTab({ branchId }: { branchId: string }) {
-  const { data, isLoading } = useSWR<SetupData>(
+export function ScheduleSetupTab({
+  branchId,
+  onScheduleChanged,
+}: {
+  branchId: string;
+  onScheduleChanged?: () => void | Promise<void>;
+}) {
+  const { data, isLoading, mutate } = useSWR<SetupData>(
     `/api/crm/staff-schedule/overview?branchId=${branchId}`,
     fetcher,
     { revalidateOnFocus: true, dedupingInterval: 30_000 }
   );
+
+  function handleDataRefresh() {
+    void mutate();
+    void onScheduleChanged?.();
+  }
 
   if (isLoading) {
     return (
@@ -54,6 +65,7 @@ export function ScheduleSetupTab({ branchId }: { branchId: string }) {
       groups={data.groups}
       rulesByGroup={data.rulesByGroup}
       branchId={branchId}
+      onDataRefresh={handleDataRefresh}
     />
   );
 }

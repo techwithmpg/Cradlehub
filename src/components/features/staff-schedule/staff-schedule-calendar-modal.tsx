@@ -294,6 +294,8 @@ function buildDayModel(date: string, data: StaffFullScheduleData): DayModel {
   }
 
   if (override?.start_time && override.end_time) {
+    const type = shiftTypeFromRaw(override.shift_type);
+
     return {
       date,
       isDayOff: false,
@@ -302,8 +304,8 @@ function buildDayModel(date: string, data: StaffFullScheduleData): DayModel {
         {
           id: `override-${override.id}`,
           date,
-          type: "regular",
-          label: "Regular Shift",
+          type,
+          label: `${shiftLabel(type)} Override`,
           start_time: override.start_time,
           end_time: override.end_time,
           source: "override",

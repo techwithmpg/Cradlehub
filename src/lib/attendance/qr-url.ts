@@ -1,7 +1,30 @@
 const LOCALHOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i;
+const PRODUCTION_URL_ERROR = "Production QR links require a public app URL.";
 
-function normalizeConfiguredUrl(value: string): string {
-  return value.startsWith("http") ? value : `https://${value}`;
+function normalizeConfiguredUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    new URL(normalized);
+    return normalized.replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function firstConfiguredUrl(
+  values: Array<string | null | undefined>,
+  options?: { nodeEnv?: string }
+): string | null {
+  for (const value of values) {
+    if (!value) continue;
+    const normalized = normalizeConfiguredUrl(value);
+    if (normalized && options?.nodeEnv === "production" && isLocalhostUrl(normalized)) continue;
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 function isLocalhostUrl(value: string): boolean {
@@ -18,21 +41,23 @@ export function getAppBaseUrl(params?: {
   configuredUrl?: string | null;
   nodeEnv?: string;
 }): string {
-  const configured =
-    params?.configuredUrl ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
-    null;
-
-  const candidate = configured ? normalizeConfiguredUrl(configured) : params?.origin ?? "http://localhost:3000";
   const env = params?.nodeEnv ?? process.env.NODE_ENV;
+  const configured = firstConfiguredUrl([
+    params?.configuredUrl,
+    process.env.APP_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  ], { nodeEnv: env });
+  const origin = params?.origin ? normalizeConfiguredUrl(params.origin) : null;
+  const publicOrigin = origin && (env !== "production" || !isLocalhostUrl(origin)) ? origin : null;
+  const candidate = configured ?? publicOrigin ?? (env !== "production" ? "http://localhost:3000" : null);
 
-  if (env === "production" && isLocalhostUrl(candidate)) {
-    throw new Error("Production QR links require a public app URL.");
+  if (!candidate) {
+    throw new Error(PRODUCTION_URL_ERROR);
   }
 
-  return candidate.replace(/\/+$/, "");
+  return candidate;
 }
 
 export function buildScanUrl(publicCode: string, origin?: string | null): string {

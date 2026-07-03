@@ -1,4 +1,59 @@
-# Current Task - ATTENDANCE-REFIT-005
+# Current Task - ATTENDANCE-SCHEDULE-LIVE-DATA-001
+
+Status: IN_PROGRESS
+Started: 2026-07-03
+Last updated: 2026-07-03
+
+## Description
+
+Fix the production Attendance public URL failure and wire CRM Schedule Daily Timeline coverage to fresh live schedule data.
+
+Scope:
+- Replace Attendance page-origin resolution from the unreliable browser `Origin` header with a server-only request-origin helper using forwarded host/protocol and host.
+- Resolve QR public URLs through `APP_URL`, public URL fallbacks, Vercel production URL, safe request origin, and development-only localhost.
+- Keep Attendance non-QR data loading even when QR URL configuration is unavailable.
+- Scope QR unavailable state to QR actions only while preserving existing QR point IDs, public codes, versions, resource associations, and scan history.
+- Add live SWR-backed Schedule daily data from the existing `/api/crm/schedule` endpoint with no-store responses.
+- Centralize Schedule realtime invalidation and remove duplicate display-level subscriptions.
+- Correct Coverage Overview scheduled-staff denominator and show regular/single schedule rows when present.
+- Preserve timed override shift classification through a nullable `schedule_overrides.shift_type` migration and legacy fallback.
+
+## Pre-flight Notes
+
+- Read `.context/*`, root `CLAUDE.md`, root `AGENTS.md` via session instructions, and `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, `docs/AGENT_RULES.md` because root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout.
+- Installed stack is Next.js 16.2.4 and React 19.2.4; local Next.js docs under `node_modules/next/dist/docs/` were consulted for async `headers()`, route handlers, and environment variable behavior.
+- Supabase changelog and current Realtime/CLI docs were checked; no new-table Data API exposure work is needed for the nullable column migration, and Realtime Postgres Changes should use one channel with table-specific subscriptions.
+- Worktree was already dirty with unrelated Bookings selected-card changes and locked temp files; do not revert or clean unrelated files.
+
+---
+
+# Previous In-Progress Task - BOOKINGS-SELECTED-CARD-REFIT-002
+
+Status: IN_PROGRESS
+Started: 2026-07-03
+Last updated: 2026-07-03
+
+## Description
+
+Refit only the selected booking right-hand panel in the Bookings module to match the approved compact Selected Booking card mockup.
+
+Scope:
+- Keep the booking list, filters, tabs, header, pagination, CRM shell, and workspace layout unchanged except for the selected-panel footprint if needed.
+- Preserve existing booking workflow server actions, status transitions, payment controls, notes, service countdown, recommendation logic, permission checks, and modal flows.
+- Consolidate duplicated selected-booking details into one compact customer/booking summary.
+- Provide one next-best primary action, secondary actions, overflow actions, compact payment and note summaries, collapsed full details, and compact recommendation warnings.
+- Use the active-service countdown state in place of normal next actions when a service is running.
+- Add focused coverage for next-action selection, overflow action availability, payment/note/full-details behavior, handler invocation, and key booking states.
+
+## Pre-flight Notes
+
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; equivalents in `docs/` plus root `AGENTS.md`, `CLAUDE.md`, and `.context/*` were read.
+- Installed stack is Next.js 16.2.4 and React 19.2.4; relevant local Next.js docs under `node_modules/next/dist/docs/` are being consulted before source edits.
+- Current branch is `main`; prior Attendance work was committed and pushed. Four locked zero-byte `_tmp_*` files remain untracked and unrelated.
+
+---
+
+# Previous Task - ATTENDANCE-REFIT-005
 
 Status: BLOCKED ON AUTHENTICATED QR VISUAL QA
 Started: 2026-07-02
@@ -263,3 +318,14 @@ Run `git status --short --branch` before continuing.
    - Confirm internal CRM New Booking triggers still open the shared modal and do not navigate to `/crm/bookings/new`.
 5. Keep `/crm/bookings/new` alive for direct links, agent fallback, and compatibility.
 6. Continue broader Work Queue / Today simplification only after authenticated Schedule QA if possible.
+
+## Current Continuation - ATTENDANCE-SCHEDULE-REPAIR-002
+
+- Status: Code repair and local verification are complete for the Daily Timeline console error and live Schedule data stabilization.
+- The prior production `{}` console log is now replaced by contextual logging with branch ID, selected date, message, and development-only stack details.
+- The daily schedule query now includes `schedule_overrides.shift_type` and fails loudly on staff metadata, blocked-time, and override query failures instead of silently returning empty data.
+- Live DB check succeeded through the transaction pooler; the direct Supabase DB host was unreachable from this environment because it resolved to IPv6 only.
+- The live DB already has `schedule_overrides.shift_type` and its check constraint, but Supabase migration history does not show `20260703022600` as applied.
+- Verification passed with `npx tsc --noEmit`, `npm run lint`, focused schedule tests, full `npx vitest run`, `npm run build`, and `git diff --check`.
+- Remaining infrastructure blocker: fix local pnpm/Supabase CLI first, then rerun `pnpm db:push` and `pnpm db:types` to reconcile migration history and generated types.
+- Remaining security task: rotate the Supabase database password because it was pasted into the chat.

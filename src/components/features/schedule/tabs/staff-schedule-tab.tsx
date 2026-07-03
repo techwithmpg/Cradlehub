@@ -23,10 +23,12 @@ export function StaffScheduleTab({
   branchId,
   branchName,
   initialItems,
+  onScheduleChanged,
 }: {
   branchId: string;
   branchName: string;
   initialItems: StaffScheduleItem[];
+  onScheduleChanged?: () => void | Promise<void>;
 }) {
   const { data, isLoading, mutate } = useSWR<StaffScheduleData>(
     `/api/crm/staff-schedule/overview?branchId=${branchId}`,
@@ -77,6 +79,7 @@ export function StaffScheduleTab({
       rulesByGroup={data.rulesByGroup}
       onDataRefresh={() => {
         void mutate();
+        void onScheduleChanged?.();
       }}
     />
   );

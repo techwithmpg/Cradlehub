@@ -95,6 +95,7 @@ type OverrideRow = {
   id: string;
   override_date: string;
   is_day_off: boolean;
+  shift_type: string | null;
   start_time: string | null;
   end_time: string | null;
   reason: string | null;
@@ -166,7 +167,7 @@ export type StaffFullScheduleData = {
   custom_overrides: Array<{
     id: string;
     date: string;
-    shift_type: "regular" | "day_off";
+    shift_type: "opening" | "closing" | "single" | "day_off";
     start_time: string | null;
     end_time: string | null;
     reason: string | null;
@@ -464,7 +465,7 @@ export async function getStaffFullScheduleAction(
           .order("shift_type"),
         admin
           .from("schedule_overrides")
-          .select("id, override_date, is_day_off, start_time, end_time, reason")
+          .select("id, override_date, is_day_off, shift_type, start_time, end_time, reason")
           .eq("staff_id", staffId)
           .gte("override_date", startDate)
           .lte("override_date", endDate)
@@ -531,7 +532,7 @@ export async function getStaffFullScheduleAction(
     const custom_overrides = ((overridesResult.data ?? []) as OverrideRow[]).map((row) => ({
       id: row.id,
       date: row.override_date,
-      shift_type: row.is_day_off ? ("day_off" as const) : ("regular" as const),
+      shift_type: row.is_day_off ? ("day_off" as const) : normalizeShiftType(row.shift_type),
       start_time: row.start_time,
       end_time: row.end_time,
       reason: row.reason,

@@ -8,12 +8,13 @@ import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import { asAttendanceDb, type AttendanceDb } from "@/lib/attendance/db";
-import { buildActivationUrl, buildScanUrl, renderQrSvg } from "@/lib/attendance/qr-code";
+import { buildActivationUrl, getAppBaseUrl, renderQrSvg } from "@/lib/attendance/qr-code";
 import { createActivationToken, createPublicCode, hashSecret } from "@/lib/attendance/tokens";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import type {
   AttendanceDevice,
   AttendanceException,
+  AttendanceQrConfiguration,
   AttendanceQrPoint,
   AttendanceRecord,
   AttendanceScanEvent,
@@ -139,7 +140,7 @@ export async function ensureBranchAttendanceQrPoint(ctx: AttendanceActionContext
     .maybeSingle();
 
   if (existing.data) {
-    return mapQrPoint(existing.data, null);
+    return mapQrPoint({ row: existing.data, scanUrl: null, svg: null });
   }
 
   const publicCode = createPublicCode("att");
@@ -167,11 +168,11 @@ export async function ensureBranchAttendanceQrPoint(ctx: AttendanceActionContext
       .eq("is_active", true)
       .single();
 
-    if (retry.data) return mapQrPoint(retry.data, null);
+    if (retry.data) return mapQrPoint({ row: retry.data, scanUrl: null, svg: null });
     throw new Error(inserted.error.message);
   }
 
-  return mapQrPoint(inserted.data, null);
+  return mapQrPoint({ row: inserted.data, scanUrl: null, svg: null });
 }
 
 export async function ensureRoomQrPoints(ctx: AttendanceActionContext): Promise<{
@@ -225,7 +226,7 @@ export async function ensureRoomQrPoints(ctx: AttendanceActionContext): Promise<
   if (error) throw new Error(error.message);
   return {
     createdCount: rows.length,
-    qrPoints: (data ?? []).map((row: unknown) => mapQrPoint(row, null)),
+    qrPoints: (data ?? []).map((row: unknown) => mapQrPoint({ row, scanUrl: null, svg: null })),
   };
 }
 
@@ -402,12 +403,10 @@ export async function getAttendanceWorkspaceData(params: {
   ]);
 
   const qrRows = qrPointsResult.data ?? [];
-  const qrPoints = await Promise.all(
-    qrRows.map(async (row: unknown) => {
-      const scanUrl = buildScanUrl((row as { public_code: string }).public_code, params.origin);
-      return mapQrPoint(row, await renderQrSvg(scanUrl), params.origin);
-    })
-  );
+  const qrWorkspaceData = await resolveQrWorkspaceData({
+    rows: qrRows,
+    origin: params.origin,
+  });
 
   const devices = (devicesResult.data ?? []).map(mapDevice);
   const records = (recordsResult.data ?? []).map(mapRecord);
@@ -426,7 +425,8 @@ export async function getAttendanceWorkspaceData(params: {
       activeSessions,
       activeDevices: devices.filter((device) => device.status === "active").length,
     },
-    qrPoints,
+    qrConfiguration: qrWorkspaceData.configuration,
+    qrPoints: qrWorkspaceData.qrPoints,
     devices,
     records,
     exceptions,
@@ -453,8 +453,54 @@ export function revalidateAttendanceSurfaces(): void {
   revalidatePath("/staff-portal");
 }
 
-function mapQrPoint(row: unknown, svg: string | null, origin?: string | null): AttendanceQrPoint {
-  const point = row as {
+function createUnavailableQrPoint(row: unknown): AttendanceQrPoint {
+  return mapQrPoint({ row, scanUrl: null, svg: null });
+}
+
+async function resolveQrWorkspaceData(params: {
+  rows: unknown[];
+  origin?: string | null;
+}): Promise<{
+  qrPoints: AttendanceQrPoint[];
+  configuration: AttendanceQrConfiguration;
+}> {
+  try {
+    const baseUrl = getAppBaseUrl({ origin: params.origin });
+    const qrPoints = await Promise.all(
+      params.rows.map(async (row) => {
+        const publicCode = (row as { public_code: string }).public_code;
+        const scanUrl = `${baseUrl}/scan/${encodeURIComponent(publicCode)}`;
+        const svg = await renderQrSvg(scanUrl);
+        return mapQrPoint({ row, scanUrl, svg });
+      })
+    );
+
+    return {
+      qrPoints,
+      configuration: {
+        isConfigured: true,
+        baseUrl,
+        error: null,
+      },
+    };
+  } catch {
+    return {
+      qrPoints: params.rows.map(createUnavailableQrPoint),
+      configuration: {
+        isConfigured: false,
+        baseUrl: null,
+        error: "QR links are unavailable because APP_URL or NEXT_PUBLIC_APP_URL is not configured with a public domain.",
+      },
+    };
+  }
+}
+
+function mapQrPoint(params: {
+  row: unknown;
+  scanUrl: string | null;
+  svg: string | null;
+}): AttendanceQrPoint {
+  const point = params.row as {
     id: string;
     branch_id: string;
     point_type: "attendance" | "room" | "resource";
@@ -484,8 +530,8 @@ function mapQrPoint(row: unknown, svg: string | null, origin?: string | null): A
     created_at: point.created_at,
     updated_at: point.updated_at,
     resource_name: first(point.branch_resources)?.name ?? null,
-    scan_url: buildScanUrl(point.public_code, origin),
-    svg,
+    scan_url: params.scanUrl,
+    svg: params.svg,
   };
 }
 

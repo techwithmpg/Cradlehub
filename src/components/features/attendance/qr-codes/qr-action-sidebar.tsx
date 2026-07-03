@@ -12,6 +12,7 @@ export function QrActionSidebar({
   scanEvents,
   format,
   isPending,
+  urlActionsDisabled,
   onDeactivate,
 }: {
   qrPoint: AttendanceQrPoint;
@@ -19,6 +20,7 @@ export function QrActionSidebar({
   scanEvents: AttendanceScanEvent[];
   format: QrPrintFormat;
   isPending: boolean;
+  urlActionsDisabled: boolean;
   onDeactivate: (point: AttendanceQrPoint) => void;
 }) {
   async function handlePngDownload() {
@@ -31,19 +33,19 @@ export function QrActionSidebar({
 
   return (
     <aside className="grid h-fit gap-3">
-      <Button type="button" size="lg" className="h-10 w-full justify-start bg-[#0B5634] text-white hover:bg-[#0A482D]" onClick={() => void handlePngDownload()}>
+      <Button type="button" size="lg" disabled={urlActionsDisabled} className="h-10 w-full justify-start bg-[#0B5634] text-white hover:bg-[#0A482D]" onClick={() => void handlePngDownload()}>
         <Download data-icon="inline-start" />
         Download PNG
       </Button>
-      <Button type="button" variant="outline" size="lg" className="h-10 w-full justify-start" onClick={() => downloadQrSvg({ point: qrPoint, branchName, format })}>
+      <Button type="button" variant="outline" size="lg" disabled={urlActionsDisabled} className="h-10 w-full justify-start" onClick={() => downloadQrSvg({ point: qrPoint, branchName, format })}>
         <Download data-icon="inline-start" />
         Download SVG
       </Button>
-      <Button type="button" variant="outline" size="lg" className="h-10 w-full justify-start" onClick={() => printQrPoint({ point: qrPoint, branchName, format })}>
+      <Button type="button" variant="outline" size="lg" disabled={urlActionsDisabled} className="h-10 w-full justify-start" onClick={() => printQrPoint({ point: qrPoint, branchName, format })}>
         <Printer data-icon="inline-start" />
         Download Print PDF
       </Button>
-      <Button type="button" variant="outline" size="lg" className="h-10 w-full justify-start" onClick={() => void copyQrScanLink(qrPoint)}>
+      <Button type="button" variant="outline" size="lg" disabled={urlActionsDisabled} className="h-10 w-full justify-start" onClick={() => void copyQrScanLink(qrPoint)}>
         <Copy data-icon="inline-start" />
         Copy Scan Link
       </Button>

@@ -100,6 +100,10 @@ export function printQrPoints(params: {
 }
 
 export async function copyQrScanLink(point: AttendanceQrPoint) {
+  if (!point.scan_url) {
+    toast.error("Scan link is unavailable until APP_URL or NEXT_PUBLIC_APP_URL is configured.");
+    return;
+  }
   await navigator.clipboard.writeText(point.scan_url);
   toast.success("Scan link copied.");
 }

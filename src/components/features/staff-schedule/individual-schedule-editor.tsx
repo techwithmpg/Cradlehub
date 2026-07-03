@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, ClipboardCopy, History, Loader2, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShiftDefinitionCard } from "./shift-definition-card";
@@ -38,6 +37,7 @@ type IndividualScheduleEditorProps = {
   branchId: string;
   branchName: string;
   onBackToGeneral: () => void;
+  onDataRefresh?: () => void;
 };
 
 type StaffScheduleHeaderProps = {
@@ -386,6 +386,7 @@ function StaffScheduleEditorForm({
   branchName,
   onSelectStaff,
   onBackToGeneral,
+  onDataRefresh,
 }: {
   item: StaffScheduleItem;
   items: StaffScheduleItem[];
@@ -395,8 +396,8 @@ function StaffScheduleEditorForm({
   branchName: string;
   onSelectStaff: (staffId: string) => void;
   onBackToGeneral: () => void;
+  onDataRefresh?: () => void;
 }) {
-  const router = useRouter();
   const groupKey = getGroupKeyForStaffType(item.staff.staff_type);
   const groupConfig = getGroupScheduleConfig(groupKey);
   const groupRules = useMemo(() => rulesByGroup[groupKey] ?? [], [groupKey, rulesByGroup]);
@@ -472,14 +473,14 @@ function StaffScheduleEditorForm({
         setDirty(false);
         setEditingTimes(false);
         setFeedback({ tone: "success", message: "Schedule updated successfully." });
-        router.refresh();
+        onDataRefresh?.();
       } else {
         setFeedback({ tone: "error", message: result.error });
       }
 
       window.setTimeout(() => setFeedback(null), 3500);
     });
-  }, [activeTimes, branchId, item.staff.id, pattern, router]);
+  }, [activeTimes, branchId, item.staff.id, onDataRefresh, pattern]);
 
   return (
     <div className="space-y-5">
@@ -618,6 +619,7 @@ export function IndividualScheduleEditor({
   branchId,
   branchName,
   onBackToGeneral,
+  onDataRefresh,
 }: IndividualScheduleEditorProps) {
   const activeItems = useMemo(
     () => items.filter((item) => item.staff.is_active),
@@ -647,6 +649,7 @@ export function IndividualScheduleEditor({
       branchName={branchName}
       onSelectStaff={setSelectedStaffId}
       onBackToGeneral={onBackToGeneral}
+      onDataRefresh={onDataRefresh}
     />
   );
 }

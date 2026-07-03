@@ -56,6 +56,7 @@ type StaffScheduleRow = {
 
 type ScheduleOverrideRow = {
   staff_id: string;
+  shift_type: string | null;
   start_time: string | null;
   end_time: string | null;
   is_day_off: boolean;
@@ -222,7 +223,7 @@ async function filterSlotsToWorkingWindows(params: {
       .eq("day_of_week", dayOfWeek),
     params.supabase
       .from("schedule_overrides")
-      .select("staff_id, start_time, end_time, is_day_off")
+      .select("staff_id, shift_type, start_time, end_time, is_day_off")
       .in("staff_id", staffIds)
       .eq("override_date", params.date),
   ]);

@@ -5,14 +5,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   Copy,
+  CreditCard,
   DoorOpen,
+  Edit3,
+  FileText,
   Home,
+  ListChecks,
   MapPin,
+  MoreHorizontal,
   Phone,
-  Play,
   ReceiptText,
+  RotateCcw,
   UserX,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PaymentStatusBadge } from "@/components/features/dashboard/payment-status-badge";
@@ -25,10 +32,18 @@ import { cn, formatTime, formatCurrency } from "@/lib/utils";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
-import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { editBookingAction, updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { crmStartServiceAction, crmCompleteServiceAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { autoCompleteDueSessionAction } from "@/app/(dashboard)/staff-portal/actions";
-import { isCrmPendingBookingStatus, isBookingClosedForCrm } from "@/lib/bookings/crm-booking-status";
+import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import {
+  getSelectedBookingActionPlan,
+  getSelectedBookingRecommendationState,
+  shouldShowSelectedBookingFullDetail,
+  type SelectedBookingAction,
+  type SelectedBookingActionId,
+} from "@/lib/bookings/selected-booking-panel";
+import { canUpdateBooking } from "@/lib/permissions";
 import { BookingFollowupModal, type BookingFollowupResult } from "./booking-followup-modal";
 import { CustomerArrivedModal } from "./customer-arrived-modal";
 import { RoomAssignmentModal } from "./room-assignment-modal";
@@ -82,14 +97,6 @@ function isNotStartedProgress(status: string | null | undefined): boolean {
 function formatBookingDate(date: string): string {
   return new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
     month: "short",
-    day: "numeric",
-  });
-}
-
-function formatLongBookingDate(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
-    weekday: "short",
-    month: "long",
     day: "numeric",
   });
 }
@@ -817,7 +824,6 @@ function BookingDetailsPanel({
   onBookingsChanged?: () => void;
 }) {
   const router = useRouter();
-  const [isStarting,   startStartTransition]    = useTransition();
   const [isCompleting, startCompleteTransition] = useTransition();
 
   // Optimistic override — set immediately after Start Service success so the
@@ -831,6 +837,9 @@ function BookingDetailsPanel({
     session_started_at: string;
   };
   const [sessionOverride, setSessionOverride] = useState<SessionOverride | null>(null);
+  const [noteOverride, setNoteOverride] = useState<string | null>(null);
+  const [showPaymentReview, setShowPaymentReview] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   // Effective fields: optimistic values take precedence until server data arrives.
   const effectiveStatus           = sessionOverride?.status                   ?? booking.status;
@@ -846,11 +855,21 @@ function BookingDetailsPanel({
   const price    = readPricePaid(booking.metadata);
   const balance  = price > 0 ? Math.max(0, price - booking.amount_paid) : 0;
   const notes    = (booking.metadata as Record<string, unknown> | null)?.["customer_notes"];
+  const displayNote = noteOverride ?? (typeof notes === "string" ? notes : "");
   const durationMinutes = service?.duration_minutes;
   const addOns   = readAddOns(booking.metadata);
   const isHomeService = isHomeServiceBooking(booking);
   const roomLabel = resource?.name ?? (isHomeService ? "Home service" : "Room TBD");
-  const operationalStatus = getOperationalStatus(booking);
+  const recommendationState = getSelectedBookingRecommendationState({
+    status: booking.status,
+    bookingProgressStatus: booking.booking_progress_status,
+    type: booking.type,
+    deliveryType: booking.delivery_type,
+    resourceId: booking.resource_id,
+    hasStaff: Boolean(staff),
+    hasDriver: false,
+  });
+  const canEditNote = canUpdateBooking(viewerRole) && !isClosedOperationalBooking(booking);
 
   // ── Service state guards (use effective values so optimistic state applies) ─
 
@@ -861,42 +880,11 @@ function BookingDetailsPanel({
     effectiveStatus === "in_progress" || progress === "session_started"
   ) && Boolean(effectiveSessionStartedAt);
 
-  // Show Start Service for any confirmed in-spa booking not yet in active service.
-  const isPendingConfirmation = isCrmPendingBookingStatus(booking.status);
-  const isClosed = isBookingClosedForCrm(booking.status) ||
-    booking.status === "completed" ||
-    booking.status === "no_show";
-  const canStartService =
-    !isHomeService &&
-    !isServiceActive &&
-    !isPendingConfirmation &&
-    !isClosed &&
-    (booking.status === "confirmed" || booking.status === "in_progress");
-
   // ── Mutation helpers ──────────────────────────────────────────────────────
 
   function afterServiceMutation() {
     onBookingsChanged?.();
     router.refresh();
-  }
-
-  function handleStartService() {
-    startStartTransition(async () => {
-      const result = await crmStartServiceAction({ bookingId: booking.id });
-      if (!result.success) {
-        toast.error(result.error ?? "Could not start service.");
-        return;
-      }
-      // Set optimistic override BEFORE calling afterServiceMutation so the
-      // countdown appears immediately — no waiting for the refresh cycle.
-      setSessionOverride({
-        status:                  "in_progress",
-        booking_progress_status: "session_started",
-        session_started_at:      new Date().toISOString(),
-      });
-      toast.success("Service started.");
-      afterServiceMutation();
-    });
   }
 
   function handleCompleteService() {
@@ -944,27 +932,9 @@ function BookingDetailsPanel({
   }
 
   return (
-    <aside className="sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto rounded-3xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-sm)]">
-      {/* Panel title row */}
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-            Selected Booking
-          </div>
-          <div className="mt-0.5 font-mono text-[11px] text-[var(--cs-text-muted)]">
-            #{booking.id.slice(0, 8).toUpperCase()}
-          </div>
-        </div>
-        {/* Status pills next to the ID */}
-        <div className="flex items-center gap-2">
-          <OperationalStatusPill booking={booking} />
-          <SourcePill booking={booking} />
-        </div>
-      </div>
+    <aside className="sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-sm)]">
+      <SelectedPanelHeader booking={booking} onClose={onClose} />
 
-      {/* Hybrid card: uses effective (possibly optimistic) session fields so
-          the countdown activates immediately after Start Service without
-          waiting for router.refresh() to complete. */}
       <HybridSelectedBookingCard
         booking={{
           id:                      booking.id,
@@ -972,7 +942,8 @@ function BookingDetailsPanel({
           customer_name:           customer?.full_name,
           service_name:            service?.name,
           staff_name:              staffName,
-          resource_name:           resource?.name,
+          resource_name:           roomLabel,
+          booking_date:            booking.booking_date,
           start_time:              booking.start_time,
           end_time:                booking.end_time,
           status:                  effectiveStatus,
@@ -982,22 +953,16 @@ function BookingDetailsPanel({
           service_duration:        durationMinutes,
           type:                    booking.type,
         }}
-        onClose={onClose}
-        onStartService={canStartService ? handleStartService : undefined}
-        onCompleteService={isServiceActive ? handleCompleteService : undefined}
         onAutoComplete={isServiceActive ? handleAutoComplete : undefined}
-        isStarting={isStarting}
-        isCompleting={isCompleting}
       />
 
-      <div className="mt-4 space-y-4">
-        {/* CrmNextActionsPanel handles all pre-service workflow (check-in,
-            arrival, dispatch, room assignment, follow-up, etc.).
-            When service is active, the hybrid card owns Complete Service
-            to avoid duplicate buttons. wrappedStatusAction intercepts the
-            'in_progress' path so CrmNextActionsPanel's Start Service button
-            (for checked-in + room states) also calls the RPC correctly. */}
-        {!isServiceActive ? (
+      <div className="mt-4 space-y-3">
+        {isServiceActive ? (
+          <ActiveServiceActionPanel
+            onCompleteService={handleCompleteService}
+            isCompleting={isCompleting}
+          />
+        ) : (
           <CrmNextActionsPanel
             booking={booking}
             statusAction={wrappedStatusAction}
@@ -1007,115 +972,534 @@ function BookingDetailsPanel({
             onOpenRoomAssignment={onOpenRoomAssignment}
             onBookingsChanged={onBookingsChanged}
           />
-        ) : null}
+        )}
 
+        <RecommendationSummaryPanel
+          booking={booking}
+          state={recommendationState}
+          expanded={showRecommendations}
+          onExpandedChange={setShowRecommendations}
+        />
 
-        <PanelSection label="Booking Details">
-          <PanelRow
-            label="Date"
-            value={formatLongBookingDate(booking.booking_date)}
-          />
-          <PanelRow label="Time" value={formatTime(booking.start_time)} />
-          {durationMinutes != null ? <PanelRow label="Duration" value={`${durationMinutes} min`} /> : null}
-          <PanelRow label="Service" value={service?.name ?? "Service"} />
-          <PanelRow label="Staff/Therapist" value={staffName} />
-          <PanelRow label="Source" value={sourceLabel(booking)} />
-          <PanelRow label="Room/Bed" value={roomLabel} />
-          {branch ? <PanelRow label="Branch" value={branch.name} /> : null}
-          {addOns ? <PanelRow label="Add-ons" value={addOns} /> : null}
-          {booking.travel_buffer_mins != null && booking.travel_buffer_mins > 0 ? (
-            <PanelRow label="Travel buffer" value={`+${booking.travel_buffer_mins} min`} />
-          ) : null}
-        </PanelSection>
+        <PaymentSummaryPanel
+          booking={booking}
+          price={price}
+          balance={balance}
+          paymentAction={paymentAction}
+          onBookingsChanged={onBookingsChanged}
+          showReview={showPaymentReview}
+          onShowReviewChange={setShowPaymentReview}
+        />
 
-        <PanelSection label="Payment / Confirmation">
+        {showPaymentReview && isCrmPendingBookingStatus(booking.status) ? (
           <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <PaymentStatusBadge status={booking.payment_status} />
-                <PaymentMethodBadge method={booking.payment_method} />
-              </div>
-              {price > 0 ? (
-                <span className="text-sm font-semibold text-[var(--cs-text)]">{formatCurrency(price)}</span>
-              ) : null}
-            </div>
-            {price > 0 ? (
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-xl bg-[var(--cs-surface)] px-3 py-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">Paid</div>
-                  <div className="mt-1 font-semibold text-[var(--cs-text)]">{formatCurrency(booking.amount_paid)}</div>
-                </div>
-                <div className="rounded-xl bg-[var(--cs-surface)] px-3 py-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">Balance</div>
-                  <div className={cn("mt-1 font-semibold", balance > 0 ? "text-[var(--cs-error-text)]" : "text-[var(--cs-success-text)]")}>
-                    {formatCurrency(balance)}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {isCrmPendingBookingStatus(booking.status) ? (
             <PaymentConfirmationPanel booking={booking} confirmPaymentAction={confirmPaymentAction} />
-          ) : null}
-        </PanelSection>
-
-        {typeof notes === "string" && notes.trim() ? (
-          <PanelSection label="Notes">
-            <p className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 text-sm leading-6 text-[var(--cs-text-secondary)]">
-              {notes}
-            </p>
-          </PanelSection>
-        ) : null}
-
-        {operationalStatus.tone !== "completed" ? (
-          <BookingRecommendationSection booking={booking} />
-        ) : null}
-
-        <PanelSection label="More Actions">
-          <div className="grid gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <BookingActionMenu
-                bookingId={booking.id}
-                currentStatus={booking.status}
-                userRole={viewerRole}
-                statusAction={statusAction}
-                actionScope="status"
-                triggerLabel="More Status"
-                triggerVariant="panelSecondary"
-                fullWidth
-                emptyBehavior="disabled"
-              />
-              <PaymentActionMenu
-                bookingId={booking.id}
-                paymentStatus={booking.payment_status}
-                paymentMethod={booking.payment_method}
-                amountPaid={booking.amount_paid}
-                pricePaid={price}
-                paymentAction={paymentAction}
-                triggerLabel="Take Payment"
-                triggerVariant="panelSecondary"
-                fullWidth
-              />
-            </div>
-
-            {!isClosedOperationalBooking(booking) ? (
-              <BookingActionMenu
-                bookingId={booking.id}
-                currentStatus={booking.status}
-                userRole={viewerRole}
-                statusAction={statusAction}
-                actionScope="cancel"
-                triggerLabel="Cancel Booking"
-                triggerVariant="panelDanger"
-                fullWidth
-              />
-            ) : null}
           </div>
-        </PanelSection>
+        ) : null}
+
+        <NoteSummaryPanel
+          booking={booking}
+          note={displayNote}
+          canEdit={canEditNote}
+          onSaved={(nextNote) => {
+            setNoteOverride(nextNote);
+            onBookingsChanged?.();
+            router.refresh();
+          }}
+        />
+
+        <FullDetailsDisclosure
+          booking={booking}
+          branchName={branch?.name ?? null}
+          bookingType={isHomeService ? "Home Service" : "In-Spa"}
+          source={sourceLabel(booking)}
+          addOns={addOns}
+        />
+
+        <SelectedMoreActionsPanel
+          booking={booking}
+          viewerRole={viewerRole}
+          statusAction={statusAction}
+          paymentAction={paymentAction}
+          price={price}
+          onOpenCancel={() => onOpenFollowup(booking, "cancel")}
+          onShowPaymentReview={() => setShowPaymentReview(true)}
+          onShowRecommendations={() => setShowRecommendations(true)}
+          onBookingsChanged={onBookingsChanged}
+        />
       </div>
     </aside>
   );
+}
+
+function SelectedPanelHeader({
+  booking,
+  onClose,
+}: {
+  booking: WorkspaceBookingRow;
+  onClose: () => void;
+}) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-xl font-semibold leading-tight text-[var(--cs-text)]">
+          Selected Booking
+        </h2>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="font-mono text-sm text-[var(--cs-text-muted)]">
+            #{booking.id.slice(0, 8).toUpperCase()}
+          </span>
+          <OperationalStatusPill booking={booking} />
+          <SourcePill booking={booking} />
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close selected booking"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text)] transition-colors hover:bg-[var(--cs-surface-warm)]"
+      >
+        <X size={18} />
+      </button>
+    </div>
+  );
+}
+
+function ActiveServiceActionPanel({
+  onCompleteService,
+  isCompleting,
+}: {
+  onCompleteService: () => void;
+  isCompleting: boolean;
+}) {
+  return (
+    <CompactPanel label="Next Best Action">
+      <button
+        type="button"
+        onClick={onCompleteService}
+        disabled={isCompleting}
+        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--cs-success)] px-4 text-sm font-bold text-white transition-colors hover:bg-[var(--cs-success-text)] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <CheckCircle2 size={17} />
+        {isCompleting ? "Completing..." : "Complete Service"}
+      </button>
+    </CompactPanel>
+  );
+}
+
+function RecommendationSummaryPanel({
+  booking,
+  state,
+  expanded,
+  onExpandedChange,
+}: {
+  booking: WorkspaceBookingRow;
+  state: ReturnType<typeof getSelectedBookingRecommendationState>;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+}) {
+  if (!state.shouldShow) return null;
+
+  const label = [
+    state.needsTherapist ? "therapist" : null,
+    state.needsDriver ? "driver" : null,
+  ].filter(Boolean).join(" and ");
+
+  return (
+    <CompactPanel label="Assignment">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 text-sm text-[var(--cs-text-secondary)]">
+          Missing {label || "assignment"} recommendation.
+        </div>
+        <button
+          type="button"
+          onClick={() => onExpandedChange(!expanded)}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm font-semibold text-[var(--cs-text)] transition-colors hover:border-[var(--cs-border-strong)]"
+          aria-expanded={expanded}
+        >
+          <ListChecks size={14} />
+          {expanded ? "Hide" : "Review"}
+        </button>
+      </div>
+      {expanded ? (
+        <div className="mt-3 border-t border-[var(--cs-border-soft)] pt-3">
+          <BookingRecommendationSection booking={booking} />
+        </div>
+      ) : null}
+    </CompactPanel>
+  );
+}
+
+function PaymentSummaryPanel({
+  booking,
+  price,
+  balance,
+  paymentAction,
+  onBookingsChanged,
+  showReview,
+  onShowReviewChange,
+}: {
+  booking: WorkspaceBookingRow;
+  price: number;
+  balance: number;
+  paymentAction?: ActionFn;
+  onBookingsChanged?: () => void;
+  showReview: boolean;
+  onShowReviewChange: (show: boolean) => void;
+}) {
+  const canReviewPending = isCrmPendingBookingStatus(booking.status);
+
+  return (
+    <CompactPanel label="Payment">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <PaymentStatusBadge status={booking.payment_status} />
+            <PaymentMethodBadge method={booking.payment_method} />
+          </div>
+          <div className="mt-3 text-sm text-[var(--cs-text-secondary)]">
+            Paid {formatCurrency(booking.amount_paid)} <span className="px-1">·</span>
+            Balance {formatCurrency(balance)}
+          </div>
+        </div>
+        <div className="text-right">
+          {price > 0 ? (
+            <div className="text-2xl font-semibold tabular-nums text-[var(--cs-text)]">
+              {formatCurrency(price)}
+            </div>
+          ) : null}
+          <div className="mt-2 flex justify-end gap-2">
+            {canReviewPending ? (
+              <button
+                type="button"
+                onClick={() => onShowReviewChange(!showReview)}
+                className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text)]"
+              >
+                {showReview ? "Hide" : "Review"}
+              </button>
+            ) : null}
+            <PaymentActionMenu
+              bookingId={booking.id}
+              paymentStatus={booking.payment_status}
+              paymentMethod={booking.payment_method}
+              amountPaid={booking.amount_paid}
+              pricePaid={price}
+              paymentAction={paymentAction}
+              onUpdate={onBookingsChanged}
+              triggerLabel="Manage"
+              triggerVariant="panelSecondary"
+            />
+          </div>
+        </div>
+      </div>
+    </CompactPanel>
+  );
+}
+
+function NoteSummaryPanel({
+  booking,
+  note,
+  canEdit,
+  onSaved,
+}: {
+  booking: WorkspaceBookingRow;
+  note: string;
+  canEdit: boolean;
+  onSaved: (note: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(note);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const hasNote = note.trim().length > 0;
+
+  function handleEditStart() {
+    setDraft(note);
+    setFeedback(null);
+    setIsEditing(true);
+  }
+
+  function handleSave() {
+    setFeedback(null);
+    startTransition(async () => {
+      const nextNote = draft.trim();
+      const result = await editBookingAction({
+        bookingId: booking.id,
+        notes: nextNote,
+      });
+      if (!result.success) {
+        setFeedback(result.error ?? "Could not save note.");
+        return;
+      }
+      toast.success(nextNote ? "Booking note saved." : "Booking note cleared.");
+      onSaved(nextNote);
+      setIsEditing(false);
+    });
+  }
+
+  return (
+    <CompactPanel label="Note">
+      {isEditing ? (
+        <div className="grid gap-2">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={3}
+            disabled={isPending}
+            maxLength={500}
+            className="min-h-[84px] w-full resize-y rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)] disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Booking note"
+          />
+          {feedback ? (
+            <div className="rounded-lg border border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] px-3 py-2 text-xs font-semibold text-[var(--cs-error-text)]">
+              {feedback}
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              disabled={isPending}
+              className="inline-flex h-9 items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm font-semibold text-[var(--cs-text-secondary)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending}
+              className="inline-flex h-9 items-center rounded-lg bg-[var(--cs-crm-text)] px-3 text-sm font-semibold text-[var(--cs-text-inverse)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPending ? "Saving..." : "Save note"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] text-[var(--cs-text-muted)]">
+              <FileText size={16} />
+            </span>
+            <p className={cn(
+              "min-w-0 truncate text-sm",
+              hasNote ? "text-[var(--cs-text)]" : "text-[var(--cs-text-muted)]"
+            )}>
+              {hasNote ? note : "No note added."}
+            </p>
+          </div>
+          {canEdit ? (
+            <button
+              type="button"
+              onClick={handleEditStart}
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[var(--cs-success-text)] hover:bg-[var(--cs-success-bg)]"
+            >
+              <Edit3 size={15} />
+              {hasNote ? "Edit note" : "Add note"}
+            </button>
+          ) : null}
+        </div>
+      )}
+    </CompactPanel>
+  );
+}
+
+function FullDetailsDisclosure({
+  booking,
+  branchName,
+  bookingType,
+  source,
+  addOns,
+}: {
+  booking: WorkspaceBookingRow;
+  branchName: string | null;
+  bookingType: string;
+  source: string;
+  addOns: string | null;
+}) {
+  const rows = [
+    { key: "branch", label: "Branch", value: branchName ?? "Branch TBD" },
+    { key: "booking_type", label: "Booking Type", value: bookingType },
+    { key: "source", label: "Source", value: source },
+    { key: "payment_reference", label: "Payment Reference", value: booking.payment_reference ?? "None" },
+    { key: "created_at", label: "Created", value: formatDateTimeLabel(booking.created_at) ?? "Not recorded" },
+    { key: "updated_at", label: "Updated", value: formatDateTimeLabel(booking.updated_at) ?? "Not recorded" },
+    booking.travel_buffer_mins != null && booking.travel_buffer_mins > 0
+      ? { key: "travel_buffer", label: "Travel Buffer", value: `+${booking.travel_buffer_mins} min` }
+      : null,
+    addOns ? { key: "addons", label: "Add-ons", value: addOns } : null,
+  ].filter((row): row is { key: string; label: string; value: string } => Boolean(row));
+
+  const visibleRows = rows.filter((row) => shouldShowSelectedBookingFullDetail(row.key));
+
+  return (
+    <details className="group rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)] marker:hidden">
+        Full Details
+        <ChevronDown className="transition-transform group-open:rotate-180" size={16} />
+      </summary>
+      <div className="grid gap-x-4 gap-y-3 border-t border-[var(--cs-border-soft)] px-3 py-3 sm:grid-cols-2">
+        {visibleRows.map((row) => (
+          <div key={row.key} className="min-w-0">
+            <div className="text-[11px] font-medium text-[var(--cs-text-muted)]">{row.label}</div>
+            <div className="mt-0.5 truncate text-sm font-semibold text-[var(--cs-text)]" title={row.value}>
+              {row.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function SelectedMoreActionsPanel({
+  booking,
+  viewerRole,
+  statusAction,
+  paymentAction,
+  price,
+  onOpenCancel,
+  onShowPaymentReview,
+  onShowRecommendations,
+  onBookingsChanged,
+}: {
+  booking: WorkspaceBookingRow;
+  viewerRole: string;
+  statusAction?: ActionFn;
+  paymentAction?: ActionFn;
+  price: number;
+  onOpenCancel: () => void;
+  onShowPaymentReview: () => void;
+  onShowRecommendations: () => void;
+  onBookingsChanged?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const plan = getSelectedBookingActionPlan({
+    status: booking.status,
+    bookingProgressStatus: booking.booking_progress_status,
+    type: booking.type,
+    deliveryType: booking.delivery_type,
+    resourceId: booking.resource_id,
+    hasStaff: Boolean(readFirst(booking.staff)),
+    hasDriver: false,
+  });
+  const cancelAction = plan.overflow.find((action) => action.id === "cancel");
+
+  return (
+    <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left"
+        aria-expanded={open}
+      >
+        <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+          More Actions
+        </span>
+        <span className="inline-flex items-center gap-2 text-[var(--cs-text)]">
+          <MoreHorizontal size={16} />
+          <ChevronDown className={cn("transition-transform", open && "rotate-180")} size={16} />
+        </span>
+      </button>
+
+      {open ? (
+        <div className="divide-y divide-[var(--cs-border-soft)] border-t border-[var(--cs-border-soft)]">
+          <button
+            type="button"
+            onClick={onOpenCancel}
+            disabled={cancelAction?.disabled}
+            className="flex h-12 w-full items-center gap-3 px-3 text-left text-sm font-semibold text-[var(--cs-error-text)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X size={16} />
+            Cancel Booking
+          </button>
+          <div className="px-3 py-2">
+            <BookingActionMenu
+              bookingId={booking.id}
+              currentStatus={booking.status}
+              userRole={viewerRole}
+              statusAction={statusAction}
+              actionScope="status"
+              triggerLabel="Change Status"
+              triggerVariant="panelSecondary"
+              fullWidth
+              emptyBehavior="disabled"
+              onUpdate={onBookingsChanged}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onShowRecommendations}
+            className="flex h-12 w-full items-center gap-3 px-3 text-left text-sm font-semibold text-[var(--cs-text)]"
+          >
+            <RotateCcw size={16} />
+            Assign / Reassign Staff
+          </button>
+          <div className="px-3 py-2">
+            <PaymentActionMenu
+              bookingId={booking.id}
+              paymentStatus={booking.payment_status}
+              paymentMethod={booking.payment_method}
+              amountPaid={booking.amount_paid}
+              pricePaid={price}
+              paymentAction={paymentAction}
+              triggerLabel="Take Payment"
+              triggerVariant="panelSecondary"
+              fullWidth
+              onUpdate={onBookingsChanged}
+            />
+          </div>
+          {isCrmPendingBookingStatus(booking.status) ? (
+            <button
+              type="button"
+              onClick={onShowPaymentReview}
+              className="flex h-12 w-full items-center gap-3 px-3 text-left text-sm font-semibold text-[var(--cs-text)]"
+            >
+              <CreditCard size={16} />
+              Review Payment Confirmation
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled
+            className="flex h-12 w-full cursor-not-allowed items-center gap-3 px-3 text-left text-sm font-semibold text-[var(--cs-text-muted)] opacity-60"
+          >
+            <FileText size={16} />
+            View Audit Log
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactPanel({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3">
+      <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+        {label}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function formatDateTimeLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return date.toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function BookingRecommendationSection({
@@ -1155,7 +1539,7 @@ function BookingRecommendationSection({
   );
 }
 
-function CrmNextActionsPanel({
+export function CrmNextActionsPanel({
   booking,
   statusAction,
   dispatchHref,
@@ -1163,6 +1547,7 @@ function CrmNextActionsPanel({
   onOpenArrival,
   onOpenRoomAssignment,
   onBookingsChanged,
+  isServiceActionPending = false,
 }: {
   booking: WorkspaceBookingRow;
   statusAction?: ActionFn;
@@ -1171,29 +1556,22 @@ function CrmNextActionsPanel({
   onOpenArrival: (booking: WorkspaceBookingRow) => void;
   onOpenRoomAssignment: (booking: WorkspaceBookingRow) => void;
   onBookingsChanged?: () => void;
+  isServiceActionPending?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const isHomeService = isHomeServiceBooking(booking);
-  const progress = booking.booking_progress_status ?? null;
-  const isClosed = isClosedOperationalBooking(booking);
-  const isPendingConfirmation = isCrmPendingBookingStatus(booking.status);
-  const isConfirmedInSpa =
-    !isHomeService &&
-    booking.status === "confirmed" &&
-    isNotStartedProgress(progress);
-  const isConfirmedHomeService =
-    isHomeService &&
-    booking.status === "confirmed" &&
-    isNotStartedProgress(progress);
-  const isHomeServiceTravel = isHomeService && (progress === "travel_started" || progress === "arrived");
-  const isWaitingArrived = progress === "checked_in";
-  const isInService = booking.status === "in_progress" || progress === "session_started";
-  const resourceAssigned = Boolean(booking.resource_id);
-
-  if (isClosed) return null;
+  const actionPlan = getSelectedBookingActionPlan({
+    status: booking.status,
+    bookingProgressStatus: booking.booking_progress_status,
+    type: booking.type,
+    deliveryType: booking.delivery_type,
+    resourceId: booking.resource_id,
+    hasStaff: Boolean(readFirst(booking.staff)),
+    hasDriver: false,
+    hasDispatchHref: Boolean(dispatchHref),
+  });
 
   function afterMutation() {
     onBookingsChanged?.();
@@ -1246,95 +1624,76 @@ function CrmNextActionsPanel({
     toast.message("Guest kept in waiting queue.");
   }
 
-  const actions: React.ReactNode[] = [];
-
-  if (isPendingConfirmation) {
-    actions.push(
-      <NextActionButton key="call" tone="secondary" icon={<Phone size={14} />} onClick={() => onOpenFollowup(booking, "confirmed")}>
-        Call Customer
-      </NextActionButton>,
-      <NextActionButton key="copy" tone="secondary" icon={<Copy size={14} />} onClick={handleCopyMessage}>
-        Copy Message
-      </NextActionButton>,
-      <NextActionButton key="confirmed" icon={<CheckCircle2 size={14} />} onClick={() => onOpenFollowup(booking, "confirmed")}>
-        Mark Booking Confirmed
-      </NextActionButton>,
-      <NextActionButton key="no-answer" tone="secondary" icon={<UserX size={14} />} onClick={() => onOpenFollowup(booking, "no_answer")}>
-        No Answer
-      </NextActionButton>,
-      <NextActionButton key="reschedule" tone="secondary" icon={<CalendarClock size={14} />} onClick={() => onOpenFollowup(booking, "reschedule")}>
-        Reschedule
-      </NextActionButton>,
-      <NextActionButton key="cancel" tone="danger" icon={<UserX size={14} />} onClick={() => onOpenFollowup(booking, "cancel")}>
-        Cancel Booking
-      </NextActionButton>
-    );
-  } else if (isConfirmedInSpa) {
-    actions.push(
-      <NextActionButton key="arrived" icon={<CheckCircle2 size={14} />} onClick={() => onOpenArrival(booking)}>
-        Customer Arrived
-      </NextActionButton>
-    );
-  } else if (isConfirmedHomeService && dispatchHref) {
-    actions.push(
-      <NextActionButton key="dispatch" icon={<Home size={14} />} onClick={() => router.push(dispatchHref)}>
-        Open Dispatch
-      </NextActionButton>
-    );
-  } else if (isHomeServiceTravel && dispatchHref) {
-    actions.push(
-      <NextActionButton key="track-dispatch" icon={<Home size={14} />} onClick={() => router.push(dispatchHref)}>
-        Track Dispatch
-      </NextActionButton>
-    );
-  } else if (isWaitingArrived && !isHomeService) {
-    actions.push(
-      <NextActionButton key="room" tone={resourceAssigned ? "secondary" : "primary"} icon={<DoorOpen size={14} />} onClick={() => onOpenRoomAssignment(booking)}>
-        {resourceAssigned ? "Change Room" : "Assign Room"}
-      </NextActionButton>
-    );
-
-    if (resourceAssigned) {
-      actions.push(
-        <NextActionButton
-          key="start"
-          icon={<Play size={14} />}
-          disabled={isPending}
-          onClick={() => handleStatus("in_progress")}
-        >
-          {isPending ? "Starting..." : "Start Service"}
-        </NextActionButton>
-      );
-    } else {
-      actions.push(
-        <NextActionButton key="waiting" tone="secondary" icon={<CalendarClock size={14} />} onClick={handleKeepWaiting}>
-          Keep Waiting
-        </NextActionButton>
-      );
+  function runAction(actionId: SelectedBookingActionId) {
+    switch (actionId) {
+      case "confirm":
+      case "call":
+        onOpenFollowup(booking, "confirmed");
+        return;
+      case "copy_message":
+        void handleCopyMessage();
+        return;
+      case "no_answer":
+        onOpenFollowup(booking, "no_answer");
+        return;
+      case "reschedule":
+        onOpenFollowup(booking, "reschedule");
+        return;
+      case "mark_arrived":
+        onOpenArrival(booking);
+        return;
+      case "assign_room":
+      case "change_room":
+        onOpenRoomAssignment(booking);
+        return;
+      case "keep_waiting":
+        handleKeepWaiting();
+        return;
+      case "start_service":
+        handleStatus("in_progress");
+        return;
+      case "open_dispatch":
+      case "track_dispatch":
+        if (dispatchHref) router.push(dispatchHref);
+        return;
+      case "review_record":
+        setFeedback("Booking record is open.");
+        return;
     }
-  } else if (isInService) {
-    actions.push(
-      <NextActionButton
-        key="complete"
-        icon={<CheckCircle2 size={14} />}
-        disabled={isPending}
-        onClick={() => handleStatus("completed")}
-      >
-        {isPending ? "Completing..." : "Complete Service"}
-      </NextActionButton>
-    );
   }
 
-  if (actions.length === 0 && !feedback) return null;
+  const primary = actionPlan.primary;
+  const secondary = actionPlan.secondary;
+  if (!primary && secondary.length === 0 && !feedback) return null;
 
   return (
-    <PanelSection label="Next Best Action">
-      {actions.length > 0 ? (
-        <div className="grid gap-2">{actions}</div>
+    <CompactPanel label="Next Best Action">
+      {primary ? (
+        <NextActionButton
+          action={primary}
+          icon={getSelectedActionIcon(primary.id)}
+          disabled={isPending || (primary.id === "start_service" && isServiceActionPending)}
+          onClick={() => runAction(primary.id)}
+        />
       ) : null}
+
+      {secondary.length > 0 ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {secondary.map((action) => (
+            <NextActionButton
+              key={action.id}
+              action={action}
+              icon={getSelectedActionIcon(action.id)}
+              disabled={isPending}
+              onClick={() => runAction(action.id)}
+            />
+          ))}
+        </div>
+      ) : null}
+
       {feedback ? (
         <div className={cn(
-          "rounded-xl border px-3 py-2 text-xs font-semibold",
+          "mt-3 rounded-xl border px-3 py-2 text-xs font-semibold",
           feedback.includes("Could not")
             ? "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]"
             : "border-[var(--cs-sand-mist)] bg-[var(--cs-sand-tint)] text-[var(--cs-sand-dark)]"
@@ -1342,21 +1701,19 @@ function CrmNextActionsPanel({
           {feedback}
         </div>
       ) : null}
-    </PanelSection>
+    </CompactPanel>
   );
 }
 
 function NextActionButton({
-  children,
+  action,
   icon,
   onClick,
-  tone = "primary",
   disabled,
 }: {
-  children: React.ReactNode;
+  action: SelectedBookingAction;
   icon: React.ReactNode;
   onClick: () => void | Promise<void>;
-  tone?: "primary" | "secondary" | "danger";
   disabled?: boolean;
 }) {
   return (
@@ -1370,21 +1727,43 @@ function NextActionButton({
         "inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
         disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
-        tone === "primary"
-          ? "border-[var(--cs-crm-text)] bg-[var(--cs-crm-text)] text-[var(--cs-text-inverse)] hover:bg-[var(--cs-success-text)]"
+        action.tone === "primary"
+          ? "min-h-12 border-[var(--cs-success-text)] bg-[var(--cs-success-text)] text-white shadow-[var(--cs-shadow-xs)] hover:bg-[var(--cs-crm-text)]"
           : null,
-        tone === "secondary"
+        action.tone === "secondary"
           ? "border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]"
-          : null,
-        tone === "danger"
-          ? "border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] text-[var(--cs-error-text)] hover:border-[var(--cs-error-text)]"
           : null
       )}
     >
       {icon}
-      {children}
+      {action.label}
     </button>
   );
+}
+
+function getSelectedActionIcon(actionId: SelectedBookingActionId): React.ReactNode {
+  switch (actionId) {
+    case "confirm":
+    case "mark_arrived":
+    case "start_service":
+    case "review_record":
+      return <CheckCircle2 size={15} />;
+    case "call":
+      return <Phone size={15} />;
+    case "copy_message":
+      return <Copy size={15} />;
+    case "no_answer":
+      return <UserX size={15} />;
+    case "reschedule":
+    case "keep_waiting":
+      return <CalendarClock size={15} />;
+    case "assign_room":
+    case "change_room":
+      return <DoorOpen size={15} />;
+    case "open_dispatch":
+    case "track_dispatch":
+      return <Home size={15} />;
+  }
 }
 
 const CONFIRM_PAYMENT_METHODS = [
@@ -1532,38 +1911,3 @@ function PaymentConfirmationPanel({
 
 const confirmControlClass =
   "h-9 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)] disabled:cursor-not-allowed disabled:opacity-60";
-
-function PanelSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-2">
-      <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-        {label}
-      </div>
-      <div className="grid gap-2">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function PanelRow({
-  label,
-  value,
-  danger,
-}: {
-  label: string;
-  value: React.ReactNode;
-  danger?: boolean;
-}) {
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
-      <span className="shrink-0 text-[0.8125rem] text-[var(--cs-text-muted)]">{label}</span>
-      <span className={cn(
-        "min-w-0 text-right text-[0.8125rem]",
-        danger ? "font-semibold text-[var(--cs-error-text)]" : "font-medium text-[var(--cs-text)]"
-      )}>
-        {value}
-      </span>
-    </div>
-  );
-}

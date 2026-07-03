@@ -517,3 +517,15 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - It is acceptable to document the auth blocker with screenshots and console evidence.
 - Future QA should reuse a real CRM/front-desk browser session or explicit test credentials, then rerun the requested viewport, interaction, export, scan, and identity checks.
 - Avoid app-logic changes whose only purpose is to bypass the protected route for verification.
+
+## DECISION - ATTENDANCE-SCHEDULE-REPAIR-002
+
+**Decision:** Daily Schedule data loading should fail loudly with scoped diagnostics and safe UI/API messages rather than masking query failures as empty schedules.
+
+**Rationale:** The production Daily Timeline console error originally serialized as `{}`, which hid schema/query drift. Carrying `schedule_overrides.shift_type` through the typed query and surfacing query stage errors makes missing columns, RLS issues, or Supabase client failures observable without exposing sensitive details to operators.
+
+**Consequences:**
+- Empty daily schedules should only mean no data, not a swallowed query failure.
+- API responses stay private/no-store and return a generic error string to the browser.
+- Developer diagnostics should include branch/date/query-stage context, with full stacks limited to development.
+- `pnpm db:push` and `pnpm db:types` still need to succeed after the local Supabase CLI/pnpm environment is repaired so migration history matches the live schema.

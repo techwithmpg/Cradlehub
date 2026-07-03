@@ -27,6 +27,7 @@ export type IndividualScheduleSourceRow = {
 };
 
 export type ScheduleOverrideSourceRow = {
+  shift_type?: string | null;
   is_day_off: boolean | null;
   start_time: string | null;
   end_time: string | null;
@@ -94,11 +95,29 @@ export function normalizeScheduleShiftType(
   return shiftType === "opening" || shiftType === "closing" ? shiftType : "single";
 }
 
+function isKnownScheduleShiftType(
+  shiftType: string | null | undefined
+): shiftType is StaffScheduleShiftType {
+  return (
+    shiftType === "single" ||
+    shiftType === "opening" ||
+    shiftType === "closing"
+  );
+}
+
 function hasTimeRange<T extends {
   start_time: string | null;
   end_time: string | null;
 }>(row: T): row is T & { start_time: string; end_time: string } {
   return Boolean(row.start_time && row.end_time && row.start_time !== row.end_time);
+}
+
+function sameTimeRange(
+  a: { start_time: string; end_time: string },
+  b: { start_time: string; end_time: string }
+): boolean {
+  return a.start_time.slice(0, 5) === b.start_time.slice(0, 5) &&
+    a.end_time.slice(0, 5) === b.end_time.slice(0, 5);
 }
 
 function toWindow(row: {
@@ -136,6 +155,66 @@ function workingSchedule(
   };
 }
 
+function getLegacyOverrideSourceRows(params: {
+  individualRows: IndividualScheduleSourceRow[];
+  groupRules: GroupScheduleRuleSourceRow[];
+}): Array<{
+  shift_type: string | null;
+  start_time: string;
+  end_time: string;
+}> {
+  const individualRows = params.individualRows
+    .filter(
+      (
+        row
+      ): row is IndividualScheduleSourceRow & { start_time: string; end_time: string } =>
+        row.is_active === true && hasTimeRange(row)
+    );
+
+  if (individualRows.length > 0) {
+    return individualRows;
+  }
+
+  return params.groupRules
+    .filter(
+      (
+        rule
+      ): rule is GroupScheduleRuleSourceRow & { start_time: string; end_time: string } =>
+        rule.is_active !== false && rule.is_day_off !== true && hasTimeRange(rule)
+    );
+}
+
+function resolveOverrideShiftType(params: {
+  override: NonNullable<ScheduleOverrideSourceRow> & { start_time: string; end_time: string };
+  individualRows: IndividualScheduleSourceRow[];
+  groupRules: GroupScheduleRuleSourceRow[];
+}): StaffScheduleShiftType {
+  if (isKnownScheduleShiftType(params.override.shift_type)) {
+    return params.override.shift_type;
+  }
+
+  const sourceRows = getLegacyOverrideSourceRows({
+    individualRows: params.individualRows,
+    groupRules: params.groupRules,
+  });
+  const exactMatch = sourceRows.find(
+    (row) => isKnownScheduleShiftType(row.shift_type) && sameTimeRange(row, params.override)
+  );
+  if (exactMatch && isKnownScheduleShiftType(exactMatch.shift_type)) {
+    return exactMatch.shift_type;
+  }
+
+  const knownTypes = Array.from(
+    new Set(
+      sourceRows
+        .map((row) => row.shift_type)
+        .filter(isKnownScheduleShiftType)
+    )
+  );
+
+  return knownTypes.length === 1 ? knownTypes[0]! : "single";
+}
+
 export function resolveScheduleForStaffDay(params: {
   override?: ScheduleOverrideSourceRow;
   individualRows?: IndividualScheduleSourceRow[];
@@ -147,9 +226,15 @@ export function resolveScheduleForStaffDay(params: {
   }
 
   if (override && hasTimeRange(override)) {
+    const shiftType = resolveOverrideShiftType({
+      override,
+      individualRows: params.individualRows ?? [],
+      groupRules: params.groupRules ?? [],
+    });
+
     return workingSchedule("override", [
       {
-        shiftType: "single",
+        shiftType,
         startTime: override.start_time,
         endTime: override.end_time,
       },

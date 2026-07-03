@@ -4,6 +4,18 @@ import type { DailyTimelineAlert } from "./daily-timeline-alerts";
 import { getShiftGroup } from "./daily-timeline-operations";
 
 type Props = { rows: DailyScheduleStaffRow[]; alerts: DailyTimelineAlert[]; groupLabel: string };
+type ShiftCoverage = { rows: DailyScheduleStaffRow[]; clear: number; total: number };
+export type DailyTimelineCoverageModel = {
+  groupedRows: {
+    opening: ShiftCoverage;
+    closing: ShiftCoverage;
+    regular: ShiftCoverage;
+  };
+  clearScheduled: number;
+  scheduledTotal: number;
+  overallPercent: number;
+  conflictCount: number;
+};
 
 function CoverageBar({ label, clear, total, tone }: { label: string; clear: number; total: number; tone: string }) {
   const percent = total > 0 ? Math.round((clear / total) * 100) : 0;
@@ -22,17 +34,8 @@ function CoverageBar({ label, clear, total, tone }: { label: string; clear: numb
 }
 
 export function DailyTimelineCoverageCard({ rows, alerts, groupLabel }: Props) {
-  const conflicts = alerts.filter(
-    (alert) => alert.type === "resource_conflict" || alert.type === "staff_conflict"
-  );
-  const conflictedStaff = new Set(
-    conflicts.map((alert) => alert.staffId)
-  );
-  const opening = rows.filter((row) => getShiftGroup(row) === "opening");
-  const closing = rows.filter((row) => getShiftGroup(row) === "closing");
-  const scheduled = rows.filter((row) => getShiftGroup(row) !== "off");
-  const clearScheduled = scheduled.filter((row) => !conflictedStaff.has(row.staff_id)).length;
-  const overall = rows.length > 0 ? Math.round((clearScheduled / rows.length) * 100) : 0;
+  const model = buildDailyTimelineCoverageModel(rows, alerts);
+  const { groupedRows } = model;
 
   return (
     <section className="rounded-lg border border-[var(--cs-border)] bg-white p-4 shadow-sm">
@@ -46,30 +49,80 @@ export function DailyTimelineCoverageCard({ rows, alerts, groupLabel }: Props) {
       <div className="mt-4 space-y-3">
         <CoverageBar
           label="Opening shift"
-          clear={opening.filter((row) => !conflictedStaff.has(row.staff_id)).length}
-          total={opening.length}
+          clear={groupedRows.opening.clear}
+          total={groupedRows.opening.total}
           tone="bg-emerald-600"
         />
         <CoverageBar
           label="Closing shift"
-          clear={closing.filter((row) => !conflictedStaff.has(row.staff_id)).length}
-          total={closing.length}
+          clear={groupedRows.closing.clear}
+          total={groupedRows.closing.total}
           tone="bg-amber-500"
         />
+        {groupedRows.regular.total > 0 ? (
+          <CoverageBar
+            label="Regular shift"
+            clear={groupedRows.regular.clear}
+            total={groupedRows.regular.total}
+            tone="bg-sky-600"
+          />
+        ) : null}
       </div>
       <div className="mt-4 flex items-center justify-between rounded-md bg-stone-50 px-3 py-2">
         <div>
           <p className="text-[10px] font-semibold text-[var(--cs-text-muted)]">Overall clear coverage</p>
-          <p className="text-xs text-[var(--cs-text-secondary)]">{clearScheduled} / {rows.length} staff</p>
+          <p className="text-xs text-[var(--cs-text-secondary)]">
+            {model.clearScheduled} / {model.scheduledTotal} scheduled staff
+          </p>
         </div>
-        <span className="text-lg font-bold tabular-nums text-emerald-700">{overall}%</span>
+        <span className="text-lg font-bold tabular-nums text-emerald-700">{model.overallPercent}%</span>
       </div>
-      {conflicts.length > 0 ? (
+      {model.conflictCount > 0 ? (
         <div className="mt-3 flex items-center justify-between rounded-md bg-red-50 px-3 py-2 text-[11px] text-red-800">
           <span className="flex items-center gap-1.5 font-semibold"><AlertTriangle className="size-3.5" />Conflicts</span>
-          <span className="font-bold tabular-nums">{conflicts.length}</span>
+          <span className="font-bold tabular-nums">{model.conflictCount}</span>
         </div>
       ) : null}
     </section>
   );
+}
+
+export function buildDailyTimelineCoverageModel(
+  rows: DailyScheduleStaffRow[],
+  alerts: DailyTimelineAlert[]
+): DailyTimelineCoverageModel {
+  const conflicts = alerts.filter(
+    (alert) => alert.type === "resource_conflict" || alert.type === "staff_conflict"
+  );
+  const conflictedStaff = new Set(
+    conflicts.map((alert) => alert.staffId)
+  );
+
+  const grouped = {
+    opening: rows.filter((row) => getShiftGroup(row) === "opening"),
+    closing: rows.filter((row) => getShiftGroup(row) === "closing"),
+    regular: rows.filter((row) => getShiftGroup(row) === "regular"),
+  };
+  const toCoverage = (groupRows: DailyScheduleStaffRow[]): ShiftCoverage => ({
+    rows: groupRows,
+    clear: groupRows.filter((row) => !conflictedStaff.has(row.staff_id)).length,
+    total: groupRows.length,
+  });
+  const scheduled = [...grouped.opening, ...grouped.closing, ...grouped.regular];
+  const clearScheduled = scheduled.filter((row) => !conflictedStaff.has(row.staff_id)).length;
+  const scheduledTotal = scheduled.length;
+  const overallPercent =
+    scheduledTotal > 0 ? Math.round((clearScheduled / scheduledTotal) * 100) : 0;
+
+  return {
+    groupedRows: {
+      opening: toCoverage(grouped.opening),
+      closing: toCoverage(grouped.closing),
+      regular: toCoverage(grouped.regular),
+    },
+    clearScheduled,
+    scheduledTotal,
+    overallPercent,
+    conflictCount: conflicts.length,
+  };
 }

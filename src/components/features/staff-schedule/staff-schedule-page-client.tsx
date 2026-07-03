@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { StaffScheduleToolbar } from "./staff-schedule-toolbar";
 import { StaffScheduleList, type StaffScheduleItem } from "./staff-schedule-list";
 import { EditAvailabilityModal } from "@/components/features/crm/schedule/edit-availability-modal";
@@ -97,7 +96,6 @@ export function StaffSchedulePageClient({
   rulesByGroup,
   onDataRefresh,
 }: Props) {
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ScheduleFilter>("all");
   const [sort, setSort] = useState<ScheduleSort>("name");
@@ -182,9 +180,8 @@ export function StaffSchedulePageClient({
     setSavedDescription(message ?? null);
     setShowToast(true);
     window.setTimeout(() => setShowToast(false), 3500);
-    router.refresh();
     onDataRefresh?.();
-  }, [onDataRefresh, router, selectedItem]);
+  }, [onDataRefresh, selectedItem]);
 
   return (
     <div className="space-y-4">

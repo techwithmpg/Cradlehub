@@ -48,6 +48,7 @@ const scheduleOverrideSchema = z
     staffId: uuid,
     overrideDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
     isDayOff: z.boolean(),
+    shiftType: z.enum(["single", "opening", "closing"]).optional(),
     startTime: timeStr.optional(),
     endTime: timeStr.optional(),
     reason: z.string().trim().max(200).optional(),
@@ -125,6 +126,7 @@ type ScheduleOverrideRow = {
   id: string;
   override_date: string;
   is_day_off: boolean;
+  shift_type: "single" | "opening" | "closing" | null;
   start_time: string | null;
   end_time: string | null;
   reason: string | null;
@@ -168,7 +170,7 @@ const INVALID_TIME_ERROR = "Please check the start and end times.";
 const PERMISSION_ERROR = "You do not have permission to update this staff schedule.";
 
 const SCHEDULE_OVERRIDE_RETURNING_COLUMNS =
-  "id, override_date, is_day_off, start_time, end_time, reason";
+  "id, override_date, is_day_off, shift_type, start_time, end_time, reason";
 const BLOCKED_TIME_RETURNING_COLUMNS =
   "id, block_date, start_time, end_time, reason";
 
@@ -348,7 +350,7 @@ export async function upsertCrmScheduleOverrideAction(
     );
   }
 
-  const { branchId, staffId, overrideDate, isDayOff, startTime, endTime, reason } =
+  const { branchId, staffId, overrideDate, isDayOff, shiftType, startTime, endTime, reason } =
     parsed.data;
   const ctxResult = await getScheduleEditContext(branchId);
   if ("error" in ctxResult) {
@@ -361,6 +363,7 @@ export async function upsertCrmScheduleOverrideAction(
 
   const expectedStart = isDayOff ? null : startTime!;
   const expectedEnd = isDayOff ? null : endTime!;
+  const expectedShiftType = isDayOff ? null : shiftType ?? null;
   const { data, error } = await ctx.supabase
     .from("schedule_overrides")
     .upsert(
@@ -368,6 +371,7 @@ export async function upsertCrmScheduleOverrideAction(
         staff_id: staffId,
         override_date: overrideDate,
         is_day_off: isDayOff,
+        shift_type: expectedShiftType,
         start_time: expectedStart,
         end_time: expectedEnd,
         reason: reason ?? null,
@@ -396,6 +400,7 @@ export async function upsertCrmScheduleOverrideAction(
     !saved ||
     saved.override_date !== overrideDate ||
     saved.is_day_off !== isDayOff ||
+    saved.shift_type !== expectedShiftType ||
     normalizeTime(saved.start_time) !== expectedStart ||
     normalizeTime(saved.end_time) !== expectedEnd
   ) {

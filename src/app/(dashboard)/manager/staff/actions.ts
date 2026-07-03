@@ -84,6 +84,7 @@ export async function createScheduleOverrideAction(rawInput: unknown) {
         staff_id:      parsed.data.staffId,
         override_date: parsed.data.overrideDate,
         is_day_off:    parsed.data.isDayOff,
+        shift_type:    parsed.data.isDayOff ? null : parsed.data.shiftType ?? null,
         start_time:    parsed.data.startTime ?? null,
         end_time:      parsed.data.endTime   ?? null,
         reason:        parsed.data.reason    ?? null,

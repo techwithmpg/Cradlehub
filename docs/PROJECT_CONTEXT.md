@@ -396,3 +396,11 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Browser QA for `/crm/attendance?tab=qr` remains blocked by missing authenticated Supabase CRM/front-desk session. The route redirects to `/login` at 1440, 1280, 1024, 768, and 375 px; process-local `DEV_AUTH_BYPASS=true` does not bypass `src/proxy.ts`'s real-user requirement.
 - Blocker screenshots were captured in `.codex-artifacts/attendance-qr-qa/`.
 - Still pending before marking the QR refit fully complete: authenticated QR layout visual QA, real QR interactions, PNG/SVG/print export scans with a phone camera, and QR identity preservation checks before/after preview/export.
+
+## 2026-07-03 - Attendance + Schedule Repair Context
+
+- CRM Schedule Daily Timeline repair is locally complete: contextual error logging, no-store API responses, loud query-stage failures, `schedule_overrides.shift_type` propagation, live SWR refresh wiring, and focused regression tests are in place.
+- Live Supabase verification through the transaction pooler confirmed the `schedule_overrides.shift_type` column/check constraint and a successful `get_daily_schedule` call for the active SM branch/date.
+- Local app verification passed through type check, lint, focused tests, full Vitest, production build, and diff whitespace checks.
+- Deployment is still gated on repairing local pnpm/Supabase CLI behavior so `pnpm db:push` and `pnpm db:types` can reconcile migration history and generated types.
+- Rotate the Supabase database password before production deployment because a live password was pasted during troubleshooting.

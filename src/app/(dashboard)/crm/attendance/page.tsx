@@ -3,6 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AttendanceWorkspace } from "@/components/features/attendance/attendance-workspace";
 import { parseAttendanceTab } from "@/lib/attendance/tabs";
 import { getAttendanceWorkspaceData } from "@/lib/attendance/queries";
+import { getRequestOrigin } from "@/lib/http/request-origin";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -25,10 +26,11 @@ export default async function CrmAttendancePage({
   let data = null;
   let error: string | null = null;
   try {
+    const requestOrigin = getRequestOrigin(headerStore);
     data = await getAttendanceWorkspaceData({
       branchId: context.branchId,
       branchName: context.branchName,
-      origin: headerStore.get("origin"),
+      origin: requestOrigin,
     });
   } catch (err) {
     error = err instanceof Error ? err.message : "Attendance data could not be loaded.";

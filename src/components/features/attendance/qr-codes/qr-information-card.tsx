@@ -13,6 +13,10 @@ export function QrInformationCard({
   scanEvents: AttendanceScanEvent[];
 }) {
   async function copyFullLink() {
+    if (!qrPoint.scan_url) {
+      toast.error("Scan link is unavailable until APP_URL or NEXT_PUBLIC_APP_URL is configured.");
+      return;
+    }
     await navigator.clipboard.writeText(qrPoint.scan_url);
     toast.success("Scan link copied.");
   }
@@ -24,7 +28,7 @@ export function QrInformationCard({
         <span className="text-xs font-semibold text-muted-foreground">Public Link</span>
         <div className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 flex-1 break-words text-sm leading-5">{displayQrScanLink(qrPoint)}</span>
-          <button type="button" aria-label="Copy full scan link" className="grid size-7 shrink-0 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted" onClick={() => void copyFullLink()}>
+          <button type="button" aria-label="Copy full scan link" disabled={!qrPoint.scan_url} className="grid size-7 shrink-0 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void copyFullLink()}>
             <Copy className="size-3.5" />
           </button>
         </div>

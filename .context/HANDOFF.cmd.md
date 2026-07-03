@@ -234,3 +234,25 @@ However, System Management follows the current management-authorized route gates
 2. Reopen `http://localhost:3000/crm/attendance?tab=qr`.
 3. Rerun visual QA at 1440, 1280, 1024, 768, and 375 px.
 4. Complete the requested interaction, export, phone-scan, and QR identity checks before marking Attendance QR fully complete.
+
+## Handoff - ATTENDANCE-SCHEDULE-REPAIR-002
+
+Done:
+- CRM Schedule Daily Timeline now logs actionable branch/date/error diagnostics and returns a safe unavailable message.
+- Daily schedule query now selects `schedule_overrides.shift_type`, propagates it into timed override labels, and fails loudly on staff metadata, blocked-times, and override query errors.
+- Schedule workspace uses live SWR schedule data and explicit refresh tokens instead of router refresh for setup changes.
+- Attendance QR insert mapping type regression is fixed.
+- Focused schedule regression tests were added for missing override shift type and staff metadata failures.
+- Live DB read verification through the Supabase pooler confirmed the schema column/check constraint and a successful `get_daily_schedule` response for the active SM branch/date.
+- Local verification passed: `npx tsc --noEmit`, `npm run lint`, focused schedule tests, full `npx vitest run`, `npm run build`, and `git diff --check`.
+
+Still blocked:
+- `pnpm db:push` and `pnpm db:types` cannot complete until the local Supabase CLI/pnpm issue is repaired.
+- Supabase migration history does not show `20260703022600` applied even though the live column exists.
+- The pasted Supabase database password should be rotated before deploy.
+
+Suggested next steps:
+1. Repair pnpm/Supabase CLI build-script approval or reinstall the Supabase CLI binary cleanly.
+2. Rerun `pnpm db:push` and `pnpm db:types`.
+3. Rotate the Supabase database password and update environment variables.
+4. Deploy after migration history/type generation is clean.

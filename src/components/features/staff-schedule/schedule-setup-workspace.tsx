@@ -21,6 +21,7 @@ type Props = {
   groups: StaffScheduleGroup[];
   rulesByGroup: Record<string, StaffGroupScheduleRule[]>;
   branchId: string;
+  onDataRefresh?: () => void;
 };
 
 function parseTab(value: string | null): TabValue {
@@ -37,7 +38,7 @@ function parseTab(value: string | null): TabValue {
   return "general";
 }
 
-export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }: Props) {
+export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId, onDataRefresh }: Props) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabValue>(() => parseTab(searchParams.get("tab")));
   const [selectedGroup, setSelectedGroup] = useState<string>("therapist");
@@ -157,6 +158,7 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
               groupData={selectedGroupData}
               groupRules={selectedGroupRules}
               staffCount={groupItems.length}
+              onDataRefresh={onDataRefresh}
             />
             <aside className="min-w-0">
               <ScheduleSetupRightRail
@@ -179,6 +181,7 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
           items={items}
           rulesByGroup={rulesByGroup}
           onBackToGeneral={() => handleTabChange("general")}
+          onDataRefresh={onDataRefresh}
         />
       )}
 
@@ -193,6 +196,7 @@ export function ScheduleSetupWorkspace({ items, groups, rulesByGroup, branchId }
           items={items}
           rulesByGroup={rulesByGroup}
           branchId={branchId}
+          onDataRefresh={onDataRefresh}
         />
       )}
     </div>

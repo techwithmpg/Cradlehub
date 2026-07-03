@@ -70,6 +70,7 @@ export const createOverrideSchema = z
     staffId:      uuid,
     overrideDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     isDayOff:     z.boolean(),
+    shiftType:    z.enum(["single", "opening", "closing"]).optional(),
     startTime:    timeStr.optional(),
     endTime:      timeStr.optional(),
     reason:       z.string().max(200).optional(),

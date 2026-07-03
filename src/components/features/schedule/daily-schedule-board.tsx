@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import { useMemo } from "react";
 import {
   EXPANDED_HOUR_WIDTH_PX,
   STAFF_CELL_WIDTH_EXPANDED_PX,
@@ -21,7 +19,6 @@ import { useScheduleDensity } from "./schedule-density";
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
 type DailyScheduleBoardProps = {
-  branchId: string;
   date: string;
   staffRows: DailyScheduleStaffRow[];
   branchResources?: ResourceRow[];
@@ -33,39 +30,7 @@ type DailyScheduleBoardProps = {
   timelineMode?: TimelineDisplayMode;
 };
 
-export function useScheduleRealtime(branchId: string, date: string) {
-  const router = useRouter();
-
-  useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const channel = supabase
-      .channel(`schedule-live-${branchId}-${date}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "bookings",
-          filter: `branch_id=eq.${branchId}`,
-        },
-        () => {
-          router.refresh();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [branchId, date, router]);
-}
-
 export function DailyScheduleBoard({
-  branchId,
   date,
   staffRows,
   branchResources,
@@ -76,7 +41,6 @@ export function DailyScheduleBoard({
   onStaffClick,
   timelineMode = "expanded",
 }: DailyScheduleBoardProps) {
-  useScheduleRealtime(branchId, date);
   useScheduleDensity();
 
   const timelineRange = useMemo(() => buildTimelineRange(staffRows), [staffRows]);

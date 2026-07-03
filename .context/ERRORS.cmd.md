@@ -556,3 +556,23 @@
 - **Symptom:** After dependency restoration, `pnpm exec supabase --version` reports `The process cannot access the file because it is being used by another process.`
 - **Impact:** App verification is not affected, but local Supabase CLI commands may need a retry after the Windows file lock clears.
 - **Resolution:** Restored the Supabase package binary and top-level shim; do not stop unrelated Node processes just to clear the lock.
+
+- **Symptom:** CRM Schedule Daily Timeline logged `[crm/schedule] daily timeline load failed {}` in production.
+- **Impact:** Operators saw a vague console error while the query failure cause was hidden.
+- **Resolution:** Updated `src/app/(dashboard)/crm/schedule/page.tsx` to log branch/date/message and development-only stack details, and updated the API/query layer to return safe no-store errors while failing loudly by query stage.
+
+- **Symptom:** Daily schedule query could fail when `schedule_overrides.shift_type` was missing or hidden by schema drift.
+- **Impact:** Timed overrides could not be labeled as opening/closing/single, and the failure was previously hard to diagnose.
+- **Resolution:** Added `shift_type` to the override query/type, propagated it into schedule views, and added a regression test that verifies a missing column surfaces as `Schedule-overrides query failed`.
+
+- **Symptom:** Supabase MCP for project `lsrbwqhvzjfpiabeolkv` still returned permission errors for SQL/type generation, and the direct DB host resolved to IPv6 without a usable route.
+- **Impact:** MCP could not be used to apply SQL or generate types from this environment.
+- **Resolution:** Used the Supabase transaction pooler for read-only verification. Confirmed `schedule_overrides.shift_type` exists and no invalid values are present.
+
+- **Symptom:** `pnpm db:push` and `pnpm db:types` are blocked locally by Supabase CLI/pnpm issues: ignored build scripts plus EPERM unlink/rename failures around pnpm temporary files and `pnpm-workspace.yaml`.
+- **Impact:** Migration history is not synchronized, and generated Supabase types were not refreshed by CLI in this pass.
+- **Resolution:** App code and existing types were verified locally; defer `pnpm db:push` and `pnpm db:types` until the local pnpm/Supabase CLI environment is repaired.
+
+- **Symptom:** A live Supabase database password was pasted into chat during troubleshooting.
+- **Impact:** Treat the credential as exposed.
+- **Resolution:** Rotate the Supabase database password before production deployment and update deployment/local secrets.

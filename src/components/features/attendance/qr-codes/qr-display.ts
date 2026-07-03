@@ -62,6 +62,8 @@ export function formatQrInfoDateTime(value: string | null | undefined): string {
 
 export function displayQrScanLink(point: AttendanceQrPoint): string {
   const maskedCode = maskPublicCode(point.public_code);
+  if (!point.scan_url) return `cradlewellnessliving.com/scan/${maskedCode}`;
+
   try {
     const url = new URL(point.scan_url);
     const host = LOCAL_HOSTS.has(url.hostname) ? "cradlewellnessliving.com" : url.host;

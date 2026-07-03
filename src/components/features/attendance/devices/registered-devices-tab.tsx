@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Copy, Search, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Copy, Search, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Panel, StatusPill, formatAttendanceDateTime } from "@/components/features/attendance/attendance-ui";
@@ -21,6 +21,7 @@ export function RegisteredDevicesTab({
   const [staffId, setStaffId] = useState("");
   const [status, setStatus] = useState("all");
   const [isPending, startTransition] = useTransition();
+  const activationUnavailable = !data.qrConfiguration.isConfigured;
 
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -32,6 +33,14 @@ export function RegisteredDevicesTab({
   }, [data.devices, query, status]);
 
   function activatePhone() {
+    if (activationUnavailable) {
+      onActionResult({
+        ok: false,
+        tab: "devices",
+        message: "Configure APP_URL or NEXT_PUBLIC_APP_URL before creating device activation links.",
+      });
+      return;
+    }
     const formData = new FormData();
     formData.set("staffId", staffId);
     startTransition(async () => {
@@ -58,7 +67,7 @@ export function RegisteredDevicesTab({
       <Panel
         title="Device Activation"
         action={
-          <Button type="button" disabled={isPending} onClick={activatePhone}>
+          <Button type="button" disabled={isPending || activationUnavailable} onClick={activatePhone}>
             <ShieldCheck data-icon="inline-start" />
             {isPending ? "Creating..." : "Activate Phone"}
           </Button>
@@ -75,10 +84,16 @@ export function RegisteredDevicesTab({
               <option key={staff.id} value={staff.id}>{staff.full_name}</option>
             ))}
           </select>
-          <Button type="button" variant="outline" disabled={isPending} onClick={activatePhone}>
+          <Button type="button" variant="outline" disabled={isPending || activationUnavailable} onClick={activatePhone}>
             Activate and Clock In
           </Button>
         </div>
+        {activationUnavailable ? (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-700/25 bg-[#FFF7E8] px-3 py-2 text-sm text-amber-950">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" />
+            <span>Activation links require APP_URL or NEXT_PUBLIC_APP_URL in the Production environment.</span>
+          </div>
+        ) : null}
         {activation ? (
           <div className="grid gap-2 rounded-lg border border-emerald-800/20 bg-emerald-50 p-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-emerald-900">Temporary activation link</div>

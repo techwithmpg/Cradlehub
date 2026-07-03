@@ -109,7 +109,6 @@ export function ScheduleBoardPanel({
       {viewMode === "day" && (
         <div style={{ flex: 1, minHeight: 0 }}>
           <DailyScheduleBoard
-            branchId={branchId}
             date={date}
             staffRows={staffRows}
             branchResources={branchResources}

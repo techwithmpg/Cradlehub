@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Clock, Play, X } from "lucide-react";
+import { BedDouble, Clock3, Timer, UserRound } from "lucide-react";
 import { cn, formatTime } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -13,6 +13,7 @@ export type HybridBookingViewModel = {
   service_name?: string | null;
   staff_name?: string | null;
   resource_name?: string | null;
+  booking_date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
   status: string;
@@ -26,13 +27,8 @@ export type HybridBookingViewModel = {
 
 export type HybridSelectedBookingCardProps = {
   booking: HybridBookingViewModel;
-  onClose?: () => void;
-  onStartService?: () => void;
-  onCompleteService?: () => void;
   /** Called once when the service countdown reaches zero (server must re-validate). */
   onAutoComplete?: () => void;
-  isStarting?: boolean;
-  isCompleting?: boolean;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -68,13 +64,37 @@ function fmtTimeLabel(iso: string): string {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function fmtDateLabel(date: string | null | undefined): string | null {
+  if (!date) return null;
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function SummaryStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-3 text-[0.8125rem]">
-      <span className="shrink-0 text-[var(--cs-text-muted)]">{label}</span>
-      <span className="min-w-0 truncate text-right font-medium text-[var(--cs-text)]">
-        {value}
+    <div className="flex min-w-0 items-center gap-2 border-t border-[var(--cs-border-soft)] px-3 py-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--cs-surface)] text-[var(--cs-text-secondary)]">
+        {icon}
       </span>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+          {label}
+        </div>
+        <div className="mt-0.5 truncate text-sm font-semibold leading-5 text-[var(--cs-text)]" title={value}>
+          {value}
+        </div>
+      </div>
     </div>
   );
 }
@@ -112,8 +132,8 @@ function CountdownZone({
   const startedLabel = Number.isFinite(startMs) ? fmtTimeLabel(sessionStartedAt) : null;
 
   return (
-    <div className="mx-4 mb-4 overflow-hidden rounded-xl bg-[var(--cs-success-bg)] px-4 py-3">
-      <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--cs-success-text)] text-center mb-1">
+    <div className="border-t border-[var(--cs-success-bg)] bg-[var(--cs-success-bg)] px-4 py-3">
+      <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--cs-success-text)]">
         IN SERVICE
       </div>
 
@@ -160,12 +180,7 @@ function CountdownZone({
 
 export function HybridSelectedBookingCard({
   booking,
-  onClose,
-  onStartService,
-  onCompleteService,
   onAutoComplete,
-  isStarting   = false,
-  isCompleting = false,
 }: HybridSelectedBookingCardProps) {
   const [tick, setTick] = useState<TickState | null>(null);
 
@@ -223,6 +238,10 @@ export function HybridSelectedBookingCard({
   }
 
   const isCountdownDue = shouldShowCountdown && elapsedSecs >= durationSecs;
+  const dateLabel = fmtDateLabel(booking.booking_date);
+  const timeLabel = booking.start_time
+    ? `${formatTime(booking.start_time)}${booking.end_time ? ` - ${formatTime(booking.end_time)}` : ""}`
+    : "Time TBD";
 
   // Auto-complete effect — refs read in effects (never during render).
   useEffect(() => {
@@ -235,20 +254,17 @@ export function HybridSelectedBookingCard({
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  const showActions = Boolean(onStartService ?? onCompleteService);
-
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border",
+        "overflow-hidden rounded-2xl border shadow-[var(--cs-shadow-xs)]",
         isServiceActive
           ? "border-[var(--cs-success-bg)] bg-[var(--cs-surface)]"
           : "border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)]"
       )}
     >
-      {/* ── Hero header ─────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-3 p-4 pb-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--cs-sand-mist)] text-sm font-bold text-[var(--cs-sand-dark)]">
+      <div className="flex items-center gap-3 p-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--cs-sand-mist)] text-lg font-bold text-[var(--cs-sand-dark)]">
           {customerInitials(booking.customer_name)}
         </div>
         <div className="min-w-0 flex-1">
@@ -258,29 +274,20 @@ export function HybridSelectedBookingCard({
           >
             {booking.customer_name ?? "Customer"}
           </h2>
-          <div className="mt-1 text-sm leading-5 text-[var(--cs-text-secondary)]">
+          <div className="mt-1 truncate text-sm leading-5 text-[var(--cs-text-secondary)]">
             {booking.service_name ?? "Service"}
-            {booking.start_time ? ` / ${formatTime(booking.start_time)}` : ""}
+            {dateLabel ? ` · ${dateLabel}` : ""}
           </div>
-          {booking.resource_name ? (
-            <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-[var(--cs-text-muted)]">
-              {booking.resource_name}
-            </div>
-          ) : null}
         </div>
-        {onClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close booking details"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-muted)] transition-colors hover:text-[var(--cs-text)]"
-          >
-            <X size={14} />
-          </button>
-        ) : null}
       </div>
 
-      {/* ── Active-service countdown ─────────────────────────────────────── */}
+      <div className="grid grid-cols-2">
+        <SummaryStat icon={<Clock3 size={16} />} label="Time" value={timeLabel} />
+        <SummaryStat icon={<UserRound size={16} />} label="Staff" value={booking.staff_name ?? "Unassigned"} />
+        <SummaryStat icon={<BedDouble size={16} />} label="Room" value={booking.resource_name ?? "Room TBD"} />
+        <SummaryStat icon={<Timer size={16} />} label="Duration" value={`${durationMins} min`} />
+      </div>
+
       {shouldShowCountdown && booking.session_started_at ? (
         <CountdownZone
           elapsedSecs={elapsedSecs}
@@ -291,78 +298,6 @@ export function HybridSelectedBookingCard({
           staffName={booking.staff_name}
           resourceName={booking.resource_name}
         />
-      ) : null}
-
-      {/* ── Detail rows ──────────────────────────────────────────────────── */}
-      <div className="space-y-2 border-t border-[var(--cs-border-soft)] px-4 py-3">
-        {booking.customer_name ? (
-          <DetailRow label="Customer" value={booking.customer_name} />
-        ) : null}
-        {booking.service_name ? (
-          <DetailRow
-            label="Service"
-            value={`${booking.service_name} (${durationMins} min)`}
-          />
-        ) : null}
-        {booking.staff_name ? (
-          <DetailRow label="Staff" value={booking.staff_name} />
-        ) : null}
-        {booking.resource_name ? (
-          <DetailRow label="Room" value={booking.resource_name} />
-        ) : null}
-        {booking.start_time ? (
-          <DetailRow
-            label="Time"
-            value={`${formatTime(booking.start_time)}${booking.end_time ? ` – ${formatTime(booking.end_time)}` : ""}`}
-          />
-        ) : null}
-      </div>
-
-      {/* ── Action buttons ───────────────────────────────────────────────── */}
-      {showActions ? (
-        <div className="grid grid-cols-2 gap-2 border-t border-[var(--cs-border-soft)] p-3">
-          {/* Edit Booking — placeholder only, no handler wired yet */}
-          <button
-            type="button"
-            disabled
-            aria-label="Edit booking (coming soon)"
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text-muted)] opacity-60"
-          >
-            <Clock size={13} />
-            Edit Booking
-          </button>
-
-          {/* Primary action: Complete Service (active) or Start Service (not started) */}
-          {onCompleteService ? (
-            <button
-              type="button"
-              onClick={onCompleteService}
-              disabled={isCompleting}
-              className={cn(
-                "inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors",
-                "bg-[var(--cs-success)] text-white hover:bg-[var(--cs-success-text)]",
-                isCompleting && "cursor-not-allowed opacity-60"
-              )}
-            >
-              <CheckCircle2 size={13} />
-              {isCompleting ? "Completing…" : "Complete Service"}
-            </button>
-          ) : onStartService ? (
-            <button
-              type="button"
-              onClick={onStartService}
-              disabled={isStarting}
-              className={cn(
-                "inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors",
-                "bg-[var(--cs-crm-text)] text-[var(--cs-text-inverse)] hover:bg-[var(--cs-success-text)]",
-                isStarting && "cursor-not-allowed opacity-60"
-              )}
-            >
-              <Play size={13} />
-              {isStarting ? "Starting…" : "Start Service"}
-            </button>
-          ) : null}
-        </div>
       ) : null}
     </div>
   );

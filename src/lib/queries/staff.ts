@@ -289,6 +289,7 @@ export type StaffAvailabilityItem = {
     id: string;
     override_date: string;
     is_day_off: boolean;
+    shift_type: "single" | "opening" | "closing" | null;
     start_time: string | null;
     end_time: string | null;
     reason: string | null;
@@ -318,7 +319,7 @@ async function buildAvailabilityItems(
       .in("staff_id", staffIds),
     supabase
       .from("schedule_overrides")
-      .select("id, staff_id, override_date, is_day_off, start_time, end_time, reason")
+      .select("id, staff_id, override_date, is_day_off, shift_type, start_time, end_time, reason")
       .in("staff_id", staffIds)
       .gte("override_date", today)
       .lte("override_date", future)
@@ -355,6 +356,7 @@ async function buildAvailabilityItems(
         id: o.id,
         override_date: o.override_date,
         is_day_off: o.is_day_off,
+        shift_type: o.shift_type as "single" | "opening" | "closing" | null,
         start_time: o.start_time ?? null,
         end_time: o.end_time ?? null,
         reason: o.reason ?? null,

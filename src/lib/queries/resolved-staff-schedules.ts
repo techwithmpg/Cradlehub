@@ -52,7 +52,7 @@ export async function getResolvedStaffSchedulesForDate(params: {
       .eq("day_of_week", dayOfWeek),
     params.supabase
       .from("schedule_overrides")
-      .select("staff_id, is_day_off, start_time, end_time")
+      .select("staff_id, is_day_off, shift_type, start_time, end_time")
       .in("staff_id", staffIds)
       .eq("override_date", params.date),
     groupKeys.length > 0
@@ -91,6 +91,7 @@ export async function getResolvedStaffSchedulesForDate(params: {
   for (const row of overridesResult.data ?? []) {
     overridesByStaff.set(row.staff_id, {
       is_day_off: row.is_day_off,
+      shift_type: row.shift_type,
       start_time: row.start_time,
       end_time: row.end_time,
     });

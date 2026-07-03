@@ -18,6 +18,7 @@ type ScheduleOverride = {
   id: string;
   override_date: string;
   is_day_off: boolean;
+  shift_type?: "single" | "opening" | "closing" | null;
   start_time: string | null;
   end_time: string | null;
   reason: string | null;

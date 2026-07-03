@@ -86,6 +86,7 @@ type GroupScheduleRulesPanelProps = {
   groupData?: StaffScheduleGroup;
   groupRules: StaffGroupScheduleRule[];
   staffCount?: number;
+  onDataRefresh?: () => void;
 };
 
 function togglePatternField(
@@ -229,6 +230,7 @@ export function GroupScheduleRulesPanel({
   groupData,
   groupRules,
   staffCount = 0,
+  onDataRefresh,
 }: GroupScheduleRulesPanelProps) {
   const config = getGroupScheduleConfig(selectedGroup);
   const groupId = groupData?.id;
@@ -340,9 +342,10 @@ export function GroupScheduleRulesPanel({
       setDirty(false);
       setEditingTimes(false);
       setFeedback({ tone: "success", message: "Group schedule rules saved." });
+      onDataRefresh?.();
       window.setTimeout(() => setFeedback(null), 3000);
     });
-  }, [groupId, pattern, times, visibleKinds]);
+  }, [groupId, onDataRefresh, pattern, times, visibleKinds]);
 
   return (
     <div className="space-y-5">

@@ -13,6 +13,7 @@ export function QrSelectedPanel({
   format,
   formatOptions,
   isPending,
+  urlActionsDisabled,
   onFormatChange,
   onDeactivate,
 }: {
@@ -22,6 +23,7 @@ export function QrSelectedPanel({
   format: QrPrintFormat;
   formatOptions: QrPrintLayout[];
   isPending: boolean;
+  urlActionsDisabled: boolean;
   onFormatChange: (format: QrPrintFormat) => void;
   onDeactivate: (point: AttendanceQrPoint) => void;
 }) {
@@ -61,7 +63,15 @@ export function QrSelectedPanel({
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(260px,1fr)_232px]">
         <QrPrintTemplate qrPoint={qrPoint} branchName={branchName} format={format} />
-        <QrActionSidebar qrPoint={qrPoint} branchName={branchName} scanEvents={scanEvents} format={format} isPending={isPending} onDeactivate={onDeactivate} />
+        <QrActionSidebar
+          qrPoint={qrPoint}
+          branchName={branchName}
+          scanEvents={scanEvents}
+          format={format}
+          isPending={isPending}
+          urlActionsDisabled={urlActionsDisabled}
+          onDeactivate={onDeactivate}
+        />
       </div>
 
       <div className="flex items-center gap-2 rounded-lg border border-amber-700/20 bg-[#FFF7E8] px-3 py-2 text-sm text-amber-900">

@@ -33,6 +33,7 @@ export type DailyScheduleOverride = {
   id: string;
   override_date: string;
   is_day_off: boolean;
+  shift_type: string | null;
   start_time: string | null;
   end_time: string | null;
   reason: string | null;
@@ -70,7 +71,9 @@ async function loadStaffMetaMap(
     .select("id, full_name, nickname, staff_type")
     .in("id", staffIds);
 
-  if (error) return new Map();
+  if (error) {
+    throw new Error(`Staff metadata query failed: ${error.message}`);
+  }
 
   return new Map(
     ((data ?? []) as ScheduleStaffMetaRow[]).map((staff) => [
@@ -109,38 +112,43 @@ export async function getDailySchedule(params: {
           .in("staff_id", staffIds),
         supabase
           .from("schedule_overrides")
-          .select("id, staff_id, override_date, is_day_off, start_time, end_time, reason")
+          .select("id, staff_id, override_date, is_day_off, shift_type, start_time, end_time, reason")
           .eq("override_date", params.date)
           .in("staff_id", staffIds),
       ])
     : [{ data: [], error: null }, { data: [], error: null }];
 
+  if (blocksResult.error) {
+    throw new Error(`Blocked-times query failed: ${blocksResult.error.message}`);
+  }
+
+  if (overridesResult.error) {
+    throw new Error(`Schedule-overrides query failed: ${overridesResult.error.message}`);
+  }
+
   const blocksByStaff = new Map<string, DailyScheduleBlock[]>();
-  if (!blocksResult.error) {
-    for (const block of blocksResult.data ?? []) {
-      const list = blocksByStaff.get(block.staff_id) ?? [];
-      list.push({
-        id: block.id,
-        start_time: block.start_time,
-        end_time: block.end_time,
-        reason: block.reason,
-      });
-      blocksByStaff.set(block.staff_id, list);
-    }
+  for (const block of blocksResult.data ?? []) {
+    const list = blocksByStaff.get(block.staff_id) ?? [];
+    list.push({
+      id: block.id,
+      start_time: block.start_time,
+      end_time: block.end_time,
+      reason: block.reason,
+    });
+    blocksByStaff.set(block.staff_id, list);
   }
 
   const overridesByStaff = new Map<string, DailyScheduleOverride>();
-  if (!overridesResult.error) {
-    for (const override of overridesResult.data ?? []) {
-      overridesByStaff.set(override.staff_id, {
-        id: override.id,
-        override_date: override.override_date,
-        is_day_off: override.is_day_off,
-        start_time: override.start_time,
-        end_time: override.end_time,
-        reason: override.reason,
-      });
-    }
+  for (const override of overridesResult.data ?? []) {
+    overridesByStaff.set(override.staff_id, {
+      id: override.id,
+      override_date: override.override_date,
+      is_day_off: override.is_day_off,
+      shift_type: override.shift_type,
+      start_time: override.start_time,
+      end_time: override.end_time,
+      reason: override.reason,
+    });
   }
 
   const resolvedSchedules = await getResolvedStaffSchedulesForDate({

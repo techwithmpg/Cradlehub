@@ -33,6 +33,12 @@ export type AttendanceSettings = {
   require_registered_device_for_attendance: boolean;
 };
 
+export type AttendanceQrConfiguration = {
+  isConfigured: boolean;
+  baseUrl: string | null;
+  error: string | null;
+};
+
 export type AttendanceQrPoint = {
   id: string;
   branch_id: string;
@@ -47,7 +53,7 @@ export type AttendanceQrPoint = {
   created_at: string;
   updated_at: string;
   resource_name: string | null;
-  scan_url: string;
+  scan_url: string | null;
   svg: string | null;
 };
 
@@ -132,6 +138,7 @@ export type AttendanceWorkspaceData = {
     activeSessions: number;
     activeDevices: number;
   };
+  qrConfiguration: AttendanceQrConfiguration;
   qrPoints: AttendanceQrPoint[];
   devices: AttendanceDevice[];
   records: AttendanceRecord[];

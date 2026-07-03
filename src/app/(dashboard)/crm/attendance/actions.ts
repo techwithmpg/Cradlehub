@@ -13,6 +13,7 @@ import {
   revalidateAttendanceSurfaces,
 } from "@/lib/attendance/queries";
 import { buildScanUrl, renderQrSvg } from "@/lib/attendance/qr-code";
+import { getRequestOrigin } from "@/lib/http/request-origin";
 import type { AttendanceQrPoint, AttendanceTab } from "@/lib/attendance/types";
 
 export type AttendanceActionResult =
@@ -43,7 +44,7 @@ async function getContextOrResult(tab?: AttendanceTab): Promise<{ ctx: Attendanc
 
 async function getOrigin(): Promise<string | null> {
   const headerStore = await headers();
-  return headerStore.get("origin");
+  return getRequestOrigin(headerStore);
 }
 
 async function hydrateQrPoint(point: AttendanceQrPoint, origin: string | null): Promise<AttendanceQrPoint> {

@@ -98,9 +98,10 @@ type EditorProps = {
   item: StaffScheduleItem;
   groupRules: StaffGroupScheduleRule[];
   branchId: string;
+  onDataRefresh?: () => void;
 };
 
-function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
+function StaffScheduleEditor({ item, groupRules, branchId, onDataRefresh }: EditorProps) {
   const groupTimes = useMemo(() => extractShiftTimes(groupRules), [groupRules]);
 
   const [pattern, setPattern] = useState<Record<number, DayPattern>>(() =>
@@ -164,6 +165,7 @@ function StaffScheduleEditor({ item, groupRules, branchId }: EditorProps) {
         setFeedback({ ok: true, message: `Saved — ${result.rowsWritten} schedule rows updated.` });
         setDirty(false);
         setEditingCustomTimes(false);
+        onDataRefresh?.();
       } else {
         setFeedback({ ok: false, message: result.error });
       }
@@ -720,9 +722,10 @@ type Props = {
   items: StaffScheduleItem[];
   rulesByGroup: Record<string, StaffGroupScheduleRule[]>;
   branchId: string;
+  onDataRefresh?: () => void;
 };
 
-export function StaffScheduleCard({ items, rulesByGroup, branchId }: Props) {
+export function StaffScheduleCard({ items, rulesByGroup, branchId, onDataRefresh }: Props) {
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [search, setSearch] = useState("");
 
@@ -892,6 +895,7 @@ export function StaffScheduleCard({ items, rulesByGroup, branchId }: Props) {
           item={selectedItem}
           groupRules={groupRules}
           branchId={branchId}
+          onDataRefresh={onDataRefresh}
         />
       )}
     </div>

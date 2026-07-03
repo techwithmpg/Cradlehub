@@ -43,13 +43,20 @@ export async function GET(req: NextRequest) {
       },
       {
         headers: {
-          // Allow browser to cache for 30 s; stale-while-revalidate up to 60 s
-          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+          "Cache-Control": "private, no-store",
         },
       }
     );
   } catch (err) {
     console.error("[api/crm/schedule]", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Daily schedule is temporarily unavailable." },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "private, no-store",
+        },
+      }
+    );
   }
 }

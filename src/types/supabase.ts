@@ -1329,6 +1329,7 @@ export type Database = {
           is_day_off: boolean
           override_date: string
           reason: string | null
+          shift_type: string | null
           staff_id: string
           start_time: string | null
         }
@@ -1340,6 +1341,7 @@ export type Database = {
           is_day_off?: boolean
           override_date: string
           reason?: string | null
+          shift_type?: string | null
           staff_id: string
           start_time?: string | null
         }
@@ -1351,6 +1353,7 @@ export type Database = {
           is_day_off?: boolean
           override_date?: string
           reason?: string | null
+          shift_type?: string | null
           staff_id?: string
           start_time?: string | null
         }

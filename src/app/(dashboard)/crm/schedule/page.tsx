@@ -7,6 +7,20 @@ import { createClient } from "@/lib/supabase/server";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+
+  try {
+    const serialized = JSON.stringify(error);
+    return serialized && serialized !== "{}"
+      ? serialized
+      : "Unknown schedule loading error";
+  } catch {
+    return "Unknown schedule loading error";
+  }
+}
+
 export default async function CrmSchedulePage({
   searchParams,
 }: {
@@ -22,14 +36,16 @@ export default async function CrmSchedulePage({
     getDailySchedule({ branchId, date: selectedDate })
       .then((data) => ({ data, error: null }))
       .catch((error: unknown) => {
-        console.error("[crm/schedule] daily timeline load failed", {
-          branchId,
-          date: selectedDate,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        const message = getErrorMessage(error);
+        console.error(
+          `[crm/schedule] daily timeline load failed branch=${branchId} date=${selectedDate}: ${message}`,
+          process.env.NODE_ENV === "development" && error instanceof Error
+            ? error.stack
+            : undefined
+        );
         return {
           data: [],
-          error: "Refresh the timeline or open Schedule Setup.",
+          error: "Daily schedule is temporarily unavailable. Refresh the timeline or open Schedule Setup.",
         };
       }),
     getStaffWithAvailability(branchId).catch(() => []),

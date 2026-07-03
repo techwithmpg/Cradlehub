@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CalendarDays,
@@ -73,6 +72,7 @@ type Props = {
   selectedBookingId: string | null;
   onSelectedStaffChange: (staffId: string | null) => void;
   onSelectedBookingChange: (bookingId: string | null) => void;
+  onScheduleChanged?: () => void | Promise<void>;
 };
 
 const TIMELINE_START = 6 * 60;
@@ -204,6 +204,8 @@ function buildDayModel(date: string, data: StaffFullScheduleData): DayModel {
   }
 
   if (override?.start_time && override.end_time) {
+    const type = shiftTypeFromRaw(override.shift_type);
+
     return {
       date,
       isDayOff: false,
@@ -211,8 +213,8 @@ function buildDayModel(date: string, data: StaffFullScheduleData): DayModel {
       shifts: [{
         id: `override-${override.id}`,
         date,
-        type: "regular",
-        label: "Override Shift",
+        type,
+        label: `${shiftLabel(type)} Override`,
         start_time: override.start_time,
         end_time: override.end_time,
         source: "override",
@@ -435,7 +437,9 @@ function DayScheduleColumn({
                   key={override.id}
                   className="absolute right-3 top-3 z-20 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-bold text-violet-800"
                 >
-                  {override.shift_type === "day_off" ? "Override: day off" : "Override shift"}
+                  {override.shift_type === "day_off"
+                    ? "Override: day off"
+                    : `Override: ${shiftLabel(shiftTypeFromRaw(override.shift_type)).toLowerCase()}`}
                 </div>
               ))
             : null}
@@ -527,8 +531,8 @@ export function FullScheduleLiveBookingsView({
   selectedBookingId,
   onSelectedStaffChange,
   onSelectedBookingChange,
+  onScheduleChanged,
 }: Props) {
-  const router = useRouter();
   const { openBookingModal } = useAdministrativeBookingModal();
   const [rangeMode, setRangeMode] = useState<FullViewRange>("day");
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
@@ -552,7 +556,13 @@ export function FullScheduleLiveBookingsView({
   const [availabilityEditor, setAvailabilityEditor] = useState<{ staffId: string; initialTab: AvailabilityTab } | null>(null);
   const [checkAvailabilityOpen, setCheckAvailabilityOpen] = useState(false);
   const [fullScheduleStaffId, setFullScheduleStaffId] = useState<string | null>(null);
+  const [scheduleRefreshToken, setScheduleRefreshToken] = useState(0);
   const [isSavingCapabilities, startSavingCapabilities] = useTransition();
+
+  const handleScheduleChanged = useCallback(() => {
+    setScheduleRefreshToken((current) => current + 1);
+    void onScheduleChanged?.();
+  }, [onScheduleChanged]);
 
   const selectedStaff = selectedStaffId ? staffRows.find((row) => row.staff_id === selectedStaffId) ?? null : null;
   const availabilityEditorItem = availabilityEditor
@@ -622,7 +632,7 @@ export function FullScheduleLiveBookingsView({
       cancelled = true;
       window.clearTimeout(loadingTimer);
     };
-  }, [range.endDate, range.startDate, selectedStaffId]);
+  }, [range.endDate, range.startDate, scheduleRefreshToken, selectedStaffId]);
 
   useEffect(() => {
     if (!profileStaffId) return;
@@ -701,10 +711,10 @@ export function FullScheduleLiveBookingsView({
         setCapabilitiesStaffId(null);
         setCapabilitiesData(null);
         setCapabilitiesDraft(result.serviceIds);
-        router.refresh();
+        handleScheduleChanged();
       });
     },
-    [capabilitiesStaffId, router]
+    [capabilitiesStaffId, handleScheduleChanged]
   );
 
   const actionButtons = [
@@ -915,7 +925,7 @@ export function FullScheduleLiveBookingsView({
         onSaved={(message) => {
           toast.success(message ?? "Availability updated.");
           setAvailabilityEditor(null);
-          router.refresh();
+          handleScheduleChanged();
         }}
       />
       <StaffScheduleCalendarModal
@@ -949,7 +959,7 @@ export function FullScheduleLiveBookingsView({
           toast.success("Staff profile updated.");
           setProfileStaffId(null);
           setProfileData(null);
-          router.refresh();
+          handleScheduleChanged();
         }}
       />
       <StaffServiceEditorSheet
