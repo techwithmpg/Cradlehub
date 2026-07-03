@@ -529,3 +529,14 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - API responses stay private/no-store and return a generic error string to the browser.
 - Developer diagnostics should include branch/date/query-stage context, with full stacks limited to development.
 - `pnpm db:push` and `pnpm db:types` still need to succeed after the local Supabase CLI/pnpm environment is repaired so migration history matches the live schema.
+
+## DECISION - ATTENDANCE-FEED-002
+
+**Decision:** Recent attendance dashboards should read from existing `qr_scan_events` plus linked `staff_shift_checkins`, not from a new attendance-events table or duplicated module.
+
+**Rationale:** `qr_scan_events` is already the append-only audit trail for public QR scan decisions, and `staff_shift_checkins` is the current attendance truth. Reusing those tables preserves existing QR public codes, device activation, scan history, and RLS assumptions while giving CRM/Owner surfaces a live operational feed.
+
+**Consequences:**
+- Feed rows deep-link into the existing `/crm/attendance` Records tab.
+- `/owner/attendance` is a redirect compatibility route for now, not a separate Owner Attendance module.
+- The card must degrade to an unavailable state if the join/API refresh fails rather than taking down Work Queue or Owner overview.

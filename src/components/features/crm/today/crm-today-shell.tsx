@@ -7,6 +7,7 @@ import { WorkQueueDashboard } from "./work-queue-dashboard";
 import type { WorkQueueBooking } from "./work-queue-panel";
 import type { AvailableDriver } from "@/components/features/control-console/driver-assign-menu";
 import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
+import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 
 type CrmTodayMutationAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 type CrmTodayTrackingAction = (input: unknown) => Promise<{ ok: boolean; message?: string; error?: string }>;
@@ -18,6 +19,8 @@ export function CrmTodayShell({
   queueData,
   snapshot,
   actionNotifications,
+  attendanceScanFeed,
+  attendanceScanDate,
   readinessIssues,
   readinessStatus,
   viewerRole,
@@ -34,6 +37,8 @@ export function CrmTodayShell({
   queueData: BookingListItemData[];
   snapshot: CrmTodaySnapshot;
   actionNotifications: { id: string; title: string; message?: string }[];
+  attendanceScanFeed: AttendanceScanFeedData;
+  attendanceScanDate: string;
   readinessIssues: ReadinessIssue[];
   readinessStatus: ReadinessStatus;
   viewerRole: string;
@@ -53,6 +58,8 @@ export function CrmTodayShell({
       queueData={queueData as WorkQueueBooking[]}
       snapshot={snapshot}
       actionNotifications={actionNotifications}
+      attendanceScanFeed={attendanceScanFeed}
+      attendanceScanDate={attendanceScanDate}
       readinessIssues={readinessIssues}
       readinessStatus={readinessStatus}
       paymentAction={paymentAction}

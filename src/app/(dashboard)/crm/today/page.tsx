@@ -16,6 +16,10 @@ import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/a
 import { SYSTEM_ROLE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import { updateWorkQueueBookingStatusAction } from "./actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import {
+  createAttendanceScanFeedFallback,
+  getRecentAttendanceScanFeed,
+} from "@/lib/attendance/recent-scans";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -67,6 +71,7 @@ export default async function CrmTodayPage() {
     driverIdMap,
     availableDrivers,
     locationMap,
+    attendanceScanFeed,
   ] = await Promise.all([
     getTodaysSchedule(branchId, today),
     getCrmPendingBookingQueue(branchId, today),
@@ -76,6 +81,21 @@ export default async function CrmTodayPage() {
     getBranchBookingDriverIds(branchId, today),
     getAvailableBranchDrivers(branchId),
     getLatestLocationsForActiveHomeServiceTrips(branchId, today),
+    getRecentAttendanceScanFeed({
+      workspace: "crm",
+      branchId,
+      branchName,
+      selectedDate: today,
+      maxItems: 5,
+    }).catch(() =>
+      createAttendanceScanFeedFallback({
+        workspace: "crm",
+        branchId,
+        branchName,
+        selectedDate: today,
+        error: "Attendance activity could not be refreshed.",
+      })
+    ),
   ]);
 
   const bookingsById = new Map<string, BookingRow>();
@@ -192,6 +212,8 @@ export default async function CrmTodayPage() {
       queueData={queueData}
       snapshot={snapshot}
       actionNotifications={actionNotifications}
+      attendanceScanFeed={attendanceScanFeed}
+      attendanceScanDate={today}
       readinessIssues={readinessIssues}
       readinessStatus={readinessStatus}
       viewerRole={role}

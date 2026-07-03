@@ -20,5 +20,11 @@ describe("attendance tabs", () => {
 
   it("builds stable replaceState-friendly URLs", () => {
     expect(attendanceTabHref("reports")).toBe("/crm/attendance?tab=reports");
+    expect(
+      attendanceTabHref("records", {
+        basePath: "/owner/attendance",
+        branchId: "branch-1",
+      })
+    ).toBe("/owner/attendance?tab=records&branchId=branch-1");
   });
 });

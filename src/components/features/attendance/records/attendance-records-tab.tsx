@@ -1,38 +1,93 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { FileText, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState, Panel, StatusPill, formatAttendanceDate, formatAttendanceDateTime, formatMinutesCompact } from "@/components/features/attendance/attendance-ui";
-import type { AttendanceRecord, AttendanceWorkspaceData } from "@/lib/attendance/types";
-
-export function AttendanceRecordsTab({ data }: { data: AttendanceWorkspaceData }) {
+import { AttendanceRecordReadout } from "@/components/features/attendance/records/attendance-record-readout";
+import type {
+  AttendanceRecord,
+  AttendanceRecordFilters,
+  AttendanceWorkspaceData,
+} from "@/lib/attendance/types";
+export function AttendanceRecordsTab({
+  data,
+  initialFilters,
+}: {
+  data: AttendanceWorkspaceData;
+  initialFilters?: AttendanceRecordFilters;
+}) {
+  const initialStaffId = initialFilters?.staffId ?? null;
+  const initialDate = initialFilters?.date ?? null;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
+  const [staffId, setStaffId] = useState(initialStaffId ?? "all");
+  const [selectedDate, setSelectedDate] = useState(initialDate ?? "all");
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+
+  const dateOptions = useMemo(() => {
+    const dates = new Set(data.records.map((record) => record.shift_date));
+    if (initialDate) dates.add(initialDate);
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+  }, [data.records, initialDate]);
 
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return data.records.filter((record) => {
       const matchesQuery = !normalizedQuery || record.staff_name.toLowerCase().includes(normalizedQuery);
       const matchesStatus = status === "all" || record.attendance_status === status || record.status === status;
-      return matchesQuery && matchesStatus;
+      const matchesStaff = staffId === "all" || record.staff_id === staffId;
+      const matchesDate = selectedDate === "all" || record.shift_date === selectedDate;
+      return matchesQuery && matchesStatus && matchesStaff && matchesDate;
     });
-  }, [data.records, query, status]);
+  }, [data.records, query, selectedDate, staffId, status]);
+
+  const highlightedRecordId = useMemo(() => {
+    if (!initialStaffId) return null;
+    return (
+      data.records.find(
+        (record) =>
+          record.staff_id === initialStaffId &&
+          (!initialDate || record.shift_date === initialDate)
+      )?.id ?? null
+    );
+  }, [data.records, initialDate, initialStaffId]);
 
   return (
     <div className="grid gap-4">
       <Panel title="Attendance History">
         <div className="flex flex-wrap items-center gap-2">
-          <select className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold">
-            <option>Today</option>
-            <option>This week</option>
-            <option>This month</option>
-            <option>Custom</option>
+          <select
+            className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"
+            value={selectedDate}
+            onChange={(event) => setSelectedDate(event.target.value)}
+          >
+            <option value="all">All dates</option>
+            {dateOptions.map((date) => (
+              <option key={date} value={date}>
+                {formatAttendanceDate(date)}
+              </option>
+            ))}
           </select>
-          <select className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold">
+          <select
+            className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"
+            disabled
+          >
             <option>{data.branchName}</option>
+          </select>
+          <select
+            className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"
+            value={staffId}
+            onChange={(event) => setStaffId(event.target.value)}
+          >
+            <option value="all">All staff</option>
+            {data.staffOptions.map((staff) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.full_name}
+              </option>
+            ))}
           </select>
           <select
             className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"
@@ -77,7 +132,14 @@ export function AttendanceRecordsTab({ data }: { data: AttendanceWorkspaceData }
               </thead>
               <tbody>
                 {rows.map((record) => (
-                  <tr key={record.id} className="border-b last:border-b-0">
+                  <tr
+                    key={record.id}
+                    className={`border-b last:border-b-0 ${
+                      record.id === highlightedRecordId
+                        ? "bg-amber-50 ring-1 ring-inset ring-amber-300"
+                        : ""
+                    }`}
+                  >
                     <td className="px-3 py-3">{formatAttendanceDate(record.shift_date)}</td>
                     <td className="px-3 py-3 font-semibold">{record.staff_name}</td>
                     <td className="px-3 py-3 capitalize">{record.shift_type}</td>
@@ -110,11 +172,20 @@ export function AttendanceRecordsTab({ data }: { data: AttendanceWorkspaceData }
           </DialogHeader>
           {selectedRecord ? (
             <div className="grid gap-3 text-sm">
+              <div>
+                <p className="font-semibold">{selectedRecord.staff_name}</p>
+                <Link
+                  href={`/crm/staff?tab=management&staffId=${encodeURIComponent(selectedRecord.staff_id)}`}
+                  className="text-xs font-semibold text-emerald-800 underline-offset-4 hover:underline"
+                >
+                  View staff profile
+                </Link>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <Readout label="Original clock in" value={formatAttendanceDateTime(selectedRecord.checked_in_at)} />
-                <Readout label="Original clock out" value={formatAttendanceDateTime(selectedRecord.checked_out_at)} />
-                <Readout label="Worked" value={formatMinutesCompact(selectedRecord.worked_minutes)} />
-                <Readout label="Method" value={selectedRecord.source_label ?? "QR/manual"} />
+                <AttendanceRecordReadout label="Original clock in" value={formatAttendanceDateTime(selectedRecord.checked_in_at)} />
+                <AttendanceRecordReadout label="Original clock out" value={formatAttendanceDateTime(selectedRecord.checked_out_at)} />
+                <AttendanceRecordReadout label="Worked" value={formatMinutesCompact(selectedRecord.worked_minutes)} />
+                <AttendanceRecordReadout label="Method" value={selectedRecord.source_label ?? "QR/manual"} />
               </div>
               <textarea className="min-h-24 rounded-lg border border-border bg-background p-3 outline-none" placeholder="Correction reason..." />
             </div>
@@ -124,15 +195,6 @@ export function AttendanceRecordsTab({ data }: { data: AttendanceWorkspaceData }
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function Readout({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border p-3">
-      <div className="text-xs font-semibold text-muted-foreground">{label}</div>
-      <div className="mt-1 font-semibold">{value}</div>
     </div>
   );
 }

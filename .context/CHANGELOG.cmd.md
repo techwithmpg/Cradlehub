@@ -5543,3 +5543,39 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Validation passed with `npx tsc --noEmit`, `npm run lint`, focused schedule Vitest coverage, full `npx vitest run`, `npm run build`, and `git diff --check`.
 - `pnpm db:push` and `pnpm db:types` remain blocked by the local pnpm/Supabase CLI environment: ignored Supabase build scripts, EPERM rename/unlink failures, and migration history not synchronized for `20260703022600`.
 - Security note: a live database password was pasted during repair. Rotate the Supabase database password before production deployment.
+
+---
+
+## 2026-07-03 - Codex (ATTENDANCE-FULL-INTEGRATION-002 FEED/DEEPLINK SLICE)
+
+**Task:** Integrate live attendance scan visibility into the CRM Work Queue and Owner overview without creating a second attendance system.
+
+**Files Changed:**
+- `src/lib/attendance/recent-scans.ts`, `src/lib/attendance/recent-scans-map.ts`, `src/lib/attendance/recent-scans-api.ts`, `src/lib/attendance/scan-feed.ts`, `src/lib/attendance/record-filters.ts`, `src/lib/attendance/owner-attendance-branch.ts`, `src/lib/attendance/tabs.ts` - added server query/API helpers, branch/context helpers, and pure feed/tab URL/status formatting helpers.
+- `src/app/api/attendance/recent-scans/route.ts` - added authenticated no-store refresh endpoint for the feed.
+- `src/components/features/attendance/attendance-scan-feed-card.tsx`, `attendance-scan-feed-row.tsx`, `use-attendance-scan-feed.ts`, `use-attendance-scan-realtime.ts` - added reusable live feed UI with SWR refresh and Supabase realtime invalidation.
+- `src/app/(dashboard)/crm/today/page.tsx`, `crm-today-shell.tsx`, `work-queue-dashboard.tsx` - rendered the feed at the top of the Work Queue right rail.
+- `src/app/(dashboard)/owner/page.tsx`, `src/components/features/owner/dashboard/owner-dashboard.tsx`, `src/app/(dashboard)/owner/attendance/page.tsx` - rendered the same feed on Owner overview and reused the existing Attendance workspace for selected-branch owner attendance links.
+- `src/app/(dashboard)/crm/attendance/page.tsx`, `attendance-workspace.tsx`, `records/attendance-records-tab.tsx`, `records/attendance-record-readout.tsx` - added server-validated `staffId`/`date` record filters, row highlighting, and staff profile links.
+- `src/lib/attendance/types.ts` - added feed and record-filter types.
+- `tests/lib/attendance/scan-feed.test.ts`, `tests/lib/attendance/tabs.test.ts` - added focused helper coverage.
+
+**Behavior:**
+- CRM Work Queue now shows recent successful attendance clock-in/out scans from the authoritative `qr_scan_events` trail.
+- The feed refreshes through `/api/attendance/recent-scans` and invalidates on Supabase Realtime insert events.
+- Feed rows deep-link to `/crm/attendance?tab=records&staffId=...&date=...`; the Records tab applies the filters and highlights the matching row.
+- Invalid staff/date/branch parameters are rejected server-side by the branch-scoped Attendance page data.
+- Owner overview reuses the same feed component. `/owner/attendance` loads the selected branch through the existing `AttendanceWorkspace`, so there is still one Attendance module.
+- Owner attendance tab switching stays on `/owner/attendance` and preserves the selected `branchId`.
+
+**Validation:**
+- `npx tsc --noEmit --pretty false`: PASS.
+- `npx vitest run tests/lib/attendance/scan-feed.test.ts tests/lib/attendance/tabs.test.ts`: PASS, 2 files / 9 tests.
+- `npm run lint`: PASS.
+- `npm run build`: PASS, 105 app routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+**Remaining Caveats:**
+- Authenticated browser QA is still required for the Work Queue/Owner card and Records deep-link flow.
+- The full first-scan trusted-device sign-in/linking flow, Staff Portal My Attendance, and staff profile attendance history remain outside this completed slice.
+- `pnpm db:push`, `pnpm db:types`, Supabase migration-history reconciliation, and database password rotation remain deployment blockers.

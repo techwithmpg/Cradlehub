@@ -112,6 +112,39 @@ export type AttendanceScanEvent = {
   booking_id: string | null;
 };
 
+export type AttendanceScanFeedWorkspace = "crm" | "owner";
+
+export type RecentAttendanceScan = {
+  eventId: string;
+  staffId: string;
+  staffName: string;
+  staffNickname: string | null;
+  staffAvatarUrl: string | null;
+  branchId: string | null;
+  branchName: string | null;
+  eventType: "clock_in" | "clock_out";
+  occurredAt: string;
+  shiftType: string | null;
+  attendanceStatus: string | null;
+  workedMinutes: number | null;
+  sourceLabel: string | null;
+};
+
+export type AttendanceScanFeedData = {
+  selectedDate: string;
+  branchId: string | null;
+  branchName: string | null;
+  items: RecentAttendanceScan[];
+  lastHourCount: number;
+  error: string | null;
+};
+
+export type AttendanceRecordFilters = {
+  staffId: string | null;
+  date: string | null;
+  branchId: string | null;
+};
+
 export type AttendanceSession = {
   id: string;
   customer_name: string;

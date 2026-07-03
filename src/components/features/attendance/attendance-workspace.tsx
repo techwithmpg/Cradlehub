@@ -14,12 +14,20 @@ import { AttendanceReportsTab } from "@/components/features/attendance/reports/a
 import { ServiceSessionsTab } from "@/components/features/attendance/sessions/service-sessions-tab";
 import type { AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
 import { attendanceTabHref } from "@/lib/attendance/tabs";
-import type { AttendanceQrPoint, AttendanceTab, AttendanceWorkspaceData } from "@/lib/attendance/types";
+import type {
+  AttendanceQrPoint,
+  AttendanceRecordFilters,
+  AttendanceTab,
+  AttendanceWorkspaceData,
+} from "@/lib/attendance/types";
 import type { QrPrintFormat } from "@/lib/attendance/qr-print-layout";
 
 type AttendanceWorkspaceProps = {
   data: AttendanceWorkspaceData;
   activeTab: AttendanceTab;
+  initialRecordFilters?: AttendanceRecordFilters;
+  routeBasePath?: string;
+  routeBranchId?: string | null;
   flash?: {
     status?: string | null;
     message?: string | null;
@@ -28,7 +36,14 @@ type AttendanceWorkspaceProps = {
   };
 };
 
-export function AttendanceWorkspace({ data, activeTab, flash }: AttendanceWorkspaceProps) {
+export function AttendanceWorkspace({
+  data,
+  activeTab,
+  initialRecordFilters,
+  routeBasePath,
+  routeBranchId,
+  flash,
+}: AttendanceWorkspaceProps) {
   const [workspaceData, setWorkspaceData] = useState(data);
   const [selectedTab, setSelectedTab] = useState<AttendanceTab>(activeTab);
   const [selectedFormat, setSelectedFormat] = useState<QrPrintFormat>("a4");
@@ -47,7 +62,14 @@ export function AttendanceWorkspace({ data, activeTab, flash }: AttendanceWorksp
 
   function setTab(nextTab: AttendanceTab) {
     setSelectedTab(nextTab);
-    window.history.replaceState(null, "", attendanceTabHref(nextTab));
+    window.history.replaceState(
+      null,
+      "",
+      attendanceTabHref(nextTab, {
+        basePath: routeBasePath,
+        branchId: routeBranchId,
+      })
+    );
   }
 
   function upsertQrPoints(points: AttendanceQrPoint[]) {
@@ -121,7 +143,7 @@ export function AttendanceWorkspace({ data, activeTab, flash }: AttendanceWorksp
         <AttendanceOverview data={workspaceData} onTabChange={setTab} />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "records"}>
-        <AttendanceRecordsTab data={workspaceData} />
+        <AttendanceRecordsTab data={workspaceData} initialFilters={initialRecordFilters} />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "sessions"}>
         <ServiceSessionsTab data={workspaceData} onActionResult={handleActionResult} />

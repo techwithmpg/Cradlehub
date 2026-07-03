@@ -404,3 +404,14 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Local app verification passed through type check, lint, focused tests, full Vitest, production build, and diff whitespace checks.
 - Deployment is still gated on repairing local pnpm/Supabase CLI behavior so `pnpm db:push` and `pnpm db:types` can reconcile migration history and generated types.
 - Rotate the Supabase database password before production deployment because a live password was pasted during troubleshooting.
+
+## Latest Agent Update (2026-07-03 - Attendance Feed/Deep Links)
+
+- Added the reusable live Attendance scan feed to CRM Work Queue and Owner Overview.
+- Feed rows use existing `qr_scan_events`/`staff_shift_checkins` data and deep-link into the existing `/crm/attendance` Records tab.
+- Added `/api/attendance/recent-scans` for authenticated refresh and Supabase Realtime invalidation.
+- Added `/owner/attendance` as a selected-branch owner entry that reuses the existing Attendance workspace to avoid a duplicate Attendance module.
+- Owner Attendance tab changes stay on `/owner/attendance` with the selected branch id.
+- Records now accepts server-validated `staffId` and `date` filters and highlights the matching row.
+- Verified `npx tsc --noEmit --pretty false`, focused helper tests, `npm run lint`, `npm run build`, and `git diff --check`.
+- Remaining: authenticated browser QA, first-scan trusted-device sign-in/linking, Staff Portal My Attendance, staff profile attendance history, Supabase CLI/migration-history repair, and database password rotation.

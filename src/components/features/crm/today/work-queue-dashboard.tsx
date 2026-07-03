@@ -7,10 +7,12 @@ import { CrmPanel } from "./crm-panel";
 import { CrmDrawer, useCrmDrawer } from "./crm-drawer";
 import { CrmReadinessDetail } from "./crm-readiness-detail";
 import { WorkQueuePanel, type WorkQueueBooking } from "./work-queue-panel";
+import { AttendanceScanFeedCard } from "@/components/features/attendance/attendance-scan-feed-card";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import type { AvailableDriver } from "@/components/features/control-console/driver-assign-menu";
 import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
 import { getWorkQueueNextAction } from "@/lib/crm/work-queue-next-actions";
+import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 import type { CrmTodaySnapshot } from "@/lib/queries/crm-today";
 import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
 
@@ -25,6 +27,8 @@ export function WorkQueueDashboard({
   queueData,
   snapshot,
   actionNotifications,
+  attendanceScanFeed,
+  attendanceScanDate,
   readinessIssues,
   readinessStatus,
   paymentAction,
@@ -41,6 +45,8 @@ export function WorkQueueDashboard({
   queueData: WorkQueueBooking[];
   snapshot: CrmTodaySnapshot;
   actionNotifications: { id: string; title: string; message?: string }[];
+  attendanceScanFeed: AttendanceScanFeedData;
+  attendanceScanDate: string;
   readinessIssues: ReadinessIssue[];
   readinessStatus: ReadinessStatus;
   paymentAction?: MutationAction;
@@ -128,6 +134,14 @@ export function WorkQueueDashboard({
           style={{ display: "flex", flexDirection: "column", gap: "0.875rem", minWidth: 0 }}
           className="xl:sticky xl:top-5 xl:self-start"
         >
+          <AttendanceScanFeedCard
+            workspace="crm"
+            selectedDate={attendanceScanDate}
+            branchId={attendanceScanFeed.branchId}
+            branchName={branchName}
+            feed={attendanceScanFeed}
+          />
+
           <CrmPanel
             title={
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>

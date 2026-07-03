@@ -1,6 +1,39 @@
 # HANDOFF - Next Agent Session
 
-## Current Task - 2026-07-02
+## Current Task - 2026-07-03
+
+ATTENDANCE-FULL-INTEGRATION-002 is partially complete. The feed/deep-link slice is implemented and verified; broader trusted-device first-scan and staff-history work remains.
+
+## Latest Attendance Feed Checkpoint
+
+- CRM Work Queue (`/crm/today`) now renders `AttendanceScanFeedCard` above Fast Actions.
+- Owner Overview (`/owner`) renders the same card; `/owner/attendance` reuses the existing `AttendanceWorkspace` for the selected branch so there is no duplicate Attendance module.
+- Feed data comes from `src/lib/attendance/recent-scans.ts`, using successful `qr_scan_events` clock-in/out rows plus the explicit `qr_scan_events_checkin_id_fkey` join to `staff_shift_checkins`.
+- `/api/attendance/recent-scans` provides authenticated no-store JSON for SWR refresh.
+- `useAttendanceScanFeed` subscribes to Supabase Realtime inserts on `qr_scan_events` and refreshes the feed when successful attendance clock-in/out scans arrive.
+- Records deep links now work with `/crm/attendance?tab=records&staffId=<id>&date=<yyyy-mm-dd>`; invalid staff/date/branch params are rejected server-side against branch-scoped Attendance data.
+- Owner attendance tab changes stay under `/owner/attendance` and preserve the selected branch id.
+- `AttendanceRecordsTab` now has date, branch, staff, status, and search filters; linked rows are highlighted and include a staff profile link.
+- Focused tests live at `tests/lib/attendance/scan-feed.test.ts` and `tests/lib/attendance/tabs.test.ts`.
+
+## Latest Verification
+
+- `npx tsc --noEmit --pretty false`: PASS
+- `npx vitest run tests/lib/attendance/scan-feed.test.ts tests/lib/attendance/tabs.test.ts`: PASS, 2 files / 9 tests
+- `npm run lint`: PASS
+- `npm run build`: PASS, 105 app routes
+- `git diff --check`: PASS, line-ending notices only
+
+## Still Open
+
+- Authenticated browser QA for Work Queue feed, Owner feed, API refresh, realtime refresh, and Records deep links.
+- First-scan trusted-device sign-in/linking flow.
+- Staff Portal My Attendance and staff profile attendance history.
+- `pnpm db:push`, `pnpm db:types`, Supabase migration-history reconciliation, and database password rotation before deployment closure.
+
+---
+
+## Previous Current Task - 2026-07-02
 
 ATTENDANCE-REFIT-005 - Complete locally. The CRM Attendance workspace has been refit into the requested compact, instant-tab operational UI while preserving the existing Attendance QR database, public scan routes, device activation, service-session engine, and Supabase security model. Authenticated CRM/browser QA remains pending.
 

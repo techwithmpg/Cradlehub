@@ -1,4 +1,57 @@
-# Current Task - ATTENDANCE-SCHEDULE-LIVE-DATA-001
+# Current Task - ATTENDANCE-FULL-INTEGRATION-002
+
+Status: IN_PROGRESS - dashboard feed/deep-link slice complete
+Started: 2026-07-03
+Last updated: 2026-07-03
+
+## Description
+
+Upgrade and fully integrate the existing CradleHub Attendance system without creating a second attendance module.
+
+Scope:
+- Preserve existing QR public codes, scan URLs, activation links, device records, scan records, session/check-in rows, correction logic, permission helpers, realtime hooks, QR exports, and print behavior.
+- Inspect the existing Attendance QR implementation before adding or changing schema/UI.
+- Complete the trusted-device first-scan flow where a staff member signs in once, confirms device linking, receives an HttpOnly attendance-device cookie, and completes the first clock-in without a second scan.
+- Keep future registered-device scans automatic while preserving duplicate-scan protection and safe revoked/unknown/wrong-branch handling.
+- Add one reusable `AttendanceScanFeedCard` for the CRM Work Queue right rail and Owner overview/dashboard surfaces.
+- Add or reuse focused attendance queries, deep links, realtime invalidation, staff profile attendance history, Staff Portal My Attendance, device management, and correction workflows where safely possible.
+- Avoid destructive migrations, QR regeneration, production data resets, or edits to previously applied migrations.
+
+## Pre-flight Notes
+
+- Read `.context/CHANGELOG.cmd.md`, `.context/CURRENT_TASK.cmd.md`, `.context/DECISIONS.cmd.md`, `.context/ERRORS.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, `docs/AGENT_RULES.md`, root `AGENTS.md`, and root `CLAUDE.md`.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; the documented `docs/` equivalents are being used.
+- Supabase changelog was checked on 2026-07-03. Relevant current risk remains Data API exposure for new public tables and direct DB/CLI connectivity limitations.
+- Existing local verification from the previous checkpoint is green, but `pnpm db:push`/`pnpm db:types` remain blocked by direct DB connectivity and local Supabase CLI path issues.
+- The Supabase database password was pasted earlier and must be rotated before production closure.
+
+## Implementation Checkpoint - 2026-07-03
+
+Completed in this slice:
+- Added a reusable live `AttendanceScanFeedCard` backed by `qr_scan_events` and `staff_shift_checkins`.
+- Wired the card into CRM Work Queue (`/crm/today`) and Owner Overview (`/owner`).
+- Added `/api/attendance/recent-scans` for authenticated SWR refresh and Supabase realtime invalidation.
+- Added `/owner/attendance` as a branch-aware owner entry that reuses the existing `AttendanceWorkspace` instead of creating a duplicate Attendance module.
+- Preserved `/owner/attendance` tab switching on the owner route with the selected `branchId`.
+- Added `/crm/attendance?tab=records&staffId=<id>&date=<yyyy-mm-dd>` filter handling, server-side invalid staff/date rejection, row highlighting, and a staff profile link.
+- Added focused helper tests for feed record links and badge labels.
+
+Verified:
+- `npx tsc --noEmit --pretty false`: PASS
+- `npx vitest run tests/lib/attendance/scan-feed.test.ts tests/lib/attendance/tabs.test.ts`: PASS, 2 files / 9 tests
+- `npm run lint`: PASS
+- `npm run build`: PASS, 105 app routes
+- `git diff --check`: PASS, line-ending notices only
+
+Still not complete from the full pasted prompt:
+- First-scan trusted-device sign-in/linking flow was not rebuilt in this slice.
+- Staff Portal "My Attendance" and staff-profile attendance history were not added.
+- Authenticated browser QA still needs a valid CRM/front-desk session.
+- `pnpm db:push`, `pnpm db:types`, migration-history repair, and database password rotation remain operational blockers before production closure.
+
+---
+
+# Previous Task - ATTENDANCE-SCHEDULE-LIVE-DATA-001
 
 Status: IN_PROGRESS
 Started: 2026-07-03

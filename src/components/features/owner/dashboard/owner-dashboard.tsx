@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { BranchPerformanceCard } from "./branch-performance-card";
 import { DashboardPanel, EmptyState, SectionError } from "./dashboard-panel";
+import { AttendanceScanFeedCard } from "@/components/features/attendance/attendance-scan-feed-card";
 import {
   formatCurrency,
   formatCurrencyDelta,
@@ -22,6 +23,7 @@ import {
 import { RevenueTrendCard } from "./revenue-trend-card";
 import { TodayGlanceCard } from "./today-glance-card";
 import type { OwnerOverviewDashboardData } from "@/lib/queries/owner-dashboard";
+import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 import type {
   DashboardLoad,
   OwnerDashboardActionItem,
@@ -31,7 +33,13 @@ import type {
 } from "@/lib/owner/dashboard";
 import type { LucideIcon } from "lucide-react";
 
-export function OwnerDashboard({ data }: { data: OwnerOverviewDashboardData }) {
+export function OwnerDashboard({
+  data,
+  attendanceScanFeed,
+}: {
+  data: OwnerOverviewDashboardData;
+  attendanceScanFeed: AttendanceScanFeedData;
+}) {
   return (
     <div className="space-y-4">
       <OwnerHero data={data} />
@@ -50,6 +58,11 @@ export function OwnerDashboard({ data }: { data: OwnerOverviewDashboardData }) {
         </div>
         <StaffSnapshotCard load={data.staffSnapshot} />
         <div className="space-y-4">
+          <AttendanceScanFeedCard
+            workspace="owner"
+            selectedDate={data.today}
+            feed={attendanceScanFeed}
+          />
           <QuickActionsCard />
           <PendingActionsCard load={data.pendingActions} />
         </div>

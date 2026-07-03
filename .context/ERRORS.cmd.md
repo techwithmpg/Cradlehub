@@ -576,3 +576,17 @@
 - **Symptom:** A live Supabase database password was pasted into chat during troubleshooting.
 - **Impact:** Treat the credential as exposed.
 - **Resolution:** Rotate the Supabase database password before production deployment and update deployment/local secrets.
+
+## 2026-07-03 - ATTENDANCE-FULL-INTEGRATION-002 feed/deep-link notes
+
+- **Symptom:** A large patch attempt partially applied CRM Today feed props before the shell/dashboard props were present, causing `pnpm type-check` to fail on `attendanceScanFeed`.
+- **Impact:** The tree was briefly inconsistent during implementation.
+- **Resolution:** Added the matching `CrmTodayShell` and `WorkQueueDashboard` props; current `npx tsc --noEmit --pretty false` passes.
+
+- **Symptom:** `pnpm lint` reported React Compiler `preserve-manual-memoization` errors in `AttendanceRecordsTab`.
+- **Impact:** The new date/staff filter memo dependencies were too narrow for the compiler's inferred `initialFilters` dependency.
+- **Resolution:** Normalized `initialStaffId` and `initialDate` before the memos and depended on those stable values. Current `npm run lint` passes.
+
+- **Symptom:** The full pasted prompt includes first-scan trusted-device sign-in/linking, Staff Portal My Attendance, and staff-profile attendance history.
+- **Impact:** Those flows are still not implemented in this slice.
+- **Resolution:** Completed only the dashboard feed/realtime/deep-link slice and documented the remaining work explicitly.

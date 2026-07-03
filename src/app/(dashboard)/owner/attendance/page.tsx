@@ -1,41 +1,47 @@
 import { headers } from "next/headers";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AttendanceWorkspace } from "@/components/features/attendance/attendance-workspace";
-import { parseAttendanceTab } from "@/lib/attendance/tabs";
-import { getAttendanceWorkspaceData } from "@/lib/attendance/queries";
-import { getRequestOrigin } from "@/lib/http/request-origin";
-import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import {
   buildAttendanceRecordFilters,
   oneAttendanceParam,
   type AttendanceSearchParams,
 } from "@/lib/attendance/record-filters";
+import { getAttendanceWorkspaceData } from "@/lib/attendance/queries";
+import { loadOwnerAttendanceBranch } from "@/lib/attendance/owner-attendance-branch";
+import { parseAttendanceTab } from "@/lib/attendance/tabs";
+import { getRequestOrigin } from "@/lib/http/request-origin";
 
-export default async function CrmAttendancePage({
+export default async function OwnerAttendancePage({
   searchParams,
 }: {
   searchParams: Promise<AttendanceSearchParams>;
 }) {
   const params = await searchParams;
+  const branchResult = await loadOwnerAttendanceBranch(
+    oneAttendanceParam(params.branchId)
+  );
   const activeTab = parseAttendanceTab(params.tab);
-  const context = await getFrontDeskContext();
   const headerStore = await headers();
 
   let data = null;
-  let error: string | null = null;
+  let error: string | null = branchResult.branch
+    ? null
+    : "No active branch is available.";
+
   try {
-    const requestOrigin = getRequestOrigin(headerStore);
-    data = await getAttendanceWorkspaceData({
-      branchId: context.branchId,
-      branchName: context.branchName,
-      origin: requestOrigin,
-    });
+    if (branchResult.branch) {
+      data = await getAttendanceWorkspaceData({
+        branchId: branchResult.branch.id,
+        branchName: branchResult.branch.name ?? "Branch",
+        origin: getRequestOrigin(headerStore),
+      });
+    }
   } catch (err) {
     error = err instanceof Error ? err.message : "Attendance data could not be loaded.";
   }
 
-  const recordFilterResult = data
-    ? buildAttendanceRecordFilters(params, data, context.branchId)
+  const filterResult = data
+    ? buildAttendanceRecordFilters(params, data, branchResult.branch?.id ?? "")
     : null;
 
   return (
@@ -49,10 +55,15 @@ export default async function CrmAttendancePage({
         <AttendanceWorkspace
           data={data}
           activeTab={activeTab}
-          initialRecordFilters={recordFilterResult?.filters}
+          initialRecordFilters={filterResult?.filters}
+          routeBasePath="/owner/attendance"
+          routeBranchId={branchResult.branch?.id}
           flash={{
             status: oneAttendanceParam(params.status),
-            message: oneAttendanceParam(params.message) ?? recordFilterResult?.warning,
+            message:
+              oneAttendanceParam(params.message) ??
+              branchResult.warning ??
+              filterResult?.warning,
             activationUrl: oneAttendanceParam(params.activationUrl),
             expiresAt: oneAttendanceParam(params.expiresAt),
           }}

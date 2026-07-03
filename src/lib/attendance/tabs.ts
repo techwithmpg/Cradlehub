@@ -19,6 +19,11 @@ export function parseAttendanceTab(value: string | string[] | null | undefined):
   return isAttendanceTab(candidate) ? candidate : "overview";
 }
 
-export function attendanceTabHref(tab: AttendanceTab): string {
-  return `/crm/attendance?tab=${tab}`;
+export function attendanceTabHref(
+  tab: AttendanceTab,
+  options: { basePath?: string; branchId?: string | null } = {}
+): string {
+  const params = new URLSearchParams({ tab });
+  if (options.branchId) params.set("branchId", options.branchId);
+  return `${options.basePath ?? "/crm/attendance"}?${params.toString()}`;
 }
