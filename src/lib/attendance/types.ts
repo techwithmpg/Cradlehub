@@ -317,9 +317,12 @@ export type AttendanceWorkspaceData = {
 export type PublicScanResult = {
   ok: boolean;
   outcome: QrScanOutcome;
+  reasonCode?: string;
+  severity?: "success" | "info" | "warning" | "critical";
   title: string;
   message: string;
   detail?: string;
+  securityNote?: string;
   scanEventId?: string;
   nextHref?: string;
   attendance?: {

@@ -5669,3 +5669,41 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm db:status` and `pnpm db:push` still time out on the Supabase pooler port `5432`; live schema was verified via linked SQL instead.
 - Authenticated browser QA for the protected Devices tab and real phone recovery scan remains pending.
 - `tmp-attendance-device-registry-verify.sql` remains untracked because sandbox deletion was denied and the elevated delete request was blocked by the environment usage limit.
+
+---
+
+## 2026-07-04 - Codex (ATTENDANCE-MOBILE-SCAN-FLOW-006)
+
+**Task:** Inspect and finish the mobile Attendance QR scan flow wiring without replacing the existing scan engine, device registry, or Supabase-backed attendance business logic.
+
+**Files Added:**
+- `src/app/scan/[publicCode]/loading.tsx` - route-level mobile scan loading shell that immediately shows the recognizing animation while the App Router page resolves.
+
+**Files Changed:**
+- `src/app/scan/actions.ts` - wrapped public scan, first-scan activation, and recovery consumption in user-safe error fallbacks; preserved trusted-device cookie handling; revalidated existing Attendance surfaces after scan/recovery writes.
+- `src/lib/attendance/types.ts` - extended `PublicScanResult` with backward-compatible `reasonCode`, `severity`, and `securityNote` fields.
+- `src/lib/attendance/scan-engine.ts` - exposed structured reason codes/severity/security notes on public results while keeping existing event writes, branch/device checks, duplicate protection, and clock-in/out logic as the source of truth.
+- `src/components/features/attendance/public-scan-result.tsx` - rendered security notes on generic blocked/error/recovery states and used reason codes for clearer result eyebrows.
+- `src/components/features/attendance/public-scan-processor.module.css` - normalized scan typography letter spacing for mobile readability.
+
+**Behavior:**
+- `/scan/[publicCode]` still renders `PublicScanProcessor` and passes the async route `publicCode` into `processPublicQrScanAction`.
+- The client processor still starts at `recognizing`, moves to `processing`, then settles on `result`; scan actions are invoked from `useEffect` after mount, not during server render.
+- Blank-route time is covered by the new `loading.tsx`, and runtime action failures return a safe `"Scan interrupted"` result instead of crashing the public scanner.
+- Successful attendance results include `attendance.action`, staff name, branch, shift label, scan time, session start, and worked minutes for clock-out.
+- Duplicate, inactive QR, unknown-device, revoked-device, wrong-branch, active-service, already-checked-out, activation, recovery, and database-error paths now expose `reasonCode`/`severity` for the mobile UI while preserving existing `qr_scan_events` and `attendance_exceptions` writes.
+- Active-service clock-out blocks now include the active service countdown card when the existing booking query can supply it.
+- Public scan writes revalidate the existing Attendance surfaces through `revalidateAttendanceSurfaces()` (`/crm/attendance`, `/crm/availability`, `/crm/today`, `/staff-portal`).
+
+**Validation:**
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 105 app routes.
+- Local dev server started with `pnpm exec next dev -H 0.0.0.0` on port `3000` (PID `31160`).
+- Browser smoke via `agent-browser` on `http://localhost:3000/scan/test-public-code`: PASS. The invalid QR path rendered the public result screen (`QR not recognized`), body content was nonblank, and no Next.js/Vite error overlay was present.
+- Annotated smoke screenshot: `C:\Users\eleur\.agent-browser\tmp\screenshots\screenshot-1783127833941.png`.
+
+**Remaining Caveats:**
+- Authenticated/live phone QA against real staff devices and real branch QR codes is still pending.
+- Local manual phone testing should use the current LAN IP `192.168.137.149` with a dev server bound to all interfaces, for example `pnpm dev -- -H 0.0.0.0`, then open `http://192.168.137.149:3000/scan/<publicCode>` on the phone.
+- Existing untracked local artifacts remain: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.

@@ -113,11 +113,27 @@ function first<T>(value: T | T[] | null | undefined): T | null {
 }
 
 function success(title: string, message: string, extra: Partial<PublicScanResult> = {}): PublicScanResult {
-  return { ok: true, outcome: "success", title, message, ...extra };
+  const outcome = extra.outcome ?? "success";
+  return {
+    ok: true,
+    outcome,
+    severity: extra.severity ?? (outcome === "noop" ? "info" : "success"),
+    title,
+    message,
+    ...extra,
+  };
 }
 
 function blocked(title: string, message: string, extra: Partial<PublicScanResult> = {}): PublicScanResult {
-  return { ok: false, outcome: extra.outcome ?? "blocked", title, message, ...extra };
+  const outcome = extra.outcome ?? "blocked";
+  return {
+    ok: false,
+    outcome,
+    severity: extra.severity ?? (outcome === "error" ? "critical" : "warning"),
+    title,
+    message,
+    ...extra,
+  };
 }
 
 function parseIp(value: string | null | undefined): string | null {
@@ -372,7 +388,12 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return success("Already recorded", "A recent attendance scan was already accepted.", { outcome: "noop", scanEventId: eventId ?? undefined });
+    return success("Already recorded", "A recent attendance scan was already accepted.", {
+      outcome: "noop",
+      reasonCode: "duplicate_scan",
+      securityNote: "No new attendance record was created.",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const activeCheckin = await getActiveCheckin(admin, {
@@ -413,7 +434,12 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
           message: `${staffName} attempted to clock out with an active service session.`,
           metadata: { bookingId: activeService.id },
         });
-        return blocked("Service still active", "Complete the active service session before clocking out.", { scanEventId: eventId ?? undefined });
+        return blocked("Service still active", "Complete the active service session before clocking out.", {
+          reasonCode: "active_service",
+          securityNote: "Finish the active service before scanning attendance again.",
+          countdown: buildCountdown(activeService),
+          scanEventId: eventId ?? undefined,
+        });
       }
     }
 
@@ -459,7 +485,12 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
         userAgent: ctx.userAgent,
         ipAddress: ctx.ipAddress,
       });
-      return blocked("Clock-out failed", "The attendance record could not be updated.", { outcome: "error", scanEventId: eventId ?? undefined });
+      return blocked("Clock-out failed", "The attendance record could not be updated.", {
+        outcome: "error",
+        reasonCode: "db_error",
+        securityNote: "No clock-out was recorded from this attempt.",
+        scanEventId: eventId ?? undefined,
+      });
     }
 
     const eventId = await recordScanEvent(admin, {
@@ -506,6 +537,8 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     }
 
     return success("Clocked out", `${staffName} is clocked out. Worked ${formatMinutesCompact(metrics.workedMinutes)}.`, {
+      reasonCode: "clock_out",
+      securityNote: "This device is recognized and ready for future scans.",
       scanEventId: eventId ?? undefined,
       attendance: {
         action: "clock_out",
@@ -553,7 +586,10 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("Already checked out", "A manager must adjust the attendance record before another check-in.", { scanEventId: eventId ?? undefined });
+    return blocked("Already checked out", "A manager must adjust the attendance record before another check-in.", {
+      reasonCode: "already_checked_out",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const nowIso = new Date().toISOString();
@@ -601,7 +637,12 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("Clock-in failed", "The attendance record could not be created.", { outcome: "error", scanEventId: eventId ?? undefined });
+    return blocked("Clock-in failed", "The attendance record could not be created.", {
+      outcome: "error",
+      reasonCode: "db_error",
+      securityNote: "No clock-in was recorded from this attempt.",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const eventId = await recordScanEvent(admin, {
@@ -647,6 +688,8 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
   }
 
   return success("Clocked in", `${staffName} is clocked in for ${schedule.shiftType}.`, {
+    reasonCode: "clock_in",
+    securityNote: "This device is recognized and ready for future scans.",
     scanEventId: eventId ?? undefined,
     attendance: {
       action: "clock_in",
@@ -714,7 +757,10 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("Room unavailable", "This QR is not linked to an active room.", { scanEventId: eventId ?? undefined });
+    return blocked("Room unavailable", "This QR is not linked to an active room.", {
+      reasonCode: "missing_resource",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const activeCheckin = await getActiveCheckin(admin, {
@@ -738,7 +784,10 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("Clock in first", "Clock in at the attendance QR before starting a service session.", { scanEventId: eventId ?? undefined });
+    return blocked("Clock in first", "Clock in at the attendance QR before starting a service session.", {
+      reasonCode: "not_clocked_in",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const activeService = await hasActiveService(admin, {
@@ -772,6 +821,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
         scanType: "service",
       });
       return success("Session active", "The service countdown is already running.", {
+        reasonCode: "session_active",
         scanEventId: eventId ?? undefined,
         countdown,
       });
@@ -786,7 +836,12 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       message: `${staffName} scanned ${resourceName} while another service was active.`,
       metadata: { activeBookingId: activeService.id },
     });
-    return blocked("Session already active", "Complete the current service before starting another room.", { scanEventId: eventId ?? undefined });
+    return blocked("Session already active", "Complete the current service before starting another room.", {
+      reasonCode: "active_service",
+      securityNote: "Finish the active service before scanning a different room.",
+      countdown,
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   if (await findRecentDuplicate(admin, {
@@ -809,7 +864,12 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return success("Already recorded", "A recent room scan was already accepted.", { outcome: "noop", scanEventId: eventId ?? undefined });
+    return success("Already recorded", "A recent room scan was already accepted.", {
+      outcome: "noop",
+      reasonCode: "duplicate_scan",
+      securityNote: "No new service session was created.",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const occupied = await admin
@@ -849,7 +909,10 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       message: `${staffName} scanned occupied room ${resourceName}.`,
       metadata: { occupiedBookingId: occupied.data.id },
     });
-    return blocked("Room in use", `${resourceName} already has an active service session.`, { scanEventId: eventId ?? undefined });
+    return blocked("Room in use", `${resourceName} already has an active service session.`, {
+      reasonCode: "resource_conflict",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const branchNow = getBranchNow();
@@ -876,7 +939,10 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("No booking found", "No current in-spa booking is ready for this room scan.", { scanEventId: eventId ?? undefined });
+    return blocked("No booking found", "No current in-spa booking is ready for this room scan.", {
+      reasonCode: "no_eligible_booking",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   if (booking.resource_id && booking.resource_id !== point.resource_id) {
@@ -904,7 +970,10 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       message: `${staffName} scanned ${resourceName}, but the booking has another room assigned.`,
       metadata: { bookingId: booking.id, assignedResourceId: booking.resource_id },
     });
-    return blocked("Different room assigned", "This booking is already assigned to another room.", { scanEventId: eventId ?? undefined });
+    return blocked("Different room assigned", "This booking is already assigned to another room.", {
+      reasonCode: "resource_conflict",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const service = first(booking.services);
@@ -947,7 +1016,11 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("Session start failed", "The booking could not be moved into session.", { outcome: "error", scanEventId: eventId ?? undefined });
+    return blocked("Session start failed", "The booking could not be moved into session.", {
+      outcome: "error",
+      reasonCode: "db_error",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const updatedBooking = update.data as unknown as BookingRow;
@@ -981,6 +1054,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
   });
 
   return success("Session started", `${resourceName} session started for ${durationMinutes} minutes.`, {
+    reasonCode: "session_started",
     scanEventId: eventId ?? undefined,
     countdown: buildCountdown(updatedBooking, resourceName),
   });
@@ -1002,7 +1076,11 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       ipAddress: ctx.ipAddress,
       metadata: { publicCode: maskId(publicCode) },
     });
-    return blocked("QR not recognized", "This QR code is not active in CradleHub.", { scanEventId: eventId ?? undefined });
+    return blocked("QR not recognized", "This QR code is not active in CradleHub.", {
+      reasonCode: "invalid_qr",
+      securityNote: "No attendance change was recorded from this scan.",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const device = await resolveDevice(admin, ctx.rawDeviceCredential);
@@ -1025,7 +1103,11 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       exceptionType: "unknown_device",
       message: `An unregistered device scanned ${point.label}.`,
     });
-    return blocked("Device not registered", "Ask the front desk to activate this device before scanning.", { scanEventId: eventId ?? undefined });
+    return blocked("Device not registered", "Ask the front desk to activate this device before scanning.", {
+      reasonCode: "unknown_device",
+      securityNote: "This phone is not connected to a staff device record yet.",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   if (device.status !== "active" || first(device.staff)?.is_active === false) {
@@ -1051,7 +1133,12 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       severity: "critical",
       message: `A revoked or inactive device scanned ${point.label}.`,
     });
-    return blocked("Device blocked", "This device is no longer active. Ask the front desk to re-activate it.", { scanEventId: eventId ?? undefined });
+    return blocked("Device blocked", "This device is no longer active. Ask the front desk to re-activate it.", {
+      reasonCode: "revoked_device",
+      severity: "critical",
+      securityNote: "This phone cannot be used for attendance until access is restored.",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   if (device.branch_id !== point.branch_id) {
@@ -1077,7 +1164,12 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       severity: "critical",
       message: `${first(device.staff)?.full_name ?? "Staff member"} scanned a QR for another branch.`,
     });
-    return blocked("Wrong branch", "This device is registered to a different branch.", { scanEventId: eventId ?? undefined });
+    return blocked("Wrong branch", "This device is registered to a different branch.", {
+      reasonCode: "wrong_branch",
+      severity: "critical",
+      securityNote: "This phone is trusted, but not for this branch QR.",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   await admin
@@ -1122,7 +1214,10 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
       ipAddress: ctx.ipAddress,
       metadata: { token: maskId(token) },
     });
-    return blocked("Activation expired", "Ask the front desk for a new device activation link.", { scanEventId: eventId ?? undefined });
+    return blocked("Activation expired", "Ask the front desk for a new device activation link.", {
+      reasonCode: "invalid_token",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const staff = first(activationRow.staff);
@@ -1139,7 +1234,10 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("Activation expired", "Ask the front desk for a new device activation link.", { scanEventId: eventId ?? undefined });
+    return blocked("Activation expired", "Ask the front desk for a new device activation link.", {
+      reasonCode: activationRow.used_at ? "token_used" : "token_expired",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   const rawDeviceCredential = createDeviceCredential();
@@ -1178,7 +1276,11 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
     });
-    return blocked("Activation failed", "The device could not be registered.", { outcome: "error", scanEventId: eventId ?? undefined });
+    return blocked("Activation failed", "The device could not be registered.", {
+      outcome: "error",
+      reasonCode: "db_error",
+      scanEventId: eventId ?? undefined,
+    });
   }
 
   await admin
@@ -1205,6 +1307,8 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
 
   return {
     ...success("Device activated", `${staff?.full_name ?? "Staff member"} can now use this device for attendance and room scans.`, {
+      reasonCode: "device_activated",
+      securityNote: "This phone is now trusted for this staff member.",
       scanEventId: eventId ?? undefined,
     }),
     rawDeviceCredential,

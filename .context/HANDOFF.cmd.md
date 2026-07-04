@@ -1,5 +1,37 @@
 # HANDOFF - Next Agent Session
 
+## Current Task - 2026-07-04
+
+ATTENDANCE-MOBILE-SCAN-FLOW-006 is locally complete.
+
+## Latest Mobile Scan Flow Checkpoint
+
+- Confirmed `/scan/[publicCode]/page.tsx` renders `PublicScanProcessor` and passes the async App Router `publicCode` param into the public scan action.
+- Confirmed `PublicScanProcessor` is client-side, starts at `recognizing`, schedules `processing`, invokes the server action from `useEffect` after mount, catches failures, and always settles to `result`.
+- Added `src/app/scan/[publicCode]/loading.tsx` so the route shows the same recognizing shell while the page itself is resolving.
+- Kept `src/lib/attendance/scan-engine.ts` as the authoritative backend path for QR lookup, trusted-device cookie checks, branch validation, duplicate protection, event logging, check-in insert, and check-out update.
+- Extended public scan result metadata with optional `reasonCode`, `severity`, and `securityNote` so mobile blocked/error/recovery states can render cleanly without changing existing consumers.
+- Added user-safe server action fallbacks for scan, activation, and recovery action failures.
+- Wired public scan/recovery writes to the existing `revalidateAttendanceSurfaces()` helper, covering `/crm/attendance`, `/crm/availability`, `/crm/today`, and `/staff-portal`.
+- Active-service clock-out blocks now pass the existing service countdown data back to the public result UI when available.
+
+## Latest Verification
+
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 105 routes.
+- Local dev server is running on port `3000` with PID `31160` from `pnpm exec next dev -H 0.0.0.0`.
+- Browser smoke via `agent-browser` on `http://localhost:3000/scan/test-public-code`: PASS. The invalid QR flow rendered `QR not recognized`, body content was nonblank, and no Next.js/Vite overlay was found.
+- Smoke screenshot: `C:\Users\eleur\.agent-browser\tmp\screenshots\screenshot-1783127833941.png`.
+
+## Still Open
+
+- Authenticated/live phone QA remains pending for real staff devices, branch QR codes, duplicate-scan timing, revoked/wrong-branch devices, and recovery links.
+- For local phone testing, current LAN IP is `192.168.137.149`; start dev with `pnpm dev -- -H 0.0.0.0` and open `http://192.168.137.149:3000/scan/<publicCode>` from the phone on the same network.
+- Existing untracked local artifacts are still present and intentionally not removed: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.
+
+---
+
 ## Current Task - 2026-07-03
 
 ATTENDANCE-DEVICE-REGISTRY-005 is locally complete and live DB verified.

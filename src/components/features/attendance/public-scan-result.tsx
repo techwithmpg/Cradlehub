@@ -48,11 +48,14 @@ type PublicScanResultViewProps = {
 };
 
 function getResultStatusClass(result: PublicScanResult): string | undefined {
-  if (result.outcome === "noop") return styles.resultInfo;
+  if (result.outcome === "noop" || result.severity === "info") return styles.resultInfo;
   return result.ok ? styles.resultSuccess : styles.resultBlocked;
 }
 
 function getResultEyebrow(result: PublicScanResult): string {
+  if (result.reasonCode === "unknown_device") return "Device setup needed";
+  if (result.reasonCode === "device_restored") return "Access restored";
+  if (result.outcome === "error") return "Scan interrupted";
   if (result.outcome === "noop") return "No change needed";
   return result.ok ? "Scan accepted" : "Action needed";
 }
@@ -77,7 +80,7 @@ export function PublicScanResultView({ result }: PublicScanResultViewProps) {
       : formatWorkedMinutes(attendance.workedMinutes);
 
     return (
-    <section className={cn(styles.resultPanel, styles.attendanceSuccess)} aria-live="polite">
+      <section className={cn(styles.resultPanel, styles.attendanceSuccess)} aria-live="polite">
         <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
 
         <div className={styles.successIcon} aria-hidden="true">
@@ -109,7 +112,7 @@ export function PublicScanResultView({ result }: PublicScanResultViewProps) {
 
         <div className={styles.securityNote}>
           <ShieldCheck size={18} aria-hidden="true" />
-          <span>This device is recognized and ready for future scans.</span>
+          <span>{result.securityNote ?? "This device is recognized and ready for future scans."}</span>
         </div>
       </section>
     );
@@ -129,6 +132,13 @@ export function PublicScanResultView({ result }: PublicScanResultViewProps) {
         <p>{result.message}</p>
         {result.detail ? <small>{result.detail}</small> : null}
       </div>
+
+      {result.securityNote ? (
+        <div className={styles.securityNote}>
+          <ShieldCheck size={18} aria-hidden="true" />
+          <span>{result.securityNote}</span>
+        </div>
+      ) : null}
 
       {result.countdown ? (
         <div className={styles.serviceCard}>

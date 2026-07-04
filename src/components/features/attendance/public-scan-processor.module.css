@@ -135,7 +135,7 @@
   color: var(--scan-gold);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -146,7 +146,7 @@
   font-family: var(--cs-font-display, Georgia, serif);
   font-size: clamp(28px, 8vw, 36px);
   line-height: 1.08;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }
 
 .stageCopy > p:last-child,
@@ -215,7 +215,7 @@
   font-size: clamp(39px, 12vw, 54px);
   line-height: 1;
   font-weight: 760;
-  letter-spacing: -0.045em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -280,7 +280,7 @@
   color: var(--scan-muted);
   font-size: 11px;
   font-weight: 650;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
