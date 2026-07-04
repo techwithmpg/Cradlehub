@@ -5707,3 +5707,47 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Authenticated/live phone QA against real staff devices and real branch QR codes is still pending.
 - Local manual phone testing should use the current LAN IP `192.168.137.149` with a dev server bound to all interfaces, for example `pnpm dev -- -H 0.0.0.0`, then open `http://192.168.137.149:3000/scan/<publicCode>` on the phone.
 - Existing untracked local artifacts remain: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.
+
+---
+
+## 2026-07-04 - Codex (ATTENDANCE-FIRST-SCAN-LOGIN-007)
+
+**Task:** Replace the first-time Attendance QR missing-device dead end with staff sign-in, secure phone registration, and automatic continuation of the original scan.
+
+**Files Added:**
+- `src/components/features/attendance/public-scan-login-form.tsx` - mobile scan sign-in panel with email, password show/hide, clean form errors, and the trust note that the phone will be remembered for faster attendance scans.
+
+**Files Changed:**
+- `src/app/scan/actions.ts` - added `completeFirstTimeAttendanceScanAction`, scan-login input validation, Supabase password sign-in without workspace redirect, attendance-device cookie override support, and continuation request-id suffixes for register/attendance audit rows.
+- `src/lib/attendance/scan-engine.ts` - added authenticated first-scan device registration that maps `auth.users.id` to the caller's own active `staff.auth_user_id`, enforces branch/device/staff ownership checks, inserts a pepper-hashed `staff_devices` credential, and blocks revoked/wrong-branch/device-mismatch cases.
+- `src/components/features/attendance/public-scan-processor.tsx` - changed only `reasonCode: "unknown_device"` into the recoverable sign-in-required flow; other blocked/noop/success results still render through the existing result view.
+- `src/components/features/attendance/public-scan-stage.tsx` - added `signing_in`, `registering_device`, `device_registered`, and `processing_attendance` stages.
+- `src/components/features/attendance/public-scan-processor.module.css` - styled the sign-in form and connected-phone stage inside the existing mobile scan shell.
+- `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `.context/CHANGELOG.cmd.md` - documented the implementation, validation, and the duplicate-detection audit fix.
+
+**Behavior:**
+- First scan from an unregistered phone now goes `recognizing -> processing -> sign in` instead of ending at "Device not registered."
+- Correct staff credentials register the current browser/phone to that authenticated staff member, set the existing `cradle_attendance_device` HttpOnly cookie pattern, briefly show `Registering this phone` and `Phone connected`, then automatically resume the same QR scan.
+- Future scans from the same phone skip sign-in because the same scan engine resolves the stored attendance device credential.
+- Wrong credentials stay on the sign-in form with clean copy.
+- Accounts without an active staff profile, branch mismatches, revoked devices, and phones already linked to another staff account return friendly blocked results without registering a new phone.
+- Duplicate scan protection, active-service clock-out protection, wrong-branch checks, and normal clock-in/out writes remain in `processQrScan`.
+- Front-desk recovery links and `/scan/activate/[token]` remain intact as the admin fallback.
+
+**Database Tables Touched At Runtime:**
+- `staff` - maps the authenticated Supabase user to the active staff profile and branch.
+- `qr_points` - validates the scanned public code and branch.
+- `staff_devices` - inserts the new hashed attendance device credential with `registration_source = 'first_scan_activation'` and metadata source `first_scan_login`.
+- `qr_scan_events` - records first-scan registration and the resumed attendance scan with separate request ids.
+- `attendance_exceptions` - still records existing engine exceptions such as revoked/wrong-branch/unknown-device paths.
+- `staff_shift_checkins` - updated only by the resumed normal attendance scan path.
+
+**Validation:**
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 105 app routes.
+
+**Remaining Caveats:**
+- Live phone QA with real staff credentials and a real branch attendance QR is still pending.
+- CRM confirmation that the newly registered phone appears in the Device Registry requires an authenticated CRM session.
+- Duplicate-window clock-in/noop/clock-out timing still needs real-device manual testing.

@@ -620,3 +620,10 @@
 - **Impact:** The temporary read-only probe remains untracked in the repo root.
 - **Resolution:** `apply_patch` delete and scoped `Remove-Item -LiteralPath tmp-attendance-device-registry-verify.sql` both failed with access denied; a narrow elevated delete request was blocked by the environment usage limit. No broader cleanup workaround was attempted.
 - **Follow-up:** Delete that one temporary file manually after the file lock/sandbox condition clears.
+
+## 2026-07-04 - ATTENDANCE-FIRST-SCAN-LOGIN-007 audit-event duplicate edge
+
+- **Symptom:** The first implementation of the scan-login device registration helper wrote the successful `first_scan_device_registered` audit row with both `qr_point_id` and the new `device_id`.
+- **Impact:** `findRecentDuplicate()` checks recent successful `qr_scan_events` by QR point and device. The activation audit row could have made the immediately resumed attendance scan look like a duplicate, returning the noop result instead of the intended first clock-in/out.
+- **Resolution:** Kept the registration audit row as `scan_type = 'activation'` but removed `qr_point_id` from the row; the scanned QR point remains in event metadata for audit context. The resumed attendance scan now writes its own success/noop/block event through the normal scan engine path.
+- **Validation:** `pnpm type-check`, `pnpm lint`, and `pnpm build` all pass after the fix.

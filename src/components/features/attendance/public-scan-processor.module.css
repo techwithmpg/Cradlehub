@@ -33,7 +33,8 @@
 }
 
 .stagePanel,
-.resultPanel {
+.resultPanel,
+.loginPanel {
   min-height: 100svh;
   width: 100%;
   padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
@@ -58,7 +59,8 @@
 }
 
 .identityRing,
-.processingRing {
+.processingRing,
+.connectedRing {
   position: relative;
   width: 116px;
   height: 116px;
@@ -89,7 +91,8 @@
 }
 
 .identityIcon,
-.processingIcon {
+.processingIcon,
+.connectedIcon {
   width: 50px;
   height: 50px;
   color: var(--scan-gold);
@@ -124,6 +127,17 @@
   animation: scanClockPulse 1.25s ease-in-out infinite;
 }
 
+.connectedRing {
+  color: white;
+  background: linear-gradient(145deg, #4e9360, var(--scan-green-deep));
+  box-shadow: 0 18px 42px rgba(45, 112, 62, 0.2);
+  animation: scanSuccessPop 620ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.connectedIcon {
+  color: white;
+}
+
 .stageCopy {
   margin-top: auto;
   max-width: 320px;
@@ -141,7 +155,8 @@
 
 .stageCopy h1,
 .resultHeading h1,
-.genericResultCopy h1 {
+.genericResultCopy h1,
+.loginHeading h1 {
   margin: 0;
   font-family: var(--cs-font-display, Georgia, serif);
   font-size: clamp(28px, 8vw, 36px);
@@ -150,7 +165,8 @@
 }
 
 .stageCopy > p:last-child,
-.genericResultCopy > p {
+.genericResultCopy > p,
+.loginHeading > p {
   margin: 14px auto 0;
   max-width: 300px;
   color: var(--scan-muted);
@@ -181,7 +197,8 @@
   transition: width 300ms ease;
 }
 
-.resultPanel {
+.resultPanel,
+.loginPanel {
   justify-content: flex-start;
 }
 
@@ -376,6 +393,169 @@
   font-variant-numeric: tabular-nums;
 }
 
+.loginPanel {
+  text-align: left;
+}
+
+.loginPanel .brandMark {
+  align-self: center;
+}
+
+.loginHeading {
+  width: 100%;
+  max-width: 340px;
+  margin-top: clamp(48px, 12vh, 88px);
+  text-align: center;
+}
+
+.loginHeading h1 {
+  color: var(--scan-ink);
+}
+
+.loginForm {
+  width: 100%;
+  max-width: 340px;
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loginErrorBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid rgba(154, 79, 69, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 12px 13px;
+  color: #864139;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.loginErrorBox svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.loginField {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.loginField label {
+  color: #6b5d52;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.loginField small {
+  color: #864139;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.loginInputWrap {
+  position: relative;
+}
+
+.loginInputIcon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  color: #b6aaa0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.loginInput,
+.loginInputError {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid rgba(169, 120, 56, 0.2);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--scan-ink);
+  font-size: 15px;
+  line-height: 1.2;
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.loginInput {
+  padding: 0 14px 0 42px;
+}
+
+.loginInputError {
+  padding: 0 14px 0 42px;
+  border-color: rgba(154, 79, 69, 0.5);
+  background: rgba(255, 250, 249, 0.92);
+}
+
+.loginInput:focus,
+.loginInputError:focus {
+  border-color: rgba(169, 120, 56, 0.58);
+  box-shadow: 0 0 0 4px rgba(169, 120, 56, 0.12);
+}
+
+.loginTrustNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 2px;
+  color: #55745d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.loginTrustNote svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.loginSubmitButton {
+  min-height: 50px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: linear-gradient(145deg, #3f7f50, var(--scan-green-deep));
+  color: white;
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: 0;
+  box-shadow: 0 14px 30px rgba(45, 112, 62, 0.2);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+.loginSubmitButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.loginSubmitButton:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: 0 8px 18px rgba(45, 112, 62, 0.18);
+}
+
+.loginSpinner {
+  animation: scanSpin 1s linear infinite;
+}
+
 @media (min-width: 640px) {
   .shell {
     max-width: 430px;
@@ -386,7 +566,8 @@
   }
 
   .stagePanel,
-  .resultPanel {
+  .resultPanel,
+  .loginPanel {
     min-height: min(790px, calc(100svh - 48px));
   }
 }
@@ -434,6 +615,7 @@
   .identityBadge,
   .processingOrbit,
   .processingIcon,
+  .connectedRing,
   .successIcon {
     animation: none !important;
   }

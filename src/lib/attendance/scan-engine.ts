@@ -27,12 +27,38 @@ export type ActivationResult = PublicScanResult & {
   rawDeviceCredential?: string;
 };
 
+export type FirstScanDeviceRegistrationResult =
+  | {
+      ok: true;
+      rawDeviceCredential: string;
+      deviceId: string;
+      staffId: string;
+      branchId: string;
+      staffName: string;
+      branchName: string;
+      scanEventId?: string;
+      registeredNewDevice: boolean;
+    }
+  | {
+      ok: false;
+      result: PublicScanResult;
+    };
+
 type StaffDeviceRow = {
   id: string;
   staff_id: string;
   branch_id: string;
   status: "active" | "revoked";
   staff?: { full_name: string | null; staff_type: string | null; is_active: boolean } | Array<{ full_name: string | null; staff_type: string | null; is_active: boolean }> | null;
+};
+
+type AuthenticatedStaffRow = {
+  id: string;
+  branch_id: string;
+  full_name: string | null;
+  staff_type: string | null;
+  is_active: boolean;
+  branches?: { name: string | null } | Array<{ name: string | null }> | null;
 };
 
 type QrPointRow = {
@@ -110,6 +136,10 @@ type EventInput = {
 function first<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function scanTypeForPoint(point: QrPointRow): QrScanType {
+  return point.point_type === "attendance" ? "attendance" : "room";
 }
 
 function success(title: string, message: string, extra: Partial<PublicScanResult> = {}): PublicScanResult {
@@ -242,6 +272,307 @@ async function loadQrPoint(admin: AttendanceDb, publicCode: string): Promise<QrP
     .maybeSingle();
 
   return (data as QrPointRow | null) ?? null;
+}
+
+export async function registerDeviceForAuthenticatedScan(
+  publicCode: string,
+  authUserId: string,
+  ctx: ScanRequestContext
+): Promise<FirstScanDeviceRegistrationResult> {
+  const admin = asAttendanceDb(createAdminClient());
+  const point = await loadQrPoint(admin, publicCode);
+
+  if (!point || !point.is_active) {
+    const eventId = await recordScanEvent(admin, {
+      scanType: "unknown",
+      action: "first_scan_register_device",
+      outcome: "blocked",
+      reasonCode: "invalid_qr",
+      message: "Unknown or inactive QR code.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+      metadata: { publicCode: maskId(publicCode) },
+    });
+
+    return {
+      ok: false,
+      result: blocked("QR not recognized", "This QR code is not active in CradleHub.", {
+        reasonCode: "invalid_qr",
+        securityNote: "No attendance change was recorded from this scan.",
+        scanEventId: eventId ?? undefined,
+      }),
+    };
+  }
+
+  const existingDevice = await resolveDevice(admin, ctx.rawDeviceCredential);
+  const existingDeviceStaff = first(existingDevice?.staff);
+  if (existingDevice && (existingDevice.status !== "active" || existingDeviceStaff?.is_active === false)) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      staffId: existingDevice.staff_id,
+      deviceId: existingDevice.id,
+      scanType: scanTypeForPoint(point),
+      action: "first_scan_register_device",
+      outcome: "blocked",
+      reasonCode: "revoked_device",
+      message: "The registered device is revoked or staff is inactive.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+
+    await recordException(admin, {
+      branchId: point.branch_id,
+      staffId: existingDevice.staff_id,
+      scanEventId: eventId,
+      exceptionType: "revoked_device",
+      severity: "critical",
+      message: `A revoked or inactive device attempted first-scan login at ${point.label}.`,
+    });
+
+    return {
+      ok: false,
+      result: blocked("Device blocked", "This device is no longer active. Ask the front desk to re-activate it.", {
+        reasonCode: "revoked_device",
+        severity: "critical",
+        securityNote: "This phone cannot be used for attendance until access is restored.",
+        scanEventId: eventId ?? undefined,
+      }),
+    };
+  }
+
+  const staffResult = await admin
+    .from("staff")
+    .select("id, branch_id, full_name, staff_type, is_active, branches(name)")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  const staff = (staffResult.data as AuthenticatedStaffRow | null) ?? null;
+  if (staffResult.error || !staff || !staff.is_active) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      scanType: scanTypeForPoint(point),
+      action: "first_scan_register_device",
+      outcome: staffResult.error ? "error" : "blocked",
+      reasonCode: staffResult.error ? "device_registration_failed" : "account_not_eligible",
+      message: staffResult.error?.message ?? "Authenticated user is not connected to an active staff profile.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+
+    return {
+      ok: false,
+      result: blocked("Account not eligible", "This account is not connected to an active staff profile. Please contact the front desk.", {
+        outcome: staffResult.error ? "error" : "blocked",
+        reasonCode: staffResult.error ? "device_registration_failed" : "account_not_eligible",
+        severity: staffResult.error ? "critical" : "warning",
+        securityNote: "No phone was connected from this sign-in.",
+        scanEventId: eventId ?? undefined,
+      }),
+    };
+  }
+
+  const staffName = staff.full_name ?? "Staff member";
+  const branchName = first(point.branches)?.name ?? first(staff.branches)?.name ?? "Branch";
+
+  if (existingDevice) {
+    if (existingDevice.branch_id !== point.branch_id) {
+      const eventId = await recordScanEvent(admin, {
+        branchId: point.branch_id,
+        qrPointId: point.id,
+        staffId: existingDevice.staff_id,
+        deviceId: existingDevice.id,
+        scanType: scanTypeForPoint(point),
+        action: "first_scan_register_device",
+        outcome: "blocked",
+        reasonCode: "wrong_branch",
+        message: "Device belongs to a different branch.",
+        requestId: ctx.requestId,
+        userAgent: ctx.userAgent,
+        ipAddress: ctx.ipAddress,
+      });
+
+      await recordException(admin, {
+        branchId: point.branch_id,
+        staffId: existingDevice.staff_id,
+        scanEventId: eventId,
+        exceptionType: "wrong_branch",
+        severity: "critical",
+        message: `${existingDeviceStaff?.full_name ?? "Staff member"} attempted first-scan login at another branch.`,
+      });
+
+      return {
+        ok: false,
+        result: blocked("Wrong branch", "This phone is linked to a different branch. Please use the correct branch QR or contact the front desk.", {
+          reasonCode: "wrong_branch",
+          severity: "critical",
+          securityNote: "This phone is trusted, but not for this branch QR.",
+          scanEventId: eventId ?? undefined,
+        }),
+      };
+    }
+
+    if (existingDevice.staff_id !== staff.id) {
+      const eventId = await recordScanEvent(admin, {
+        branchId: point.branch_id,
+        qrPointId: point.id,
+        staffId: staff.id,
+        deviceId: existingDevice.id,
+        scanType: scanTypeForPoint(point),
+        action: "first_scan_register_device",
+        outcome: "blocked",
+        reasonCode: "device_staff_mismatch",
+        message: "Authenticated staff does not own the existing device credential.",
+        requestId: ctx.requestId,
+        userAgent: ctx.userAgent,
+        ipAddress: ctx.ipAddress,
+      });
+
+      return {
+        ok: false,
+        result: blocked("Phone already connected", "This phone is linked to a different staff account. Please contact the front desk.", {
+          reasonCode: "device_staff_mismatch",
+          severity: "critical",
+          securityNote: "No attendance change was recorded from this sign-in.",
+          scanEventId: eventId ?? undefined,
+        }),
+      };
+    }
+
+    return {
+      ok: true,
+      rawDeviceCredential: ctx.rawDeviceCredential ?? "",
+      deviceId: existingDevice.id,
+      staffId: staff.id,
+      branchId: point.branch_id,
+      staffName,
+      branchName,
+      registeredNewDevice: false,
+    };
+  }
+
+  if (staff.branch_id !== point.branch_id) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      staffId: staff.id,
+      scanType: scanTypeForPoint(point),
+      action: "first_scan_register_device",
+      outcome: "blocked",
+      reasonCode: "wrong_branch",
+      message: "Authenticated staff belongs to a different branch.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+
+    await recordException(admin, {
+      branchId: point.branch_id,
+      staffId: staff.id,
+      scanEventId: eventId,
+      exceptionType: "wrong_branch",
+      severity: "critical",
+      message: `${staffName} attempted first-scan login at another branch.`,
+    });
+
+    return {
+      ok: false,
+      result: blocked("Wrong branch", "This account is connected to a different branch. Please use the correct branch QR or contact the front desk.", {
+        reasonCode: "wrong_branch",
+        severity: "critical",
+        securityNote: "No phone was connected from this sign-in.",
+        scanEventId: eventId ?? undefined,
+      }),
+    };
+  }
+
+  const rawDeviceCredential = createDeviceCredential();
+  const deviceHints = inferDeviceClientHints(ctx.userAgent);
+  const nowIso = new Date().toISOString();
+  const inserted = await admin
+    .from("staff_devices")
+    .insert({
+      staff_id: staff.id,
+      branch_id: point.branch_id,
+      device_fingerprint_hash: hashSecret(rawDeviceCredential),
+      device_label: deviceHints.label,
+      status: "active",
+      registration_source: "first_scan_activation",
+      browser_name: deviceHints.browserName,
+      browser_version: deviceHints.browserVersion,
+      platform_name: deviceHints.platformName,
+      last_seen_at: nowIso,
+      metadata: {
+        source: "first_scan_login",
+        qr_point_id: point.id,
+        auth_user_id: authUserId,
+        user_agent: ctx.userAgent ?? null,
+      },
+    })
+    .select("id")
+    .single();
+
+  if (inserted.error || !inserted.data) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      staffId: staff.id,
+      scanType: scanTypeForPoint(point),
+      action: "first_scan_register_device",
+      outcome: "error",
+      reasonCode: "device_registration_failed",
+      message: inserted.error?.message ?? "Device insert failed.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+
+    return {
+      ok: false,
+      result: blocked("Phone connection failed", "This phone could not be connected. Please try again or contact the front desk.", {
+        outcome: "error",
+        reasonCode: "device_registration_failed",
+        severity: "critical",
+        securityNote: "No attendance change was recorded from this sign-in.",
+        scanEventId: eventId ?? undefined,
+      }),
+    };
+  }
+
+  const eventId = await recordScanEvent(admin, {
+    branchId: point.branch_id,
+    staffId: staff.id,
+    deviceId: inserted.data.id as string,
+    scanType: "activation",
+    action: "first_scan_device_registered",
+    outcome: "success",
+    reasonCode: "device_registered",
+    message: "Device registered after staff sign-in.",
+    requestId: ctx.requestId,
+    userAgent: ctx.userAgent,
+    ipAddress: ctx.ipAddress,
+    metadata: {
+      source: "first_scan_login",
+      qr_point_id: point.id,
+      registration_source: "first_scan_activation",
+    },
+  });
+
+  return {
+    ok: true,
+    rawDeviceCredential,
+    deviceId: inserted.data.id as string,
+    staffId: staff.id,
+    branchId: point.branch_id,
+    staffName,
+    branchName,
+    scanEventId: eventId ?? undefined,
+    registeredNewDevice: true,
+  };
 }
 
 async function findRecentDuplicate(admin: AttendanceDb, params: {

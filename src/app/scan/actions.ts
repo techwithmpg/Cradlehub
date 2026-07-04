@@ -1,10 +1,15 @@
 "use server";
 
 import { cookies, headers } from "next/headers";
-import { activateDeviceWithToken, processQrScan } from "@/lib/attendance/scan-engine";
+import {
+  activateDeviceWithToken,
+  processQrScan,
+  registerDeviceForAuthenticatedScan,
+} from "@/lib/attendance/scan-engine";
 import { consumeDeviceRecoveryLink } from "@/lib/attendance/device-recovery";
 import { revalidateAttendanceSurfaces } from "@/lib/attendance/queries";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
+import { createClient } from "@/lib/supabase/server";
 import type { PublicScanResult } from "@/lib/attendance/types";
 
 type PublicScanInput = {
@@ -21,12 +26,37 @@ type RecoveryInput = {
   token: string;
 };
 
-async function getRequestContext(requestId?: string | null) {
+type FirstTimeScanLoginInput = {
+  publicCode: string;
+  email: string;
+  password: string;
+  requestId?: string | null;
+};
+
+export type FirstTimeScanFieldErrors = {
+  email?: string;
+  password?: string;
+};
+
+export type FirstTimeAttendanceScanResult =
+  | {
+      ok: true;
+      scan: PublicScanResult;
+    }
+  | {
+      ok: false;
+      error?: string;
+      fieldErrors?: FirstTimeScanFieldErrors;
+      result?: PublicScanResult;
+    };
+
+async function getRequestContext(requestId?: string | null, rawDeviceCredentialOverride?: string | null) {
   const headerStore = await headers();
   const cookieStore = await cookies();
   return {
     requestId,
     rawDeviceCredential:
+      rawDeviceCredentialOverride ??
       cookieStore.get(DEVICE_COOKIE_NAME)?.value ??
       cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value ??
       null,
@@ -53,6 +83,10 @@ async function setDeviceCookie(rawDeviceCredential: string): Promise<void> {
   });
 }
 
+function appendRequestStep(requestId: string | null | undefined, step: string): string | null {
+  return requestId ? `${requestId}:${step}` : null;
+}
+
 function safeScanError(title = "Scan interrupted"): PublicScanResult {
   return {
     ok: false,
@@ -62,6 +96,35 @@ function safeScanError(title = "Scan interrupted"): PublicScanResult {
     title,
     message: "Something interrupted the scan. Please try again or ask the front desk for help.",
     securityNote: "No attendance change was confirmed from this attempt.",
+  };
+}
+
+function validateFirstTimeScanLogin(input: FirstTimeScanLoginInput): {
+  publicCode: string;
+  email: string;
+  password: string;
+  fieldErrors?: FirstTimeScanFieldErrors;
+} {
+  const publicCode = input.publicCode?.trim() ?? "";
+  const email = input.email?.trim() ?? "";
+  const password = input.password ?? "";
+  const fieldErrors: FirstTimeScanFieldErrors = {};
+
+  if (!email) {
+    fieldErrors.email = "Enter your email address.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    fieldErrors.email = "Enter a valid email address.";
+  }
+
+  if (!password) {
+    fieldErrors.password = "Enter your password.";
+  }
+
+  return {
+    publicCode,
+    email,
+    password,
+    fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
   };
 }
 
@@ -86,6 +149,91 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     attendance: result.attendance,
     countdown: result.countdown,
   };
+}
+
+export async function completeFirstTimeAttendanceScanAction(
+  input: FirstTimeScanLoginInput
+): Promise<FirstTimeAttendanceScanResult> {
+  const parsed = validateFirstTimeScanLogin(input);
+  if (!parsed.publicCode) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        outcome: "blocked",
+        reasonCode: "invalid_qr",
+        severity: "warning",
+        title: "QR not recognized",
+        message: "This scan link is missing its QR code.",
+        securityNote: "No attendance change was recorded from this scan.",
+      },
+    };
+  }
+
+  if (parsed.fieldErrors) {
+    return {
+      ok: false,
+      error: "Check your email and password, then try again.",
+      fieldErrors: parsed.fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+
+  try {
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: parsed.email,
+      password: parsed.password,
+    });
+
+    if (authError) {
+      return {
+        ok: false,
+        error: "Check your email and password, then try again.",
+      };
+    }
+
+    const user = data.user ?? (await supabase.auth.getUser()).data.user;
+    if (!user) {
+      return {
+        ok: false,
+        error: "Check your email and password, then try again.",
+      };
+    }
+
+    const registration = await registerDeviceForAuthenticatedScan(
+      parsed.publicCode,
+      user.id,
+      await getRequestContext(appendRequestStep(input.requestId, "register"))
+    );
+
+    if (!registration.ok) {
+      await supabase.auth.signOut();
+      revalidatePublicScanResult(registration.result);
+      return {
+        ok: false,
+        result: toPublicResult(registration.result),
+      };
+    }
+
+    await setDeviceCookie(registration.rawDeviceCredential);
+
+    const scanResult = await processQrScan(
+      parsed.publicCode,
+      await getRequestContext(appendRequestStep(input.requestId, "attendance"), registration.rawDeviceCredential)
+    );
+    revalidatePublicScanResult(scanResult);
+
+    return {
+      ok: true,
+      scan: toPublicResult(scanResult),
+    };
+  } catch {
+    return {
+      ok: false,
+      result: safeScanError("Sign-in interrupted"),
+    };
+  }
 }
 
 export async function processPublicQrScanAction(input: PublicScanInput): Promise<PublicScanResult> {
