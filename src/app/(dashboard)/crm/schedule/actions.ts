@@ -11,6 +11,7 @@ import { canonicalizeSystemRole } from "@/constants/staff";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { isOwner } from "@/lib/permissions";
 import { logError } from "@/lib/logger";
+import { getScheduleGroupKeyForStaffType } from "@/lib/schedule/resolve-staff-schedule";
 import {
   getCrmStaffNestedService,
   getCrmStaffServiceId,
@@ -37,17 +38,6 @@ const fullScheduleSchema = z
 const staffProfileSchema = z.object({
   staffId: uuid,
 });
-
-const GROUP_KEY_BY_STAFF_TYPE: Record<string, string> = {
-  therapist: "therapist",
-  driver: "driver",
-  csr: "csr",
-  utility: "utility",
-  managerial: "managerial",
-  nail_tech: "nail_tech",
-  salon_head: "nail_tech",
-  aesthetician: "aesthetician",
-};
 
 type OneOrMany<T> = T | T[] | null;
 
@@ -79,6 +69,7 @@ type ScheduleRow = {
 
 type GroupRow = {
   id: string;
+  group_key: string;
 };
 
 type GroupRuleRow = {
@@ -202,6 +193,13 @@ function first<T>(value: OneOrMany<T>): T | null {
 function normalizeShiftType(value: string | null | undefined): "opening" | "closing" | "single" {
   if (value === "opening" || value === "closing") return value;
   return "single";
+}
+
+function groupKeysForStaffType(staffType: string | null | undefined): string[] {
+  const mapped = getScheduleGroupKeyForStaffType(staffType);
+  return Array.from(
+    new Set([mapped, staffType].filter((value): value is string => Boolean(value)))
+  );
 }
 
 async function getActorContext(
@@ -441,19 +439,18 @@ export async function getStaffFullScheduleAction(
     const actor = await getActorContext(staff.branch_id);
     if (!actor.ok) return actor;
 
-    const groupKey = staff.staff_type ? GROUP_KEY_BY_STAFF_TYPE[staff.staff_type] : undefined;
+    const groupKeys = groupKeysForStaffType(staff.staff_type);
     const groupResult =
-      groupKey && staff.branch_id
+      groupKeys.length > 0 && staff.branch_id
         ? await admin
             .from("staff_schedule_groups")
-            .select("id")
+            .select("id, group_key")
             .eq("branch_id", staff.branch_id)
-            .eq("group_key", groupKey)
             .eq("is_active", true)
-            .maybeSingle()
+            .in("group_key", groupKeys)
         : { data: null, error: null };
 
-    const groupId = (groupResult.data as GroupRow | null)?.id ?? null;
+    const groupIds = ((groupResult.data ?? []) as GroupRow[]).map((group) => group.id);
 
     const [schedulesResult, overridesResult, blockedResult, bookingsResult, groupRulesResult] =
       await Promise.all([
@@ -487,11 +484,11 @@ export async function getStaffFullScheduleAction(
           .not("status", "in", '("cancelled","no_show")')
           .order("booking_date")
           .order("start_time"),
-        groupId
+        groupIds.length > 0
           ? admin
               .from("staff_group_schedule_rules")
               .select("id, day_of_week, shift_type, start_time, end_time, is_day_off, is_active")
-              .eq("group_id", groupId)
+              .in("group_id", groupIds)
               .eq("is_active", true)
               .order("day_of_week")
               .order("shift_type")

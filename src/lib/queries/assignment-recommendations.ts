@@ -10,6 +10,7 @@ import type {
   StaffServiceMapping,
   StaffPreference,
 } from "@/lib/assignments/recommendation-engine";
+import { getScheduleGroupKeyForStaffType } from "@/lib/schedule/resolve-staff-schedule";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -298,8 +299,19 @@ async function getGroupSchedulesFallback(
 ): Promise<ScheduleForScoring[]> {
   if (staffWithoutSchedule.length === 0) return [];
 
+  const staffGroupKeys = new Map<string, string[]>();
+  for (const staff of staffWithoutSchedule) {
+    const mapped = getScheduleGroupKeyForStaffType(staff.staff_type);
+    staffGroupKeys.set(
+      staff.id,
+      Array.from(
+        new Set([mapped, staff.staff_type].filter((value): value is string => Boolean(value)))
+      )
+    );
+  }
+
   const staffTypesNeeded = [
-    ...new Set(staffWithoutSchedule.map((s) => s.staff_type).filter((t): t is string => t !== null)),
+    ...new Set(Array.from(staffGroupKeys.values()).flat()),
   ];
   if (staffTypesNeeded.length === 0) return [];
 
@@ -344,9 +356,10 @@ async function getGroupSchedulesFallback(
   const syntheticSchedules: ScheduleForScoring[] = [];
 
   for (const staff of staffWithoutSchedule) {
-    if (!staff.staff_type) continue;
+    const candidateKeys = staffGroupKeys.get(staff.id) ?? [];
+    if (candidateKeys.length === 0) continue;
     const matchingRules = ruleRows.filter(
-      (r) => groupKeyById.get(r.group_id) === staff.staff_type && r.start_time && r.end_time
+      (r) => candidateKeys.includes(groupKeyById.get(r.group_id) ?? "") && r.start_time && r.end_time
     );
     for (const rule of matchingRules) {
       syntheticSchedules.push({

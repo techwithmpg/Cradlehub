@@ -11,56 +11,78 @@
 | Field              | Value                                                      |
 |--------------------|------------------------------------------------------------|
 | **Agent**          | Codex                                                     |
-| **Date**           | 2026-07-02                                                |
-| **Tasks Completed**| Attendance workspace refit on top of the existing QR Attendance and Service Session system |
-| **Tasks Remaining**| Authenticated CRM/browser Attendance QA, real scan/device flow QA, pg_cron or external scheduler decision, db:types script repair, migration-history reconciliation |
-| **Build Status**   | `npx tsc --noEmit --pretty false`, targeted Attendance Vitest, `npm run lint`, `npm run build`, and full `npm test -- --run` passed |
-| **Mood**           | The workspace feels much calmer; the live authenticated click-through is the last honest gate |
+| **Date**           | 2026-07-03                                                |
+| **Tasks Completed**| Attendance Device Registry and Recovery Center backend/UI completed and live DB verified |
+| **Tasks Remaining**| Authenticated Devices tab QA, real phone recovery scan QA, DB password rotation, and migration-history connectivity repair |
+| **Build Status**   | `pnpm db:types`, type-check, lint, full tests, build, and diff check passed |
+| **Mood**           | The registry has a real spine now; the last mile is authenticated field testing |
 
 ---
 
 ## What I Did
 
-**Attendance Workspace Refit:**
-- Kept `/crm/attendance` as the single protected Attendance route.
-- Refit the workspace into a client-owned instant-tab surface for Overview, Records, Sessions, QR Codes, Devices, Exceptions, and Reports.
-- Tab switching now uses local state plus `window.history.replaceState()` through `src/lib/attendance/tabs.ts`; routine tab changes do not call router navigation/refresh, route links, or redirects.
-- Kept all tab panels mounted so filters, selected QR, selected QR format, activation link, and dialogs survive tab switches.
-- Removed Attendance KPI-card rows.
-- Rebuilt Overview around live staff status, recent scan activity, active service sessions, exceptions requiring attention, and compact quick actions.
-- Rebuilt QR Codes around a compact selectable QR list, selected branded preview, reusable print layouts, PNG/SVG/print/copy helpers, QR information, generation actions, and deactivate QR.
-- Made Records, Sessions, Devices, Exceptions, and Reports compact operational tab workspaces while preserving the existing backend paths.
-- Converted Attendance server actions to typed `AttendanceActionResult` returns instead of redirect/status-query flows, removing the `NEXT_REDIRECT` symptom.
-- Fixed Attendance sidebar icon by switching to supported `ClipboardCheck`.
+**Attendance Device Registry:**
+- Added and applied `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql`.
+- Verified live migration row, new `staff_devices` / `device_activation_tokens` columns, `consume_attendance_device_recovery`, and `service_role` execute grant.
+- Verified earlier local migration versions `20260703130922`, `20260703144603`, and `20260703145113` are also present in remote migration history.
+- Added typed registry and recovery backend helpers.
+- Added CRM actions for recovery link generation, device rename, device revoke, and pending-link revoke.
+- Reworked `/scan/activate/[token]` so recovery links are previewed without page-load consumption and consumed only after staff confirmation.
+- Replaced the Attendance Devices tab with the Device Registry and Recovery Center UI.
+- Regenerated `src/types/supabase.ts`.
 
-**Database:**
-- Applied the migration to the linked Supabase project with `supabase db query --linked --file`.
-- Reran it after grant tightening.
-- Verified live tables, columns, RPC, SELECT-only authenticated grants on readable tables, no authenticated grant on `device_activation_tokens`, and service-role mutation authority.
-- `pg_cron` is not installed, so automatic due-session completion was not scheduled.
+Validation:
+- `pnpm db:types`: PASS.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm vitest run tests/lib/attendance/device-recovery.test.ts`: PASS.
+- `pnpm test`: PASS, 67 files / 595 tests.
+- `pnpm build`: PASS, 105 app routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+Remaining Attendance QA:
+- Authenticated browser QA for `/crm/attendance?tab=devices`.
+- Real recovery-link copy/open/consume flow on a staff phone/browser.
+- Confirm recovery consumption does not clock in/out in live user testing; code path only logs activation audit.
+
+**Database Tooling:**
+- Added `scripts/database/_shared.mjs`.
+- Added `pnpm db:doctor`, `db:status`, `db:verify`, `db:link`, `db:push`, `db:types`, and `db:migration` wrappers.
+- Replaced stale hardcoded Supabase CLI package scripts.
+- Added `.env.example` placeholders for Supabase app/runtime and local database tooling variables.
+- Unignored `.env.example` while keeping `.env.local`, `.env.database.local`, and `supabase/.temp` ignored.
+- Added `docs/DATABASE_CONNECTION_RUNBOOK.md`.
+- Documented `pnpm exec supabase` failure and direct project-local shim success.
 
 ---
 
 ## What's Next
 
-1. Run authenticated browser QA for `/crm/attendance`.
-2. Create a device activation link, activate a test device, then scan attendance and room/resource QR codes from that device.
-3. Verify blocked flows: unknown device, revoked device, wrong branch, duplicate scan, and active-service clock-out block.
-4. Decide whether to enable/install `pg_cron` or trigger `complete_due_service_sessions` from app/server infrastructure.
-5. Fix `npm run db:types`; the current script uses removed Supabase CLI `--project-ref`.
-6. Reconcile migration history if the team needs `supabase db push` to understand the applied migration.
+1. Rotate the Supabase database password before trusting local DB tooling again.
+2. Put rotated database tooling values into `.env.local` or `.env.database.local`; never paste them into chat.
+3. Re-run `pnpm db:doctor`, `pnpm db:status`, and `pnpm db:verify`.
+4. Inspect migration-history drift before any repair/push; latest registry migration `20260703151111` is already present in live history.
+5. Re-run `pnpm db:push` from a network/path that can reach the Supabase migration-history connection.
+6. Use a real CRM/front-desk browser session to QA `/crm/attendance?tab=devices`.
+7. Test a real recovery link on a staff phone/browser.
+
+Current verification:
+- `pnpm db:doctor`: runs, but exits nonzero because password rotation is unconfirmed, `SUPABASE_DB_POOLER_URL` is missing, and linked migration history times out.
+- `pnpm db:status`: local migration count 83; remote read times out; remote schema changed no.
+- `pnpm db:verify`: linked SQL probe and critical tables pass; pooler fallback warns because env is missing.
+- `pnpm db:push -- --dry-run`: no remote schema change; remote connection timed out.
+- `pnpm db:types`, `pnpm type-check`, `pnpm lint`, `pnpm test`, `pnpm build`, and `git diff --check` pass after the Attendance device registry work.
 
 ---
 
 ## Watch Out For
 
-- The worktree is very dirty from prior tasks; do not revert unrelated CRM/schedule/payment/auth changes.
-- Migration was applied with `db query --file`, not a successful `db push`.
-- Fresh linked type generation showed unrelated live schema drift, so `src/types/supabase.ts` was restored from baseline and manually augmented for attendance.
-- Two zero-byte `_tmp_14412_*` files remain because scoped `Remove-Item -LiteralPath` returned Access denied.
-- Lint passes with four unrelated existing warnings in `scripts/generate-service-image-assets.mjs` and `tests/components/payroll/employee-payroll-table.test.tsx`.
-- FK follow-up: Attendance QR creation previously failed under dev bypass because the action used zero UUID branch `00000000-0000-0000-0000-000000000000`. `src/lib/dev-bypass-server.ts` now resolves dev bypass to a real active branch, and Attendance inserts validate branch existence first.
-- Browser smoke on the existing local dev server reaches `/login` from unauthenticated `/crm/attendance`; login renders content and no Next/Vite overlay is present. Authenticated UI QA still needs a valid CRM session.
+- The worktree is dirty from prior scheduling work; do not revert unrelated schedule source changes.
+- A Supabase DB password was pasted in chat and must be rotated.
+- `pnpm exec supabase` is unreliable here, but `.\node_modules\.bin\supabase.CMD` works.
+- `psql` is not installed, so emergency pooler migration application is not currently executable.
+- Migration history has known drift from previous direct SQL application; do not use `--include-all` blindly.
+- `tmp-attendance-device-registry-verify.sql` may remain untracked. It was a read-only live DB verification probe; sandbox deletion was denied and elevated delete was blocked by the environment usage limit.
 
 ---
 
@@ -69,18 +91,19 @@
 | File | Why It Matters |
 |------|----------------|
 | `supabase/migrations/20260702075213_attendance_qr_system.sql` | Attendance QR schema, grants, RLS, RPC, optional cron block |
+| `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql` | Attendance device registry/recovery schema extension and atomic recovery RPC |
 | `src/app/(dashboard)/crm/attendance/page.tsx` | Protected CRM Attendance page loader |
 | `src/app/(dashboard)/crm/attendance/actions.ts` | CRM Attendance server actions |
 | `src/app/scan/actions.ts` | Public scan/activation server actions |
 | `src/app/scan/[publicCode]/page.tsx` | Public QR scan route |
-| `src/app/scan/activate/[token]/page.tsx` | One-time device activation route |
+| `src/app/scan/activate/[token]/page.tsx` | One-time device activation/recovery route |
 | `src/components/features/attendance/attendance-workspace.tsx` | CRM Attendance UI |
 | `src/components/features/attendance/attendance-header.tsx` | Compact Attendance page header/actions |
 | `src/components/features/attendance/attendance-tabs.tsx` | Local instant-tab controls |
 | `src/components/features/attendance/overview/*` | Overview live staff/scans/sessions/exceptions/quick actions |
 | `src/components/features/attendance/records/attendance-records-tab.tsx` | Attendance Records tab |
 | `src/components/features/attendance/sessions/service-sessions-tab.tsx` | Service Sessions tab |
-| `src/components/features/attendance/devices/registered-devices-tab.tsx` | Registered Devices / activation tab |
+| `src/components/features/attendance/devices/registered-devices-tab.tsx` | Device Registry and Recovery Center tab |
 | `src/components/features/attendance/exceptions/attendance-exceptions-tab.tsx` | Exceptions tab |
 | `src/components/features/attendance/reports/attendance-reports-tab.tsx` | Reports tab |
 | `src/components/features/attendance/qr-codes/*` | QR list, preview, export, print, and info components |

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
+  createAdminClient: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -14,10 +15,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(),
+  createAdminClient: mocks.createAdminClient,
 }));
 
 import {
+  applyGroupScheduleToStaffAction,
   deleteStaffGroupScheduleRuleAction,
   upsertStaffGroupScheduleRuleAction,
 } from "@/lib/actions/staff-schedule-groups";
@@ -210,5 +212,20 @@ describe("staff group schedule rule actions", () => {
     expect(result).toEqual({ success: true });
     expect(mutation.delete).toHaveBeenCalledOnce();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/crm/schedule");
+  });
+
+  it("requires explicit staff targets before applying a group schedule", async () => {
+    const result = await applyGroupScheduleToStaffAction({
+      groupId: GROUP_ID,
+      staffIds: [],
+      mode: "apply",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Choose at least one staff member before applying a group schedule.",
+    });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 });

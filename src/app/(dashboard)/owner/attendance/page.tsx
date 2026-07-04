@@ -34,6 +34,7 @@ export default async function OwnerAttendancePage({
         branchId: branchResult.branch.id,
         branchName: branchResult.branch.name ?? "Branch",
         origin: getRequestOrigin(headerStore),
+        canSwitchBranch: true,
       });
     }
   } catch (err) {

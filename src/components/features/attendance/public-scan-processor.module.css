@@ -1,0 +1,440 @@
+.shell {
+  --scan-gold: #a97838;
+  --scan-gold-soft: #dbc8aa;
+  --scan-ink: #221d19;
+  --scan-muted: #756b62;
+  --scan-green: #397a49;
+  --scan-green-deep: #245f36;
+  --scan-green-soft: #edf7ef;
+  width: 100%;
+  min-height: 100svh;
+  overflow: hidden;
+  color: var(--scan-ink);
+  font-family: var(--cs-font-body, system-ui, sans-serif);
+  transition: background 420ms ease;
+}
+
+.shellNeutral {
+  background:
+    radial-gradient(circle at 50% 16%, rgba(217, 197, 165, 0.2), transparent 31%),
+    linear-gradient(180deg, #fffefc 0%, #fbfaf7 100%);
+}
+
+.shellSuccess {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(90, 151, 104, 0.15), transparent 34%),
+    linear-gradient(180deg, #fbfffb 0%, var(--scan-green-soft) 100%);
+}
+
+.shellBlocked {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(171, 88, 76, 0.12), transparent 34%),
+    linear-gradient(180deg, #fffdfc 0%, #faf2f0 100%);
+}
+
+.stagePanel,
+.resultPanel {
+  min-height: 100svh;
+  width: 100%;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: scanFadeUp 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.brandMark {
+  width: 74px !important;
+  margin-top: 4px;
+  color: var(--scan-gold);
+}
+
+.stageVisual {
+  flex: 1;
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+}
+
+.identityRing,
+.processingRing {
+  position: relative;
+  width: 116px;
+  height: 116px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 18px 44px rgba(77, 59, 39, 0.1),
+    inset 0 0 0 1px rgba(169, 120, 56, 0.18);
+}
+
+.identityRing::before {
+  content: "";
+  position: absolute;
+  inset: -11px;
+  border-radius: inherit;
+  border: 1px solid rgba(169, 120, 56, 0.25);
+  animation: scanBreath 1.7s ease-in-out infinite;
+}
+
+.identityPulse {
+  position: absolute;
+  inset: 8px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(169, 120, 56, 0.12), transparent 68%);
+  animation: scanIdentityPulse 1.8s ease-in-out infinite;
+}
+
+.identityIcon,
+.processingIcon {
+  width: 50px;
+  height: 50px;
+  color: var(--scan-gold);
+}
+
+.identityBadge {
+  position: absolute;
+  right: 4px;
+  bottom: 9px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: white;
+  background: var(--scan-green);
+  border: 4px solid white;
+  animation: scanBadgePop 520ms 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.processingOrbit {
+  position: absolute;
+  inset: -9px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent 0deg 80deg, var(--scan-gold) 145deg, transparent 220deg 360deg);
+  animation: scanSpin 1.15s linear infinite;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+}
+
+.processingIcon {
+  animation: scanClockPulse 1.25s ease-in-out infinite;
+}
+
+.stageCopy {
+  margin-top: auto;
+  max-width: 320px;
+}
+
+.eyebrow,
+.successEyebrow {
+  margin: 0 0 9px;
+  color: var(--scan-gold);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.stageCopy h1,
+.resultHeading h1,
+.genericResultCopy h1 {
+  margin: 0;
+  font-family: var(--cs-font-display, Georgia, serif);
+  font-size: clamp(28px, 8vw, 36px);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.stageCopy > p:last-child,
+.genericResultCopy > p {
+  margin: 14px auto 0;
+  max-width: 300px;
+  color: var(--scan-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.progressDots {
+  display: flex;
+  gap: 7px;
+  margin: 34px 0 8px;
+}
+
+.progressDot,
+.progressDotActive {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+}
+
+.progressDot {
+  background: rgba(169, 120, 56, 0.2);
+}
+
+.progressDotActive {
+  width: 20px;
+  background: var(--scan-gold);
+  transition: width 300ms ease;
+}
+
+.resultPanel {
+  justify-content: flex-start;
+}
+
+.successIcon,
+.genericResultIcon {
+  width: 92px;
+  height: 92px;
+  margin-top: clamp(42px, 9vh, 76px);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+}
+
+.successIcon {
+  color: white;
+  background: linear-gradient(145deg, #4e9360, var(--scan-green-deep));
+  box-shadow: 0 18px 42px rgba(45, 112, 62, 0.22);
+  animation: scanSuccessPop 620ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.resultHeading {
+  margin-top: 26px;
+}
+
+.successEyebrow {
+  color: var(--scan-green-deep);
+}
+
+.attendanceTime {
+  margin-top: 17px;
+  font-size: clamp(39px, 12vw, 54px);
+  line-height: 1;
+  font-weight: 760;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+.identitySummary {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.identitySummary strong {
+  font-size: 15px;
+}
+
+.identitySummary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--scan-muted);
+  font-size: 13px;
+}
+
+.identitySummary em {
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #795424;
+  background: rgba(169, 120, 56, 0.11);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.summaryCard,
+.serviceCard {
+  width: 100%;
+  margin-top: 28px;
+  border: 1px solid rgba(58, 122, 73, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 12px 34px rgba(45, 95, 55, 0.07);
+}
+
+.summaryCard {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  text-align: left;
+  color: var(--scan-green-deep);
+}
+
+.summaryCard > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summaryCard span,
+.countdownWrap span,
+.serviceCard span {
+  color: var(--scan-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.summaryCard strong {
+  color: var(--scan-ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.securityNote {
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #55745d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.genericResultIcon {
+  color: currentColor;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid currentColor;
+}
+
+.resultSuccess {
+  color: var(--scan-green-deep);
+}
+
+.resultInfo {
+  color: #356d88;
+}
+
+.resultBlocked {
+  color: #9a4f45;
+}
+
+.genericResultCopy {
+  margin-top: 28px;
+  color: var(--scan-ink);
+}
+
+.genericResultCopy small {
+  display: block;
+  margin-top: 10px;
+  color: var(--scan-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.serviceCard {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  text-align: left;
+  color: var(--scan-ink);
+}
+
+.serviceCard > div:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.serviceCard strong {
+  font-size: 14px;
+}
+
+.serviceCard small {
+  overflow: hidden;
+  color: var(--scan-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.countdownWrap {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.countdown {
+  font-size: 25px !important;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 640px) {
+  .shell {
+    max-width: 430px;
+    min-height: min(790px, calc(100svh - 48px));
+    border: 1px solid rgba(169, 120, 56, 0.14);
+    border-radius: 30px;
+    box-shadow: 0 28px 80px rgba(40, 31, 22, 0.14);
+  }
+
+  .stagePanel,
+  .resultPanel {
+    min-height: min(790px, calc(100svh - 48px));
+  }
+}
+
+@keyframes scanFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scanBreath {
+  0%, 100% { opacity: 0.35; transform: scale(0.96); }
+  50% { opacity: 0.9; transform: scale(1.05); }
+}
+
+@keyframes scanIdentityPulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes scanBadgePop {
+  from { opacity: 0; transform: scale(0.45) rotate(-12deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes scanSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes scanClockPulse {
+  0%, 100% { opacity: 0.72; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes scanSuccessPop {
+  0% { opacity: 0; transform: scale(0.55); }
+  70% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagePanel,
+  .resultPanel,
+  .identityRing::before,
+  .identityPulse,
+  .identityBadge,
+  .processingOrbit,
+  .processingIcon,
+  .successIcon {
+    animation: none !important;
+  }
+}

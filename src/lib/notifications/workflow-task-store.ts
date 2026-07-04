@@ -7,6 +7,7 @@ import {
   validateSignalHref,
 } from "./workflow-dedupe";
 import { logError } from "@/lib/logger";
+import type { Json } from "@/types/supabase";
 
 function taskPayload(input: CreateWorkflowTaskInput, dedupeKey: string) {
   return {
@@ -26,7 +27,7 @@ function taskPayload(input: CreateWorkflowTaskInput, dedupeKey: string) {
     completed_at: null,
     completed_by_staff_id: null,
     dedupe_key: dedupeKey,
-    metadata: input.metadata ?? {},
+    metadata: (input.metadata ?? {}) as Json,
   };
 }
 

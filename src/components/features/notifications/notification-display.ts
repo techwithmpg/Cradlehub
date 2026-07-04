@@ -98,6 +98,14 @@ function safeDetail(notification: WorkspaceNotification, fallback = "Open to vie
   return notification.body?.trim() || fallback;
 }
 
+function metadataObject(
+  value: WorkspaceNotification["metadata"]
+): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function resolvedHref(notification: WorkspaceNotification): string {
   return resolveNotificationHref(notification) ?? notification.action_href ?? "/";
 }
@@ -142,7 +150,7 @@ function formattedAmount(metadata: Record<string, unknown>): string | undefined 
 }
 
 function bookingDisplay(notification: WorkspaceNotification): NotificationDisplay {
-  const metadata = notification.metadata ?? {};
+  const metadata = metadataObject(notification.metadata);
   const customer =
     readString(metadata, ["customer_name", "customerName", "customer", "full_name", "fullName"]) ??
     titleSubject(notification.title);
@@ -180,7 +188,7 @@ function bookingDisplay(notification: WorkspaceNotification): NotificationDispla
 }
 
 function paymentDisplay(notification: WorkspaceNotification): NotificationDisplay {
-  const metadata = notification.metadata ?? {};
+  const metadata = metadataObject(notification.metadata);
   const customer =
     readString(metadata, ["customer_name", "customerName", "customer", "full_name", "fullName"]) ??
     titleSubject(notification.title);
@@ -200,7 +208,7 @@ function paymentDisplay(notification: WorkspaceNotification): NotificationDispla
 }
 
 function staffDisplay(notification: WorkspaceNotification): NotificationDisplay {
-  const metadata = notification.metadata ?? {};
+  const metadata = metadataObject(notification.metadata);
   const staffName =
     readString(metadata, [
       "staff_name",
@@ -237,7 +245,7 @@ function staffDisplay(notification: WorkspaceNotification): NotificationDisplay 
 }
 
 function setupDisplay(notification: WorkspaceNotification): NotificationDisplay {
-  const metadata = notification.metadata ?? {};
+  const metadata = metadataObject(notification.metadata);
   const affected = readString(metadata, [
     "affected_count",
     "affectedCount",
@@ -260,7 +268,7 @@ function setupDisplay(notification: WorkspaceNotification): NotificationDisplay 
 }
 
 function scheduleDisplay(notification: WorkspaceNotification): NotificationDisplay {
-  const metadata = notification.metadata ?? {};
+  const metadata = metadataObject(notification.metadata);
   const staffName = readString(metadata, ["staff_name", "staffName", "staff"]);
   const time = bookingTime(metadata);
   const issue = readString(metadata, ["issue", "update", "reason"]);
@@ -286,7 +294,7 @@ function scheduleDisplay(notification: WorkspaceNotification): NotificationDispl
 }
 
 function waitlistDisplay(notification: WorkspaceNotification): NotificationDisplay {
-  const metadata = notification.metadata ?? {};
+  const metadata = metadataObject(notification.metadata);
   const customer =
     readString(metadata, ["customer_name", "customerName", "customer"]) ??
     titleSubject(notification.title);

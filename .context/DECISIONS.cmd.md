@@ -540,3 +540,28 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - Feed rows deep-link into the existing `/crm/attendance` Records tab.
 - `/owner/attendance` is a redirect compatibility route for now, not a separate Owner Attendance module.
 - The card must degrade to an unavailable state if the join/API refresh fails rather than taking down Work Queue or Owner overview.
+
+## DECISION - DATABASE-CONNECTION-STABILIZATION-001
+
+**Decision:** Linked Supabase CLI remains the primary database-management path, with project-local CLI wrappers in `scripts/database/` and the transaction pooler kept as a controlled diagnostic/emergency fallback only.
+
+**Rationale:** The project has repeatedly hit stale CLI flags, pnpm execution issues, direct-host connectivity failures, migration-history drift, and pasted DB credentials. A small wrapper layer keeps secrets in git-ignored env files, masks output, avoids global CLI drift, preserves checked-in types on generation failure, and gives future agents consistent doctor/status/verify commands.
+
+**Consequences:**
+- Every database change should start with `pnpm db:doctor` and `pnpm db:status`.
+- Every migration should end with `pnpm db:types`, `pnpm db:verify`, and normal app checks.
+- `SUPABASE_DB_POOLER_URL` is never application runtime config and must not be exposed through `NEXT_PUBLIC_*`.
+- Emergency direct SQL requires an approved path such as `psql` with one transaction; ad-hoc SQL executors are not the default workflow.
+- Migration history must be reconciled with supported Supabase repair commands after verifying live schema.
+
+## DECISION - ATTENDANCE-DEVICE-REGISTRY-005
+
+**Decision:** Device registry/recovery extends the existing Attendance QR schema instead of introducing parallel attendance/device tables, and recovery token consumption is isolated behind a service-role RPC.
+
+**Rationale:** The live schema already uses `staff_devices`, `device_activation_tokens`, `qr_scan_events`, `staff_shift_checkins`, and `qr_points`; the prompt's older table names are not present. Extending the current model preserves existing QR codes, first-scan registration, service-session scans, RLS assumptions, and device cookies while adding only the missing metadata/recovery fields. A service-role-only RPC keeps one-time recovery consumption atomic and prevents client-side token table access.
+
+**Consequences:**
+- Future Attendance device work should reuse `staff_devices` and `device_activation_tokens` with `purpose`/`registration_source` rather than creating new device tables.
+- Recovery token previews must not consume tokens on page load.
+- Attendance clock-in/out and service scans remain separate from recovery consumption; recovery completion logs an activation audit event only.
+- CRM/Owner device registry reads should go through `getAttendanceDeviceRegistry()` so staff without devices and pending recovery links stay visible.

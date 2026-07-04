@@ -11,6 +11,8 @@ const uuid = z.guid("Invalid ID");
 const GROUP_RULE_PERMISSION_ERROR =
   "You do not have permission to update schedule rules for this branch.";
 const GROUP_RULE_SAVE_ERROR = "We could not save the schedule rules. Please try again.";
+const GROUP_APPLY_TARGET_ERROR =
+  "Choose at least one staff member before applying a group schedule.";
 
 type StaffGroupScheduleRule = Database["public"]["Tables"]["staff_group_schedule_rules"]["Row"];
 type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -195,6 +197,15 @@ export async function applyGroupScheduleToStaffAction(
       return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
     }
 
+    const staffIds = Array.from(new Set(parsed.data.staffIds ?? []));
+    if (staffIds.length === 0) {
+      return { success: false, error: GROUP_APPLY_TARGET_ERROR };
+    }
+
+    const supabase = await createClient();
+    const access = await authorizeGroupRuleMutation(supabase, parsed.data.groupId);
+    if (!access.authorized) return { success: false, error: access.error };
+
     const admin = createAdminClient();
 
     // Resolve group info
@@ -224,32 +235,28 @@ export async function applyGroupScheduleToStaffAction(
       return { success: false, error: "No active group rules to apply" };
     }
 
-    // Resolve target staff
-    let staffIds = parsed.data.staffIds;
-    if (!staffIds || staffIds.length === 0) {
-      const { data: staffRows, error: staffError } = await admin
-        .from("staff")
-        .select("id")
-        .eq("branch_id", group.branch_id)
-        .eq("is_active", true);
+    const { data: staffRows, error: staffError } = await admin
+      .from("staff")
+      .select("id, full_name")
+      .eq("branch_id", group.branch_id)
+      .eq("is_active", true)
+      .in("id", staffIds);
 
-      if (staffError) {
-        return { success: false, error: staffError.message };
-      }
+    if (staffError) {
+      return { success: false, error: staffError.message };
+    }
 
-      staffIds = (staffRows ?? []).map((s) => s.id);
+    if ((staffRows ?? []).length !== staffIds.length) {
+      return {
+        success: false,
+        error: "One or more selected staff members are not active in this branch.",
+      };
     }
 
     if (parsed.data.mode === "preview") {
-      const { data: staffNames } = await admin
-        .from("staff")
-        .select("id, full_name")
-        .in("id", staffIds)
-        .eq("branch_id", group.branch_id);
-
-      const nameMap = new Map((staffNames ?? []).map((s) => [s.id, s.full_name]));
+      const nameMap = new Map((staffRows ?? []).map((s) => [s.id, s.full_name]));
       const preview = rules.flatMap((rule) =>
-        staffIds!.map((sid) => ({
+        staffIds.map((sid) => ({
           staffId: sid,
           staffName: nameMap.get(sid) ?? sid,
           dayOfWeek: rule.day_of_week,
@@ -263,7 +270,7 @@ export async function applyGroupScheduleToStaffAction(
 
     // Apply mode: upsert individual staff_schedules
     const upserts = rules.flatMap((rule) =>
-      staffIds!.map((sid) => ({
+      staffIds.map((sid) => ({
         staff_id: sid,
         day_of_week: rule.day_of_week,
         shift_type: rule.shift_type,
@@ -283,6 +290,7 @@ export async function applyGroupScheduleToStaffAction(
     }
 
     revalidatePath("/crm/staff-availability");
+    revalidatePath("/crm/schedule");
     revalidatePath("/crm/availability");
     return { success: true, affected: upserts.length };
   } catch (err) {

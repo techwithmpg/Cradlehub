@@ -28,6 +28,11 @@ import {
 } from "./schedule-rule-builder-utils";
 import { saveStaffWeeklyScheduleAction } from "@/app/(dashboard)/crm/staff-availability/actions";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import {
+  formatBranchYmd,
+  getBranchBusinessDate,
+  getDayOfWeekFromYmd,
+} from "@/lib/engine/slot-time";
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
 
@@ -74,10 +79,12 @@ function initials(name: string): string {
     .join("");
 }
 
-function todayLabel(): string {
-  const date = new Date();
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
-  return `${months[date.getMonth()] ?? "Jan"} ${date.getDate()}, ${date.getFullYear()}`;
+function todayLabel(date: string): string {
+  return formatBranchYmd(date, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function togglePatternField(
@@ -251,7 +258,8 @@ export function StaffTodayCard({
   branchName: string;
   role: string;
 }) {
-  const todayDow = new Date().getDay();
+  const today = getBranchBusinessDate();
+  const todayDow = getDayOfWeekFromYmd(today);
   const activeLabels = getActiveShiftLabelsForDay(pattern, todayDow, visibleKinds);
   const scheduled = !activeLabels.includes("Day Off") && !activeLabels.includes("Not scheduled");
 
@@ -264,7 +272,7 @@ export function StaffTodayCard({
         <h3 className="text-sm font-bold text-stone-950">This Staff Today</h3>
       </div>
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-stone-500">{todayLabel()}</span>
+        <span className="font-medium text-stone-500">{todayLabel(today)}</span>
         <span
           className={
             scheduled

@@ -5,6 +5,7 @@ import { isServiceStaffType } from "@/constants/staff-roles";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 import { CRM_PENDING_BOOKING_STATUSES } from "@/lib/bookings/crm-booking-status";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { BRANCH_TIMEZONE, getBranchClockTime } from "@/lib/engine/slot-time";
 import {
   isTimeWithinScheduleWindows,
   type ResolvedStaffScheduleSource,
@@ -97,20 +98,13 @@ export type CrmAvailabilitySnapshot = {
   summary: CrmAvailabilitySummary;
 };
 
-function toTimeString(d: Date): string {
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-
 export async function getCrmAvailabilitySnapshot(params: {
   branchId: string;
   date: string;
   now?: Date;
 }): Promise<CrmAvailabilitySnapshot> {
   const now = params.now ?? new Date();
-  const nowTime = toTimeString(now);
+  const nowTime = getBranchClockTime(now, BRANCH_TIMEZONE);
   const supabase = await createClient();
 
   const [allStaff, scheduleRows, checkinsResult, pendingBookingsResult] = await Promise.all([

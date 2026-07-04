@@ -10,13 +10,13 @@
 
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
-| **Task ID**      | `ATTENDANCE-REFIT-005` |
-| **Description**  | Refit the CRM Attendance workspace UI/actions while preserving existing Attendance QR, scan, device, service-session, and Supabase logic |
+| **Task ID**      | `DATABASE-CONNECTION-STABILIZATION-001` |
+| **Description**  | Reset and establish a secure reusable Supabase migration, SQL, and type-generation workflow |
 | **Agent**        | Codex                                           |
-| **Started**      | 2026-07-02                                      |
-| **Status**       | `BLOCKED`                                      |
+| **Started**      | 2026-07-03                                      |
+| **Status**       | `IDLE`                                      |
 | **Branch**       | `main`                                          |
-| **Blocked By**   | Authenticated CRM/browser Attendance QA remains pending because the local browser session redirects to `/login` |
+| **Blocked By**   | No active task; latest Attendance device registry work is complete, but DB password rotation and migration-history connectivity remain external follow-ups |
 
 ---
 
@@ -35,22 +35,26 @@
 
 ## Notes
 
-ATTENDANCE-REFIT-005 status:
+DATABASE-CONNECTION-STABILIZATION-001 status:
 
-- Refit `/crm/attendance` into one client-owned workspace with local state tabs for Overview, Records, Sessions, QR Codes, Devices, Exceptions, and Reports.
-- Tab changes now use `window.history.replaceState()` through shared helpers instead of Next router navigation/refresh or route links.
-- Removed KPI-card rows and rebuilt Overview around live staff status, recent scans, active service sessions, exceptions, and compact quick actions.
-- Rebuilt QR Codes around a compact selectable QR list, branded preview, reusable print layouts, SVG/PNG/print/copy helpers, QR info, generation actions, and deactivate flow.
-- Records, Sessions, Devices, Exceptions, and Reports now render compact operational tables/filters/dialogs while preserving the existing data/action paths.
-- Attendance server actions now return typed `AttendanceActionResult` values instead of redirecting to status query params, preventing `NEXT_REDIRECT` surfacing in the UI.
-- Fixed CRM Attendance sidebar icon by changing the nav icon to supported `ClipboardCheck`.
-- Validation passed: `npx tsc --noEmit --pretty false`, targeted Attendance Vitest helpers, `npm run lint` (4 unrelated existing warnings), `npm run build`, and full `npm test -- --run` outside sandbox (60 files / 564 tests).
-- Browser smoke reached the existing local dev server; unauthenticated `/crm/attendance` redirects to `/login`, login renders, and no Next/Vite error overlay is present.
-- Authenticated CRM/browser QA for tabs, actions, activation, and scan flows remains pending.
-- Final pnpm continuation completed: `pnpm type-check` PASS, `pnpm lint` PASS with 0 warnings, `pnpm test` PASS (60 files / 564 tests), and `pnpm build` PASS (104 app routes).
-- The four prior lint warnings were fixed in `scripts/generate-service-image-assets.mjs` and `tests/components/payroll/employee-payroll-table.test.tsx`; no eslint suppressions, `any`, or `@ts-ignore` were used.
-- Browser visual QA at 1440, 1280, 1024, 768, and 375 px is still blocked by login redirect because no authenticated Supabase CRM/front-desk browser session is available. Blocker screenshots are in `.codex-artifacts/attendance-qr-qa/`.
-- Phone scan verification and QR identity preservation checks remain pending until authenticated export/print flows can be exercised.
+- Added `scripts/database/` wrappers for doctor, status, verify, link, push, type generation, and migration creation.
+- Updated package database scripts to use these wrappers instead of stale hardcoded Supabase CLI flags.
+- Updated `.env.example` with placeholders only and unignored it in `.gitignore`; real local secrets remain ignored.
+- Added `docs/DATABASE_CONNECTION_RUNBOOK.md`.
+- Direct project-local Supabase CLI shim works at `2.95.6`; `pnpm exec supabase` is unreliable in this managed shell.
+- Verification passed for wrapper syntax, type-check, lint, full tests, build, diff whitespace, and secret scans.
+- `pnpm db:doctor`, `db:status`, `db:verify`, and dry-run `db:push` now run with masked errors, but remote migration connectivity still times out and pooler env is missing.
+- Still required: rotate the exposed database password, update local/deployment secrets, rerun DB workflow checks, run `db:types`, and reconcile migration history before applying pending migrations.
+
+ATTENDANCE-DEVICE-REGISTRY-005 status:
+
+- Completed and live DB verified on 2026-07-03.
+- Applied `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql`.
+- Live SQL probe verified the migration-history row, new device/token columns, `public.consume_attendance_device_recovery`, and `service_role` execute grant.
+- Replaced the Attendance Devices tab with the Device Registry and Recovery Center UI.
+- Added recovery link generation, rename, revoke, pending-link revocation, staff confirmation screen, new path-wide attendance-device cookie, and focused tests.
+- Verification passed: `pnpm db:types`, `pnpm type-check`, `pnpm lint`, focused recovery Vitest, full `pnpm test`, `pnpm build`, and `git diff --check`.
+- Still required: authenticated browser QA and real staff phone recovery scan QA.
 
 ---
 

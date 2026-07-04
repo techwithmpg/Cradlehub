@@ -48,9 +48,6 @@ export function AttendanceWorkspace({
   const [selectedTab, setSelectedTab] = useState<AttendanceTab>(activeTab);
   const [selectedFormat, setSelectedFormat] = useState<QrPrintFormat>("a4");
   const [selectedQrId, setSelectedQrId] = useState<string | null>(() => data.qrPoints[0]?.id ?? null);
-  const [activation, setActivation] = useState<{ activationUrl: string; expiresAt: string } | null>(
-    flash?.activationUrl && flash.expiresAt ? { activationUrl: flash.activationUrl, expiresAt: flash.expiresAt } : null
-  );
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(() =>
     flash?.message ? { ok: flash.status === "ok", message: flash.message } : null
   );
@@ -94,9 +91,6 @@ export function AttendanceWorkspace({
     if (result.kind === "room_qrs") {
       upsertQrPoints(result.qrPoints);
       if (result.qrPoints[0]) setSelectedQrId(result.qrPoints[0].id);
-    }
-    if (result.kind === "activation") {
-      setActivation({ activationUrl: result.activationUrl, expiresAt: result.expiresAt });
     }
     if (result.kind === "device_revoked") {
       setWorkspaceData((current) => ({
@@ -159,7 +153,11 @@ export function AttendanceWorkspace({
         />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "devices"}>
-        <RegisteredDevicesTab data={workspaceData} activation={activation} onActionResult={handleActionResult} />
+        <RegisteredDevicesTab
+          data={workspaceData}
+          routeBasePath={routeBasePath}
+          routeBranchId={routeBranchId}
+        />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "exceptions"}>
         <AttendanceExceptionsTab data={workspaceData} onActionResult={handleActionResult} />

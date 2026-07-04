@@ -8,15 +8,7 @@ export default async function PublicQrScanPage({
   const { publicCode } = await params;
 
   return (
-    <main
-      style={{
-        minHeight: "100svh",
-        display: "grid",
-        placeItems: "center",
-        padding: "1rem",
-        background: "#f8fafc",
-      }}
-    >
+    <main className="min-h-svh bg-[#f3f0ea] sm:grid sm:place-items-center sm:p-6">
       <PublicScanProcessor mode="scan" publicCode={publicCode} />
     </main>
   );

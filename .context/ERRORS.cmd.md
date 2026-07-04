@@ -590,3 +590,33 @@
 - **Symptom:** The full pasted prompt includes first-scan trusted-device sign-in/linking, Staff Portal My Attendance, and staff-profile attendance history.
 - **Impact:** Those flows are still not implemented in this slice.
 - **Resolution:** Completed only the dashboard feed/realtime/deep-link slice and documented the remaining work explicitly.
+
+## 2026-07-03 - DATABASE-CONNECTION-STABILIZATION-001 tooling audit
+
+- **Symptom:** `pnpm exec supabase --version` returned `'supabase' is not recognized as an internal or external command` in the managed shell, while `.\node_modules\.bin\supabase.CMD --version` returned `2.95.6`.
+- **Impact:** Package scripts that rely on direct `supabase` command resolution or `pnpm exec supabase` are unreliable in this environment.
+- **Resolution:** Added project-local database wrappers under `scripts/database/` that call the checked-out `node_modules/.bin/supabase.CMD` shim when present and avoid global CLI drift.
+
+- **Symptom:** `pnpm list supabase --depth 0` failed with `ERR_SQLITE_ERROR unable to open database file`.
+- **Impact:** Some pnpm store/index inspection commands are unreliable from the managed sandbox even though `pnpm --version` and direct project binaries can run.
+- **Resolution:** Documented the failure and avoided package-manager repair that would mutate dependencies without a clear need.
+
+- **Symptom:** `psql` is not installed locally.
+- **Impact:** The documented transaction-pooler emergency fallback cannot be executed from this environment until `psql` is installed through an approved toolchain.
+- **Resolution:** The runbook gates emergency pooler application on `psql --version` and warns against ad-hoc SQL executors.
+
+- **Symptom:** A live Supabase database password was pasted in chat before this stabilization task.
+- **Impact:** The old database password must be treated as compromised.
+- **Resolution:** Rotation cannot be confirmed from the repo. The final workflow requires the user to rotate the DB password and update only git-ignored local/deployment secrets before trusting DB tooling.
+
+## 2026-07-03 - ATTENDANCE-DEVICE-REGISTRY-005 verification notes
+
+- **Symptom:** `pnpm db:status` and `pnpm db:push` timed out against `aws-1-ap-northeast-1.pooler.supabase.com:5432`.
+- **Impact:** The project wrapper scripts still cannot read remote migration history or run the normal migration push path from this network.
+- **Resolution:** Applied `20260703151111_attendance_device_registry_recovery.sql` through the linked Supabase SQL path, inserted the migration-history row, regenerated types, and verified the live migration row, columns, RPC, and grant with a read-only SQL probe.
+- **Follow-up:** Re-run `pnpm db:status` and `pnpm db:push` from a network/path that can reach the required migration-history connection, or repair the wrapper to use a supported IPv4 shared-pooler migration path if Supabase CLI supports it.
+
+- **Symptom:** `tmp-attendance-device-registry-verify.sql` could not be deleted after verification.
+- **Impact:** The temporary read-only probe remains untracked in the repo root.
+- **Resolution:** `apply_patch` delete and scoped `Remove-Item -LiteralPath tmp-attendance-device-registry-verify.sql` both failed with access denied; a narrow elevated delete request was blocked by the environment usage limit. No broader cleanup workaround was attempted.
+- **Follow-up:** Delete that one temporary file manually after the file lock/sandbox condition clears.

@@ -20,6 +20,13 @@ import { cn } from "@/lib/utils";
 import { formatShiftTimeRange, formatTime12h } from "@/lib/utils/time-format";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import {
+  addDaysToYmd,
+  formatBranchYmd,
+  getBranchBusinessDate,
+  getDayOfWeekFromYmd,
+  getMondayOfWeekYmd,
+} from "@/lib/engine/slot-time";
+import {
   getStaffFullScheduleAction,
   type StaffFullScheduleData,
 } from "@/app/(dashboard)/crm/schedule/actions";
@@ -126,45 +133,57 @@ const LEGEND_ITEMS = [
   { label: "Blocked Time", className: "bg-rose-400" },
 ];
 
-function parseDate(date: string): Date {
-  return new Date(`${date}T00:00:00`);
+function ymdParts(date: string): { year: number; month: number; day: number } {
+  const [yearRaw = "", monthRaw = "", dayRaw = ""] = date.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    const branchDate = getBranchBusinessDate();
+    const [fallbackYear = "1970", fallbackMonth = "01", fallbackDay = "01"] =
+      branchDate.split("-");
+    return {
+      year: Number(fallbackYear),
+      month: Number(fallbackMonth),
+      day: Number(fallbackDay),
+    };
+  }
+  return { year, month, day };
 }
 
-function toDateString(date: Date): string {
-  return date.toISOString().split("T")[0]!;
+function ymdFromParts(year: number, month: number, day: number): string {
+  const normalized = new Date(Date.UTC(year, month - 1, day, 12));
+  return [
+    String(normalized.getUTCFullYear()),
+    String(normalized.getUTCMonth() + 1).padStart(2, "0"),
+    String(normalized.getUTCDate()).padStart(2, "0"),
+  ].join("-");
 }
 
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+function startOfMonthYmd(date: string): string {
+  const { year, month } = ymdParts(date);
+  return ymdFromParts(year, month, 1);
 }
 
-function startOfWeekMonday(date: Date): Date {
-  const next = new Date(date);
-  const day = next.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  next.setDate(next.getDate() + offset);
-  return next;
+function endOfMonthYmd(date: string): string {
+  const { year, month } = ymdParts(date);
+  return ymdFromParts(year, month + 1, 0);
 }
 
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function endOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+function addMonthsToMonthStartYmd(date: string, months: number): string {
+  const { year, month } = ymdParts(date);
+  return ymdFromParts(year, month + months, 1);
 }
 
 function formatDateLabel(date: string): string {
-  return parseDate(date).toLocaleDateString("en-PH", {
+  return formatBranchYmd(date, {
     month: "short",
     day: "numeric",
   });
 }
 
 function formatLongDateLabel(date: string): string {
-  return parseDate(date).toLocaleDateString("en-PH", {
+  return formatBranchYmd(date, {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -173,52 +192,52 @@ function formatLongDateLabel(date: string): string {
 }
 
 function formatRangeLabel(startDate: string, endDate: string, view: CalendarView): string {
-  const start = parseDate(startDate);
-  const end = parseDate(endDate);
   if (view === "month") {
-    return start.toLocaleDateString("en-PH", { month: "long", year: "numeric" });
+    return formatBranchYmd(startDate, { month: "long", year: "numeric" });
   }
   if (startDate === endDate) return formatLongDateLabel(startDate);
-  const sameYear = start.getFullYear() === end.getFullYear();
-  const startLabel = start.toLocaleDateString("en-PH", {
-    month: "short",
-    day: "numeric",
-  });
-  const endLabel = end.toLocaleDateString("en-PH", {
+  const startYear = ymdParts(startDate).year;
+  const endYear = ymdParts(endDate).year;
+  const sameYear = startYear === endYear;
+  const startLabel = formatBranchYmd(startDate, {
     month: "short",
     day: "numeric",
     year: sameYear ? undefined : "numeric",
   });
-  return `${startLabel} - ${endLabel}, ${end.getFullYear()}`;
+  const endLabel = formatBranchYmd(endDate, {
+    month: "short",
+    day: "numeric",
+    year: sameYear ? undefined : "numeric",
+  });
+  return sameYear ? `${startLabel} - ${endLabel}, ${endYear}` : `${startLabel} - ${endLabel}`;
 }
 
 function getDateRange(anchorDate: string, view: CalendarView): { startDate: string; endDate: string } {
-  const anchor = parseDate(anchorDate);
   if (view === "day") {
     return { startDate: anchorDate, endDate: anchorDate };
   }
   if (view === "month") {
     return {
-      startDate: toDateString(startOfMonth(anchor)),
-      endDate: toDateString(endOfMonth(anchor)),
+      startDate: startOfMonthYmd(anchorDate),
+      endDate: endOfMonthYmd(anchorDate),
     };
   }
-  const start = startOfWeekMonday(anchor);
+  const start = getMondayOfWeekYmd(anchorDate);
   return {
-    startDate: toDateString(start),
-    endDate: toDateString(addDays(start, 6)),
+    startDate: start,
+    endDate: addDaysToYmd(start, 6),
   };
 }
 
 function getWeekDays(anchorDate: string): string[] {
-  const start = startOfWeekMonday(parseDate(anchorDate));
-  return Array.from({ length: 7 }, (_, index) => toDateString(addDays(start, index)));
+  const start = getMondayOfWeekYmd(anchorDate);
+  return Array.from({ length: 7 }, (_, index) => addDaysToYmd(start, index));
 }
 
 function getMonthGridDays(anchorDate: string): string[] {
-  const monthStart = startOfMonth(parseDate(anchorDate));
-  const gridStart = startOfWeekMonday(monthStart);
-  return Array.from({ length: 42 }, (_, index) => toDateString(addDays(gridStart, index)));
+  const monthStart = startOfMonthYmd(anchorDate);
+  const gridStart = getMondayOfWeekYmd(monthStart);
+  return Array.from({ length: 42 }, (_, index) => addDaysToYmd(gridStart, index));
 }
 
 function toMinutes(time: string): number {
@@ -277,7 +296,7 @@ function humanize(value: string | null | undefined): string {
 }
 
 function buildDayModel(date: string, data: StaffFullScheduleData): DayModel {
-  const dayOfWeek = parseDate(date).getDay();
+  const dayOfWeek = getDayOfWeekFromYmd(date);
   const override = data.custom_overrides.find((item) => item.date === date);
   const bookings = data.bookings.filter((item) => item.date === date);
   const blockedTimes = data.blocked_times.filter((item) => item.date === date);
@@ -544,8 +563,9 @@ function WeekView({
             Time
           </div>
           {days.map((day) => {
-            const parsed = parseDate(day.date);
-            const weekday = WEEKDAYS.find((item) => item.dow === parsed.getDay());
+            const weekday = WEEKDAYS.find(
+              (item) => item.dow === getDayOfWeekFromYmd(day.date)
+            );
             return (
               <div key={day.date} className="border-r border-[var(--cs-border-soft)] px-3 py-3 last:border-r-0">
                 <div className="text-xs font-bold text-[var(--cs-text)]">{weekday?.short ?? ""}</div>
@@ -629,7 +649,7 @@ function MonthView({
   showBookings: boolean;
   showBlocks: boolean;
 }) {
-  const anchorMonth = parseDate(anchorDate).getMonth();
+  const anchorMonth = ymdParts(anchorDate).month;
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]">
       <div className="min-w-[760px]">
@@ -642,8 +662,8 @@ function MonthView({
         </div>
         <div className="grid grid-cols-7">
           {days.map((day) => {
-            const parsed = parseDate(day.date);
-            const isMuted = parsed.getMonth() !== anchorMonth;
+            const { month, day: dayOfMonth } = ymdParts(day.date);
+            const isMuted = month !== anchorMonth;
             return (
               <div
                 key={day.date}
@@ -653,7 +673,7 @@ function MonthView({
                 )}
               >
                 <div className={cn("text-xs font-bold", isMuted ? "text-[var(--cs-text-muted)]" : "text-[var(--cs-text)]")}>
-                  {parsed.getDate()}
+                  {dayOfMonth}
                 </div>
                 <div className="mt-2 flex flex-col gap-1">
                   {day.isDayOff ? (
@@ -794,17 +814,16 @@ function StaffScheduleCalendarModalContent({
   }, [dayModels]);
 
   function move(direction: "previous" | "next") {
-    const date = parseDate(anchorDate);
     const delta = direction === "previous" ? -1 : 1;
     if (activeView === "day") {
-      setAnchorDate(toDateString(addDays(date, delta)));
+      setAnchorDate(addDaysToYmd(anchorDate, delta));
       return;
     }
     if (activeView === "week") {
-      setAnchorDate(toDateString(addDays(date, delta * 7)));
+      setAnchorDate(addDaysToYmd(anchorDate, delta * 7));
       return;
     }
-    setAnchorDate(toDateString(new Date(date.getFullYear(), date.getMonth() + delta, 1)));
+    setAnchorDate(addMonthsToMonthStartYmd(anchorDate, delta));
   }
 
   return (
@@ -915,7 +934,7 @@ function StaffScheduleCalendarModalContent({
                 <Button variant="outline" size="icon-sm" onClick={() => move("next")} aria-label="Next range">
                   <ChevronRight className="size-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setAnchorDate(toDateString(new Date()))}>
+                <Button variant="outline" size="sm" onClick={() => setAnchorDate(getBranchBusinessDate())}>
                   Today
                 </Button>
               </div>

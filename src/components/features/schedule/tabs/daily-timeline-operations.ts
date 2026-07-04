@@ -1,6 +1,7 @@
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import { timeToMinutes } from "@/lib/utils/schedule-timeline";
+import { BRANCH_TIMEZONE, getBranchTime } from "@/lib/engine/slot-time";
 
 export type StaffGroupKey =
   | "all"
@@ -70,8 +71,12 @@ export function getShiftGroup(row: DailyScheduleStaffRow): ShiftGroupKey {
 function overlapsNow(start: string, end: string, minutes: number): boolean {
   const startMinutes = timeToMinutes(start);
   let endMinutes = timeToMinutes(end);
-  if (endMinutes <= startMinutes) endMinutes += 24 * 60;
-  return minutes >= startMinutes && minutes < endMinutes;
+  let currentMinutes = minutes;
+  if (endMinutes <= startMinutes) {
+    endMinutes += 24 * 60;
+    if (currentMinutes < startMinutes) currentMinutes += 24 * 60;
+  }
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
 }
 
 export function getTimelineStatus(
@@ -81,9 +86,10 @@ export function getTimelineStatus(
 ): Exclude<TimelineStatusFilter, "all"> {
   if (getShiftGroup(row) === "off") return "off";
   if (!now) return "scheduled";
-  if (date !== now.toISOString().split("T")[0]) return "scheduled";
+  const branchNow = getBranchTime(now, BRANCH_TIMEZONE);
+  if (date !== branchNow.ymd) return "scheduled";
 
-  const minutes = now.getHours() * 60 + now.getMinutes();
+  const minutes = Math.floor(branchNow.minutesIntoDay);
   const onShift = row.schedule_windows.some((window) =>
     overlapsNow(window.startTime, window.endTime, minutes)
   );

@@ -2,6 +2,88 @@
 
 ## Current Task - 2026-07-03
 
+ATTENDANCE-DEVICE-REGISTRY-005 is locally complete and live DB verified.
+
+## Latest Attendance Device Registry Checkpoint
+
+- Added and applied `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql`.
+- Live SQL verification returned `ok` for the migration-history row, all new `staff_devices` / `device_activation_tokens` columns, `public.consume_attendance_device_recovery`, and the `service_role` execute grant.
+- Linked migration-history SQL also found earlier local versions `20260703130922`, `20260703144603`, and `20260703145113` present remotely.
+- Added typed backend helpers for registry data, recovery link generation, rename, revoke, pending-link revocation, token preview, and recovery consumption.
+- Replaced the Attendance Devices tab UI with registry filters, table, pending recovery links, selected-device panel, recovery-link dialog, rename dialog, and revoke dialog.
+- `/scan/activate/[token]` now renders the recovery confirmation screen and does not consume recovery tokens until staff taps the restore button.
+- `src/app/scan/actions.ts` writes the new `cradle_attendance_device` cookie at `/` and still reads legacy `cradle_device` for compatibility.
+- Recovery consumption does not clock staff in/out or start service sessions; it creates the trusted device and writes an activation audit row only.
+
+## Latest Verification
+
+- `pnpm db:types`: PASS.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm vitest run tests/lib/attendance/device-recovery.test.ts`: PASS, 3 tests.
+- `pnpm test`: PASS, 67 files / 595 tests.
+- `pnpm build`: PASS, 105 routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+## Still Open
+
+- Authenticated browser QA for `/crm/attendance?tab=devices`, the recovery dialog copy flow, and a real staff phone recovery scan.
+- `pnpm db:status` and `pnpm db:push` still time out on the Supabase port `5432` migration-history path even though live schema is verified.
+- Rotate the pasted Supabase DB password and update only git-ignored local/deployment secrets.
+- Manually remove `tmp-attendance-device-registry-verify.sql` if it still appears; sandbox deletion was denied and elevated delete was blocked by environment usage limits.
+
+---
+
+## Current Task - 2026-07-03
+
+DATABASE-CONNECTION-STABILIZATION-001 is in progress. The secure reusable Supabase tooling layer and runbook are in place, but live remote success still requires rotated local database credentials and/or working Supabase CLI auth.
+
+## Latest Database Tooling Checkpoint
+
+- Added project-local wrappers under `scripts/database/`:
+  - `db-doctor.mjs`
+  - `db-status.mjs`
+  - `db-verify.mjs`
+  - `db-types.mjs`
+  - `db-link.mjs`
+  - `db-push.mjs`
+  - `db-migration-new.mjs`
+  - `_shared.mjs`
+- Updated `package.json` database scripts to call these wrappers.
+- Updated `.env.example` with placeholders only; `.env.local` and `.env.database.local` remain git-ignored.
+- Added `docs/DATABASE_CONNECTION_RUNBOOK.md`.
+- Confirmed direct project-local Supabase CLI shim works: `.\node_modules\.bin\supabase.CMD --version` -> `2.95.6`.
+- Confirmed `pnpm exec supabase --version` is unreliable in this managed shell, returning command-not-found even though the local shim exists.
+- Confirmed no active `supabase` or `postgres` process was running during audit.
+- Confirmed `psql` is not installed, so the emergency pooler transaction path cannot run here yet.
+
+## Database Tooling Still Open
+
+- Rotate the Supabase database password in the Supabase dashboard and update only git-ignored local/deployment secrets.
+- Put rotated values in `.env.local` or `.env.database.local`:
+  - `SUPABASE_PROJECT_REF`
+  - `SUPABASE_ACCESS_TOKEN`
+  - `SUPABASE_DB_PASSWORD`
+  - `SUPABASE_DB_POOLER_URL`
+- Re-run:
+  - `pnpm db:doctor`
+  - `pnpm db:status`
+  - `pnpm db:verify`
+  - `pnpm db:push`
+  - `pnpm db:types`
+- Current verification results:
+  - `pnpm db:doctor`: starts successfully but exits nonzero due unconfirmed DB password rotation, missing `SUPABASE_DB_POOLER_URL`, and linked migration-history timeout.
+  - `pnpm db:status`: local migration count 83; remote migration history read times out; remote schema changed no.
+  - `pnpm db:verify`: linked SQL probe PASS and critical table checks PASS; pooler fallback WARNING because env is missing.
+  - `pnpm db:push -- --dry-run`: remote schema changed no; remote migration connection timed out.
+  - `pnpm db:types`: not run until migration push/history is stable.
+- Inspect and reconcile migration-history drift before applying pending migrations. Known recent version requiring inspection: `20260703022600`.
+- Do not apply emergency direct SQL without `psql` or another explicitly approved, documented SQL path.
+
+---
+
+## Previous Task - 2026-07-03
+
 ATTENDANCE-FULL-INTEGRATION-002 is partially complete. The feed/deep-link slice is implemented and verified; broader trusted-device first-scan and staff-history work remains.
 
 ## Latest Attendance Feed Checkpoint

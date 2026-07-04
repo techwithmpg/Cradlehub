@@ -2,7 +2,7 @@
 
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
-import { BRANCH_TIMEZONE, getBranchTime, toLocalYmd } from "@/lib/engine/slot-time";
+import { addDaysToYmd, BRANCH_TIMEZONE, formatBranchYmd, getBranchTime } from "@/lib/engine/slot-time";
 import { isToday as isScheduleToday } from "@/lib/utils/schedule-timeline";
 import { cn } from "@/lib/utils";
 
@@ -23,9 +23,8 @@ export function ScheduleWorkspaceHeader({
   onDateChange: (date: string) => void;
   onViewModeChange: (mode: ScheduleViewMode) => void;
 }) {
-  const dateObj = new Date(`${date}T00:00:00+08:00`);
   const now = new Date(initialNow);
-  const dateLabel = dateObj.toLocaleDateString("en-PH", {
+  const dateLabel = formatBranchYmd(date, {
     weekday: "long",
     month: "short",
     day: "numeric",
@@ -35,10 +34,7 @@ export function ScheduleWorkspaceHeader({
   const isToday = isScheduleToday(date, now);
 
   function shiftDate(days: number) {
-    const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
-    const d = new Date(year, month - 1, day);
-    d.setDate(d.getDate() + days);
-    onDateChange(toLocalYmd(d));
+    onDateChange(addDaysToYmd(date, days));
   }
 
   return (

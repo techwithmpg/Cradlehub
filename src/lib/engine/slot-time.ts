@@ -15,6 +15,56 @@ export function toLocalYmd(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function parseYmd(dateStr: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+export function formatBranchYmd(
+  dateStr: string,
+  options: Intl.DateTimeFormatOptions,
+  timezone: string = BRANCH_TIMEZONE
+): string {
+  const parsed = parseYmd(dateStr);
+  const date = parsed
+    ? new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day, 12))
+    : new Date(dateStr);
+
+  return date.toLocaleDateString("en-PH", {
+    ...options,
+    timeZone: timezone,
+  });
+}
+
+export function addDaysToYmd(dateStr: string, days: number): string {
+  const parsed = parseYmd(dateStr);
+  if (!parsed || !Number.isFinite(days)) return dateStr;
+
+  const shifted = new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
+export function getDayOfWeekFromYmd(dateStr: string): number {
+  const parsed = parseYmd(dateStr);
+  if (!parsed) return new Date(dateStr).getDay();
+
+  return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day)).getUTCDay();
+}
+
+export function getMondayOfWeekYmd(dateStr: string): string {
+  const day = getDayOfWeekFromYmd(dateStr);
+  const diff = day === 0 ? -6 : 1 - day;
+  return addDaysToYmd(dateStr, diff);
+}
+
 /**
  * Returns the current date (YYYY-MM-DD) and minutes-into-day expressed in the
  * given IANA timezone using the platform's Intl API (Node 12+ / all modern
@@ -69,6 +119,23 @@ export function getBranchBusinessDate(
   timezone: string = BRANCH_TIMEZONE
 ): string {
   return getBranchTime(now, timezone).ymd;
+}
+
+export function getBranchClockTime(
+  now: Date = new Date(),
+  timezone: string = BRANCH_TIMEZONE
+): string {
+  const { minutesIntoDay } = getBranchTime(now, timezone);
+  const totalSeconds = Math.floor(minutesIntoDay * 60);
+  const hours = Math.floor(totalSeconds / 3600) % 24;
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [
+    String(hours).padStart(2, "0"),
+    String(minutes).padStart(2, "0"),
+    String(seconds).padStart(2, "0"),
+  ].join(":");
 }
 
 /**

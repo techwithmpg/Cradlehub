@@ -12,6 +12,7 @@ import {
   schedulesToPatternForGroup,
   type ShiftKind,
 } from "./schedule-rule-builder-utils";
+import { formatBranchYmd, getBranchBusinessDate, getDayOfWeekFromYmd } from "@/lib/engine/slot-time";
 
 type ScheduleSetupRightRailProps = {
   selectedGroup: string;
@@ -21,9 +22,11 @@ type ScheduleSetupRightRailProps = {
 };
 
 function todayLabel(): string {
-  const date = new Date();
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
-  return `${months[date.getMonth()] ?? "Jan"} ${date.getDate()}, ${date.getFullYear()}`;
+  return formatBranchYmd(getBranchBusinessDate(), {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function percent(count: number, total: number): number {
@@ -74,7 +77,8 @@ export function CoverageTodayCard({
   onSelectTab,
 }: ScheduleSetupRightRailProps) {
   const visibleKinds = getVisibleShiftKinds(selectedGroup);
-  const todayDow = new Date().getDay();
+  const today = getBranchBusinessDate();
+  const todayDow = getDayOfWeekFromYmd(today);
   const totalStaff = groupItems.length;
   const scheduledToday = groupItems.filter((item) =>
     item.schedules.some((schedule) => schedule.day_of_week === todayDow && schedule.is_active)
@@ -169,7 +173,7 @@ export function GroupScheduleSummaryCard({
       visibleKinds
     ) > 0;
   }).length;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getBranchBusinessDate();
   const onLeaveToday = groupItems.filter((item) =>
     item.overrides.some((override) => override.override_date === today && override.is_day_off)
   ).length;

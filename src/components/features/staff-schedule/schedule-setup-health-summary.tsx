@@ -7,19 +7,21 @@
 
 import type { StaffScheduleItem } from "./staff-schedule-list";
 import type { StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
+import {
+  addDaysToYmd,
+  getBranchBusinessDate,
+  getDayOfWeekFromYmd,
+} from "@/lib/engine/slot-time";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getWeekBounds(): { weekStart: string; weekEnd: string } {
-  const today = new Date();
-  const dow = today.getDay();
-  const start = new Date(today);
-  start.setDate(today.getDate() - dow);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
+  const today = getBranchBusinessDate();
+  const dow = getDayOfWeekFromYmd(today);
+  const weekStart = addDaysToYmd(today, -dow);
   return {
-    weekStart: start.toISOString().split("T")[0]!,
-    weekEnd: end.toISOString().split("T")[0]!,
+    weekStart,
+    weekEnd: addDaysToYmd(weekStart, 6),
   };
 }
 

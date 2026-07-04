@@ -9,12 +9,13 @@ import {
   buildOnLeaveTodayIssue,
 } from "./schedule-readiness-utils";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { getBranchBusinessDate, getDayOfWeekFromYmd } from "@/lib/engine/slot-time";
 
 type Props = { items: StaffScheduleItem[]; rulesByGroup?: Record<string, StaffGroupScheduleRule[]> };
 
 export function ScheduleCoverageIssues({ items, rulesByGroup }: Props) {
-  const today = new Date().toISOString().split("T")[0]!;
-  const todayDow = new Date().getDay();
+  const today = getBranchBusinessDate();
+  const todayDow = getDayOfWeekFromYmd(today);
 
   const noSchedule = items.filter((i) => !i.schedules.some((s) => s.is_active));
   const noOpeningToday = items.filter(

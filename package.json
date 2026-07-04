@@ -11,10 +11,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest",
-    "db:push": "supabase db push --project-ref lsrbwqhvzjfpiabeolkv",
-    "db:types": "supabase gen types --lang=typescript --project-id lsrbwqhvzjfpiabeolkv > src/types/supabase.ts",
-    "db:migration": "supabase migration new",
-    "db:list": "supabase migration list --project-ref lsrbwqhvzjfpiabeolkv"
+    "db:doctor": "node scripts/database/db-doctor.mjs",
+    "db:status": "node scripts/database/db-status.mjs",
+    "db:verify": "node scripts/database/db-verify.mjs",
+    "db:link": "node scripts/database/db-link.mjs",
+    "db:push": "node scripts/database/db-push.mjs",
+    "db:types": "node scripts/database/db-types.mjs",
+    "db:migration": "node scripts/database/db-migration-new.mjs",
+    "db:list": "node scripts/database/db-status.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",

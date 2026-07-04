@@ -6,6 +6,7 @@ import { ScheduleStaffProfileCard } from "./schedule-staff-profile-card";
 import { ScheduleStaffSummaryCards } from "./schedule-staff-summary-cards";
 import { ScheduleStaffDayList } from "./schedule-staff-day-list";
 import { ManualStaffScheduleAdjustment } from "./manual-staff-schedule-adjustment";
+import { BRANCH_TIMEZONE, getBranchTime } from "@/lib/engine/slot-time";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type { Database } from "@/types/supabase";
 
@@ -33,6 +34,13 @@ function formatMinutes(mins: number): string {
   if (h > 0 && m > 0) return `${h}h ${m}m`;
   if (h > 0) return `${h}h`;
   return `${m}m`;
+}
+
+function durationMinutes(startTime: string, endTime: string): number {
+  const start = timeToMinutes(startTime);
+  let end = timeToMinutes(endTime);
+  if (end <= start) end += 24 * 60;
+  return Math.max(end - start, 0);
 }
 
 export function ScheduleStaffMode({
@@ -87,7 +95,13 @@ export function ScheduleStaffMode({
   }
 
   // Upcoming: same-day remaining bookings (active statuses, sorted by start time)
-  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+  const branchNow = getBranchTime(new Date(), BRANCH_TIMEZONE);
+  const nowMinutes =
+    date < branchNow.ymd
+      ? 24 * 60
+      : date > branchNow.ymd
+        ? 0
+        : branchNow.minutesIntoDay;
   const upcoming = selectedStaff.bookings
     .filter((b) => b.status !== "cancelled" && b.status !== "no_show" && b.status !== "completed")
     .filter((b) => timeToMinutes(b.start_time) >= nowMinutes)
@@ -98,13 +112,13 @@ export function ScheduleStaffMode({
   const isOff = !selectedStaff.work_start || !selectedStaff.work_end;
   const scheduledMinutes =
     !isOff && selectedStaff.work_start && selectedStaff.work_end
-      ? timeToMinutes(selectedStaff.work_end) - timeToMinutes(selectedStaff.work_start)
+      ? durationMinutes(selectedStaff.work_start, selectedStaff.work_end)
       : 0;
 
   const breakMinutes = selectedStaff.blocks.reduce((sum, block) => {
     const reason = (block.reason ?? "").toLowerCase();
     if (reason.includes("break") || reason.includes("lunch")) {
-      return sum + timeToMinutes(block.end_time) - timeToMinutes(block.start_time);
+      return sum + durationMinutes(block.start_time, block.end_time);
     }
     return sum;
   }, 0);
@@ -112,7 +126,7 @@ export function ScheduleStaffMode({
   const blockedMinutes = selectedStaff.blocks.reduce((sum, block) => {
     const reason = (block.reason ?? "").toLowerCase();
     if (!reason.includes("break") && !reason.includes("lunch")) {
-      return sum + timeToMinutes(block.end_time) - timeToMinutes(block.start_time);
+      return sum + durationMinutes(block.start_time, block.end_time);
     }
     return sum;
   }, 0);

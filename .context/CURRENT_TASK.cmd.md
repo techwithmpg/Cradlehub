@@ -1,4 +1,197 @@
-# Current Task - ATTENDANCE-FULL-INTEGRATION-002
+# Current Task - ATTENDANCE-DEVICE-REGISTRY-005
+
+Status: COMPLETED_DB_VERIFIED
+Started: 2026-07-03
+Last updated: 2026-07-03
+
+## Description
+
+Build the Device Registry and Recovery Center backend first, then replace the Attendance Devices tab.
+
+Scope:
+- Reuse the existing Attendance tables and scan/device architecture.
+- Audit current `staff_devices`, `device_activation_tokens`, attendance events/sessions, activation route, token hashing, device cookie, RLS, and permissions before changing schema.
+- Add only the missing database columns/indexes/constraints/RPC needed for one-time device recovery links, device metadata, rename, revocation, pending links, and atomic recovery consumption.
+- Implement typed registry queries, server actions, permission checks, and recovery consumption before final UI work.
+- Replace only the Attendance Devices tab content with the approved Device Registry and Recovery Center UI.
+- Add the staff recovery confirmation screen at `/scan/activate/<token>` without consuming tokens on page load.
+- Preserve permanent Attendance QR clock-in/out behavior and service QR behavior.
+
+## Pre-flight Notes
+
+- Required prompt read from `C:\Users\eleur\.codex\attachments\c5b7a049-06d2-49d3-a790-060b34f4ee33\pasted-text.txt`.
+- Supabase skill guidance read; Supabase changelog checked on 2026-07-03 for the public-table explicit grant change.
+- Local Next.js 16 docs consulted under `node_modules/next/dist/docs/` for Server Actions, Route Handlers, Server/Client Components, and async cookies before editing app code.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; documented equivalents under `docs/` are being used.
+- The prior database connection task remains below for handoff context. The Supabase DB password pasted earlier must still be rotated outside the repo/session.
+
+## Mandatory Sequence
+
+1. Audit existing Attendance schema and code.
+2. Repair or extend the database.
+3. Implement backend queries, actions, permissions, and atomic recovery.
+4. Test and verify the backend.
+5. Replace the Devices tab UI.
+6. Implement the staff recovery-link screen.
+7. Wire realtime refresh and deep links.
+8. Run full verification and update project context.
+
+## Completion Checkpoint - 2026-07-03
+
+Completed:
+- Added migration `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql` and applied it to the linked Supabase database.
+- Extended the existing `staff_devices` and `device_activation_tokens` model instead of creating duplicate attendance/device tables.
+- Added atomic recovery consumption RPC `public.consume_attendance_device_recovery`, granted only to `service_role`.
+- Added typed device registry/recovery backend helpers, CRM actions, scan recovery consumption, and generated Supabase types.
+- Replaced the Attendance Devices tab with the Device Registry and Recovery Center UI, including filters, selected-device panel, pending recovery links, rename, revoke, recovery-link generation, and staff confirmation screen.
+
+Verification:
+- Live SQL probe: migration row, new columns, RPC, and `service_role` execute grant all returned `ok`.
+- Live migration-history query also found the earlier local versions `20260703130922`, `20260703144603`, and `20260703145113` present remotely.
+- `pnpm db:types`: PASS.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm vitest run tests/lib/attendance/device-recovery.test.ts`: PASS, 3 tests.
+- `pnpm test`: PASS, 67 files / 595 tests.
+- `pnpm build`: PASS, 105 routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+Known limitations:
+- `pnpm db:status` and `pnpm db:push` still time out on `aws-1-ap-northeast-1.pooler.supabase.com:5432`; live schema was verified directly through linked SQL instead.
+- Authenticated browser QA for `/crm/attendance?tab=devices` and the staff recovery confirmation flow still needs a real CRM/front-desk session and a real phone/browser scan.
+- A temporary SQL probe file `tmp-attendance-device-registry-verify.sql` remains untracked because Windows denied deletion and the elevated delete request was blocked by the environment usage limit.
+
+---
+
+# Previous Task - DATABASE-CONNECTION-STABILIZATION-001
+
+Status: BLOCKED_ON_ROTATED_SECRETS_AND_REMOTE_MIGRATION_CONNECTIVITY
+Started: 2026-07-03
+Last updated: 2026-07-03
+
+## Description
+
+Reset and establish a secure reusable Supabase migration, SQL, and type-generation connection.
+
+Scope:
+- Stabilize the project-local Supabase CLI workflow through `pnpm`.
+- Keep linked Supabase CLI as the primary migration/type-generation path.
+- Keep the transaction-pooler URL only as a local, git-ignored diagnostic and emergency fallback.
+- Add reusable database doctor/status/verify/types wrappers that do not contain or print secrets.
+- Document database setup, migration, type-generation, verification, fallback, and migration-history reconciliation procedures.
+- Do not modify application business logic, reset production data, delete production data, or hardcode credentials.
+
+## Pre-flight Notes
+
+- Read the attached database stabilization prompt, Supabase skill guidance, `.context/*.cmd.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, `docs/AGENT_RULES.md`, root `AGENTS.md`, and root `CLAUDE.md`.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; documented equivalents under `docs/` are being used.
+- Supabase changelog was checked on 2026-07-03. Current relevant risks include Data API exposure defaults for new tables, direct DB host IPv6/IPv4 limitations, and pooler/prepared-statement behavior.
+- Previous active scheduling repair is preserved below as a handoff; those dirty scheduling files are not part of this database tooling task.
+- A Supabase database password was previously pasted in chat and must be treated as compromised until rotated outside this repo/session.
+
+## Initial Plan
+
+1. Audit local Supabase CLI package/shims, pnpm build-script state, stale processes, and link metadata.
+2. Add secure environment placeholders and git-ignored local-secret guidance without committing credentials.
+3. Create focused `scripts/database/*` wrappers for doctor/status/verify/types.
+4. Update package database scripts to use the wrappers and project-local `pnpm exec supabase` workflow.
+5. Document the reusable database runbook and context decisions/errors.
+6. Run safe verification and report any remaining external blockers.
+
+## Implementation Checkpoint - 2026-07-03
+
+Completed:
+- Added secure project-local Supabase wrappers in `scripts/database/`.
+- Replaced stale hardcoded database package scripts with reusable `pnpm db:*` commands.
+- Added `.env.example` placeholders for Supabase runtime and local-only database tooling variables.
+- Updated `.gitignore` so `.env.example` can be tracked while `.env.local`, `.env.database.local`, and `supabase/.temp` stay ignored.
+- Added `docs/DATABASE_CONNECTION_RUNBOOK.md`.
+- Updated context, decision, error, handoff, project context, and roadmap notes.
+
+Verified:
+- `node --check scripts/database/*.mjs`: PASS
+- `pnpm db:doctor`: RUNS; exits nonzero because DB password rotation is unconfirmed, `SUPABASE_DB_POOLER_URL` is missing, and linked migration history times out through the Supabase pooler.
+- `pnpm db:status`: RUNS; local migration count is 83, remote history read times out, and no remote schema change occurred.
+- `pnpm db:verify`: RUNS; linked SQL probe passes and the listed critical tables verify through service-role REST, but pooler fallback warns because `SUPABASE_DB_POOLER_URL` is missing.
+- `pnpm db:push -- --dry-run`: RUNS; no remote schema change occurred, but the dry-run cannot connect to the remote migration database path.
+- `npx tsc --noEmit --pretty false`: PASS
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS
+- `pnpm test`: PASS, 66 files / 592 tests
+- `pnpm build`: PASS, 105 app routes
+- `git diff --check`: PASS, line-ending notices only
+- Secret scan: PASS for tracked files and reviewed project placeholders; only placeholder URLs/variable names were found.
+
+Not run:
+- `pnpm db:types` was intentionally not run because `db:push --dry-run` is still blocked and generated types should not be refreshed from unreconciled remote schema history.
+
+Remaining blockers:
+- Rotate the Supabase database password outside the repo/session; the previously pasted password must be treated as compromised.
+- Add the rotated pooler URL to `.env.local` or `.env.database.local` as `SUPABASE_DB_POOLER_URL`.
+- Re-run `pnpm db:doctor`, `pnpm db:status`, `pnpm db:push -- --dry-run`, `pnpm db:push`, `pnpm db:types`, and `pnpm db:verify`.
+- Reconcile migration-history drift before applying pending migrations.
+
+---
+
+# Previous Task - SCHEDULING-BACKBONE-AUDIT-001
+
+Status: REPAIRED_LOCALLY
+Started: 2026-07-03
+Last updated: 2026-07-03
+
+## Description
+
+Audit and repair all schedule-dependent operational flows before daily-use simulations.
+
+Scope:
+- Produce a scheduling dependency map before broad refactoring.
+- Verify canonical schedule precedence across TypeScript and SQL/RPC paths.
+- Repair confirmed timezone, group-membership, duration, blocking-status, realtime/cache, resource, dispatch, attendance, and Staff Portal inconsistencies where safe.
+- Inspect the full local `supabase/migrations` folder and actual `get_daily_schedule`, `get_available_slots`, and `compute_booking_end_time` SQL definitions before changing schema or RPC behavior.
+- Do not create a second scheduling engine, reset production data, regenerate QR codes, or start the large daily-use simulation suite during this task.
+
+## Pre-flight Notes
+
+- Read the attached master prompt, root `AGENTS.md`, `CLAUDE.md`, `docs/AGENT_RULES.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, and the active `.context/*.cmd.md` files.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; the documented `docs/` equivalents are being used.
+- Next.js 16.2.4 local docs under `node_modules/next/dist/docs/` were consulted for Server Components, Server Actions/mutations, Route Handlers, and caching before edits.
+- Supabase skill guidance was read. Direct Supabase CLI/type-generation remains historically blocked in this environment, so database verification must report exact command results honestly.
+- Latest `main` is clean and synced after Attendance feed commit `7cae28f5`.
+
+## Initial Plan
+
+1. Create `docs/SCHEDULING_BACKBONE_AUDIT.md` with the required source/consumer map.
+2. Inspect schedule resolver, availability, group rules/memberships, schedule workspaces, timezone helpers, Staff Portal, Attendance, booking duration, resource, dispatch, and SQL/RPC definitions.
+3. Repair confirmed high-risk inconsistencies in the lowest shared layer first.
+4. Add focused invariant/helper tests before broad simulations.
+5. Run available verification and update context/handoff with exact blockers.
+
+## Implementation Checkpoint - 2026-07-03
+
+Completed in this slice:
+- Added branch-local `YYYY-MM-DD` helpers in `src/lib/engine/slot-time.ts` and rewired touched Schedule pages, week/full-schedule views, coverage cards, CRM availability, and live timeline status away from UTC/machine-date defaults.
+- Repaired Manager and Owner Schedule default selected dates to use branch business date.
+- Repaired Full Schedule and Staff Full Schedule modal date navigation/labels to avoid `Date` + `toISOString()` serialization drift.
+- Repaired Daily Timeline live status and Schedule Staff Mode summaries for branch-local current time and overnight windows.
+- Repaired group-rule fallback lookups in CRM full schedule and assignment recommendations to use mapped plus raw group keys.
+- Made group schedule apply fail closed when no explicit staff IDs are supplied.
+- Added migration `supabase/migrations/20260703130922_scheduling_rpc_group_overnight_parity.sql` to align `get_available_slots` and `get_daily_schedule` with TypeScript group-key mapping, active booking-hold status semantics, and overnight schedule windows.
+- Completed `docs/SCHEDULING_BACKBONE_AUDIT.md` with source map, consumer map, confirmed defects, repairs, SQL/RPC parity, verification, and remaining follow-ups.
+
+Verified:
+- `npx tsc --noEmit --pretty false`: PASS
+- `npx vitest run src/lib/engine/availability.test.ts tests/lib/schedule/resolve-staff-schedule.test.ts tests/lib/schedule/schedule-timeline.test.ts tests/lib/schedule/daily-timeline-operations.test.ts tests/lib/schedule/daily-schedule-query.test.ts tests/lib/actions/staff-schedule-groups.test.ts`: PASS, 11 files / 79 tests
+- `git diff --check`: PASS, line-ending notices only
+
+Remaining follow-ups:
+- The new SQL migration has not been applied to the linked database in this pass.
+- `compute_booking_end_time` and `get_available_slots` still need a separate schema/API decision for `branch_services.custom_duration_minutes`, because app code/generated types reference the column but local migrations do not define it.
+- Overnight date-specific overrides/bookings/blocks remain a schema-level follow-up; this pass repaired overnight schedule windows and local UI/status math.
+- Authenticated Schedule browser QA remains pending.
+
+---
+
+# Previous Task - ATTENDANCE-FULL-INTEGRATION-002
 
 Status: IN_PROGRESS - dashboard feed/deep-link slice complete
 Started: 2026-07-03

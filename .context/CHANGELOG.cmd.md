@@ -5579,3 +5579,93 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Authenticated browser QA is still required for the Work Queue/Owner card and Records deep-link flow.
 - The full first-scan trusted-device sign-in/linking flow, Staff Portal My Attendance, and staff profile attendance history remain outside this completed slice.
 - `pnpm db:push`, `pnpm db:types`, Supabase migration-history reconciliation, and database password rotation remain deployment blockers.
+
+---
+
+## 2026-07-03 - Codex (DATABASE-CONNECTION-STABILIZATION-001)
+
+**Task:** Reset the broken Supabase database tooling workflow into a secure reusable local process.
+
+**Files Added:**
+- `scripts/database/_shared.mjs`
+- `scripts/database/db-doctor.mjs`
+- `scripts/database/db-status.mjs`
+- `scripts/database/db-verify.mjs`
+- `scripts/database/db-types.mjs`
+- `scripts/database/db-link.mjs`
+- `scripts/database/db-push.mjs`
+- `scripts/database/db-migration-new.mjs`
+- `docs/DATABASE_CONNECTION_RUNBOOK.md`
+
+**Files Changed:**
+- `.gitignore` - unignored `.env.example` while keeping `.env.local` and `.env.database.local` ignored.
+- `.env.example` - added placeholders for app Supabase config and local-only database tooling variables.
+- `package.json` - replaced stale hardcoded Supabase scripts with safe database wrappers.
+- `.context/CURRENT_TASK.cmd.md`, `.context/DECISIONS.cmd.md`, `.context/ERRORS.cmd.md`, `.context/HANDOFF.cmd.md` - registered the database stabilization task and documented findings.
+- `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - recorded the tooling stabilization work and remaining blockers.
+
+**Behavior:**
+- Future database work now has `pnpm db:doctor`, `pnpm db:status`, `pnpm db:verify`, `pnpm db:link`, `pnpm db:push`, `pnpm db:types`, and `pnpm db:migration`.
+- The scripts prefer the project-local Supabase CLI shim and mask sensitive values in output.
+- Type generation writes through a temporary file and preserves the checked-in type file on failure.
+- The transaction pooler remains documented as a diagnostic/emergency fallback, not the normal migration path.
+
+**Current Blockers:**
+- Database password rotation is not confirmed.
+- Linked remote verification still depends on valid rotated local secrets and/or Supabase CLI auth.
+- `psql` is not installed, so emergency transaction-pooler migration application remains documented but not executable here.
+
+---
+
+## 2026-07-03 - Codex (ATTENDANCE-DEVICE-REGISTRY-005)
+
+**Task:** Build the Attendance Device Registry and Recovery Center backend first, then replace the Attendance Devices tab.
+
+**Files Added:**
+- `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql`
+- `docs/ATTENDANCE_DEVICE_REGISTRY_AUDIT.md`
+- `src/lib/attendance/device-display.ts`
+- `src/lib/attendance/device-registry.ts`
+- `src/lib/attendance/device-registry-status.ts`
+- `src/lib/attendance/device-recovery.ts`
+- `src/components/features/attendance/device-recovery-screen.tsx`
+- `src/components/features/attendance/devices/device-registry-toolbar.tsx`
+- `src/components/features/attendance/devices/device-registry-table.tsx`
+- `src/components/features/attendance/devices/selected-device-panel.tsx`
+- `src/components/features/attendance/devices/pending-recovery-links.tsx`
+- `src/components/features/attendance/devices/recovery-link-dialog.tsx`
+- `src/components/features/attendance/devices/rename-device-dialog.tsx`
+- `src/components/features/attendance/devices/revoke-device-dialog.tsx`
+- `tests/lib/attendance/device-recovery.test.ts`
+
+**Files Changed:**
+- `src/lib/attendance/types.ts`, `tokens.ts`, `queries.ts`, `scan-engine.ts`
+- `src/app/(dashboard)/crm/attendance/actions.ts`
+- `src/app/(dashboard)/owner/attendance/page.tsx`
+- `src/app/scan/actions.ts`
+- `src/app/scan/activate/[token]/page.tsx`
+- `src/components/features/attendance/attendance-workspace.tsx`
+- `src/components/features/attendance/devices/registered-devices-tab.tsx`
+- `src/types/supabase.ts`
+
+**Behavior:**
+- The Devices tab now shows a registry of staff/device rows, pending recovery links, selected-device detail panel, branch/status/staff-type/search filters, and CRM actions for recovery link generation, rename, pending-link revocation, and device revocation.
+- Recovery links are one-time tokens stored only as raw SHA-256 hashes; raw recovery URLs are returned once to the CRM UI.
+- `/scan/activate/[token]` now inspects recovery tokens without consuming them and consumes only after staff confirmation.
+- Successful recovery consumption atomically creates a new trusted device credential, optionally revokes the previous device, marks the token used, and logs a `qr_scan_events` activation audit row without clocking attendance in/out.
+- Existing first-scan/device credential hashing remains peppered through `hashSecret`; the new `cradle_attendance_device` cookie is set at path `/` while legacy `cradle_device` is still read for compatibility.
+
+**Validation:**
+- Live SQL probe: migration `20260703151111`, all new columns, `consume_attendance_device_recovery`, and `service_role` execute grant returned `ok`.
+- `pnpm db:types`: PASS.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm vitest run tests/lib/attendance/device-recovery.test.ts`: PASS, 1 file / 3 tests.
+- `pnpm test`: PASS, 67 files / 595 tests.
+- `pnpm build`: PASS, 105 app routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+**Remaining Caveats:**
+- `pnpm db:status` and `pnpm db:push` still time out on the Supabase pooler port `5432`; live schema was verified via linked SQL instead.
+- Authenticated browser QA for the protected Devices tab and real phone recovery scan remains pending.
+- `tmp-attendance-device-registry-verify.sql` remains untracked because sandbox deletion was denied and the elevated delete request was blocked by the environment usage limit.

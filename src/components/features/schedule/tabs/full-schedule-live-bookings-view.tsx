@@ -30,6 +30,12 @@ import {
 } from "@/app/(dashboard)/crm/schedule/actions";
 import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-services";
 import { assignTimelineLanes, formatScheduleTime, timeToMinutes } from "@/lib/utils/schedule-timeline";
+import {
+  addDaysToYmd,
+  formatBranchYmd,
+  getDayOfWeekFromYmd,
+  getMondayOfWeekYmd,
+} from "@/lib/engine/slot-time";
 import { cn } from "@/lib/utils";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
@@ -98,41 +104,20 @@ const SHIFT_CLASS: Record<ShiftType, string> = {
   regular: "border-amber-200 bg-amber-50 text-amber-950",
 };
 
-function parseDate(date: string): Date {
-  return new Date(`${date}T00:00:00`);
-}
-
-function toDateString(date: Date): string {
-  return date.toISOString().split("T")[0]!;
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function startOfWeekMonday(date: Date): Date {
-  const next = new Date(date);
-  const day = next.getDay();
-  next.setDate(next.getDate() + (day === 0 ? -6 : 1 - day));
-  return next;
-}
-
 function getDateRange(anchorDate: string, range: FullViewRange): { startDate: string; endDate: string } {
   if (range === "day") return { startDate: anchorDate, endDate: anchorDate };
-  const start = startOfWeekMonday(parseDate(anchorDate));
-  return { startDate: toDateString(start), endDate: toDateString(addDays(start, 6)) };
+  const startDate = getMondayOfWeekYmd(anchorDate);
+  return { startDate, endDate: addDaysToYmd(startDate, 6) };
 }
 
 function getVisibleDates(anchorDate: string, range: FullViewRange): string[] {
   if (range === "day") return [anchorDate];
-  const start = startOfWeekMonday(parseDate(anchorDate));
-  return Array.from({ length: 7 }, (_, index) => toDateString(addDays(start, index)));
+  const start = getMondayOfWeekYmd(anchorDate);
+  return Array.from({ length: 7 }, (_, index) => addDaysToYmd(start, index));
 }
 
 function formatDateLabel(date: string): string {
-  return parseDate(date).toLocaleDateString("en-PH", {
+  return formatBranchYmd(date, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -141,7 +126,7 @@ function formatDateLabel(date: string): string {
 
 function formatRangeLabel(startDate: string, endDate: string): string {
   if (startDate === endDate) {
-    return parseDate(startDate).toLocaleDateString("en-PH", {
+    return formatBranchYmd(startDate, {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -149,11 +134,11 @@ function formatRangeLabel(startDate: string, endDate: string): string {
     });
   }
 
-  const start = parseDate(startDate).toLocaleDateString("en-PH", {
+  const start = formatBranchYmd(startDate, {
     month: "short",
     day: "numeric",
   });
-  const end = parseDate(endDate).toLocaleDateString("en-PH", {
+  const end = formatBranchYmd(endDate, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -193,7 +178,7 @@ function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: strin
 }
 
 function buildDayModel(date: string, data: StaffFullScheduleData): DayModel {
-  const dayOfWeek = parseDate(date).getDay();
+  const dayOfWeek = getDayOfWeekFromYmd(date);
   const override = data.custom_overrides.find((item) => item.date === date);
   const bookings = data.bookings.filter((item) => item.date === date);
   const blockedTimes = data.blocked_times.filter((item) => item.date === date);

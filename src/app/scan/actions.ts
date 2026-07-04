@@ -2,7 +2,8 @@
 
 import { cookies, headers } from "next/headers";
 import { activateDeviceWithToken, processQrScan } from "@/lib/attendance/scan-engine";
-import { DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
+import { consumeDeviceRecoveryLink } from "@/lib/attendance/device-recovery";
+import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
 import type { PublicScanResult } from "@/lib/attendance/types";
 
 type PublicScanInput = {
@@ -15,15 +16,40 @@ type ActivationInput = {
   requestId?: string | null;
 };
 
+type RecoveryInput = {
+  token: string;
+};
+
 async function getRequestContext(requestId?: string | null) {
   const headerStore = await headers();
   const cookieStore = await cookies();
   return {
     requestId,
-    rawDeviceCredential: cookieStore.get(DEVICE_COOKIE_NAME)?.value ?? null,
+    rawDeviceCredential:
+      cookieStore.get(DEVICE_COOKIE_NAME)?.value ??
+      cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value ??
+      null,
     userAgent: headerStore.get("user-agent"),
     ipAddress: headerStore.get("x-forwarded-for") ?? headerStore.get("x-real-ip"),
   };
+}
+
+async function setDeviceCookie(rawDeviceCredential: string): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(DEVICE_COOKIE_NAME, rawDeviceCredential, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 180,
+  });
+  cookieStore.set(LEGACY_DEVICE_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/scan",
+    maxAge: 0,
+  });
 }
 
 export async function processPublicQrScanAction(input: PublicScanInput): Promise<PublicScanResult> {
@@ -53,14 +79,7 @@ export async function activateDeviceAction(input: ActivationInput): Promise<Publ
 
   const result = await activateDeviceWithToken(token, await getRequestContext(input.requestId));
   if (result.ok && result.rawDeviceCredential) {
-    const cookieStore = await cookies();
-    cookieStore.set(DEVICE_COOKIE_NAME, result.rawDeviceCredential, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/scan",
-      maxAge: 60 * 60 * 24 * 180,
-    });
+    await setDeviceCookie(result.rawDeviceCredential);
   }
 
   return {
@@ -71,6 +90,44 @@ export async function activateDeviceAction(input: ActivationInput): Promise<Publ
     detail: result.detail,
     scanEventId: result.scanEventId,
     nextHref: result.nextHref,
+    attendance: result.attendance,
     countdown: result.countdown,
+  };
+}
+
+export async function consumeDeviceRecoveryLinkAction(input: RecoveryInput): Promise<PublicScanResult> {
+  const token = input.token?.trim();
+  if (!token) {
+    return {
+      ok: false,
+      outcome: "blocked",
+      title: "Link invalid",
+      message: "This recovery link could not be verified.",
+    };
+  }
+
+  const headerStore = await headers();
+  const result = await consumeDeviceRecoveryLink({
+    rawToken: token,
+    userAgent: headerStore.get("user-agent"),
+  });
+
+  if (!result.success) {
+    return {
+      ok: false,
+      outcome: "blocked",
+      title: result.title,
+      message: result.message,
+    };
+  }
+
+  await setDeviceCookie(result.rawDeviceCredential);
+
+  return {
+    ok: true,
+    outcome: "success",
+    title: "Phone connected",
+    message: "This phone is ready for attendance and service QR scanning.",
+    detail: `${result.staffName} - ${result.branchName}`,
   };
 }

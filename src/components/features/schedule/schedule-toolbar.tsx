@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, CalendarDays, Building2, Search, ListFilter, ClipboardList } from "lucide-react";
+import { addDaysToYmd, formatBranchYmd, getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 export type ScheduleToolbarProps = {
   workspaceContext: "owner" | "manager" | "crm";
@@ -21,9 +22,7 @@ export type ScheduleToolbarProps = {
 };
 
 function shiftDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0]!;
+  return addDaysToYmd(dateStr, days);
 }
 
 export function ScheduleToolbar({
@@ -42,9 +41,9 @@ export function ScheduleToolbar({
   viewBookingsHref,
 }: ScheduleToolbarProps) {
   const router = useRouter();
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
   const isToday = date === today;
-  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString("en-PH", {
+  const formattedDate = formatBranchYmd(date, {
     weekday: "short",
     month: "short",
     day: "numeric",

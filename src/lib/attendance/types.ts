@@ -69,6 +69,137 @@ export type AttendanceDevice = {
   staff_name: string;
 };
 
+export type DeviceRecoveryReason =
+  | "browser_data_cleared"
+  | "replacement_phone"
+  | "lost_phone"
+  | "device_cookie_expired"
+  | "support_recovery"
+  | "security_concern"
+  | "other";
+
+export type DeviceRevocationReason =
+  | "lost_phone"
+  | "replacement_phone"
+  | "shared_device"
+  | "security_concern"
+  | "staff_request"
+  | "browser_reset"
+  | "other";
+
+export type AttendanceDeviceStatus =
+  | "active"
+  | "never_used"
+  | "recovery_pending"
+  | "revoked"
+  | "no_device"
+  | "inactive_staff";
+
+export type AttendanceDeviceRegistryEntry = {
+  rowId: string;
+  staffId: string;
+  staffName: string;
+  staffNickname: string | null;
+  avatarUrl: string | null;
+  staffType: string;
+  staffIsActive: boolean;
+  homeBranchId: string;
+  homeBranchName: string;
+  status: AttendanceDeviceStatus;
+  device: {
+    id: string;
+    label: string;
+    browserName: string | null;
+    browserVersion: string | null;
+    platformName: string | null;
+    registeredAt: string;
+    registrationSource: string | null;
+    registeredBranchId: string | null;
+    registeredBranchName: string | null;
+    lastSeenAt: string | null;
+    lastAttendanceScanAt: string | null;
+    lastServiceScanAt: string | null;
+    lastScanAt: string | null;
+    totalSuccessfulScans: number;
+    isActive: boolean;
+    revokedAt: string | null;
+    revokedByName: string | null;
+    revocationReason: DeviceRevocationReason | string | null;
+  } | null;
+  pendingRecovery: {
+    id: string;
+    reason: DeviceRecoveryReason | string;
+    createdAt: string;
+    expiresAt: string;
+    revokePreviousDeviceId: string | null;
+  } | null;
+};
+
+export type PendingDeviceRecoveryLink = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffNickname: string | null;
+  branchId: string;
+  branchName: string;
+  reason: DeviceRecoveryReason | string;
+  createdAt: string;
+  expiresAt: string;
+  revokePreviousDeviceId: string | null;
+};
+
+export type AttendanceDeviceRegistryData = {
+  branchId: string;
+  branchName: string;
+  canSwitchBranch: boolean;
+  branches: Array<{ id: string; name: string }>;
+  staffOptions: Array<{
+    id: string;
+    name: string;
+    staffType: string;
+    branchId: string;
+    branchName: string;
+  }>;
+  activeDevices: Array<{
+    id: string;
+    staffId: string;
+    label: string;
+  }>;
+  entries: AttendanceDeviceRegistryEntry[];
+  pendingRecoveryLinks: PendingDeviceRecoveryLink[];
+};
+
+export type RecoveryLinkResult = {
+  tokenId: string;
+  recoveryUrl: string;
+  expiresAt: string;
+  staffName: string;
+  branchName: string;
+  reason: DeviceRecoveryReason;
+};
+
+export type RecoveryTokenPreview =
+  | {
+      ok: true;
+      staffName: string;
+      staffType: string;
+      branchName: string;
+      expiresAt: string;
+      reason: DeviceRecoveryReason | string;
+    }
+  | {
+      ok: false;
+      code:
+        | "invalid_token"
+        | "token_expired"
+        | "token_used"
+        | "token_revoked"
+        | "staff_inactive"
+        | "branch_unavailable";
+      title: string;
+      message: string;
+    };
+
 export type AttendanceRecord = {
   id: string;
   staff_id: string;
@@ -174,6 +305,7 @@ export type AttendanceWorkspaceData = {
   qrConfiguration: AttendanceQrConfiguration;
   qrPoints: AttendanceQrPoint[];
   devices: AttendanceDevice[];
+  deviceRegistry: AttendanceDeviceRegistryData;
   records: AttendanceRecord[];
   exceptions: AttendanceException[];
   scanEvents: AttendanceScanEvent[];
@@ -190,6 +322,15 @@ export type PublicScanResult = {
   detail?: string;
   scanEventId?: string;
   nextHref?: string;
+  attendance?: {
+    action: "clock_in" | "clock_out";
+    staffName: string;
+    branchName: string;
+    shiftLabel: string;
+    occurredAt: string;
+    sessionStartedAt: string;
+    workedMinutes?: number;
+  };
   countdown?: {
     bookingId: string;
     customerName: string;

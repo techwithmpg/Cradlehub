@@ -1,4 +1,5 @@
 import { timeToMinutes } from "@/lib/utils/time-format";
+import { getDayOfWeekFromYmd } from "@/lib/engine/slot-time";
 
 export const STAFF_SCHEDULE_SHIFT_TYPES = ["single", "opening", "closing"] as const;
 
@@ -70,8 +71,7 @@ const DAY_OFF_BY_SOURCE: Record<Exclude<ResolvedStaffScheduleSource, "none">, Re
 };
 
 export function dayOfWeekFromDateString(date: string): number {
-  const [year = "0", month = "1", day = "1"] = date.split("-");
-  return new Date(Number(year), Number(month) - 1, Number(day)).getDay();
+  return getDayOfWeekFromYmd(date);
 }
 
 export function getScheduleGroupKeyForStaffType(

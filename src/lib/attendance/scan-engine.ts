@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asAttendanceDb, type AttendanceDb } from "@/lib/attendance/db";
+import { inferDeviceClientHints } from "@/lib/attendance/device-display";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
 import { createDeviceCredential, hashSecret, maskId } from "@/lib/attendance/tokens";
 import {
@@ -203,6 +204,20 @@ async function resolveDevice(admin: AttendanceDb, rawCredential: string | null |
   return (data as StaffDeviceRow | null) ?? null;
 }
 
+async function markDeviceScanSuccess(admin: AttendanceDb, params: {
+  deviceId: string;
+  scanType: "attendance" | "service";
+  scannedAt?: string;
+}) {
+  const scannedAt = params.scannedAt ?? new Date().toISOString();
+  const update =
+    params.scanType === "attendance"
+      ? { last_seen_at: scannedAt, last_attendance_scan_at: scannedAt }
+      : { last_seen_at: scannedAt, last_service_scan_at: scannedAt };
+
+  await admin.from("staff_devices").update(update).eq("id", params.deviceId);
+}
+
 async function loadQrPoint(admin: AttendanceDb, publicCode: string): Promise<QrPointRow | null> {
   const { data } = await admin
     .from("qr_points")
@@ -336,6 +351,7 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
   const settings = await getAttendanceSettings(point.branch_id);
   const staff = first(device.staff);
   const staffName = staff?.full_name ?? "Staff member";
+  const branchName = first(point.branches)?.name ?? "Branch";
 
   if (await findRecentDuplicate(admin, {
     pointId: point.id,
@@ -468,6 +484,11 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
         .update({ clock_out_scan_event_id: eventId })
         .eq("id", activeCheckin.id);
     }
+    await markDeviceScanSuccess(admin, {
+      deviceId: device.id,
+      scanType: "attendance",
+      scannedAt: nowIso,
+    });
 
     if (metrics.earlyLeaveMinutes > 0 || metrics.overtimeMinutes > 0) {
       await recordException(admin, {
@@ -486,6 +507,15 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
 
     return success("Clocked out", `${staffName} is clocked out. Worked ${formatMinutesCompact(metrics.workedMinutes)}.`, {
       scanEventId: eventId ?? undefined,
+      attendance: {
+        action: "clock_out",
+        staffName,
+        branchName,
+        shiftLabel: activeCheckin.shift_type,
+        occurredAt: nowIso,
+        sessionStartedAt: activeCheckin.checked_in_at,
+        workedMinutes: metrics.workedMinutes,
+      },
     });
   }
 
@@ -596,6 +626,11 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       .update({ clock_in_scan_event_id: eventId })
       .eq("id", inserted.data.id);
   }
+  await markDeviceScanSuccess(admin, {
+    deviceId: device.id,
+    scanType: "attendance",
+    scannedAt: nowIso,
+  });
 
   if (schedule.isUnscheduled || metrics.lateMinutes > 0) {
     await recordException(admin, {
@@ -613,6 +648,14 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
 
   return success("Clocked in", `${staffName} is clocked in for ${schedule.shiftType}.`, {
     scanEventId: eventId ?? undefined,
+    attendance: {
+      action: "clock_in",
+      staffName,
+      branchName,
+      shiftLabel: schedule.shiftType,
+      occurredAt: nowIso,
+      sessionStartedAt: nowIso,
+    },
   });
 }
 
@@ -724,6 +767,10 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
     });
 
     if (sameResource) {
+      await markDeviceScanSuccess(admin, {
+        deviceId: device.id,
+        scanType: "service",
+      });
       return success("Session active", "The service countdown is already running.", {
         scanEventId: eventId ?? undefined,
         countdown,
@@ -927,6 +974,11 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       .update({ session_start_scan_event_id: eventId })
       .eq("id", booking.id);
   }
+  await markDeviceScanSuccess(admin, {
+    deviceId: device.id,
+    scanType: "service",
+    scannedAt: startedAt,
+  });
 
   return success("Session started", `${resourceName} session started for ${durationMinutes} minutes.`, {
     scanEventId: eventId ?? undefined,
@@ -1091,16 +1143,22 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
   }
 
   const rawDeviceCredential = createDeviceCredential();
+  const deviceHints = inferDeviceClientHints(ctx.userAgent);
   const inserted = await admin
     .from("staff_devices")
     .insert({
       staff_id: activationRow.staff_id,
       branch_id: activationRow.branch_id,
       device_fingerprint_hash: hashSecret(rawDeviceCredential),
-      device_label: "Staff mobile device",
+      device_label: deviceHints.label,
       status: "active",
+      registration_source: "first_scan_activation",
+      browser_name: deviceHints.browserName,
+      browser_version: deviceHints.browserVersion,
+      platform_name: deviceHints.platformName,
+      last_seen_at: new Date().toISOString(),
       metadata: {
-        activated_from: "qr_activation",
+        activated_from: "first_scan_activation",
         user_agent: ctx.userAgent ?? null,
       },
     })

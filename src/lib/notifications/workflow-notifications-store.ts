@@ -7,6 +7,7 @@ import {
   validateSignalHref,
 } from "./workflow-dedupe";
 import { logError } from "@/lib/logger";
+import type { Json } from "@/types/supabase";
 
 function notificationPayload(input: CreateNotificationInput, dedupeKey: string) {
   return {
@@ -27,7 +28,7 @@ function notificationPayload(input: CreateNotificationInput, dedupeKey: string) 
     resolved_at: null,
     requires_action: input.requiresAction ?? false,
     dedupe_key: dedupeKey,
-    metadata: input.metadata ?? {},
+    metadata: (input.metadata ?? {}) as Json,
     created_at: new Date().toISOString(),
   };
 }

@@ -54,10 +54,24 @@ describe("Daily Timeline operations model", () => {
   });
 
   it("derives live available and busy states from schedule, bookings, and blocks", () => {
-    const now = new Date("2026-06-17T12:30:00");
+    const now = new Date("2026-06-17T04:30:00.000Z");
     expect(getTimelineStatus(row(), "2026-06-17", now)).toBe("available");
     expect(getTimelineStatus(row({ blocks: [{ id: "break", start_time: "12:00:00", end_time: "13:00:00", reason: "Break" }] }), "2026-06-17", now)).toBe("busy");
     expect(getTimelineStatus(row(), "2026-06-18", now)).toBe("scheduled");
+  });
+
+  it("uses branch-local time for overnight live states", () => {
+    const afterMidnightBranchTime = new Date("2026-06-17T16:30:00.000Z");
+
+    expect(
+      getTimelineStatus(
+        row({
+          schedule_windows: [{ shiftType: "closing", startTime: "17:00:00", endTime: "01:00:00" }],
+        }),
+        "2026-06-18",
+        afterMidnightBranchTime
+      )
+    ).toBe("available");
   });
 
   it("detects staff and room conflicts while retaining travel and missing-room signals", () => {

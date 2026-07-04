@@ -8,6 +8,7 @@ import {
   ownerUpdateBookingStatusAction,
   ownerUpdateBookingPaymentAction,
 } from "@/app/(dashboard)/owner/bookings/actions";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 async function getOwnerContext() {
   const supabase = await createClient();
@@ -32,7 +33,7 @@ export default async function OwnerSchedulePage({
   await getOwnerContext();
 
   const params = await searchParams;
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
   const [branches] = await Promise.all([getAllBranches()]);
 
   const selectedBranchId =

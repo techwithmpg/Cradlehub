@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `CRM-STABILIZATION-CHECKPOINT-1-NAV-SHELL-2026-06-30`  |
-| **Completion**      | `CRM sidebar/nav shell Checkpoint 1 complete: Work Queue, Bookings, Schedule, Customers, Home Service, collapsed System Management for current management-authorized tools`        |
+| **Sprint**          | `DATABASE-CONNECTION-STABILIZATION-001`  |
+| **Completion**      | `Reusable Supabase database tooling wrappers and runbook added; live remote closure awaits rotated DB credentials and migration-history reconciliation`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-06-30` |
-| **Blockers**        | `CRM implementation remains in progress; header, Work Queue simplification, broader system-tool access review, authenticated workflow QA, and action/RLS tracing remain required`      |
+| **Last Updated**    | `2026-07-03` |
+| **Blockers**        | `Rotate exposed Supabase DB password, rerun db:doctor/status/verify/push/types with local secrets, reconcile migration history, and keep authenticated CRM/Attendance QA on the follow-up list`      |
 
 ---
 
@@ -415,3 +415,21 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Records now accepts server-validated `staffId` and `date` filters and highlights the matching row.
 - Verified `npx tsc --noEmit --pretty false`, focused helper tests, `npm run lint`, `npm run build`, and `git diff --check`.
 - Remaining: authenticated browser QA, first-scan trusted-device sign-in/linking, Staff Portal My Attendance, staff profile attendance history, Supabase CLI/migration-history repair, and database password rotation.
+
+## Latest Agent Update (2026-07-03 - Database Connection Stabilization)
+
+- Added secure reusable Supabase database wrappers under `scripts/database/`.
+- Updated package database commands to use `pnpm db:doctor`, `pnpm db:status`, `pnpm db:verify`, `pnpm db:link`, `pnpm db:push`, `pnpm db:types`, and `pnpm db:migration`.
+- Added placeholders to `.env.example` only and unignored `.env.example`; local secret files remain ignored.
+- Added `docs/DATABASE_CONNECTION_RUNBOOK.md` covering setup, migration push, type generation, verification, troubleshooting, migration-history repair, and emergency pooler fallback.
+- Confirmed the direct project-local Supabase CLI shim works at version `2.95.6`; `pnpm exec supabase` remains unreliable in this managed shell.
+- Remaining: rotate the exposed database password, populate local git-ignored secrets, rerun DB verification/push/types, and reconcile migration history.
+
+## Latest Agent Update (2026-07-03 - Attendance Device Registry)
+
+- Completed `ATTENDANCE-DEVICE-REGISTRY-005`: extended the existing Attendance QR schema for device registry metadata and one-time recovery links, applied `20260703151111_attendance_device_registry_recovery.sql`, and verified the live migration row/columns/RPC/grant by linked SQL.
+- Added typed backend registry/recovery helpers, CRM actions, staff recovery confirmation flow, new attendance-device cookie handling, and focused recovery tests.
+- Replaced the Attendance Devices tab with the Device Registry and Recovery Center UI: filters, registry table, pending recovery links, selected-device panel, recovery-link generation, rename, and revoke.
+- Recovery link consumption is explicit staff-confirmed behavior and does not clock attendance in/out or start service sessions.
+- Verified `pnpm db:types`, `pnpm type-check`, `pnpm lint`, focused recovery tests, full `pnpm test`, `pnpm build`, and `git diff --check`.
+- Remaining: authenticated browser QA, real phone recovery scan QA, DB password rotation, and repair of the `pnpm db:status`/`pnpm db:push` port-5432 timeout path.

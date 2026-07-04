@@ -4,6 +4,7 @@ import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { getManagerContext } from "@/lib/queries/manager-context";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 
 export default async function ManagerSchedulePage({
   searchParams,
@@ -12,7 +13,7 @@ export default async function ManagerSchedulePage({
 }) {
   const { branchId, branchName } = await getManagerContext();
   const params = await searchParams;
-  const today = new Date().toISOString().split("T")[0]!;
+  const today = getBranchBusinessDate();
   const selectedDate = params.date ?? today;
   const supabase = await createClient();
 

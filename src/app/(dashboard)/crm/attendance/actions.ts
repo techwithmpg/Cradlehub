@@ -9,12 +9,24 @@ import {
   ensureRoomQrPoints,
   getAttendanceActionContext,
   resolveAttendanceException,
-  revokeAttendanceDevice,
   revalidateAttendanceSurfaces,
 } from "@/lib/attendance/queries";
+import {
+  generateDeviceRecoveryLink,
+  renameAttendanceDevice,
+  revokeAttendanceDeviceWithReason,
+  revokeDeviceRecoveryLink,
+  type DeviceActionResult,
+  type GenerateDeviceRecoveryInput,
+} from "@/lib/attendance/device-recovery";
 import { buildScanUrl, renderQrSvg } from "@/lib/attendance/qr-code";
 import { getRequestOrigin } from "@/lib/http/request-origin";
-import type { AttendanceQrPoint, AttendanceTab } from "@/lib/attendance/types";
+import type {
+  AttendanceQrPoint,
+  AttendanceTab,
+  DeviceRevocationReason,
+  RecoveryLinkResult,
+} from "@/lib/attendance/types";
 
 export type AttendanceActionResult =
   | { ok: false; tab?: AttendanceTab; message: string }
@@ -28,8 +40,11 @@ export type AttendanceActionResult =
 
 type AttendanceContext = NonNullable<Awaited<ReturnType<typeof getAttendanceActionContext>>>;
 
-async function getContextOrResult(tab?: AttendanceTab): Promise<{ ctx: AttendanceContext } | { result: AttendanceActionResult }> {
-  const ctx = await getAttendanceActionContext();
+async function getContextOrResult(
+  tab?: AttendanceTab,
+  branchId?: string | null
+): Promise<{ ctx: AttendanceContext } | { result: AttendanceActionResult }> {
+  const ctx = await getAttendanceActionContext({ branchId });
   if (!ctx) {
     return {
       result: {
@@ -40,6 +55,18 @@ async function getContextOrResult(tab?: AttendanceTab): Promise<{ ctx: Attendanc
     };
   }
   return { ctx };
+}
+
+async function getDeviceContext(branchId?: string | null): Promise<DeviceActionResult<AttendanceContext>> {
+  const ctx = await getAttendanceActionContext({ branchId });
+  if (!ctx) {
+    return {
+      success: false,
+      error: "Please sign in again before changing Attendance devices.",
+      code: "unauthorized",
+    };
+  }
+  return { success: true, data: ctx };
 }
 
 async function getOrigin(): Promise<string | null> {
@@ -135,20 +162,89 @@ export async function createDeviceActivationTokenAction(formData: FormData): Pro
 }
 
 export async function revokeAttendanceDeviceAction(formData: FormData): Promise<AttendanceActionResult> {
-  const context = await getContextOrResult("devices");
+  const context = await getContextOrResult("devices", String(formData.get("branchId") ?? ""));
   if ("result" in context) return context.result;
 
   const deviceId = String(formData.get("deviceId") ?? "");
+  const reason = String(formData.get("reason") ?? "other") as DeviceRevocationReason;
   if (!deviceId) {
     return { ok: false, tab: "devices", message: "Device ID is missing." };
   }
 
   try {
-    await revokeAttendanceDevice({ ctx: context.ctx, deviceId });
+    await revokeAttendanceDeviceWithReason({ ctx: context.ctx, deviceId, reason });
     revalidateAttendanceSurfaces();
     return { ok: true, kind: "device_revoked", tab: "devices", message: "Device revoked.", deviceId };
   } catch (error) {
     return { ok: false, tab: "devices", message: safeError(error, "The selected device is no longer active.") };
+  }
+}
+
+export async function generateDeviceRecoveryLinkAction(
+  input: GenerateDeviceRecoveryInput
+): Promise<DeviceActionResult<RecoveryLinkResult>> {
+  const context = await getDeviceContext(input.branchId);
+  if (!context.success) return context;
+
+  try {
+    const recovery = await generateDeviceRecoveryLink({
+      ctx: context.data,
+      input,
+      origin: await getOrigin(),
+    });
+    revalidateAttendanceSurfaces();
+    return { success: true, data: recovery };
+  } catch (error) {
+    return {
+      success: false,
+      error: safeError(error, "Could not generate the recovery link."),
+    };
+  }
+}
+
+export async function renameAttendanceDeviceAction(input: {
+  branchId: string;
+  deviceId: string;
+  label: string;
+}): Promise<DeviceActionResult<{ deviceId: string; label: string }>> {
+  const context = await getDeviceContext(input.branchId);
+  if (!context.success) return context;
+
+  try {
+    const result = await renameAttendanceDevice({
+      ctx: context.data,
+      deviceId: input.deviceId,
+      label: input.label,
+    });
+    revalidateAttendanceSurfaces();
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error: safeError(error, "Could not rename the device."),
+    };
+  }
+}
+
+export async function revokeDeviceRecoveryLinkAction(input: {
+  branchId: string;
+  tokenId: string;
+}): Promise<DeviceActionResult<{ tokenId: string }>> {
+  const context = await getDeviceContext(input.branchId);
+  if (!context.success) return context;
+
+  try {
+    const result = await revokeDeviceRecoveryLink({
+      ctx: context.data,
+      tokenId: input.tokenId,
+    });
+    revalidateAttendanceSurfaces();
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error: safeError(error, "Could not revoke the recovery link."),
+    };
   }
 }
 

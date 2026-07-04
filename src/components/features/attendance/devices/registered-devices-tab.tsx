@@ -1,165 +1,268 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Copy, Search, ShieldCheck } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { revokeDeviceRecoveryLinkAction } from "@/app/(dashboard)/crm/attendance/actions";
 import { Button } from "@/components/ui/button";
-import { EmptyState, Panel, StatusPill, formatAttendanceDateTime } from "@/components/features/attendance/attendance-ui";
-import { createDeviceActivationTokenAction, revokeAttendanceDeviceAction, type AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
-import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
+import { EmptyState } from "@/components/features/attendance/attendance-ui";
+import { DeviceRegistryTable } from "@/components/features/attendance/devices/device-registry-table";
+import { DeviceRegistryToolbar } from "@/components/features/attendance/devices/device-registry-toolbar";
+import { PendingRecoveryLinks } from "@/components/features/attendance/devices/pending-recovery-links";
+import { RecoveryLinkDialog } from "@/components/features/attendance/devices/recovery-link-dialog";
+import { RenameDeviceDialog } from "@/components/features/attendance/devices/rename-device-dialog";
+import { RevokeDeviceDialog } from "@/components/features/attendance/devices/revoke-device-dialog";
+import { SelectedDevicePanel } from "@/components/features/attendance/devices/selected-device-panel";
+import type {
+  AttendanceDeviceRegistryData,
+  AttendanceDeviceRegistryEntry,
+  AttendanceDeviceStatus,
+  AttendanceWorkspaceData,
+  DeviceRevocationReason,
+  PendingDeviceRecoveryLink,
+} from "@/lib/attendance/types";
+
+function entryMatchesQuery(entry: AttendanceDeviceRegistryEntry, query: string): boolean {
+  if (!query) return true;
+  const device = entry.device;
+  const haystack = [
+    entry.staffName,
+    entry.staffNickname,
+    device?.label,
+    device?.browserName,
+    device?.platformName,
+  ].filter(Boolean).join(" ").toLowerCase();
+  return haystack.includes(query);
+}
+
+function updateEntryDevice(
+  entry: AttendanceDeviceRegistryEntry,
+  deviceId: string,
+  update: Partial<NonNullable<AttendanceDeviceRegistryEntry["device"]>>
+): AttendanceDeviceRegistryEntry {
+  if (entry.device?.id !== deviceId) return entry;
+  return { ...entry, device: { ...entry.device, ...update } };
+}
 
 export function RegisteredDevicesTab({
   data,
-  activation,
-  onActionResult,
+  routeBasePath,
+  routeBranchId,
 }: {
   data: AttendanceWorkspaceData;
-  activation?: { activationUrl: string; expiresAt: string } | null;
-  onActionResult: (result: AttendanceActionResult) => void;
+  routeBasePath?: string;
+  routeBranchId?: string | null;
 }) {
+  const [registry, setRegistry] = useState<AttendanceDeviceRegistryData>(data.deviceRegistry);
   const [query, setQuery] = useState("");
-  const [staffId, setStaffId] = useState("");
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState<"all" | AttendanceDeviceStatus>("all");
+  const [staffType, setStaffType] = useState("all");
+  const [selectedRowId, setSelectedRowId] = useState(registry.entries[0]?.rowId ?? null);
+  const [recoveryEntry, setRecoveryEntry] = useState<AttendanceDeviceRegistryEntry | null>(null);
+  const [renameEntry, setRenameEntry] = useState<AttendanceDeviceRegistryEntry | null>(null);
+  const [revokeEntry, setRevokeEntry] = useState<AttendanceDeviceRegistryEntry | null>(null);
   const [isPending, startTransition] = useTransition();
-  const activationUnavailable = !data.qrConfiguration.isConfigured;
 
-  const rows = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return data.devices.filter((device) => {
-      const matchesQuery = !normalizedQuery || `${device.staff_name} ${device.device_label ?? ""}`.toLowerCase().includes(normalizedQuery);
-      const matchesStatus = status === "all" || device.status === status;
-      return matchesQuery && matchesStatus;
-    });
-  }, [data.devices, query, status]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const staffTypes = useMemo(
+    () => Array.from(new Set(registry.entries.map((entry) => entry.staffType))).sort(),
+    [registry.entries]
+  );
+  const filteredEntries = useMemo(
+    () => registry.entries.filter((entry) => {
+      const matchesStatus = status === "all" || entry.status === status;
+      const matchesType = staffType === "all" || entry.staffType === staffType;
+      return matchesStatus && matchesType && entryMatchesQuery(entry, normalizedQuery);
+    }),
+    [normalizedQuery, registry.entries, staffType, status]
+  );
+  const selectedEntry =
+    filteredEntries.find((entry) => entry.rowId === selectedRowId) ??
+    registry.entries.find((entry) => entry.rowId === selectedRowId) ??
+    filteredEntries[0] ??
+    null;
 
-  function activatePhone() {
-    if (activationUnavailable) {
-      onActionResult({
-        ok: false,
-        tab: "devices",
-        message: "Configure APP_URL or NEXT_PUBLIC_APP_URL before creating device activation links.",
+  function clearFilters() {
+    setQuery("");
+    setStatus("all");
+    setStaffType("all");
+  }
+
+  function changeBranch(branchId: string) {
+    if (branchId === registry.branchId) return;
+    window.location.href = `${routeBasePath ?? "/owner/attendance"}?tab=devices&branchId=${branchId}`;
+  }
+
+  function upsertPendingLink(link: PendingDeviceRecoveryLink) {
+    setRegistry((current) => ({
+      ...current,
+      pendingRecoveryLinks: [
+        link,
+        ...current.pendingRecoveryLinks.filter((item) => item.staffId !== link.staffId),
+      ],
+      entries: current.entries.map((entry) =>
+        entry.staffId === link.staffId
+          ? {
+              ...entry,
+              status: "recovery_pending",
+              pendingRecovery: {
+                id: link.id,
+                reason: link.reason,
+                createdAt: link.createdAt,
+                expiresAt: link.expiresAt,
+                revokePreviousDeviceId: link.revokePreviousDeviceId,
+              },
+            }
+          : entry
+      ),
+    }));
+  }
+
+  function handleGenerated(link: PendingDeviceRecoveryLink) {
+    upsertPendingLink(link);
+  }
+
+  function handleRenamed(deviceId: string, label: string) {
+    setRegistry((current) => ({
+      ...current,
+      activeDevices: current.activeDevices.map((device) => device.id === deviceId ? { ...device, label } : device),
+      entries: current.entries.map((entry) => updateEntryDevice(entry, deviceId, { label })),
+    }));
+  }
+
+  function handleRevoked(deviceId: string, reason: DeviceRevocationReason) {
+    setRegistry((current) => ({
+      ...current,
+      activeDevices: current.activeDevices.filter((device) => device.id !== deviceId),
+      entries: current.entries.map((entry) =>
+        updateEntryDevice(entry, deviceId, {
+          isActive: false,
+          revokedAt: new Date().toISOString(),
+          revocationReason: reason,
+        })
+      ).map((entry) => entry.device?.id === deviceId ? { ...entry, status: "revoked" } : entry),
+    }));
+  }
+
+  function revokePendingLink(link: PendingDeviceRecoveryLink) {
+    startTransition(async () => {
+      const result = await revokeDeviceRecoveryLinkAction({
+        branchId: link.branchId,
+        tokenId: link.id,
       });
-      return;
-    }
-    const formData = new FormData();
-    formData.set("staffId", staffId);
-    startTransition(async () => {
-      onActionResult(await createDeviceActivationTokenAction(formData));
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      setRegistry((current) => ({
+        ...current,
+        pendingRecoveryLinks: current.pendingRecoveryLinks.filter((item) => item.id !== link.id),
+        entries: current.entries.map((entry) =>
+          entry.pendingRecovery?.id === link.id
+            ? { ...entry, pendingRecovery: null, status: entry.device ? (entry.device.isActive ? "active" : "revoked") : "no_device" }
+            : entry
+        ),
+      }));
+      toast.success("Recovery link revoked.");
     });
   }
 
-  function revokeDevice(deviceId: string) {
-    const formData = new FormData();
-    formData.set("deviceId", deviceId);
-    startTransition(async () => {
-      onActionResult(await revokeAttendanceDeviceAction(formData));
-    });
-  }
-
-  async function copyActivationLink() {
-    if (!activation?.activationUrl) return;
-    await navigator.clipboard.writeText(activation.activationUrl);
-    toast.success("Activation link copied.");
+  function replacePendingLink(link: PendingDeviceRecoveryLink) {
+    const entry = registry.entries.find((item) => item.staffId === link.staffId) ?? null;
+    setRecoveryEntry(entry);
   }
 
   return (
     <div className="grid gap-4">
-      <Panel
-        title="Device Activation"
-        action={
-          <Button type="button" disabled={isPending || activationUnavailable} onClick={activatePhone}>
-            <ShieldCheck data-icon="inline-start" />
-            {isPending ? "Creating..." : "Activate Phone"}
-          </Button>
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={staffId}
-            onChange={(event) => setStaffId(event.target.value)}
-            className="h-8 min-w-60 rounded-lg border border-border bg-background px-3 text-sm font-semibold"
-          >
-            <option value="">Select staff</option>
-            {data.staffOptions.map((staff) => (
-              <option key={staff.id} value={staff.id}>{staff.full_name}</option>
-            ))}
-          </select>
-          <Button type="button" variant="outline" disabled={isPending || activationUnavailable} onClick={activatePhone}>
-            Activate and Clock In
-          </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-stone-950">Device Registry and Recovery Center</h2>
+          <p className="text-sm text-stone-500">Manage trusted staff devices and one-time recovery links.</p>
         </div>
-        {activationUnavailable ? (
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-700/25 bg-[#FFF7E8] px-3 py-2 text-sm text-amber-950">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" />
-            <span>Activation links require APP_URL or NEXT_PUBLIC_APP_URL in the Production environment.</span>
-          </div>
-        ) : null}
-        {activation ? (
-          <div className="grid gap-2 rounded-lg border border-emerald-800/20 bg-emerald-50 p-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-900">Temporary activation link</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input readOnly value={activation.activationUrl} className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-white px-3 text-sm" />
-              <Button type="button" variant="outline" onClick={copyActivationLink}>
-                <Copy data-icon="inline-start" />
-                Copy
-              </Button>
-            </div>
-            <div className="text-xs text-muted-foreground">Expires {formatAttendanceDateTime(activation.expiresAt)}. Activation QRs are temporary and are not printable signs.</div>
-          </div>
-        ) : null}
-      </Panel>
+        <Button type="button" className="bg-[#9A6A3A] text-white hover:bg-[#82572F]" onClick={() => setRecoveryEntry(selectedEntry)}>
+          <Plus data-icon="inline-start" />
+          Generate recovery link
+        </Button>
+      </div>
 
-      <Panel title={`Registered Devices (${rows.length})`}>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold">
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="revoked">Revoked</option>
-          </select>
-          <label className="flex h-8 min-w-64 flex-1 items-center gap-2 rounded-lg border border-border bg-background px-3">
-            <Search className="size-4 text-muted-foreground" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search staff or device..." className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
-          </label>
+      <DeviceRegistryToolbar
+        query={query}
+        onQueryChange={setQuery}
+        branchId={registry.branchId}
+        onBranchChange={changeBranch}
+        branches={registry.branches}
+        canSwitchBranch={registry.canSwitchBranch}
+        status={status}
+        onStatusChange={setStatus}
+        staffType={staffType}
+        onStaffTypeChange={setStaffType}
+        staffTypes={staffTypes}
+        onClear={clearFilters}
+      />
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="grid gap-4">
+          {filteredEntries.length === 0 ? (
+            <EmptyState title="No devices match these filters." detail="Clear filters to return to the full registry." />
+          ) : (
+            <DeviceRegistryTable
+              entries={filteredEntries}
+              selectedRowId={selectedEntry?.rowId ?? null}
+              onSelect={(entry) => setSelectedRowId(entry.rowId)}
+              onGenerateRecovery={setRecoveryEntry}
+            />
+          )}
+          <PendingRecoveryLinks
+            links={registry.pendingRecoveryLinks}
+            onRevoke={revokePendingLink}
+            onReplace={replacePendingLink}
+          />
         </div>
-        {rows.length === 0 ? (
-          <EmptyState title="No registered devices found." detail="Create a temporary activation link to register a staff phone." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead>
-                <tr className="border-b bg-stone-50 text-left text-xs text-muted-foreground">
-                  {["Staff", "Device", "Platform", "Activated", "Last Used", "Last QR", "Status", "Actions"].map((heading) => (
-                    <th key={heading} className="px-3 py-2 font-semibold">{heading}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((device) => (
-                  <tr key={device.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-3 font-semibold">{device.staff_name}</td>
-                    <td className="px-3 py-3">{device.device_label ?? "Staff mobile device"}</td>
-                    <td className="px-3 py-3 text-muted-foreground">Mobile browser</td>
-                    <td className="px-3 py-3">{formatAttendanceDateTime(device.created_at)}</td>
-                    <td className="px-3 py-3">{formatAttendanceDateTime(device.last_seen_at)}</td>
-                    <td className="px-3 py-3 text-muted-foreground">Attendance QR</td>
-                    <td className="px-3 py-3"><StatusPill value={device.status} /></td>
-                    <td className="px-3 py-3">
-                      <div className="flex gap-2">
-                        <Button type="button" variant="outline" size="sm">View Activity</Button>
-                        {device.status === "active" ? (
-                          <Button type="button" variant="destructive" size="sm" disabled={isPending} onClick={() => revokeDevice(device.id)}>
-                            Revoke
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
+        <SelectedDevicePanel
+          entry={selectedEntry}
+          routeBasePath={routeBasePath}
+          routeBranchId={routeBranchId}
+          onGenerateRecovery={setRecoveryEntry}
+          onRename={setRenameEntry}
+          onRevoke={setRevokeEntry}
+        />
+      </div>
+
+      {recoveryEntry ? (
+        <RecoveryLinkDialog
+          key={`recovery-${recoveryEntry.rowId}`}
+          open={Boolean(recoveryEntry)}
+          onOpenChange={(open) => {
+            if (!open) setRecoveryEntry(null);
+          }}
+          registry={registry}
+          entry={recoveryEntry}
+          onGenerated={handleGenerated}
+        />
+      ) : null}
+      {renameEntry ? (
+        <RenameDeviceDialog
+          key={`rename-${renameEntry.rowId}`}
+          open={Boolean(renameEntry)}
+          onOpenChange={(open) => {
+            if (!open) setRenameEntry(null);
+          }}
+          entry={renameEntry}
+          onRenamed={handleRenamed}
+        />
+      ) : null}
+      {revokeEntry ? (
+        <RevokeDeviceDialog
+          key={`revoke-${revokeEntry.rowId}`}
+          open={Boolean(revokeEntry)}
+          onOpenChange={(open) => {
+            if (!open) setRevokeEntry(null);
+          }}
+          entry={revokeEntry}
+          onRevoked={handleRevoked}
+        />
+      ) : null}
+      {isPending ? <span className="sr-only" aria-live="polite">Updating recovery links</span> : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { ScheduleActionTile } from "../workspace/schedule-action-tile";
 import { Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
 import type { StaffAvailabilityItem } from "@/lib/queries/staff";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { getBranchBusinessDate, getDayOfWeekFromYmd } from "@/lib/engine/slot-time";
 
 type CoverageData = {
   items: StaffAvailabilityItem[];
@@ -49,7 +50,8 @@ export function CoverageIssuesTab({ branchId }: { branchId: string }) {
     );
   }
 
-  const todayDow = new Date().getDay();
+  const today = getBranchBusinessDate();
+  const todayDow = getDayOfWeekFromYmd(today);
   const noSchedule = data.items.filter((i) => i.schedules.length === 0);
   const noOpeningToday = data.items.filter((i) => {
     if (i.schedules.length === 0) return false;
@@ -57,7 +59,7 @@ export function CoverageIssuesTab({ branchId }: { branchId: string }) {
     return todaySched.length > 0 && !todaySched.some((s) => s.shift_type === "opening");
   });
   const onLeaveToday = data.items.filter((i) =>
-    i.overrides.some((o) => o.override_date === new Date().toISOString().split("T")[0] && o.is_day_off)
+    i.overrides.some((o) => o.override_date === today && o.is_day_off)
   );
 
   const totalIssues = noSchedule.length + noOpeningToday.length;

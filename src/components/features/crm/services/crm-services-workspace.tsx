@@ -103,6 +103,10 @@ function toStaffMember(s: StaffForServicePanel): StaffMember {
     auth_user_id: null,
     created_at:   "",
     updated_at:   "",
+    metadata:     {},
+    access_notes: null,
+    temporary_access_expires_at: null,
+    workspace_access: [],
     // branches — identity card uses this to display branch name
     branches: s.branches ?? null,
     // optional StaffMember fields

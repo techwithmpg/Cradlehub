@@ -9,9 +9,10 @@ import {
 import {
   BRANCH_TIMEZONE,
   filterPastSlotsForDate,
+  getBranchBusinessDate,
+  getDayOfWeekFromYmd,
   rangesOverlap,
   timeToMinutes,
-  toLocalYmd,
 } from "./slot-time";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import {
@@ -96,11 +97,6 @@ function firstCategoryName(value: CategoryRelation | undefined): string | null {
   if (!value) return null;
   const category = Array.isArray(value) ? value[0] : value;
   return category?.name ?? null;
-}
-
-function dayOfWeekFromYmd(date: string): number {
-  const [year = "0", month = "1", day = "1"] = date.split("-");
-  return new Date(Number(year), Number(month) - 1, Number(day)).getDay();
 }
 
 function uniqueSlotsByStaffAndTime(slots: AvailabilitySlot[]): AvailabilitySlot[] {
@@ -213,7 +209,7 @@ async function filterSlotsToWorkingWindows(params: {
   if (params.totalBlockMinutes <= 0) return uniqueSlotsByStaffAndTime(params.slots);
 
   const staffIds = Array.from(new Set(params.slots.map((slot) => slot.staff_id)));
-  const dayOfWeek = dayOfWeekFromYmd(params.date);
+  const dayOfWeek = getDayOfWeekFromYmd(params.date);
 
   const [schedulesResult, overridesResult] = await Promise.all([
     params.supabase
@@ -510,7 +506,7 @@ export async function getAvailableSlots(params: {
   staffId?:  string;
   date:      string;
 }): Promise<AvailabilitySlot[]> {
-  const today = toLocalYmd(new Date());
+  const today = getBranchBusinessDate();
   if (params.date < today) return [];
 
   const supabase = createAdminClient();

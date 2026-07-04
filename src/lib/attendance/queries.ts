@@ -8,6 +8,7 @@ import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import { asAttendanceDb, type AttendanceDb } from "@/lib/attendance/db";
+import { getAttendanceDeviceRegistry } from "@/lib/attendance/device-registry";
 import { buildActivationUrl, getAppBaseUrl, renderQrSvg } from "@/lib/attendance/qr-code";
 import { createActivationToken, createPublicCode, hashSecret } from "@/lib/attendance/tokens";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
@@ -28,6 +29,7 @@ export type AttendanceActionContext = {
   branchName: string;
   actorStaffId: string | null;
   role: string;
+  canSwitchBranch: boolean;
 };
 
 const DEFAULT_SETTINGS: Omit<AttendanceSettings, "branch_id"> = {
@@ -68,7 +70,9 @@ async function requireBranch(admin: AttendanceDb, branchId: string): Promise<Bra
   return data as unknown as BranchRow;
 }
 
-export async function getAttendanceActionContext(): Promise<AttendanceActionContext | null> {
+export async function getAttendanceActionContext(options?: {
+  branchId?: string | null;
+}): Promise<AttendanceActionContext | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -84,12 +88,31 @@ export async function getAttendanceActionContext(): Promise<AttendanceActionCont
     .maybeSingle();
 
   if (me?.branch_id && canAccessCrmWorkspace(me.system_role)) {
+    const role = canonicalizeSystemRole(me.system_role);
+    const requestedBranchId = options?.branchId?.trim() || null;
+
+    if (role === "owner") {
+      const branch = await requireBranch(
+        asAttendanceDb(createAdminClient()),
+        requestedBranchId ?? me.branch_id
+      );
+      return {
+        branchId: branch.id,
+        branchName: branch.name ?? "Branch",
+        actorStaffId: me.id,
+        role,
+        canSwitchBranch: true,
+      };
+    }
+
+    if (requestedBranchId && requestedBranchId !== me.branch_id) return null;
     const branch = first(me.branches as Relation<{ name: string | null }>);
     return {
       branchId: me.branch_id,
       branchName: branch?.name ?? "Branch",
       actorStaffId: me.id,
-      role: canonicalizeSystemRole(me.system_role),
+      role,
+      canSwitchBranch: false,
     };
   }
 
@@ -101,6 +124,7 @@ export async function getAttendanceActionContext(): Promise<AttendanceActionCont
       branchName: devBranch.branchName,
       actorStaffId: null,
       role: canonicalizeSystemRole(devBranch.role),
+      canSwitchBranch: true,
     };
   }
 
@@ -334,6 +358,7 @@ export async function getAttendanceWorkspaceData(params: {
   branchId: string;
   branchName: string;
   origin?: string | null;
+  canSwitchBranch?: boolean;
 }): Promise<AttendanceWorkspaceData> {
   const admin = asAttendanceDb(createAdminClient());
   const today = getBranchBusinessDate();
@@ -348,6 +373,7 @@ export async function getAttendanceWorkspaceData(params: {
     sessionsResult,
     staffResult,
     resourcesResult,
+    deviceRegistry,
   ] = await Promise.all([
     admin
       .from("qr_points")
@@ -400,6 +426,11 @@ export async function getAttendanceWorkspaceData(params: {
       .eq("branch_id", params.branchId)
       .order("sort_order")
       .order("name"),
+    getAttendanceDeviceRegistry({
+      branchId: params.branchId,
+      branchName: params.branchName,
+      canSwitchBranch: params.canSwitchBranch ?? false,
+    }),
   ]);
 
   const qrRows = qrPointsResult.data ?? [];
@@ -428,6 +459,7 @@ export async function getAttendanceWorkspaceData(params: {
     qrConfiguration: qrWorkspaceData.configuration,
     qrPoints: qrWorkspaceData.qrPoints,
     devices,
+    deviceRegistry,
     records,
     exceptions,
     scanEvents,

@@ -2,6 +2,12 @@
  * Pure date helpers for Week Mode.
  * No side effects. All functions are deterministic.
  */
+import {
+  addDaysToYmd,
+  formatBranchYmd,
+  getBranchBusinessDate,
+  getMondayOfWeekYmd,
+} from "@/lib/engine/slot-time";
 
 export type WeekRange = {
   monday: string;
@@ -14,9 +20,7 @@ export type WeekRange = {
  * Input/output format: "YYYY-MM-DD"
  */
 export function shiftDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0]!;
+  return addDaysToYmd(dateStr, days);
 }
 
 /**
@@ -24,10 +28,7 @@ export function shiftDate(dateStr: string, days: number): string {
  * Input/output format: "YYYY-MM-DD"
  */
 export function getMonday(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().split("T")[0]!;
+  return getMondayOfWeekYmd(dateStr);
 }
 
 /**
@@ -50,14 +51,11 @@ export function getWeekRange(dateStr: string): WeekRange {
  * Format a week range for display: "May 19 – May 25, 2026"
  */
 export function formatWeekRange(monday: string, sunday: string): string {
-  const start = new Date(monday + "T00:00:00");
-  const end = new Date(sunday + "T00:00:00");
-
-  const startMonth = start.toLocaleDateString("en-PH", { month: "short" });
-  const startDay = start.getDate();
-  const endMonth = end.toLocaleDateString("en-PH", { month: "short" });
-  const endDay = end.getDate();
-  const year = end.getFullYear();
+  const startMonth = formatBranchYmd(monday, { month: "short" });
+  const startDay = Number(monday.slice(8, 10));
+  const endMonth = formatBranchYmd(sunday, { month: "short" });
+  const endDay = Number(sunday.slice(8, 10));
+  const year = Number(sunday.slice(0, 4));
 
   if (startMonth === endMonth) {
     return `${startMonth} ${startDay} – ${endDay}, ${year}`;
@@ -69,9 +67,8 @@ export function formatWeekRange(monday: string, sunday: string): string {
  * Format a single date for card display: "Mon" + "May 19"
  */
 export function formatDayCard(dateStr: string): { dayName: string; dateLabel: string } {
-  const d = new Date(dateStr + "T00:00:00");
-  const dayName = d.toLocaleDateString("en-PH", { weekday: "short" });
-  const dateLabel = d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+  const dayName = formatBranchYmd(dateStr, { weekday: "short" });
+  const dateLabel = formatBranchYmd(dateStr, { month: "short", day: "numeric" });
   return { dayName, dateLabel };
 }
 
@@ -79,8 +76,7 @@ export function formatDayCard(dateStr: string): { dayName: string; dateLabel: st
  * Format a date for the preview title: "Tuesday, May 20, 2026"
  */
 export function formatPreviewTitle(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-PH", {
+  return formatBranchYmd(dateStr, {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -92,6 +88,5 @@ export function formatPreviewTitle(dateStr: string): string {
  * Check if a date string is today.
  */
 export function isToday(dateStr: string): boolean {
-  const today = new Date().toISOString().split("T")[0]!;
-  return dateStr === today;
+  return dateStr === getBranchBusinessDate();
 }
