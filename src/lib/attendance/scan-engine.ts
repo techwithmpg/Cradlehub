@@ -243,7 +243,7 @@ async function resolveDevice(admin: AttendanceDb, rawCredential: string | null |
   if (!rawCredential) return null;
   const { data } = await admin
     .from("staff_devices")
-    .select("id, staff_id, branch_id, status, staff(full_name, staff_type, is_active)")
+    .select("id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(full_name, staff_type, is_active)")
     .eq("device_fingerprint_hash", hashSecret(rawCredential))
     .maybeSingle();
 
@@ -300,6 +300,30 @@ export async function registerDeviceForAuthenticatedScan(
       result: blocked("QR not recognized", "This QR code is not active in CradleHub.", {
         reasonCode: "invalid_qr",
         securityNote: "No attendance change was recorded from this scan.",
+        scanEventId: eventId ?? undefined,
+      }),
+    };
+  }
+
+  if (point.point_type !== "attendance") {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      scanType: scanTypeForPoint(point),
+      action: "first_scan_register_device",
+      outcome: "blocked",
+      reasonCode: "attendance_qr_required",
+      message: "First-scan device registration requires an attendance QR.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+
+    return {
+      ok: false,
+      result: blocked("Attendance QR needed", "Please use the attendance QR to connect this phone.", {
+        reasonCode: "attendance_qr_required",
+        securityNote: "No phone was connected from this scan.",
         scanEventId: eventId ?? undefined,
       }),
     };
@@ -1434,9 +1458,9 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       exceptionType: "unknown_device",
       message: `An unregistered device scanned ${point.label}.`,
     });
-    return blocked("Device not registered", "Ask the front desk to activate this device before scanning.", {
+    return blocked("Sign in", "Use your staff account to continue.", {
       reasonCode: "unknown_device",
-      securityNote: "This phone is not connected to a staff device record yet.",
+      securityNote: "This phone will be remembered for faster attendance scans.",
       scanEventId: eventId ?? undefined,
     });
   }
@@ -1520,7 +1544,7 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
   const tokenHash = hashSecret(token);
   const { data: activation } = await admin
     .from("device_activation_tokens")
-    .select("id, staff_id, branch_id, expires_at, used_at, staff(full_name, is_active)")
+    .select("id, staff_id, branch_id, expires_at, used_at, staff:staff!device_activation_tokens_staff_id_fkey(full_name, is_active)")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 

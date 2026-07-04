@@ -2,33 +2,36 @@
 
 ## Current Task - 2026-07-04
 
-ATTENDANCE-FIRST-SCAN-LOGIN-007 is implemented and validated locally.
+ATTENDANCE-FIRST-SCAN-LOGIN-008 is implemented, locally built, and verified against the live Supabase attendance tables.
 
 ## Latest Mobile Scan Flow Checkpoint
 
 - Confirmed `/scan/[publicCode]/page.tsx` renders `PublicScanProcessor` and passes the async App Router `publicCode` param into the public scan action.
-- Confirmed `PublicScanProcessor` is client-side, starts at `recognizing`, schedules `processing`, invokes the server action from `useEffect` after mount, catches failures, and now routes recoverable `unknown_device` results into an in-flow staff sign-in form instead of a final dead-end result.
+- Confirmed `PublicScanProcessor` is client-side, starts at `recognizing`, schedules `processing`, invokes the scan after mount, catches failures, and now routes recoverable missing-device results into an in-flow staff sign-in form instead of a final dead-end result.
 - Added `src/app/scan/[publicCode]/loading.tsx` so the route shows the same recognizing shell while the page itself is resolving.
 - Kept `src/lib/attendance/scan-engine.ts` as the authoritative backend path for QR lookup, trusted-device cookie checks, branch validation, duplicate protection, event logging, check-in insert, and check-out update.
 - Extended public scan result metadata with optional `reasonCode`, `severity`, and `securityNote` so mobile blocked/error/recovery states can render cleanly without changing existing consumers.
 - Added user-safe server action fallbacks for scan, activation, and recovery action failures.
 - Wired public scan/recovery writes to the existing `revalidateAttendanceSurfaces()` helper, covering `/crm/attendance`, `/crm/availability`, `/crm/today`, and `/staff-portal`.
 - Active-service clock-out blocks now pass the existing service countdown data back to the public result UI when available.
-- Added the first-scan sign-in continuation: email/password auth succeeds through the Supabase server client, the authenticated user's own active `staff.auth_user_id` row is checked against the scanned QR branch, a hashed `staff_devices` credential is inserted with the existing `first_scan_activation` registration source, the `cradle_attendance_device` cookie is set, and the original scan is resumed with a fresh continuation request id.
+- Added the finished first-scan sign-in continuation: email/password auth succeeds through the Supabase server client, the authenticated user's own active `staff.auth_user_id` row is checked against the scanned attendance QR branch, a hashed `staff_devices` credential is inserted with the existing `first_scan_activation` registration source, the `cradle_attendance_device` HttpOnly cookie is set, and the browser reloads the scan URL so the next request carries the cookie.
+- Public scan reads now use `POST /api/attendance/public-scan`, which reads `cradle_attendance_device` / legacy `cradle_device` from `NextRequest.cookies` and calls the existing scan engine. This avoids relying on a Server Action to read the newly persisted device cookie.
+- Fixed the `staff_devices -> staff` Supabase join ambiguity by using `staff:staff!staff_devices_staff_id_fkey(...)`; without this, valid cookies hashed to active rows but `resolveDevice()` silently received an errored/null result and treated phones as unknown.
+- Fixed the scan-effect dependency bug that could strand the first page on `Processing scan...` after the animation updated state.
 - Preserved front-desk recovery links and `/scan/activate/[token]`; recovery remains an admin fallback and does not clock attendance in/out.
 
 ## Latest Verification
 
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
-- `pnpm build`: PASS, Next.js 16.2.4, 105 routes.
+- `pnpm build`: PASS, Next.js 16.2.4, 106 routes.
 - Local dev server is running on port `3000` with PID `31160` from `pnpm exec next dev -H 0.0.0.0`.
-- Browser smoke via `agent-browser` on `http://localhost:3000/scan/test-public-code`: PASS. The invalid QR flow rendered `QR not recognized`, body content was nonblank, and no Next.js/Vite overlay was found.
-- Smoke screenshot: `C:\Users\eleur\.agent-browser\tmp\screenshots\screenshot-1783127833941.png`.
+- Browser/MCP proof on local dev and live Supabase tables: first unregistered scan rendered the staff sign-in form; registration created active device `9395ae4f-65c1-4005-b491-19309e3a4b26`; a cookie-backed scan wrote a `clock_in` event with the same `device_id`; the next UI scan skipped login and rendered `Already recorded`.
+- Verified cookie shape in browser context: `cradle_attendance_device`, HttpOnly, path `/`, `SameSite=Lax`, `secure=false` on localhost.
 
 ## Still Open
 
-- Authenticated/live phone QA remains pending for real staff credentials, real branch QR codes, duplicate-scan timing, revoked/wrong-branch devices, and recovery links.
+- Physical phone QA on production links is still recommended after deploy, especially on iOS/Android browser cookie behavior, revoked/wrong-branch devices, and recovery links.
 - For local phone testing, current LAN IP is `192.168.137.149`; start dev with `pnpm dev -- -H 0.0.0.0` and open `http://192.168.137.149:3000/scan/<publicCode>` from the phone on the same network.
 - Existing untracked local artifacts are still present and intentionally not removed: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.
 

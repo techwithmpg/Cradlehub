@@ -383,7 +383,7 @@ export async function getAttendanceWorkspaceData(params: {
       .order("label"),
     admin
       .from("staff_devices")
-      .select("id, staff_id, branch_id, device_label, status, trusted_after, last_seen_at, created_at, staff(full_name)")
+      .select("id, staff_id, branch_id, device_label, status, trusted_after, last_seen_at, created_at, staff:staff!staff_devices_staff_id_fkey(full_name)")
       .eq("branch_id", params.branchId)
       .order("created_at", { ascending: false })
       .limit(100),

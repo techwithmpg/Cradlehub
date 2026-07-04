@@ -386,7 +386,7 @@ export async function getRecoveryTokenPreview(rawToken: string): Promise<Recover
   const admin = asAttendanceDb(createAdminClient());
   const { data, error } = await admin
     .from("device_activation_tokens")
-    .select("id, purpose, staff_id, branch_id, reason, expires_at, used_at, revoked_at, staff(full_name, staff_type, is_active), branches(name, is_active)")
+    .select("id, purpose, staff_id, branch_id, reason, expires_at, used_at, revoked_at, staff:staff!device_activation_tokens_staff_id_fkey(full_name, staff_type, is_active), branches(name, is_active)")
     .eq("token_hash", hashRecoveryToken(token))
     .maybeSingle();
 

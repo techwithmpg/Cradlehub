@@ -627,3 +627,16 @@
 - **Impact:** `findRecentDuplicate()` checks recent successful `qr_scan_events` by QR point and device. The activation audit row could have made the immediately resumed attendance scan look like a duplicate, returning the noop result instead of the intended first clock-in/out.
 - **Resolution:** Kept the registration audit row as `scan_type = 'activation'` but removed `qr_point_id` from the row; the scanned QR point remains in event metadata for audit context. The resumed attendance scan now writes its own success/noop/block event through the normal scan engine path.
 - **Validation:** `pnpm type-check`, `pnpm lint`, and `pnpm build` all pass after the fix.
+
+## 2026-07-04 - ATTENDANCE-FIRST-SCAN-LOGIN-008 first-scan continuation failures
+
+- **Symptom:** The public scan page could stay on `Processing scan...` and never show either the sign-in form or a final result.
+- **Impact:** The first missing-device scan appeared hung even though the server action returned.
+- **Root cause:** `PublicScanProcessor` used the whole `props` object in the scan `useEffect` dependency array. When the animation moved to `processing`, React cleaned up the effect, marked the in-flight scan inactive, and `startedRef` prevented a restart.
+- **Resolution:** Derived stable primitive dependencies (`mode`, `scanPublicCode`, `activationToken`) and used those in the effect.
+
+- **Symptom:** `staff_devices` rows were inserted and the browser stored `cradle_attendance_device`, but the next scan still returned `reasonCode = "unknown_device"`.
+- **Impact:** Valid active devices could not skip login; repeated scans created registration rows but did not resolve the trusted phone.
+- **Root cause:** `resolveDevice()` selected `staff(full_name, staff_type, is_active)` from `staff_devices`. After device registry/recovery added `revoked_by`, Supabase had multiple relationships from `staff_devices` to `staff` and returned an ambiguous-relationship error. The resolver ignored the error and treated the device as missing.
+- **Resolution:** Changed the join to `staff:staff!staff_devices_staff_id_fkey(...)` in the scan engine and Attendance workspace device query. Also disambiguated `device_activation_tokens -> staff` reads for activation/recovery.
+- **Validation:** With an HttpOnly `cradle_attendance_device` cookie, `POST /api/attendance/public-scan` resolved active device `9395ae4f-65c1-4005-b491-19309e3a4b26`, wrote a `clock_in` event with that `device_id`, and the next UI scan rendered `Already recorded` rather than the sign-in form. `pnpm type-check`, `pnpm lint`, and `pnpm build` pass.

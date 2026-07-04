@@ -5751,3 +5751,43 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Live phone QA with real staff credentials and a real branch attendance QR is still pending.
 - CRM confirmation that the newly registered phone appears in the Device Registry requires an authenticated CRM session.
 - Duplicate-window clock-in/noop/clock-out timing still needs real-device manual testing.
+
+---
+
+## 2026-07-04 - Codex (ATTENDANCE-FIRST-SCAN-LOGIN-008)
+
+**Task:** Finish the first-scan Attendance login flow all the way through a valid active `staff_devices` row and a cookie-backed next scan that skips login.
+
+**Files Added:**
+- `src/app/api/attendance/public-scan/route.ts` - public scan POST route that reads `cradle_attendance_device` / legacy `cradle_device` directly from `NextRequest.cookies`, calls the existing scan engine, and returns a safe `PublicScanResult`.
+
+**Files Changed:**
+- `src/app/scan/actions.ts` - renamed the first-scan action to `signInAndRegisterAttendanceDeviceAction`; it now signs in, registers the phone, sets the HttpOnly device cookie, returns registration metadata, and leaves the actual attendance scan to the next browser request.
+- `src/components/features/attendance/public-scan-processor.tsx` - fixed the scan effect dependency bug that stranded scans on `Processing scan...`; broadened missing-device detection; moved scan reads to the new API route; after phone registration, reloads the scan URL so the next request carries the browser cookie.
+- `src/lib/attendance/scan-engine.ts` - changed unknown-device public copy to the recoverable sign-in state, blocked first-scan registration from non-attendance QRs, and disambiguated `staff_devices -> staff` / activation-token staff joins with explicit Supabase FK hints.
+- `src/lib/attendance/queries.ts` - disambiguated the Attendance workspace `staff_devices -> staff` join.
+- `src/lib/attendance/device-recovery.ts` - disambiguated the recovery-token `device_activation_tokens -> staff` join.
+- `src/components/features/attendance/public-scan-result.tsx` - changed the unknown-device eyebrow from `Device setup needed` to `Staff sign-in`.
+
+**Root Causes Fixed:**
+- `PublicScanProcessor` depended on the full `props` object. When the recognition animation set `stage = processing`, React cleaned up the effect and marked the in-flight scan inactive; `startedRef` then prevented a restart, leaving the public page stuck on `Processing scan...`.
+- The previous same-action continuation did not prove the browser stored and resent the HttpOnly cookie.
+- Valid device cookies still resolved as unknown because Supabase rejected the embedded `staff(full_name, ...)` join on `staff_devices`; that table now has both `staff_id` and `revoked_by` relationships to `staff`, and `resolveDevice()` ignored the query error as `null`.
+
+**Runtime Behavior Verified:**
+- First unregistered scan returns `reasonCode = "unknown_device"` and renders the in-flow staff sign-in form.
+- Staff sign-in writes `staff_devices.status = 'active'`, `registration_source = 'first_scan_activation'`, and metadata source `first_scan_login`.
+- The device cookie remains `cradle_attendance_device`, HttpOnly, `SameSite=Lax`, path `/`, 180-day max age; `cradle_device` is still cleared/read only for legacy compatibility.
+- The next scan request resolves the cookie to the active device row, skips login, and uses the normal attendance engine path.
+- Live DB proof: device `9395ae4f-65c1-4005-b491-19309e3a4b26` for staff `35614315-6688-4599-b234-60071945333e` is active, has `last_attendance_scan_at = 2026-07-04T03:03:42.626+00:00`, and subsequent UI scan returned duplicate/noop instead of sign-in.
+- Event proof: `qr_scan_events` contains `first_scan_device_registered` for device `9395ae4f-65c1-4005-b491-19309e3a4b26`, then `clock_in` success with the same `device_id`, then `duplicate_scan` noop with the same `device_id`.
+
+**Validation:**
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 106 app routes including `/api/attendance/public-scan`.
+- Browser/MCP proof on local dev: a cookie-bearing scan page rendered `Already recorded` rather than the staff sign-in form, with `cradle_attendance_device` present as an HttpOnly cookie.
+
+**Notes:**
+- Temporary Codex QA auth/staff/device rows created during diagnosis were removed after verification.
+- Existing untracked local artifacts remain intentionally untouched: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.

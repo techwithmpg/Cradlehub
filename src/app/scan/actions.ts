@@ -38,10 +38,16 @@ export type FirstTimeScanFieldErrors = {
   password?: string;
 };
 
-export type FirstTimeAttendanceScanResult =
+export type FirstTimeAttendanceDeviceRegistrationResult =
   | {
       ok: true;
-      scan: PublicScanResult;
+      deviceRegistered: true;
+      cookieSet: true;
+      nextScanRequired: true;
+      staffDeviceId: string;
+      staffName: string;
+      branchName: string;
+      message: string;
     }
   | {
       ok: false;
@@ -151,9 +157,9 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
   };
 }
 
-export async function completeFirstTimeAttendanceScanAction(
+export async function signInAndRegisterAttendanceDeviceAction(
   input: FirstTimeScanLoginInput
-): Promise<FirstTimeAttendanceScanResult> {
+): Promise<FirstTimeAttendanceDeviceRegistrationResult> {
   const parsed = validateFirstTimeScanLogin(input);
   if (!parsed.publicCode) {
     return {
@@ -217,16 +223,17 @@ export async function completeFirstTimeAttendanceScanAction(
     }
 
     await setDeviceCookie(registration.rawDeviceCredential);
-
-    const scanResult = await processQrScan(
-      parsed.publicCode,
-      await getRequestContext(appendRequestStep(input.requestId, "attendance"), registration.rawDeviceCredential)
-    );
-    revalidatePublicScanResult(scanResult);
+    revalidateAttendanceSurfaces();
 
     return {
       ok: true,
-      scan: toPublicResult(scanResult),
+      deviceRegistered: true,
+      cookieSet: true,
+      nextScanRequired: true,
+      staffDeviceId: registration.deviceId,
+      staffName: registration.staffName,
+      branchName: registration.branchName,
+      message: "This phone is now connected for faster attendance scans.",
     };
   } catch {
     return {

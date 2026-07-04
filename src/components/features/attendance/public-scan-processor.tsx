@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   activateDeviceAction,
-  completeFirstTimeAttendanceScanAction,
-  processPublicQrScanAction,
+  signInAndRegisterAttendanceDeviceAction,
   type FirstTimeScanFieldErrors,
 } from "@/app/scan/actions";
 import { cn } from "@/lib/utils";
@@ -36,6 +35,43 @@ function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, durationMs));
 }
 
+function reloadForCookieBackedScan(): void {
+  const resumeUrl = new URL(window.location.href);
+  resumeUrl.searchParams.set("device", "registered");
+  resumeUrl.searchParams.set("scan", createRequestId());
+  window.location.replace(resumeUrl.toString());
+}
+
+async function processPublicQrScan(input: { publicCode: string; requestId: string }): Promise<PublicScanResult> {
+  const response = await fetch("/api/attendance/public-scan", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error("Public scan request failed.");
+  }
+
+  return (await response.json()) as PublicScanResult;
+}
+
+function isMissingDeviceResult(result: PublicScanResult): boolean {
+  const reasonCode = result.reasonCode?.toLowerCase();
+  if (reasonCode === "unknown_device" || reasonCode === "missing_device" || reasonCode === "device_not_registered") {
+    return true;
+  }
+
+  const title = result.title.toLowerCase();
+  const message = result.message.toLowerCase();
+  return (
+    title.includes("device not registered") ||
+    message.includes("activate this device before scanning") ||
+    message.includes("not connected to a staff device record")
+  );
+}
+
 function getShellTone(stage: ProcessorStage, result: PublicScanResult | null): string | undefined {
   if (stage === "device_registered") return styles.shellSuccess;
   if (stage !== "result" || !result) return styles.shellNeutral;
@@ -45,6 +81,9 @@ function getShellTone(stage: ProcessorStage, result: PublicScanResult | null): s
 }
 
 export function PublicScanProcessor(props: PublicScanProcessorProps) {
+  const mode = props.mode;
+  const scanPublicCode = mode === "scan" ? props.publicCode : null;
+  const activationToken = mode === "activation" ? props.token : null;
   const [stage, setStage] = useState<ProcessorStage>("recognizing");
   const [result, setResult] = useState<PublicScanResult | null>(null);
   const [loginCredentials, setLoginCredentials] = useState({ email: "", password: "" });
@@ -76,9 +115,9 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
 
       try {
         nextResult =
-          props.mode === "scan"
-            ? await processPublicQrScanAction({ publicCode: props.publicCode, requestId })
-            : await activateDeviceAction({ token: props.token, requestId });
+          mode === "scan" && scanPublicCode
+            ? await processPublicQrScan({ publicCode: scanPublicCode, requestId })
+            : await activateDeviceAction({ token: activationToken ?? "", requestId });
       } catch {
         nextResult = {
           ok: false,
@@ -92,7 +131,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       if (remainingAnimationTime > 0) await wait(remainingAnimationTime);
       if (!active) return;
 
-      if (props.mode === "scan" && nextResult.reasonCode === "unknown_device") {
+      if (mode === "scan" && isMissingDeviceResult(nextResult)) {
         setResult(null);
         setLoginError(null);
         setLoginFieldErrors(null);
@@ -110,10 +149,10 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       active = false;
       window.clearTimeout(processingTimer);
     };
-  }, [props, requestId]);
+  }, [activationToken, mode, requestId, scanPublicCode]);
 
   async function handleFirstTimeSignIn() {
-    if (props.mode !== "scan" || loginInFlightRef.current) return;
+    if (mode !== "scan" || !scanPublicCode || loginInFlightRef.current) return;
 
     const email = loginCredentials.email.trim();
     const password = loginCredentials.password;
@@ -124,8 +163,8 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     setStage("signing_in");
 
     try {
-      const actionResult = await completeFirstTimeAttendanceScanAction({
-        publicCode: props.publicCode,
+      const actionResult = await signInAndRegisterAttendanceDeviceAction({
+        publicCode: scanPublicCode,
         email,
         password,
         requestId: createRequestId(),
@@ -161,8 +200,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       await wait(ATTENDANCE_STAGE_DURATION_MS);
       if (!mountedRef.current) return;
 
-      setResult(actionResult.scan);
-      setStage("result");
+      reloadForCookieBackedScan();
     } catch {
       if (!mountedRef.current) return;
       setLoginCredentials({ email, password: "" });
@@ -180,7 +218,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     <div className={cn(styles.shell, shellTone)}>
       {stage === "result" && result ? (
         <PublicScanResultView result={result} />
-      ) : stage === "sign_in_required" && props.mode === "scan" ? (
+      ) : stage === "sign_in_required" && mode === "scan" ? (
         <PublicScanLoginForm
           email={loginCredentials.email}
           password={loginCredentials.password}

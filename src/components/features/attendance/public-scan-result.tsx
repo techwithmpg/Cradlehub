@@ -53,7 +53,7 @@ function getResultStatusClass(result: PublicScanResult): string | undefined {
 }
 
 function getResultEyebrow(result: PublicScanResult): string {
-  if (result.reasonCode === "unknown_device") return "Device setup needed";
+  if (result.reasonCode === "unknown_device") return "Staff sign-in";
   if (result.reasonCode === "device_restored") return "Access restored";
   if (result.outcome === "error") return "Scan interrupted";
   if (result.outcome === "noop") return "No change needed";
