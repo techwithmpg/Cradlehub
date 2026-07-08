@@ -16,6 +16,7 @@ import { z } from "zod";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
+import { canReassignBooking } from "@/lib/permissions";
 
 const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -82,6 +83,18 @@ const recordBookingFollowupSchema = bookingIdSchema.extend({
 
 const assignBookingRoomSchema = bookingIdSchema.extend({
   resourceId: z.guid("Invalid room ID"),
+});
+
+const assignBookingTherapistSchema = bookingIdSchema.extend({
+  staffId: z.guid("Invalid staff ID"),
+  overrideReason: z.enum([
+    "customer_requested",
+    "therapist_on_break",
+    "manager_decision",
+    "skill_or_service_mismatch",
+    "workload_balance",
+    "other",
+  ]).optional(),
 });
 
 type CrmActionContext = NonNullable<Awaited<ReturnType<typeof getCrmActionsContext>>>;
@@ -689,6 +702,105 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
 //   session_started_at = now()
 //   status = 'in_progress'
 // This is the correct way for CRM to start a service session.
+export async function assignBookingTherapistAction(
+  rawInput: unknown
+): Promise<{ success: boolean; error?: string }> {
+  const parsed = assignBookingTherapistSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const ctx = await getCrmActionsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  if (!canReassignBooking(ctx.me.system_role)) {
+    return { success: false, error: "You do not have permission to reassign therapists" };
+  }
+
+  const booking = await loadCrmBookingForAction(ctx, parsed.data.bookingId);
+  if (!booking) return { success: false, error: "Booking not found" };
+  if (CLOSED_BOOKING_STATUSES.has(booking.status)) {
+    return { success: false, error: "This booking can already closed." };
+  }
+
+  const admin = createAdminClient();
+
+  // Verify staff exists, is active, and belongs to the booking branch
+  const { data: staff, error: staffError } = await admin
+    .from("staff")
+    .select("id, branch_id, is_active, staff_type, system_role")
+    .eq("id", parsed.data.staffId)
+    .maybeSingle();
+
+  if (staffError) return { success: false, error: staffError.message };
+  if (!staff || !staff.is_active || staff.branch_id !== booking.branch_id) {
+    return { success: false, error: "Selected therapist is not available for this branch." };
+  }
+
+  const previousStaffId = (booking as unknown as { staff_id?: string | null }).staff_id ?? null;
+  const now = new Date().toISOString();
+
+  // Build metadata audit entry
+  const metadata = booking.metadata ?? {};
+  const assignmentAudit = Array.isArray((metadata as Record<string, unknown>).assignment_audit)
+    ? [...((metadata as Record<string, unknown>).assignment_audit as unknown[])]
+    : [];
+  assignmentAudit.push({
+    staff_id: parsed.data.staffId,
+    previous_staff_id: previousStaffId,
+    reason: parsed.data.overrideReason ?? "recommendation_top_pick",
+    assigned_at: now,
+    assigned_by: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    source: "assignment_assistant",
+  });
+
+  const { data: updatedRows, error } = await admin
+    .from("bookings")
+    .update({
+      staff_id: parsed.data.staffId,
+      metadata: {
+        ...(metadata as Record<string, unknown>),
+        assignment_audit: assignmentAudit,
+      } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
+    })
+    .eq("id", booking.id)
+    .eq("branch_id", booking.branch_id)
+    .select("id, branch_id, booking_date, start_time, delivery_type, type, staff_id");
+
+  if (error) return { success: false, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return { success: false, error: "Therapist could not be assigned. You may not have permission." };
+  }
+
+  const updated = updatedRows[0]!;
+
+  // Audit is stored in bookings.metadata.assignment_audit.
+  // booking_events is reserved for status transitions, so no row is inserted here.
+
+  // Notify newly assigned therapist
+  if (parsed.data.staffId !== previousStaffId) {
+    const isHS = updated.delivery_type === "home_service" || updated.type === "home_service";
+    await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
+    await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
+    await createNotification({
+      branchId: updated.branch_id,
+      targetWorkspace: "staff",
+      recipientStaffId: parsed.data.staffId,
+      type: isHS ? "home_service_assigned" : "booking_assigned",
+      title: isHS ? "Home Service booking assigned" : "Booking assigned to you",
+      body: `You have been assigned a booking on ${updated.booking_date} at ${updated.start_time}.`,
+      entityType: "booking",
+      entityId: booking.id,
+      actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: booking.id }),
+      priority: isHS ? "high" : "normal",
+      requiresAction: isHS,
+    });
+  }
+
+  revalidateOperationalBookingSurfaces(booking.branch_id);
+  return { success: true };
+}
+
 export async function crmStartServiceAction(
   rawInput: unknown
 ): Promise<{ success: boolean; error?: string }> {

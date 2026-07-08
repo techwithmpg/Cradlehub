@@ -1,202 +1,259 @@
 "use client";
 
-import { useTransition } from "react";
-import { Check, AlertTriangle, User, ShieldAlert, Star } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, AlertCircle, Clock, Users, ShieldCheck } from "lucide-react";
 import type { ScoredStaff } from "@/lib/assignments/recommendation-engine";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+const statusStyles: Record<string, { bg: string; text: string; icon: typeof CheckCircle2 }> = {
+  recommended: { bg: "var(--cs-success-bg)", text: "var(--cs-success-text)", icon: CheckCircle2 },
+  available: { bg: "var(--cs-info-bg)", text: "var(--cs-info-text)", icon: ShieldCheck },
+  warning: { bg: "var(--cs-warning-bg)", text: "var(--cs-warning-text)", icon: AlertCircle },
+  unavailable: { bg: "var(--cs-error-bg)", text: "var(--cs-error-text)", icon: AlertCircle },
+};
+
+const overrideReasons = [
+  { value: "customer_requested", label: "Customer requested" },
+  { value: "therapist_on_break", label: "Therapist on break" },
+  { value: "manager_decision", label: "Manager decision" },
+  { value: "skill_or_service_mismatch", label: "Skill or service mismatch" },
+  { value: "workload_balance", label: "Workload balance" },
+  { value: "other", label: "Other" },
+];
 
 type Props = {
   candidate: ScoredStaff;
-  onAssign?: (staffId: string) => void;
+  onAssign?: (staffId: string, overrideReason?: string) => void;
   assignLabel?: string;
   isAssigned?: boolean;
+  topSuggestedId?: string;
 };
-
-// ── Status styles ──────────────────────────────────────────────────────────────
-
-function statusStyle(status: ScoredStaff["status"]) {
-  switch (status) {
-    case "recommended":
-      return {
-        badgeBg: "var(--cs-success-bg)",
-        badgeColor: "var(--cs-success-text)",
-        badgeBorder: "rgba(90,138,106,0.25)",
-        icon: Star,
-        iconColor: "var(--cs-success)",
-      };
-    case "available":
-      return {
-        badgeBg: "var(--cs-sand-mist)",
-        badgeColor: "var(--cs-sand-dark)",
-        badgeBorder: "var(--cs-sand)",
-        icon: Check,
-        iconColor: "var(--cs-sand)",
-      };
-    case "warning":
-      return {
-        badgeBg: "#FFFBEB",
-        badgeColor: "#B45309",
-        badgeBorder: "#FCD34D",
-        icon: AlertTriangle,
-        iconColor: "#D97706",
-      };
-    case "unavailable":
-      return {
-        badgeBg: "var(--cs-error-bg)",
-        badgeColor: "var(--cs-error-text)",
-        badgeBorder: "rgba(180,60,60,0.2)",
-        icon: ShieldAlert,
-        iconColor: "var(--cs-error)",
-      };
-  }
-}
-
-// ── Component ──────────────────────────────────────────────────────────────────
 
 export function AssignmentRecommendationCard({
   candidate,
   onAssign,
   assignLabel = "Assign",
   isAssigned = false,
+  topSuggestedId,
 }: Props) {
-  const style = statusStyle(candidate.status);
-  const [isPending, startTransition] = useTransition();
+  const [selectedReason, setSelectedReason] = useState("");
+  const [showReason, setShowReason] = useState(false);
+  const style = statusStyles[candidate.status] ?? statusStyles.available;
+  if (!style) return null;
+  const Icon = style.icon;
 
-  function handleAssign() {
-    if (!onAssign || isPending || isAssigned) return;
-    startTransition(() => {
-      onAssign(candidate.staffId);
-    });
-  }
+  const requiresOverrideReason =
+    topSuggestedId !== undefined &&
+    candidate.staffId !== topSuggestedId &&
+    candidate.status !== "unavailable";
+
+  const handleAssign = () => {
+    if (requiresOverrideReason && !selectedReason) {
+      setShowReason(true);
+      return;
+    }
+    onAssign?.(candidate.staffId, selectedReason || undefined);
+    setShowReason(false);
+  };
+
+  const attendanceLabel =
+    candidate.attendanceState === "checked_in"
+      ? "Checked in"
+      : candidate.attendanceState === "checked_out"
+        ? "Clocked out"
+        : candidate.attendanceState === "not_arrived"
+          ? "Not clocked in"
+          : "Attendance unknown";
 
   return (
     <div
       style={{
-        backgroundColor: "var(--cs-surface)",
+        padding: 12,
+        borderRadius: "var(--cs-r-sm)",
+        backgroundColor: "var(--cs-surface-elevated)",
         border: "1px solid var(--cs-border-soft)",
-        borderRadius: "var(--cs-r-md)",
-        padding: "12px 14px",
         display: "flex",
         flexDirection: "column",
         gap: 8,
+        opacity: candidate.status === "unavailable" ? 0.65 : 1,
       }}
     >
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              backgroundColor: style.iconColor,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <User size={15} color="#fff" />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cs-text)" }}>{candidate.displayName}</span>
+            <span
               style={{
-                fontSize: 13,
+                fontSize: 10,
                 fontWeight: 600,
-                color: "var(--cs-text)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                padding: "2px 6px",
+                borderRadius: 999,
+                backgroundColor: style.bg,
+                color: style.text,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
               }}
-              title={candidate.displayName}
             >
-              {candidate.displayName}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--cs-text-muted)", marginTop: 1 }}>
-              {candidate.roleLabel}
-              {candidate.tier && ` · ${candidate.tier}`}
-            </div>
+              <Icon size={10} />
+              {candidate.status}
+            </span>
+            {candidate.queuePosition !== undefined && candidate.queuePosition !== null && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: "2px 6px",
+                  borderRadius: 999,
+                  backgroundColor: "var(--cs-sand-mist)",
+                  color: "var(--cs-sand-dark)",
+                }}
+              >
+                Queue #{candidate.queuePosition}
+              </span>
+            )}
+          </div>
+
+          <div style={{ fontSize: 11, color: "var(--cs-text-muted)", display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <span>{candidate.roleLabel}</span>
+            {candidate.tier && <span>Tier {candidate.tier}</span>}
+            {candidate.workloadCount !== undefined && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <Users size={10} />
+                {candidate.workloadCount} today
+              </span>
+            )}
+            {candidate.checkedInAt && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <Clock size={10} />
+                {attendanceLabel} {formatClockIn(candidate.checkedInAt)}
+              </span>
+            )}
+            {!candidate.checkedInAt && candidate.attendanceState && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <Clock size={10} />
+                {attendanceLabel}
+              </span>
+            )}
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              padding: "2px 8px",
-              borderRadius: "var(--cs-r-pill)",
-              backgroundColor: style.badgeBg,
-              color: style.badgeColor,
-              border: `1px solid ${style.badgeBorder}`,
-            }}
-          >
-            {candidate.status}
-          </span>
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              fontFamily: "var(--font-mono, monospace)",
-              color: "var(--cs-text-muted)",
-            }}
-          >
-            {candidate.score}
-          </span>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--cs-text)" }}>{candidate.score}</div>
+            <div style={{ fontSize: 9, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              score
+            </div>
+          </div>
+          {onAssign && (
+            <button
+              type="button"
+              onClick={handleAssign}
+              disabled={isAssigned}
+              style={{
+                padding: "5px 10px",
+                borderRadius: "var(--cs-r-sm)",
+                border: "none",
+                backgroundColor: isAssigned ? "var(--cs-success-bg)" : "var(--cs-sand)",
+                color: isAssigned ? "var(--cs-success-text)" : "var(--cs-sand-dark)",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: isAssigned ? "default" : "pointer",
+              }}
+            >
+              {isAssigned ? "Assigned" : assignLabel}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Reasons */}
       {candidate.reasons.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {candidate.reasons.map((reason) => (
-            <div key={reason} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Check size={11} color="var(--cs-success)" />
-              <span style={{ fontSize: 11, color: "var(--cs-text-secondary)" }}>{reason}</span>
-            </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {candidate.reasons.map((reason, idx) => (
+            <span
+              key={idx}
+              style={{
+                fontSize: 10,
+                color: "var(--cs-success-text)",
+                backgroundColor: "var(--cs-success-bg)",
+                padding: "2px 6px",
+                borderRadius: "var(--cs-r-sm)",
+              }}
+            >
+              {reason}
+            </span>
           ))}
         </div>
       )}
 
-      {/* Warnings */}
       {candidate.warnings.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {candidate.warnings.map((warning) => (
-            <div key={warning} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <AlertTriangle size={11} color={candidate.status === "unavailable" ? "var(--cs-error)" : "#D97706"} />
-              <span style={{ fontSize: 11, color: candidate.status === "unavailable" ? "var(--cs-error-text)" : "#B45309" }}>
-                {warning}
-              </span>
-            </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {candidate.warnings.map((warning, idx) => (
+            <span
+              key={idx}
+              style={{
+                fontSize: 10,
+                color: "var(--cs-warning-text)",
+                backgroundColor: "var(--cs-warning-bg)",
+                padding: "2px 6px",
+                borderRadius: "var(--cs-r-sm)",
+              }}
+            >
+              {warning}
+            </span>
           ))}
         </div>
       )}
 
-      {/* Assign button */}
-      {onAssign && (
-        <button
-          type="button"
-          onClick={handleAssign}
-          disabled={isPending || isAssigned || candidate.status === "unavailable"}
-          style={{
-            marginTop: 2,
-            padding: "5px 10px",
-            borderRadius: "var(--cs-r-sm)",
-            border: "none",
-            backgroundColor: isAssigned ? "var(--cs-success-bg)" : "var(--cs-sand)",
-            color: isAssigned ? "var(--cs-success-text)" : "#fff",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: isAssigned || candidate.status === "unavailable" ? "default" : "pointer",
-            opacity: candidate.status === "unavailable" ? 0.5 : 1,
-          }}
-        >
-          {isAssigned ? "Assigned" : isPending ? "Assigning…" : assignLabel}
-        </button>
+      {(showReason || (requiresOverrideReason && isAssigned)) && onAssign && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+          <label style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>
+            Override reason required
+          </label>
+          <select
+            value={selectedReason}
+            onChange={(e) => setSelectedReason(e.target.value)}
+            style={{
+              fontSize: 11,
+              padding: "6px 8px",
+              borderRadius: "var(--cs-r-sm)",
+              border: "1px solid var(--cs-border-soft)",
+              backgroundColor: "var(--cs-surface-warm)",
+              color: "var(--cs-text)",
+            }}
+          >
+            <option value="">Select reason</option>
+            {overrideReasons.map((reason) => (
+              <option key={reason.value} value={reason.value}>
+                {reason.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleAssign}
+            disabled={!selectedReason}
+            style={{
+              alignSelf: "flex-start",
+              padding: "5px 10px",
+              borderRadius: "var(--cs-r-sm)",
+              border: "none",
+              backgroundColor: selectedReason ? "var(--cs-sand)" : "var(--cs-border-soft)",
+              color: selectedReason ? "var(--cs-sand-dark)" : "var(--cs-text-muted)",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: selectedReason ? "pointer" : "not-allowed",
+            }}
+          >
+            Confirm Override
+          </button>
+        </div>
       )}
     </div>
   );
+}
+
+function formatClockIn(iso?: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return `at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }

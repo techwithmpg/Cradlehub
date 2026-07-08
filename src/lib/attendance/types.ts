@@ -202,18 +202,25 @@ export type RecoveryTokenPreview =
 
 export type AttendanceRecord = {
   id: string;
+  branch_id: string;
   staff_id: string;
   staff_name: string;
+  staff_nickname: string | null;
+  staff_type: string | null;
+  system_role: string | null;
   shift_date: string;
   shift_type: string;
   checked_in_at: string;
   checked_out_at: string | null;
   status: string;
   attendance_status: string;
+  exception_state: string | null;
   worked_minutes: number;
   late_minutes: number;
   early_leave_minutes: number;
   overtime_minutes: number;
+  clock_in_method: string | null;
+  clock_out_method: string | null;
   source_label: string | null;
 };
 
@@ -278,6 +285,7 @@ export type AttendanceRecordFilters = {
 
 export type AttendanceSession = {
   id: string;
+  staff_id: string;
   customer_name: string;
   service_name: string;
   staff_name: string;
@@ -293,6 +301,7 @@ export type AttendanceSession = {
 };
 
 export type AttendanceWorkspaceData = {
+  branchId: string;
   branchName: string;
   settings: AttendanceSettings;
   summary: {

@@ -203,7 +203,7 @@ export async function getCheckinsForScoring(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("staff_shift_checkins")
-    .select("staff_id, shift_date, status")
+    .select("staff_id, shift_date, status, checked_in_at, checked_out_at, attendance_status, shift_type, branch_id")
     .eq("branch_id", branchId)
     .eq("shift_date", date)
     .neq("status", "voided");

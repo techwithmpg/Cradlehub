@@ -4,13 +4,44 @@ import { useMemo, useState, useTransition } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { EmptyState, Panel, RemainingProgress, StatusPill, formatAttendanceDateTime } from "@/components/features/attendance/attendance-ui";
+import { EmptyState, Panel, RemainingProgress, StaffAvatar, StatusPill, formatAttendanceDateTime, formatMinutesCompact } from "@/components/features/attendance/attendance-ui";
 import { completeDueServiceSessionsAction, type AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
-import type { AttendanceSession, AttendanceWorkspaceData } from "@/lib/attendance/types";
+import type { AttendanceRecord, AttendanceSession, AttendanceWorkspaceData } from "@/lib/attendance/types";
 
 function remainingMinutes(dueAt: string | null): number {
   if (!dueAt) return 0;
   return Math.round((new Date(dueAt).getTime() - Date.now()) / 60000);
+}
+
+function sessionState(session: AttendanceSession): string {
+  if (session.booking_progress_status !== "session_started") return session.booking_progress_status;
+  const remaining = remainingMinutes(session.session_due_at);
+  if (remaining < 0) return "overdue";
+  if (remaining <= 10) return "ending_soon";
+  return "active";
+}
+
+function activeServiceForStaff(sessions: AttendanceSession[], staffId: string): AttendanceSession | undefined {
+  return sessions.find((session) => session.booking_progress_status === "session_started" && session.staff_id === staffId);
+}
+
+function attendanceAvailabilityState(record: AttendanceRecord, activeService?: AttendanceSession): string {
+  if (record.status === "checked_out" || record.checked_out_at) return "clocked_out";
+  if (activeService) return "in_service";
+  if (record.status === "checked_in") return "available";
+  return "not_arrived";
+}
+
+function displayStaffName(record: AttendanceRecord): string {
+  return record.staff_nickname ?? record.staff_name;
+}
+
+function displayRole(record: AttendanceRecord): string {
+  return record.staff_type ?? record.system_role ?? "staff";
+}
+
+function workedMinutesSince(checkedInAt: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(checkedInAt).getTime()) / 60000));
 }
 
 export function ServiceSessionsTab({
@@ -25,7 +56,14 @@ export function ServiceSessionsTab({
   const [selectedSession, setSelectedSession] = useState<AttendanceSession | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const rows = useMemo(() => {
+  const activeAttendanceSessions = useMemo<AttendanceRecord[]>(() => {
+    const checkedIn = data.records
+      .filter((record) => record.status === "checked_in" && !record.checked_out_at)
+      .sort((a, b) => new Date(a.checked_in_at).getTime() - new Date(b.checked_in_at).getTime());
+    return checkedIn;
+  }, [data.records]);
+
+  const serviceRows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return data.sessions.filter((session) => {
       const haystack = `${session.customer_name} ${session.staff_name} ${session.service_name} ${session.resource_name ?? ""}`.toLowerCase();
@@ -43,6 +81,63 @@ export function ServiceSessionsTab({
 
   return (
     <div className="grid gap-4">
+      <Panel title={`Active Attendance Sessions (${activeAttendanceSessions.length})`}>
+        {activeAttendanceSessions.length === 0 ? (
+          <EmptyState
+            title="No active attendance sessions"
+            detail="Staff who clock in at the attendance QR will appear here."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b bg-stone-50 text-left text-xs text-muted-foreground">
+                  {["Queue", "Staff", "Clock In", "Worked", "Shift", "Status", "Attendance", "Current Task"].map((heading) => (
+                    <th key={heading} className="px-3 py-2 font-semibold">{heading}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {activeAttendanceSessions.map((record, index) => {
+                  const queuePosition = index + 1;
+                  const service = activeServiceForStaff(data.sessions, record.staff_id);
+                  const availability = attendanceAvailabilityState(record, service);
+                  return (
+                    <tr key={record.id} className="border-b last:border-b-0">
+                      <td className="px-3 py-3 font-semibold">#{queuePosition}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <StaffAvatar name={record.staff_name} />
+                          <div>
+                            <div className="font-semibold">{displayStaffName(record)}</div>
+                            <div className="text-xs capitalize text-muted-foreground">{displayRole(record)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">{formatAttendanceDateTime(record.checked_in_at)}</td>
+                      <td className="px-3 py-3">{formatMinutesCompact(workedMinutesSince(record.checked_in_at))}</td>
+                      <td className="px-3 py-3 capitalize">{record.shift_type}</td>
+                      <td className="px-3 py-3"><StatusPill value={availability} /></td>
+                      <td className="px-3 py-3"><StatusPill value={record.attendance_status} /></td>
+                      <td className="px-3 py-3">
+                        {service ? (
+                          <span>
+                            <strong>{service.resource_name ?? "Room"}</strong>
+                            <span className="text-muted-foreground"> · {service.service_name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Available</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
       <Panel
         title="Service Session Management"
         action={
@@ -75,8 +170,8 @@ export function ServiceSessionsTab({
         </div>
       </Panel>
 
-      <Panel title={`Sessions (${rows.length})`}>
-        {rows.length === 0 ? (
+      <Panel title={`Service Sessions (${serviceRows.length})`}>
+        {serviceRows.length === 0 ? (
           <EmptyState title="No service sessions found." detail="Room QR scans will appear here once services start." />
         ) : (
           <div className="overflow-x-auto">
@@ -89,7 +184,7 @@ export function ServiceSessionsTab({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((session) => (
+                {serviceRows.map((session) => (
                   <tr key={session.id} className="border-b last:border-b-0">
                     <td className="px-3 py-3 font-semibold">{session.customer_name}</td>
                     <td className="px-3 py-3">{session.staff_name}</td>
@@ -99,7 +194,7 @@ export function ServiceSessionsTab({
                     <td className="px-3 py-3">{formatAttendanceDateTime(session.session_due_at)}</td>
                     <td className="px-3 py-3">{formatAttendanceDateTime(session.session_completed_at)}</td>
                     <td className="px-3 py-3"><RemainingProgress remainingMinutes={remainingMinutes(session.session_due_at)} totalMinutes={session.duration_minutes ?? 60} /></td>
-                    <td className="px-3 py-3"><StatusPill value={session.booking_progress_status} /></td>
+                    <td className="px-3 py-3"><StatusPill value={sessionState(session)} /></td>
                     <td className="px-3 py-3"><Button type="button" variant="outline" size="sm" onClick={() => setSelectedSession(session)}>Open Countdown</Button></td>
                   </tr>
                 ))}
@@ -117,7 +212,7 @@ export function ServiceSessionsTab({
           </DialogHeader>
           {selectedSession ? (
             <div className="grid gap-3 text-sm">
-              <StatusPill value={selectedSession.booking_progress_status} />
+              <StatusPill value={sessionState(selectedSession)} />
               <div>{selectedSession.service_name} · {selectedSession.staff_name}</div>
               <div className="text-muted-foreground">{selectedSession.resource_name ?? "No room assigned"}</div>
               <RemainingProgress remainingMinutes={remainingMinutes(selectedSession.session_due_at)} totalMinutes={selectedSession.duration_minutes ?? 60} />

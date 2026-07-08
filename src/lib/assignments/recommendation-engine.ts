@@ -20,6 +20,10 @@ export type ScoredStaff = {
   status: "recommended" | "available" | "warning" | "unavailable";
   reasons: string[];
   warnings: string[];
+  queuePosition?: number | null;
+  checkedInAt?: string | null;
+  attendanceState?: "checked_in" | "checked_out" | "not_arrived" | "unknown";
+  workloadCount?: number;
 };
 
 export type StaffForScoring = {
@@ -60,6 +64,11 @@ export type CheckinForScoring = {
   staff_id: string;
   shift_date: string;
   status: string;
+  checked_in_at: string | null;
+  checked_out_at: string | null;
+  attendance_status: string | null;
+  shift_type: string | null;
+  branch_id: string;
 };
 
 export type ConflictBooking = {
@@ -107,6 +116,10 @@ export type RecommendationContext = {
 
 const SCORE = {
   checkedIn: 40,
+  queuePosition1: 30,
+  queuePosition2: 25,
+  queuePosition3: 20,
+  queuePosition4Plus: 15,
   noConflict: 30,
   sameBranch: 20,
   serviceCapable: 20,
@@ -132,6 +145,13 @@ const STATUS_THRESHOLDS = {
 function dayOfWeekFromYmd(date: string): number {
   const [y = "0", m = "1", d = "1"] = date.split("-");
   return new Date(Number(y), Number(m) - 1, Number(d)).getDay();
+}
+
+function formatAttendanceTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function timesOverlap(
@@ -233,6 +253,58 @@ function isCheckedInToday(
   );
 }
 
+function getTodayCheckin(
+  staffId: string,
+  bookingDate: string,
+  checkins: CheckinForScoring[]
+): CheckinForScoring | undefined {
+  return checkins.find(
+    (c) =>
+      c.staff_id === staffId &&
+      c.shift_date === bookingDate &&
+      c.status === "checked_in" &&
+      !c.checked_out_at
+  );
+}
+
+export function isCurrentlyCheckedIn(
+  staffId: string,
+  bookingDate: string,
+  checkins: CheckinForScoring[]
+): boolean {
+  return Boolean(getTodayCheckin(staffId, bookingDate, checkins));
+}
+
+export function getCheckedInAt(
+  staffId: string,
+  bookingDate: string,
+  checkins: CheckinForScoring[]
+): string | null {
+  return getTodayCheckin(staffId, bookingDate, checkins)?.checked_in_at ?? null;
+}
+
+export function getTodayQueuePosition(
+  staffId: string,
+  bookingDate: string,
+  checkins: CheckinForScoring[]
+): number | null {
+  const activeCheckins = checkins
+    .filter(
+      (c) =>
+        c.shift_date === bookingDate &&
+        c.status === "checked_in" &&
+        !c.checked_out_at &&
+        c.checked_in_at
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.checked_in_at!).getTime() - new Date(b.checked_in_at!).getTime()
+    );
+
+  const index = activeCheckins.findIndex((c) => c.staff_id === staffId);
+  return index >= 0 ? index + 1 : null;
+}
+
 function isServiceProvider(staff: StaffForScoring): boolean {
   return canActAsBookingServiceProvider({
     is_active: staff.is_active,
@@ -291,16 +363,33 @@ function scoreTherapist(
   // Active check
   if (!staff.is_active) {
     warnings.push("Staff is inactive");
-    return buildResult(staff, "therapist", score, reasons, warnings);
+    return buildResult(staff, "therapist", score, reasons, warnings, ctx);
   }
 
-  // Check-in status (only matters if booking is today)
+  // Check-in status and queue position (only matters if booking is today)
   const today = new Date().toISOString().split("T")[0]!;
   const isToday = ctx.bookingDate === today;
   const checkedIn = isCheckedInToday(staff.id, ctx.bookingDate, ctx.checkins);
+  const queuePosition = getTodayQueuePosition(staff.id, ctx.bookingDate, ctx.checkins);
+  const checkedInAt = getCheckedInAt(staff.id, ctx.bookingDate, ctx.checkins);
 
   if (isToday) {
-    if (checkedIn) {
+    if (checkedIn && queuePosition) {
+      score += SCORE.checkedIn;
+      const queueBonus =
+        queuePosition === 1
+          ? SCORE.queuePosition1
+          : queuePosition === 2
+            ? SCORE.queuePosition2
+            : queuePosition === 3
+              ? SCORE.queuePosition3
+              : SCORE.queuePosition4Plus;
+      score += queueBonus;
+      reasons.push(`#${queuePosition} in today's attendance queue`);
+      if (checkedInAt) {
+        reasons.push(`Clocked in at ${formatAttendanceTime(checkedInAt)}`);
+      }
+    } else if (checkedIn) {
       score += SCORE.checkedIn;
       reasons.push("Checked in");
     } else {
@@ -393,7 +482,7 @@ function scoreTherapist(
     reasons.push(`Light workload (${workload} booking${workload === 1 ? "" : "s"})`);
   }
 
-  return buildResult(staff, "therapist", score, reasons, warnings);
+  return buildResult(staff, "therapist", score, reasons, warnings, ctx);
 }
 
 function scoreDriver(
@@ -408,13 +497,13 @@ function scoreDriver(
   // Active check
   if (!staff.is_active) {
     warnings.push("Staff is inactive");
-    return buildResult(staff, "driver", score, reasons, warnings);
+    return buildResult(staff, "driver", score, reasons, warnings, ctx);
   }
 
   // Must be driver
   if (!isDriver(staff)) {
     warnings.push("Not a driver");
-    return buildResult(staff, "driver", score, reasons, warnings);
+    return buildResult(staff, "driver", score, reasons, warnings, ctx);
   }
 
   // Check-in status
@@ -502,7 +591,7 @@ function scoreDriver(
     reasons.push(`Light trip load (${workload} trip${workload === 1 ? "" : "s"})`);
   }
 
-  return buildResult(staff, "driver", score, reasons, warnings);
+  return buildResult(staff, "driver", score, reasons, warnings, ctx);
 }
 
 function buildResult(
@@ -510,7 +599,8 @@ function buildResult(
   recommendationType: RecommendationType,
   score: number,
   reasons: string[],
-  warnings: string[]
+  warnings: string[],
+  ctx: RecommendationContext
 ): ScoredStaff {
   let status: ScoredStaff["status"];
   if (score >= STATUS_THRESHOLDS.recommended) status = "recommended";
@@ -530,6 +620,15 @@ function buildResult(
     ? staff.staff_type.replace(/_/g, " ")
     : staff.system_role?.replace(/_/g, " ") ?? "Staff";
 
+  const attendanceState: ScoredStaff["attendanceState"] =
+    getTodayQueuePosition(staff.id, ctx.bookingDate, ctx.checkins) !== null
+      ? "checked_in"
+      : ctx.checkins.some((c) => c.staff_id === staff.id && c.shift_date === ctx.bookingDate && c.status === "checked_out")
+        ? "checked_out"
+        : ctx.checkins.some((c) => c.staff_id === staff.id && c.shift_date === ctx.bookingDate)
+          ? "not_arrived"
+          : "unknown";
+
   return {
     staffId: staff.id,
     displayName: staff.full_name,
@@ -540,6 +639,10 @@ function buildResult(
     status,
     reasons,
     warnings,
+    queuePosition: getTodayQueuePosition(staff.id, ctx.bookingDate, ctx.checkins),
+    checkedInAt: getCheckedInAt(staff.id, ctx.bookingDate, ctx.checkins),
+    attendanceState,
+    workloadCount: workloadToday(staff.id, ctx.existingBookings),
   };
 }
 

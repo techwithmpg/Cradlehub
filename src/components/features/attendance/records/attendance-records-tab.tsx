@@ -119,7 +119,19 @@ export function AttendanceRecordsTab({
 
       <Panel title={`Records (${rows.length})`}>
         {rows.length === 0 ? (
-          <EmptyState title="No attendance records found." detail="Try a different date, status, or staff search." />
+          data.records.length === 0 && data.scanEvents.some((event) => event.scan_type === "attendance" && event.outcome === "success" && (event.action === "clock_in" || event.action === "clock_out")) ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="font-semibold">Attendance scans were found, but no staff time records were loaded.</div>
+              <div className="mt-1">
+                This usually means the scan event was saved but the staff_shift_checkins record was not created, or the records query is failing.
+              </div>
+              <div className="mt-2 font-semibold">
+                Recent successful attendance scans: {data.scanEvents.filter((event) => event.scan_type === "attendance" && event.outcome === "success" && (event.action === "clock_in" || event.action === "clock_out")).length}
+              </div>
+            </div>
+          ) : (
+            <EmptyState title="No attendance records found." detail="Try a different date, status, or staff search." />
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-sm">

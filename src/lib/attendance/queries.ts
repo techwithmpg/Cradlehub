@@ -11,7 +11,7 @@ import { asAttendanceDb, type AttendanceDb } from "@/lib/attendance/db";
 import { getAttendanceDeviceRegistry } from "@/lib/attendance/device-registry";
 import { buildActivationUrl, getAppBaseUrl, renderQrSvg } from "@/lib/attendance/qr-code";
 import { createActivationToken, createPublicCode, hashSecret } from "@/lib/attendance/tokens";
-import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { addDaysToYmd, getBranchBusinessDate } from "@/lib/engine/slot-time";
 import type {
   AttendanceDevice,
   AttendanceException,
@@ -362,6 +362,7 @@ export async function getAttendanceWorkspaceData(params: {
 }): Promise<AttendanceWorkspaceData> {
   const admin = asAttendanceDb(createAdminClient());
   const today = getBranchBusinessDate();
+  const historyStart = addDaysToYmd(today, -90);
   const settings = await getAttendanceSettings(params.branchId);
 
   const [
@@ -389,29 +390,33 @@ export async function getAttendanceWorkspaceData(params: {
       .limit(100),
     admin
       .from("staff_shift_checkins")
-      .select("id, staff_id, shift_date, shift_type, checked_in_at, checked_out_at, status, attendance_status, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, staff(full_name), qr_points(label)")
+      .select(
+        "id, branch_id, staff_id, shift_date, shift_type, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
+      )
       .eq("branch_id", params.branchId)
-      .gte("shift_date", today)
+      .gte("shift_date", historyStart)
       .order("checked_in_at", { ascending: false })
-      .limit(100),
+      .limit(200),
     admin
       .from("attendance_exceptions")
-      .select("id, branch_id, staff_id, exception_type, severity, status, message, detected_at, resolved_at, staff(full_name)")
+      .select("id, branch_id, staff_id, exception_type, severity, status, message, detected_at, resolved_at, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name)")
       .eq("branch_id", params.branchId)
       .order("detected_at", { ascending: false })
       .limit(100),
     admin
       .from("qr_scan_events")
-      .select("id, scan_type, action, outcome, reason_code, message, created_at, booking_id, staff(full_name), qr_points(label)")
+      .select("id, scan_type, action, outcome, reason_code, message, created_at, booking_id, staff_id, staff:staff!qr_scan_events_staff_id_fkey(id, full_name), qr_points:qr_points!qr_scan_events_qr_point_id_fkey(id, label)")
       .eq("branch_id", params.branchId)
       .order("created_at", { ascending: false })
-      .limit(80),
+      .limit(100),
     admin
       .from("bookings")
-      .select("id, booking_date, start_time, status, booking_progress_status, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), staff(full_name), branch_resources(name)")
+      .select(
+        "id, booking_date, start_time, status, booking_progress_status, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers:customers!bookings_customer_id_fkey(id, full_name), services:services!bookings_service_id_fkey(id, name, duration_minutes), staff:staff!bookings_staff_id_fkey(id, full_name), branch_resources:branch_resources!bookings_resource_id_fkey(id, name)"
+      )
       .eq("branch_id", params.branchId)
       .in("booking_progress_status", ["session_started", "completed"])
-      .gte("booking_date", today)
+      .gte("booking_date", historyStart)
       .order("session_started_at", { ascending: false, nullsFirst: false })
       .limit(100),
     admin
@@ -433,6 +438,15 @@ export async function getAttendanceWorkspaceData(params: {
     }),
   ]);
 
+  if (qrPointsResult.error) throw new Error(`QR points could not be loaded: ${qrPointsResult.error.message}`);
+  if (devicesResult.error) throw new Error(`Attendance devices could not be loaded: ${devicesResult.error.message}`);
+  if (recordsResult.error) throw new Error(`Attendance records could not be loaded: ${recordsResult.error.message}`);
+  if (exceptionsResult.error) throw new Error(`Attendance exceptions could not be loaded: ${exceptionsResult.error.message}`);
+  if (scanEventsResult.error) throw new Error(`Attendance scan events could not be loaded: ${scanEventsResult.error.message}`);
+  if (sessionsResult.error) throw new Error(`Service sessions could not be loaded: ${sessionsResult.error.message}`);
+  if (staffResult.error) throw new Error(`Staff options could not be loaded: ${staffResult.error.message}`);
+  if (resourcesResult.error) throw new Error(`Branch resources could not be loaded: ${resourcesResult.error.message}`);
+
   const qrRows = qrPointsResult.data ?? [];
   const qrWorkspaceData = await resolveQrWorkspaceData({
     rows: qrRows,
@@ -447,6 +461,7 @@ export async function getAttendanceWorkspaceData(params: {
   const activeSessions = sessions.filter((session) => session.booking_progress_status === "session_started").length;
 
   return {
+    branchId: params.branchId,
     branchName: params.branchName,
     settings,
     summary: {
@@ -480,8 +495,10 @@ export async function getAttendanceWorkspaceData(params: {
 
 export function revalidateAttendanceSurfaces(): void {
   revalidatePath("/crm/attendance");
-  revalidatePath("/crm/availability");
+  revalidatePath("/owner/attendance");
   revalidatePath("/crm/today");
+  revalidatePath("/crm/bookings");
+  revalidatePath("/crm/availability");
   revalidatePath("/staff-portal");
 }
 
@@ -595,6 +612,7 @@ function mapDevice(row: unknown): AttendanceDevice {
 function mapRecord(row: unknown): AttendanceRecord {
   const record = row as {
     id: string;
+    branch_id: string;
     staff_id: string;
     shift_date: string;
     shift_type: string;
@@ -602,28 +620,40 @@ function mapRecord(row: unknown): AttendanceRecord {
     checked_out_at: string | null;
     status: string;
     attendance_status?: string | null;
+    exception_state?: string | null;
     worked_minutes?: number | null;
     late_minutes?: number | null;
     early_leave_minutes?: number | null;
     overtime_minutes?: number | null;
-    staff?: Relation<{ full_name: string | null }>;
+    clock_in_method?: string | null;
+    clock_out_method?: string | null;
+    staff?: Relation<{ id: string; full_name: string | null; nickname?: string | null; staff_type?: string | null; system_role?: string | null }>;
     qr_points?: Relation<{ label: string | null }>;
   };
 
+  const staff = first(record.staff);
+
   return {
     id: record.id,
+    branch_id: record.branch_id,
     staff_id: record.staff_id,
-    staff_name: first(record.staff)?.full_name ?? "Staff member",
+    staff_name: staff?.full_name ?? "Staff member",
+    staff_nickname: staff?.nickname ?? null,
+    staff_type: staff?.staff_type ?? null,
+    system_role: staff?.system_role ?? null,
     shift_date: record.shift_date,
     shift_type: record.shift_type,
     checked_in_at: record.checked_in_at,
     checked_out_at: record.checked_out_at,
     status: record.status,
     attendance_status: record.attendance_status ?? "present",
+    exception_state: record.exception_state ?? null,
     worked_minutes: safeNumber(record.worked_minutes),
     late_minutes: safeNumber(record.late_minutes),
     early_leave_minutes: safeNumber(record.early_leave_minutes),
     overtime_minutes: safeNumber(record.overtime_minutes),
+    clock_in_method: record.clock_in_method ?? null,
+    clock_out_method: record.clock_out_method ?? null,
     source_label: first(record.qr_points)?.label ?? null,
   };
 }
@@ -666,8 +696,9 @@ function mapScanEvent(row: unknown): AttendanceScanEvent {
     message: string | null;
     created_at: string;
     booking_id: string | null;
-    staff?: Relation<{ full_name: string | null }>;
-    qr_points?: Relation<{ label: string | null }>;
+    staff_id: string | null;
+    staff?: Relation<{ id: string; full_name: string | null }>;
+    qr_points?: Relation<{ id: string; label: string | null }>;
   };
 
   return {
@@ -687,6 +718,7 @@ function mapScanEvent(row: unknown): AttendanceScanEvent {
 function mapSession(row: unknown): AttendanceSession {
   const booking = row as {
     id: string;
+    staff_id: string | null;
     booking_date: string;
     start_time: string;
     status: string;
@@ -697,16 +729,18 @@ function mapSession(row: unknown): AttendanceSession {
     session_duration_minutes_snapshot: number | null;
     customers?: Relation<{ full_name: string | null }>;
     services?: Relation<{ name: string | null; duration_minutes: number | null }>;
-    staff?: Relation<{ full_name: string | null }>;
+    staff?: Relation<{ id: string; full_name: string | null }>;
     branch_resources?: Relation<{ name: string | null }>;
   };
 
   const service = first(booking.services);
+  const staff = first(booking.staff);
   return {
     id: booking.id,
+    staff_id: staff?.id ?? booking.staff_id ?? "",
     customer_name: first(booking.customers)?.full_name ?? "Customer",
     service_name: service?.name ?? "Service",
-    staff_name: first(booking.staff)?.full_name ?? "Staff member",
+    staff_name: staff?.full_name ?? "Staff member",
     resource_name: first(booking.branch_resources)?.name ?? null,
     booking_date: booking.booking_date,
     start_time: booking.start_time,

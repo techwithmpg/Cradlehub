@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
-import { Sparkles, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { useState, useTransition, useCallback, useEffect, useRef } from "react";
+import { Sparkles, ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
 import { AssignmentRecommendationCard } from "./assignment-recommendation-card";
 import type { ScoredStaff } from "@/lib/assignments/recommendation-engine";
 
@@ -13,7 +13,7 @@ type Props = {
     | { success: true; data: { therapists: ScoredStaff[]; drivers: ScoredStaff[] } }
     | { success: false; error: string }
   >;
-  onAssignTherapist?: (staffId: string) => void;
+  onAssignTherapist?: (staffId: string, overrideReason?: string) => void;
   onAssignDriver?: (staffId: string) => void;
   currentTherapistId?: string | null;
   currentDriverId?: string | null;
@@ -37,15 +37,14 @@ export function AssignmentRecommendationPanel({
     therapists: ScoredStaff[];
     drivers: ScoredStaff[];
   } | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
+  const autoLoadAttemptedRef = useRef(false);
 
   const hasLoaded = recommendations !== null;
 
   const loadRecommendations = useCallback(() => {
-    setLoading(true);
     setError(null);
     startTransition(async () => {
       const result = await fetchRecommendations({ bookingId });
@@ -54,9 +53,25 @@ export function AssignmentRecommendationPanel({
       } else {
         setError(result.error);
       }
-      setLoading(false);
     });
   }, [bookingId, fetchRecommendations]);
+
+  // Auto-load recommendations once when the panel mounts for a given booking.
+  // State is only updated inside the async transition callback to avoid
+  // synchronous setState in the effect body.
+  useEffect(() => {
+    if (!autoLoadAttemptedRef.current && !hasLoaded && !isPending && bookingId) {
+      autoLoadAttemptedRef.current = true;
+      startTransition(async () => {
+        const result = await fetchRecommendations({ bookingId });
+        if (result.success) {
+          setRecommendations(result.data);
+        } else {
+          setError(result.error);
+        }
+      });
+    }
+  }, [bookingId, hasLoaded, isPending, fetchRecommendations]);
 
   const topTherapist = showTherapists
     ? recommendations?.therapists.find((t) => t.status !== "unavailable") ?? null
@@ -86,7 +101,7 @@ export function AssignmentRecommendationPanel({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        disabled={loading}
+        disabled={isPending}
         style={{
           width: "100%",
           display: "flex",
@@ -103,7 +118,7 @@ export function AssignmentRecommendationPanel({
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Sparkles size={14} color="var(--cs-sand)" />
           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--cs-text)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            Recommendations
+            Assignment Assistant
           </span>
           {hasLoaded && (
             <span style={{ fontSize: 10, color: "var(--cs-text-muted)" }}>
@@ -114,7 +129,7 @@ export function AssignmentRecommendationPanel({
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {loading && <Loader2 size={14} color="var(--cs-text-muted)" className="animate-spin" />}
+          {isPending && <Loader2 size={14} color="var(--cs-text-muted)" className="animate-spin" />}
           {expanded ? (
             <ChevronUp size={14} color="var(--cs-text-muted)" />
           ) : (
@@ -126,7 +141,36 @@ export function AssignmentRecommendationPanel({
       {/* Body */}
       {expanded && (
         <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {!hasLoaded && !loading && (
+          <div style={{ fontSize: 11, color: "var(--cs-text-muted)", lineHeight: 1.4 }}>
+            Suggestions use attendance queue, service capability, schedule, and current workload.
+          </div>
+
+          {hasLoaded && (
+            <button
+              type="button"
+              onClick={loadRecommendations}
+              disabled={isPending}
+              style={{
+                padding: "6px 10px",
+                borderRadius: "var(--cs-r-sm)",
+                border: "1px solid var(--cs-sand)",
+                backgroundColor: "var(--cs-sand-mist)",
+                color: "var(--cs-sand-dark)",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                alignSelf: "flex-start",
+              }}
+            >
+              <RefreshCw size={12} />
+              Refresh Suggestions
+            </button>
+          )}
+
+          {!hasLoaded && !isPending && (
             <button
               type="button"
               onClick={loadRecommendations}
@@ -162,6 +206,7 @@ export function AssignmentRecommendationPanel({
                 onAssign={onAssignTherapist}
                 assignLabel="Assign Therapist"
                 isAssigned={currentTherapistId === topTherapist.staffId}
+                topSuggestedId={topTherapist.staffId}
               />
             </div>
           )}
@@ -179,6 +224,7 @@ export function AssignmentRecommendationPanel({
                   onAssign={onAssignTherapist}
                   assignLabel="Assign"
                   isAssigned={currentTherapistId === candidate.staffId}
+                  topSuggestedId={topTherapist?.staffId}
                 />
               ))}
             </div>

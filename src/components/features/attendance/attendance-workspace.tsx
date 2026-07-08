@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AttendanceHeader } from "@/components/features/attendance/attendance-header";
 import { AttendanceTabs } from "@/components/features/attendance/attendance-tabs";
@@ -12,6 +13,7 @@ import { QrCodesTab } from "@/components/features/attendance/qr-codes/qr-codes-t
 import { AttendanceRecordsTab } from "@/components/features/attendance/records/attendance-records-tab";
 import { AttendanceReportsTab } from "@/components/features/attendance/reports/attendance-reports-tab";
 import { ServiceSessionsTab } from "@/components/features/attendance/sessions/service-sessions-tab";
+import { createClient } from "@/lib/supabase/client";
 import type { AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
 import { attendanceTabHref } from "@/lib/attendance/tabs";
 import type {
@@ -36,6 +38,10 @@ type AttendanceWorkspaceProps = {
   };
 };
 
+type WorkspacePatch = Partial<
+  Pick<AttendanceWorkspaceData, "qrPoints" | "devices" | "exceptions">
+>;
+
 export function AttendanceWorkspace({
   data,
   activeTab,
@@ -44,18 +50,72 @@ export function AttendanceWorkspace({
   routeBranchId,
   flash,
 }: AttendanceWorkspaceProps) {
-  const [workspaceData, setWorkspaceData] = useState(data);
+  const router = useRouter();
+  const [localPatch, setLocalPatch] = useState<WorkspacePatch | null>(null);
   const [selectedTab, setSelectedTab] = useState<AttendanceTab>(activeTab);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<QrPrintFormat>("a4");
   const [selectedQrId, setSelectedQrId] = useState<string | null>(() => data.qrPoints[0]?.id ?? null);
   const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(() =>
     flash?.message ? { ok: flash.status === "ok", message: flash.message } : null
   );
 
+  // Merge server-rendered data with local optimistic patches. This keeps the UI
+  // in sync when router.refresh() or realtime updates push new props, while
+  // preserving local mutations (QR generation, device revocation, etc.).
+  const workspaceData = useMemo<AttendanceWorkspaceData>(() => {
+    if (!localPatch) return data;
+    return {
+      ...data,
+      ...(localPatch.qrPoints && { qrPoints: localPatch.qrPoints }),
+      ...(localPatch.devices && { devices: localPatch.devices }),
+      ...(localPatch.exceptions && { exceptions: localPatch.exceptions }),
+    };
+  }, [data, localPatch]);
+
   const activeQrId = useMemo(() => {
     if (selectedQrId && workspaceData.qrPoints.some((point) => point.id === selectedQrId)) return selectedQrId;
     return workspaceData.qrPoints.find((point) => point.is_active)?.id ?? workspaceData.qrPoints[0]?.id ?? null;
   }, [selectedQrId, workspaceData.qrPoints]);
+
+  useEffect(() => {
+    const branchId = workspaceData.branchId;
+    if (!branchId) return;
+
+    const supabase = createClient();
+    const channel = supabase.channel(`attendance-workspace-${branchId}`);
+    const filter = `branch_id=eq.${branchId}`;
+
+    function scheduleRefresh() {
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = setTimeout(() => {
+        router.refresh();
+      }, 500);
+    }
+
+    const tables = [
+      "staff_shift_checkins",
+      "qr_scan_events",
+      "attendance_exceptions",
+      "staff_devices",
+      "bookings",
+    ] as const;
+
+    for (const table of tables) {
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table, filter },
+        scheduleRefresh
+      );
+    }
+
+    channel.subscribe();
+
+    return () => {
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+      void supabase.removeChannel(channel);
+    };
+  }, [router, workspaceData.branchId]);
 
   function setTab(nextTab: AttendanceTab) {
     setSelectedTab(nextTab);
@@ -70,8 +130,9 @@ export function AttendanceWorkspace({
   }
 
   function upsertQrPoints(points: AttendanceQrPoint[]) {
-    setWorkspaceData((current) => {
-      const byId = new Map(current.qrPoints.map((point) => [point.id, point]));
+    setLocalPatch((current) => {
+      const base = current?.qrPoints ?? data.qrPoints;
+      const byId = new Map(base.map((point) => [point.id, point]));
       for (const point of points) byId.set(point.id, point);
       return { ...current, qrPoints: Array.from(byId.values()) };
     });
@@ -93,17 +154,17 @@ export function AttendanceWorkspace({
       if (result.qrPoints[0]) setSelectedQrId(result.qrPoints[0].id);
     }
     if (result.kind === "device_revoked") {
-      setWorkspaceData((current) => ({
+      setLocalPatch((current) => ({
         ...current,
-        devices: current.devices.map((device) =>
-          device.id === result.deviceId ? { ...device, status: "revoked" } : device
+        devices: (current?.devices ?? data.devices).map((device) =>
+          device.id === result.deviceId ? { ...device, status: "revoked" as const } : device
         ),
       }));
     }
     if (result.kind === "exception_resolved") {
-      setWorkspaceData((current) => ({
+      setLocalPatch((current) => ({
         ...current,
-        exceptions: current.exceptions.map((exception) =>
+        exceptions: (current?.exceptions ?? data.exceptions).map((exception) =>
           exception.id === result.exceptionId
             ? { ...exception, status: "resolved", resolved_at: new Date().toISOString() }
             : exception
@@ -111,9 +172,9 @@ export function AttendanceWorkspace({
       }));
     }
     if (result.kind === "qr_deactivated") {
-      setWorkspaceData((current) => ({
+      setLocalPatch((current) => ({
         ...current,
-        qrPoints: current.qrPoints.map((point) =>
+        qrPoints: (current?.qrPoints ?? data.qrPoints).map((point) =>
           point.id === result.qrPointId ? { ...point, is_active: false } : point
         ),
       }));

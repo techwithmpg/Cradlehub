@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
+import { getAttendanceQueueSuggestionAction } from "@/lib/actions/attendance-queue";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
 
@@ -165,6 +166,12 @@ function customerName(customer: QuickBookingCustomerOption | null): string {
   return customer?.fullName.trim() || "";
 }
 
+function formatAttendanceTime(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 function mapServerErrorToFields(message: string): FieldErrors {
   const normalized = message.toLowerCase();
   if (normalized.includes("customer")) return { customer: message };
@@ -232,6 +239,11 @@ export function QuickBookingForm({
   const [staffId, setStaffId] = useState(initialStaffId);
   const [resourceId, setResourceId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [attendanceHint, setAttendanceHint] = useState<
+    | { staffId: string; fullName: string; nickname: string | null; queuePosition: number; checkedInAt: string | null }
+    | null
+  >(null);
+  const [loadingAttendanceHint, setLoadingAttendanceHint] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState("");
   const [loadingNextSlot, setLoadingNextSlot] = useState(false);
@@ -331,6 +343,31 @@ export function QuickBookingForm({
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+
+  // Fetch attendance queue hint when date or service changes.
+  // State updates only happen inside async callbacks to avoid synchronous
+  // setState in the effect body.
+  useEffect(() => {
+    const controller = new AbortController();
+    const id = window.setTimeout(() => {
+      if (!branchId || !date || controller.signal.aborted) return;
+      setLoadingAttendanceHint(true);
+      getAttendanceQueueSuggestionAction({ branchId, date, serviceId: serviceId || null })
+        .then((result) => {
+          if (controller.signal.aborted) return;
+          setAttendanceHint(result.success ? result.suggestion : null);
+        })
+        .catch(() => setAttendanceHint(null))
+        .finally(() => {
+          if (!controller.signal.aborted) setLoadingAttendanceHint(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(id);
+      controller.abort();
+    };
+  }, [branchId, date, serviceId]);
 
   useEffect(() => {
     const query = customerQuery.trim();
@@ -844,6 +881,28 @@ export function QuickBookingForm({
                         </option>
                       ))}
                     </select>
+                    {loadingAttendanceHint ? (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                        <Loader2 size={12} className="animate-spin" />
+                        Checking attendance queue…
+                      </p>
+                    ) : attendanceHint ? (
+                      <p className="mt-1.5 text-xs text-[var(--cs-sand-dark)]">
+                        Suggested from attendance queue:{" "}
+                        <span className="font-semibold">{attendanceHint.nickname || attendanceHint.fullName}</span>
+                        {" · Queue #"}{attendanceHint.queuePosition}
+                        {attendanceHint.checkedInAt
+                          ? ` · Clocked in ${formatAttendanceTime(attendanceHint.checkedInAt)}`
+                          : null}
+                        {staffId && staffId !== attendanceHint.staffId ? (
+                          <span className="ml-1 text-[var(--cs-text-muted)]">(override)</span>
+                        ) : null}
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
+                        No checked-in staff for this date yet.
+                      </p>
+                    )}
                   </div>
 
                   {!isHomeService ? (

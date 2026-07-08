@@ -33,7 +33,7 @@ import { AssignmentRecommendationPanel } from "@/components/features/assignments
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import { editBookingAction, updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
-import { crmStartServiceAction, crmCompleteServiceAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { crmStartServiceAction, crmCompleteServiceAction, assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
 import { autoCompleteDueSessionAction } from "@/app/(dashboard)/staff-portal/actions";
 import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import {
@@ -742,7 +742,7 @@ export function BookingsTable({
         <div className="bw-panel">
           {selected ? (
             <BookingDetailsPanel
-              key={`${selected.id}-${selected.session_started_at ?? "none"}-${selected.booking_progress_status ?? "none"}`}
+              key={`${selected.id}-${readFirst(selected.staff)?.id ?? "none"}-${selected.session_started_at ?? "none"}-${selected.booking_progress_status ?? "none"}`}
               booking={selected}
               viewerRole={viewerRole}
               dispatchHref={dispatchHref}
@@ -974,12 +974,14 @@ function BookingDetailsPanel({
           />
         )}
 
-        <RecommendationSummaryPanel
-          booking={booking}
-          state={recommendationState}
-          expanded={showRecommendations}
-          onExpandedChange={setShowRecommendations}
-        />
+        {!isClosedOperationalBooking(booking) ? (
+          <RecommendationSummaryPanel
+            booking={booking}
+            state={recommendationState}
+            expanded={showRecommendations}
+            onExpandedChange={setShowRecommendations}
+          />
+        ) : null}
 
         <PaymentSummaryPanel
           booking={booking}
@@ -1098,8 +1100,6 @@ function RecommendationSummaryPanel({
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 }) {
-  if (!state.shouldShow) return null;
-
   const label = [
     state.needsTherapist ? "therapist" : null,
     state.needsDriver ? "driver" : null,
@@ -1109,7 +1109,9 @@ function RecommendationSummaryPanel({
     <CompactPanel label="Assignment">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 text-sm text-[var(--cs-text-secondary)]">
-          Missing {label || "assignment"} recommendation.
+          {state.shouldShow
+            ? `Missing ${label || "assignment"} recommendation.`
+            : "Review or change staff assignment."}
         </div>
         <button
           type="button"
@@ -1513,24 +1515,37 @@ function BookingRecommendationSection({
     (booking.metadata && (booking.metadata.delivery_type === "home_service" || booking.metadata.type === "home_service"))
   );
   const staff = readFirst(booking.staff);
-  const needsTherapist = !staff;
-  const needsDriver = isHomeService;
+  const isClosed = isClosedOperationalBooking(booking);
 
-  if (!needsTherapist && !needsDriver) return null;
+  if (isClosed) return null;
 
   return (
     <div>
       <AssignmentRecommendationPanel
+        key={booking.id}
         bookingId={booking.id}
         fetchRecommendations={getAssignmentRecommendationsAction}
+        onAssignTherapist={async (therapistId, overrideReason) => {
+          const result = await assignBookingTherapistAction({
+            bookingId: booking.id,
+            staffId: therapistId,
+            overrideReason,
+          });
+          if (!result.success) {
+            toast.error(result.error ?? "Could not assign therapist.");
+            return;
+          }
+          toast.success("Therapist assigned.");
+          router.refresh();
+        }}
         onAssignDriver={async (driverId) => {
           await assignBookingDriverAction({ bookingId: booking.id, driverId });
           router.refresh();
         }}
         currentTherapistId={staff?.id ?? null}
         currentDriverId={null}
-        showTherapists={needsTherapist}
-        showDrivers={needsDriver}
+        showTherapists
+        showDrivers={isHomeService}
       />
       <div className="mt-2 text-center text-[10px] text-[var(--cs-text-muted)]">
         Recommendation only. Use existing booking controls to confirm assignment.

@@ -69,7 +69,7 @@ export function EmptyState({ title, detail }: { title: string; detail?: string }
 export function StatusPill({ value, tone }: { value: string; tone?: "good" | "warn" | "bad" | "neutral" }) {
   const inferredTone =
     tone ??
-    (["success", "active", "checked_in", "present", "resolved", "completed", "session_started"].includes(value)
+    (["success", "active", "checked_in", "available", "in_service", "present", "resolved", "completed", "session_started"].includes(value)
       ? "good"
       : ["open", "late", "early_leave", "overtime", "blocked", "warning", "ending_soon"].includes(value)
         ? "warn"
