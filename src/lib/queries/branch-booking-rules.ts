@@ -86,6 +86,10 @@ function mapRowToRules(row: BranchBookingRulesRow): BranchBookingRules {
     travelBufferMins: row.travel_buffer_mins,
     maxAdvanceBookingDays: row.max_advance_booking_days,
     homeServiceDriverCapacity: row.home_service_driver_capacity ?? 1,
+    homeServiceFreeKm: Number(row.home_service_free_km ?? DEFAULT_BRANCH_BOOKING_RULES.homeServiceFreeKm),
+    homeServiceExtraKmFee: Number(
+      row.home_service_extra_km_fee ?? DEFAULT_BRANCH_BOOKING_RULES.homeServiceExtraKmFee
+    ),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -1,4 +1,5 @@
-import { timeToMinutes, rangesOverlap } from "@/lib/engine/slot-time";
+import { getBranchBusinessDate, timeToMinutes, rangesOverlap } from "@/lib/engine/slot-time";
+import { NO_CHECKED_IN_STAFF_WARNING } from "@/lib/engine/availability";
 import {
   canActAsBookingServiceProvider,
   staffTypeCanPerformService,
@@ -9,6 +10,13 @@ import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type RecommendationType = "therapist" | "driver";
+export type RecommendationBookingMode =
+  | "walkin"
+  | "phone"
+  | "home_service"
+  | "standard_future"
+  | "online"
+  | "unknown";
 
 export type ScoredStaff = {
   staffId: string;
@@ -100,6 +108,7 @@ export type RecommendationContext = {
   bookingDate: string;
   bookingStartTime: string;
   bookingEndTime: string;
+  bookingMode: RecommendationBookingMode;
   isHomeService: boolean;
   service: ServiceContext | null;
   staffList: StaffForScoring[];
@@ -249,7 +258,28 @@ function isCheckedInToday(
   checkins: CheckinForScoring[]
 ): boolean {
   return checkins.some(
-    (c) => c.staff_id === staffId && c.shift_date === bookingDate && c.status === "checked_in"
+    (c) =>
+      c.staff_id === staffId &&
+      c.shift_date === bookingDate &&
+      c.status === "checked_in" &&
+      !c.checked_out_at
+  );
+}
+
+function hasActiveCheckinsForDate(
+  bookingDate: string,
+  checkins: CheckinForScoring[]
+): boolean {
+  return checkins.some(
+    (c) => c.shift_date === bookingDate && c.status === "checked_in" && !c.checked_out_at
+  );
+}
+
+function shouldUseAttendancePreference(ctx: RecommendationContext): boolean {
+  return (
+    ctx.bookingMode === "walkin" &&
+    !ctx.isHomeService &&
+    ctx.bookingDate === getBranchBusinessDate()
   );
 }
 
@@ -366,14 +396,14 @@ function scoreTherapist(
     return buildResult(staff, "therapist", score, reasons, warnings, ctx);
   }
 
-  // Check-in status and queue position (only matters if booking is today)
-  const today = new Date().toISOString().split("T")[0]!;
-  const isToday = ctx.bookingDate === today;
+  // Check-in status is only an assignment preference for walk-ins happening today.
+  const useAttendancePreference = shouldUseAttendancePreference(ctx);
+  const hasCheckedInStaff = hasActiveCheckinsForDate(ctx.bookingDate, ctx.checkins);
   const checkedIn = isCheckedInToday(staff.id, ctx.bookingDate, ctx.checkins);
   const queuePosition = getTodayQueuePosition(staff.id, ctx.bookingDate, ctx.checkins);
   const checkedInAt = getCheckedInAt(staff.id, ctx.bookingDate, ctx.checkins);
 
-  if (isToday) {
+  if (useAttendancePreference) {
     if (checkedIn && queuePosition) {
       score += SCORE.checkedIn;
       const queueBonus =
@@ -392,13 +422,11 @@ function scoreTherapist(
     } else if (checkedIn) {
       score += SCORE.checkedIn;
       reasons.push("Checked in");
-    } else {
+    } else if (hasCheckedInStaff) {
       score += SCORE.notCheckedIn;
       warnings.push("Not checked in for today");
-    }
-  } else {
-    if (checkedIn) {
-      reasons.push("Already checked in");
+    } else {
+      warnings.push(NO_CHECKED_IN_STAFF_WARNING);
     }
   }
 
@@ -506,22 +534,20 @@ function scoreDriver(
     return buildResult(staff, "driver", score, reasons, warnings, ctx);
   }
 
-  // Check-in status
-  const today = new Date().toISOString().split("T")[0]!;
-  const isToday = ctx.bookingDate === today;
+  // Check-in status is only an assignment preference for walk-ins happening today.
+  const useAttendancePreference = shouldUseAttendancePreference(ctx);
+  const hasCheckedInStaff = hasActiveCheckinsForDate(ctx.bookingDate, ctx.checkins);
   const checkedIn = isCheckedInToday(staff.id, ctx.bookingDate, ctx.checkins);
 
-  if (isToday) {
+  if (useAttendancePreference) {
     if (checkedIn) {
       score += SCORE.checkedIn;
       reasons.push("Checked in");
-    } else {
+    } else if (hasCheckedInStaff) {
       score += SCORE.notCheckedIn;
       warnings.push("Not checked in for today");
-    }
-  } else {
-    if (checkedIn) {
-      reasons.push("Already checked in");
+    } else {
+      warnings.push(NO_CHECKED_IN_STAFF_WARNING);
     }
   }
 

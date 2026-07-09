@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies, headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import {
   activateDeviceWithToken,
   processQrScan,
@@ -9,8 +10,17 @@ import {
 import { consumeDeviceRecoveryLink } from "@/lib/attendance/device-recovery";
 import { revalidateAttendanceSurfaces } from "@/lib/attendance/queries";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
+import {
+  cancelOwnBranchCorrectionRequestForScan,
+  createBranchCorrectionRequestForScan,
+} from "@/lib/staff/branch-correction";
 import { createClient } from "@/lib/supabase/server";
 import type { PublicScanResult } from "@/lib/attendance/types";
+import type {
+  BranchCorrectionRequestResult,
+  BranchCorrectionReviewResult,
+  BranchCorrectionScanDetails,
+} from "@/lib/staff/branch-correction-types";
 
 type PublicScanInput = {
   publicCode: string;
@@ -30,6 +40,15 @@ type FirstTimeScanLoginInput = {
   publicCode: string;
   email: string;
   password: string;
+  requestId?: string | null;
+};
+
+type BranchCorrectionRequestInput = {
+  details: BranchCorrectionScanDetails;
+  reason?: string | null;
+};
+
+type BranchCorrectionCancelInput = {
   requestId?: string | null;
 };
 
@@ -87,6 +106,26 @@ async function setDeviceCookie(rawDeviceCredential: string): Promise<void> {
     path: "/scan",
     maxAge: 0,
   });
+}
+
+async function clearDeviceCookies(): Promise<void> {
+  const cookieStore = await cookies();
+  const base = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    maxAge: 0,
+  };
+  cookieStore.set(DEVICE_COOKIE_NAME, "", { ...base, path: "/" });
+  cookieStore.set(LEGACY_DEVICE_COOKIE_NAME, "", { ...base, path: "/" });
+  cookieStore.set(LEGACY_DEVICE_COOKIE_NAME, "", { ...base, path: "/scan" });
+}
+
+function isUuidLike(value: string | null | undefined): value is string {
+  return Boolean(
+    value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  );
 }
 
 function appendRequestStep(requestId: string | null | undefined, step: string): string | null {
@@ -154,6 +193,43 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     nextHref: result.nextHref,
     attendance: result.attendance,
     countdown: result.countdown,
+    branchCorrection: result.branchCorrection,
+  };
+}
+
+function validateBranchCorrectionDetails(
+  input: BranchCorrectionRequestInput | null | undefined
+): BranchCorrectionScanDetails | null {
+  const details = input?.details;
+  if (!details || typeof details !== "object") return null;
+
+  const required = [
+    details.staffId,
+    details.staffName,
+    details.currentBranchId,
+    details.currentBranchName,
+    details.requestedBranchId,
+    details.requestedBranchName,
+    details.qrPointId,
+  ];
+
+  if (required.some((value) => typeof value !== "string" || value.trim().length === 0)) {
+    return null;
+  }
+
+  return {
+    staffId: details.staffId.trim(),
+    staffName: details.staffName.trim(),
+    currentBranchId: details.currentBranchId.trim(),
+    currentBranchName: details.currentBranchName.trim(),
+    requestedBranchId: details.requestedBranchId.trim(),
+    requestedBranchName: details.requestedBranchName.trim(),
+    qrPointId: details.qrPointId.trim(),
+    scanEventId: details.scanEventId?.trim() || undefined,
+    publicCode: details.publicCode?.trim() || undefined,
+    deviceId: details.deviceId?.trim() || undefined,
+    canRequestBranchCorrection: details.canRequestBranchCorrection,
+    existingPendingRequest: details.existingPendingRequest ?? null,
   };
 }
 
@@ -214,7 +290,9 @@ export async function signInAndRegisterAttendanceDeviceAction(
     );
 
     if (!registration.ok) {
-      await supabase.auth.signOut();
+      if (registration.result.reasonCode !== "wrong_branch") {
+        await supabase.auth.signOut();
+      }
       revalidatePublicScanResult(registration.result);
       return {
         ok: false,
@@ -241,6 +319,86 @@ export async function signInAndRegisterAttendanceDeviceAction(
       result: safeScanError("Sign-in interrupted"),
     };
   }
+}
+
+export async function requestBranchCorrectionAction(
+  input: BranchCorrectionRequestInput
+): Promise<BranchCorrectionRequestResult> {
+  const details = validateBranchCorrectionDetails(input);
+  if (!details) {
+    return {
+      ok: false,
+      code: "INVALID_INPUT",
+      message: "This correction request is missing scan details. Please scan again.",
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const requestContext = await getRequestContext(null);
+  if (!user && !requestContext.rawDeviceCredential) {
+    return {
+      ok: false,
+      code: "UNAUTHENTICATED",
+      message: "Scan again on this phone or sign in with your staff account to request correction.",
+    };
+  }
+
+  const result = await createBranchCorrectionRequestForScan({
+    authUserId: user?.id ?? null,
+    rawDeviceCredential: requestContext.rawDeviceCredential,
+    details,
+    reason: input.reason,
+    userAgent: requestContext.userAgent,
+  });
+
+  if (result.ok) {
+    revalidateAttendanceSurfaces();
+    revalidatePath("/crm/staff");
+  }
+
+  return result;
+}
+
+export async function createBranchCorrectionRequestAction(
+  input: BranchCorrectionRequestInput
+): Promise<BranchCorrectionRequestResult> {
+  return requestBranchCorrectionAction(input);
+}
+
+export async function cancelOwnBranchCorrectionRequestAction(
+  input: BranchCorrectionCancelInput
+): Promise<BranchCorrectionReviewResult> {
+  if (!isUuidLike(input.requestId)) {
+    return {
+      ok: false,
+      code: "INVALID_INPUT",
+      message: "This branch correction request could not be found.",
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const requestContext = await getRequestContext(null);
+  const result = await cancelOwnBranchCorrectionRequestForScan({
+    authUserId: user?.id ?? null,
+    rawDeviceCredential: requestContext.rawDeviceCredential,
+    requestId: input.requestId,
+  });
+
+  if (result.ok) {
+    revalidateAttendanceSurfaces();
+    revalidatePath("/crm/staff");
+  }
+
+  return result;
+}
+
+export async function tryAnotherScanAccountAction(): Promise<{ ok: true }> {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  await clearDeviceCookies();
+  return { ok: true };
 }
 
 export async function processPublicQrScanAction(input: PublicScanInput): Promise<PublicScanResult> {

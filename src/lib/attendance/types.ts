@@ -352,4 +352,22 @@ export type PublicScanResult = {
     dueAt: string;
     durationMinutes: number;
   };
+  branchCorrection?: {
+    staffId: string;
+    staffName: string;
+    currentBranchId: string;
+    currentBranchName: string;
+    requestedBranchId: string;
+    requestedBranchName: string;
+    qrPointId: string;
+    scanEventId?: string;
+    publicCode?: string;
+    deviceId?: string;
+    canRequestBranchCorrection?: boolean;
+    existingPendingRequest?: {
+      id: string;
+      createdAt: string;
+      requestedBranchName: string;
+    } | null;
+  };
 };

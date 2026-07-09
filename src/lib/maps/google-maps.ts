@@ -4,7 +4,7 @@
 //
 // Required Google Cloud APIs:
 //   - Geocoding API  (address → lat/lng)
-//   - Routes API     (travel time between two coordinates)
+//   - Routes API     (travel time / driving distance between two coordinates)
 //
 // Environment variables:
 //   GOOGLE_MAPS_SERVER_API_KEY  — server-side key (never exposed to browser)
@@ -118,6 +118,54 @@ export async function estimateTravelTime(
     if (Number.isNaN(seconds)) return null;
 
     return Math.ceil(seconds / 60);
+  } catch {
+    return null;
+  }
+}
+
+// Returns driving distance in kilometers, or null if unavailable.
+export async function calculateDrivingDistanceKm(
+  originLat: number,
+  originLng: number,
+  destLat: number,
+  destLng: number
+): Promise<number | null> {
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "routes.distanceMeters",
+        },
+        body: JSON.stringify({
+          origin: {
+            location: { latLng: { latitude: originLat, longitude: originLng } },
+          },
+          destination: {
+            location: { latLng: { latitude: destLat, longitude: destLng } },
+          },
+          travelMode: "DRIVE",
+        }),
+      }
+    );
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as {
+      routes?: { distanceMeters?: number }[];
+    };
+
+    const meters = data.routes?.[0]?.distanceMeters;
+    if (typeof meters !== "number" || !Number.isFinite(meters) || meters < 0) {
+      return null;
+    }
+
+    return meters / 1000;
   } catch {
     return null;
   }

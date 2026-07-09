@@ -664,6 +664,8 @@ export type Database = {
           home_service_driver_capacity: number
           home_service_enabled: boolean
           home_service_end_time: string
+          home_service_extra_km_fee: number
+          home_service_free_km: number
           home_service_start_time: string
           id: string
           in_spa_end_time: string
@@ -678,6 +680,8 @@ export type Database = {
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
+          home_service_extra_km_fee?: number
+          home_service_free_km?: number
           home_service_start_time?: string
           id?: string
           in_spa_end_time?: string
@@ -692,6 +696,8 @@ export type Database = {
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
+          home_service_extra_km_fee?: number
+          home_service_free_km?: number
           home_service_start_time?: string
           id?: string
           in_spa_end_time?: string
@@ -844,16 +850,22 @@ export type Database = {
       branches: {
         Row: {
           address: string
+          city: string | null
           created_at: string
           email: string | null
           fb_page: string | null
+          barangay: string | null
           id: string
           is_active: boolean
+          latitude: number | null
+          location_metadata: Json
+          longitude: number | null
           maps_embed_url: string | null
           messenger_link: string | null
           name: string
           opening_hours: string | null
           phone: string | null
+          place_id: string | null
           secondary_phone: string | null
           slot_interval_minutes: number
           sort_order: number
@@ -861,16 +873,22 @@ export type Database = {
         }
         Insert: {
           address: string
+          city?: string | null
           created_at?: string
           email?: string | null
           fb_page?: string | null
+          barangay?: string | null
           id?: string
           is_active?: boolean
+          latitude?: number | null
+          location_metadata?: Json
+          longitude?: number | null
           maps_embed_url?: string | null
           messenger_link?: string | null
           name: string
           opening_hours?: string | null
           phone?: string | null
+          place_id?: string | null
           secondary_phone?: string | null
           slot_interval_minutes?: number
           sort_order?: number
@@ -878,16 +896,22 @@ export type Database = {
         }
         Update: {
           address?: string
+          city?: string | null
           created_at?: string
           email?: string | null
           fb_page?: string | null
+          barangay?: string | null
           id?: string
           is_active?: boolean
+          latitude?: number | null
+          location_metadata?: Json
+          longitude?: number | null
           maps_embed_url?: string | null
           messenger_link?: string | null
           name?: string
           opening_hours?: string | null
           phone?: string | null
+          place_id?: string | null
           secondary_phone?: string | null
           slot_interval_minutes?: number
           sort_order?: number
@@ -2283,6 +2307,119 @@ export type Database = {
           },
         ]
       }
+      staff_branch_change_requests: {
+        Row: {
+          created_at: string
+          current_branch_id: string | null
+          id: string
+          metadata: Json
+          qr_point_id: string | null
+          reason: string | null
+          request_source: string
+          requested_branch_id: string
+          requested_by_auth_user_id: string | null
+          requested_by_staff_id: string | null
+          reviewed_at: string | null
+          reviewed_by_auth_user_id: string | null
+          reviewed_by_staff_id: string | null
+          reviewer_note: string | null
+          scan_event_id: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_branch_id?: string | null
+          id?: string
+          metadata?: Json
+          qr_point_id?: string | null
+          reason?: string | null
+          request_source?: string
+          requested_branch_id: string
+          requested_by_auth_user_id?: string | null
+          requested_by_staff_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by_auth_user_id?: string | null
+          reviewed_by_staff_id?: string | null
+          reviewer_note?: string | null
+          scan_event_id?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_branch_id?: string | null
+          id?: string
+          metadata?: Json
+          qr_point_id?: string | null
+          reason?: string | null
+          request_source?: string
+          requested_branch_id?: string
+          requested_by_auth_user_id?: string | null
+          requested_by_staff_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by_auth_user_id?: string | null
+          reviewed_by_staff_id?: string | null
+          reviewer_note?: string | null
+          scan_event_id?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_branch_change_requests_current_branch_id_fkey"
+            columns: ["current_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_qr_point_id_fkey"
+            columns: ["qr_point_id"]
+            isOneToOne: false
+            referencedRelation: "qr_points"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_requested_branch_id_fkey"
+            columns: ["requested_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_requested_by_staff_id_fkey"
+            columns: ["requested_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_reviewed_by_staff_id_fkey"
+            columns: ["reviewed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_scan_event_id_fkey"
+            columns: ["scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_account_access_events: {
         Row: {
           actor_staff_id: string | null
@@ -3436,6 +3573,23 @@ export type Database = {
         Args: { p_service_ids?: string[]; p_target_staff_id: string }
         Returns: {
           service_id: string
+        }[]
+      }
+      review_staff_branch_change_request: {
+        Args: {
+          p_request_id: string
+          p_review_status: string
+          p_reviewer_auth_user_id: string
+          p_reviewer_staff_id: string
+          p_reviewer_note?: string | null
+        }
+        Returns: {
+          previous_branch_id: string
+          request_id: string
+          request_status: string
+          requested_branch_id: string
+          reviewed_at: string
+          staff_id: string
         }[]
       }
       schedule_group_key_for_staff_type: {

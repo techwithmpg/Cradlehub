@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { logBusinessEvent } from "@/lib/logger";
 import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
+import type { Json } from "@/types/supabase";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -73,6 +74,12 @@ export async function createBranchAction(rawInput: unknown) {
       maps_embed_url:         d.mapsEmbedUrl  ?? null,
       fb_page:                d.fbPage        ?? null,
       messenger_link:         d.messengerLink ?? null,
+      place_id:               d.placeId       ?? null,
+      latitude:               d.latitude      ?? null,
+      longitude:              d.longitude     ?? null,
+      city:                   d.city          ?? null,
+      barangay:               d.barangay      ?? null,
+      location_metadata:      (d.locationMetadata ?? {}) as Json,
       slot_interval_minutes:  d.slotIntervalMinutes,
     })
     .select("id")
@@ -103,6 +110,14 @@ export async function updateBranchAction(rawInput: unknown) {
       ...(updates.mapsEmbedUrl        !== undefined && { maps_embed_url: updates.mapsEmbedUrl }),
       ...(updates.fbPage              !== undefined && { fb_page: updates.fbPage }),
       ...(updates.messengerLink       !== undefined && { messenger_link: updates.messengerLink }),
+      ...(updates.placeId             !== undefined && { place_id: updates.placeId }),
+      ...(updates.latitude            !== undefined && { latitude: updates.latitude }),
+      ...(updates.longitude           !== undefined && { longitude: updates.longitude }),
+      ...(updates.city                !== undefined && { city: updates.city }),
+      ...(updates.barangay            !== undefined && { barangay: updates.barangay }),
+      ...(updates.locationMetadata    !== undefined && {
+        location_metadata: (updates.locationMetadata ?? {}) as Json,
+      }),
       ...(updates.slotIntervalMinutes !== undefined && { slot_interval_minutes: updates.slotIntervalMinutes }),
       ...(updates.isActive            !== undefined && { is_active: updates.isActive }),
     })
@@ -111,6 +126,7 @@ export async function updateBranchAction(rawInput: unknown) {
   if (error) return { success: false, error: error.message };
   invalidateTag(cacheTags.publicBranches);
   revalidatePath("/owner/branches");
+  revalidatePath(`/owner/branches/${branchId}`);
   logBusinessEvent("branch.updated", { branchId });
   return { success: true };
 }

@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `DATABASE-CONNECTION-STABILIZATION-001`  |
-| **Completion**      | `Reusable Supabase database tooling wrappers and runbook added; live remote closure awaits rotated DB credentials and migration-history reconciliation`        |
+| **Sprint**          | `BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001`  |
+| **Completion**      | `Editable branch service origin completed locally; branch Places coordinates feed CRM Home Service distance and verification passes`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-07-03` |
-| **Blockers**        | `Rotate exposed Supabase DB password, rerun db:doctor/status/verify/push/types with local secrets, reconcile migration history, and keep authenticated CRM/Attendance QA on the follow-up list`      |
+| **Last Updated**    | `2026-07-09` |
+| **Blockers**        | `Apply pending Supabase migrations, configure Google Places browser key, and run authenticated owner branch-detail plus CRM Home Service quote QA`      |
 
 ---
 
@@ -433,3 +433,13 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Recovery link consumption is explicit staff-confirmed behavior and does not clock attendance in/out or start service sessions.
 - Verified `pnpm db:types`, `pnpm type-check`, `pnpm lint`, focused recovery tests, full `pnpm test`, `pnpm build`, and `git diff --check`.
 - Remaining: authenticated browser QA, real phone recovery scan QA, DB password rotation, and repair of the `pnpm db:status`/`pnpm db:push` port-5432 timeout path.
+
+## Latest Agent Update (2026-07-09 - QR Wrong Branch Correction Requests)
+
+- Completed `BRANCH-CORRECTION-REQUESTS-001`: QR Attendance wrong-branch blocks now expose an actionable correction request path instead of a dead end.
+- Found the flow was partially present, then completed missing pieces: returning-scan correction metadata, duplicate-pending UI, CRM Staff Management Branch Corrections tab, secure review/cancel actions, and a dedicated branch-change audit migration.
+- Added `supabase/migrations/20260709083908_staff_branch_audit_logs.sql` to create `staff_branch_audit_logs`, add missing request indexes, validate active requested branches on approval, and write audit rows from the review RPC.
+- CRM/front-desk users can review only correction requests for their own requested/scanned branch; owner/manager roles can review all. Staff can request/cancel own pending requests but cannot change or approve their own branch.
+- Approval updates `staff.branch_id` through the secure RPC and relies on the existing `trg_staff_branch_sync_devices` trigger to sync active `staff_devices.branch_id`.
+- Verified focused branch-correction tests (5 files / 16 tests), `pnpm type-check`, `pnpm lint`, and `pnpm build`.
+- Remaining: apply pending Supabase migrations, regenerate generated Supabase types if required, and run authenticated CRM/front-desk plus physical QR phone scan QA after deployment.

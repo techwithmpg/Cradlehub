@@ -393,6 +393,134 @@
   font-variant-numeric: tabular-nums;
 }
 
+.branchCorrectionCard {
+  width: 100%;
+  margin-top: 18px;
+  border: 1px solid rgba(154, 79, 69, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 15px;
+  color: var(--scan-ink);
+  text-align: left;
+  box-shadow: 0 12px 34px rgba(154, 79, 69, 0.07);
+}
+
+.branchCorrectionHint {
+  margin: 0 0 12px;
+  color: var(--scan-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.branchCorrectionRows {
+  display: grid;
+  gap: 10px;
+}
+
+.branchCorrectionRows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.branchCorrectionRows span {
+  color: var(--scan-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.branchCorrectionRows strong {
+  min-width: 0;
+  color: var(--scan-ink);
+  font-size: 13px;
+  text-align: right;
+}
+
+.branchCorrectionPending {
+  margin-top: 14px;
+  border: 1px solid rgba(47, 112, 64, 0.18);
+  border-radius: 12px;
+  background: rgba(47, 112, 64, 0.07);
+  padding: 10px;
+  color: #2f7040;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.branchCorrectionPending strong,
+.branchCorrectionPending span {
+  display: block;
+}
+
+.branchCorrectionActions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.branchCorrectionButton {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(145deg, #3f7f50, var(--scan-green-deep));
+  color: white;
+  font-size: 13px;
+  font-weight: 760;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+  opacity 180ms ease;
+}
+
+.branchCorrectionSecondaryButton {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(154, 79, 69, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--scan-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.branchCorrectionButton:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.branchCorrectionButton:not(:disabled):active,
+.branchCorrectionSecondaryButton:active {
+  transform: translateY(1px);
+}
+
+.branchCorrectionMessage {
+  margin: 10px 0 0;
+  color: var(--scan-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.branchCorrectionMessageError {
+  color: #864139;
+}
+
+.branchCorrectionMessageSuccess {
+  color: #2f7040;
+}
+
 .loginPanel {
   text-align: left;
 }

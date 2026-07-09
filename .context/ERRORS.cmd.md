@@ -640,3 +640,46 @@
 - **Root cause:** `resolveDevice()` selected `staff(full_name, staff_type, is_active)` from `staff_devices`. After device registry/recovery added `revoked_by`, Supabase had multiple relationships from `staff_devices` to `staff` and returned an ambiguous-relationship error. The resolver ignored the error and treated the device as missing.
 - **Resolution:** Changed the join to `staff:staff!staff_devices_staff_id_fkey(...)` in the scan engine and Attendance workspace device query. Also disambiguated `device_activation_tokens -> staff` reads for activation/recovery.
 - **Validation:** With an HttpOnly `cradle_attendance_device` cookie, `POST /api/attendance/public-scan` resolved active device `9395ae4f-65c1-4005-b491-19309e3a4b26`, wrote a `clock_in` event with that `device_id`, and the next UI scan rendered `Already recorded` rather than the sign-in form. `pnpm type-check`, `pnpm lint`, and `pnpm build` pass.
+
+## 2026-07-09 - BOOKING-ATTENDANCE-BRANCH-SAFETY-001 diagnostics and migration push notes
+
+- **Symptom:** Same-day walk-in booking/assignment could behave as if no one was available when no staff had checked in, despite schedule availability existing.
+- **Impact:** Front desk could be blocked or misled on same-day walk-ins before staff attendance was recorded.
+- **Resolution:** Booking auto-assignment now uses check-ins only as a same-day walk-in preference. When no eligible checked-in therapist exists, scheduled availability is used and the operator gets the explicit presence warning.
+
+- **Symptom:** Attendance QR wrong-branch events were reported for a Main Spa QR.
+- **Impact:** Valid Main QR scans could appear blocked if the code trusted stale `staff_devices.branch_id` before checking the current staff branch.
+- **Resolution:** Scan validation now treats the scanned QR branch and current staff branch as authoritative. Stale device branch ids are synced when the current staff branch matches the QR branch; true staff branch mismatches still block.
+- **Live data note:** Safe diagnostics showed recent Main QR wrong-branch events involved staff records whose current `staff.branch_id` is Living SM, with no active stale device branch mismatches. Those records need branch/membership correction if they are expected to scan Main QR codes.
+
+- **Symptom:** `pnpm db:push` and direct `supabase db push --linked --dns-resolver https` timed out to `aws-1-ap-northeast-1.pooler.supabase.com:5432`.
+- **Impact:** The normal migration push path did not apply or record `20260709054954`.
+- **Resolution:** Verified linked `supabase db query` connectivity, applied the migration via `supabase db query --file`, inserted the migration-history row in `supabase_migrations.schema_migrations`, and verified the row, trigger, and `0` active device branch mismatches.
+
+## 2026-07-09 - BRANCH-CORRECTION-REQUESTS-001 verification notes
+
+- **Symptom:** The wrong-branch correction flow was only partially present: requests could be inserted from some scan contexts, but returning-scan metadata, duplicate-pending UI, CRM review tab, audit table, and staff-owned cancel handling were missing.
+- **Impact:** Staff blocked by valid wrong-branch QR scans still had a dead-end or incomplete path to front-desk review, and approvals did not have a dedicated branch-change audit table.
+- **Resolution:** Completed the request/review UI and server helpers, added `staff_branch_audit_logs`, hardened the review RPC, surfaced pending request metadata, and added focused policy/UI/migration tests.
+- **Validation:** Focused tests, `pnpm type-check`, `pnpm lint`, and `pnpm build` all pass locally.
+- **Follow-up:** Apply pending Supabase migrations and run authenticated CRM/front-desk plus physical QR scan QA after deployment.
+
+## 2026-07-09 - CRM-BOOKING-HOME-SERVICE-DISTANCE-001 completion notes
+
+- **Symptom:** CRM quick booking could show the old generic `No therapist is available` / next-slot style copy even though the CRM-specific availability route had already been added.
+- **Impact:** Front desk could still be misled by the public-slot availability behavior instead of seeing schedule-specific CRM availability messages.
+- **Resolution:** Switched CRM quick booking pre-submit checks to `/api/booking/crm-availability` and used the schedule-specific fallback copy: `No scheduled therapist is available at this time. Try another time or check staff schedules.`
+
+- **Symptom:** CRM Home Service address entry still accepted plain text and did not submit place id or coordinates.
+- **Impact:** Internal Home Service bookings could not reliably calculate branch-to-customer distance or the travel fee.
+- **Resolution:** Reused the public Places autocomplete in CRM, required a selected/geocoded place for Home Service, sent coordinates/components to the server action, and displayed the live distance/travel-fee quote before submit.
+
+- **Symptom:** The first local `pnpm type-check` failed because owner spaces/rules fallback data did not include the new Home Service distance-fee fields.
+- **Impact:** The project could not type-check after the schema/type additions.
+- **Resolution:** Added fallback defaults for `homeServiceFreeKm` and `homeServiceExtraKmFee`; subsequent `pnpm type-check`, `pnpm lint`, focused tests, and `pnpm build` pass.
+
+## 2026-07-09 - CRM-HOME-SERVICE-LOCATION-FIELD-CLEANUP-001 verification note
+
+- **Symptom:** The first `pnpm type-check` run failed inside generated `.next/dev/types/validator.ts` with a parser error near a corrupted fragment: `e __Unused = __Check`.
+- **Impact:** TypeScript could not reach source diagnostics until the stale generated dev artifact was removed.
+- **Resolution:** Deleted only `.next/dev/types/validator.ts`, reran `pnpm type-check`, and verified source type-check, lint, focused distance-fee tests, and production build all pass.

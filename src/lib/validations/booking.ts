@@ -27,6 +27,8 @@ const anyDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Time must be HH:MM");
 export const PRECISE_HOME_SERVICE_LOCATION_MESSAGE =
   "Please select your address from the Google suggestions so our therapist and driver can find you accurately.";
+export const CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE =
+  "Please select a valid address from the search results so distance can be calculated.";
 
 const googleAddressComponentSchema = z.object({
   long_name: z.string().max(200),
@@ -110,6 +112,7 @@ export const createInhouseBookingMultiSchema = z.object({
   homeServiceLandmark:         z.string().max(200).optional(),
   homeServiceParkingNotes:     z.string().max(300).optional(),
   homeServiceCustomerNotes:    z.string().max(500).optional(),
+  homeServiceAccessNote:       z.string().max(300).optional(),
   homeServiceZone:             z.string().max(50).optional(),
   // Captured client-side by Places Autocomplete — skip server geocoding when present
   homeServiceLat:              z.number().optional().nullable(),
@@ -124,6 +127,17 @@ export const createInhouseBookingMultiSchema = z.object({
   paymentReference: z.string().max(100).optional(),
   paymentNote:      z.string().max(500).optional(),
 }).superRefine((data, ctx) => {
+  const deliveryType =
+    data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
+
+  if (deliveryType === "home_service" && !isPreciseHomeServiceLocation(data)) {
+    ctx.addIssue({
+      code: "custom",
+      message: CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
+      path: ["homeServicePlaceId"],
+    });
+  }
+
   const paymentReceived = data.paymentReceived ?? true;
   if (paymentReceived && !data.paymentMethod) {
     ctx.addIssue({

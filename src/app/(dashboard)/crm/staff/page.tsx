@@ -17,6 +17,7 @@ import {
   getCrmStaffServiceId,
 } from "@/components/features/crm/staff/service-row-adapter";
 import { canReviewStaffOnboarding } from "@/lib/permissions";
+import { getBranchCorrectionInboxForActor } from "@/lib/staff/branch-correction";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
@@ -86,8 +87,9 @@ export default async function CrmStaffPage({
 
   if (ctx.status === "unauthorized") redirect("/crm");
 
-  const initialTab = ((): "applications" | "management" | "assignments" | "status" => {
+  const initialTab = ((): "applications" | "branch-corrections" | "management" | "assignments" | "status" => {
     if (params.tab === "applications") return "applications";
+    if (params.tab === "branch-corrections") return "branch-corrections";
     if (params.tab === "management") return "management";
     if (params.tab === "assignments") return "assignments";
     if (params.tab === "status") return "status";
@@ -185,6 +187,11 @@ export default async function CrmStaffPage({
     );
   }
 
+  const branchCorrectionRequests = await getBranchCorrectionInboxForActor({
+    systemRole: ctx.me.system_role,
+    branchId: ctx.me.branch_id,
+  });
+
   return (
     <section className="space-y-5">
       <PageHeader
@@ -204,6 +211,7 @@ export default async function CrmStaffPage({
         providerAssignments={providerAssignments}
         providerAssignmentsError={providerAssignmentsError}
         onboardingRequests={onboardingRequests}
+        branchCorrectionRequests={branchCorrectionRequests}
         reviewerSystemRole={ctx.me.system_role}
         reviewerBranchId={ctx.me.branch_id}
         canReviewOnboarding={ctx.canReviewOnboarding}

@@ -1,4 +1,239 @@
-# Current Task - STAFF-ONBOARDING-BRANCH-SAFETY-001
+# Current Task - BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Add editable branch location settings so CRM Home Service distance calculation can use the selected branch latitude/longitude as the origin and the selected customer Google Places coordinates as the destination.
+
+## Scope
+
+- Branch location/settings UI.
+- CRM Home Service booking distance integration.
+- Reuse the existing Google Places/address picker where possible.
+- Do not change public booking wizard behavior.
+- Do not expose server-only Google or Supabase service-role keys to client code.
+
+## Discovery
+
+- Branch editing lives at `/owner/branches/[branchId]`, rendered by `src/app/(dashboard)/owner/branches/[branchId]/branch-edit-form.tsx`.
+- Branch create/update actions live in `src/app/(dashboard)/owner/branches/actions.ts`.
+- Branch data queries live in `src/lib/queries/branches.ts`.
+- `public.branches` already had `address`, `maps_embed_url`, `latitude`, and `longitude`; it did not have `place_id`, `city`, `barangay`, or `location_metadata`.
+- `public.branch_booking_rules` already had `home_service_free_km` and `home_service_extra_km_fee` from `20260709103000_home_service_distance_fee.sql`.
+- CRM Home Service distance already used `branches.latitude`/`branches.longitude` as origin via `src/lib/home-service/distance-service.ts`.
+- The reusable Google Places picker is `src/components/public/places-autocomplete.tsx`, with address-component helpers in `src/lib/location/google-address-components.ts`.
+
+## Completed
+
+- Added migration `supabase/migrations/20260709114038_branch_location_settings.sql` for `branches.place_id`, `branches.city`, `branches.barangay`, and `branches.location_metadata`.
+- Updated local Supabase types for the new branch columns.
+- Extended branch validation to accept selected Google Places origin data and to require latitude/longitude as a pair.
+- Replaced the plain owner branch edit address field with a `Branch service address` editor using the shared `PlacesAutocomplete` component.
+- Branch service address selection now stores formatted address, place id, latitude, longitude, derived city/barangay, map URL, and address components.
+- The branch editor shows saved origin coordinates and derived city/barangay, or a warning when coordinates are missing.
+- `updateBranchAction` now persists the new branch origin fields and revalidates the branch detail page.
+- CRM Home Service distance missing-origin copy now points staff to update the selected branch service address.
+- Public booking wizard behavior was not changed.
+
+## Files Changed
+
+- `supabase/migrations/20260709114038_branch_location_settings.sql`
+- `src/app/(dashboard)/owner/branches/[branchId]/branch-edit-form.tsx`
+- `src/app/(dashboard)/owner/branches/actions.ts`
+- `src/lib/validations/branch.ts`
+- `src/lib/home-service/distance-service.ts`
+- `src/types/supabase.ts`
+- `tests/lib/validations/branch-location.test.ts`
+
+## Verification
+
+- `pnpm test --run tests/lib/validations/branch-location.test.ts tests/lib/home-service/distance-fee.test.ts`: PASS, 2 files / 16 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+## Notes
+
+- Apply pending Supabase migrations before relying on the new branch origin fields in a deployed environment.
+- `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` is required for the branch service address picker.
+- `GOOGLE_MAPS_SERVER_API_KEY` is still optional for driving distance; without it, Home Service quotes fall back to Haversine estimates.
+
+---
+
+# Previous Task - CRM-HOME-SERVICE-LOCATION-FIELD-CLEANUP-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Clean up the CRM Home Service booking form so the selected Google Places service address is the single location source of truth, removing redundant manual city/barangay/landmark/location-note fields.
+
+## Completed
+
+- Removed the visible CRM Home Service `City`, `Barangay / area`, `Landmark`, and `Location notes` inputs from quick booking.
+- Kept one required `Service address` field backed only by the shared Google Places autocomplete component.
+- Removed the CRM plain text fallback for missing Google browser key; staff must select a real Places result before submit/distance calculation.
+- Kept city and barangay as internal derived values from Google address components when available.
+- Added one optional compact `Access note / special direction` field with placeholder `Example: blue gate, 2nd floor, near Puregold`.
+- Submitted the access note as `homeServiceAccessNote` and stored it in booking metadata as `home_service_access_note`.
+- Persisted selected address components and mirrored distance/source/travel fee details in the internal Home Service address metadata.
+- Updated the CRM summary to show service address, distance from branch, free allowance, additional charged km, travel fee, and total.
+- Public booking wizard behavior was not changed.
+
+## Files Changed
+
+- `src/components/features/bookings/quick-booking-form.tsx`
+- `src/lib/actions/inhouse-booking.ts`
+- `src/lib/validations/booking.ts`
+
+## Verification
+
+- `pnpm test --run tests/lib/home-service/distance-fee.test.ts`: PASS, 1 file / 14 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+## Notes
+
+- Removed stale generated `.next/dev/types/validator.ts` after it was found corrupted during the first `pnpm type-check`; source type-check passed after deleting the generated artifact.
+- `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` is still required for the CRM Places field to load.
+
+---
+
+# Previous Task - CRM-BOOKING-HOME-SERVICE-DISTANCE-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Fix CRM/internal booking therapist availability so saved schedules are the source of truth and attendance/check-in is only live-status metadata. Add CRM Home Service live address selection, branch-to-customer distance calculation, and the travel fee policy: first 5 km free, then PHP 100 per started extra km.
+
+## Scope
+
+- CRM/internal booking only.
+- Preserve public booking wizard behavior; public booking code may only be inspected or safely reused without visual/functional changes.
+- Do not expose server-only Google or Supabase service-role keys to client components.
+
+## Required Discovery
+
+- Identify which CRM component displays the generic "No therapist is available" message and which query/API supplies CRM therapist availability.
+- Check whether attendance/check-ins/device registration are hard filters.
+- Check staff service capability, schedules/group rules/overrides, blocked times, existing booking overlap, booking mode windows, and timezone parsing.
+- Inspect existing public booking live address/location picker logic for safe reuse.
+- Check branch location and home-service pricing settings before adding schema.
+
+## Completed
+
+- Confirmed the CRM quick-booking form was still using the generic public availability pre-check/copy while the CRM-specific schedule-first API already existed.
+- Wired CRM quick booking pre-submit checks to `/api/booking/crm-availability`, preserving schedule-first availability and avoiding attendance/check-in as a hard blocker.
+- Reused the public Google Places autocomplete component for CRM Home Service address selection without changing the public booking wizard.
+- Required a selected/geocoded Home Service place in CRM before submit, then sent place id, formatted address, latitude/longitude, city/barangay hints, components, and map URL to the server action.
+- Added live CRM distance quote UI for Home Service bookings through `/api/home-service/distance`, including distance, free allowance, charged extra km, travel fee, final total, and estimated-distance warnings.
+- Preserved the existing server-side distance quote path: Google driving distance when `GOOGLE_MAPS_SERVER_API_KEY` is configured, Haversine fallback otherwise.
+- Confirmed the travel-fee formula is first 5 km free, then PHP 100 per started extra km.
+- Stored Home Service distance/fee/address metadata through the internal booking server action pricing breakdown/booking metadata path.
+- Replaced remaining old generic no-therapist copy with the schedule-specific CRM message.
+- Fixed owner spaces/rules fallback defaults for the new Home Service distance-fee fields.
+- Added focused pure tests for Home Service distance and fee boundary behavior.
+
+## Files Changed
+
+- `src/components/features/bookings/quick-booking-form.tsx`
+- `src/lib/actions/inhouse-booking.ts`
+- `src/app/(dashboard)/owner/spaces-rules/page.tsx`
+- `tests/lib/home-service/distance-fee.test.ts`
+
+## Verification
+
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+- `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts`: PASS, 2 files / 18 tests.
+
+## Notes
+
+- Public booking wizard behavior was preserved; the CRM form only imports and reuses the public Places component.
+- `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` is required for the CRM browser autocomplete UI.
+- `GOOGLE_MAPS_SERVER_API_KEY` enables driving-distance quotes; without it, quotes fall back to Haversine and the CRM UI marks them estimated.
+- Apply pending Supabase migrations and regenerate database types if the deployment workflow requires it.
+- Authenticated CRM browser QA with real Google Places and server distance credentials is still recommended after environment configuration.
+
+---
+
+# Previous Task - BRANCH-CORRECTION-REQUESTS-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Implement the QR Attendance "Wrong Branch Correction Request" flow if the full flow does not already exist.
+
+Staff blocked by a real scanned-QR/staff-branch mismatch should be able to submit a correction request to the scanned branch. CRM/front desk for the requested/scanned branch should be able to review and approve/reject the request without gaining broad access to staff in other branches. Approval updates `staff.branch_id`, keeps active attendance devices in sync or relies on the existing sync trigger, and writes an audit trail.
+
+## Required Discovery
+
+- Search for existing branch correction, wrong-branch, staff branch change, scan-engine, staff device branch mismatch, CRM inbox, and audit-log code before implementing.
+- Inspect Attendance QR scan engine/UI/actions, CRM Attendance/Staff Management tabs, staff branch edit actions, and Supabase migrations.
+- If the full flow exists, verify it end-to-end and patch only gaps; otherwise build the missing flow.
+
+## Completed
+
+- Found a partial branch correction implementation already present: request table/types/helpers, scan action entry point, wrong-branch payload types, and part of the public wrong-branch card existed, but the flow was incomplete.
+- Added follow-up migration `supabase/migrations/20260709083908_staff_branch_audit_logs.sql` for `staff_branch_audit_logs`, missing request indexes, active requested-branch validation, and approval audit logging.
+- Completed secure branch-correction helpers/actions for create, approve, reject, reviewer cancel, and staff-owned pending cancel.
+- QR wrong-branch results now include staff/branch/QR/device/pending-request data, richer scan-event metadata, duplicate-pending detection, and clear wrong-branch copy.
+- Public wrong-branch UI now shows current profile branch, scanned/requested branch, request button, pending-request state, front-desk approval reminder, and a "Try another account" path that clears scan auth/device context.
+- Added CRM Staff Management "Branch Corrections" tab showing pending requested-branch correction requests with staff details, QR details, approve/reject actions, and confirmation copy.
+- Central permission helper enforces owner/manager all-branch review, CRM/CSR requested-branch-only review, and no staff self-approval.
+- Approval updates `staff.branch_id` through the RPC and relies on the existing `trg_staff_branch_sync_devices` trigger to keep active `staff_devices.branch_id` aligned.
+
+## Files Changed
+
+- `src/lib/attendance/scan-engine.ts`
+- `src/lib/attendance/types.ts`
+- `src/app/scan/actions.ts`
+- `src/app/api/attendance/public-scan/route.ts`
+- `src/components/features/attendance/public-scan-processor.tsx`
+- `src/components/features/attendance/public-scan-result.tsx`
+- `src/components/features/attendance/public-scan-processor.module.css`
+- `src/lib/staff/branch-correction.ts`
+- `src/lib/staff/branch-correction-policy.ts`
+- `src/lib/staff/branch-correction-types.ts`
+- `src/app/(dashboard)/crm/staff/actions.ts`
+- `src/app/(dashboard)/crm/staff/page.tsx`
+- `src/components/features/crm/staff/crm-staff-workspace.tsx`
+- `src/components/features/crm/staff/crm-staff-branch-corrections-tab.tsx`
+- `supabase/migrations/20260709064020_branch_correction_requests.sql`
+- `supabase/migrations/20260709083908_staff_branch_audit_logs.sql`
+- `tests/lib/staff/branch-correction-policy.test.ts`
+- `tests/lib/staff/branch-correction-migrations.test.ts`
+- `tests/components/attendance/public-scan-branch-correction.test.tsx`
+- `tests/components/crm/crm-staff-branch-corrections-tab.test.tsx`
+
+## Verification
+
+- `pnpm test --run tests/lib/staff/branch-correction-policy.test.ts tests/lib/staff/branch-correction-migrations.test.ts tests/components/attendance/public-scan-branch-correction.test.tsx tests/components/crm/crm-staff-branch-corrections-tab.test.tsx tests/lib/attendance/branch-validation.test.ts`: PASS, 5 files / 16 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 106 routes.
+
+## Notes
+
+- Manual DB step still required: apply pending migrations, especially `20260709064020_branch_correction_requests.sql`, `20260709054954_attendance_device_branch_sync.sql` if not already applied, and `20260709083908_staff_branch_audit_logs.sql`; then regenerate Supabase types if the project standard requires checked-in generated types for new tables.
+- Authenticated browser QA on a real CRM/front-desk session and physical QR phone scan QA are still recommended after migration deployment.
+
+---
+
+# Previous Task - STAFF-ONBOARDING-BRANCH-SAFETY-001
 
 Status: COMPLETED
 Started: 2026-07-08

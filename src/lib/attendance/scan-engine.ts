@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { asAttendanceDb, type AttendanceDb } from "@/lib/attendance/db";
 import { inferDeviceClientHints } from "@/lib/attendance/device-display";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
+import { getAttendanceDeviceBranchDecision } from "@/lib/attendance/branch-validation";
 import { createDeviceCredential, hashSecret, maskId } from "@/lib/attendance/tokens";
 import {
   branchDateTimeToIso,
@@ -49,7 +50,19 @@ type StaffDeviceRow = {
   staff_id: string;
   branch_id: string;
   status: "active" | "revoked";
-  staff?: { full_name: string | null; staff_type: string | null; is_active: boolean } | Array<{ full_name: string | null; staff_type: string | null; is_active: boolean }> | null;
+  staff?: {
+    branch_id: string | null;
+    full_name: string | null;
+    staff_type: string | null;
+    is_active: boolean;
+    branches?: { name: string | null } | Array<{ name: string | null }> | null;
+  } | Array<{
+    branch_id: string | null;
+    full_name: string | null;
+    staff_type: string | null;
+    is_active: boolean;
+    branches?: { name: string | null } | Array<{ name: string | null }> | null;
+  }> | null;
 };
 
 type AuthenticatedStaffRow = {
@@ -64,6 +77,7 @@ type AuthenticatedStaffRow = {
 type QrPointRow = {
   id: string;
   branch_id: string;
+  public_code: string;
   point_type: "attendance" | "room" | "resource";
   resource_id: string | null;
   label: string;
@@ -243,7 +257,7 @@ async function resolveDevice(admin: AttendanceDb, rawCredential: string | null |
   if (!rawCredential) return null;
   const { data } = await admin
     .from("staff_devices")
-    .select("id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(full_name, staff_type, is_active)")
+    .select("id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, staff_type, is_active, branches(name))")
     .eq("device_fingerprint_hash", hashSecret(rawCredential))
     .maybeSingle();
 
@@ -264,14 +278,110 @@ async function markDeviceScanSuccess(admin: AttendanceDb, params: {
   await admin.from("staff_devices").update(update).eq("id", params.deviceId);
 }
 
+async function syncDeviceBranchToQrBranch(
+  admin: AttendanceDb,
+  device: StaffDeviceRow,
+  point: QrPointRow
+) {
+  if (device.branch_id === point.branch_id) return;
+
+  await admin
+    .from("staff_devices")
+    .update({ branch_id: point.branch_id })
+    .eq("id", device.id);
+  device.branch_id = point.branch_id;
+}
+
 async function loadQrPoint(admin: AttendanceDb, publicCode: string): Promise<QrPointRow | null> {
   const { data } = await admin
     .from("qr_points")
-    .select("id, branch_id, point_type, resource_id, label, is_active, requires_registered_device, scan_behavior, branch_resources(name, type), branches(name)")
+    .select("id, branch_id, public_code, point_type, resource_id, label, is_active, requires_registered_device, scan_behavior, branch_resources(name, type), branches(name)")
     .eq("public_code", publicCode)
     .maybeSingle();
 
   return (data as QrPointRow | null) ?? null;
+}
+
+async function loadPendingBranchCorrectionRequest(
+  admin: AttendanceDb,
+  staffId: string,
+  requestedBranchId: string
+): Promise<{ id: string; created_at: string } | null> {
+  const { data, error } = await admin
+    .from("staff_branch_change_requests")
+    .select("id, created_at")
+    .eq("staff_id", staffId)
+    .eq("requested_branch_id", requestedBranchId)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (error) return null;
+  return (data as { id: string; created_at: string } | null) ?? null;
+}
+
+function wrongBranchMetadata(params: {
+  point: QrPointRow;
+  staffId: string;
+  staffName: string | null;
+  staffBranchId: string | null;
+  staffBranchName: string | null;
+  deviceId?: string | null;
+  deviceBranchId?: string | null;
+  authUserId?: string | null;
+  pendingRequestId?: string | null;
+}) {
+  return {
+    qr_point_id: params.point.id,
+    qr_public_code: params.point.public_code,
+    scanned_branch_id: params.point.branch_id,
+    scanned_branch_name: first(params.point.branches)?.name ?? null,
+    staff_id: params.staffId,
+    staff_name: params.staffName,
+    staff_branch_id: params.staffBranchId,
+    staff_branch_name: params.staffBranchName,
+    device_id: params.deviceId ?? null,
+    device_branch_id: params.deviceBranchId ?? null,
+    auth_user_id: params.authUserId ?? null,
+    reason: "staff_branch_does_not_match_scanned_qr_branch",
+    can_request_branch_correction: Boolean(params.staffBranchId && params.staffBranchId !== params.point.branch_id),
+    pending_request_id: params.pendingRequestId ?? null,
+  };
+}
+
+function branchCorrectionDetails(params: {
+  staffId: string;
+  staffName: string | null;
+  currentBranchId: string | null;
+  currentBranchName: string | null;
+  point: QrPointRow;
+  scanEventId: string | null;
+  deviceId?: string | null;
+  pendingRequest?: { id: string; created_at: string } | null;
+}): PublicScanResult["branchCorrection"] | undefined {
+  if (!params.currentBranchId || params.currentBranchId === params.point.branch_id) return undefined;
+
+  const requestedBranchName = first(params.point.branches)?.name ?? "Scanned QR branch";
+
+  return {
+    staffId: params.staffId,
+    staffName: params.staffName ?? "Staff member",
+    currentBranchId: params.currentBranchId,
+    currentBranchName: params.currentBranchName ?? "Current profile branch",
+    requestedBranchId: params.point.branch_id,
+    requestedBranchName,
+    qrPointId: params.point.id,
+    scanEventId: params.scanEventId ?? undefined,
+    publicCode: params.point.public_code,
+    deviceId: params.deviceId ?? undefined,
+    canRequestBranchCorrection: !params.pendingRequest,
+    existingPendingRequest: params.pendingRequest
+      ? {
+          id: params.pendingRequest.id,
+          createdAt: params.pendingRequest.created_at,
+          requestedBranchName,
+        }
+      : null,
+  };
 }
 
 export async function registerDeviceForAuthenticatedScan(
@@ -404,42 +514,6 @@ export async function registerDeviceForAuthenticatedScan(
   const branchName = first(point.branches)?.name ?? first(staff.branches)?.name ?? "Branch";
 
   if (existingDevice) {
-    if (existingDevice.branch_id !== point.branch_id) {
-      const eventId = await recordScanEvent(admin, {
-        branchId: point.branch_id,
-        qrPointId: point.id,
-        staffId: existingDevice.staff_id,
-        deviceId: existingDevice.id,
-        scanType: scanTypeForPoint(point),
-        action: "first_scan_register_device",
-        outcome: "blocked",
-        reasonCode: "wrong_branch",
-        message: "Device belongs to a different branch.",
-        requestId: ctx.requestId,
-        userAgent: ctx.userAgent,
-        ipAddress: ctx.ipAddress,
-      });
-
-      await recordException(admin, {
-        branchId: point.branch_id,
-        staffId: existingDevice.staff_id,
-        scanEventId: eventId,
-        exceptionType: "wrong_branch",
-        severity: "critical",
-        message: `${existingDeviceStaff?.full_name ?? "Staff member"} attempted first-scan login at another branch.`,
-      });
-
-      return {
-        ok: false,
-        result: blocked("Wrong branch", "This phone is linked to a different branch. Please use the correct branch QR or contact the front desk.", {
-          reasonCode: "wrong_branch",
-          severity: "critical",
-          securityNote: "This phone is trusted, but not for this branch QR.",
-          scanEventId: eventId ?? undefined,
-        }),
-      };
-    }
-
     if (existingDevice.staff_id !== staff.id) {
       const eventId = await recordScanEvent(admin, {
         branchId: point.branch_id,
@@ -467,6 +541,87 @@ export async function registerDeviceForAuthenticatedScan(
       };
     }
 
+    const branchDecision = getAttendanceDeviceBranchDecision({
+      qrBranchId: point.branch_id,
+      staffBranchId: staff.branch_id,
+      deviceBranchId: existingDevice.branch_id,
+      staffIsActive: staff.is_active,
+    });
+
+    if (branchDecision === "wrong_branch") {
+      const pendingRequest = await loadPendingBranchCorrectionRequest(admin, staff.id, point.branch_id);
+      const staffBranchName = first(staff.branches)?.name ?? null;
+      const eventId = await recordScanEvent(admin, {
+        branchId: point.branch_id,
+        qrPointId: point.id,
+        staffId: staff.id,
+        deviceId: existingDevice.id,
+        scanType: scanTypeForPoint(point),
+        action: "first_scan_register_device",
+        outcome: "blocked",
+        reasonCode: "wrong_branch",
+        message: "Authenticated staff belongs to a different branch.",
+        requestId: ctx.requestId,
+        userAgent: ctx.userAgent,
+        ipAddress: ctx.ipAddress,
+        metadata: wrongBranchMetadata({
+          point,
+          staffId: staff.id,
+          staffName,
+          staffBranchId: staff.branch_id,
+          staffBranchName,
+          deviceId: existingDevice.id,
+          deviceBranchId: existingDevice.branch_id,
+          authUserId,
+          pendingRequestId: pendingRequest?.id,
+        }),
+      });
+
+      await recordException(admin, {
+        branchId: point.branch_id,
+        staffId: staff.id,
+        scanEventId: eventId,
+        exceptionType: "wrong_branch",
+        severity: "critical",
+        message: `${staffName} attempted first-scan login at another branch.`,
+        metadata: wrongBranchMetadata({
+          point,
+          staffId: staff.id,
+          staffName,
+          staffBranchId: staff.branch_id,
+          staffBranchName,
+          deviceId: existingDevice.id,
+          deviceBranchId: existingDevice.branch_id,
+          authUserId,
+          pendingRequestId: pendingRequest?.id,
+        }),
+      });
+
+      return {
+        ok: false,
+        result: blocked("Wrong branch detected", "This QR belongs to a different branch than your staff profile. If your profile branch is wrong, request a correction.", {
+          reasonCode: "wrong_branch",
+          severity: "critical",
+          securityNote: "Your request must be approved by the front desk before scanning again.",
+          scanEventId: eventId ?? undefined,
+          branchCorrection: branchCorrectionDetails({
+            staffId: staff.id,
+            staffName,
+            currentBranchId: staff.branch_id,
+            currentBranchName: staffBranchName,
+            point,
+            scanEventId: eventId,
+            deviceId: existingDevice.id,
+            pendingRequest,
+          }),
+        }),
+      };
+    }
+
+    if (branchDecision === "sync_device_branch") {
+      await syncDeviceBranchToQrBranch(admin, existingDevice, point);
+    }
+
     return {
       ok: true,
       rawDeviceCredential: ctx.rawDeviceCredential ?? "",
@@ -480,6 +635,8 @@ export async function registerDeviceForAuthenticatedScan(
   }
 
   if (staff.branch_id !== point.branch_id) {
+    const pendingRequest = await loadPendingBranchCorrectionRequest(admin, staff.id, point.branch_id);
+    const staffBranchName = first(staff.branches)?.name ?? null;
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
       qrPointId: point.id,
@@ -492,6 +649,15 @@ export async function registerDeviceForAuthenticatedScan(
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: wrongBranchMetadata({
+        point,
+        staffId: staff.id,
+        staffName,
+        staffBranchId: staff.branch_id,
+        staffBranchName,
+        authUserId,
+        pendingRequestId: pendingRequest?.id,
+      }),
     });
 
     await recordException(admin, {
@@ -501,15 +667,33 @@ export async function registerDeviceForAuthenticatedScan(
       exceptionType: "wrong_branch",
       severity: "critical",
       message: `${staffName} attempted first-scan login at another branch.`,
+      metadata: wrongBranchMetadata({
+        point,
+        staffId: staff.id,
+        staffName,
+        staffBranchId: staff.branch_id,
+        staffBranchName,
+        authUserId,
+        pendingRequestId: pendingRequest?.id,
+      }),
     });
 
     return {
       ok: false,
-      result: blocked("Wrong branch", "This account is connected to a different branch. Please use the correct branch QR or contact the front desk.", {
+      result: blocked("Wrong branch detected", "This QR belongs to a different branch than your staff profile. If your profile branch is wrong, request a correction.", {
         reasonCode: "wrong_branch",
         severity: "critical",
-        securityNote: "No phone was connected from this sign-in.",
+        securityNote: "Your request must be approved by the front desk before scanning again.",
         scanEventId: eventId ?? undefined,
+        branchCorrection: branchCorrectionDetails({
+          staffId: staff.id,
+          staffName,
+          currentBranchId: staff.branch_id,
+          currentBranchName: staffBranchName,
+          point,
+          scanEventId: eventId,
+          pendingRequest,
+        }),
       }),
     };
   }
@@ -1465,7 +1649,9 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
     });
   }
 
-  if (device.status !== "active" || first(device.staff)?.is_active === false) {
+  const deviceStaff = first(device.staff);
+
+  if (device.status !== "active" || !deviceStaff || deviceStaff.is_active === false) {
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
       qrPointId: point.id,
@@ -1496,7 +1682,26 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
     });
   }
 
-  if (device.branch_id !== point.branch_id) {
+  const branchDecision = getAttendanceDeviceBranchDecision({
+    qrBranchId: point.branch_id,
+    staffBranchId: deviceStaff.branch_id,
+    deviceBranchId: device.branch_id,
+    staffIsActive: deviceStaff.is_active,
+  });
+
+  if (branchDecision === "wrong_branch") {
+    const pendingRequest = await loadPendingBranchCorrectionRequest(admin, device.staff_id, point.branch_id);
+    const staffBranchName = first(deviceStaff.branches)?.name ?? null;
+    const metadata = wrongBranchMetadata({
+      point,
+      staffId: device.staff_id,
+      staffName: deviceStaff.full_name,
+      staffBranchId: deviceStaff.branch_id,
+      staffBranchName,
+      deviceId: device.id,
+      deviceBranchId: device.branch_id,
+      pendingRequestId: pendingRequest?.id,
+    });
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
       qrPointId: point.id,
@@ -1506,10 +1711,11 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       action: "scan",
       outcome: "blocked",
       reasonCode: "wrong_branch",
-      message: "Device belongs to a different branch.",
+      message: "Registered staff belongs to a different branch.",
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata,
     });
     await recordException(admin, {
       branchId: point.branch_id,
@@ -1517,14 +1723,29 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       scanEventId: eventId,
       exceptionType: "wrong_branch",
       severity: "critical",
-      message: `${first(device.staff)?.full_name ?? "Staff member"} scanned a QR for another branch.`,
+      message: `${deviceStaff.full_name ?? "Staff member"} scanned a QR for another branch.`,
+      metadata,
     });
-    return blocked("Wrong branch", "This device is registered to a different branch.", {
+    return blocked("Wrong branch detected", "This QR belongs to a different branch than your staff profile. If your profile branch is wrong, request a correction.", {
       reasonCode: "wrong_branch",
       severity: "critical",
-      securityNote: "This phone is trusted, but not for this branch QR.",
+      securityNote: "Your request must be approved by the front desk before scanning again.",
       scanEventId: eventId ?? undefined,
+      branchCorrection: branchCorrectionDetails({
+        staffId: device.staff_id,
+        staffName: deviceStaff.full_name,
+        currentBranchId: deviceStaff.branch_id,
+        currentBranchName: staffBranchName,
+        point,
+        scanEventId: eventId,
+        deviceId: device.id,
+        pendingRequest,
+      }),
     });
+  }
+
+  if (branchDecision === "sync_device_branch") {
+    await syncDeviceBranchToQrBranch(admin, device, point);
   }
 
   await admin

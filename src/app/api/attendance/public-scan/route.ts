@@ -41,6 +41,7 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     nextHref: result.nextHref,
     attendance: result.attendance,
     countdown: result.countdown,
+    branchCorrection: result.branchCorrection,
   };
 }
 

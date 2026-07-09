@@ -1,13 +1,23 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type ReactNode } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  PlacesAutocomplete,
+  type PlaceSelectResult,
+  type PlacesAutocompleteStatus,
+} from "@/components/public/places-autocomplete";
+import {
   updateBranchAction,
   toggleBranchActiveAction,
 } from "@/app/(dashboard)/owner/branches/actions";
+import {
+  getBarangayFromGooglePlace,
+  getCityFromGooglePlace,
+} from "@/lib/location/google-address-components";
 import type { Database } from "@/types/supabase";
 
 type BranchRow = Database["public"]["Tables"]["branches"]["Row"];
@@ -23,6 +33,13 @@ type BranchFormValues = {
   phone: string;
   email: string;
   messenger: string;
+  placeId: string;
+  latitude: string;
+  longitude: string;
+  city: string;
+  barangay: string;
+  mapUrl: string;
+  addressComponents: PlaceSelectResult["addressComponents"];
 };
 
 const initialState: BranchActionState = {};
@@ -38,13 +55,69 @@ function parseSlotInterval(value: FormDataEntryValue | null): 15 | 30 | 60 {
   return 30;
 }
 
+function readMetadataRecord(value: BranchRow["location_metadata"]): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function readMetadataString(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === "string" ? value : "";
+}
+
+function readMetadataAddressComponents(
+  record: Record<string, unknown>
+): PlaceSelectResult["addressComponents"] {
+  const components = record.address_components;
+  if (!Array.isArray(components)) return [];
+
+  return components
+    .map((component) => {
+      if (!component || typeof component !== "object" || Array.isArray(component)) {
+        return null;
+      }
+      const recordComponent = component as Record<string, unknown>;
+      const longName = recordComponent.long_name;
+      const shortName = recordComponent.short_name;
+      const types = recordComponent.types;
+      if (typeof longName !== "string" || typeof shortName !== "string" || !Array.isArray(types)) {
+        return null;
+      }
+      return {
+        long_name: longName,
+        short_name: shortName,
+        types: types.filter((type): type is string => typeof type === "string"),
+      };
+    })
+    .filter((component): component is PlaceSelectResult["addressComponents"][number] =>
+      Boolean(component)
+    );
+}
+
+function coordinateToInput(value: number | null): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function inputToCoordinate(value: string): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function getBranchFormValues(branch: BranchRow): BranchFormValues {
+  const metadata = readMetadataRecord(branch.location_metadata);
   return {
     name: branch.name ?? "",
     address: branch.address ?? "",
     phone: branch.phone ?? "",
     email: branch.email ?? "",
     messenger: branch.messenger_link ?? "",
+    placeId: branch.place_id ?? readMetadataString(metadata, "place_id"),
+    latitude: coordinateToInput(branch.latitude),
+    longitude: coordinateToInput(branch.longitude),
+    city: branch.city ?? readMetadataString(metadata, "city"),
+    barangay: branch.barangay ?? readMetadataString(metadata, "barangay"),
+    mapUrl: branch.maps_embed_url ?? readMetadataString(metadata, "map_url"),
+    addressComponents: readMetadataAddressComponents(metadata),
   };
 }
 
@@ -54,15 +127,36 @@ export function BranchEditForm({ branch }: { branch: BranchRow }) {
 
 function BranchEditFormInner({ branch }: { branch: BranchRow }) {
   const [values, setValues] = useState<BranchFormValues>(() => getBranchFormValues(branch));
+  const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
   const [state, formAction, pending] = useActionState(
     async (_prev: BranchActionState, formData: FormData): Promise<BranchActionState> => {
+      const latitude = inputToCoordinate(values.latitude);
+      const longitude = inputToCoordinate(values.longitude);
+      const hasCoordinates = latitude !== null && longitude !== null;
       const result = await updateBranchAction({
         branchId: branch.id,
         name: String(formData.get("name") ?? "").trim(),
-        address: String(formData.get("address") ?? "").trim(),
+        address: values.address.trim(),
         phone: optionalString(formData.get("phone")),
         email: optionalString(formData.get("email")),
         messengerLink: optionalString(formData.get("messenger")),
+        mapsEmbedUrl: values.mapUrl || null,
+        placeId: values.placeId || null,
+        latitude: hasCoordinates ? latitude : null,
+        longitude: hasCoordinates ? longitude : null,
+        city: values.city || null,
+        barangay: values.barangay || null,
+        locationMetadata: hasCoordinates
+          ? {
+              formatted_address: values.address,
+              place_id: values.placeId,
+              city: values.city,
+              barangay: values.barangay,
+              map_url: values.mapUrl,
+              source: "google_places",
+              address_components: values.addressComponents,
+            }
+          : null,
         slotIntervalMinutes: parseSlotInterval(formData.get("slotInterval")),
       });
 
@@ -76,6 +170,38 @@ function BranchEditFormInner({ branch }: { branch: BranchRow }) {
 
   function updateValue(name: keyof BranchFormValues, value: string) {
     setValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function updateAddress(value: string) {
+    setValues((current) => ({ ...current, address: value }));
+  }
+
+  function handleBranchPlaceSelect(result: PlaceSelectResult | null) {
+    if (!result) {
+      setValues((current) => ({
+        ...current,
+        placeId: "",
+        latitude: "",
+        longitude: "",
+        city: "",
+        barangay: "",
+        mapUrl: "",
+        addressComponents: [],
+      }));
+      return;
+    }
+
+    setValues((current) => ({
+      ...current,
+      address: result.formattedAddress,
+      placeId: result.placeId,
+      latitude: String(result.lat),
+      longitude: String(result.lng),
+      city: getCityFromGooglePlace(result),
+      barangay: getBarangayFromGooglePlace(result),
+      mapUrl: result.mapUrl,
+      addressComponents: result.addressComponents,
+    }));
   }
 
   const [toggleState, toggleAction, togglePending] = useActionState(
@@ -148,11 +274,13 @@ function BranchEditFormInner({ branch }: { branch: BranchRow }) {
             value={values.name}
             onChange={(value) => updateValue("name", value)}
           />
-          <EditField
-            label="Address"
-            name="address"
-            value={values.address}
-            onChange={(value) => updateValue("address", value)}
+          <BranchLocationEditor
+            values={values}
+            placesStatus={placesStatus}
+            disabled={pending}
+            onAddressChange={updateAddress}
+            onPlaceSelect={handleBranchPlaceSelect}
+            onPlacesStatusChange={setPlacesStatus}
           />
           <EditField
             label="Phone"
@@ -244,6 +372,134 @@ function BranchEditFormInner({ branch }: { branch: BranchRow }) {
         </form>
       </div>
     </div>
+  );
+}
+
+function BranchLocationEditor({
+  values,
+  placesStatus,
+  disabled,
+  onAddressChange,
+  onPlaceSelect,
+  onPlacesStatusChange,
+}: {
+  values: BranchFormValues;
+  placesStatus: PlacesAutocompleteStatus;
+  disabled: boolean;
+  onAddressChange: (value: string) => void;
+  onPlaceSelect: (result: PlaceSelectResult | null) => void;
+  onPlacesStatusChange: (status: PlacesAutocompleteStatus) => void;
+}) {
+  const hasCoordinates = values.latitude !== "" && values.longitude !== "";
+  const derivedLocation = [values.barangay, values.city].filter(Boolean).join(", ");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div>
+        <Label htmlFor="edit-branch-service-address" style={{ fontSize: "0.8125rem" }}>
+          Branch service address
+        </Label>
+        <p style={{ marginTop: 2, fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+          Used as the origin for CRM Home Service distance and travel-fee quotes.
+        </p>
+      </div>
+
+      <div style={{ opacity: disabled ? 0.65 : 1, pointerEvents: disabled ? "none" : "auto" }}>
+        <PlacesAutocomplete
+          id="edit-branch-service-address"
+          value={values.address}
+          onChange={onAddressChange}
+          onPlaceSelect={onPlaceSelect}
+          onStatusChange={onPlacesStatusChange}
+          placeholder="Search branch address"
+          theme="default"
+        />
+      </div>
+
+      {placesStatus === "loading" ? (
+        <p
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.375rem",
+            margin: 0,
+            fontSize: "0.75rem",
+            color: "var(--cs-text-muted)",
+          }}
+        >
+          <Loader2 size={12} className="animate-spin" />
+          Loading address search...
+        </p>
+      ) : null}
+
+      {placesStatus === "missing_key" ? (
+        <LocationNotice tone="error">
+          Google address search is not configured. Configure the browser Maps key to update
+          branch origin coordinates.
+        </LocationNotice>
+      ) : null}
+
+      {placesStatus === "failed" || placesStatus === "place_missing_coordinates" ? (
+        <LocationNotice tone="error">
+          Address search could not get coordinates. Please select another Google result.
+        </LocationNotice>
+      ) : null}
+
+      {hasCoordinates ? (
+        <LocationNotice tone="success">
+          Origin saved: {Number(values.latitude).toFixed(6)},{" "}
+          {Number(values.longitude).toFixed(6)}
+          {derivedLocation ? ` · ${derivedLocation}` : ""}
+        </LocationNotice>
+      ) : (
+        <LocationNotice tone="warning">
+          Select a Google address result to save branch coordinates for Home Service distance.
+          {values.address ? ` Current text: ${values.address}` : ""}
+        </LocationNotice>
+      )}
+    </div>
+  );
+}
+
+function LocationNotice({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone: "success" | "warning" | "error";
+}) {
+  const styles = {
+    success: {
+      backgroundColor: "#F0FDF4",
+      borderColor: "#BBF7D0",
+      color: "#15803D",
+    },
+    warning: {
+      backgroundColor: "#FFFBEB",
+      borderColor: "#FDE68A",
+      color: "#92400E",
+    },
+    error: {
+      backgroundColor: "#FEF2F2",
+      borderColor: "#FECACA",
+      color: "#991B1B",
+    },
+  }[tone];
+
+  return (
+    <p
+      style={{
+        margin: 0,
+        padding: "0.5rem",
+        border: `1px solid ${styles.borderColor}`,
+        borderRadius: 6,
+        fontSize: "0.75rem",
+        backgroundColor: styles.backgroundColor,
+        color: styles.color,
+      }}
+    >
+      {children}
+    </p>
   );
 }
 

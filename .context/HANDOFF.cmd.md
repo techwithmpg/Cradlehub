@@ -2,15 +2,18 @@
 
 ## Current Task - 2026-07-09
 
-STAFF-ONBOARDING-BRANCH-SAFETY-001 is implemented and locally verified.
+BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001 is implemented and locally verified.
 
-- Staff onboarding now requires an explicit active branch selection and confirmation.
-- The server action rejects missing/inactive branches and runs duplicate checks before creating auth/staff records.
-- CRM/CSR cannot approve into a different branch; owners/managers can change branches with metadata audit.
-- Tests cover branch validation, duplicate detection, approval branch scoping, and review UI branch display.
-- Verification: `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm test --run` all pass.
+- Branch editing is at `/owner/branches/[branchId]`; the branch detail form now uses the shared Google Places autocomplete for `Branch service address`.
+- `public.branches` already had `address`, `maps_embed_url`, `latitude`, and `longitude`; migration `20260709114038_branch_location_settings.sql` adds `place_id`, `city`, `barangay`, and `location_metadata`.
+- Selecting a branch address stores formatted address, place id, latitude, longitude, derived city/barangay, map URL, and address components.
+- The branch editor shows saved origin coordinates and warns when coordinates are missing.
+- `updateBranchAction` persists the new origin fields and revalidates `/owner/branches/[branchId]`.
+- CRM Home Service distance already used branch latitude/longitude as origin; its missing-origin message now tells staff to update the selected branch service address.
+- Public booking wizard behavior was not changed.
+- Verification: focused branch-location/distance tests, `pnpm type-check`, `pnpm lint`, and `pnpm build` all pass.
 
-Next steps: authenticated browser QA of `/staff-onboarding` and the CRM staff applications review list.
+Next steps: apply pending Supabase migrations, configure `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`, and run authenticated owner branch-detail QA plus CRM Home Service quote QA with real Google Places selection.
 
 ---
 

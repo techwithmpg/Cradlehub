@@ -565,3 +565,66 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - Recovery token previews must not consume tokens on page load.
 - Attendance clock-in/out and service scans remain separate from recovery consumption; recovery completion logs an activation audit event only.
 - CRM/Owner device registry reads should go through `getAttendanceDeviceRegistry()` so staff without devices and pending recovery links stay visible.
+
+## DECISION - BOOKING-ATTENDANCE-BRANCH-SAFETY-001
+
+**Decision:** Booking availability remains schedule-first; attendance check-ins are an assignment preference only for walk-ins happening today. Attendance QR branch validation uses the scanned QR branch plus the current staff branch as authoritative, while `staff_devices.branch_id` is repairable cached metadata.
+
+**Rationale:** Future, phone, and home-service bookings need planned schedule availability, not live attendance readiness. Same-day walk-ins benefit from preferring checked-in staff, but absence of check-ins should not hide scheduled therapists; the correct operator action is a presence warning. For QR scans, a stale device row can lag behind staff branch changes, so branch blocking must be based on the current staff record and scanned QR UUID, not the cached device branch.
+
+**Consequences:**
+- Do not add check-in requirements to `getAvailableSlots*`, public booking, phone booking, future booking, or home-service booking flows.
+- Same-day walk-in surfaces may rank checked-in staff first and must fall back to scheduled availability with the explicit warning when no eligible checked-in staff exists.
+- Returning QR scans should repair stale active `staff_devices.branch_id` values when current staff branch matches the scanned QR branch.
+- True cross-branch scan support needs an explicit staff membership/cross-branch model; absent that model, current `staff.branch_id` remains the authority.
+
+## DECISION - BRANCH-CORRECTION-REQUESTS-001
+
+**Decision:** QR wrong-branch recovery is modeled as requested/scanned-branch correction requests reviewed through a service-role server action/RPC, not as direct staff self-edit or normal cross-branch staff browsing.
+
+**Rationale:** The staff requesting correction may currently belong to the wrong branch, so the front desk of the scanned/requested branch must be able to see the request without getting normal access to all staff in the staff member's current branch. Keeping review authorization keyed to `requested_branch_id` solves that without weakening staff-list access. The RPC remains the only approval path that updates `staff.branch_id`, writes the audit row, and lets the existing device-sync trigger repair active device branch metadata.
+
+**Consequences:**
+- Staff can create/cancel their own pending correction request only from a verified staff session or trusted attendance-device scan context.
+- CRM/front-desk aliases can review only requests where `requested_branch_id` equals their branch; owner/manager roles can review all.
+- Approval must continue to validate that the requested branch is active before changing `staff.branch_id`.
+- `staff_devices.branch_id` remains cached metadata repaired by `trg_staff_branch_sync_devices`; it should not become the source of truth for branch authorization.
+
+## DECISION - CRM-BOOKING-HOME-SERVICE-DISTANCE-001
+
+**Decision:** CRM booking availability must use the CRM schedule-first endpoint, and CRM Home Service bookings must use a selected geocoded place plus a server-side distance quote before submit.
+
+**Rationale:** Front desk bookings need planned staff schedule and service assignment availability, not live attendance state or the public booking wizard's generic availability copy. Home Service travel fees require coordinates, so accepting plain text addresses would let bookings bypass distance calculation or store unverifiable pricing data.
+
+**Consequences:**
+- Do not route CRM quick-booking availability checks through `/api/booking/available-slots`.
+- Attendance/check-in can influence same-day walk-in messaging or ranking, but it must not hide scheduled staff from CRM availability.
+- CRM Home Service submissions should require a selected Places result with latitude/longitude.
+- Public booking wizard behavior remains separate; shared address-picker code may be reused only without changing the public flow.
+- Travel fee remains first 5 km free, then PHP 100 per started extra km, calculated server-side and stored in booking metadata/pricing breakdown.
+- `GOOGLE_MAPS_SERVER_API_KEY` enables driving distance; Haversine fallback is acceptable only when surfaced as an estimated quote.
+
+## DECISION - CRM-HOME-SERVICE-LOCATION-FIELD-CLEANUP-001
+
+**Decision:** CRM Home Service should not collect manual city/barangay/landmark/location-note fields when a selected Google Places result is required.
+
+**Rationale:** The Google Places result already provides the address text, place id, coordinates, address components, and map link needed for distance calculation and reporting. Keeping separate manual location fields invites conflicting data and makes it unclear which value is authoritative.
+
+**Consequences:**
+- `Service address` is the only required CRM Home Service location field.
+- City and barangay are stored only when derived from Google address components.
+- Distance calculation must use selected Places coordinates only.
+- Access details belong in the optional `home_service_access_note` metadata field and must not affect distance or travel fee.
+- Public booking wizard fields remain independent unless a separate public-flow cleanup is explicitly requested.
+
+## DECISION - BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001
+
+**Decision:** Store editable branch Home Service origins on `public.branches`, not in a separate branch settings table.
+
+**Rationale:** The branch row already owns the operational/public address and already had `latitude`/`longitude` from the CRM Home Service distance work. Extending it with Google Places metadata keeps origin lookup simple for distance quotes and avoids introducing a new exposed table/API surface.
+
+**Consequences:**
+- Branch service origin fields are `branches.address`, `branches.place_id`, `branches.latitude`, `branches.longitude`, `branches.city`, `branches.barangay`, `branches.maps_embed_url`, and `branches.location_metadata`.
+- `branch_booking_rules` remains responsible for Home Service policy values such as free km and extra-km fee.
+- CRM Home Service distance should continue resolving origin from selected branch coordinates and destination from customer Places coordinates.
+- Public booking wizard behavior remains independent; the shared Places picker can be reused without changing the public flow.

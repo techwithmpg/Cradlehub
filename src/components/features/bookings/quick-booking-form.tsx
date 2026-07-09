@@ -17,7 +17,16 @@ import {
 import { toast } from "sonner";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { getAttendanceQueueSuggestionAction } from "@/lib/actions/attendance-queue";
+import {
+  getBarangayFromGooglePlace,
+  getCityFromGooglePlace,
+} from "@/lib/location/google-address-components";
 import { cn, formatCurrency } from "@/lib/utils";
+import {
+  PlacesAutocomplete,
+  type PlaceSelectResult,
+  type PlacesAutocompleteStatus,
+} from "@/components/public/places-autocomplete";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
 
 export type QuickBookingMode = "walkin" | "phone" | "standard_future" | "home_service";
@@ -100,6 +109,23 @@ type SlotRow = {
   available: boolean;
 };
 
+type CrmAvailabilityResponse = {
+  available: boolean;
+  message?: string | null;
+  warning?: string | null;
+  slots?: SlotRow[];
+};
+
+type HomeServiceDistanceQuote = {
+  distanceKm: number;
+  distanceSource: "google_driving" | "haversine_estimate";
+  freeKm: number;
+  extraKm: number;
+  feePerExtraKm: number;
+  travelFee: number;
+  warning?: string;
+};
+
 type FieldErrors = Partial<
   Record<
     | "customer"
@@ -109,7 +135,6 @@ type FieldErrors = Partial<
     | "date"
     | "time"
     | "homeServiceAddress"
-    | "homeServiceCity"
     | "paymentMethod",
     string
   >
@@ -125,6 +150,12 @@ const MODES: Array<{
   { value: "standard_future", label: "Future", description: "Scheduled in-spa booking." },
   { value: "home_service", label: "Home Service", description: "Therapist goes to the customer." },
 ];
+
+const CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE =
+  "Please select a valid address from the search results so distance can be calculated.";
+
+const NO_SCHEDULED_THERAPIST_MESSAGE =
+  "No scheduled therapist is available at this time. Try another time or check staff schedules.";
 
 function todayYmd(): string {
   const now = new Date();
@@ -170,6 +201,10 @@ function formatAttendanceTime(iso: string | null): string {
   if (!iso) return "";
   const date = new Date(iso);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDistanceKm(distanceKm: number): string {
+  return `${distanceKm.toFixed(1)} km`;
 }
 
 function mapServerErrorToFields(message: string): FieldErrors {
@@ -229,9 +264,17 @@ export function QuickBookingForm({
   const [time, setTime] = useState(initialTimeValue);
   const [notes, setNotes] = useState("");
   const [homeServiceAddress, setHomeServiceAddress] = useState("");
+  const [homeServicePlace, setHomeServicePlace] = useState<PlaceSelectResult | null>(null);
+  const [homeServiceBarangay, setHomeServiceBarangay] = useState("");
   const [homeServiceCity, setHomeServiceCity] = useState("");
-  const [homeServiceLandmark, setHomeServiceLandmark] = useState("");
-  const [homeServiceNotes, setHomeServiceNotes] = useState("");
+  const [homeServiceAccessNote, setHomeServiceAccessNote] = useState("");
+  const [placesStatus, setPlacesStatus] = useState<PlacesAutocompleteStatus>("idle");
+  const [homeServiceDistanceStatus, setHomeServiceDistanceStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [homeServiceDistanceError, setHomeServiceDistanceError] = useState("");
+  const [homeServiceDistanceQuote, setHomeServiceDistanceQuote] =
+    useState<HomeServiceDistanceQuote | null>(null);
   const [paymentReceived, setPaymentReceived] = useState(initialMode === "walkin");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash" | "maya" | "card" | "other" | "">(
     initialMode === "walkin" ? "cash" : ""
@@ -248,6 +291,7 @@ export function QuickBookingForm({
   const [formError, setFormError] = useState("");
   const [loadingNextSlot, setLoadingNextSlot] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [slotChecking, setSlotChecking] = useState(false);
   const isHomeService = mode === "home_service";
   const selectedService = services.find((service) => service.id === serviceId) ?? null;
   const eligibleServices = useMemo(
@@ -302,9 +346,10 @@ export function QuickBookingForm({
       time !== initialTimeValue ||
       notes !== "" ||
       homeServiceAddress !== "" ||
+      homeServicePlace !== null ||
+      homeServiceBarangay !== "" ||
       homeServiceCity !== "" ||
-      homeServiceLandmark !== "" ||
-      homeServiceNotes !== "" ||
+      homeServiceAccessNote !== "" ||
       paymentReceived !== (initialMode === "walkin") ||
       paymentMethod !== (initialMode === "walkin" ? "cash" : "") ||
       staffId !== initialStaffId ||
@@ -315,9 +360,10 @@ export function QuickBookingForm({
       email,
       fullName,
       homeServiceAddress,
+      homeServiceAccessNote,
+      homeServiceBarangay,
       homeServiceCity,
-      homeServiceLandmark,
-      homeServiceNotes,
+      homeServicePlace,
       initialCustomer,
       initialDateValue,
       initialMode,
@@ -407,6 +453,60 @@ export function QuickBookingForm({
     };
   }, [customerQuery, selectedCustomer]);
 
+  useEffect(() => {
+    if (!isHomeService || !homeServicePlace) return;
+
+    const controller = new AbortController();
+    const id = window.setTimeout(() => {
+      setHomeServiceDistanceStatus("loading");
+      setHomeServiceDistanceError("");
+
+      fetch("/api/home-service/distance", {
+        method: "POST",
+        credentials: "same-origin",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId,
+          bookingType: "home_service",
+          destination: {
+            lat: homeServicePlace.lat,
+            lng: homeServicePlace.lng,
+          },
+        }),
+      })
+        .then(async (response) => {
+          const data = (await response.json()) as
+            | HomeServiceDistanceQuote
+            | { error?: string };
+          if (!response.ok) {
+            throw new Error(
+              "error" in data && data.error
+                ? data.error
+                : "Could not calculate home-service distance."
+            );
+          }
+          setHomeServiceDistanceQuote(data as HomeServiceDistanceQuote);
+          setHomeServiceDistanceStatus("ready");
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setHomeServiceDistanceQuote(null);
+          setHomeServiceDistanceStatus("error");
+          setHomeServiceDistanceError(
+            error instanceof Error
+              ? error.message
+              : "Could not calculate home-service distance."
+          );
+        });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(id);
+      controller.abort();
+    };
+  }, [branchId, homeServicePlace, isHomeService]);
+
   function changeMode(nextMode: QuickBookingMode) {
     const currentService = services.find((service) => service.id === serviceId);
     setMode(nextMode);
@@ -453,6 +553,27 @@ export function QuickBookingForm({
     setCustomerResults([]);
   }
 
+  function handleHomeServicePlaceSelect(result: PlaceSelectResult | null) {
+    setHomeServicePlace(result);
+    setHomeServiceDistanceQuote(null);
+    setHomeServiceDistanceStatus("idle");
+    setHomeServiceDistanceError("");
+
+    if (!result) {
+      setHomeServiceBarangay("");
+      setHomeServiceCity("");
+      return;
+    }
+
+    setHomeServiceAddress(result.formattedAddress);
+    setHomeServiceBarangay(getBarangayFromGooglePlace(result));
+    setHomeServiceCity(getCityFromGooglePlace(result));
+    setFieldErrors((current) => ({
+      ...current,
+      homeServiceAddress: undefined,
+    }));
+  }
+
   function validate(): FieldErrors {
     const nextErrors: FieldErrors = {};
     if (!fullName.trim()) nextErrors.fullName = "Enter the customer's name.";
@@ -464,11 +585,10 @@ export function QuickBookingForm({
     if (!date) nextErrors.date = "Choose a valid date and time.";
     if (!time) nextErrors.time = "Choose a valid date and time.";
     if (isHomeService) {
-      if (homeServiceAddress.trim().length < 5) {
+      if (!homeServiceAddress.trim()) {
         nextErrors.homeServiceAddress = "Enter the complete home-service address.";
-      }
-      if (homeServiceCity.trim().length < 2) {
-        nextErrors.homeServiceCity = "Enter the complete home-service address.";
+      } else if (!homeServicePlace) {
+        nextErrors.homeServiceAddress = CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE;
       }
     }
     if (paymentReceived && !paymentMethod) {
@@ -493,16 +613,7 @@ export function QuickBookingForm({
       const maxDaysToSearch = Math.min(14, Math.max(1, bookingRules.maxAdvanceBookingDays + 1));
       for (let offset = 0; offset < maxDaysToSearch; offset += 1) {
         const candidateDate = addDaysYmd(date, offset);
-        const params = new URLSearchParams({
-          branchId,
-          serviceIds: serviceId,
-          date: candidateDate,
-        });
-        const response = await fetch(`/api/booking/available-slots?${params.toString()}`, {
-          credentials: "same-origin",
-        });
-        const data = (await response.json()) as { slots?: SlotRow[]; error?: string };
-        if (!response.ok) throw new Error(data.error ?? "Unable to find the next available time.");
+        const data = await fetchCrmAvailability(candidateDate, time || "00:00");
         const nextSlot = (data.slots ?? []).find(
           (slot) =>
             slot.available &&
@@ -519,7 +630,7 @@ export function QuickBookingForm({
 
       setFieldErrors((current) => ({
         ...current,
-        time: "No therapist is available at the selected time.",
+        time: NO_SCHEDULED_THERAPIST_MESSAGE,
       }));
     } catch {
       setFormError("Unable to find the next available time. Choose a valid date and time.");
@@ -528,13 +639,64 @@ export function QuickBookingForm({
     }
   }
 
+  async function fetchCrmAvailability(
+    availabilityDate: string,
+    availabilityTime: string
+  ): Promise<CrmAvailabilityResponse> {
+    if (!serviceId || !availabilityDate || !availabilityTime) {
+      return { available: false, message: NO_SCHEDULED_THERAPIST_MESSAGE, slots: [] };
+    }
+
+    const response = await fetch("/api/booking/crm-availability", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        branchId,
+        serviceIds: [serviceId],
+        date: availabilityDate,
+        time: normalizeTime(availabilityTime),
+        staffId: staffId || undefined,
+        bookingMode: mode,
+        deliveryType: isHomeService ? "home_service" : "in_spa",
+      }),
+    });
+    const data = (await response.json()) as CrmAvailabilityResponse & { error?: string };
+    if (!response.ok) {
+      throw new Error(data.error ?? "Unable to check CRM availability.");
+    }
+
+    return data;
+  }
+
   async function submit() {
-    if (isSaving) return;
+    if (isSaving || slotChecking) return;
 
     const nextErrors = validate();
     setFieldErrors(nextErrors);
     setFormError("");
     if (Object.values(nextErrors).some(Boolean)) return;
+
+    setSlotChecking(true);
+    let availability: CrmAvailabilityResponse;
+    try {
+      availability = await fetchCrmAvailability(date, time);
+    } catch {
+      setSlotChecking(false);
+      const message = "Unable to check CRM availability. Choose another time or try again.";
+      setFieldErrors((current) => ({ ...current, time: message }));
+      setFormError(message);
+      return;
+    }
+
+    setSlotChecking(false);
+
+    if (!availability.available) {
+      const message = availability.message ?? NO_SCHEDULED_THERAPIST_MESSAGE;
+      setFieldErrors((current) => ({ ...current, time: message }));
+      setFormError(message);
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -557,10 +719,21 @@ export function QuickBookingForm({
         paymentReceived,
         paymentMethod: paymentReceived && paymentMethod ? paymentMethod : undefined,
         homeServiceAddress: isHomeService ? homeServiceAddress.trim() : undefined,
+        homeServiceBarangay: isHomeService ? homeServiceBarangay.trim() || undefined : undefined,
         homeServiceCity: isHomeService ? homeServiceCity.trim() : undefined,
-        homeServiceLandmark: isHomeService ? homeServiceLandmark.trim() || undefined : undefined,
-        homeServiceParkingNotes: isHomeService ? homeServiceNotes.trim() || undefined : undefined,
-        homeServiceCustomerNotes: isHomeService ? homeServiceNotes.trim() || undefined : undefined,
+        homeServiceAccessNote: isHomeService
+          ? homeServiceAccessNote.trim() || undefined
+          : undefined,
+        homeServiceLat: isHomeService ? homeServicePlace?.lat : undefined,
+        homeServiceLng: isHomeService ? homeServicePlace?.lng : undefined,
+        homeServicePlaceId: isHomeService ? homeServicePlace?.placeId : undefined,
+        homeServiceFormattedAddress: isHomeService
+          ? homeServicePlace?.formattedAddress
+          : undefined,
+        homeServiceAddressComponents: isHomeService
+          ? homeServicePlace?.addressComponents
+          : undefined,
+        homeServiceMapUrl: isHomeService ? homeServicePlace?.mapUrl : undefined,
       });
 
       if (!result.ok) {
@@ -571,7 +744,9 @@ export function QuickBookingForm({
         return;
       }
 
-      toast.success("Booking saved", { description: "The booking is now in the CRM workspace." });
+      toast.success("Booking saved", {
+        description: result.warning ?? "The booking is now in the CRM workspace.",
+      });
       onSuccess?.({
         bookingId: result.bookingId,
         date,
@@ -789,48 +964,47 @@ export function QuickBookingForm({
               {isHomeService ? (
                 <>
                   <div className="md:col-span-2">
-                    <FieldLabel icon={<Home size={15} />} label="Address" />
-                    <input
-                      type="text"
+                    <FieldLabel icon={<Home size={15} />} label="Service address" />
+                    <PlacesAutocomplete
                       value={homeServiceAddress}
-                      onChange={(event) => setHomeServiceAddress(event.target.value)}
-                      disabled={isSaving}
-                      placeholder="Complete address"
-                      className={inputClassName(Boolean(fieldErrors.homeServiceAddress))}
+                      onChange={setHomeServiceAddress}
+                      onPlaceSelect={handleHomeServicePlaceSelect}
+                      onStatusChange={setPlacesStatus}
+                      placeholder="Search customer address"
+                      theme="default"
                     />
                     <FieldError message={fieldErrors.homeServiceAddress} />
-                  </div>
-                  <div>
-                    <FieldLabel icon={<MapPin size={15} />} label="City / barangay" />
-                    <input
-                      type="text"
-                      value={homeServiceCity}
-                      onChange={(event) => setHomeServiceCity(event.target.value)}
-                      disabled={isSaving}
-                      placeholder="City or barangay"
-                      className={inputClassName(Boolean(fieldErrors.homeServiceCity))}
-                    />
-                    <FieldError message={fieldErrors.homeServiceCity} />
-                  </div>
-                  <div>
-                    <FieldLabel label="Landmark" optional />
-                    <input
-                      type="text"
-                      value={homeServiceLandmark}
-                      onChange={(event) => setHomeServiceLandmark(event.target.value)}
-                      disabled={isSaving}
-                      placeholder="Nearby landmark"
-                      className={inputClassName(false)}
-                    />
+                    {placesStatus === "loading" ? (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                        <Loader2 size={12} className="animate-spin" />
+                        Loading address search…
+                      </p>
+                    ) : null}
+                    {placesStatus === "missing_key" ? (
+                      <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
+                        Google address search is not configured. Configure the browser Maps key to
+                        select a service address.
+                      </p>
+                    ) : null}
+                    {placesStatus === "failed" || placesStatus === "place_missing_coordinates" ? (
+                      <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
+                        Address search could not get coordinates. Please select another result.
+                      </p>
+                    ) : null}
+                    {homeServiceAddress && !homeServicePlace ? (
+                      <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
+                        {CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="md:col-span-2">
-                    <FieldLabel label="Location notes" optional />
+                    <FieldLabel label="Access note / special direction" optional />
                     <textarea
-                      value={homeServiceNotes}
-                      onChange={(event) => setHomeServiceNotes(event.target.value)}
+                      value={homeServiceAccessNote}
+                      onChange={(event) => setHomeServiceAccessNote(event.target.value)}
                       disabled={isSaving}
                       rows={2}
-                      placeholder="Gate, unit, parking, or access notes"
+                      placeholder="Example: blue gate, 2nd floor, near Puregold"
                       className={cn(inputClassName(false), "h-auto resize-none py-2")}
                     />
                   </div>
@@ -1000,11 +1174,11 @@ export function QuickBookingForm({
               <button
                 type="button"
                 onClick={submit}
-                disabled={isSaving}
+                disabled={isSaving || slotChecking}
                 className="cs-btn h-11 rounded-xl bg-[var(--cs-crm-text)] px-5 text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)] hover:bg-[var(--cs-success-text)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                {isSaving ? "Saving..." : "Save Booking"}
+                {isSaving || slotChecking ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                {isSaving ? "Saving..." : slotChecking ? "Checking..." : "Save Booking"}
               </button>
             </div>
           </div>
@@ -1021,11 +1195,62 @@ export function QuickBookingForm({
             <SummaryRow label="Customer" value={fullName || "Not selected"} />
             <SummaryRow label="Service" value={selectedService?.name ?? "Not selected"} />
             <SummaryRow label="When" value={`${date || "No date"} ${time || ""}`.trim()} />
+            {isHomeService ? (
+              <>
+                <SummaryRow
+                  label="Service address"
+                  value={homeServicePlace?.formattedAddress || homeServiceAddress || "Required"}
+                />
+                <SummaryRow
+                  label="Service subtotal"
+                  value={selectedService ? formatCurrency(selectedService.price) : "Select service"}
+                />
+                {homeServiceDistanceStatus === "loading" ? (
+                  <SummaryRow label="Distance from branch" value="Calculating…" />
+                ) : homeServiceDistanceQuote ? (
+                  <>
+                    <SummaryRow
+                      label="Distance from branch"
+                      value={formatDistanceKm(homeServiceDistanceQuote.distanceKm)}
+                    />
+                    <SummaryRow
+                      label="Free distance allowance"
+                      value={formatDistanceKm(homeServiceDistanceQuote.freeKm)}
+                    />
+                    <SummaryRow
+                      label="Additional charged km"
+                      value={`${homeServiceDistanceQuote.extraKm} km`}
+                    />
+                    <SummaryRow
+                      label="Travel fee"
+                      value={formatCurrency(homeServiceDistanceQuote.travelFee)}
+                    />
+                    <SummaryRow
+                      label="Total"
+                      value={formatCurrency(
+                        (selectedService?.price ?? 0) + homeServiceDistanceQuote.travelFee
+                      )}
+                    />
+                    {homeServiceDistanceQuote.warning ? (
+                      <SummaryNote tone="warning" text={homeServiceDistanceQuote.warning} />
+                    ) : null}
+                  </>
+                ) : homeServiceAddress && !homeServicePlace ? (
+                  <SummaryNote text={CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE} />
+                ) : homeServiceDistanceStatus === "error" ? (
+                  <SummaryNote
+                    tone="warning"
+                    text={homeServiceDistanceError || "Distance could not be calculated."}
+                  />
+                ) : (
+                  <SummaryNote text="Select customer location to calculate home service fee." />
+                )}
+              </>
+            ) : null}
             <SummaryRow
               label="Payment"
               value={paymentReceived ? `Paid by ${paymentMethod || "method pending"}` : "Pending"}
             />
-            {isHomeService ? <SummaryRow label="Address" value={homeServiceAddress || "Required"} /> : null}
           </aside>
         </div>
       </section>
@@ -1063,6 +1288,27 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="border-t border-[var(--cs-border-soft)] pt-3">
       <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">{label}</div>
       <div className="mt-1 text-sm font-medium text-[var(--cs-text)]">{value}</div>
+    </div>
+  );
+}
+
+function SummaryNote({
+  text,
+  tone = "muted",
+}: {
+  text: string;
+  tone?: "muted" | "warning";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border px-3 py-2 text-xs leading-5",
+        tone === "warning"
+          ? "border-[var(--cs-warning-bg)] bg-[var(--cs-warning-bg)] text-[var(--cs-warning-text)]"
+          : "border-[var(--cs-border-soft)] bg-[var(--cs-surface)] text-[var(--cs-text-muted)]"
+      )}
+    >
+      {text}
     </div>
   );
 }

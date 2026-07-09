@@ -7,6 +7,7 @@ import type {
 } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import type { Database } from "@/types/supabase";
+import type { BranchCorrectionInboxItem } from "@/lib/staff/branch-correction-types";
 import { replaceStaffServiceAssignmentRows } from "@/lib/staff/service-assignment-state";
 import { CrmSegmentTabs } from "@/components/features/crm/premium/crm-segment-tabs";
 import type { CrmSegmentTab } from "@/components/features/crm/premium/crm-segment-tabs";
@@ -14,13 +15,15 @@ import { CrmStaffApplicationsTab } from "./crm-staff-applications-tab";
 import { CrmStaffManagementTab } from "./crm-staff-management-tab";
 import { CrmStaffAssignmentsTab } from "./crm-staff-assignments-tab";
 import { CrmStaffStatusTab } from "./crm-staff-status-tab";
+import { CrmStaffBranchCorrectionsTab } from "./crm-staff-branch-corrections-tab";
 
 type OnboardingRequest = Database["public"]["Tables"]["staff_onboarding_requests"]["Row"];
 type Branch = { id: string; name: string };
-type StaffTab = "applications" | "management" | "assignments" | "status";
+type StaffTab = "applications" | "branch-corrections" | "management" | "assignments" | "status";
 
 const STAFF_TAB_KEYS: StaffTab[] = [
   "applications",
+  "branch-corrections",
   "management",
   "assignments",
   "status",
@@ -28,6 +31,7 @@ const STAFF_TAB_KEYS: StaffTab[] = [
 
 const TAB_URL_PARAM: Record<StaffTab, string> = {
   applications: "applications",
+  "branch-corrections": "branch-corrections",
   management: "management",
   assignments: "assignments",
   status: "status",
@@ -48,6 +52,7 @@ type CrmStaffWorkspaceProps = {
   providerAssignments: ServiceAssignmentRow[];
   providerAssignmentsError: string | null;
   onboardingRequests: OnboardingRequest[];
+  branchCorrectionRequests: BranchCorrectionInboxItem[];
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
   canReviewOnboarding: boolean;
@@ -86,6 +91,11 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         label: "Applications",
         count: props.canReviewOnboarding ? props.onboardingRequests.length : undefined,
       },
+      {
+        key: "branch-corrections",
+        label: "Branch Corrections",
+        count: props.branchCorrectionRequests.length,
+      },
       { key: "management", label: "Staff Management", count: props.allStaff.length },
       {
         key: "assignments",
@@ -97,6 +107,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
     [
       props.allStaff.length,
       props.canReviewOnboarding,
+      props.branchCorrectionRequests.length,
       props.onboardingRequests.length,
       props.pendingStaff.length,
       providerAssignments.length,
@@ -132,6 +143,10 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           reviewerBranchId={props.reviewerBranchId}
           canReviewOnboarding={props.canReviewOnboarding}
         />
+      </div>
+
+      <div hidden={activeTab !== "branch-corrections"}>
+        <CrmStaffBranchCorrectionsTab requests={props.branchCorrectionRequests} />
       </div>
 
       <div hidden={activeTab !== "management"}>

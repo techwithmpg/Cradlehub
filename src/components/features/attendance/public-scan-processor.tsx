@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
   activateDeviceAction,
+  requestBranchCorrectionAction,
   signInAndRegisterAttendanceDeviceAction,
+  tryAnotherScanAccountAction,
   type FirstTimeScanFieldErrors,
 } from "@/app/scan/actions";
 import { cn } from "@/lib/utils";
 import type { PublicScanResult } from "@/lib/attendance/types";
+import type { BranchCorrectionScanDetails } from "@/lib/staff/branch-correction-types";
 import { PublicScanLoginForm } from "./public-scan-login-form";
 import { PublicScanResultView } from "./public-scan-result";
 import { PublicScanStage, type PublicScanStageName } from "./public-scan-stage";
@@ -89,6 +92,10 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   const [loginCredentials, setLoginCredentials] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginFieldErrors, setLoginFieldErrors] = useState<FirstTimeScanFieldErrors | null>(null);
+  const [branchCorrectionState, setBranchCorrectionState] = useState<{
+    status: "idle" | "pending" | "success" | "error";
+    message: string | null;
+  }>({ status: "idle", message: null });
   const [requestId] = useState(() => createRequestId());
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -135,11 +142,13 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
         setResult(null);
         setLoginError(null);
         setLoginFieldErrors(null);
+        setBranchCorrectionState({ status: "idle", message: null });
         setStage("sign_in_required");
         return;
       }
 
       setResult(nextResult);
+      setBranchCorrectionState({ status: "idle", message: null });
       setStage("result");
     }
 
@@ -177,6 +186,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
 
         if (actionResult.result) {
           setResult(actionResult.result);
+          setBranchCorrectionState({ status: "idle", message: null });
           setStage("result");
           return;
         }
@@ -212,12 +222,49 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
     }
   }
 
+  async function handleBranchCorrectionRequest(details: BranchCorrectionScanDetails) {
+    if (branchCorrectionState.status === "pending" || branchCorrectionState.status === "success") return;
+
+    setBranchCorrectionState({ status: "pending", message: "Sending request..." });
+
+    try {
+      const actionResult = await requestBranchCorrectionAction({ details });
+      if (!mountedRef.current) return;
+
+      setBranchCorrectionState({
+        status: actionResult.ok ? "success" : "error",
+        message: actionResult.message,
+      });
+    } catch {
+      if (!mountedRef.current) return;
+      setBranchCorrectionState({
+        status: "error",
+        message: "We could not send this request. Please ask the front desk for help.",
+      });
+    }
+  }
+
+  async function handleTryAnotherAccount(details: BranchCorrectionScanDetails) {
+    await tryAnotherScanAccountAction();
+    const code = details.publicCode ?? scanPublicCode;
+    if (code) {
+      window.location.replace(`/scan/${encodeURIComponent(code)}?scan=${createRequestId()}`);
+      return;
+    }
+    window.location.reload();
+  }
+
   const shellTone = getShellTone(stage, result);
 
   return (
     <div className={cn(styles.shell, shellTone)}>
       {stage === "result" && result ? (
-        <PublicScanResultView result={result} />
+        <PublicScanResultView
+          result={result}
+          branchCorrectionState={branchCorrectionState}
+          onRequestBranchCorrection={handleBranchCorrectionRequest}
+          onTryAnotherAccount={handleTryAnotherAccount}
+        />
       ) : stage === "sign_in_required" && mode === "scan" ? (
         <PublicScanLoginForm
           email={loginCredentials.email}

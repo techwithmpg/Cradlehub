@@ -7,12 +7,15 @@ import {
   Check,
   CircleCheckBig,
   Clock3,
+  Loader2,
   MapPin,
+  Send,
   ShieldCheck,
 } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { cn } from "@/lib/utils";
 import type { PublicScanResult } from "@/lib/attendance/types";
+import type { BranchCorrectionScanDetails } from "@/lib/staff/branch-correction-types";
 import {
   formatAttendanceDate,
   formatAttendanceTime,
@@ -45,6 +48,12 @@ function Countdown({ dueAt }: { dueAt: string }) {
 
 type PublicScanResultViewProps = {
   result: PublicScanResult;
+  branchCorrectionState?: {
+    status: "idle" | "pending" | "success" | "error";
+    message: string | null;
+  };
+  onRequestBranchCorrection?: (details: BranchCorrectionScanDetails) => void;
+  onTryAnotherAccount?: (details: BranchCorrectionScanDetails) => void;
 };
 
 function getResultStatusClass(result: PublicScanResult): string | undefined {
@@ -66,7 +75,108 @@ function ResultStatusIcon({ result }: { result: PublicScanResult }) {
   return <AlertTriangle size={42} strokeWidth={1.8} />;
 }
 
-export function PublicScanResultView({ result }: PublicScanResultViewProps) {
+function BranchCorrectionCard({
+  details,
+  state,
+  onRequest,
+  onTryAnotherAccount,
+}: {
+  details: BranchCorrectionScanDetails;
+  state: NonNullable<PublicScanResultViewProps["branchCorrectionState"]>;
+  onRequest?: (details: BranchCorrectionScanDetails) => void;
+  onTryAnotherAccount?: (details: BranchCorrectionScanDetails) => void;
+}) {
+  const pendingRequest = details.existingPendingRequest;
+  const disabled =
+    state.status === "pending" ||
+    state.status === "success" ||
+    details.canRequestBranchCorrection === false ||
+    Boolean(pendingRequest);
+  const pendingCreatedAt = pendingRequest
+    ? new Intl.DateTimeFormat("en-PH", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(pendingRequest.createdAt))
+    : null;
+
+  return (
+    <div className={styles.branchCorrectionCard}>
+      <p className={styles.branchCorrectionHint}>
+        If this is wrong, request branch correction.
+      </p>
+
+      <div className={styles.branchCorrectionRows}>
+        <div>
+          <span>Your profile is currently assigned to</span>
+          <strong>{details.currentBranchName}</strong>
+        </div>
+        <div>
+          <span>This QR is for</span>
+          <strong>{details.requestedBranchName}</strong>
+        </div>
+      </div>
+
+      {pendingRequest ? (
+        <div className={styles.branchCorrectionPending}>
+          <strong>Branch correction request already pending.</strong>
+          <span>
+            Requested branch: {pendingRequest.requestedBranchName}
+            {pendingCreatedAt ? ` · Sent ${pendingCreatedAt}` : ""}
+          </span>
+        </div>
+      ) : (
+        <p className={styles.branchCorrectionMessage}>
+          Your request must be approved by the front desk before scanning again.
+        </p>
+      )}
+
+      <div className={styles.branchCorrectionActions}>
+        <button
+          type="button"
+          className={styles.branchCorrectionButton}
+          disabled={disabled}
+          onClick={() => onRequest?.(details)}
+        >
+          {state.status === "pending" ? (
+            <Loader2 size={16} className={styles.loginSpinner} aria-hidden="true" />
+          ) : (
+            <Send size={16} aria-hidden="true" />
+          )}
+          {state.status === "success" ? "Request sent" : "Request branch correction"}
+        </button>
+
+        {onTryAnotherAccount ? (
+          <button
+            type="button"
+            className={styles.branchCorrectionSecondaryButton}
+            onClick={() => onTryAnotherAccount(details)}
+          >
+            Try another account
+          </button>
+        ) : null}
+      </div>
+
+      {state.message ? (
+        <p
+          className={cn(
+            styles.branchCorrectionMessage,
+            state.status === "error" && styles.branchCorrectionMessageError,
+            state.status === "success" && styles.branchCorrectionMessageSuccess
+          )}
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export function PublicScanResultView({
+  result,
+  branchCorrectionState = { status: "idle", message: null },
+  onRequestBranchCorrection,
+  onTryAnotherAccount,
+}: PublicScanResultViewProps) {
   const attendance = result.attendance;
   const isClockIn = attendance?.action === "clock_in";
   const isAttendanceSuccess = result.ok && Boolean(attendance);
@@ -155,6 +265,15 @@ export function PublicScanResultView({ result }: PublicScanResultViewProps) {
             <Countdown dueAt={result.countdown.dueAt} />
           </div>
         </div>
+      ) : null}
+
+      {!result.ok && result.reasonCode === "wrong_branch" && result.branchCorrection ? (
+        <BranchCorrectionCard
+          details={result.branchCorrection}
+          state={branchCorrectionState}
+          onRequest={onRequestBranchCorrection}
+          onTryAnotherAccount={onTryAnotherAccount}
+        />
       ) : null}
     </section>
   );

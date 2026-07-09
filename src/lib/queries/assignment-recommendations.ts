@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type {
   RecommendationContext,
+  RecommendationBookingMode,
   StaffForScoring,
   ScheduleForScoring,
   OverrideForScoring,
@@ -11,6 +12,7 @@ import type {
   StaffPreference,
 } from "@/lib/assignments/recommendation-engine";
 import { getScheduleGroupKeyForStaffType } from "@/lib/schedule/resolve-staff-schedule";
+import type { Json } from "@/types/supabase";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,7 @@ export type BookingForRecommendation = {
   staff_id: string | null;
   driver_id: string | null;
   service_id: string | null;
+  metadata: Json | null;
 };
 
 export type ServiceForRecommendation = {
@@ -43,7 +46,7 @@ export async function getBookingForRecommendation(
   const { data, error } = await supabase
     .from("bookings")
     .select(
-      "id, branch_id, booking_date, start_time, end_time, delivery_type, type, staff_id, driver_id, service_id"
+      "id, branch_id, booking_date, start_time, end_time, delivery_type, type, staff_id, driver_id, service_id, metadata"
     )
     .eq("id", bookingId)
     .single();
@@ -61,6 +64,7 @@ export async function getBookingForRecommendation(
     staff_id: data.staff_id,
     driver_id: data.driver_id,
     service_id: data.service_id,
+    metadata: data.metadata,
   };
 }
 
@@ -378,6 +382,33 @@ async function getGroupSchedulesFallback(
 
 // ── Internal context builder ───────────────────────────────────────────────────
 
+function isRecord(value: Json | null): value is Record<string, Json> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function resolveRecommendationBookingMode(
+  booking: BookingForRecommendation
+): RecommendationBookingMode {
+  if (isRecord(booking.metadata)) {
+    const mode = booking.metadata.crm_booking_mode;
+    if (
+      mode === "walkin" ||
+      mode === "phone" ||
+      mode === "home_service" ||
+      mode === "standard_future"
+    ) {
+      return mode;
+    }
+  }
+
+  if (booking.delivery_type === "home_service" || booking.type === "home_service") {
+    return "home_service";
+  }
+  if (booking.type === "walkin") return "walkin";
+  if (booking.type === "online") return "online";
+  return "unknown";
+}
+
 async function buildContextFromBooking(
   booking: BookingForRecommendation,
   conflictType: "therapist" | "driver"
@@ -426,6 +457,7 @@ async function buildContextFromBooking(
     bookingDate: date,
     bookingStartTime: booking.start_time,
     bookingEndTime: booking.end_time || booking.start_time,
+    bookingMode: resolveRecommendationBookingMode(booking),
     isHomeService,
     service: service
       ? {

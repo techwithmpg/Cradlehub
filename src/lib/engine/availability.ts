@@ -71,7 +71,49 @@ type BlockingBookingRow = {
   hold_expires_at: string | null;
 };
 
+type ActiveCheckinQueueRow = {
+  staff_id: string;
+  checked_in_at: string | null;
+};
+
 const AVAILABILITY_RPC_ROW_LIMIT = 10000;
+
+export const NO_CHECKED_IN_STAFF_WARNING =
+  "No therapist has clocked in yet, but scheduled staff are available.";
+
+export const CRM_AVAILABILITY_MESSAGES = {
+  noServiceCapability:
+    "No therapist is assigned to this service yet. Check Staff Management \u2192 Service Assignments.",
+  noSchedule: "No schedule is configured for this branch/time.",
+  noScheduledTherapist:
+    "No scheduled therapist is available at this time. Try another time or check staff schedules.",
+  noClockInWarning: NO_CHECKED_IN_STAFF_WARNING,
+} as const;
+
+export type CrmAvailabilityReasonCode =
+  | "inactive_staff"
+  | "wrong_branch"
+  | "missing_service_capability"
+  | "no_schedule_for_time"
+  | "blocked_by_override"
+  | "blocked_by_booking"
+  | "outside_home_service_hours"
+  | "outside_in_spa_hours"
+  | "attendance_not_checked_in_preference_only"
+  | "eligible";
+
+export type CrmRejectedTherapistReason = {
+  staff_id: string;
+  full_name: string;
+  active: boolean;
+  branch_match: boolean;
+  service_capability: boolean;
+  schedule_available: boolean;
+  override_blocked: boolean;
+  booking_overlap: boolean;
+  attendance_ignored_or_preferred: boolean;
+  reason_code: CrmAvailabilityReasonCode;
+};
 
 function isMissingStaffProviderColumnError(message: string): boolean {
   const lower = message.toLowerCase();
@@ -428,6 +470,7 @@ async function filterSlotsForQualifiedProviders(params: {
   serviceIds: string[];
   slots: AvailabilitySlot[];
   serviceTimings: Map<string, ServiceTiming>;
+  requireExplicitServiceAssignment?: boolean;
 }): Promise<AvailabilitySlot[]> {
   if (params.slots.length === 0 || params.serviceIds.length === 0) return params.slots;
 
@@ -480,6 +523,12 @@ async function filterSlotsForQualifiedProviders(params: {
       return false;
     }
 
+    if (params.requireExplicitServiceAssignment) {
+      return params.serviceIds.every((serviceId) =>
+        staffServiceIds.has(serviceId)
+      );
+    }
+
     return params.serviceIds.every((serviceId) => {
       const qualifiedStaffIds = staffIdsByService.get(serviceId);
       if (constrainedServiceIds.has(serviceId)) {
@@ -505,6 +554,7 @@ export async function getAvailableSlots(params: {
   serviceId: string;
   staffId?:  string;
   date:      string;
+  requireStaffServiceAssignment?: boolean;
 }): Promise<AvailabilitySlot[]> {
   const today = getBranchBusinessDate();
   if (params.date < today) return [];
@@ -558,6 +608,7 @@ export async function getAvailableSlots(params: {
     serviceIds:   [params.serviceId],
     slots,
     serviceTimings,
+    requireExplicitServiceAssignment: params.requireStaffServiceAssignment,
   });
 
   return filterPastSlotsForDate({
@@ -618,12 +669,18 @@ export async function getAvailableSlotsMulti(params: {
   branchId:   string;
   serviceIds: string[];
   date:       string;
+  requireStaffServiceAssignment?: boolean;
 }): Promise<AvailabilitySlot[]> {
   const { branchId, serviceIds, date } = params;
 
   if (serviceIds.length === 0) return [];
   if (serviceIds.length === 1) {
-    return getAvailableSlots({ branchId, serviceId: serviceIds[0]!, date });
+    return getAvailableSlots({
+      branchId,
+      serviceId: serviceIds[0]!,
+      date,
+      requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+    });
   }
 
   const supabase = createAdminClient();
@@ -634,7 +691,12 @@ export async function getAvailableSlotsMulti(params: {
   if (totalMinutes <= 0) return [];
 
   // 2. Get base slots using first service (provides correct slot intervals)
-  const baseSlots = await getAvailableSlots({ branchId, serviceId: serviceIds[0]!, date });
+  const baseSlots = await getAvailableSlots({
+    branchId,
+    serviceId: serviceIds[0]!,
+    date,
+    requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+  });
   if (baseSlots.length === 0) return [];
 
   // 3. Fetch existing bookings for the day to validate full combined window
@@ -684,6 +746,7 @@ export async function getAvailableSlotsMulti(params: {
     serviceIds,
     slots: workingSlots,
     serviceTimings,
+    requireExplicitServiceAssignment: params.requireStaffServiceAssignment,
   });
 
   // Belt-and-suspenders: ensure same-day past slots are never returned even if
@@ -696,6 +759,34 @@ export async function getAvailableSlotsMulti(params: {
   });
 }
 
+async function getActiveCheckinQueue(params: {
+  branchId: string;
+  date: string;
+  staffIds: string[];
+}): Promise<Map<string, number>> {
+  if (params.staffIds.length === 0) return new Map();
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("staff_shift_checkins")
+    .select("staff_id, checked_in_at")
+    .eq("branch_id", params.branchId)
+    .eq("shift_date", params.date)
+    .eq("status", "checked_in")
+    .is("checked_out_at", null)
+    .in("staff_id", params.staffIds)
+    .order("checked_in_at", { ascending: true });
+
+  if (error) throw new Error(`Attendance queue lookup failed: ${error.message}`);
+
+  const queue = new Map<string, number>();
+  for (const row of (data ?? []) as ActiveCheckinQueueRow[]) {
+    if (!queue.has(row.staff_id)) queue.set(row.staff_id, queue.size + 1);
+  }
+
+  return queue;
+}
+
 /**
  * Multi-service variant of assignTherapistBySeniority.
  * Finds available therapists for the combined duration and assigns by tier priority.
@@ -706,10 +797,23 @@ export async function assignTherapistBySeniorityMulti(params: {
   date:       string;
   startTime:  string;
 }): Promise<string> {
+  const assignment = await assignTherapistBySeniorityMultiDetailed(params);
+  return assignment.staffId;
+}
+
+export async function assignTherapistBySeniorityMultiDetailed(params: {
+  branchId:        string;
+  serviceIds:      string[];
+  date:            string;
+  startTime:       string;
+  preferCheckedIn?: boolean;
+  requireStaffServiceAssignment?: boolean;
+}): Promise<{ staffId: string; warning?: string }> {
   const slots = await getAvailableSlotsMulti({
     branchId:   params.branchId,
     serviceIds: params.serviceIds,
     date:       params.date,
+    requireStaffServiceAssignment: params.requireStaffServiceAssignment,
   });
 
   const candidates = slots.filter(
@@ -721,14 +825,70 @@ export async function assignTherapistBySeniorityMulti(params: {
   if (candidates.length === 0) throw new SlotUnavailableError();
 
   const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
+
+  const checkedInQueue = params.preferCheckedIn
+    ? await getActiveCheckinQueue({
+        branchId: params.branchId,
+        date: params.date,
+        staffIds: Array.from(new Set(candidates.map((slot) => slot.staff_id))),
+      })
+    : new Map<string, number>();
+
   candidates.sort((a, b) => {
+    if (checkedInQueue.size > 0) {
+      const aQueuePosition = checkedInQueue.get(a.staff_id);
+      const bQueuePosition = checkedInQueue.get(b.staff_id);
+      if (aQueuePosition !== undefined && bQueuePosition !== undefined) {
+        return aQueuePosition - bQueuePosition;
+      }
+      if (aQueuePosition !== undefined) return -1;
+      if (bQueuePosition !== undefined) return 1;
+    }
+
     const tierDiff =
       (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
     if (tierDiff !== 0) return tierDiff;
     return a.staff_name.localeCompare(b.staff_name);
   });
 
-  return candidates[0]!.staff_id;
+  return {
+    staffId: candidates[0]!.staff_id,
+    warning:
+      params.preferCheckedIn && checkedInQueue.size === 0
+        ? NO_CHECKED_IN_STAFF_WARNING
+    : undefined,
+  };
+}
+
+export async function getScheduledAvailabilityFallbackWarning(params: {
+  branchId:   string;
+  serviceIds: string[];
+  date:       string;
+  startTime:  string;
+  requireStaffServiceAssignment?: boolean;
+}): Promise<string | undefined> {
+  const slots = await getAvailableSlotsMulti({
+    branchId:   params.branchId,
+    serviceIds: params.serviceIds,
+    date:       params.date,
+    requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+  });
+
+  const candidates = slots.filter(
+    (s) =>
+      s.available &&
+      s.slot_time.startsWith(params.startTime.substring(0, 5))
+  );
+
+  if (candidates.length === 0) return undefined;
+
+  const checkedInQueue = await getActiveCheckinQueue({
+    branchId: params.branchId,
+    date: params.date,
+    staffIds: Array.from(new Set(candidates.map((slot) => slot.staff_id))),
+  });
+
+  return checkedInQueue.size === 0 ? NO_CHECKED_IN_STAFF_WARNING : undefined;
 }
 
 /**
