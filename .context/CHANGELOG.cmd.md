@@ -5791,3 +5791,77 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Notes:**
 - Temporary Codex QA auth/staff/device rows created during diagnosis were removed after verification.
 - Existing untracked local artifacts remain intentionally untouched: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.
+
+---
+
+## 2026-07-09 - Codex (BOOKING-ATTENDANCE-BRANCH-SAFETY-001)
+
+**Task:** Separate booking schedule availability from attendance readiness, add same-day walk-in fallback warnings, and fix Attendance QR wrong-branch validation when `staff_devices.branch_id` is stale.
+
+**Files Added:**
+- `src/lib/attendance/branch-validation.ts` - pure QR/staff/device branch decision helper.
+- `tests/lib/attendance/branch-validation.test.ts` - stale-device and wrong-branch branch decision coverage.
+- `tests/lib/assignments/recommendation-engine.test.ts` - walk-in fallback and phone/future/home-service attendance-scoping coverage.
+- `supabase/migrations/20260709054954_attendance_device_branch_sync.sql` - active device branch sync trigger plus one-time repair.
+
+**Files Changed:**
+- `src/lib/engine/availability.ts` - added detailed therapist assignment with optional checked-in preference and scheduled fallback warning.
+- `src/lib/actions/inhouse-booking.ts` - uses checked-in preference only for same-day walk-ins and returns fallback warning to the UI.
+- `src/components/features/bookings/quick-booking-form.tsx` - surfaces the fallback warning in the booking success toast.
+- `src/lib/assignments/recommendation-engine.ts` - check-in scoring now applies only to walk-in bookings happening today.
+- `src/lib/queries/assignment-recommendations.ts` - carries CRM booking mode from booking metadata into recommendation context.
+- `src/lib/attendance/scan-engine.ts` - QR branch checks now use scanned QR branch + current staff branch as source of truth and sync stale device branch ids.
+- `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md`, `.context/DECISIONS.cmd.md` - updated task records.
+
+**Behavior:**
+- Future, phone, and home-service booking recommendations are schedule/conflict/service-capability based and no longer warn or penalize for not being checked in.
+- Same-day walk-in auto-assignment prefers checked-in eligible therapists by attendance queue. If no eligible checked-in therapist exists, scheduled availability is used and the operator sees: `No staff has checked in yet. Showing scheduled availability. Confirm staff presence before starting service.`
+- Manual same-day walk-in booking also returns the same warning when the selected scheduled slot is available but no eligible checked-in therapist exists for that time.
+- QR scans no longer let stale `staff_devices.branch_id` override the scanned QR branch. If current staff branch matches the scanned QR branch, the device branch is repaired and the scan continues.
+- Wrong-branch blocks remain correct when the current staff record belongs to another branch.
+
+**Database:**
+- Applied migration `20260709054954_attendance_device_branch_sync` through linked `supabase db query --file` because both wrapper and direct `db push` timed out before SQL execution.
+- Recorded the migration row manually in `supabase_migrations.schema_migrations`.
+- Live verification: migration row present, trigger `trg_staff_branch_sync_devices` present, active device/staff branch mismatch count is `0`.
+
+**Verification:**
+- `pnpm test --run tests/lib/attendance/branch-validation.test.ts tests/lib/assignments/recommendation-engine.test.ts`: PASS, 8 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 106 routes.
+
+---
+
+## 2026-07-09 - Staff Onboarding Branch Safety (STAFF-ONBOARDING-BRANCH-SAFETY-001)
+
+**Task:** Harden the staff onboarding and approval flow so applicants cannot register under the wrong branch and approvers cannot silently assign them to a different branch.
+
+**Files Changed:**
+- `src/app/staff-onboarding/onboarding-form.tsx` — required branch selection/confirmation, branch cards, review branch display, password reminder, updated success copy.
+- `src/app/staff-onboarding/actions.ts` — removed first-branch fallback, added branch validation, duplicate checks, branch confirmation metadata, approval branch-change metadata.
+- `src/components/features/staff-onboarding/onboarding-review-list.tsx` — default approval branch from `requested_branch_id`, CRM branch selector lock, branch-change warning.
+- `src/lib/staff/onboarding-validation.ts` — new pure helpers for branch validation, metadata building, and duplicate evaluation.
+- `tests/lib/staff/onboarding-branch-validation.test.ts` — new.
+- `tests/lib/staff/onboarding-duplicate-check.test.ts` — new.
+- `tests/lib/staff/approval-branch-safety.test.ts` — new.
+- `tests/components/staff-onboarding/onboarding-review-branch.test.tsx` — new.
+
+**Behavior:**
+- Applicants must select an active branch and confirm it; "No preference" is removed.
+- Single-branch setups auto-select the branch but still show it to the applicant.
+- Multi-branch setups show branch cards for the active branches.
+- Review step displays the selected branch name.
+- Server rejects missing or inactive branches and never falls back to the first branch.
+- `staff.branch_id` and `staff_onboarding_requests.requested_branch_id` are kept in sync on submission and approval.
+- Duplicate checks block submissions when the email exists in `auth.users` or submitted onboarding requests, or when the phone exists in active staff or submitted requests (including full-name + phone matches).
+- CRM/CSR cannot approve into another branch; owner/manager branch changes are allowed but warned and recorded in request metadata.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS
+- `pnpm build`: PASS, 107 routes
+- `pnpm test --run`: PASS, 73 files / 623 tests
+
+**Follow-up:**
+- Authenticated browser QA of the onboarding form and CRM staff applications review list is still needed.

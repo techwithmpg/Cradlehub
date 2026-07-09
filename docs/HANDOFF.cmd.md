@@ -10,12 +10,12 @@
 
 | Field              | Value                                                      |
 |--------------------|------------------------------------------------------------|
-| **Agent**          | Codex                                                     |
-| **Date**           | 2026-07-03                                                |
-| **Tasks Completed**| Attendance Device Registry and Recovery Center backend/UI completed and live DB verified |
-| **Tasks Remaining**| Authenticated Devices tab QA, real phone recovery scan QA, DB password rotation, and migration-history connectivity repair |
-| **Build Status**   | `pnpm db:types`, type-check, lint, full tests, build, and diff check passed |
-| **Mood**           | The registry has a real spine now; the last mile is authenticated field testing |
+| **Agent**          | Kimi Code CLI |
+| **Date**           | 2026-07-09 |
+| **Tasks Completed**| Staff onboarding branch-safety hardening completed and locally verified |
+| **Tasks Remaining**| Authenticated browser QA of `/staff-onboarding` and the CRM staff applications review list |
+| **Build Status**   | `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm test --run` all passed |
+| **Mood**           | Branch selection is now explicit and auditable; onboarding should no longer silently assign the wrong branch |
 
 ---
 

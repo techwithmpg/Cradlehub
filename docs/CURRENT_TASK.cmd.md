@@ -10,13 +10,13 @@
 
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
-| **Task ID**      | `DATABASE-CONNECTION-STABILIZATION-001` |
-| **Description**  | Reset and establish a secure reusable Supabase migration, SQL, and type-generation workflow |
-| **Agent**        | Codex                                           |
-| **Started**      | 2026-07-03                                      |
-| **Status**       | `IDLE`                                      |
-| **Branch**       | `main`                                          |
-| **Blocked By**   | No active task; latest Attendance device registry work is complete, but DB password rotation and migration-history connectivity remain external follow-ups |
+| **Task ID**      | `STAFF-ONBOARDING-BRANCH-SAFETY-001` |
+| **Description**  | Harden staff onboarding/registration so applicants cannot register under the wrong branch and approvers cannot silently change the branch |
+| **Agent**        | Kimi Code CLI |
+| **Started**      | 2026-07-08 |
+| **Status**       | `COMPLETED` |
+| **Branch**       | `main` |
+| **Blocked By**   | Authenticated browser QA pending; no code blockers |
 
 ---
 

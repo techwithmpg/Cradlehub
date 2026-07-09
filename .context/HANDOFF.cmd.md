@@ -1,5 +1,50 @@
 # HANDOFF - Next Agent Session
 
+## Current Task - 2026-07-09
+
+STAFF-ONBOARDING-BRANCH-SAFETY-001 is implemented and locally verified.
+
+- Staff onboarding now requires an explicit active branch selection and confirmation.
+- The server action rejects missing/inactive branches and runs duplicate checks before creating auth/staff records.
+- CRM/CSR cannot approve into a different branch; owners/managers can change branches with metadata audit.
+- Tests cover branch validation, duplicate detection, approval branch scoping, and review UI branch display.
+- Verification: `pnpm type-check`, `pnpm lint`, `pnpm build`, and `pnpm test --run` all pass.
+
+Next steps: authenticated browser QA of `/staff-onboarding` and the CRM staff applications review list.
+
+---
+
+## Previous Task - 2026-07-09
+
+BOOKING-ATTENDANCE-BRANCH-SAFETY-001 is implemented, live DB verified, and locally built.
+
+## Latest Booking / Attendance Branch Safety Checkpoint
+
+- Safe diagnostics were run first against branches, attendance QR points, recent wrong-branch scan events, staff/device branch relationships, staff schedules, and today check-ins.
+- Current live attendance QR data has one Main Spa attendance QR (`att_TfTw_tTF9HzJoyPuVloxwKsF`). Recent wrong-branch rows showed QR/event branch as Main and involved staff records currently assigned to Living SM; no active stale `staff_devices.branch_id` mismatches were present before the migration.
+- Booking scheduled availability remains the source for future, phone, and home-service bookings.
+- Same-day walk-in auto-assignment now prefers checked-in eligible therapists. If none are checked in, it falls back to scheduled availability and returns the warning: `No staff has checked in yet. Showing scheduled availability. Confirm staff presence before starting service.`
+- Recommendation scoring now carries `bookingMode` from booking metadata and applies attendance scoring only to walk-ins happening today.
+- QR returning scans now validate current staff branch against the scanned QR branch and repair stale device branch ids when the current staff branch matches the scanned QR branch.
+- QR first-scan registration now checks authenticated staff/device ownership before branch validation and repairs stale existing-device branch ids when safe.
+- Added migration `supabase/migrations/20260709054954_attendance_device_branch_sync.sql`. `pnpm db:push` and direct `supabase db push` timed out to the Supabase Postgres pooler before SQL execution, so the migration was applied via linked `supabase db query --file` and recorded in `supabase_migrations.schema_migrations`.
+- Live DB verification found migration row `20260709054954`, trigger `trg_staff_branch_sync_devices`, and `0` active device/staff branch mismatches.
+
+## Latest Verification
+
+- `pnpm test --run tests/lib/attendance/branch-validation.test.ts tests/lib/assignments/recommendation-engine.test.ts`: PASS, 8 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 106 routes.
+
+## Still Open
+
+- If Main QR scanners are expected to accept the staff currently stored under Living SM, update those staff branch assignments or add an explicit cross-branch membership model; the code correctly blocks true branch mismatches.
+- `pnpm db:push` remains unreliable from this environment even though linked `db query` works.
+- Rotate the previously exposed Supabase DB password outside this repo/session if it has not already been rotated.
+
+---
+
 ## Current Task - 2026-07-04
 
 ATTENDANCE-FIRST-SCAN-LOGIN-008 is implemented, locally built, and verified against the live Supabase attendance tables.

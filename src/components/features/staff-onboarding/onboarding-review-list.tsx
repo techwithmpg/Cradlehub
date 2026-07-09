@@ -5,7 +5,8 @@ import { approveOnboardingAction, rejectOnboardingAction } from "@/app/staff-onb
 import { canApproveStaffOnboarding } from "@/lib/staff/approval-permissions";
 import { getOnboardingRoleLabel } from "@/lib/staff/onboarding-roles";
 import { isTherapistRole } from "@/lib/staff/profile-completeness";
-import { ROLE_LABELS } from "@/lib/permissions";
+import { ROLE_LABELS, isOwner, isManager } from "@/lib/permissions";
+import { canonicalizeSystemRole } from "@/constants/staff";
 import { InlineWorkflowTaskCard } from "@/components/features/notifications/inline-workflow-task-card";
 import type { Database } from "@/types/supabase";
 import type { WorkflowTask } from "@/lib/notifications/types";
@@ -30,7 +31,7 @@ function readRequestNickname(metadata: OnboardingRequest["metadata"]): string | 
   return typeof nickname === "string" && nickname.trim().length > 0 ? nickname.trim() : null;
 }
 
-function RequestCard({
+export function RequestCard({
   request,
   branches,
   reviewerSystemRole,
@@ -61,11 +62,17 @@ function RequestCard({
     label: ROLE_LABELS[r] ?? r 
   }));
 
-  const defaultBranchId = request.requested_branch_id ?? reviewerBranchId ?? branches[0]?.id ?? "";
+  const defaultBranchId = request.requested_branch_id ?? "";
   const isApplicantTherapist = isTherapistRole(request.preferred_role ?? "");
   const nickname = readRequestNickname(request.metadata);
 
-  const [selectedBranchId, setSelectedBranchId] = useState(defaultBranchId);
+  const canonicalReviewerRole = canonicalizeSystemRole(reviewerSystemRole);
+  const canChangeApprovalBranch = isOwner(canonicalReviewerRole) || isManager(canonicalReviewerRole);
+
+  const [selectedBranchId, setSelectedBranchId] = useState(defaultBranchId || branches[0]?.id || "");
+  const selectedBranchName = branches.find((b) => b.id === selectedBranchId)?.name ?? "—";
+  const requestedBranchName = branches.find((b) => b.id === request.requested_branch_id)?.name ?? request.requested_branch_id ?? "—";
+  const branchChanged = selectedBranchId !== request.requested_branch_id;
   
   // Smart default role assignment
   const initialRole = () => {
@@ -257,17 +264,31 @@ function RequestCard({
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", opacity: canApprove ? 1 : 0.5, pointerEvents: canApprove ? "auto" : "none" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                  <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>Branch</label>
+                  <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                    Branch {branchChanged && canChangeApprovalBranch && (
+                      <span style={{ color: "var(--cs-error)", fontWeight: 600 }}>(changed)</span>
+                    )}
+                  </label>
                   <select
                     value={selectedBranchId}
                     onChange={(e) => setSelectedBranchId(e.target.value)}
                     title="Assign branch"
-                    style={selectStyle}
+                    disabled={!canChangeApprovalBranch}
+                    style={{
+                      ...selectStyle,
+                      opacity: canChangeApprovalBranch ? 1 : 0.7,
+                      cursor: canChangeApprovalBranch ? "pointer" : "not-allowed",
+                    }}
                   >
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
+                  {!canChangeApprovalBranch && (
+                    <span style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                      Only owners and managers can change the requested branch.
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                   <label style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>Role</label>
@@ -303,6 +324,12 @@ function RequestCard({
                   )}
                 </div>
               </div>
+
+              {branchChanged && canChangeApprovalBranch && (
+                <div style={{ padding: "0.625rem 0.75rem", backgroundColor: "#FEF2F2", border: "1px solid #FEE2E2", borderRadius: 6, fontSize: "0.8125rem", color: "#991B1B" }}>
+                  <strong>Branch change:</strong> approving into <em>{selectedBranchName}</em> instead of the requested <em>{requestedBranchName}</em>.
+                </div>
+              )}
 
               {approveError && <p style={{ fontSize: "0.8125rem", color: "#DC2626", margin: 0 }}>{approveError}</p>}
 

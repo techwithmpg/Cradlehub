@@ -1,4 +1,143 @@
-# Current Task - ATTENDANCE-DEVICE-REGISTRY-005
+# Current Task - STAFF-ONBOARDING-BRANCH-SAFETY-001
+
+Status: COMPLETED
+Started: 2026-07-08
+Last updated: 2026-07-09
+
+## Description
+
+Harden the staff onboarding/registration flow so applicants cannot register under the wrong branch and approvers cannot silently move them to a different branch.
+
+## Completed
+
+- Branch selection is now required; the "No preference" option was removed.
+- Single-branch setups auto-select and clearly display the only active branch.
+- Multi-branch setups show selectable branch cards for the two active branches.
+- Added a required confirmation checkbox: "I confirm this is the branch where I normally work."
+- The Review step now shows the selected branch name.
+- Backend no longer falls back to the first branch; missing/inactive branches are rejected.
+- Branch confirmation metadata is stored in `staff_onboarding_requests.metadata`.
+- `staff.branch_id` and `staff_onboarding_requests.requested_branch_id` are kept identical on submission and approval.
+- Duplicate checks run before auth/staff creation for email (auth.users + submitted requests) and phone (active staff + submitted requests), including full-name + phone duplicates.
+- Staff-friendly error messages added for duplicate email/phone and missing branch.
+- CRM/CSR reviewers cannot change the approval branch; the branch selector is disabled for them.
+- Owner/manager branch changes are allowed but clearly warned and recorded in metadata.
+- Added password-save reminder and updated success copy.
+
+## Files Changed
+
+- `src/app/staff-onboarding/onboarding-form.tsx`
+- `src/app/staff-onboarding/actions.ts`
+- `src/components/features/staff-onboarding/onboarding-review-list.tsx`
+- `src/lib/staff/onboarding-validation.ts` (new)
+- `tests/lib/staff/onboarding-branch-validation.test.ts` (new)
+- `tests/lib/staff/onboarding-duplicate-check.test.ts` (new)
+- `tests/lib/staff/approval-branch-safety.test.ts` (new)
+- `tests/components/staff-onboarding/onboarding-review-branch.test.tsx` (new)
+
+## Verification
+
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS
+- `pnpm build`: PASS, 107 routes
+- `pnpm test --run`: PASS, 73 files / 623 tests
+
+## Notes
+
+- No database migration was required; changes use existing `staff_onboarding_requests.metadata` (JSONB) and the existing `requested_branch_id` column.
+- Authenticated browser QA of the onboarding form and CRM review list still needs a real session.
+
+---
+
+# Previous Task - BRANCH-CORRECTION-REQUESTS-001
+
+Status: IN_PROGRESS
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Build Branch Correction Requests for QR Attendance wrong-branch recovery.
+
+The new flow must let a staff member who is blocked by a real scanned-QR/staff-branch mismatch request correction to the scanned branch without changing their own branch directly. CRM users for the requested/scanned branch can review the request from Staff Management, approve or reject it, and approval updates `staff.branch_id` while preserving normal branch-limited Staff Management browsing.
+
+## Pre-flight Notes
+
+- Required prompt read from the current user message and attached pasted text references.
+- Read `.context/CHANGELOG.cmd.md`, `.context/CURRENT_TASK.cmd.md`, `.context/DECISIONS.cmd.md`, `.context/ERRORS.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/ROADMAP.md`, `docs/PROJECT_CONTEXT.md`, and `docs/AGENT_RULES.md`.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; documented equivalents under `docs/` are being used.
+- Supabase and Supabase Postgres best-practice skill guidance read. Supabase changelog checked on 2026-07-09; relevant current note is that new public tables may not be exposed to the Data API automatically, so the new table must be RLS-protected and access must be intentionally granted/mediated.
+- Local Next.js 16 docs under `node_modules/next/dist/docs/` were consulted for Server Actions, Route Handlers, authentication, and data security before code edits. Server Actions are treated as public POST endpoints and must re-auth/re-authorize internally.
+
+## Initial Plan
+
+1. Inspect Attendance QR scan result/action/UI code and CRM Staff Management data/action/UI code.
+2. Add a new migration for `staff_branch_change_requests` with RLS, status constraints, FK indexes, and a safe atomic review RPC if needed.
+3. Add server-only branch correction query/mutation helpers and thin Server Actions with explicit auth and branch-scope authorization.
+4. Add wrong-branch request UI to the public scan recovery screen and a branch correction inbox to CRM Staff Management.
+5. Add focused tests for permission/request helper behavior.
+6. Run `pnpm type-check`, `pnpm lint`, and `pnpm build`; update context/handoff/changelog and document any errors.
+
+---
+
+# Current Task - BOOKING-ATTENDANCE-BRANCH-SAFETY-001
+
+Status: COMPLETED_DB_VERIFIED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Fix the CRM Quick Booking availability/recommendation behavior so future, phone, and home-service bookings use scheduled availability instead of requiring checked-in staff, while walk-in-today falls back to scheduled staff with a warning when no eligible staff has checked in.
+
+Fix Attendance QR branch validation so the scanned QR point branch is the source of truth, stale `staff_devices.branch_id` values do not create false wrong-branch blocks, first-scan login/register sets the cookie expected by the scan engine, and returning scans validate the current staff profile against the scanned branch using UUIDs.
+
+## Pre-flight Notes
+
+- Required prompt read from `C:\Users\eleur\.codex\attachments\7d57b7e4-c91e-426d-8e04-a7d45b07d3c2\pasted-text.txt`.
+- Read `.context/CHANGELOG.cmd.md`, `.context/CURRENT_TASK.cmd.md`, `.context/DECISIONS.cmd.md`, `.context/ERRORS.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/ROADMAP.md`, `docs/PROJECT_CONTEXT.md`, and `docs/AGENT_RULES.md`.
+- Root `PROJECT_CONTEXT.md`, `ROADMAP.md`, and `AGENT_RULES.md` are absent in this checkout; documented equivalents under `docs/` are being used.
+- Supabase and Supabase Postgres best-practice skill guidance read. Local Next.js 16 docs under `node_modules/next/dist/docs/` were consulted for Server Actions, Route Handlers, authentication, and data security before code edits.
+- Existing local edits were present before this task in `src/components/features/bookings/quick-booking-form.tsx`, `src/lib/actions/inhouse-booking.ts`, and `scripts/diagnose-attendance-qr.ts`; inspect and preserve them.
+
+## Initial Plan
+
+1. Run safe read-only diagnostics for branches, QR points/devices/staff relationships, and booking availability schema/code assumptions.
+2. Inspect the existing booking availability, recommendation, in-house booking, and quick-booking UI flow.
+3. Inspect the Attendance scan engine, public scan API/actions, device cookie helpers, first-scan login path, and current database constraints/indexes.
+4. Make the smallest code and migration changes that separate booking availability from attendance readiness and harden QR branch validation.
+5. Add focused tests for booking fallback/warnings and QR stale-device branch handling.
+6. Run `pnpm type-check`, `pnpm lint`, and `pnpm build`; update context/handoff/changelog with exact results.
+
+## Completion Checkpoint - 2026-07-09
+
+Completed:
+- Booking auto-assignment now prefers checked-in therapists only for same-day walk-ins. If no eligible checked-in therapist exists, it falls back to scheduled availability and returns the exact warning: `No staff has checked in yet. Showing scheduled availability. Confirm staff presence before starting service.`
+- Phone, future, and home-service booking recommendation paths now ignore attendance/check-in status and use schedule/conflict/service capability scoring only.
+- Quick Booking surfaces the fallback warning in the success toast while preserving scheduled-slot validation.
+- Attendance QR returning scans now validate the current staff branch against the scanned QR branch. A stale `staff_devices.branch_id` is repaired when the staff branch matches the scanned QR branch, instead of blocking as wrong branch.
+- Attendance QR first-scan registration now checks authenticated staff ownership before branch validation and repairs stale existing-device branch ids when safe.
+- Added migration `supabase/migrations/20260709054954_attendance_device_branch_sync.sql` with a staff-branch update trigger and one-time active-device repair.
+- Applied the migration SQL through linked Supabase `db query --file` because `db push` timed out before SQL execution; recorded migration version `20260709054954` in `supabase_migrations.schema_migrations`.
+
+Live DB verification:
+- Migration row `20260709054954 / attendance_device_branch_sync / codex`: present.
+- Trigger `trg_staff_branch_sync_devices` on `public.staff`: present.
+- Active `staff_devices` rows with branch mismatch vs current `staff.branch_id`: `0`.
+
+Verification:
+- `pnpm test --run tests/lib/attendance/branch-validation.test.ts tests/lib/assignments/recommendation-engine.test.ts`: PASS, 8 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 106 app routes.
+
+Notes:
+- Safe diagnostics showed the current live wrong-branch scan events for the Main Spa attendance QR involved staff records whose current `staff.branch_id` is Living SM. This patch prevents stale device branch rows from causing false blocks, but staff whose actual current branch is SM will still be blocked by the Main QR unless their staff branch/membership is corrected or cross-branch membership is added.
+- `pnpm db:push` and direct `supabase db push` still timed out to the Supabase Postgres pooler from this environment; linked `supabase db query` succeeded and was used for the migration fallback.
+
+---
+
+# Previous Task - ATTENDANCE-DEVICE-REGISTRY-005
 
 Status: COMPLETED_DB_VERIFIED
 Started: 2026-07-03

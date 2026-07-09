@@ -27,6 +27,7 @@ type WizardData = {
   password: string;
   confirmPassword: string;
   consent: boolean;
+  branchConfirmed: boolean;
 };
 
 const INITIAL_DATA: WizardData = {
@@ -37,6 +38,7 @@ const INITIAL_DATA: WizardData = {
   emergencyContactName: "", emergencyContactPhone: "", experienceNotes: "",
   password: "", confirmPassword: "",
   consent: false,
+  branchConfirmed: false,
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -348,24 +350,80 @@ function Step3Role({ data, onChange, branches, errors }: {
         <FieldError msg={errors.preferredRole} />
       </div>
 
-      {/* Branch selector — only show if multiple branches */}
-      {branches.length > 1 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-          <label htmlFor="branch" style={labelStyle}>Preferred branch</label>
-          <select
-            id="branch"
-            title="Preferred branch"
-            value={data.preferredBranchId}
-            onChange={(e) => onChange("preferredBranchId", e.target.value)}
-            style={selectStyle}
+      {/* Branch selection — always visible and required */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <span style={labelStyle}>Branch where you normally work *</span>
+        {branches.length === 1 ? (
+          <div
+            style={{
+              padding: "0.875rem 0.75rem",
+              borderRadius: 10,
+              border: "2px solid var(--cs-sand)",
+              backgroundColor: "rgba(180,148,111,0.08)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
           >
-            <option value="">No preference</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
+            <span style={{ fontSize: "1.25rem" }}>🏢</span>
+            <div>
+              <div style={{ fontWeight: 600, color: "var(--cs-text)", fontSize: "0.9375rem" }}>
+                {branches[0]!.name}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
+                Only active branch
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.625rem", marginTop: 2 }}>
+            {branches.map((b) => {
+              const selected = data.preferredBranchId === b.id;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => onChange("preferredBranchId", b.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.875rem 0.75rem",
+                    borderRadius: 10,
+                    border: `2px solid ${selected ? "var(--cs-sand)" : "var(--cs-border)"}`,
+                    backgroundColor: selected ? "rgba(180,148,111,0.08)" : "var(--cs-surface)",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ fontSize: "1.25rem" }}>🏢</span>
+                  <span style={{ fontSize: "0.9375rem", fontWeight: 600, color: selected ? "var(--cs-sand)" : "var(--cs-text)" }}>
+                    {b.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <FieldError msg={errors.preferredBranchId} />
+      </div>
+
+      {/* Branch confirmation */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+        <label
+          style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", cursor: "pointer", fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.55 }}
+        >
+          <input
+            type="checkbox"
+            checked={data.branchConfirmed}
+            onChange={(e) => onChange("branchConfirmed", e.target.checked)}
+            style={{ marginTop: 3, flexShrink: 0 }}
+          />
+          I confirm this is the branch where I normally work.
+        </label>
+        <FieldError msg={errors.branchConfirmed} />
+      </div>
     </div>
   );
 }
@@ -505,6 +563,9 @@ function Step5Account({ data, onChange, errors }: {
           </div>
         )}
         <FieldError msg={errors.password} />
+        <p style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", margin: "0.25rem 0 0", lineHeight: 1.5 }}>
+          Save your password somewhere safe. The front desk cannot see your password.
+        </p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
@@ -541,12 +602,13 @@ function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function Step6Review({ data, onChange, serverError, isPending, onSubmit }: {
+function Step6Review({ data, onChange, serverError, isPending, onSubmit, selectedBranchName }: {
   data: WizardData;
   onChange: (k: keyof WizardData, v: unknown) => void;
   serverError?: string;
   isPending: boolean;
   onSubmit: () => void;
+  selectedBranchName: string;
 }) {
   const roleLabel = getOnboardingRoleLabel(data.preferredRole);
   const serviceCount = data.serviceIds.length;
@@ -577,6 +639,7 @@ function Step6Review({ data, onChange, serverError, isPending, onSubmit }: {
         <ReviewRow label="Phone"                 value={data.phone} />
         <ReviewRow label="Address"               value={data.address} />
         <ReviewRow label="Preferred role"        value={roleLabel} />
+        <ReviewRow label="Branch"                value={selectedBranchName} />
         <ReviewRow label="Services selected"     value={serviceCount > 0 ? `${serviceCount} service(s)` : "None selected — manager will assign during review"} />
         <ReviewRow label="Emergency contact"     value={data.emergencyContactName} />
         <ReviewRow label="Emergency phone"       value={data.emergencyContactPhone} />
@@ -644,10 +707,6 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
 };
 
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-};
-
 const labelStyle: React.CSSProperties = {
   fontSize: "0.8125rem",
   fontWeight: 600,
@@ -672,11 +731,16 @@ const stepSubStyle: React.CSSProperties = {
 // ── Main wizard ────────────────────────────────────────────────────────────
 export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
   const [step, setStep] = useState(0);
-  const [data, setData] = useState<WizardData>(INITIAL_DATA);
+  const [data, setData] = useState<WizardData>(() => ({
+    ...INITIAL_DATA,
+    preferredBranchId: branches.length === 1 ? branches[0]!.id : "",
+  }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | undefined>();
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const selectedBranchName = branches.find((b) => b.id === data.preferredBranchId)?.name ?? "—";
 
   const update = useCallback((key: keyof WizardData, value: unknown) => {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -697,6 +761,8 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
     }
     if (step === 2) {
       if (!data.preferredRole) errs.preferredRole = "Please choose a role";
+      if (!data.preferredBranchId) errs.preferredBranchId = "Please select the branch where you normally work.";
+      if (!data.branchConfirmed) errs.branchConfirmed = "Please confirm this is the branch where you normally work.";
     }
     if (step === 4) {
       // Services step is optional — no validation required
@@ -730,6 +796,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
     fd.append("phone",                data.phone);
     fd.append("address",              data.address);
     fd.append("preferredBranchId",    data.preferredBranchId);
+    fd.append("branchConfirmed",      data.branchConfirmed ? "on" : "off");
     fd.append("preferredRole",        data.preferredRole);
     data.serviceIds.forEach((id) => fd.append("serviceIds", id));
     fd.append("emergencyContactName", data.emergencyContactName);
@@ -767,7 +834,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
           Application Submitted!
         </h2>
         <p style={{ fontSize: "0.9375rem", color: "var(--cs-text-muted)", lineHeight: 1.65, maxWidth: 380, margin: "0 auto 2rem" }}>
-          Great, {data.fullName.split(" ")[0]}! Your application is now pending review. A manager will activate your account — you&apos;ll be able to log in once approved.
+          Your profile has been submitted. Please wait for approval before logging in.
         </p>
         <a
           href="/login"
@@ -815,6 +882,7 @@ export function StaffOnboardingForm({ branches }: { branches: Branch[] }) {
             serverError={serverError}
             isPending={isPending}
             onSubmit={handleSubmit}
+            selectedBranchName={selectedBranchName}
           />
         )}
       </div>

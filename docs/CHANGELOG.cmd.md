@@ -241,3 +241,41 @@ the `authenticated` role.
 - `pnpm exec supabase --version` currently hits a Windows file-lock error after dependency restoration; retry after the lock clears before Supabase CLI work.
 
 ---
+
+---
+
+## 2026-07-09 - Staff Onboarding Branch Safety (STAFF-ONBOARDING-BRANCH-SAFETY-001)
+
+**Task:** Harden the staff onboarding and approval flow so applicants cannot register under the wrong branch and approvers cannot silently assign them to a different branch.
+
+**Files Changed:**
+- `src/app/staff-onboarding/onboarding-form.tsx`
+- `src/app/staff-onboarding/actions.ts`
+- `src/components/features/staff-onboarding/onboarding-review-list.tsx`
+- `src/lib/staff/onboarding-validation.ts` (new)
+- `tests/lib/staff/onboarding-branch-validation.test.ts` (new)
+- `tests/lib/staff/onboarding-duplicate-check.test.ts` (new)
+- `tests/lib/staff/approval-branch-safety.test.ts` (new)
+- `tests/components/staff-onboarding/onboarding-review-branch.test.tsx` (new)
+
+**Behavior:**
+- Branch selection is required; "No preference" removed.
+- Single-branch setups auto-select and display the branch.
+- Multi-branch setups show branch cards.
+- Added required branch confirmation checkbox.
+- Review step shows selected branch name.
+- Server rejects missing/inactive branches and no longer falls back to the first branch.
+- Branch confirmation metadata stored in `staff_onboarding_requests.metadata`.
+- `staff.branch_id` and `staff_onboarding_requests.requested_branch_id` kept in sync.
+- Duplicate checks for email (auth.users + submitted requests) and phone (active staff + submitted requests), including full-name + phone.
+- CRM/CSR cannot approve into another branch.
+- Owner/manager branch changes warned and recorded in metadata.
+
+**Verification:**
+- `pnpm type-check`: PASS
+- `pnpm lint`: PASS
+- `pnpm build`: PASS, 107 routes
+- `pnpm test --run`: PASS, 73 files / 623 tests
+
+**Follow-up:**
+- Authenticated browser QA of onboarding form and CRM review list.
