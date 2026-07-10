@@ -6,8 +6,8 @@ import { StaffAvatar, formatAttendanceDateTime } from "@/components/features/att
 import { formatDeviceReason } from "@/lib/attendance/device-display";
 import type { PendingDeviceRecoveryLink } from "@/lib/attendance/types";
 
-function expiresIn(expiresAt: string): string {
-  const ms = new Date(expiresAt).getTime() - Date.now();
+function expiresIn(expiresAt: string, nowMs: number): string {
+  const ms = new Date(expiresAt).getTime() - nowMs;
   if (!Number.isFinite(ms) || ms <= 0) return "Expired";
   const minutes = Math.ceil(ms / 60000);
   return minutes < 60 ? `${minutes}m` : `${Math.ceil(minutes / 60)}h`;
@@ -15,10 +15,12 @@ function expiresIn(expiresAt: string): string {
 
 export function PendingRecoveryLinks({
   links,
+  nowMs,
   onRevoke,
   onReplace,
 }: {
   links: PendingDeviceRecoveryLink[];
+  nowMs: number;
   onRevoke: (link: PendingDeviceRecoveryLink) => void;
   onReplace: (link: PendingDeviceRecoveryLink) => void;
 }) {
@@ -54,7 +56,7 @@ export function PendingRecoveryLinks({
                   </td>
                   <td className="px-4 py-3">{link.branchName}</td>
                   <td className="px-4 py-3 capitalize">{formatDeviceReason(link.reason)}</td>
-                  <td className="px-4 py-3 font-semibold text-amber-700">{expiresIn(link.expiresAt)}</td>
+                  <td className="px-4 py-3 font-semibold text-amber-700">{expiresIn(link.expiresAt, nowMs)}</td>
                   <td className="px-4 py-3">{formatAttendanceDateTime(link.expiresAt)}</td>
                   <td className="px-4 py-3">{formatAttendanceDateTime(link.createdAt)}</td>
                   <td className="px-4 py-3">

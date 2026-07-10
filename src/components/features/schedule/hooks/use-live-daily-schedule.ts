@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import type { SchedulingRules } from "@/lib/scheduling/types";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";
 
@@ -23,6 +24,7 @@ export type DailyScheduleApiResponse = {
   branchResources: ResourceRow[];
   stats: ScheduleStats;
   readiness: ReadinessResult | null;
+  schedulingRules: SchedulingRules | null;
 };
 
 export class DailyScheduleFetchError extends Error {

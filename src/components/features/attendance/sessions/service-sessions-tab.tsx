@@ -8,14 +8,14 @@ import { EmptyState, Panel, RemainingProgress, StaffAvatar, StatusPill, formatAt
 import { completeDueServiceSessionsAction, type AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
 import type { AttendanceRecord, AttendanceSession, AttendanceWorkspaceData } from "@/lib/attendance/types";
 
-function remainingMinutes(dueAt: string | null): number {
+function remainingMinutes(dueAt: string | null, nowMs: number): number {
   if (!dueAt) return 0;
-  return Math.round((new Date(dueAt).getTime() - Date.now()) / 60000);
+  return Math.round((new Date(dueAt).getTime() - nowMs) / 60000);
 }
 
-function sessionState(session: AttendanceSession): string {
+function sessionState(session: AttendanceSession, nowMs: number): string {
   if (session.booking_progress_status !== "session_started") return session.booking_progress_status;
-  const remaining = remainingMinutes(session.session_due_at);
+  const remaining = remainingMinutes(session.session_due_at, nowMs);
   if (remaining < 0) return "overdue";
   if (remaining <= 10) return "ending_soon";
   return "active";
@@ -40,15 +40,17 @@ function displayRole(record: AttendanceRecord): string {
   return record.staff_type ?? record.system_role ?? "staff";
 }
 
-function workedMinutesSince(checkedInAt: string): number {
-  return Math.max(0, Math.round((Date.now() - new Date(checkedInAt).getTime()) / 60000));
+function workedMinutesSince(checkedInAt: string, nowMs: number): number {
+  return Math.max(0, Math.round((nowMs - new Date(checkedInAt).getTime()) / 60000));
 }
 
 export function ServiceSessionsTab({
   data,
+  nowMs,
   onActionResult,
 }: {
   data: AttendanceWorkspaceData;
+  nowMs: number;
   onActionResult: (result: AttendanceActionResult) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -115,7 +117,7 @@ export function ServiceSessionsTab({
                         </div>
                       </td>
                       <td className="px-3 py-3">{formatAttendanceDateTime(record.checked_in_at)}</td>
-                      <td className="px-3 py-3">{formatMinutesCompact(workedMinutesSince(record.checked_in_at))}</td>
+                      <td className="px-3 py-3">{formatMinutesCompact(workedMinutesSince(record.checked_in_at, nowMs))}</td>
                       <td className="px-3 py-3 capitalize">{record.shift_type}</td>
                       <td className="px-3 py-3"><StatusPill value={availability} /></td>
                       <td className="px-3 py-3"><StatusPill value={record.attendance_status} /></td>
@@ -193,8 +195,8 @@ export function ServiceSessionsTab({
                     <td className="px-3 py-3">{formatAttendanceDateTime(session.session_started_at)}</td>
                     <td className="px-3 py-3">{formatAttendanceDateTime(session.session_due_at)}</td>
                     <td className="px-3 py-3">{formatAttendanceDateTime(session.session_completed_at)}</td>
-                    <td className="px-3 py-3"><RemainingProgress remainingMinutes={remainingMinutes(session.session_due_at)} totalMinutes={session.duration_minutes ?? 60} /></td>
-                    <td className="px-3 py-3"><StatusPill value={sessionState(session)} /></td>
+                    <td className="px-3 py-3"><RemainingProgress remainingMinutes={remainingMinutes(session.session_due_at, nowMs)} totalMinutes={session.duration_minutes ?? 60} /></td>
+                    <td className="px-3 py-3"><StatusPill value={sessionState(session, nowMs)} /></td>
                     <td className="px-3 py-3"><Button type="button" variant="outline" size="sm" onClick={() => setSelectedSession(session)}>Open Countdown</Button></td>
                   </tr>
                 ))}
@@ -212,10 +214,10 @@ export function ServiceSessionsTab({
           </DialogHeader>
           {selectedSession ? (
             <div className="grid gap-3 text-sm">
-              <StatusPill value={sessionState(selectedSession)} />
+              <StatusPill value={sessionState(selectedSession, nowMs)} />
               <div>{selectedSession.service_name} · {selectedSession.staff_name}</div>
               <div className="text-muted-foreground">{selectedSession.resource_name ?? "No room assigned"}</div>
-              <RemainingProgress remainingMinutes={remainingMinutes(selectedSession.session_due_at)} totalMinutes={selectedSession.duration_minutes ?? 60} />
+              <RemainingProgress remainingMinutes={remainingMinutes(selectedSession.session_due_at, nowMs)} totalMinutes={selectedSession.duration_minutes ?? 60} />
             </div>
           ) : null}
           <DialogFooter showCloseButton />

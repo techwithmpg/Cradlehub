@@ -1,0 +1,191 @@
+import { describe, expect, it } from "vitest";
+import {
+  resolveAttendanceDayForShift,
+  resolveAttendanceScanIntent,
+  type ResolveAttendanceScanIntentInput,
+} from "@/lib/attendance/attendance-intent-engine";
+import type { AttendanceSettings } from "@/lib/attendance/types";
+import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
+
+const settings: AttendanceSettings = {
+  branch_id: "branch-1",
+  duplicate_scan_window_seconds: 90,
+  clock_in_early_grace_minutes: 15,
+  clock_in_late_grace_minutes: 5,
+  clock_out_early_grace_minutes: 5,
+  clock_out_late_grace_minutes: 15,
+  overnight_shift_cutoff_time: "06:00:00",
+  active_service_blocks_clock_out: true,
+  require_registered_device_for_attendance: false,
+  timezone: "Asia/Manila",
+  attendance_day_boundary: "06:00:00",
+  early_clock_in_allowed_minutes: 30,
+  late_grace_minutes: 10,
+  clock_in_window_before_shift_minutes: 30,
+  clock_in_window_after_shift_start_minutes: 120,
+  clock_out_window_before_shift_end_minutes: 120,
+  clock_out_window_after_shift_end_minutes: 120,
+  early_leave_threshold_minutes: 5,
+  overtime_threshold_minutes: 15,
+  duplicate_scan_debounce_minutes: 3,
+  first_scan_closing_behavior: "flag_for_recovery",
+  missing_schedule_behavior: "flag_for_recovery",
+  off_day_scan_behavior: "flag_for_recovery",
+  ambiguous_scan_behavior: "flag_for_recovery",
+  launch_recovery_enabled: false,
+  launch_recovery_start_date: null,
+  launch_recovery_end_date: null,
+  launch_recovery_closing_start_time: "20:30:00",
+  launch_recovery_closing_end_time: "23:59:00",
+  launch_recovery_reason: null,
+  updated_by: null,
+};
+
+const normalSchedule: ResolvedStaffSchedule = {
+  source: "individual",
+  isWorking: true,
+  isDayOff: false,
+  windows: [{ shiftType: "single", startTime: "09:00:00", endTime: "18:00:00" }],
+};
+
+function input(overrides: Partial<ResolveAttendanceScanIntentInput> = {}): ResolveAttendanceScanIntentInput {
+  return {
+    scanIso: "2026-07-10T01:05:00.000Z",
+    scanDate: "2026-07-10",
+    scanTime: "09:05:00",
+    settings,
+    schedule: normalSchedule,
+    ...overrides,
+  };
+}
+
+describe("resolveAttendanceScanIntent", () => {
+  it("classifies a normal scan near shift start as clock-in", () => {
+    const intent = resolveAttendanceScanIntent(input());
+    expect(intent.type).toBe("clock_in");
+    expect(intent.shouldWriteAttendance).toBe(true);
+    expect(intent.requiresRecovery).toBe(false);
+  });
+
+  it("classifies a late scan inside the clock-in window as late clock-in", () => {
+    const intent = resolveAttendanceScanIntent(input({ scanTime: "09:30:00" }));
+    expect(intent.type).toBe("late_clock_in");
+    expect(intent.shouldWriteAttendance).toBe(true);
+  });
+
+  it("classifies an active check-in scan near shift end as clock-out", () => {
+    const intent = resolveAttendanceScanIntent(
+      input({
+        scanIso: "2026-07-10T10:02:00.000Z",
+        scanTime: "18:02:00",
+        activeCheckin: {
+          checkedInAt: "2026-07-10T01:00:00.000Z",
+          scheduledStartAt: "2026-07-10T01:00:00.000Z",
+          scheduledEndAt: "2026-07-10T10:00:00.000Z",
+        },
+      })
+    );
+    expect(intent.type).toBe("clock_out");
+    expect(intent.action).toBe("clock_out");
+  });
+
+  it("keeps overnight active check-out after midnight as clock-out", () => {
+    const overnightSchedule: ResolvedStaffSchedule = {
+      source: "individual",
+      isWorking: true,
+      isDayOff: false,
+      windows: [{ shiftType: "closing", startTime: "17:00:00", endTime: "01:00:00" }],
+    };
+    const intent = resolveAttendanceScanIntent(
+      input({
+        scanIso: "2026-07-10T17:20:00.000Z",
+        scanDate: "2026-07-11",
+        scanTime: "01:20:00",
+        schedule: overnightSchedule,
+        activeCheckin: {
+          checkedInAt: "2026-07-10T09:00:00.000Z",
+          scheduledStartAt: "2026-07-10T09:00:00.000Z",
+          scheduledEndAt: "2026-07-10T17:00:00.000Z",
+        },
+      })
+    );
+    expect(intent.type).toBe("overtime_clock_out");
+    expect(resolveAttendanceDayForShift({
+      scanDate: "2026-07-11",
+      scanTime: "01:20:00",
+      window: overnightSchedule.windows[0]!,
+    })).toBe("2026-07-10");
+  });
+
+  it("classifies duplicate scans without writing attendance", () => {
+    const intent = resolveAttendanceScanIntent(input({ duplicateScan: true }));
+    expect(intent.type).toBe("duplicate_scan");
+    expect(intent.shouldWriteAttendance).toBe(false);
+  });
+
+  it("routes missing schedules to recovery", () => {
+    const intent = resolveAttendanceScanIntent(
+      input({
+        schedule: {
+          source: "none",
+          isWorking: false,
+          isDayOff: false,
+          windows: [],
+        },
+      })
+    );
+    expect(intent.type).toBe("missing_schedule");
+    expect(intent.requiresRecovery).toBe(true);
+    expect(intent.shouldWriteAttendance).toBe(false);
+  });
+
+  it("routes day-off scans to recovery", () => {
+    const intent = resolveAttendanceScanIntent(
+      input({
+        schedule: {
+          source: "override",
+          isWorking: false,
+          isDayOff: true,
+          windows: [],
+        },
+      })
+    );
+    expect(intent.type).toBe("off_day_exception");
+    expect(intent.requiresRecovery).toBe(true);
+  });
+
+  it("routes first scans in the clock-out window to recovery instead of clock-in", () => {
+    const intent = resolveAttendanceScanIntent(input({ scanTime: "17:30:00" }));
+    expect(intent.type).toBe("likely_closing_scan_without_clock_in");
+    expect(intent.shouldWriteAttendance).toBe(false);
+    expect(intent.requiresRecovery).toBe(true);
+  });
+
+  it("routes launch recovery closing scans to recovery even without a schedule", () => {
+    const intent = resolveAttendanceScanIntent(
+      input({
+        scanTime: "21:13:00",
+        settings: {
+          ...settings,
+          launch_recovery_enabled: true,
+          launch_recovery_start_date: "2026-07-01",
+          launch_recovery_end_date: "2026-07-31",
+        },
+        schedule: {
+          source: "none",
+          isWorking: false,
+          isDayOff: false,
+          windows: [],
+        },
+      })
+    );
+    expect(intent.type).toBe("likely_closing_scan_without_clock_in");
+    expect(intent.requiresRecovery).toBe(true);
+  });
+
+  it("classifies scans outside all windows as ambiguous recovery", () => {
+    const intent = resolveAttendanceScanIntent(input({ scanTime: "13:00:00" }));
+    expect(intent.type).toBe("ambiguous_scan");
+    expect(intent.shouldWriteAttendance).toBe(false);
+  });
+});

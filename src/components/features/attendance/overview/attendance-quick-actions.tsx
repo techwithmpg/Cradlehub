@@ -1,4 +1,4 @@
-import { ClipboardList, FileText, QrCode, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ClipboardList, FileText, QrCode, ShieldCheck, Wrench } from "lucide-react";
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/features/attendance/attendance-ui";
@@ -14,7 +14,7 @@ const ACTIONS: Array<{
   { label: "Generate Missing QRs", detail: "Rooms", tab: "qr", icon: QrCode },
   { label: "Activate Staff Phone", detail: "Register device", tab: "devices", icon: ShieldCheck },
   { label: "View Attendance Records", detail: "Today", tab: "records", icon: ClipboardList },
-  { label: "Review Exceptions", detail: "Open issues", tab: "exceptions", icon: TriangleAlert },
+  { label: "Open Recovery", detail: "Rules and fixes", tab: "exceptions", icon: Wrench },
   { label: "Open Reports", detail: "Exportable", tab: "reports", icon: FileText },
 ];
 

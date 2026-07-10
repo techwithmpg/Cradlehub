@@ -10,14 +10,17 @@ import { AttendanceRecordReadout } from "@/components/features/attendance/record
 import type {
   AttendanceRecord,
   AttendanceRecordFilters,
+  AttendanceTab,
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
 export function AttendanceRecordsTab({
   data,
   initialFilters,
+  onTabChange,
 }: {
   data: AttendanceWorkspaceData;
   initialFilters?: AttendanceRecordFilters;
+  onTabChange?: (tab: AttendanceTab) => void;
 }) {
   const initialStaffId = initialFilters?.staffId ?? null;
   const initialDate = initialFilters?.date ?? null;
@@ -167,6 +170,11 @@ export function AttendanceRecordsTab({
                       <Button type="button" variant="outline" size="sm" onClick={() => setSelectedRecord(record)}>
                         View Details
                       </Button>
+                      {onTabChange ? (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => onTabChange("exceptions")}>
+                          Fix / Review
+                        </Button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

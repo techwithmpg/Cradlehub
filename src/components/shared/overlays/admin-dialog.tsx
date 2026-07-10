@@ -24,6 +24,7 @@ export type AdminDialogProps = {
   className?: string;
   showCloseButton?: boolean;
   placement?: "top" | "center";
+  ariaLabel?: string;
 };
 
 export function AdminDialog({
@@ -34,6 +35,7 @@ export function AdminDialog({
   className,
   showCloseButton = true,
   placement = "top",
+  ariaLabel,
 }: AdminDialogProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -44,6 +46,7 @@ export function AdminDialog({
           )}
         />
         <DialogPrimitive.Popup
+          aria-label={ariaLabel}
           className={cn(
             "fixed left-1/2 z-50 flex w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-[var(--cs-border)] bg-popover text-popover-foreground shadow-lg duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             SIZE_CLASSES[size],

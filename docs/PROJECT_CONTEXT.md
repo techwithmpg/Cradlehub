@@ -104,11 +104,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001`  |
-| **Completion**      | `Editable branch service origin completed locally; branch Places coordinates feed CRM Home Service distance and verification passes`        |
+| **Sprint**          | `ATTENDANCE-RECOVERY-RULES-001`  |
+| **Completion**      | `Schedule-aware Attendance Recovery Center, intent engine, rules/audit migration, and verification complete locally`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-07-09` |
-| **Blockers**        | `Apply pending Supabase migrations, configure Google Places browser key, and run authenticated owner branch-detail plus CRM Home Service quote QA`      |
+| **Last Updated**    | `2026-07-10` |
+| **Blockers**        | `New Attendance recovery migration still needs to be applied/pushed; authenticated CRM browser QA remains recommended`      |
 
 ---
 
@@ -443,3 +443,30 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Approval updates `staff.branch_id` through the secure RPC and relies on the existing `trg_staff_branch_sync_devices` trigger to sync active `staff_devices.branch_id`.
 - Verified focused branch-correction tests (5 files / 16 tests), `pnpm type-check`, `pnpm lint`, and `pnpm build`.
 - Remaining: apply pending Supabase migrations, regenerate generated Supabase types if required, and run authenticated CRM/front-desk plus physical QR phone scan QA after deployment.
+
+## Latest Agent Update (2026-07-09 - Schedule Conflict Clarity)
+
+- Completed `SCHEDULE-CONFLICT-CLARITY-001`: CRM Schedule Daily Timeline / Coverage conflict counts now use one central `LiveScheduleConflict` model with plain-language details for front desk staff.
+- Added a clickable conflict count, expandable details panel, affected staff/booking timeline indicators, and safe quick actions that route to existing booking/schedule review flows instead of direct conflict-resolution writes.
+- Conflict detection now covers staff overlap, room double-booking, missing room, booking outside shift, booking on day off, booking during blocked time, missing schedule, duplicate schedule window, Home Service travel-buffer warning, and coverage gap.
+- Attendance/check-in remains live status only and does not create schedule conflicts by itself; public/online booking, CRM booking availability, QR attendance, and schedule setup behavior were preserved.
+- Verified `pnpm type-check`, `pnpm lint`, `pnpm build`, focused schedule conflict/UI tests, and relevant booking/availability safety tests.
+- Remaining: authenticated CRM browser QA against live branch data.
+
+## Latest Agent Update (2026-07-09 - Schedule Conflict Resolution Center)
+
+- Completed `SCHEDULE-CONFLICT-RESOLUTION-CENTER-001`: finalized the new impact-group Schedule Conflict Center cleanup after the initial modal wiring landed.
+- The modal now compiles against impact groups and tabs for All, Must Fix, Needs Approval, Cleanup, Rooms, Staff, Home Service, Accepted, and Audit.
+- Added safe resolution-panel typing, refreshed the legacy summary helper for the impact model, and covered approval-level accept exceptions with reason/scope/audit UI tests.
+- Preserved the existing live conflict model, conflict count, timeline/staff warning indicators, SWR refresh, and conflict action routing.
+- Public/online booking, CRM booking availability, QR attendance, schedule setup writes, and attendance-as-live-status guardrails were not changed.
+- Verified `pnpm type-check`, `pnpm lint`, focused schedule tests, relevant booking/availability safety tests, and `pnpm build`.
+- Remaining: authenticated CRM browser QA against live branch data for final visual/operator confirmation.
+
+## Latest Agent Update (2026-07-09 - Agent Coach Idle Loop)
+
+- Completed `AGENT-COACH-IDLE-LOOP-001`: fixed the `Maximum update depth exceeded` crash in `AgentCoachProvider`.
+- Root cause was the idle reset listener calling `setIsIdle(false)` on every activity/scroll event even when the provider was already active.
+- Idle state now uses refs to guard duplicate state updates and keep the timeout handle stable.
+- Added a focused regression test covering repeated active events, the 45-second idle transition, and reset from idle back to active.
+- Verified targeted provider test, `pnpm type-check`, `pnpm lint`, and `pnpm build`.

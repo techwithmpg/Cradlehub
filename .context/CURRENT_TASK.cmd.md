@@ -1,3 +1,271 @@
+# Current Task - SCHEDULE-CONFLICT-RESOLUTION-CENTER-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Optimize the Schedule Conflict Center into a professional conflict resolution center with business-impact classification, safer exception handling, search/filtering, and a three-zone desktop layout.
+
+## Scope
+
+- Keep existing live conflict detection, counts, timeline indicators, staff-row indicators, and safe action routing.
+- Add impact groups: Must Fix, Needs Approval, Cleanup Warning, Informational, Accepted.
+- Improve modal scanability with summary chips, impact groups, issue list, and resolution panel.
+- Add safe-preview and accept-exception UI without introducing blind writes.
+- Preserve public/online booking, CRM booking availability, QR attendance, attendance-as-live-status, and schedule setup write flows.
+
+## Completed
+
+- Removed the stale unused severity-count memo from the dialog wiring.
+- Updated conflict tab/category typing so coverage gaps no longer point at the removed `coverage` tab.
+- Narrowed accepted/active issue status typing in the impact model.
+- Updated the legacy summary-list helper to compile against the new impact-group model.
+- Added explicit `ReactNode` / `LucideIcon` typing in the resolution panel.
+- Refreshed dialog tests to cover the reasoned accept-exception flow and accepted-tab transition.
+
+## Verification
+
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- Focused schedule tests: PASS, 12 files / 49 tests.
+- Booking/availability safety tests: PASS, 8 files / 172 tests.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+## Notes
+
+- Must Fix issues still cannot be accepted.
+- Accepted exceptions remain local to the review-session UI/audit view; no blind schedule writes were introduced.
+- Authenticated CRM browser QA against live branch data remains the final recommended operator check.
+
+---
+
+# Current Task - ATTENDANCE-RECOVERY-RULES-001
+
+Status: COMPLETED
+Started: 2026-07-10
+Last updated: 2026-07-10
+
+## Description
+
+Upgrade Attendance into a schedule-aware recovery workflow so QR first scans near closing are no longer written as normal clock-ins when no earlier clock-in exists.
+
+## Scope
+
+- Keep the existing Attendance tab key `exceptions` for URL/backward compatibility while relabeling it as Recovery.
+- Add a Smart Attendance Intent Engine that classifies clock-in, clock-out, duplicate, missing schedule, day-off, ambiguous, and likely closing-without-clock-in scans.
+- Route recovery-grade scans to immutable raw scan events plus attendance exceptions instead of creating incorrect check-in records.
+- Add Recovery Center views for Today Recovery, Staff Records, Rules, and Audit Log.
+- Add attendance rules/corrections migration and server actions for corrections/rule updates.
+- Preserve existing QR/device registration, branch validation, room scan, service session, and raw scan event flows.
+
+## Completed
+
+- Added `src/lib/attendance/attendance-intent-engine.ts` with pure schedule-aware scan intent classification.
+- Updated `src/lib/attendance/scan-engine.ts` so first scans in clock-out/closing windows are recorded as `exception` / `likely_closing_scan_without_clock_in` and sent to Recovery instead of inserting `staff_shift_checkins`.
+- Added `src/lib/attendance/attendance-correction-service.ts` plus server actions for applying launch recovery, manual clock-out, staff-day reset, ignored/reviewed scans, and rule updates.
+- Added migration `supabase/migrations/20260710040835_attendance_recovery_rules.sql` for attendance rules/correction audit fields.
+- Replaced the old Exceptions tab surface with `AttendanceRecoveryTab` while keeping internal key `exceptions`.
+- Updated Attendance header, overview attention panel, quick actions, tabs, records entry point, workspace realtime refresh, and workspace data DTOs.
+- Added focused intent-engine tests covering normal clock-in/out, duplicate scans, missing schedule, day off, first closing scan recovery, launch recovery, ambiguous scans, and overnight clock-out.
+
+## Verification
+
+- `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts`: PASS, 10 tests.
+- `npx vitest run tests/lib/attendance`: PASS, 8 files / 41 tests.
+- `npx tsc --noEmit`: PASS.
+- Targeted `npx eslint` on touched Attendance files/tests: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+## Notes
+
+- The new migration has been created locally but was not pushed/applied during this pass.
+- Authenticated CRM browser QA remains recommended after the migration is applied, especially for the Recovery Rules and Apply Recovery flows.
+
+---
+
+# Current Task - AGENT-COACH-IDLE-LOOP-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Fix the runtime `Maximum update depth exceeded` error in `AgentCoachProvider` caused by repeated idle-reset state updates from activity/scroll events.
+
+## Scope
+
+- CRM/Owner Agent Coach context provider idle detection.
+- Preserve coach context, inline tips, chat bubble, and 45-second idle behavior.
+- Do not change agent API routes or booking/schedule flows.
+
+## Completed
+
+- Replaced unconditional activity-event `setIsIdle(false)` calls with a ref-backed state guard.
+- Moved the idle timeout handle into a ref so activity events only reschedule the timer and only trigger React state when the idle boolean actually changes.
+- Added a regression test proving repeated mouse/scroll/click events while active do not re-render the provider, while the idle timeout and first follow-up activity still update correctly.
+
+## Files Changed
+
+- `src/components/agent/agent-context-provider.tsx`
+- `tests/components/agent/agent-context-provider.test.tsx`
+
+## Verification
+
+- `pnpm test --run tests/components/agent/agent-context-provider.test.tsx`: PASS, 1 file / 1 test.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+## Notes
+
+- Root cause was not the schedule conflict modal itself; it exposed a brittle global idle listener path because scroll/activity events could repeatedly request the same React state.
+
+---
+
+# Current Task - SCHEDULE-CONFLICT-CENTER-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Redesign the live Schedule conflict details UI so Coverage Overview is the single entry point and all detailed review happens inside a centered Schedule Conflict Center modal instead of a separate right-rail card.
+
+## Scope
+
+- Remove the independent right-rail Conflict Details card.
+- Keep conflict detection, counts, timeline indicators, staff-row indicators, quick actions, and schedule-first guardrails.
+- Add a modal with category tabs, grouped summary, issue cards, empty states, and safe action preview.
+- Preserve public/online booking, CRM booking availability, QR attendance, and schedule setup write flows.
+
+## Completed
+
+- Replaced the Coverage Overview conflicts row with a compact issue summary card showing All clear / warning / critical states and a `Review Issues` entry point.
+- Removed the old right-rail `Conflict Details` render path and deleted the obsolete panel/test files from the working tree.
+- Added `Schedule Conflict Center` as a centered wide modal on desktop and full-height sheet on small screens.
+- Added category tabs for All, Critical, Staff, Rooms, Coverage, Travel, Blocked Time, and Schedule with counts.
+- Added grouped category summary navigation and filtered compact issue cards with human-friendly conflict labels.
+- Added an in-modal safe action preview panel that delegates to the existing conflict action routing.
+- Kept the live conflict model, SWR/realtime data path, timeline warning indicators, staff-row indicators, and booking/attendance guardrails intact.
+
+## Files Changed
+
+- `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-operations-rail.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-tab.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-center-dialog.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-category-tabs.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-summary-list.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-issue-card.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-action-panel.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-center-model.ts`
+- `src/components/shared/overlays/admin-dialog.tsx`
+- `tests/lib/schedule/schedule-conflict-center-dialog.test.tsx`
+- `tests/lib/schedule/daily-timeline-coverage-card.test.tsx`
+
+## Verification
+
+- `pnpm test --run tests/lib/schedule/live-schedule-conflicts.test.ts tests/lib/schedule/schedule-conflict-center-dialog.test.tsx tests/lib/schedule/daily-timeline-coverage-card.test.tsx tests/lib/schedule/daily-timeline-operations.test.ts`: PASS, 4 files / 17 tests.
+- `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts tests/lib/bookings/crm-booking-status.test.ts tests/components/crm/availability-staff-shift-cell.test.tsx`: PASS, 4 files / 22 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+## Notes
+
+- No Supabase migration was added.
+- Authenticated CRM browser QA remains recommended for final visual/operator confirmation against live branch data.
+
+---
+
+# Current Task - SCHEDULE-CONFLICT-CLARITY-001
+
+Status: COMPLETED
+Started: 2026-07-09
+Last updated: 2026-07-09
+
+## Description
+
+Audit and improve the scheduling conflict logic connected to the live Schedule page so the Daily Timeline / Coverage Overview conflict count is clear, clickable/expandable, and every counted conflict explains who/what/time/rule/fix for non-technical front desk staff.
+
+## Scope
+
+- Live Schedule page Daily Timeline / Coverage Overview conflict calculation and display.
+- Central conflict model for schedule-page conflicts.
+- Timeline indicators for affected staff/booking/resource rows.
+- Safe guided conflict actions that link to existing booking/schedule flows where direct writes are not safe.
+- Preserve booking, attendance, online booking, CRM booking, QR attendance, and schedule setup behavior.
+
+## Pre-flight Notes
+
+- User requested work from attached pasted text on 2026-07-09.
+- Read required project context files under `.context/` plus `docs/ROADMAP.md`, `docs/PROJECT_CONTEXT.md`, and `docs/AGENT_RULES.md`; root roadmap/context/rules files are absent in this checkout.
+- Read local Next.js 16 docs for Server/Client Components and Route Handlers before source edits.
+- Read Supabase and React/Next best-practice skill guidance because this task touches Supabase-backed schedule data and React/Next UI.
+- Attendance/check-in must remain live status only and must not create schedule conflicts by itself.
+- Online/public booking and CRM booking availability must remain separate and schedule-first.
+- Resumed on 2026-07-09 after a prior interruption. The pure model files already exist; remaining work is to wire them into Daily Timeline/Coverage UI, indicators, tests, verification, and final context updates.
+
+## Initial Plan
+
+1. Identify where the visible `Conflicts` count is calculated and where daily timeline rows/cards receive conflict information.
+2. Audit existing conflict/rule detectors across schedule, coverage, availability, CRM availability, and assignment logic.
+3. Create or extend one typed conflict model for live schedule conflicts with plain-language messages, affected entities, safe actions, and admin-only debug metadata.
+4. Feed the model into Daily Timeline / Coverage Overview so count and visible cards agree.
+5. Add timeline/staff-row indicators for affected bookings/resources without changing public booking behavior.
+6. Add focused tests for core conflict types, attendance non-conflict behavior, UI details, and quick actions.
+7. Run `pnpm type-check`, `pnpm lint`, `pnpm build`, and relevant tests; update context files afterward.
+
+## Completed
+
+- Confirmed the previous visible Daily Timeline `Conflicts` count came from `DailyTimelineAlert` filtering in `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx`.
+- Wired the central live schedule conflict model into the CRM Schedule page API payload, workspace shell, Daily Timeline tab, coverage card, summary metrics, operations rail, timeline board, and staff rows.
+- Added a front-desk-friendly `Conflict Details` panel with plain-language conflict cards, severity, who/what/time/resource context, rule/fix copy, safe quick actions, and dev-only debug details.
+- Added safe guided quick actions that select affected staff/bookings or open existing setup/full-schedule/availability flows instead of performing risky direct writes.
+- Added timeline/staff-row indicators and booking highlighting for warning/critical conflicts.
+- Preserved schedule-first booking behavior: attendance/check-in remains live status only and does not create schedule conflicts by itself.
+- Preserved public/online booking, CRM booking availability, QR attendance, and schedule setup write flows.
+
+## Files Changed
+
+- `src/lib/schedule/live-schedule-conflict-types.ts`
+- `src/lib/schedule/live-schedule-conflicts.ts`
+- `src/app/(dashboard)/crm/schedule/page.tsx`
+- `src/app/api/crm/schedule/route.ts`
+- `src/components/features/schedule/hooks/use-live-daily-schedule.ts`
+- `src/components/features/schedule/workspace/schedule-workspace-shell.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-tab.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-operations-rail.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-summary.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-board.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-staff-row.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-conflict-details-panel.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-conflict-actions.ts`
+- `tests/lib/schedule/live-schedule-conflicts.test.ts`
+- `tests/lib/schedule/daily-timeline-conflict-details-panel.test.tsx`
+- `tests/lib/schedule/daily-timeline-coverage-card.test.tsx`
+
+## Verification
+
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+- `pnpm test --run tests/lib/schedule/live-schedule-conflicts.test.ts tests/lib/schedule/daily-timeline-conflict-details-panel.test.tsx tests/lib/schedule/daily-timeline-coverage-card.test.tsx tests/lib/schedule/daily-timeline-operations.test.ts`: PASS, 4 files / 15 tests.
+- `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts tests/lib/bookings/crm-booking-status.test.ts tests/components/crm/availability-staff-shift-cell.test.tsx`: PASS, 4 files / 22 tests.
+
+## Notes
+
+- Authenticated CRM browser QA is still recommended to confirm the exact operator flow against live branch data.
+- No Supabase migration was added for this task.
+
+---
+
 # Current Task - BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001
 
 Status: COMPLETED

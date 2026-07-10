@@ -7,6 +7,7 @@ import type { AttendanceQrPoint, AttendanceScanEvent } from "@/lib/attendance/ty
 export function QrPointListCard({
   rows,
   scanEvents,
+  nowMs,
   selectedQrId,
   selectedIds,
   totalCount,
@@ -17,6 +18,7 @@ export function QrPointListCard({
 }: {
   rows: AttendanceQrPoint[];
   scanEvents: AttendanceScanEvent[];
+  nowMs: number;
   selectedQrId: string | null;
   selectedIds: Set<string>;
   totalCount: number;
@@ -51,7 +53,7 @@ export function QrPointListCard({
             <tbody>
               {rows.map((point) => {
                 const selected = selectedQrId === point.id;
-                const latestScan = formatLastScanned(getLatestScanEvent(point, scanEvents)?.created_at);
+                const latestScan = formatLastScanned(getLatestScanEvent(point, scanEvents)?.created_at, nowMs);
                 return (
                   <tr key={point.id} className={cn("border-b last:border-b-0", selected && "bg-[#FBF4E4] shadow-[inset_0_0_0_1px_rgba(191,149,74,0.35)]")}>
                     <td className="border-b border-border/70 px-3 py-3">

@@ -6,6 +6,7 @@ import { getStaffWithAvailability } from "@/lib/queries/staff";
 import { createClient } from "@/lib/supabase/server";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -32,7 +33,7 @@ export default async function CrmSchedulePage({
   const selectedDate = params.date ?? today;
   const supabase = await createClient();
 
-  const [dailyScheduleResult, availabilityItems, stats, resourcesResult, readiness] = await Promise.all([
+  const [dailyScheduleResult, availabilityItems, stats, resourcesResult, readiness, schedulingRules] = await Promise.all([
     getDailySchedule({ branchId, date: selectedDate })
       .then((data) => ({ data, error: null }))
       .catch((error: unknown) => {
@@ -57,6 +58,7 @@ export default async function CrmSchedulePage({
       .eq("is_active", true)
       .order("sort_order"),
     getCrmReadinessCached(branchId).catch(() => null),
+    getSchedulingRules(branchId).catch(() => null),
   ]);
   const staffRows = dailyScheduleResult.data;
 
@@ -70,6 +72,7 @@ export default async function CrmSchedulePage({
       branchResources={resourcesResult.data ?? []}
       stats={stats}
       readiness={readiness}
+      schedulingRules={schedulingRules}
       dailyTimelineError={dailyScheduleResult.error}
       dailyTimelineNow={new Date().toISOString()}
     />

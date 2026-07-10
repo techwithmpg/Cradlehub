@@ -1,9 +1,18 @@
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ChevronRight, ShieldCheck } from "lucide-react";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
-import type { DailyTimelineAlert } from "./daily-timeline-alerts";
+import type { LiveScheduleConflict } from "@/lib/schedule/live-schedule-conflict-types";
 import { getShiftGroup } from "./daily-timeline-operations";
+import {
+  buildScheduleConflictSeverityCounts,
+  formatSeveritySummary,
+} from "./schedule-conflict-center-model";
 
-type Props = { rows: DailyScheduleStaffRow[]; alerts: DailyTimelineAlert[]; groupLabel: string };
+type Props = {
+  rows: DailyScheduleStaffRow[];
+  conflicts: LiveScheduleConflict[];
+  groupLabel: string;
+  onViewConflictDetails?: () => void;
+};
 type ShiftCoverage = { rows: DailyScheduleStaffRow[]; clear: number; total: number };
 export type DailyTimelineCoverageModel = {
   groupedRows: {
@@ -33,8 +42,71 @@ function CoverageBar({ label, clear, total, tone }: { label: string; clear: numb
   );
 }
 
-export function DailyTimelineCoverageCard({ rows, alerts, groupLabel }: Props) {
-  const model = buildDailyTimelineCoverageModel(rows, alerts);
+function CoverageIssueSummary({
+  conflicts,
+  onViewConflictDetails,
+}: {
+  conflicts: LiveScheduleConflict[];
+  onViewConflictDetails?: () => void;
+}) {
+  const counts = buildScheduleConflictSeverityCounts(conflicts);
+  const summary = formatSeveritySummary(counts);
+
+  if (conflicts.length === 0) {
+    return (
+      <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-emerald-950">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold">All clear</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-emerald-900">No schedule issues found</p>
+          </div>
+          <ShieldCheck className="size-4 shrink-0 text-emerald-700" />
+        </div>
+      </div>
+    );
+  }
+
+  const hasCritical = counts.critical > 0;
+  const toneClass = hasCritical
+    ? "border-red-200 bg-red-50 text-red-950 hover:bg-red-100"
+    : "border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100";
+  const buttonClass = hasCritical
+    ? "bg-red-800 text-white hover:bg-red-900"
+    : "bg-amber-700 text-white hover:bg-amber-800";
+
+  return (
+    <button
+      type="button"
+      onClick={onViewConflictDetails}
+      className={`mt-3 w-full rounded-xl border px-3 py-3 text-left transition ${toneClass}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-xs font-bold">
+            <AlertTriangle className="size-3.5" />
+            Schedule issues
+          </p>
+          <p className="mt-1 text-[11px] font-bold">{summary}</p>
+          <p className="mt-0.5 text-[11px] leading-4 opacity-80">
+            Review before confirming the day
+          </p>
+        </div>
+        <span className={`inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg px-2.5 text-[10px] font-bold ${buttonClass}`}>
+          Review Issues
+          <ChevronRight className="size-3.5" />
+        </span>
+      </div>
+    </button>
+  );
+}
+
+export function DailyTimelineCoverageCard({
+  rows,
+  conflicts,
+  groupLabel,
+  onViewConflictDetails,
+}: Props) {
+  const model = buildDailyTimelineCoverageModel(rows, conflicts);
   const { groupedRows } = model;
 
   return (
@@ -77,25 +149,19 @@ export function DailyTimelineCoverageCard({ rows, alerts, groupLabel }: Props) {
         </div>
         <span className="text-lg font-bold tabular-nums text-emerald-700">{model.overallPercent}%</span>
       </div>
-      {model.conflictCount > 0 ? (
-        <div className="mt-3 flex items-center justify-between rounded-md bg-red-50 px-3 py-2 text-[11px] text-red-800">
-          <span className="flex items-center gap-1.5 font-semibold"><AlertTriangle className="size-3.5" />Conflicts</span>
-          <span className="font-bold tabular-nums">{model.conflictCount}</span>
-        </div>
-      ) : null}
+      <CoverageIssueSummary conflicts={conflicts} onViewConflictDetails={onViewConflictDetails} />
     </section>
   );
 }
 
 export function buildDailyTimelineCoverageModel(
   rows: DailyScheduleStaffRow[],
-  alerts: DailyTimelineAlert[]
+  conflicts: LiveScheduleConflict[]
 ): DailyTimelineCoverageModel {
-  const conflicts = alerts.filter(
-    (alert) => alert.type === "resource_conflict" || alert.type === "staff_conflict"
-  );
   const conflictedStaff = new Set(
-    conflicts.map((alert) => alert.staffId)
+    conflicts
+      .filter((conflict) => conflict.type !== "coverage_gap")
+      .flatMap((conflict) => conflict.affected_staff_ids)
   );
 
   const grouped = {

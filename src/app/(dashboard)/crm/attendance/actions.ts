@@ -19,10 +19,17 @@ import {
   type DeviceActionResult,
   type GenerateDeviceRecoveryInput,
 } from "@/lib/attendance/device-recovery";
+import {
+  applyAttendanceCorrection,
+  updateAttendanceRules,
+  type ApplyAttendanceCorrectionInput,
+  type UpdateAttendanceRulesInput,
+} from "@/lib/attendance/attendance-correction-service";
 import { buildScanUrl, renderQrSvg } from "@/lib/attendance/qr-code";
 import { getRequestOrigin } from "@/lib/http/request-origin";
 import type {
   AttendanceQrPoint,
+  AttendanceSettings,
   AttendanceTab,
   DeviceRevocationReason,
   RecoveryLinkResult,
@@ -35,6 +42,8 @@ export type AttendanceActionResult =
   | { ok: true; kind: "activation"; tab: "devices"; message: string; activationUrl: string; expiresAt: string }
   | { ok: true; kind: "device_revoked"; tab: "devices"; message: string; deviceId: string }
   | { ok: true; kind: "exception_resolved"; tab: "exceptions"; message: string; exceptionId: string }
+  | { ok: true; kind: "attendance_correction"; tab: "exceptions"; message: string }
+  | { ok: true; kind: "attendance_rules"; tab: "exceptions"; message: string; settings: AttendanceSettings }
   | { ok: true; kind: "sessions_completed"; tab: "sessions"; message: string; completedCount: number }
   | { ok: true; kind: "qr_deactivated"; tab: "qr"; message: string; qrPointId: string };
 
@@ -270,6 +279,53 @@ export async function resolveAttendanceExceptionAction(formData: FormData): Prom
     };
   } catch (error) {
     return { ok: false, tab: "exceptions", message: safeError(error, "Could not resolve the exception.") };
+  }
+}
+
+export async function applyAttendanceCorrectionAction(
+  input: ApplyAttendanceCorrectionInput
+): Promise<AttendanceActionResult> {
+  const context = await getContextOrResult("exceptions", input.branchId);
+  if ("result" in context) return context.result;
+
+  try {
+    const result = await applyAttendanceCorrection({
+      ctx: context.ctx,
+      input,
+    });
+    revalidateAttendanceSurfaces();
+    return {
+      ok: true,
+      kind: "attendance_correction",
+      tab: "exceptions",
+      message: result.message,
+    };
+  } catch (error) {
+    return { ok: false, tab: "exceptions", message: safeError(error, "Could not apply the attendance correction.") };
+  }
+}
+
+export async function updateAttendanceRulesAction(
+  input: UpdateAttendanceRulesInput
+): Promise<AttendanceActionResult> {
+  const context = await getContextOrResult("exceptions", input.branchId);
+  if ("result" in context) return context.result;
+
+  try {
+    const result = await updateAttendanceRules({
+      ctx: context.ctx,
+      input,
+    });
+    revalidateAttendanceSurfaces();
+    return {
+      ok: true,
+      kind: "attendance_rules",
+      tab: "exceptions",
+      message: "Attendance rules saved.",
+      settings: result.settings,
+    };
+  } catch (error) {
+    return { ok: false, tab: "exceptions", message: safeError(error, "Could not save attendance rules.") };
   }
 }
 

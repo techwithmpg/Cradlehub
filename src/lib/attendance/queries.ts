@@ -13,6 +13,7 @@ import { buildActivationUrl, getAppBaseUrl, renderQrSvg } from "@/lib/attendance
 import { createActivationToken, createPublicCode, hashSecret } from "@/lib/attendance/tokens";
 import { addDaysToYmd, getBranchBusinessDate } from "@/lib/engine/slot-time";
 import type {
+  AttendanceCorrection,
   AttendanceDevice,
   AttendanceException,
   AttendanceQrConfiguration,
@@ -41,6 +42,28 @@ const DEFAULT_SETTINGS: Omit<AttendanceSettings, "branch_id"> = {
   overnight_shift_cutoff_time: "06:00:00",
   active_service_blocks_clock_out: true,
   require_registered_device_for_attendance: false,
+  timezone: "Asia/Manila",
+  attendance_day_boundary: "06:00:00",
+  early_clock_in_allowed_minutes: 30,
+  late_grace_minutes: 10,
+  clock_in_window_before_shift_minutes: 30,
+  clock_in_window_after_shift_start_minutes: 120,
+  clock_out_window_before_shift_end_minutes: 120,
+  clock_out_window_after_shift_end_minutes: 120,
+  early_leave_threshold_minutes: 5,
+  overtime_threshold_minutes: 15,
+  duplicate_scan_debounce_minutes: 3,
+  first_scan_closing_behavior: "flag_for_recovery",
+  missing_schedule_behavior: "flag_for_recovery",
+  off_day_scan_behavior: "flag_for_recovery",
+  ambiguous_scan_behavior: "flag_for_recovery",
+  launch_recovery_enabled: false,
+  launch_recovery_start_date: null,
+  launch_recovery_end_date: null,
+  launch_recovery_closing_start_time: "20:30:00",
+  launch_recovery_closing_end_time: "23:59:00",
+  launch_recovery_reason: null,
+  updated_by: null,
 };
 
 type Relation<T> = T | T[] | null | undefined;
@@ -53,6 +76,38 @@ function first<T>(value: Relation<T>): T | null {
 
 function safeNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function safeJsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function normalizeAttendanceSettings(row: unknown, branchId: string): AttendanceSettings {
+  const value = (row ?? {}) as Partial<AttendanceSettings>;
+  const duplicateScanWindowSeconds =
+    typeof value.duplicate_scan_window_seconds === "number"
+      ? value.duplicate_scan_window_seconds
+      : DEFAULT_SETTINGS.duplicate_scan_window_seconds;
+  const clockInLateGrace =
+    typeof value.clock_in_late_grace_minutes === "number"
+      ? value.clock_in_late_grace_minutes
+      : DEFAULT_SETTINGS.clock_in_late_grace_minutes;
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...value,
+    branch_id: value.branch_id ?? branchId,
+    duplicate_scan_window_seconds: duplicateScanWindowSeconds,
+    clock_in_late_grace_minutes: clockInLateGrace,
+    late_grace_minutes:
+      typeof value.late_grace_minutes === "number"
+        ? value.late_grace_minutes
+        : clockInLateGrace,
+    duplicate_scan_debounce_minutes:
+      typeof value.duplicate_scan_debounce_minutes === "number"
+        ? value.duplicate_scan_debounce_minutes
+        : Math.max(1, Math.min(10, Math.ceil(duplicateScanWindowSeconds / 60))),
+  };
 }
 
 async function requireBranch(admin: AttendanceDb, branchId: string): Promise<BranchRow> {
@@ -139,7 +194,7 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
     .eq("branch_id", branchId)
     .maybeSingle();
 
-  if (data) return data as unknown as AttendanceSettings;
+  if (data) return normalizeAttendanceSettings(data, branchId);
 
   await requireBranch(admin, branchId);
   const fallback = { branch_id: branchId, ...DEFAULT_SETTINGS };
@@ -149,7 +204,7 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
     .select("*")
     .maybeSingle();
 
-  return (inserted as unknown as AttendanceSettings | null) ?? fallback;
+  return normalizeAttendanceSettings(inserted ?? fallback, branchId);
 }
 
 export async function ensureBranchAttendanceQrPoint(ctx: AttendanceActionContext): Promise<AttendanceQrPoint> {
@@ -372,6 +427,7 @@ export async function getAttendanceWorkspaceData(params: {
     exceptionsResult,
     scanEventsResult,
     sessionsResult,
+    correctionsResult,
     staffResult,
     resourcesResult,
     deviceRegistry,
@@ -391,7 +447,7 @@ export async function getAttendanceWorkspaceData(params: {
     admin
       .from("staff_shift_checkins")
       .select(
-        "id, branch_id, staff_id, shift_date, shift_type, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
+        "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
       )
       .eq("branch_id", params.branchId)
       .gte("shift_date", historyStart)
@@ -399,7 +455,7 @@ export async function getAttendanceWorkspaceData(params: {
       .limit(200),
     admin
       .from("attendance_exceptions")
-      .select("id, branch_id, staff_id, exception_type, severity, status, message, detected_at, resolved_at, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name)")
+      .select("id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name)")
       .eq("branch_id", params.branchId)
       .order("detected_at", { ascending: false })
       .limit(100),
@@ -418,6 +474,12 @@ export async function getAttendanceWorkspaceData(params: {
       .in("booking_progress_status", ["session_started", "completed"])
       .gte("booking_date", historyStart)
       .order("session_started_at", { ascending: false, nullsFirst: false })
+      .limit(100),
+    admin
+      .from("attendance_corrections")
+      .select("id, branch_id, staff_id, checkin_id, correction_type, previous_values, new_values, reason, status, requested_by, approved_by, applied_at, created_at, staff:staff!attendance_corrections_staff_id_fkey(id, full_name), approved_by_staff:staff!attendance_corrections_approved_by_fkey(id, full_name)")
+      .eq("branch_id", params.branchId)
+      .order("created_at", { ascending: false })
       .limit(100),
     admin
       .from("staff")
@@ -444,6 +506,7 @@ export async function getAttendanceWorkspaceData(params: {
   if (exceptionsResult.error) throw new Error(`Attendance exceptions could not be loaded: ${exceptionsResult.error.message}`);
   if (scanEventsResult.error) throw new Error(`Attendance scan events could not be loaded: ${scanEventsResult.error.message}`);
   if (sessionsResult.error) throw new Error(`Service sessions could not be loaded: ${sessionsResult.error.message}`);
+  if (correctionsResult.error) throw new Error(`Attendance audit log could not be loaded: ${correctionsResult.error.message}`);
   if (staffResult.error) throw new Error(`Staff options could not be loaded: ${staffResult.error.message}`);
   if (resourcesResult.error) throw new Error(`Branch resources could not be loaded: ${resourcesResult.error.message}`);
 
@@ -458,6 +521,7 @@ export async function getAttendanceWorkspaceData(params: {
   const exceptions = (exceptionsResult.data ?? []).map(mapException);
   const scanEvents = (scanEventsResult.data ?? []).map(mapScanEvent);
   const sessions = (sessionsResult.data ?? []).map(mapSession);
+  const corrections = (correctionsResult.data ?? []).map(mapCorrection);
   const activeSessions = sessions.filter((session) => session.booking_progress_status === "session_started").length;
 
   return {
@@ -477,6 +541,7 @@ export async function getAttendanceWorkspaceData(params: {
     deviceRegistry,
     records,
     exceptions,
+    corrections,
     scanEvents,
     sessions,
     staffOptions: (staffResult.data ?? []).map((row: { id: string; full_name: string; staff_type?: string | null }) => ({
@@ -616,6 +681,8 @@ function mapRecord(row: unknown): AttendanceRecord {
     staff_id: string;
     shift_date: string;
     shift_type: string;
+    scheduled_start_at?: string | null;
+    scheduled_end_at?: string | null;
     checked_in_at: string;
     checked_out_at: string | null;
     status: string;
@@ -643,6 +710,8 @@ function mapRecord(row: unknown): AttendanceRecord {
     system_role: staff?.system_role ?? null,
     shift_date: record.shift_date,
     shift_type: record.shift_type,
+    scheduled_start_at: record.scheduled_start_at ?? null,
+    scheduled_end_at: record.scheduled_end_at ?? null,
     checked_in_at: record.checked_in_at,
     checked_out_at: record.checked_out_at,
     status: record.status,
@@ -663,10 +732,13 @@ function mapException(row: unknown): AttendanceException {
     id: string;
     branch_id: string;
     staff_id: string | null;
+    checkin_id?: string | null;
+    scan_event_id?: string | null;
     exception_type: string;
     severity: string;
     status: string;
     message: string;
+    metadata?: unknown;
     detected_at: string;
     resolved_at: string | null;
     staff?: Relation<{ full_name: string | null }>;
@@ -676,13 +748,69 @@ function mapException(row: unknown): AttendanceException {
     id: exception.id,
     branch_id: exception.branch_id,
     staff_id: exception.staff_id,
+    checkin_id: exception.checkin_id ?? null,
+    scan_event_id: exception.scan_event_id ?? null,
     staff_name: first(exception.staff)?.full_name ?? null,
     exception_type: exception.exception_type,
     severity: exception.severity,
     status: exception.status,
     message: exception.message,
+    metadata: safeJsonRecord(exception.metadata),
     detected_at: exception.detected_at,
     resolved_at: exception.resolved_at,
+  };
+}
+
+function mapCorrection(row: unknown): AttendanceCorrection {
+  const correction = row as {
+    id: string;
+    branch_id: string;
+    staff_id: string | null;
+    checkin_id: string | null;
+    attendance_date?: string | null;
+    action_type?: string | null;
+    correction_type: string;
+    previous_values?: unknown;
+    new_values?: unknown;
+    reason: string;
+    status: string;
+    requested_by: string | null;
+    approved_by: string | null;
+    corrected_by?: string | null;
+    corrected_at?: string | null;
+    applied_at: string | null;
+    created_at: string;
+    staff?: Relation<{ full_name: string | null }>;
+    approved_by_staff?: Relation<{ full_name: string | null }>;
+    corrected_by_staff?: Relation<{ full_name: string | null }>;
+  };
+  const actionType = correction.action_type ?? correction.correction_type;
+  const correctedBy = correction.corrected_by ?? correction.approved_by;
+  const correctedAt = correction.corrected_at ?? correction.applied_at ?? correction.created_at;
+
+  return {
+    id: correction.id,
+    branch_id: correction.branch_id,
+    staff_id: correction.staff_id,
+    staff_name: first(correction.staff)?.full_name ?? null,
+    checkin_id: correction.checkin_id,
+    attendance_date: correction.attendance_date ?? null,
+    action_type: actionType,
+    correction_type: correction.correction_type,
+    reason: correction.reason,
+    status: correction.status,
+    previous_values: safeJsonRecord(correction.previous_values),
+    new_values: safeJsonRecord(correction.new_values),
+    requested_by: correction.requested_by,
+    approved_by: correction.approved_by,
+    corrected_by: correctedBy,
+    corrected_by_name:
+      first(correction.corrected_by_staff)?.full_name ??
+      first(correction.approved_by_staff)?.full_name ??
+      null,
+    applied_at: correction.applied_at,
+    corrected_at: correctedAt,
+    created_at: correction.created_at,
   };
 }
 

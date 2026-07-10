@@ -30,13 +30,13 @@ export function getLatestScanEvent(point: AttendanceQrPoint, events: AttendanceS
     }, null);
 }
 
-export function formatLastScanned(value: string | null | undefined): { primary: string; secondary: string; full: string } {
+export function formatLastScanned(value: string | null | undefined, nowMs: number): { primary: string; secondary: string; full: string } {
   if (!value) return { primary: "-", secondary: "Never", full: "Never" };
 
   const date = new Date(value);
   const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: MANILA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: MANILA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const yesterdayKey = new Intl.DateTimeFormat("en-CA", { timeZone: MANILA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - 86_400_000));
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: MANILA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(nowMs));
+  const yesterdayKey = new Intl.DateTimeFormat("en-CA", { timeZone: MANILA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(nowMs - 86_400_000));
   const primary =
     dateKey === todayKey
       ? "Today"

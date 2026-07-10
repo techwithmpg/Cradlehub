@@ -58,6 +58,8 @@ function TabSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import { buildLiveScheduleConflicts } from "@/lib/schedule/live-schedule-conflicts";
+import type { SchedulingRules } from "@/lib/scheduling/types";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
@@ -127,6 +129,7 @@ export function ScheduleWorkspaceShell({
   branchResources: initialBranchResources,
   stats: initialStats,
   readiness: initialReadiness,
+  schedulingRules,
   dailyTimelineError,
   dailyTimelineNow,
 }: {
@@ -138,6 +141,7 @@ export function ScheduleWorkspaceShell({
   branchResources: ResourceRow[];
   stats: ScheduleStats;
   readiness: ReadinessResult | null;
+  schedulingRules: SchedulingRules | null;
   dailyTimelineError: string | null;
   dailyTimelineNow: string;
 }) {
@@ -158,8 +162,9 @@ export function ScheduleWorkspaceShell({
       branchResources: initialBranchResources,
       stats: initialStats,
       readiness: initialReadiness,
+      schedulingRules,
     }),
-    [branchId, branchName, initialBranchResources, initialReadiness, initialStaffRows, initialStats]
+    [branchId, branchName, initialBranchResources, initialReadiness, initialStaffRows, initialStats, schedulingRules]
   );
   const {
     data: liveScheduleData,
@@ -175,6 +180,15 @@ export function ScheduleWorkspaceShell({
   const branchResources = scheduleData.branchResources;
   const stats = scheduleData.stats;
   const readiness = scheduleData.readiness;
+  const liveConflicts = useMemo(
+    () =>
+      buildLiveScheduleConflicts(staffRows, {
+        date,
+        schedulingRules: scheduleData.schedulingRules,
+        includeCoverageGap: true,
+      }),
+    [date, scheduleData.schedulingRules, staffRows]
+  );
   const validSelectedStaffId =
     selectedStaffId && staffRows.some((row) => row.staff_id === selectedStaffId)
       ? selectedStaffId
@@ -315,6 +329,7 @@ export function ScheduleWorkspaceShell({
                 date={date}
                 staffRows={staffRows}
                 availabilityItems={availabilityItems}
+                schedulingRules={scheduleData.schedulingRules}
                 loadError={dailyTimelineError}
                 initialNow={dailyTimelineNow}
                 selectedStaffId={validSelectedStaffId}
@@ -433,7 +448,7 @@ export function ScheduleWorkspaceShell({
             coverageIssueCount={coverageIssueCount}
             roomsAvailable={roomsAvailable}
             totalRooms={totalRooms}
-            conflictCount={alerts.roomConflicts}
+            conflictCount={liveConflicts.length}
             onSwitchTab={setTab}
           />
           <ScheduleMetricGrid metrics={metrics} />

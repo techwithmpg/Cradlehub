@@ -1,6 +1,6 @@
 import { AlertTriangle, CalendarClock, CalendarOff, Coffee, UserCheck, Users } from "lucide-react";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
-import type { DailyTimelineAlert } from "./daily-timeline-alerts";
+import type { LiveScheduleConflict } from "@/lib/schedule/live-schedule-conflict-types";
 import { getShiftGroup, getTimelineStatus } from "./daily-timeline-operations";
 
 type Props = {
@@ -8,18 +8,16 @@ type Props = {
   date: string;
   now: Date | null;
   groupLabel: string;
-  alerts: DailyTimelineAlert[];
+  conflicts: LiveScheduleConflict[];
 };
 
-export function DailyTimelineSummary({ rows, date, now, groupLabel, alerts }: Props) {
+export function DailyTimelineSummary({ rows, date, now, groupLabel, conflicts }: Props) {
   const scheduled = rows.filter((row) => getShiftGroup(row) !== "off").length;
   const available = rows.filter((row) => getTimelineStatus(row, date, now) === "available").length;
   const busy = rows.filter((row) => getTimelineStatus(row, date, now) === "busy").length;
   const off = rows.length - scheduled;
   const blocked = rows.filter((row) => row.blocks.length > 0).length;
-  const conflicts = alerts.filter(
-    (alert) => alert.type === "resource_conflict" || alert.type === "staff_conflict"
-  ).length;
+  const conflictCount = conflicts.length;
   const metrics = [
     { label: "Total Staff", value: rows.length, icon: Users, color: "text-stone-700" },
     { label: "Scheduled", value: scheduled, icon: UserCheck, color: "text-emerald-700" },
@@ -27,7 +25,7 @@ export function DailyTimelineSummary({ rows, date, now, groupLabel, alerts }: Pr
     { label: "Busy Now", value: busy, icon: Coffee, color: "text-amber-700" },
     { label: "Off Today", value: off, icon: CalendarOff, color: "text-stone-600" },
     { label: "Blocked", value: blocked, icon: CalendarClock, color: "text-orange-700" },
-    { label: "Conflicts", value: conflicts, icon: AlertTriangle, color: "text-red-600" },
+    { label: "Conflicts", value: conflictCount, icon: AlertTriangle, color: "text-red-600" },
   ];
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
     weekday: "long",

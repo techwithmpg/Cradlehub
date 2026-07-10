@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import {
   assignTimelineLanes,
@@ -8,7 +9,7 @@ import {
   type TimelineHourMark,
   type TimelineRange,
 } from "@/lib/utils/schedule-timeline";
-import type { DailyTimelineAlert } from "./daily-timeline-alerts";
+import type { LiveScheduleConflict } from "@/lib/schedule/live-schedule-conflict-types";
 import { getTimelineStatus, type TimelineStatusFilter } from "./daily-timeline-operations";
 
 type Props = {
@@ -21,7 +22,7 @@ type Props = {
   timelineMinWidth: number;
   selected: boolean;
   currentTimePercent: number | null;
-  alerts: DailyTimelineAlert[];
+  conflicts: LiveScheduleConflict[];
   onStaffSelect: (staffId: string) => void;
   onBookingSelect: (staffId: string, bookingId: string) => void;
 };
@@ -37,11 +38,19 @@ function getInitials(name: string): string {
   return name.split(" ").filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
 }
 
-function getBookingClass(status: string, type: string | null, conflict: boolean): string {
-  if (conflict) return "border-red-300 bg-red-100 text-red-800";
+function getBookingClass(status: string, type: string | null, conflict: LiveScheduleConflict | null): string {
+  if (conflict?.severity === "critical") return "border-red-300 bg-red-100 text-red-800";
+  if (conflict) return "border-amber-300 bg-amber-100 text-amber-900";
   if (status === "in_progress") return "border-emerald-400 bg-emerald-600 text-white";
   if (type === "home_service") return "border-sky-300 bg-sky-100 text-sky-900";
   return "border-amber-300 bg-amber-50 text-amber-950";
+}
+
+function getConflictForBooking(
+  conflicts: LiveScheduleConflict[],
+  bookingId: string
+): LiveScheduleConflict | null {
+  return conflicts.find((conflict) => conflict.affected_booking_ids.includes(bookingId)) ?? null;
 }
 
 export function DailyTimelineStaffRow({
@@ -54,12 +63,15 @@ export function DailyTimelineStaffRow({
   timelineMinWidth,
   selected,
   currentTimePercent,
-  alerts,
+  conflicts,
   onStaffSelect,
   onBookingSelect,
 }: Props) {
   const status = getTimelineStatus(row, date, now);
-  const conflictIds = new Set(alerts.flatMap((alert) => alert.bookingIds));
+  const staffConflictSummary = conflicts
+    .map((conflict) => conflict.plain_language_message)
+    .slice(0, 3)
+    .join("\n");
   const bookingLanes = assignTimelineLanes(row.bookings);
   const laneCount = Math.max(1, ...Array.from(bookingLanes.values()).map((item) => item.laneCount));
   const rowMinHeight = Math.max(88, 58 + laneCount * 30 + (row.blocks.length > 0 ? 28 : 0));
@@ -82,6 +94,15 @@ export function DailyTimelineStaffRow({
           <span className="block truncate text-[10px] text-[var(--cs-text-muted)]">{staffTypeLabel}</span>
         </span>
         <span className={`size-2 shrink-0 rounded-full ${STATUS_COLORS[status]}`} aria-label={status} />
+        {conflicts.length > 0 ? (
+          <span
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-700"
+            title={staffConflictSummary}
+            aria-label={`${row.staff_name} has ${conflicts.length} schedule conflict${conflicts.length === 1 ? "" : "s"}`}
+          >
+            <AlertTriangle className="size-3.5" />
+          </span>
+        ) : null}
       </button>
 
       <div
@@ -124,7 +145,7 @@ export function DailyTimelineStaffRow({
         {row.bookings.map((booking) => {
           const position = getTimelineBlockPercent(booking.start_time, booking.end_time, range);
           const lane = bookingLanes.get(booking.id)?.lane ?? 0;
-          const hasConflict = conflictIds.has(booking.id);
+          const conflict = getConflictForBooking(conflicts, booking.id);
           return (
             <button
               key={booking.id}
@@ -133,18 +154,18 @@ export function DailyTimelineStaffRow({
                 event.stopPropagation();
                 onBookingSelect(row.staff_id, booking.id);
               }}
-              className={`absolute z-10 h-7 overflow-hidden rounded border px-1.5 text-left text-[9px] font-semibold shadow-sm ${getBookingClass(booking.status, booking.type, hasConflict)}`}
+              className={`absolute z-10 h-7 overflow-hidden rounded border px-1.5 text-left text-[9px] font-semibold shadow-sm ${getBookingClass(booking.status, booking.type, conflict)}`}
               style={{
                 left: `${position.leftPercent}%`,
                 top: 44 + lane * 30,
                 width: `${position.widthPercent}%`,
                 minWidth: 54,
               }}
-              title={`${booking.service} - ${booking.customer}`}
-              aria-label={`${hasConflict ? "Conflict: " : ""}${booking.service} for ${booking.customer}, ${formatScheduleTime(booking.start_time)} to ${formatScheduleTime(booking.end_time)}`}
+              title={conflict ? `${conflict.title}: ${conflict.plain_language_message}` : `${booking.service} - ${booking.customer}`}
+              aria-label={`${conflict ? `Conflict: ${conflict.plain_language_message}. ` : ""}${booking.service} for ${booking.customer}, ${formatScheduleTime(booking.start_time)} to ${formatScheduleTime(booking.end_time)}`}
             >
               <span className="block truncate">
-                {hasConflict ? "! " : ""}
+                {conflict ? "! " : ""}
                 {formatScheduleTime(booking.start_time)} {booking.service}
               </span>
             </button>

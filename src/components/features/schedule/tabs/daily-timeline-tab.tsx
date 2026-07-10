@@ -18,9 +18,15 @@ import {
   type CrmScheduleStaffProfileData,
 } from "@/app/(dashboard)/crm/schedule/actions";
 import { updateStaffServicesFromCrmAction } from "@/lib/actions/crm-staff-services";
+import { buildLiveScheduleConflicts } from "@/lib/schedule/live-schedule-conflicts";
+import type {
+  LiveScheduleConflict,
+  LiveScheduleConflictQuickAction,
+} from "@/lib/schedule/live-schedule-conflict-types";
+import type { SchedulingRules } from "@/lib/scheduling/types";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { AvailabilityTab } from "@/components/features/crm/schedule/edit-availability-types";
-import { buildDailyTimelineAlerts } from "./daily-timeline-alerts";
+import { runDailyTimelineConflictAction } from "./daily-timeline-conflict-actions";
 import { DailyTimelineBoard } from "./daily-timeline-board";
 import {
   buildStaffTypeMap,
@@ -33,6 +39,7 @@ import {
 import { DailyTimelineOperationsRail } from "./daily-timeline-operations-rail";
 import { DailyTimelineSummary } from "./daily-timeline-summary";
 import { DailyTimelineToolbar } from "./daily-timeline-toolbar";
+import { ScheduleConflictCenterDialog } from "./schedule-conflict-center-dialog";
 
 const DEFAULT_FILTERS: TimelineFilters = { query: "", shift: "all", status: "all" };
 
@@ -42,6 +49,7 @@ type Props = {
   date: string;
   staffRows: DailyScheduleStaffRow[];
   availabilityItems: StaffScheduleItem[];
+  schedulingRules: SchedulingRules | null;
   loadError: string | null;
   initialNow: string;
   selectedStaffId: string | null;
@@ -64,6 +72,7 @@ export function DailyTimelineTab({
   date,
   staffRows,
   availabilityItems,
+  schedulingRules,
   loadError,
   initialNow,
   selectedStaffId,
@@ -95,6 +104,7 @@ export function DailyTimelineTab({
     initialTab: AvailabilityTab;
   } | null>(null);
   const [checkAvailabilityOpen, setCheckAvailabilityOpen] = useState(false);
+  const [conflictCenterOpen, setConflictCenterOpen] = useState(false);
   const [isSavingCapabilities, startSavingCapabilities] = useTransition();
   const activeGroup = parseStaffGroup(searchParams.get("staffType"));
 
@@ -172,7 +182,19 @@ export function DailyTimelineTab({
     () => filterTimelineRows({ rows: staffRows, staffTypeById, group: activeGroup, filters, date, now }),
     [activeGroup, date, filters, now, staffRows, staffTypeById]
   );
-  const alerts = useMemo(() => buildDailyTimelineAlerts(visibleRows), [visibleRows]);
+  const conflicts = useMemo(() => {
+    const unfilteredAllStaffView =
+      activeGroup === "all" &&
+      filters.query.trim() === "" &&
+      filters.shift === "all" &&
+      filters.status === "all";
+
+    return buildLiveScheduleConflicts(visibleRows, {
+      date,
+      schedulingRules,
+      includeCoverageGap: unfilteredAllStaffView,
+    });
+  }, [activeGroup, date, filters, schedulingRules, visibleRows]);
   const selectedStaff = selectedStaffId
     ? visibleRows.find((row) => row.staff_id === selectedStaffId) ?? null
     : null;
@@ -296,6 +318,32 @@ export function DailyTimelineTab({
     setAvailabilityEditor({ staffId, initialTab: "blocks" });
   }, [requireSelectedStaff, selectedAvailabilityItem]);
 
+  const handleConflictAction = useCallback(
+    (conflict: LiveScheduleConflict, action: LiveScheduleConflictQuickAction) => {
+      runDailyTimelineConflictAction({
+        conflict,
+        action,
+        visibleRows,
+        availabilityItems,
+        selectStaff: onSelectedStaffChange,
+        selectBooking: onSelectedBookingChange,
+        openScheduleSetup: handleOpenScheduleSetup,
+        openFullSchedule: setFullScheduleStaffId,
+        openAvailabilityEditor: (staffId, initialTab) => setAvailabilityEditor({ staffId, initialTab }),
+        openCheckAvailability: () => setCheckAvailabilityOpen(true),
+        notify: (title, description) => toast(title, { description }),
+        notifyError: (title, description) => toast.error(title, { description }),
+      });
+    },
+    [
+      availabilityItems,
+      handleOpenScheduleSetup,
+      onSelectedBookingChange,
+      onSelectedStaffChange,
+      visibleRows,
+    ]
+  );
+
   const handleAvailabilitySaved = useCallback(
     (message?: string) => {
       toast.success(message ?? "Availability updated.");
@@ -406,7 +454,7 @@ export function DailyTimelineTab({
             date={date}
             now={now}
             staffTypeById={staffTypeById}
-            alerts={alerts}
+            conflicts={conflicts}
             selectedStaffId={selectedStaffId}
             onStaffSelect={(staffId) => {
               onSelectedStaffChange(staffId);
@@ -417,11 +465,17 @@ export function DailyTimelineTab({
               onSelectedBookingChange(bookingId);
             }}
           />
-          <DailyTimelineSummary rows={visibleRows} date={date} now={now} groupLabel={activeGroupLabel} alerts={alerts} />
+          <DailyTimelineSummary
+            rows={visibleRows}
+            date={date}
+            now={now}
+            groupLabel={activeGroupLabel}
+            conflicts={conflicts}
+          />
         </div>
         <DailyTimelineOperationsRail
           rows={visibleRows}
-          alerts={alerts}
+          conflicts={conflicts}
           groupLabel={activeGroupLabel}
           selectedStaff={selectedStaff}
           selectedBooking={selectedBooking}
@@ -439,8 +493,17 @@ export function DailyTimelineTab({
           onCheckAvailability={handleCheckAvailability}
           onAdjustStaff={handleAdjustStaff}
           onBlockStaffTime={handleBlockStaffTime}
+          onViewConflictDetails={() => setConflictCenterOpen(true)}
         />
       </div>
+      <ScheduleConflictCenterDialog
+        open={conflictCenterOpen}
+        conflicts={conflicts}
+        branchName={branchName}
+        date={date}
+        onOpenChange={setConflictCenterOpen}
+        onAction={handleConflictAction}
+      />
       <CheckAvailabilityModal
         open={checkAvailabilityOpen}
         onOpenChange={setCheckAvailabilityOpen}

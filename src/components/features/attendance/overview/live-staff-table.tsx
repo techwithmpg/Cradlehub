@@ -1,8 +1,8 @@
 import { Panel, StaffAvatar, StatusPill, formatAttendanceDateTime, formatMinutesCompact, humanizeAttendanceValue } from "@/components/features/attendance/attendance-ui";
 import type { AttendanceRecord, AttendanceSession, AttendanceWorkspaceData } from "@/lib/attendance/types";
 
-function workedMinutesSince(checkedInAt: string): number {
-  return Math.max(0, Math.round((Date.now() - new Date(checkedInAt).getTime()) / 60000));
+function workedMinutesSince(checkedInAt: string, nowMs: number): number {
+  return Math.max(0, Math.round((nowMs - new Date(checkedInAt).getTime()) / 60000));
 }
 
 function activeSessionForStaff(sessions: AttendanceSession[], staffId: string): AttendanceSession | undefined {
@@ -17,7 +17,7 @@ function attendanceAvailabilityState(record: AttendanceRecord | undefined, activ
   return "not_arrived";
 }
 
-export function LiveStaffTable({ data }: { data: AttendanceWorkspaceData }) {
+export function LiveStaffTable({ data, nowMs }: { data: AttendanceWorkspaceData; nowMs: number }) {
   const checkedInRecords = data.records
     .filter((record) => record.status === "checked_in" && !record.checked_out_at)
     .sort((a, b) => new Date(a.checked_in_at).getTime() - new Date(b.checked_in_at).getTime());
@@ -90,7 +90,7 @@ export function LiveStaffTable({ data }: { data: AttendanceWorkspaceData }) {
                 </td>
                 <td className="px-3 py-3">{formatAttendanceDateTime(record?.checked_in_at)}</td>
                 <td className="px-3 py-3">
-                  {record?.checked_in_at ? formatMinutesCompact(workedMinutesSince(record.checked_in_at)) : "-"}
+                  {record?.checked_in_at ? formatMinutesCompact(workedMinutesSince(record.checked_in_at, nowMs)) : "-"}
                 </td>
                 <td className="px-3 py-3">
                   <StatusPill value={state} />

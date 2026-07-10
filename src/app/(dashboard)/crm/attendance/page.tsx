@@ -49,6 +49,7 @@ export default async function CrmAttendancePage({
         <AttendanceWorkspace
           data={data}
           activeTab={activeTab}
+          initialNowMs={Date.now()}
           initialRecordFilters={recordFilterResult?.filters}
           flash={{
             status: oneAttendanceParam(params.status),

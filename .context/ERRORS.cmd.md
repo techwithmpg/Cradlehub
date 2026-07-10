@@ -1,3 +1,11 @@
+## 2026-07-10 - ATTENDANCE-RECOVERY-RULES-001 migration/QA follow-up
+
+- New migration `supabase/migrations/20260710040835_attendance_recovery_rules.sql` was created locally for Attendance Recovery rule fields and correction audit columns, but it was not applied/pushed during the implementation pass.
+- Until that migration is applied, the page can still read Attendance data with normalized defaults, but new correction/rule actions that write the new audit columns/action types may fail on a shared database.
+- Authenticated CRM browser QA is still recommended after migration application for Recovery Rules, Apply Recovery, manual clock-out, and staff-day reset flows.
+
+---
+
 ## 2026-07-02 - ATTENDANCE-REFIT-005 NEXT_REDIRECT and browser QA notes
 
 - **Symptom:** Routine Attendance mutations such as QR generation could expose `NEXT_REDIRECT`-style behavior in the UI and made tab/action flows feel like route work instead of local workspace updates.
@@ -683,3 +691,21 @@
 - **Symptom:** The first `pnpm type-check` run failed inside generated `.next/dev/types/validator.ts` with a parser error near a corrupted fragment: `e __Unused = __Check`.
 - **Impact:** TypeScript could not reach source diagnostics until the stale generated dev artifact was removed.
 - **Resolution:** Deleted only `.next/dev/types/validator.ts`, reran `pnpm type-check`, and verified source type-check, lint, focused distance-fee tests, and production build all pass.
+
+## 2026-07-09 - SCHEDULE-CONFLICT-CENTER-001 verification notes
+
+- **Symptom:** The first modal test could not find the `Rooms 1` tab by accessible name because the visible count was adjacent to the label and Testing Library read it as `Rooms1`.
+- **Impact:** Keyboard/screen-reader naming was less clear than intended for counted tabs.
+- **Resolution:** Added explicit `aria-label` values to Schedule Conflict Center category tabs; focused schedule tests pass.
+
+- **Symptom:** `pnpm lint` flagged the first dialog close-reset effect with `react-hooks/set-state-in-effect`.
+- **Impact:** React Compiler lint rejected synchronous state reset inside an effect.
+- **Resolution:** Moved modal reset behavior into the dialog `onOpenChange` handler; `pnpm lint` and `pnpm type-check` pass.
+
+## 2026-07-09 - AGENT-COACH-IDLE-LOOP-001 runtime error
+
+- **Symptom:** Runtime error `Maximum update depth exceeded` pointed to `AgentCoachProvider.useEffect.resetIdle` at `setIsIdle(false)`.
+- **Impact:** CRM/Owner pages with Agent Coach enabled could crash when idle-reset events nested through repeated activity/scroll updates.
+- **Root cause:** The idle reset listener requested `setIsIdle(false)` for every activity event even when the provider was already active.
+- **Resolution:** Added a ref-backed guard around idle state updates and moved the timeout handle to a ref. Repeated active events now only reschedule the idle timer; React state updates only on real boolean changes.
+- **Validation:** Targeted provider regression test, `pnpm type-check`, `pnpm lint`, and `pnpm build` pass.

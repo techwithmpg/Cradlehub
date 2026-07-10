@@ -1,6 +1,84 @@
 # HANDOFF - Next Agent Session
 
-## Current Task - 2026-07-09
+## Current Task - 2026-07-10
+
+ATTENDANCE-RECOVERY-RULES-001 is implemented and locally verified.
+
+- Attendance keeps the internal tab key `exceptions`, but the visible tab is now Recovery.
+- Added `src/lib/attendance/attendance-intent-engine.ts` and tests. The QR scan path now classifies schedule-aware intents before inserting check-ins.
+- First scans in clock-out/closing windows with no active check-in now write a raw `qr_scan_events` row with outcome `exception`, create an attendance exception with reason `likely_closing_scan_without_clock_in`, and return a Recovery message instead of creating a normal clock-in.
+- Added Recovery Center UI with Today Recovery, Staff Records, Rules, and Audit Log views.
+- Added correction/rules service and server actions for launch recovery, manual clock-out, staff-day reset, reviewed scans, and rule updates.
+- Added migration `supabase/migrations/20260710040835_attendance_recovery_rules.sql` for rule columns and correction audit fields.
+- Verification: `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts`, `npx vitest run tests/lib/attendance`, `npx tsc --noEmit`, targeted `npx eslint`, `pnpm build`, and `git diff --check` all pass.
+
+Still open: apply/push the new Supabase migration, then run authenticated CRM browser QA for Recovery Rules and Apply Recovery flows against live branch data.
+
+---
+
+## Previous Task - 2026-07-09
+
+SCHEDULE-CONFLICT-RESOLUTION-CENTER-001 is implemented and locally verified.
+
+- The new Schedule Conflict Center impact model is compiling cleanly.
+- Removed the unused dialog severity-count memo and stale `coverage` tab typing.
+- Updated the legacy summary-list helper to use impact groups instead of retired categories.
+- Added explicit resolution-panel `ReactNode` / `LucideIcon` typing.
+- Dialog tests now cover the reasoned accept-exception flow, accepted-tab transition, and no direct action routing for exception acceptance.
+- Verification: `pnpm type-check`, `pnpm lint`, focused schedule tests, booking/availability safety tests, and `pnpm build` all pass.
+
+Still open: authenticated CRM browser QA against live branch data is recommended for final visual/operator confirmation.
+
+---
+
+## Previous Task - 2026-07-09
+
+AGENT-COACH-IDLE-LOOP-001 is implemented and locally verified.
+
+- Fixed the runtime `Maximum update depth exceeded` error reported at `src/components/agent/agent-context-provider.tsx:53`.
+- The Agent Coach idle listener no longer calls `setIsIdle(false)` for every activity/scroll event while already active.
+- Idle state now has a ref-backed guard plus a timeout ref, so only real `false -> true` and `true -> false` changes update React state.
+- Coach context, chat bubble, inline tips, and the 45-second idle behavior were preserved.
+- Verification: `pnpm test --run tests/components/agent/agent-context-provider.test.tsx`, `pnpm type-check`, `pnpm lint`, and `pnpm build` all pass.
+
+---
+
+## Previous Task - 2026-07-09
+
+SCHEDULE-CONFLICT-CENTER-001 is implemented and locally verified.
+
+- The independent right-rail `Conflict Details` card has been removed from the Schedule page layout.
+- Coverage Overview is now the only conflict entry point: it shows All clear / warning / critical states and opens the `Schedule Conflict Center` via `Review Issues`.
+- `Schedule Conflict Center` is a centered wide modal on desktop and a full-height sheet on small screens, with internal scrolling so large conflict lists no longer increase page height.
+- Modal tabs filter All, Critical, Staff, Rooms, Coverage, Travel, Blocked Time, and Schedule conflicts.
+- The modal includes a grouped category summary column, compact issue cards with human-friendly conflict titles, and an in-modal action preview panel.
+- Existing `LiveScheduleConflict` detection, conflict counts, timeline indicators, staff-row indicators, SWR refresh, and `daily-timeline-conflict-actions.ts` routing were preserved.
+- Attendance/check-in remains live status only and is not treated as a schedule conflict by itself. Public booking, CRM booking availability, QR attendance, and schedule setup write flows were not changed.
+- Verification: focused schedule conflict/modal tests, relevant booking/availability safety tests, `pnpm type-check`, `pnpm lint`, and `pnpm build` all pass.
+
+Still open: authenticated CRM browser QA against live branch data is recommended for final visual/operator confirmation.
+
+---
+
+## Previous Task - 2026-07-09
+
+SCHEDULE-CONFLICT-CLARITY-001 is implemented and locally verified.
+
+- The old Daily Timeline `Conflicts` count was a count of `DailyTimelineAlert` resource/staff conflict alerts in `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx`.
+- CRM Schedule now carries scheduling rules through the page/API/SWR payload and builds one central `LiveScheduleConflict` list for the workspace and Daily Timeline.
+- The Coverage Overview count uses that central conflict list and can open the new `Conflict Details` panel.
+- The details panel shows plain-language cards with severity, who/what/time/resource context, rule/fix copy, why it matters, and safe quick actions.
+- Timeline rows/bookings now show warning/critical conflict indicators for affected staff/bookings.
+- Safe quick actions select affected staff/bookings or open existing setup/full-schedule/availability flows; they do not perform direct conflict-resolution writes.
+- Attendance/check-in remains live status only and is not treated as a schedule conflict by itself.
+- Public/online booking, CRM booking availability, QR attendance, and schedule setup behavior were preserved.
+- Verification: `pnpm type-check`, `pnpm lint`, `pnpm build`, focused schedule conflict/UI tests, and relevant booking/availability safety tests all pass.
+
+Still open: authenticated CRM browser QA against live branch data is recommended after deployment or on a seeded local session.
+
+---
+
+## Previous Task - 2026-07-09
 
 BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001 is implemented and locally verified.
 

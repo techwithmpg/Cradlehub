@@ -56,6 +56,7 @@ export default async function OwnerAttendancePage({
         <AttendanceWorkspace
           data={data}
           activeTab={activeTab}
+          initialNowMs={Date.now()}
           initialRecordFilters={filterResult?.filters}
           routeBasePath="/owner/attendance"
           routeBranchId={branchResult.branch?.id}

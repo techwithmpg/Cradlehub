@@ -7,14 +7,18 @@ import { getAttendanceSettings } from "@/lib/attendance/queries";
 import { getAttendanceDeviceBranchDecision } from "@/lib/attendance/branch-validation";
 import { createDeviceCredential, hashSecret, maskId } from "@/lib/attendance/tokens";
 import {
-  branchDateTimeToIso,
   computeAttendanceMetrics,
   formatMinutesCompact,
   getBranchNow,
-  isOvernightWindow,
 } from "@/lib/attendance/time";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
-import { isTimeWithinScheduleWindows, type ResolvedStaffScheduleWindow } from "@/lib/schedule/resolve-staff-schedule";
+import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
+import {
+  resolveAttendanceScanIntent,
+  resolveStaffAttendanceSchedule,
+  type AttendanceScheduleSelection,
+  type AttendanceScanIntent,
+} from "@/lib/attendance/attendance-intent-engine";
 import type { PublicScanResult, QrScanOutcome, QrScanType } from "@/lib/attendance/types";
 
 export type ScanRequestContext = {
@@ -120,12 +124,8 @@ type BookingRow = {
   branch_resources?: { name: string | null } | Array<{ name: string | null }> | null;
 };
 
-type ScheduleSelection = {
-  shiftDate: string;
-  shiftType: string;
-  scheduledStartAt: string | null;
-  scheduledEndAt: string | null;
-  isUnscheduled: boolean;
+type ScheduleSelection = AttendanceScheduleSelection & {
+  resolvedSchedule: ResolvedStaffSchedule;
 };
 
 type EventInput = {
@@ -794,7 +794,7 @@ async function findRecentDuplicate(admin: AttendanceDb, params: {
     .select("id")
     .eq("qr_point_id", params.pointId)
     .eq("device_id", params.deviceId)
-    .eq("outcome", "success")
+    .in("outcome", ["success", "exception"])
     .gte("created_at", cutoff)
     .limit(1);
 
@@ -852,34 +852,20 @@ async function selectScheduleWindow(admin: AttendanceDb, params: {
     staff: [{ id: params.staffId, staff_type: params.staffType }],
   });
 
-  const schedule = schedules.get(params.staffId);
-  const windows = schedule?.windows ?? [];
-  const selected =
-    windows.find((window) => isTimeWithinScheduleWindows(params.branchTime, [window])) ??
-    windows[0] ??
-    null;
+  const resolvedSchedule = schedules.get(params.staffId) ?? {
+    source: "none",
+    isWorking: false,
+    isDayOff: false,
+    windows: [],
+  } satisfies ResolvedStaffSchedule;
 
-  if (!selected) {
-    return {
-      shiftDate: params.date,
-      shiftType: "single",
-      scheduledStartAt: null,
-      scheduledEndAt: null,
-      isUnscheduled: true,
-    };
-  }
-
-  return scheduleSelectionFromWindow(params.date, selected);
-}
-
-function scheduleSelectionFromWindow(date: string, window: ResolvedStaffScheduleWindow): ScheduleSelection {
-  const overnight = isOvernightWindow(window.startTime, window.endTime);
   return {
-    shiftDate: date,
-    shiftType: window.shiftType,
-    scheduledStartAt: branchDateTimeToIso({ date, time: window.startTime }),
-    scheduledEndAt: branchDateTimeToIso({ date, time: window.endTime, addDay: overnight }),
-    isUnscheduled: false,
+    ...resolveStaffAttendanceSchedule({
+      scanDate: params.date,
+      scanTime: params.branchTime,
+      schedule: resolvedSchedule,
+    }),
+    resolvedSchedule,
   };
 }
 
@@ -900,6 +886,65 @@ function buildCountdown(booking: BookingRow, fallbackResourceName?: string | nul
     dueAt,
     durationMinutes,
   };
+}
+
+async function recordAttendanceRecoveryIntent(params: {
+  admin: AttendanceDb;
+  point: QrPointRow;
+  device: StaffDeviceRow;
+  ctx: ScanRequestContext;
+  staffName: string;
+  intent: AttendanceScanIntent;
+  scannedAt: string;
+}): Promise<PublicScanResult> {
+  const eventId = await recordScanEvent(params.admin, {
+    branchId: params.point.branch_id,
+    qrPointId: params.point.id,
+    staffId: params.device.staff_id,
+    deviceId: params.device.id,
+    scanType: "attendance",
+    action: params.intent.action,
+    outcome: "exception",
+    reasonCode: params.intent.reasonCode,
+    message: params.intent.message,
+    requestId: params.ctx.requestId,
+    userAgent: params.ctx.userAgent,
+    ipAddress: params.ctx.ipAddress,
+    metadata: {
+      intent: params.intent.type,
+      schedule: params.intent.schedule,
+      scannedAt: params.scannedAt,
+    },
+  });
+
+  await recordException(params.admin, {
+    branchId: params.point.branch_id,
+    staffId: params.device.staff_id,
+    scanEventId: eventId,
+    exceptionType: params.intent.type,
+    severity: params.intent.severity === "info" ? "warning" : params.intent.severity,
+    message: `${params.staffName}: ${params.intent.message}`,
+    metadata: {
+      intent: params.intent.type,
+      schedule: params.intent.schedule,
+      scanEventId: eventId,
+      scannedAt: params.scannedAt,
+    },
+  });
+
+  await markDeviceScanSuccess(params.admin, {
+    deviceId: params.device.id,
+    scanType: "attendance",
+    scannedAt: params.scannedAt,
+  });
+
+  return blocked(params.intent.title, params.intent.message, {
+    outcome: "exception",
+    reasonCode: params.intent.reasonCode,
+    severity: params.intent.severity,
+    securityNote: "No attendance record was changed. The scan is waiting in Recovery.",
+    scanEventId: eventId ?? undefined,
+  });
 }
 
 async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, device: StaffDeviceRow, ctx: ScanRequestContext): Promise<PublicScanResult> {
@@ -988,9 +1033,15 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       checkedOutAt: nowIso,
       scheduledStartAt: activeCheckin.scheduled_start_at ?? null,
       scheduledEndAt: activeCheckin.scheduled_end_at ?? null,
-      lateGraceMinutes: settings.clock_in_late_grace_minutes,
-      earlyLeaveGraceMinutes: settings.clock_out_early_grace_minutes,
+      lateGraceMinutes: settings.late_grace_minutes,
+      earlyLeaveGraceMinutes: settings.early_leave_threshold_minutes,
     });
+    const clockOutReasonCode =
+      metrics.earlyLeaveMinutes > 0
+        ? "early_clock_out"
+        : metrics.overtimeMinutes >= settings.overtime_threshold_minutes
+          ? "overtime_clock_out"
+          : "clock_out";
 
     const { error: updateError } = await admin
       .from("staff_shift_checkins")
@@ -1041,6 +1092,7 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       scanType: "attendance",
       action: "clock_out",
       outcome: "success",
+      reasonCode: clockOutReasonCode,
       message: "Clock-out recorded.",
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
@@ -1060,13 +1112,13 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       scannedAt: nowIso,
     });
 
-    if (metrics.earlyLeaveMinutes > 0 || metrics.overtimeMinutes > 0) {
+    if (metrics.earlyLeaveMinutes > 0 || metrics.overtimeMinutes >= settings.overtime_threshold_minutes) {
       await recordException(admin, {
         branchId: point.branch_id,
         staffId: device.staff_id,
         checkinId: activeCheckin.id,
         scanEventId: eventId,
-        exceptionType: metrics.earlyLeaveMinutes > 0 ? "early_leave" : "overtime",
+        exceptionType: metrics.earlyLeaveMinutes > 0 ? "early_clock_out" : "overtime_clock_out",
         message:
           metrics.earlyLeaveMinutes > 0
             ? `${staffName} clocked out ${formatMinutesCompact(metrics.earlyLeaveMinutes)} early.`
@@ -1076,7 +1128,7 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     }
 
     return success("Clocked out", `${staffName} is clocked out. Worked ${formatMinutesCompact(metrics.workedMinutes)}.`, {
-      reasonCode: "clock_out",
+      reasonCode: clockOutReasonCode,
       securityNote: "This device is recognized and ready for future scans.",
       scanEventId: eventId ?? undefined,
       attendance: {
@@ -1099,14 +1151,39 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     date: branchNow.date,
     branchTime: branchNow.time,
   });
+  const nowIso = new Date().toISOString();
+  const scanIntent = resolveAttendanceScanIntent({
+    scanIso: nowIso,
+    scanDate: branchNow.date,
+    scanTime: branchNow.time,
+    settings,
+    schedule: schedule.resolvedSchedule,
+  });
+  const attendanceSchedule = {
+    ...schedule,
+    ...scanIntent.schedule,
+    resolvedSchedule: schedule.resolvedSchedule,
+  };
+
+  if (scanIntent.requiresRecovery && !scanIntent.shouldWriteAttendance) {
+    return recordAttendanceRecoveryIntent({
+      admin,
+      point,
+      device,
+      ctx,
+      staffName,
+      intent: scanIntent,
+      scannedAt: nowIso,
+    });
+  }
 
   const existingForShift = await admin
     .from("staff_shift_checkins")
     .select("id, status")
     .eq("staff_id", device.staff_id)
     .eq("branch_id", point.branch_id)
-    .eq("shift_date", schedule.shiftDate)
-    .eq("shift_type", schedule.shiftType)
+    .eq("shift_date", attendanceSchedule.shiftDate)
+    .eq("shift_type", attendanceSchedule.shiftType)
     .neq("status", "voided")
     .maybeSingle();
 
@@ -1131,14 +1208,13 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     });
   }
 
-  const nowIso = new Date().toISOString();
   const metrics = computeAttendanceMetrics({
     checkedInAt: nowIso,
     checkedOutAt: nowIso,
-    scheduledStartAt: schedule.scheduledStartAt,
-    scheduledEndAt: schedule.scheduledEndAt,
-    lateGraceMinutes: settings.clock_in_late_grace_minutes,
-    earlyLeaveGraceMinutes: settings.clock_out_early_grace_minutes,
+    scheduledStartAt: attendanceSchedule.scheduledStartAt,
+    scheduledEndAt: attendanceSchedule.scheduledEndAt,
+    lateGraceMinutes: settings.late_grace_minutes,
+    earlyLeaveGraceMinutes: settings.early_leave_threshold_minutes,
   });
 
   const inserted = await admin
@@ -1146,17 +1222,17 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     .insert({
       staff_id: device.staff_id,
       branch_id: point.branch_id,
-      shift_date: schedule.shiftDate,
-      shift_type: schedule.shiftType,
+      shift_date: attendanceSchedule.shiftDate,
+      shift_type: attendanceSchedule.shiftType,
       checked_in_at: nowIso,
       status: "checked_in",
       source_qr_point_id: point.id,
       clock_in_method: "qr",
-      scheduled_start_at: schedule.scheduledStartAt,
-      scheduled_end_at: schedule.scheduledEndAt,
+      scheduled_start_at: attendanceSchedule.scheduledStartAt,
+      scheduled_end_at: attendanceSchedule.scheduledEndAt,
       late_minutes: metrics.lateMinutes,
-      attendance_status: schedule.isUnscheduled ? "late" : metrics.attendanceStatus,
-      exception_state: schedule.isUnscheduled || metrics.lateMinutes > 0 ? "open" : "none",
+      attendance_status: attendanceSchedule.isUnscheduled ? "late" : metrics.attendanceStatus,
+      exception_state: attendanceSchedule.isUnscheduled || scanIntent.type !== "clock_in" || metrics.lateMinutes > 0 ? "open" : "none",
     })
     .select("id")
     .maybeSingle();
@@ -1193,11 +1269,12 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     scanType: "attendance",
     action: "clock_in",
     outcome: "success",
+    reasonCode: scanIntent.reasonCode,
     message: "Clock-in recorded.",
     requestId: ctx.requestId,
     userAgent: ctx.userAgent,
     ipAddress: ctx.ipAddress,
-    metadata: { schedule, lateMinutes: metrics.lateMinutes },
+    metadata: { intent: scanIntent.type, schedule: attendanceSchedule, lateMinutes: metrics.lateMinutes },
   });
 
   if (eventId) {
@@ -1212,29 +1289,34 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     scannedAt: nowIso,
   });
 
-  if (schedule.isUnscheduled || metrics.lateMinutes > 0) {
+  if (attendanceSchedule.isUnscheduled || scanIntent.type !== "clock_in" || metrics.lateMinutes > 0) {
+    const exceptionMessage = attendanceSchedule.isUnscheduled
+      ? `${staffName} clocked in without a resolved schedule.`
+      : scanIntent.type === "early_clock_in"
+        ? `${staffName} clocked in before the scheduled start window.`
+        : scanIntent.type === "late_clock_in"
+          ? `${staffName} clocked in ${formatMinutesCompact(metrics.lateMinutes)} late.`
+          : `${staffName} clock-in needs review.`;
     await recordException(admin, {
       branchId: point.branch_id,
       staffId: device.staff_id,
       checkinId: inserted.data.id,
       scanEventId: eventId,
-      exceptionType: schedule.isUnscheduled ? "unscheduled" : "late",
-      message: schedule.isUnscheduled
-        ? `${staffName} clocked in without a resolved schedule.`
-        : `${staffName} clocked in ${formatMinutesCompact(metrics.lateMinutes)} late.`,
-      metadata: { schedule, lateMinutes: metrics.lateMinutes },
+      exceptionType: attendanceSchedule.isUnscheduled ? "missing_schedule" : scanIntent.type,
+      message: exceptionMessage,
+      metadata: { intent: scanIntent.type, schedule: attendanceSchedule, lateMinutes: metrics.lateMinutes },
     });
   }
 
-  return success("Clocked in", `${staffName} is clocked in for ${schedule.shiftType}.`, {
-    reasonCode: "clock_in",
+  return success("Clocked in", `${staffName} is clocked in for ${attendanceSchedule.shiftType}.`, {
+    reasonCode: scanIntent.reasonCode,
     securityNote: "This device is recognized and ready for future scans.",
     scanEventId: eventId ?? undefined,
     attendance: {
-      action: "clock_in",
-      staffName,
-      branchName,
-      shiftLabel: schedule.shiftType,
+        action: "clock_in",
+        staffName,
+        branchName,
+        shiftLabel: attendanceSchedule.shiftType,
       occurredAt: nowIso,
       sessionStartedAt: nowIso,
     },

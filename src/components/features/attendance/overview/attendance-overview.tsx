@@ -7,19 +7,21 @@ import type { AttendanceTab, AttendanceWorkspaceData } from "@/lib/attendance/ty
 
 export function AttendanceOverview({
   data,
+  nowMs,
   onTabChange,
 }: {
   data: AttendanceWorkspaceData;
+  nowMs: number;
   onTabChange: (tab: AttendanceTab) => void;
 }) {
   return (
     <div className="grid gap-4">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-        <LiveStaffTable data={data} />
+        <LiveStaffTable data={data} nowMs={nowMs} />
         <RecentScanActivity data={data} onTabChange={onTabChange} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-        <ActiveServiceSessions data={data} onTabChange={onTabChange} />
+        <ActiveServiceSessions data={data} nowMs={nowMs} onTabChange={onTabChange} />
         <AttentionExceptions data={data} onTabChange={onTabChange} />
       </div>
       <AttendanceQuickActions onTabChange={onTabChange} />

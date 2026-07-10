@@ -5991,3 +5991,183 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Apply pending Supabase migrations and run authenticated owner branch-detail plus CRM Home Service quote QA with real Google Places selection.
 
 ---
+
+## 2026-07-09 - Codex (SCHEDULE-CONFLICT-CLARITY-001)
+
+**Task:** Make the live Schedule Daily Timeline / Coverage Overview conflict count clear, clickable, and actionable for front desk staff without changing booking, attendance, QR, or schedule setup write behavior.
+
+**Discovery / Root Cause:**
+- The visible `Conflicts` count was calculated in `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx` by counting `DailyTimelineAlert` items with `resource_conflict` or `staff_conflict`.
+- That count was too narrow and count-only: it did not expose who/what/time/rule/fix details, and it was separate from the broader schedule safety cases operators need to understand.
+
+**Files Added:**
+- `src/lib/schedule/live-schedule-conflict-types.ts`
+- `src/lib/schedule/live-schedule-conflicts.ts`
+- `src/components/features/schedule/tabs/daily-timeline-conflict-details-panel.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-conflict-actions.ts`
+- `tests/lib/schedule/live-schedule-conflicts.test.ts`
+- `tests/lib/schedule/daily-timeline-conflict-details-panel.test.tsx`
+
+**Files Changed:**
+- `src/app/(dashboard)/crm/schedule/page.tsx`
+- `src/app/api/crm/schedule/route.ts`
+- `src/components/features/schedule/hooks/use-live-daily-schedule.ts`
+- `src/components/features/schedule/workspace/schedule-workspace-shell.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-tab.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-operations-rail.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-summary.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-board.tsx`
+- `src/components/features/schedule/tabs/daily-timeline-staff-row.tsx`
+- `tests/lib/schedule/daily-timeline-coverage-card.test.tsx`
+
+**Behavior:**
+- Daily Timeline and Coverage Overview now use one central `LiveScheduleConflict` list.
+- The conflict count opens a `Conflict Details` panel with one card per conflict, plain-language operator copy, severity, affected staff/bookings/room/time, rule/fix guidance, and dev-only debug metadata.
+- Timeline staff rows and booking blocks now show warning/critical conflict indicators.
+- Quick actions are safe and guided: select affected staff/bookings, open Schedule Setup, open Full Schedule, or open the existing availability review path.
+- Detected conflict types include staff overlap, room double-booking, missing room, booking outside shift, booking on day off, booking during blocked time, missing schedule, duplicate schedule window, Home Service travel-buffer warning, and coverage gap.
+- Attendance/check-in remains live operational status only; no `staff not clocked in` schedule conflict was introduced.
+- Public/online booking, CRM booking availability, QR attendance, and schedule setup write behavior were preserved.
+
+**Verification:**
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+- `pnpm test --run tests/lib/schedule/live-schedule-conflicts.test.ts tests/lib/schedule/daily-timeline-conflict-details-panel.test.tsx tests/lib/schedule/daily-timeline-coverage-card.test.tsx tests/lib/schedule/daily-timeline-operations.test.ts`: PASS, 4 files / 15 tests.
+- `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts tests/lib/bookings/crm-booking-status.test.ts tests/components/crm/availability-staff-shift-cell.test.tsx`: PASS, 4 files / 22 tests.
+
+**Follow-up:**
+- Run authenticated CRM browser QA against live branch data to confirm operator flow and copy in the real workspace.
+
+---
+
+## 2026-07-09 - Codex (SCHEDULE-CONFLICT-CENTER-001)
+
+**Task:** Replace the redundant right-rail Conflict Details card with a centralized Schedule Conflict Center modal launched from Coverage Overview.
+
+**Discovery / Root Cause:**
+- The conflict system itself was already working, but the UI rendered two conflict surfaces in the right rail: Coverage Overview plus a separate expanded details card.
+- Large conflict batches made the Schedule workspace too tall because details were rendered inline instead of in a bounded modal.
+
+**Files Added:**
+- `src/components/features/schedule/tabs/schedule-conflict-center-dialog.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-category-tabs.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-summary-list.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-issue-card.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-action-panel.tsx`
+- `src/components/features/schedule/tabs/schedule-conflict-center-model.ts`
+- `tests/lib/schedule/schedule-conflict-center-dialog.test.tsx`
+
+**Files Changed:**
+- `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx` - now shows All clear / Schedule issues states and opens the modal via `Review Issues`.
+- `src/components/features/schedule/tabs/daily-timeline-operations-rail.tsx` - no longer renders an inline conflict details card.
+- `src/components/features/schedule/tabs/daily-timeline-tab.tsx` - owns the modal open state and mounts `ScheduleConflictCenterDialog`.
+- `src/components/shared/overlays/admin-dialog.tsx` - adds an optional accessible label prop for named modal dialogs.
+- `tests/lib/schedule/daily-timeline-coverage-card.test.tsx` - covers the single Coverage Overview entry point.
+
+**Behavior:**
+- Coverage Overview is now the only conflict entry point in the right rail.
+- The modal filters conflicts by All, Critical, Staff, Rooms, Coverage, Travel, Blocked Time, and Schedule.
+- Issue cards show human-friendly titles, affected staff/booking/time/resource context, broken rule, why it matters, recommended fix, and safe quick actions.
+- Quick actions open an in-modal action preview and then delegate to the existing conflict action routing.
+- Existing conflict detection, conflict count, timeline indicators, staff-row indicators, SWR refresh, public booking, CRM booking availability, QR attendance, and schedule setup write behavior were preserved.
+
+**Verification:**
+- `pnpm test --run tests/lib/schedule/live-schedule-conflicts.test.ts tests/lib/schedule/schedule-conflict-center-dialog.test.tsx tests/lib/schedule/daily-timeline-coverage-card.test.tsx tests/lib/schedule/daily-timeline-operations.test.ts`: PASS, 4 files / 17 tests.
+- `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts tests/lib/bookings/crm-booking-status.test.ts tests/components/crm/availability-staff-shift-cell.test.tsx`: PASS, 4 files / 22 tests.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+**Follow-up:**
+- Run authenticated CRM browser QA against live branch data for final visual/operator confirmation.
+
+---
+
+## 2026-07-09 - Codex (AGENT-COACH-IDLE-LOOP-001)
+
+**Task:** Fix `Maximum update depth exceeded` runtime error in `AgentCoachProvider`.
+
+**Root Cause:**
+- The Agent Coach idle reset listener called `setIsIdle(false)` on every mousemove, keydown, click, and scroll event even when `isIdle` was already false.
+- Scroll/activity bursts could repeatedly request identical React state updates and trip the nested-update guard in the CRM/Owner provider tree.
+
+**Files Changed:**
+- `src/components/agent/agent-context-provider.tsx` - added ref-backed idle state and timeout guards so only real idle-state changes call `setIsIdle`.
+- `tests/components/agent/agent-context-provider.test.tsx` - adds a regression test for repeated activity events and the 45-second idle transition.
+
+**Verification:**
+- `pnpm test --run tests/components/agent/agent-context-provider.test.tsx`: PASS, 1 test.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+---
+
+## 2026-07-09 - Codex (SCHEDULE-CONFLICT-RESOLUTION-CENTER-001)
+
+**Task:** Finalize the Schedule Conflict Center impact-model cleanup and verification after the new dialog wiring landed.
+
+**Files Changed:**
+- `src/components/features/schedule/tabs/schedule-conflict-center-dialog.tsx` - removed the unused severity-count memo/import.
+- `src/components/features/schedule/tabs/schedule-conflict-center-model.ts` - fixed stale coverage-tab typing and narrowed accepted/active issue status.
+- `src/components/features/schedule/tabs/schedule-conflict-summary-list.tsx` - updated the helper to compile against impact groups and new tab keys.
+- `src/components/features/schedule/tabs/schedule-conflict-resolution-panel.tsx` - added explicit React node and Lucide icon typing.
+- `tests/lib/schedule/schedule-conflict-center-dialog.test.tsx` - refreshed dialog coverage for the reasoned accept-exception flow.
+
+**Behavior:**
+- Coverage-gap issues now remain in All/Audit instead of pointing at a removed Coverage tab.
+- Approval-level issues can be accepted only with reason/scope/audit visibility and then move to Accepted.
+- Must Fix issues still cannot be accepted, and no blind schedule writes were added.
+
+**Verification:**
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- Focused schedule tests: PASS, 12 files / 49 tests.
+- Booking/availability safety tests: PASS, 8 files / 172 tests.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+**Follow-up:**
+- Run authenticated CRM browser QA against live branch data for final visual/operator confirmation.
+
+---
+
+## 2026-07-10 - Codex (ATTENDANCE-RECOVERY-RULES-001)
+
+**Task:** Upgrade Attendance with schedule-aware recovery, rules, audit, and closing-scan intent handling.
+
+**Files Added:**
+- `src/lib/attendance/attendance-intent-engine.ts` - pure Smart Attendance Intent Engine for schedule-aware scan classification.
+- `src/lib/attendance/attendance-correction-service.ts` - server-only correction/rules service for Recovery actions and audit rows.
+- `src/components/features/attendance/recovery/attendance-recovery-tab.tsx` - Recovery Center UI with Today Recovery, Staff Records, Rules, and Audit Log.
+- `tests/lib/attendance/attendance-intent-engine.test.ts` - focused classifier coverage.
+- `supabase/migrations/20260710040835_attendance_recovery_rules.sql` - attendance rules and correction audit migration.
+
+**Files Changed:**
+- `src/lib/attendance/scan-engine.ts` - classifies intent before writing check-ins; first closing scans without active check-in now go to Recovery instead of becoming clock-ins.
+- `src/lib/attendance/types.ts` and `src/lib/attendance/queries.ts` - expanded settings DTOs, record schedule fields, exception metadata, and audit feed.
+- `src/app/(dashboard)/crm/attendance/actions.ts` - added correction/rule server actions.
+- `src/components/features/attendance/attendance-workspace.tsx` - mounts Recovery tab, refreshes audit/correction mutations, and listens to `attendance_corrections`.
+- `src/components/features/attendance/attendance-header.tsx`, `attendance-tabs.tsx`, overview quick actions/attention panel, and records tab - updated visible entry points from Exceptions to Recovery.
+
+**Behavior:**
+- The internal attendance tab key remains `exceptions`; visible UI now labels it Recovery.
+- QR attendance scans preserve device/branch validation and raw scan event logging.
+- If a staff member's first scan is in a configured clock-out/closing window and there is no active check-in, the scan is recorded as an `exception` with reason `likely_closing_scan_without_clock_in`; no `staff_shift_checkins` row is inserted.
+- Recovery Center can mark items reviewed, apply launch recovery from the saved scan/schedule evidence, manually clock out active records, reset a staff day, edit attendance rules, and view correction audit entries.
+- Normal clock-in/out, room scan, service session, first-scan registration, duplicate debounce, and branch mismatch behavior are preserved.
+
+**Verification:**
+- `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts`: PASS, 10 tests.
+- `npx vitest run tests/lib/attendance`: PASS, 8 files / 41 tests.
+- `npx tsc --noEmit`: PASS.
+- Targeted `npx eslint` on touched Attendance files/tests: PASS.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+- `git diff --check`: PASS, line-ending notices only.
+
+**Follow-up:**
+- Apply/push `supabase/migrations/20260710040835_attendance_recovery_rules.sql` before using the new correction/rule actions against a shared database.
+- Run authenticated CRM browser QA for Recovery Rules and Apply Recovery flows against live branch data.
+
+---

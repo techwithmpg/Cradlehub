@@ -2,14 +2,14 @@
  * @vitest-environment jsdom
  */
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import {
   DailyTimelineCoverageCard,
   buildDailyTimelineCoverageModel,
 } from "@/components/features/schedule/tabs/daily-timeline-coverage-card";
-import type { DailyTimelineAlert } from "@/components/features/schedule/tabs/daily-timeline-alerts";
+import type { LiveScheduleConflict } from "@/lib/schedule/live-schedule-conflict-types";
 
 afterEach(() => cleanup());
 
@@ -41,13 +41,27 @@ function row(
   };
 }
 
-function conflict(staffId: string): DailyTimelineAlert {
+function conflict(staffId: string): LiveScheduleConflict {
   return {
     id: `${staffId}-conflict`,
-    type: "staff_conflict",
-    staffId,
-    bookingIds: ["booking-1", "booking-2"],
-    title: "Staff conflict",
+    type: "staff_overlap",
+    severity: "critical",
+    title: "Staff double-booked",
+    plain_language_message: "Staff has overlapping bookings.",
+    affected_staff_ids: [staffId],
+    affected_staff_names: [staffId],
+    affected_booking_ids: ["booking-1", "booking-2"],
+    affected_booking_labels: ["Massage - 10:00 AM - 11:00 AM"],
+    affected_resource_id: null,
+    affected_resource_name: null,
+    date: "2026-07-09",
+    start_time: "10:00:00",
+    end_time: "11:00:00",
+    broken_rule: "One staff member cannot serve two overlapping bookings.",
+    why_it_matters: "One customer may wait.",
+    recommended_fix: "Move one booking.",
+    quick_actions: [],
+    debug_metadata: {},
   };
 }
 
@@ -72,7 +86,7 @@ describe("DailyTimelineCoverageCard", () => {
     render(
       <DailyTimelineCoverageCard
         rows={[row("opening-1", "opening"), row("closing-1", "closing")]}
-        alerts={[]}
+        conflicts={[]}
         groupLabel="Therapists"
       />
     );
@@ -85,12 +99,46 @@ describe("DailyTimelineCoverageCard", () => {
     render(
       <DailyTimelineCoverageCard
         rows={[row("opening-1", "opening"), row("regular-1", "single"), row("off-1", "off")]}
-        alerts={[]}
+        conflicts={[]}
         groupLabel="CRM / Front Desk"
       />
     );
 
     expect(screen.getByText("Regular shift")).toBeTruthy();
     expect(screen.getByText("2 / 2 scheduled staff")).toBeTruthy();
+  });
+
+  it("uses Coverage Overview as the single conflict entry point", () => {
+    const onViewConflictDetails = vi.fn();
+
+    render(
+      <DailyTimelineCoverageCard
+        rows={[row("opening-1", "opening")]}
+        conflicts={[conflict("opening-1")]}
+        groupLabel="Therapists"
+        onViewConflictDetails={onViewConflictDetails}
+      />
+    );
+
+    expect(screen.getByText("Schedule issues")).toBeTruthy();
+    expect(screen.getByText("1 critical")).toBeTruthy();
+    expect(screen.getByText("Review before confirming the day")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Schedule issues/i }));
+    expect(onViewConflictDetails).toHaveBeenCalledTimes(1);
+
+    cleanup();
+
+    render(
+      <DailyTimelineCoverageCard
+        rows={[row("opening-1", "opening")]}
+        conflicts={[]}
+        groupLabel="Therapists"
+      />
+    );
+
+    expect(screen.getByText("All clear")).toBeTruthy();
+    expect(screen.getByText("No schedule issues found")).toBeTruthy();
+    expect(screen.queryByText("Conflict Details")).toBeNull();
   });
 });

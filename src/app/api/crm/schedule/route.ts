@@ -5,6 +5,7 @@ import { getManagerDashboardStats } from "@/lib/queries/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
 
 export async function GET(req: NextRequest) {
   const auth = await getCrmApiContext();
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient();
 
-    const [staffRows, stats, resourcesResult, readiness] = await Promise.all([
+    const [staffRows, stats, resourcesResult, readiness, schedulingRules] = await Promise.all([
       getDailySchedule({ branchId: ctx.branchId, date }),
       getManagerDashboardStats(ctx.branchId, date),
       supabase
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
         .eq("is_active", true)
         .order("sort_order"),
       getCrmReadinessCached(ctx.branchId).catch(() => null),
+      getSchedulingRules(ctx.branchId).catch(() => null),
     ]);
 
     return NextResponse.json(
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
         branchResources: resourcesResult.data ?? [],
         stats,
         readiness,
+        schedulingRules,
       },
       {
         headers: {

@@ -10,13 +10,13 @@
 
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
-| **Task ID**      | `STAFF-ONBOARDING-BRANCH-SAFETY-001` |
-| **Description**  | Harden staff onboarding/registration so applicants cannot register under the wrong branch and approvers cannot silently change the branch |
-| **Agent**        | Kimi Code CLI |
-| **Started**      | 2026-07-08 |
-| **Status**       | `COMPLETED` |
+| **Task ID**      | `ATTENDANCE-RECOVERY-RULES-001` |
+| **Description**  | Upgrade Attendance with schedule-aware recovery, rules, audit, and closing-scan intent handling |
+| **Agent**        | Codex |
+| **Started**      | 2026-07-10 |
+| **Status**       | `DONE` |
 | **Branch**       | `main` |
-| **Blocked By**   | Authenticated browser QA pending; no code blockers |
+| **Blocked By**   | None |
 
 ---
 
@@ -34,6 +34,28 @@
 ---
 
 ## Notes
+
+ATTENDANCE-RECOVERY-RULES-001 status:
+
+- Added a pure Smart Attendance Intent Engine and focused tests for normal clock-in/out, duplicate, missing schedule, day-off, first closing scan, launch recovery, ambiguous, and overnight clock-out cases.
+- Updated QR Attendance so first scans in clock-out/closing windows with no active check-in are recorded as raw scan events plus Recovery exceptions instead of being inserted as normal clock-ins.
+- Refurbished the visible Attendance `exceptions` tab into Recovery with internal views for Today Recovery, Staff Records, Rules, and Audit Log while preserving the existing tab key/URL behavior.
+- Added schedule-aware attendance rule fields and correction audit fields in `supabase/migrations/20260710040835_attendance_recovery_rules.sql`.
+- Added server-side correction/rules services and actions for launch recovery, manual clock-out, staff-day reset, reviewed scans, and rule updates.
+- Verification passed: focused attendance tests, `npx tsc --noEmit`, targeted lint, `pnpm build`, and `git diff --check`.
+- Still required: apply/push the new Supabase migration and run authenticated CRM browser QA for Recovery actions against live branch data.
+
+---
+
+SCHEDULE-CONFLICT-RESOLUTION-CENTER-001 status:
+
+- Required Next.js local docs and React best-practice guidance were read before source edits.
+- Removed stale Schedule Conflict Center compile blockers from the impact model, summary-list helper, dialog wiring, and resolution panel typing.
+- Refreshed the dialog test around approval-level accept exceptions: reason entry, scope selection, accepted-tab transition, and no action-route delegation.
+- Verification passed: `pnpm type-check`, `pnpm lint`, focused schedule tests, booking/availability safety tests, and `pnpm build`.
+- Remaining recommendation: authenticated CRM browser QA against live branch data.
+
+---
 
 DATABASE-CONNECTION-STABILIZATION-001 status:
 

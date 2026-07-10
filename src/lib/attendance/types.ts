@@ -13,7 +13,7 @@ export const ATTENDANCE_TABS: Array<{ key: AttendanceTab; label: string }> = [
   { key: "sessions", label: "Sessions" },
   { key: "qr", label: "QR Codes" },
   { key: "devices", label: "Devices" },
-  { key: "exceptions", label: "Exceptions" },
+  { key: "exceptions", label: "Recovery" },
   { key: "reports", label: "Reports" },
 ];
 
@@ -31,6 +31,32 @@ export type AttendanceSettings = {
   overnight_shift_cutoff_time: string;
   active_service_blocks_clock_out: boolean;
   require_registered_device_for_attendance: boolean;
+  timezone: string;
+  attendance_day_boundary: string;
+  early_clock_in_allowed_minutes: number;
+  late_grace_minutes: number;
+  clock_in_window_before_shift_minutes: number;
+  clock_in_window_after_shift_start_minutes: number;
+  clock_out_window_before_shift_end_minutes: number;
+  clock_out_window_after_shift_end_minutes: number;
+  early_leave_threshold_minutes: number;
+  overtime_threshold_minutes: number;
+  duplicate_scan_debounce_minutes: number;
+  first_scan_closing_behavior:
+    | "flag_for_recovery"
+    | "treat_as_clock_out_launch_only"
+    | "require_manager_confirmation"
+    | "never_auto_clock_in";
+  missing_schedule_behavior: "flag_for_recovery" | "allow_clock_in_with_exception" | "block_scan";
+  off_day_scan_behavior: "flag_for_recovery" | "allow_clock_in_with_exception" | "block_scan";
+  ambiguous_scan_behavior: "flag_for_recovery" | "require_manager_confirmation" | "block_scan";
+  launch_recovery_enabled: boolean;
+  launch_recovery_start_date: string | null;
+  launch_recovery_end_date: string | null;
+  launch_recovery_closing_start_time: string;
+  launch_recovery_closing_end_time: string;
+  launch_recovery_reason: string | null;
+  updated_by: string | null;
 };
 
 export type AttendanceQrConfiguration = {
@@ -210,6 +236,8 @@ export type AttendanceRecord = {
   system_role: string | null;
   shift_date: string;
   shift_type: string;
+  scheduled_start_at: string | null;
+  scheduled_end_at: string | null;
   checked_in_at: string;
   checked_out_at: string | null;
   status: string;
@@ -228,13 +256,38 @@ export type AttendanceException = {
   id: string;
   branch_id: string;
   staff_id: string | null;
+  checkin_id: string | null;
+  scan_event_id: string | null;
   staff_name: string | null;
   exception_type: string;
   severity: string;
   status: string;
   message: string;
+  metadata: Record<string, unknown>;
   detected_at: string;
   resolved_at: string | null;
+};
+
+export type AttendanceCorrection = {
+  id: string;
+  branch_id: string;
+  staff_id: string | null;
+  staff_name: string | null;
+  checkin_id: string | null;
+  attendance_date: string | null;
+  action_type: string;
+  correction_type: string;
+  reason: string;
+  status: string;
+  previous_values: Record<string, unknown>;
+  new_values: Record<string, unknown>;
+  requested_by: string | null;
+  approved_by: string | null;
+  corrected_by: string | null;
+  corrected_by_name: string | null;
+  applied_at: string | null;
+  corrected_at: string | null;
+  created_at: string;
 };
 
 export type AttendanceScanEvent = {
@@ -317,6 +370,7 @@ export type AttendanceWorkspaceData = {
   deviceRegistry: AttendanceDeviceRegistryData;
   records: AttendanceRecord[];
   exceptions: AttendanceException[];
+  corrections: AttendanceCorrection[];
   scanEvents: AttendanceScanEvent[];
   sessions: AttendanceSession[];
   staffOptions: Array<{ id: string; full_name: string; staff_type: string | null }>;

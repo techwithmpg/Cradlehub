@@ -15,6 +15,7 @@ const FORMAT_OPTIONS = Object.values(QR_PRINT_LAYOUTS);
 
 export function QrCodesTab({
   data,
+  nowMs,
   selectedQrId,
   selectedFormat,
   onSelectedQrChange,
@@ -22,6 +23,7 @@ export function QrCodesTab({
   onActionResult,
 }: {
   data: AttendanceWorkspaceData;
+  nowMs: number;
   selectedQrId: string | null;
   selectedFormat: QrPrintFormat;
   onSelectedQrChange: (id: string) => void;
@@ -159,6 +161,7 @@ export function QrCodesTab({
         <QrPointListCard
           rows={rows}
           scanEvents={data.scanEvents}
+          nowMs={nowMs}
           selectedQrId={selectedQr?.id ?? null}
           selectedIds={selectedIds}
           totalCount={data.qrPoints.length}
@@ -173,6 +176,7 @@ export function QrCodesTab({
             qrPoint={selectedQr}
             branchName={data.branchName}
             scanEvents={data.scanEvents}
+            nowMs={nowMs}
             format={selectedFormat}
             formatOptions={FORMAT_OPTIONS}
             isPending={isPending}

@@ -29,13 +29,13 @@ function infoRows(entry: AttendanceDeviceRegistryEntry) {
   ] as const;
 }
 
-function branchDate(): string {
+function branchDate(nowMs: number): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(new Date(nowMs));
   const year = parts.find((part) => part.type === "year")?.value ?? "2026";
   const month = parts.find((part) => part.type === "month")?.value ?? "01";
   const day = parts.find((part) => part.type === "day")?.value ?? "01";
@@ -44,6 +44,7 @@ function branchDate(): string {
 
 export function SelectedDevicePanel({
   entry,
+  nowMs,
   routeBasePath,
   routeBranchId,
   onGenerateRecovery,
@@ -51,6 +52,7 @@ export function SelectedDevicePanel({
   onRevoke,
 }: {
   entry: AttendanceDeviceRegistryEntry | null;
+  nowMs: number;
   routeBasePath?: string;
   routeBranchId?: string | null;
   onGenerateRecovery: (entry: AttendanceDeviceRegistryEntry) => void;
@@ -65,7 +67,7 @@ export function SelectedDevicePanel({
     );
   }
 
-  const recordsHref = `${routeBasePath ?? "/crm/attendance"}?tab=records&staffId=${entry.staffId}&date=${branchDate()}${
+  const recordsHref = `${routeBasePath ?? "/crm/attendance"}?tab=records&staffId=${entry.staffId}&date=${branchDate(nowMs)}${
     routeBranchId ? `&branchId=${routeBranchId}` : ""
   }`;
 

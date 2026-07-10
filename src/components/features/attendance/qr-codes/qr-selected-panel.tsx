@@ -10,6 +10,7 @@ export function QrSelectedPanel({
   qrPoint,
   branchName,
   scanEvents,
+  nowMs,
   format,
   formatOptions,
   isPending,
@@ -20,6 +21,7 @@ export function QrSelectedPanel({
   qrPoint: AttendanceQrPoint;
   branchName: string;
   scanEvents: AttendanceScanEvent[];
+  nowMs: number;
   format: QrPrintFormat;
   formatOptions: QrPrintLayout[];
   isPending: boolean;
@@ -27,7 +29,7 @@ export function QrSelectedPanel({
   onFormatChange: (format: QrPrintFormat) => void;
   onDeactivate: (point: AttendanceQrPoint) => void;
 }) {
-  const latestScan = formatLastScanned(getLatestScanEvent(qrPoint, scanEvents)?.created_at);
+  const latestScan = formatLastScanned(getLatestScanEvent(qrPoint, scanEvents)?.created_at, nowMs);
 
   return (
     <section className="cs-card grid min-w-0 content-start gap-4 rounded-lg p-4">

@@ -13,15 +13,15 @@ export function AttentionExceptions({
 
   return (
     <Panel
-      title={`Exceptions Requiring Action (${openExceptions.length})`}
+      title={`Recovery Requiring Action (${openExceptions.length})`}
       action={
         <Button type="button" variant="ghost" size="sm" onClick={() => onTabChange("exceptions")}>
-          View all
+          Open Recovery
         </Button>
       }
     >
       {openExceptions.length === 0 ? (
-        <EmptyState title="No exceptions require attention." detail="Attendance activity is currently clear." />
+        <EmptyState title="No recovery items require attention." detail="Attendance activity is currently clear." />
       ) : (
         <div className="grid gap-3">
           {openExceptions.map((exception) => (
@@ -41,10 +41,10 @@ export function AttentionExceptions({
                   Review
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => onTabChange("exceptions")}>
-                  Resolve
+                  Recovery
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => onTabChange("exceptions")}>
-                  Dismiss
+                  Rules
                 </Button>
               </div>
             </div>

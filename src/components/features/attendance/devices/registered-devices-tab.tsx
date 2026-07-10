@@ -46,10 +46,12 @@ function updateEntryDevice(
 
 export function RegisteredDevicesTab({
   data,
+  nowMs,
   routeBasePath,
   routeBranchId,
 }: {
   data: AttendanceWorkspaceData;
+  nowMs: number;
   routeBasePath?: string;
   routeBranchId?: string | null;
 }) {
@@ -214,12 +216,14 @@ export function RegisteredDevicesTab({
           )}
           <PendingRecoveryLinks
             links={registry.pendingRecoveryLinks}
+            nowMs={nowMs}
             onRevoke={revokePendingLink}
             onReplace={replacePendingLink}
           />
         </div>
         <SelectedDevicePanel
           entry={selectedEntry}
+          nowMs={nowMs}
           routeBasePath={routeBasePath}
           routeBranchId={routeBranchId}
           onGenerateRecovery={setRecoveryEntry}

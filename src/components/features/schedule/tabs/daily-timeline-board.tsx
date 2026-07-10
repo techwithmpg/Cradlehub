@@ -8,7 +8,7 @@ import {
   getTimelineHourMarks,
   isToday,
 } from "@/lib/utils/schedule-timeline";
-import type { DailyTimelineAlert } from "./daily-timeline-alerts";
+import type { LiveScheduleConflict } from "@/lib/schedule/live-schedule-conflict-types";
 import {
   getShiftGroup,
   getStaffTypeLabel,
@@ -33,7 +33,7 @@ type Props = {
   date: string;
   now: Date | null;
   staffTypeById: Map<string, string | null>;
-  alerts: DailyTimelineAlert[];
+  conflicts: LiveScheduleConflict[];
   selectedStaffId: string | null;
   onStaffSelect: (staffId: string) => void;
   onBookingSelect: (staffId: string, bookingId: string) => void;
@@ -44,7 +44,7 @@ export function DailyTimelineBoard({
   date,
   now,
   staffTypeById,
-  alerts,
+  conflicts,
   selectedStaffId,
   onStaffSelect,
   onBookingSelect,
@@ -141,7 +141,7 @@ export function DailyTimelineBoard({
                     timelineMinWidth={timelineMinWidth}
                     selected={selectedStaffId === row.staff_id}
                     currentTimePercent={currentTimePercent}
-                    alerts={alerts.filter((alert) => alert.staffId === row.staff_id)}
+                    conflicts={conflicts.filter((conflict) => conflict.affected_staff_ids.includes(row.staff_id))}
                     onStaffSelect={onStaffSelect}
                     onBookingSelect={onBookingSelect}
                   />

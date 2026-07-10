@@ -158,6 +158,7 @@
 | 2026-05-14 | Logged NOTIF-001 premium workflow signal foundation | Track deduped workflow task layer, staff onboarding routing cleanup, manager attention strip, and quiet bell grouping | Codex |
 | 2026-05-14 | Logged BOOKING-WIZARD-UX-10.2 public booking wizard optimization | Track modern Places-only active booking path, compact category service picker, and qualified service-provider staff filtering | Codex |
 | 2026-05-15 | Logged STAFF-NICKNAME-001 staff/therapist nicknames | Track optional `staff.nickname`, public nickname-first booking display, and internal full-name-plus-nickname manager/CRM/owner displays | Codex |
+| 2026-07-10 | Logged ATTENDANCE-RECOVERY-RULES-001 schedule-aware Attendance Recovery Center | Track smart QR scan intent classification, closing-scan recovery, Recovery/Rules/Audit UI, correction actions, and migration follow-up | Codex |
 | 2026-05-15 | Logged DISPATCH-LIVE-001 manager dispatch live data wiring | Remove production mock dispatch data and connect `/manager/dispatch` to real branch-scoped Supabase dispatch query data | Codex |
 | 2026-05-20 | Logged BOOKING-MOBILE-SERVICE-GRID-001 mobile service grid patch | Keep public booking service cards compact on mobile, preserve desktop, and verify no page-level horizontal overflow | Codex |
 | 2026-05-20 | Logged BOOKING-HOME-SERVICES-001 public home-service availability fix | Align public booking service reads with admin branch-service Home/Public settings and preserve branch custom price/duration | Codex |
@@ -192,3 +193,7 @@
 | 2026-07-09 | Completed CRM-BOOKING-HOME-SERVICE-DISTANCE-001 | Fix CRM schedule-first availability checks, require live Places Home Service addresses, calculate/store distance and travel fee, and verify type-check/lint/build/focused tests | Codex |
 | 2026-07-09 | Completed CRM-HOME-SERVICE-LOCATION-FIELD-CLEANUP-001 | Remove redundant CRM Home Service city/barangay/landmark/location-note fields, keep one Places-backed service address, add access note metadata, and verify checks | Codex |
 | 2026-07-09 | Completed BRANCH-LOCATION-HOME-SERVICE-ORIGIN-001 | Add editable Places-backed branch service origin coordinates on branch details so CRM Home Service distance uses selected branch lat/lng as origin | Codex |
+| 2026-07-09 | Completed SCHEDULE-CONFLICT-CLARITY-001 | Make live Schedule conflict counts clickable and plain-language with a central conflict model, timeline indicators, safe guided actions, and verified booking/attendance guardrails | Codex |
+| 2026-07-09 | Completed SCHEDULE-CONFLICT-CENTER-001 | Replace the inline right-rail conflict details card with a centralized Schedule Conflict Center modal launched from Coverage Overview | Codex |
+| 2026-07-09 | Completed SCHEDULE-CONFLICT-RESOLUTION-CENTER-001 | Finalize Schedule Conflict Center impact groups, accepted-exception flow, typing cleanup, focused tests, and build verification | Codex |
+| 2026-07-09 | Completed AGENT-COACH-IDLE-LOOP-001 | Fix Agent Coach idle listener maximum-update-depth crash by guarding duplicate idle state updates | Codex |

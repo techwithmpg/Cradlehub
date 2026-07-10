@@ -5,7 +5,7 @@ import {
   QrCode,
   Smartphone,
   Timer,
-  TriangleAlert,
+  Wrench,
 } from "lucide-react";
 import type { ComponentType, KeyboardEvent } from "react";
 import { ATTENDANCE_TABS, type AttendanceTab } from "@/lib/attendance/types";
@@ -17,7 +17,7 @@ const TAB_ICONS: Record<AttendanceTab, ComponentType<{ className?: string }>> = 
   sessions: Timer,
   qr: QrCode,
   devices: Smartphone,
-  exceptions: TriangleAlert,
+  exceptions: Wrench,
   reports: ChartNoAxesCombined,
 };
 

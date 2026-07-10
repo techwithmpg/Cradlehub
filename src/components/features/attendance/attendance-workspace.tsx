@@ -7,10 +7,10 @@ import { AttendanceHeader } from "@/components/features/attendance/attendance-he
 import { AttendanceTabs } from "@/components/features/attendance/attendance-tabs";
 import { EmptyState } from "@/components/features/attendance/attendance-ui";
 import { RegisteredDevicesTab } from "@/components/features/attendance/devices/registered-devices-tab";
-import { AttendanceExceptionsTab } from "@/components/features/attendance/exceptions/attendance-exceptions-tab";
 import { AttendanceOverview } from "@/components/features/attendance/overview/attendance-overview";
 import { QrCodesTab } from "@/components/features/attendance/qr-codes/qr-codes-tab";
 import { AttendanceRecordsTab } from "@/components/features/attendance/records/attendance-records-tab";
+import { AttendanceRecoveryTab } from "@/components/features/attendance/recovery/attendance-recovery-tab";
 import { AttendanceReportsTab } from "@/components/features/attendance/reports/attendance-reports-tab";
 import { ServiceSessionsTab } from "@/components/features/attendance/sessions/service-sessions-tab";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +27,7 @@ import type { QrPrintFormat } from "@/lib/attendance/qr-print-layout";
 type AttendanceWorkspaceProps = {
   data: AttendanceWorkspaceData;
   activeTab: AttendanceTab;
+  initialNowMs: number;
   initialRecordFilters?: AttendanceRecordFilters;
   routeBasePath?: string;
   routeBranchId?: string | null;
@@ -45,6 +46,7 @@ type WorkspacePatch = Partial<
 export function AttendanceWorkspace({
   data,
   activeTab,
+  initialNowMs,
   initialRecordFilters,
   routeBasePath,
   routeBranchId,
@@ -53,6 +55,7 @@ export function AttendanceWorkspace({
   const router = useRouter();
   const [localPatch, setLocalPatch] = useState<WorkspacePatch | null>(null);
   const [selectedTab, setSelectedTab] = useState<AttendanceTab>(activeTab);
+  const [nowMs, setNowMs] = useState(initialNowMs);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<QrPrintFormat>("a4");
   const [selectedQrId, setSelectedQrId] = useState<string | null>(() => data.qrPoints[0]?.id ?? null);
@@ -72,6 +75,11 @@ export function AttendanceWorkspace({
       ...(localPatch.exceptions && { exceptions: localPatch.exceptions }),
     };
   }, [data, localPatch]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const activeQrId = useMemo(() => {
     if (selectedQrId && workspaceData.qrPoints.some((point) => point.id === selectedQrId)) return selectedQrId;
@@ -97,6 +105,7 @@ export function AttendanceWorkspace({
       "staff_shift_checkins",
       "qr_scan_events",
       "attendance_exceptions",
+      "attendance_corrections",
       "staff_devices",
       "bookings",
     ] as const;
@@ -179,11 +188,14 @@ export function AttendanceWorkspace({
         ),
       }));
     }
+    if (result.kind === "attendance_correction" || result.kind === "attendance_rules") {
+      router.refresh();
+    }
   }
 
   return (
     <div className="grid gap-5">
-      <AttendanceHeader branchName={workspaceData.branchName} onTabChange={setTab} />
+      <AttendanceHeader branchName={workspaceData.branchName} nowMs={nowMs} onTabChange={setTab} />
       <AttendanceTabs activeTab={selectedTab} onTabChange={setTab} />
       {notice ? (
         <div
@@ -195,17 +207,18 @@ export function AttendanceWorkspace({
       ) : null}
 
       <section role="tabpanel" hidden={selectedTab !== "overview"}>
-        <AttendanceOverview data={workspaceData} onTabChange={setTab} />
+        <AttendanceOverview data={workspaceData} nowMs={nowMs} onTabChange={setTab} />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "records"}>
-        <AttendanceRecordsTab data={workspaceData} initialFilters={initialRecordFilters} />
+        <AttendanceRecordsTab data={workspaceData} initialFilters={initialRecordFilters} onTabChange={setTab} />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "sessions"}>
-        <ServiceSessionsTab data={workspaceData} onActionResult={handleActionResult} />
+        <ServiceSessionsTab data={workspaceData} nowMs={nowMs} onActionResult={handleActionResult} />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "qr"}>
         <QrCodesTab
           data={workspaceData}
+          nowMs={nowMs}
           selectedQrId={activeQrId}
           selectedFormat={selectedFormat}
           onSelectedQrChange={setSelectedQrId}
@@ -216,12 +229,13 @@ export function AttendanceWorkspace({
       <section role="tabpanel" hidden={selectedTab !== "devices"}>
         <RegisteredDevicesTab
           data={workspaceData}
+          nowMs={nowMs}
           routeBasePath={routeBasePath}
           routeBranchId={routeBranchId}
         />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "exceptions"}>
-        <AttendanceExceptionsTab data={workspaceData} onActionResult={handleActionResult} />
+        <AttendanceRecoveryTab data={workspaceData} onActionResult={handleActionResult} onTabChange={setTab} />
       </section>
       <section role="tabpanel" hidden={selectedTab !== "reports"}>
         <AttendanceReportsTab data={workspaceData} />
