@@ -19,8 +19,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { CrmSegmentTabs } from "@/components/features/crm/premium/crm-segment-tabs";
-import type { CrmSegmentTab } from "@/components/features/crm/premium/crm-segment-tabs";
+import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import { CrmServicesWorkspace } from "@/components/features/crm/services/crm-services-workspace";
 import { SpacesRulesWorkspace } from "@/components/features/spaces-rules/spaces-rules-workspace";
 import { CrmStaffReadinessPanel } from "./crm-staff-readiness-panel";
@@ -39,7 +38,7 @@ export type SetupTab =
   | "staff_readiness"
   | "public_readiness";
 
-const TABS: CrmSegmentTab[] = [
+const TABS: { key: SetupTab; label: string }[] = [
   { key: "health",          label: "Setup Health"    },
   { key: "services",        label: "Services"        },
   { key: "providers",       label: "Providers"       },
@@ -76,6 +75,7 @@ export function CrmSetupWorkspace({
   spacesData,
 }: CrmSetupWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<SetupTab>(initialTab);
+  const activeTabIndex = TABS.findIndex((tab) => tab.key === activeTab);
 
   const handleTabChange = useCallback((next: string) => {
     const tab = next as SetupTab;
@@ -87,66 +87,125 @@ export function CrmSetupWorkspace({
     }
   }, []);
 
+  const handleTabKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const lastIndex = TABS.length - 1;
+      let nextIndex = activeTabIndex;
+
+      if (event.key === "ArrowRight") nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
+      else if (event.key === "ArrowLeft") nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = lastIndex;
+      else return;
+
+      event.preventDefault();
+      const nextTab = TABS[nextIndex];
+      if (nextTab) handleTabChange(nextTab.key);
+    },
+    [activeTabIndex, handleTabChange]
+  );
+
   return (
     <div>
-      {/* ── Tab bar ── */}
-      <CrmSegmentTabs
-        tabs={TABS}
-        activeKey={activeTab}
-        onSelect={handleTabChange}
-        variant="underline"
-        className="mb-6"
-      />
+      <div
+        role="tablist"
+        aria-label="Setup sections"
+        onKeyDown={handleTabKeyDown}
+        className="mb-6 flex gap-0 overflow-x-auto border-b border-[var(--cs-border-soft)]"
+      >
+        {TABS.map((tab) => {
+          const active = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              id={`setup-tab-${tab.key}`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls={`setup-panel-${tab.key}`}
+              tabIndex={active ? 0 : -1}
+              onClick={() => handleTabChange(tab.key)}
+              className={`relative shrink-0 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] ${
+                active
+                  ? "text-[var(--cs-text)] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-[2px] after:rounded-full after:bg-[var(--cs-sand)]"
+                  : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* ── Tab panels ── */}
+      <AttendanceTabPanel id="setup-panel-health" labelledBy="setup-tab-health" active={activeTab === "health"}>
+        {activeTab === "health" ? healthSlot : null}
+      </AttendanceTabPanel>
 
-      {activeTab === "health" && (
-        <div>{healthSlot}</div>
-      )}
+      <AttendanceTabPanel id="setup-panel-services" labelledBy="setup-tab-services" active={activeTab === "services"}>
+        {activeTab === "services" ? (
+          <CrmServicesWorkspace
+            key="services"
+            {...servicesData}
+            initialTab="services"
+          />
+        ) : null}
+      </AttendanceTabPanel>
 
-      {activeTab === "services" && (
-        <CrmServicesWorkspace
-          key="services"
-          {...servicesData}
-          initialTab="services"
-        />
-      )}
+      <AttendanceTabPanel id="setup-panel-providers" labelledBy="setup-tab-providers" active={activeTab === "providers"}>
+        {activeTab === "providers" ? (
+          <CrmServicesWorkspace
+            key="providers"
+            {...servicesData}
+            initialTab="providers"
+          />
+        ) : null}
+      </AttendanceTabPanel>
 
-      {activeTab === "providers" && (
-        <CrmServicesWorkspace
-          key="providers"
-          {...servicesData}
-          initialTab="providers"
-        />
-      )}
+      <AttendanceTabPanel id="setup-panel-spaces" labelledBy="setup-tab-spaces" active={activeTab === "spaces"}>
+        {activeTab === "spaces" ? (
+          <SpacesRulesWorkspace
+            key="spaces"
+            {...spacesData}
+            initialTab="spaces"
+          />
+        ) : null}
+      </AttendanceTabPanel>
 
-      {activeTab === "spaces" && (
-        <SpacesRulesWorkspace
-          key="spaces"
-          {...spacesData}
-          initialTab="spaces"
-        />
-      )}
+      <AttendanceTabPanel
+        id="setup-panel-booking_rules"
+        labelledBy="setup-tab-booking_rules"
+        active={activeTab === "booking_rules"}
+      >
+        {activeTab === "booking_rules" ? (
+          <SpacesRulesWorkspace
+            key="booking_rules"
+            {...spacesData}
+            initialTab="rules"
+          />
+        ) : null}
+      </AttendanceTabPanel>
 
-      {activeTab === "booking_rules" && (
-        <SpacesRulesWorkspace
-          key="booking_rules"
-          {...spacesData}
-          initialTab="rules"
-        />
-      )}
+      <AttendanceTabPanel
+        id="setup-panel-staff_readiness"
+        labelledBy="setup-tab-staff_readiness"
+        active={activeTab === "staff_readiness"}
+      >
+        {activeTab === "staff_readiness" ? <CrmStaffReadinessPanel data={health} /> : null}
+      </AttendanceTabPanel>
 
-      {activeTab === "staff_readiness" && (
-        <CrmStaffReadinessPanel data={health} />
-      )}
-
-      {activeTab === "public_readiness" && (
-        <CrmServicesWorkspace
-          key="public_readiness"
-          {...servicesData}
-          initialTab="readiness_issues"
-        />
-      )}
+      <AttendanceTabPanel
+        id="setup-panel-public_readiness"
+        labelledBy="setup-tab-public_readiness"
+        active={activeTab === "public_readiness"}
+      >
+        {activeTab === "public_readiness" ? (
+          <CrmServicesWorkspace
+            key="public_readiness"
+            {...servicesData}
+            initialTab="readiness_issues"
+          />
+        ) : null}
+      </AttendanceTabPanel>
     </div>
   );
 }

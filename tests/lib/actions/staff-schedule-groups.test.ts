@@ -21,6 +21,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 import {
   applyGroupScheduleToStaffAction,
   deleteStaffGroupScheduleRuleAction,
+  saveStaffGroupScheduleRulesAction,
   upsertStaffGroupScheduleRuleAction,
 } from "@/lib/actions/staff-schedule-groups";
 
@@ -82,6 +83,26 @@ function deleteQuery(error: { code?: string; message: string } | null = null) {
     delete: vi.fn(() => query),
     eq: vi.fn(() => query),
     select: vi.fn().mockResolvedValue({ data: error ? null : [{ id: "rule-id" }], error }),
+  };
+  return query;
+}
+
+function bulkGroupRuleUpsertQuery(error: { code?: string; message: string } | null = null) {
+  const query = {
+    upsert: vi.fn((rows: unknown[]) => {
+      query.rows = rows;
+      return query;
+    }),
+    select: vi.fn().mockImplementation(() => ({
+      data: error
+        ? null
+        : (query.rows as Array<Record<string, unknown>>).map((row, index) => ({
+            ...row,
+            id: `rule-${index}`,
+          })),
+      error,
+    })),
+    rows: [] as unknown[],
   };
   return query;
 }
@@ -212,6 +233,45 @@ describe("staff group schedule rule actions", () => {
     expect(result).toEqual({ success: true });
     expect(mutation.delete).toHaveBeenCalledOnce();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/crm/schedule");
+  });
+
+  it("saves a full group schedule matrix in one upsert", async () => {
+    const mutation = bulkGroupRuleUpsertQuery();
+    mocks.createClient.mockResolvedValue(
+      clientFor({ role: "manager", mutationQuery: mutation })
+    );
+
+    const result = await saveStaffGroupScheduleRulesAction({
+      groupId: GROUP_ID,
+      days: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+        dayOfWeek,
+        opening: dayOfWeek !== 0,
+        closing: false,
+        regular: false,
+        dayOff: dayOfWeek === 0,
+        splitShift: false,
+      })),
+      times: {
+        opening: { start: "10:00", end: "17:30" },
+        closing: { start: "14:00", end: "22:30" },
+        regular: { start: "10:00", end: "17:30" },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mutation.upsert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          group_id: GROUP_ID,
+          day_of_week: 0,
+          shift_type: "single",
+          is_day_off: true,
+          is_active: true,
+        }),
+      ]),
+      { onConflict: "group_id,day_of_week,shift_type" }
+    );
+    expect(mutation.rows).toHaveLength(21);
   });
 
   it("requires explicit staff targets before applying a group schedule", async () => {

@@ -11,14 +11,15 @@ import {
   type ResolvedStaffScheduleSource,
 } from "@/lib/schedule/resolve-staff-schedule";
 
-export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule";
+export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule" | "conflict";
 
 export type PresenceStatus =
   | "checked_in"
   | "not_checked_in"
   | "checked_out"
   | "off_today"
-  | "no_schedule";
+  | "no_schedule"
+  | "conflict";
 
 export type LiveStatus =
   | "available_now"
@@ -26,7 +27,8 @@ export type LiveStatus =
   | "not_checked_in"
   | "checked_out"
   | "off_today"
-  | "no_schedule";
+  | "no_schedule"
+  | "conflict";
 
 export type ShiftType = "single" | "opening" | "closing";
 
@@ -60,6 +62,8 @@ export type CrmAvailabilityStaffRow = {
   work_start: string | null;
   work_end: string | null;
   scheduleSource: ResolvedStaffScheduleSource;
+  scheduleConflictCode: string | null;
+  scheduleConflictReason: string | null;
   shifts: StaffShiftEntry[];
   active_booking: {
     id: string;
@@ -81,6 +85,7 @@ export type CrmAvailabilitySummary = {
   checkedOut: number;
   offToday: number;
   noSchedule: number;
+  scheduleConflicts: number;
   driversReady: number;
   driversTotal: number;
   needsAttention: number;
@@ -115,6 +120,7 @@ export async function getCrmAvailabilitySnapshot(params: {
       .select("id, staff_id, shift_type, checked_in_at, checked_out_at, status")
       .eq("branch_id", params.branchId)
       .eq("shift_date", params.date)
+      .eq("is_test", false)
       .neq("status", "voided"),
     supabase
       .from("bookings")
@@ -160,7 +166,9 @@ export async function getCrmAvailabilitySnapshot(params: {
 
     // ── Schedule status ──────────────────────────────────────────────────────
     let scheduleStatus: ScheduleStatus;
-    if (schedule?.schedule_is_day_off === true || schedule?.current_override?.is_day_off === true) {
+    if (schedule?.schedule_status === "conflict") {
+      scheduleStatus = "conflict";
+    } else if (schedule?.schedule_is_day_off === true || schedule?.current_override?.is_day_off === true) {
       scheduleStatus = "off_today";
     } else if (!schedule || shifts.length === 0 || schedule.work_start === null) {
       scheduleStatus = "no_schedule";
@@ -174,6 +182,8 @@ export async function getCrmAvailabilitySnapshot(params: {
     let presenceStatus: PresenceStatus;
     if (scheduleStatus === "off_today") {
       presenceStatus = "off_today";
+    } else if (scheduleStatus === "conflict") {
+      presenceStatus = "conflict";
     } else if (scheduleStatus === "no_schedule") {
       presenceStatus = "no_schedule";
     } else if (MVP_CHECKIN_PAUSED) {
@@ -192,6 +202,8 @@ export async function getCrmAvailabilitySnapshot(params: {
 
     if (scheduleStatus === "off_today") {
       liveStatus = "off_today";
+    } else if (scheduleStatus === "conflict") {
+      liveStatus = "conflict";
     } else if (scheduleStatus === "no_schedule") {
       liveStatus = "no_schedule";
     } else if (presenceStatus === "not_checked_in") {
@@ -228,7 +240,7 @@ export async function getCrmAvailabilitySnapshot(params: {
       }
     }
 
-    const needsAttention = scheduleStatus === "no_schedule";
+    const needsAttention = scheduleStatus === "no_schedule" || scheduleStatus === "conflict";
 
     return {
       staff_id: member.id,
@@ -246,6 +258,8 @@ export async function getCrmAvailabilitySnapshot(params: {
       work_start: schedule?.work_start ?? null,
       work_end: schedule?.work_end ?? null,
       scheduleSource: schedule?.schedule_source ?? "none",
+      scheduleConflictCode: schedule?.schedule_conflict_code ?? null,
+      scheduleConflictReason: schedule?.schedule_conflict_reason ?? null,
       shifts,
       active_booking,
       blocks:
@@ -266,6 +280,7 @@ export async function getCrmAvailabilitySnapshot(params: {
   const checkedOut            = staffRows.filter((s) => s.presenceStatus === "checked_out");
   const offToday              = staffRows.filter((s) => s.scheduleStatus === "off_today");
   const noSchedule            = staffRows.filter((s) => s.scheduleStatus === "no_schedule");
+  const scheduleConflicts     = staffRows.filter((s) => s.scheduleStatus === "conflict");
   const drivers               = staffRows.filter((s) => s.is_driver);
   // Drivers ready = checked in + not busy
   const driversReady          = drivers.filter((s) => s.presenceStatus === "checked_in" && s.liveStatus !== "busy_now");
@@ -288,6 +303,7 @@ export async function getCrmAvailabilitySnapshot(params: {
       checkedOut: checkedOut.length,
       offToday: offToday.length,
       noSchedule: noSchedule.length,
+      scheduleConflicts: scheduleConflicts.length,
       driversReady: driversReady.length,
       driversTotal: drivers.length,
       needsAttention: attention.length,

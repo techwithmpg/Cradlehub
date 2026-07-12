@@ -1,3 +1,47 @@
+## 2026-07-12 - ATTENDANCE-AUTONOMY-HARDENING-001 blockers and prevention notes
+
+- **Symptom:** Local migration verification cannot run because `supabase migration list --local` cannot connect to `127.0.0.1:54322`.
+- **Impact:** `supabase/migrations/20260712000100_attendance_state_reset.sql` and `supabase/migrations/20260712035222_attendance_autonomy_hardening.sql` are ready locally but were not verified as applied in a local Supabase database.
+- **Resolution:** Start/repair local Supabase or use the repository's approved working remote DB path, then rerun migration list/status and regenerate types. Do not manually alter migration history.
+
+- **Symptom:** Linked migration-history reads still time out to `aws-1-ap-northeast-1.pooler.supabase.com:5432`.
+- **Impact:** `pnpm db:status` exits non-zero after reporting `Remote schema changed: no`; `pnpm db:doctor` passes CLI/link/token/pooler checks but exits with migration-history timeout.
+- **Resolution:** Confirm DB password/network/pooler access from a working environment, apply pending migrations there, then rerun `pnpm db:status`, `pnpm db:types`, `pnpm type-check`, `pnpm test`, and `pnpm build`.
+
+- **Symptom:** `pnpm db:types` succeeded against the linked schema, but the remote schema does not yet include pending local migrations.
+- **Impact:** Generated types briefly regressed local pending columns such as `branch_booking_rules.home_service_free_km` and new Attendance hardening fields.
+- **Resolution:** Reconciled `src/types/supabase.ts` locally for pending migration columns after generation. Prevention: avoid treating linked type generation as final while unapplied local migrations exist.
+
+- **Symptom:** Attendance scan persistence is still app-level orchestration, not a single PostgreSQL transaction.
+- **Impact:** App-level idempotent replay reduces retry duplication, and indexes/constraints reduce duplicate records, but simultaneous scan edge cases are not fully closed until the database owns the transaction.
+- **Resolution:** Implement a transactional scan RPC that reserves request id, locks staff/shift state, resolves or commits the final result, writes scan/Recovery/audit records, and returns the committed result.
+
+- **Symptom:** Attendance corrections now check failed updates/audits, but not every correction action is wrapped in one database transaction.
+- **Impact:** A later multi-step failure can still leave partial state for correction flows that are not yet RPC-backed.
+- **Resolution:** Move Reset Attendance State, manual clock-in/out, adjust, void, rebuild, resolve exception, and archive test data into transactional RPCs with permission checks and row locks.
+
+---
+
+## 2026-07-12 - ATTENDANCE-TODAY-ALIGNMENT-RESET-001 verification notes
+
+- **Symptom:** `pnpm db:doctor` and `pnpm db:status` still time out while reading linked Supabase migration history on `aws-1-ap-northeast-1.pooler.supabase.com:5432`, even after unrestricted retries.
+- **Impact:** New migration `supabase/migrations/20260712000100_attendance_state_reset.sql` was created locally but not applied/pushed from this environment. The app code type-checks/builds, but production use of `reset_attendance_state` requires the migration.
+- **Resolution:** App verification passed locally. `pnpm db:status` reported `Remote schema changed: no` before failing the migration-history read. Apply/push from a working DB path and rerun `pnpm db:status`, `pnpm db:types`, and app checks.
+
+- **Symptom:** `git diff --check` exits non-zero because of pre-existing unrelated blank-line-at-EOF issues in non-attendance files plus line-ending warnings across the dirty worktree.
+- **Impact:** Whitespace check cannot be used as a clean final gate for this task without editing unrelated files.
+- **Resolution:** No unrelated files were cleaned. Attendance edits passed type-check/lint/test/build; the `git diff --check` findings should be handled in a separate cleanup window.
+
+---
+
+## 2026-07-11 - CRM-PERFORMANCE-OPTIMIZATION-001 verification note
+
+- No new application defect or blocker was found during the performance pass.
+- Bookings remains NOT CERTIFIED only because authenticated browser interaction QA is still pending from the existing certification record.
+- Broad bundle/query/database optimizations were deferred by guardrail, not because of a failing check.
+
+---
+
 ## 2026-07-10 - ATTENDANCE-RECOVERY-RULES-001 migration/QA follow-up
 
 - New migration `supabase/migrations/20260710040835_attendance_recovery_rules.sql` was created locally for Attendance Recovery rule fields and correction audit columns, but it was not applied/pushed during the implementation pass.
@@ -709,3 +753,23 @@
 - **Root cause:** The idle reset listener requested `setIsIdle(false)` for every activity event even when the provider was already active.
 - **Resolution:** Added a ref-backed guard around idle state updates and moved the timeout handle to a ref. Repeated active events now only reschedule the idle timer; React state updates only on real boolean changes.
 - **Validation:** Targeted provider regression test, `pnpm type-check`, `pnpm lint`, and `pnpm build` pass.
+
+## 2026-07-10 - CRM-BOOKING-FOLLOWUP-STABILIZATION-001 runtime and RLS fixes
+
+- **Symptom:** CRM Today could throw `UnrecognizedActionError` around the Work Queue ETA refresh button.
+- **Impact:** The Today Work Queue could break at runtime when refreshing Home Service ETA.
+- **Root cause:** A server action was passed through a multi-level client/server prop chain as `refreshEtaAction`; this boundary was fragile in the current Next.js app shape.
+- **Resolution:** Removed the CRM Today prop chain and imported `refreshHomeServiceEtaAction` directly in `work-queue-panel.tsx`.
+
+- **Symptom:** Booking Follow-up/status changes could fail with raw `booking_events` row-level security errors.
+- **Impact:** CRM/front-desk users could update a booking row but have the status trigger/audit write fail, surfacing confusing RLS text in the UI.
+- **Root cause:** `booking_events` is intentionally SELECT-only for authenticated users and written by triggers/service-role paths. Some operational mutations were still relying on authenticated writes that caused trigger/audit INSERT failures.
+- **Resolution:** Status, follow-up cancel, reschedule, and staff reassignment paths now use branch-checked service-role actions for booking updates/audit writes, annotate trigger-created rows when status changes, and show friendly UI errors if a permission issue still occurs.
+- **Validation:** `pnpm type-check`, `pnpm lint`, focused assignment tests, and `pnpm build` pass.
+
+## 2026-07-12 - ATTENDANCE-AUTONOMY-HARDENING-001 migration-history drift
+
+- **Symptom:** Linked schema inspection shows recent Attendance columns, constraints, indexes, and the new `commit_attendance_scan_transaction` / `reset_attendance_state_transaction` RPCs are present, but `supabase_migrations.schema_migrations` returns `0` rows for `20260710040835`, `20260710055131`, `20260712000100`, `20260712035222`, `20260712044527`, and `20260712045429`.
+- **Impact:** The database can run the verified live schema, but the normal Supabase migration engine cannot be trusted to know these migrations are applied. A future `db push` from a healthy migration-history connection may try to replay SQL that is already partially present.
+- **Resolution:** Applied only the two new RPC definitions through linked `supabase db query --file` after normal `db push --dry-run` remained blocked by migration-history timeouts. Verified function presence, grants, and no-mutation rejection probes. Do not manually edit migration history from this environment.
+- **Follow-up:** Reconcile migration history from a working Supabase DB path, then regenerate types and rerun final app checks. Review any replay plan carefully because some earlier migration effects are already live.

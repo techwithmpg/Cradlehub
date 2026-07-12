@@ -4,7 +4,10 @@ import Link from "next/link";
 import { Bell, RefreshCw } from "lucide-react";
 import { AttendanceScanFeedRow } from "@/components/features/attendance/attendance-scan-feed-row";
 import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
-import { buildAttendanceViewAllHref } from "@/lib/attendance/scan-feed";
+import {
+  buildAttendanceViewAllHref,
+  formatAttendanceFeedDateLabel,
+} from "@/lib/attendance/scan-feed";
 import { cn } from "@/lib/utils";
 import type {
   AttendanceScanFeedData,
@@ -47,6 +50,7 @@ export function AttendanceScanFeedCard({
     maxItems,
   });
   const displayError = visibleFeed.error ?? (refreshError ? REFRESH_ERROR : null);
+  const dateLabel = formatAttendanceFeedDateLabel(visibleFeed.selectedDate);
   const viewAllHref = buildAttendanceViewAllHref({
     workspace,
     selectedDate,
@@ -66,14 +70,14 @@ export function AttendanceScanFeedCard({
           <div className="flex items-center gap-2">
             <Bell className="size-4 text-[#9b7336]" aria-hidden="true" />
             <h2 className="truncate text-sm font-bold text-[var(--cs-text)]">
-              Recent Attendance Scans
+              Attendance Activity
             </h2>
             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
               Live
             </span>
           </div>
           <p className="mt-1 truncate text-xs text-[var(--cs-text-muted)]">
-            Live - {resolvedBranchName ?? "All branches"}
+            {resolvedBranchName ?? "All branches"} - {dateLabel}
           </p>
         </div>
         <Link

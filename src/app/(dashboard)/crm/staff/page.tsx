@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
+import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllBranches } from "@/lib/queries/branches";
@@ -98,16 +98,15 @@ export default async function CrmStaffPage({
 
   if (ctx.status === "missing_branch") {
     return (
-      <section className="space-y-5">
-        <PageHeader
-          title="Staff"
-          description="Manage applications, review team roster, check service assignments, and monitor staff status."
-          icon="👥"
-        />
+      <CrmOperationalPageShell
+        title="Staff"
+        description="Manage applications, review team roster, check service assignments, and monitor staff status."
+        context="Branch required"
+      >
         <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 text-sm text-[var(--cs-text-muted)]">
           Your profile is not linked to an active branch. Contact your manager or owner to assign you to a branch.
         </div>
-      </section>
+      </CrmOperationalPageShell>
     );
   }
 
@@ -193,13 +192,11 @@ export default async function CrmStaffPage({
   });
 
   return (
-    <section className="space-y-5">
-      <PageHeader
-        title="Staff"
-        description="Manage applications, review team roster, check service assignments, and monitor staff status."
-        icon="👥"
-      />
-
+    <CrmOperationalPageShell
+      title="Staff"
+      description="Manage applications, review team roster, check service assignments, and monitor staff status."
+      context={`${ctx.branchName} · ${ctx.me.system_role}`}
+    >
       <CrmStaffWorkspace
         initialTab={initialTab}
         branchId={branchId}
@@ -216,7 +213,7 @@ export default async function CrmStaffPage({
         reviewerBranchId={ctx.me.branch_id}
         canReviewOnboarding={ctx.canReviewOnboarding}
       />
-    </section>
+    </CrmOperationalPageShell>
   );
 }
 

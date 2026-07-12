@@ -20,6 +20,8 @@ export type RecentScanRow = {
     shift_type: string | null;
     attendance_status: string | null;
     worked_minutes: number | null;
+    checked_in_at: string | null;
+    checked_out_at: string | null;
   }>;
 };
 
@@ -59,6 +61,8 @@ export function mapRecentScan(
     attendanceStatus: checkin?.attendance_status ?? null,
     workedMinutes:
       typeof checkin?.worked_minutes === "number" ? checkin.worked_minutes : null,
+    clockInAt: checkin?.checked_in_at ?? null,
+    clockOutAt: checkin?.checked_out_at ?? null,
     sourceLabel: point?.label ?? null,
   };
 }

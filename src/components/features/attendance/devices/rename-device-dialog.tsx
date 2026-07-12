@@ -55,7 +55,11 @@ export function RenameDeviceDialog({
           <DialogTitle>Rename device</DialogTitle>
           <DialogDescription>Device name for {entry?.staffName ?? "selected staff"}.</DialogDescription>
         </DialogHeader>
+        <label htmlFor="attendance-device-name" className="text-xs font-bold uppercase text-stone-500">
+          Device name
+        </label>
         <input
+          id="attendance-device-name"
           value={label}
           onChange={(event) => setLabel(event.target.value)}
           maxLength={60}

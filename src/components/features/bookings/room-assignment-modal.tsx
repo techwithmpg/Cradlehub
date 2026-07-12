@@ -10,6 +10,7 @@ import {
   AdminOverlayFooter,
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
+import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { Button } from "@/components/ui/button";
 import {
   assignBookingRoomAction,
@@ -94,7 +95,13 @@ export function RoomAssignmentModal({
   }
 
   return (
-    <AdminDialog open={open} onOpenChange={onOpenChange} size="md" placement="center">
+    <AdminDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="md"
+      placement="center"
+      ariaLabel={title}
+    >
       <AdminOverlayHeader
         title={title}
         description="Choose the best available room for this customer."
@@ -102,26 +109,26 @@ export function RoomAssignmentModal({
       <AdminOverlayBody className="bg-[var(--cs-surface-warm)]">
         <div className="space-y-4">
           {isLoading ? (
-            <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 text-sm text-[var(--cs-text-muted)]">
+            <WorkspaceNotice tone="info">
               Loading room options...
-            </div>
+            </WorkspaceNotice>
           ) : null}
 
           {errorMessage ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+            <WorkspaceNotice tone="error">
               {errorMessage}
-            </div>
+            </WorkspaceNotice>
           ) : null}
 
           {notApplicable ? (
-            <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 text-sm leading-6 text-[var(--cs-text-muted)]">
+            <WorkspaceNotice tone="info">
               {notApplicable.message}
-            </div>
+            </WorkspaceNotice>
           ) : null}
 
           {options ? (
             <>
-              <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
+              <div className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <SummaryItem label="Customer" value={options.booking.customerName} />
                   <SummaryItem label="Service" value={options.booking.serviceName} />
@@ -133,7 +140,7 @@ export function RoomAssignmentModal({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4">
+              <div className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4">
                 <div className="text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
                   Recommended Room
                 </div>
@@ -152,12 +159,12 @@ export function RoomAssignmentModal({
               </div>
 
               {options.setupWarning ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                <WorkspaceNotice tone="warning">
                   {options.setupWarning}{" "}
                   <Link href="/crm/spaces-rules" className="font-semibold underline">
                     Review spaces and rules
                   </Link>
-                </div>
+                </WorkspaceNotice>
               ) : null}
 
               <div className="space-y-2">
@@ -165,9 +172,9 @@ export function RoomAssignmentModal({
                   Room selector
                 </div>
                 {options.resources.length === 0 ? (
-                  <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 text-sm text-[var(--cs-text-muted)]">
+                  <WorkspaceNotice tone="info">
                     No active rooms are available for this branch.
-                  </div>
+                  </WorkspaceNotice>
                 ) : (
                   <div className="grid gap-2">
                     {options.resources.map((resource) => (
@@ -183,15 +190,15 @@ export function RoomAssignmentModal({
               </div>
 
               {!hasAvailableRoom ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                <WorkspaceNotice tone="warning">
                   No room is available right now. You can keep the customer waiting or adjust room setup.
-                </div>
+                </WorkspaceNotice>
               ) : null}
 
               {feedback ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                <WorkspaceNotice tone="error">
                   {feedback}
-                </div>
+                </WorkspaceNotice>
               ) : null}
             </>
           ) : null}
@@ -232,8 +239,9 @@ function RoomOptionButton({
       type="button"
       disabled={!resource.isAvailable}
       onClick={onSelect}
+      aria-pressed={selected}
       className={[
-        "rounded-xl border p-3 text-left transition-colors",
+        "rounded-lg border p-3 text-left transition-colors",
         selected
           ? "border-[var(--cs-sand)] bg-[var(--cs-sand-mist)]"
           : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:border-[var(--cs-border-strong)]",

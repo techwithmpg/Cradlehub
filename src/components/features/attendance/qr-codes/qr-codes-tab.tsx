@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { QrPointListCard } from "@/components/features/attendance/qr-codes/qr-point-list";
 import { QrSelectedPanel } from "@/components/features/attendance/qr-codes/qr-selected-panel";
 import { QrToolbar, type QrStatusFilter, type QrTypeFilter } from "@/components/features/attendance/qr-codes/qr-toolbar";
@@ -47,7 +48,7 @@ export function QrCodesTab({
     });
   }, [data.qrPoints, query, statusFilter, typeFilter]);
 
-  const selectedQr = data.qrPoints.find((point) => point.id === selectedQrId) ?? rows[0] ?? data.qrPoints[0] ?? null;
+  const selectedQr = rows.find((point) => point.id === selectedQrId) ?? rows[0] ?? null;
   const bulkPoints = getSelectedQrPoints(data.qrPoints, selectedIds, selectedQr);
   const urlActionsDisabled = !data.qrConfiguration.isConfigured;
 
@@ -126,20 +127,22 @@ export function QrCodesTab({
   return (
     <div className="grid gap-4">
       {urlActionsDisabled ? (
-        <div className="rounded-lg border border-amber-700/25 bg-[#FFF7E8] px-4 py-3 text-sm text-amber-950">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" />
-            <div className="grid gap-1">
-              <div className="font-bold">QR links are temporarily unavailable</div>
-              <p className="m-0 leading-5">
-                Configure APP_URL or NEXT_PUBLIC_APP_URL in the Production environment using the canonical Cradle domain, then redeploy.
-              </p>
-              {data.qrConfiguration.error ? (
-                <p className="m-0 text-xs text-amber-800">{data.qrConfiguration.error}</p>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        <WorkspaceNotice
+          tone="warning"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <AlertTriangle className="size-4 shrink-0 text-amber-700" />
+              QR links are temporarily unavailable
+            </span>
+          }
+        >
+          <p className="m-0 leading-5">
+            Configure APP_URL or NEXT_PUBLIC_APP_URL in the Production environment using the canonical Cradle domain, then redeploy.
+          </p>
+          {data.qrConfiguration.error ? (
+            <p className="m-0 text-xs text-amber-800">{data.qrConfiguration.error}</p>
+          ) : null}
+        </WorkspaceNotice>
       ) : null}
       <QrToolbar
         branchName={data.branchName}

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { updateBookingStatusSchema, editBookingSchema, updateBookingPaymentSchema } from "@/lib/validations/booking";
 import { assertSlotAvailable } from "@/lib/engine/availability";
@@ -50,6 +51,72 @@ async function getOperationsContext() {
 }
 
 // ── Status transition ──────────────────────────────────────────────────────
+function withStatusActionMetadata(
+  metadata: Database["public"]["Tables"]["bookings"]["Row"]["metadata"] | null,
+  input: {
+    actorId: string | null;
+    note?: string;
+    status: string;
+  }
+): Database["public"]["Tables"]["bookings"]["Update"]["metadata"] {
+  const current =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const note = input.note?.trim() || null;
+  const updatedAt = new Date().toISOString();
+
+  return {
+    ...current,
+    crm_status_update: {
+      note,
+      status: input.status,
+      updated_at: updatedAt,
+      updated_by: input.actorId,
+    },
+    ...(input.status === "cancelled"
+      ? {
+          cancellation: {
+            reason: note,
+            cancelled_at: updatedAt,
+            cancelled_by: input.actorId,
+            source: "crm",
+          },
+        }
+      : {}),
+  } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
+}
+
+async function annotateLatestBookingEvent(params: {
+  actorId: string | null;
+  admin: ReturnType<typeof createAdminClient>;
+  bookingId: string;
+  note?: string;
+  previousStatus?: string | null;
+  nextStatus: string;
+}) {
+  if (params.previousStatus === params.nextStatus) return;
+
+  const { data: eventRow } = await params.admin
+    .from("booking_events")
+    .select("id")
+    .eq("booking_id", params.bookingId)
+    .eq("to_status", params.nextStatus)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!eventRow) return;
+
+  await params.admin
+    .from("booking_events")
+    .update({
+      changed_by: params.actorId,
+      notes: params.note?.trim() || null,
+    })
+    .eq("id", eventRow.id);
+}
+
 export async function updateBookingStatusAction(rawInput: unknown) {
   const parsed = updateBookingStatusSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -62,17 +129,6 @@ export async function updateBookingStatusAction(rawInput: unknown) {
 
   if (parsed.data.status === "cancelled" && !canCancelBooking(me.system_role)) {
     return { success: false, error: "You do not have permission to cancel bookings" };
-  }
-
-  // Set attribution for trigger (fire-and-forget — non-critical).
-  // set_config is a Postgres built-in, not in generated Supabase types — cast required.
-  if (me.id !== DEV_BYPASS_STAFF_ID) {
-    try {
-      await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
-        .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
-    } catch {
-      // Non-critical: trigger attribution may not run, booking update proceeds
-    }
   }
 
   const updates: Database["public"]["Tables"]["bookings"]["Update"] = {
@@ -111,13 +167,27 @@ export async function updateBookingStatusAction(rawInput: unknown) {
   // Fetch booking before updating so we have staff_id + date
   const _statusBeforeQ = supabase
     .from("bookings")
-    .select("staff_id, branch_id, booking_date, start_time")
+    .select("staff_id, branch_id, booking_date, start_time, status, metadata")
     .eq("id", parsed.data.bookingId);
   const { data: bookingBefore } = await (
     me.system_role !== "owner" ? _statusBeforeQ.eq("branch_id", me.branch_id) : _statusBeforeQ
   ).single();
 
-  const _statusUpdateQ = supabase
+  if (!bookingBefore) {
+    return { success: false, error: "Booking not found" };
+  }
+
+  const statusNote = parsed.data.notes?.trim() || undefined;
+  if (statusNote) {
+    updates.metadata = withStatusActionMetadata(bookingBefore.metadata, {
+      actorId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
+      note: statusNote,
+      status: parsed.data.status,
+    });
+  }
+
+  const admin = createAdminClient();
+  const _statusUpdateQ = admin
     .from("bookings")
     .update(updates)
     .eq("id", parsed.data.bookingId);
@@ -149,6 +219,15 @@ export async function updateBookingStatusAction(rawInput: unknown) {
     branchId: updatedBooking.branch_id,
     actorId: me.id,
     workspace: me.system_role,
+    nextStatus: parsed.data.status,
+  });
+
+  await annotateLatestBookingEvent({
+    actorId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
+    admin,
+    bookingId: parsed.data.bookingId,
+    note: statusNote,
+    previousStatus: bookingBefore.status,
     nextStatus: parsed.data.status,
   });
 

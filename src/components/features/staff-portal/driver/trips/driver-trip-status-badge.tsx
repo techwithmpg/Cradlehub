@@ -3,6 +3,8 @@ import type { DispatchStatus } from "@/features/dispatch/types";
 const TRIP_STATUS_LABEL: Record<DispatchStatus, string> = {
   awaiting_driver: "Assigned",
   ready: "Ready",
+  scheduled: "Scheduled",
+  released_to_driver: "Released",
   in_route: "On the Way",
   arrived_at_customer: "Arrived",
   service_started: "In Progress",
@@ -20,6 +22,16 @@ const TRIP_STATUS_STYLE: Record<DispatchStatus, { bg: string; color: string; bor
     bg: "rgba(251,191,36,0.12)",
     color: "#92700A",
     border: "rgba(146,112,10,0.2)",
+  },
+  scheduled: {
+    bg: "rgba(14,165,233,0.1)",
+    color: "#0369A1",
+    border: "rgba(14,165,233,0.18)",
+  },
+  released_to_driver: {
+    bg: "rgba(99,102,241,0.1)",
+    color: "#4F46E5",
+    border: "rgba(99,102,241,0.18)",
   },
   in_route: {
     bg: "var(--cs-success-bg)",

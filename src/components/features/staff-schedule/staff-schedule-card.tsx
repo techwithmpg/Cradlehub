@@ -23,13 +23,13 @@ import { getStaffAdminName } from "@/lib/staff/display-name";
 
 function emptyPattern(): Record<number, DayPattern> {
   return {
-    0: { opening: false, closing: false, regular: false, dayOff: false },
-    1: { opening: false, closing: false, regular: false, dayOff: false },
-    2: { opening: false, closing: false, regular: false, dayOff: false },
-    3: { opening: false, closing: false, regular: false, dayOff: false },
-    4: { opening: false, closing: false, regular: false, dayOff: false },
-    5: { opening: false, closing: false, regular: false, dayOff: false },
-    6: { opening: false, closing: false, regular: false, dayOff: false },
+    0: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    1: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    2: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    3: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    4: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    5: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    6: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
   };
 }
 
@@ -144,6 +144,7 @@ function StaffScheduleEditor({ item, groupRules, branchId, onDataRefresh }: Edit
           closing: false,
           regular: false,
           dayOff: false,
+          splitShift: false,
         };
         return {
           dayOfWeek: dow,
@@ -151,6 +152,7 @@ function StaffScheduleEditor({ item, groupRules, branchId, onDataRefresh }: Edit
           closing: p.closing,
           regular: p.regular,
           dayOff: p.dayOff,
+          splitShift: p.splitShift,
         };
       });
 
@@ -569,6 +571,7 @@ function StaffScheduleEditor({ item, groupRules, branchId, onDataRefresh }: Edit
               closing: false,
               regular: false,
               dayOff: false,
+              splitShift: false,
             };
             const border =
               rowIdx < SCHEDULE_DAYS.length - 1

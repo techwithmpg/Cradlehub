@@ -1,63 +1,190 @@
 "use client";
 
-/**
- * DispatchLiveMapTab — Tab 2
- *
- * Left:   Active trips list (in_route, arrived_at_customer, service_started).
- * Center: Live map area — honest empty state (no map integration is wired yet).
- *         Driver location snapshots are collected in staff_location_snapshots
- *         and customer coordinates in metadata.home_service_address, but no
- *         map rendering library is connected. When integration is added, replace
- *         the placeholder div with the map component.
- * Right:  Selected trip detail panel (visible after selecting a trip card).
- *
- * No fake data. No fake route lines. No fake location markers.
- */
-
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Car,
-  User,
-  MapPin,
-  Clock,
-  Navigation,
   AlertCircle,
+  Car,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  MapPin,
+  Navigation,
+  RefreshCw,
+  Search,
 } from "lucide-react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
-import type { DispatchStatus } from "@/features/dispatch/types";
 
-// ── Status helpers (local to this tab) ────────────────────────────────────────
+type LatLngLiteral = {
+  lat: number;
+  lng: number;
+};
 
-function tripStatusBadge(s: DispatchStatus): { label: string; cls: string } {
-  switch (s) {
-    case "in_route":
-      return { label: "En Route", cls: "border-purple-400 text-purple-700 bg-purple-50" };
-    case "arrived_at_customer":
-      return { label: "Arrived", cls: "border-cyan-400 text-cyan-700 bg-cyan-50" };
-    case "service_started":
-      return { label: "In Service", cls: "border-green-500 text-green-700 bg-green-50" };
-    default:
-      return { label: "Active", cls: "border-blue-400 text-blue-700 bg-blue-50" };
+type GoogleMapOptions = {
+  center: LatLngLiteral;
+  zoom: number;
+  mapTypeControl?: boolean;
+  streetViewControl?: boolean;
+  fullscreenControl?: boolean;
+  clickableIcons?: boolean;
+};
+
+type GoogleLatLngBounds = {
+  extend: (position: LatLngLiteral) => void;
+};
+
+type GoogleMapInstance = {
+  fitBounds: (bounds: GoogleLatLngBounds, padding?: number) => void;
+  setCenter: (position: LatLngLiteral) => void;
+  setZoom: (zoom: number) => void;
+};
+
+type GoogleMarkerInstance = {
+  addListener: (eventName: string, handler: () => void) => void;
+  setMap: (map: GoogleMapInstance | null) => void;
+};
+
+type GoogleMarkerOptions = {
+  map: GoogleMapInstance;
+  position: LatLngLiteral;
+  title: string;
+  label?: string;
+  icon?: string;
+};
+
+type GoogleInfoWindowInstance = {
+  open: (options: { map: GoogleMapInstance; anchor: GoogleMarkerInstance }) => void;
+};
+
+type GoogleMapsNamespace = {
+  Map: new (element: HTMLElement, options: GoogleMapOptions) => GoogleMapInstance;
+  Marker: new (options: GoogleMarkerOptions) => GoogleMarkerInstance;
+  InfoWindow: new (options: { content: string }) => GoogleInfoWindowInstance;
+  LatLngBounds: new () => GoogleLatLngBounds;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      maps: GoogleMapsNamespace;
+    };
+    __cradleGoogleMapsPromise?: Promise<void>;
   }
 }
 
-function formatTs(ts: string): string {
-  try {
-    return new Date(ts).toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
+type CustomerMarker = {
+  booking: RealDispatchItem;
+  position: LatLngLiteral;
+  label: string;
+};
+
+type StaffMarker = {
+  booking: RealDispatchItem;
+  position: LatLngLiteral;
+  label: string;
+};
+
+function isOpenHomeServiceBooking(item: RealDispatchItem): boolean {
+  return !["cancelled", "no_show", "completed"].includes(item.bookingStatus);
+}
+
+function hasCustomerGps(item: RealDispatchItem): boolean {
+  return (
+    typeof item.lat === "number" &&
+    Number.isFinite(item.lat) &&
+    typeof item.lng === "number" &&
+    Number.isFinite(item.lng)
+  );
+}
+function hasStaffGps(item: RealDispatchItem): boolean {
+  return Boolean(item.currentLocation);
+}
+
+function locationLabel(item: RealDispatchItem): string {
+  return item.area ?? item.formattedAddress ?? "Customer GPS saved";
+}
+
+function statusLabel(item: RealDispatchItem): string {
+  if (!hasCustomerGps(item)) return "GPS Missing";
+  if (!item.driverId) return "Needs Driver";
+  if (item.dispatchStatus === "scheduled") return "Scheduled";
+  if (item.dispatchStatus === "released_to_driver") return "Released";
+  if (item.dispatchStatus === "in_route") return "En Route";
+  if (item.dispatchStatus === "arrived_at_customer") return "Arrived";
+  if (item.dispatchStatus === "service_started") return "In Service";
+  return "Ready";
+}
+
+function statusClass(item: RealDispatchItem): string {
+  if (!hasCustomerGps(item)) return "border-red-300 bg-red-50 text-red-700";
+  if (!item.driverId) return "border-amber-300 bg-amber-50 text-amber-700";
+  if (item.dispatchStatus === "scheduled") return "border-blue-300 bg-blue-50 text-blue-700";
+  if (item.dispatchStatus === "released_to_driver") {
+    return "border-purple-300 bg-purple-50 text-purple-700";
+  }
+  if (["in_route", "arrived_at_customer", "service_started"].includes(item.dispatchStatus)) {
+    return "border-emerald-300 bg-emerald-50 text-emerald-700";
+  }
+  return "border-green-300 bg-green-50 text-green-700";
+}
+
+function formatCoord(value: number | null): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return value.toFixed(5);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function loadGoogleMaps(apiKey: string): Promise<void> {
+  if (window.google?.maps) return Promise.resolve();
+  if (window.__cradleGoogleMapsPromise) return window.__cradleGoogleMapsPromise;
+
+  window.__cradleGoogleMapsPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[data-cradle-google-maps="true"]'
+    );
+
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Google Maps failed to load")), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.cradleGoogleMaps = "true";
+    script.addEventListener("load", () => resolve(), { once: true });
+    script.addEventListener("error", () => reject(new Error("Google Maps failed to load")), {
+      once: true,
     });
-  } catch {
-    return "—";
-  }
+    document.head.appendChild(script);
+  });
+
+  return window.__cradleGoogleMapsPromise;
 }
 
-// ── Trip card (left panel list) ───────────────────────────────────────────────
+function buildRouteUrl(item: RealDispatchItem): string {
+  if (!hasCustomerGps(item) || item.lat === null || item.lng === null) {
+    return "https://www.google.com/maps";
+  }
 
-function TripCard({
+  return `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}&travelmode=driving`;
+}
+
+function BookingSummaryCard({
   item,
   selected,
   onSelect,
@@ -66,383 +193,433 @@ function TripCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const badge = tripStatusBadge(item.dispatchStatus);
+  const gpsReady = hasCustomerGps(item);
+  const staffGpsReady = hasStaffGps(item);
 
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full rounded-xl border px-4 py-3 text-left transition-colors hover:border-[var(--cs-sand)] ${
+      className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:border-[#155A33] hover:shadow-md ${
         selected
-          ? "border-[var(--cs-sand)] bg-[var(--cs-sand-tint)]"
-          : "border-[var(--cs-border)]"
+          ? "border-[#155A33] bg-green-50"
+          : "border-[var(--cs-border)] bg-[var(--cs-surface)]"
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p
-            className="truncate text-sm font-semibold"
-            style={{ color: "var(--cs-text)" }}
-          >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-xs text-[var(--cs-text-muted)]">{item.number}</p>
+          <h3 className="mt-1 truncate text-base font-bold text-[var(--cs-text)]">
             {item.customerName}
-          </p>
-          <p
-            className="text-xs"
-            style={{ color: "var(--cs-text-secondary)" }}
-          >
-            {item.driverName ?? "No driver"} · {formatTime12h(item.startTime)}
+          </h3>
+          <p className="mt-0.5 truncate text-sm text-[var(--cs-text-secondary)]">
+            {item.serviceName}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <Badge variant="outline" className={`text-xs ${badge.cls}`}>
-            {badge.label}
-          </Badge>
-          {item.etaMinutes !== null && (
-            <span
-              className="text-xs"
-              style={{ color: "var(--cs-text-muted)" }}
-            >
-              ETA {item.etaMinutes}m
-            </span>
-          )}
-        </div>
+
+        <Badge variant="outline" className={`shrink-0 text-[0.68rem] ${statusClass(item)}`}>
+          {statusLabel(item)}
+        </Badge>
       </div>
 
-      {item.formattedAddress && (
-        <div
-          className="mt-1.5 flex items-center gap-1 text-xs"
-          style={{ color: "var(--cs-text-muted)" }}
-        >
-          <MapPin className="h-3 w-3 shrink-0" />
-          <span className="truncate">
-            {item.area ?? item.formattedAddress.slice(0, 45)}
+      <div className="mt-3 space-y-1.5 text-xs text-[var(--cs-text-secondary)]">
+        <div className="flex items-center gap-1.5">
+          <Clock size={13} />
+          <span>
+            {formatTime12h(item.startTime)}
+            {item.endTime ? ` – ${formatTime12h(item.endTime)}` : ""}
           </span>
         </div>
-      )}
 
-      {/* Live location badge */}
-      {item.currentLocation && (
-        <div
-          className="mt-1.5 text-xs"
-          style={{ color: "var(--cs-success)" }}
-        >
-          ● Live location available
+        <div className="flex items-center gap-1.5">
+          <MapPin size={13} />
+          <span className="truncate">{locationLabel(item)}</span>
         </div>
-      )}
+
+        <div className="flex items-center gap-1.5">
+          {gpsReady ? (
+            <CheckCircle2 size={13} className="text-green-600" />
+          ) : (
+            <AlertCircle size={13} className="text-red-600" />
+          )}
+          <span>{gpsReady ? "Customer GPS ready" : "Customer GPS missing"}</span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {staffGpsReady ? (
+            <CheckCircle2 size={13} className="text-blue-600" />
+          ) : (
+            <Car size={13} />
+          )}
+          <span>{staffGpsReady ? "Driver/staff GPS live" : "No live driver GPS yet"}</span>
+        </div>
+      </div>
     </button>
   );
 }
 
-// ── Detail row ────────────────────────────────────────────────────────────────
-
-function DetailRow({
-  icon,
-  label,
-  value,
+function MapCanvas({
+  bookings,
+  selectedId,
+  onSelect,
 }: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
+  bookings: RealDispatchItem[];
+  selectedId: string | null;
+  onSelect: (bookingId: string) => void;
 }) {
-  return (
-    <div className="flex items-start gap-2">
-      <span style={{ color: "var(--cs-text-muted)", marginTop: 2 }}>
-        {icon}
-      </span>
-      <span
-        className="w-20 shrink-0 text-xs font-medium"
-        style={{ color: "var(--cs-text-muted)" }}
-      >
-        {label}
-      </span>
-      <span
-        className="min-w-0 flex-1 text-xs break-words"
-        style={{ color: "var(--cs-text-secondary)" }}
-      >
-        {value}
-      </span>
-    </div>
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const markerRefs = useRef<GoogleMarkerInstance[]>([]);
+  const [mapLoadError, setMapLoadError] = useState<string | null>(null);
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? "";
+  const mapError = apiKey ? mapLoadError : "NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY is missing.";
+
+  const customerMarkers: CustomerMarker[] = useMemo(
+    () =>
+      bookings
+        .filter(hasCustomerGps)
+        .map((booking, index) => ({
+          booking,
+          position: {
+            lat: booking.lat as number,
+            lng: booking.lng as number,
+          },
+          label: String(index + 1),
+        })),
+    [bookings]
   );
-}
 
-// ── Selected trip detail panel ─────────────────────────────────────────────────
+  const staffMarkers: StaffMarker[] = useMemo(
+    () =>
+      bookings
+        .filter((booking) => booking.currentLocation)
+        .map((booking, index) => ({
+          booking,
+          position: {
+            lat: booking.currentLocation?.lat as number,
+            lng: booking.currentLocation?.lng as number,
+          },
+          label: String(index + 1),
+        })),
+    [bookings]
+  );
 
-function TripDetailPanel({ item }: { item: RealDispatchItem }) {
+  useEffect(() => {
+    if (!apiKey) return;
+
+    if (!mapRef.current) return;
+
+    let cancelled = false;
+
+    async function renderMap() {
+      try {
+        await loadGoogleMaps(apiKey);
+
+        if (cancelled || !mapRef.current || !window.google?.maps) return;
+
+        const maps = window.google.maps;
+        const defaultCenter = customerMarkers[0]?.position ?? {
+          lat: 10.6765,
+          lng: 122.9509,
+        };
+
+        const map = new maps.Map(mapRef.current, {
+          center: defaultCenter,
+          zoom: customerMarkers.length > 0 ? 13 : 12,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+          clickableIcons: true,
+        });
+
+        markerRefs.current.forEach((marker) => marker.setMap(null));
+        markerRefs.current = [];
+
+        const bounds = new maps.LatLngBounds();
+
+        customerMarkers.forEach((marker) => {
+          bounds.extend(marker.position);
+
+          const markerInstance = new maps.Marker({
+            map,
+            position: marker.position,
+            title: marker.booking.customerName,
+            label: marker.label,
+            icon: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+          });
+
+          const infoWindow = new maps.InfoWindow({
+            content: `
+              <div style="min-width: 220px; font-family: system-ui, sans-serif;">
+                <div style="font-size: 12px; color: #6b5b4b;">${escapeHtml(marker.booking.number)}</div>
+                <div style="font-weight: 700; font-size: 15px; margin-top: 2px;">${escapeHtml(marker.booking.customerName)}</div>
+                <div style="font-size: 13px; color: #5f5146; margin-top: 4px;">${escapeHtml(marker.booking.serviceName)} · ${escapeHtml(formatTime12h(marker.booking.startTime))}</div>
+                <div style="font-size: 12px; color: #6b5b4b; margin-top: 8px;">${escapeHtml(locationLabel(marker.booking))}</div>
+              </div>
+            `,
+          });
+
+          markerInstance.addListener("click", () => {
+            onSelect(marker.booking.id);
+            infoWindow.open({ map, anchor: markerInstance });
+          });
+
+          markerRefs.current.push(markerInstance);
+        });
+
+        staffMarkers.forEach((marker) => {
+          bounds.extend(marker.position);
+
+          const markerInstance = new maps.Marker({
+            map,
+            position: marker.position,
+            title: marker.booking.driverName ?? marker.booking.therapistName ?? "Driver/staff",
+            label: "D",
+            icon: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+          });
+
+          markerInstance.addListener("click", () => {
+            onSelect(marker.booking.id);
+          });
+
+          markerRefs.current.push(markerInstance);
+        });
+
+        const totalVisibleMarkers = customerMarkers.length + staffMarkers.length;
+
+        if (totalVisibleMarkers > 1) {
+          map.fitBounds(bounds, 80);
+        } else if (totalVisibleMarkers === 1) {
+          map.setCenter(customerMarkers[0]?.position ?? staffMarkers[0]?.position ?? defaultCenter);
+          map.setZoom(15);
+        } else {
+          map.setCenter(defaultCenter);
+          map.setZoom(12);
+        }
+
+        setMapLoadError(null);
+      } catch {
+        setMapLoadError("Google Maps could not load.");
+      }
+    }
+
+    void renderMap();
+
+    return () => {
+      cancelled = true;
+      markerRefs.current.forEach((marker) => marker.setMap(null));
+      markerRefs.current = [];
+    };
+  }, [apiKey, customerMarkers, staffMarkers, onSelect]);
+
+  const selectedBooking = bookings.find((booking) => booking.id === selectedId) ?? null;
+  const selectedRouteUrl = selectedBooking ? buildRouteUrl(selectedBooking) : "https://www.google.com/maps";
+
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h3
-          className="text-base font-semibold"
-          style={{ color: "var(--cs-text)" }}
-        >
-          {item.customerName}
-        </h3>
-        <p
-          className="mt-0.5 text-sm"
-          style={{ color: "var(--cs-text-secondary)" }}
-        >
-          {item.serviceName} · {formatTime12h(item.startTime)}
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <DetailRow
-          icon={<Car className="h-3.5 w-3.5" />}
-          label="Driver"
-          value={item.driverName ?? "Not assigned"}
-        />
-        <DetailRow
-          icon={<User className="h-3.5 w-3.5" />}
-          label="Therapist"
-          value={item.therapistName ?? "Not assigned"}
-        />
-        <DetailRow
-          icon={<MapPin className="h-3.5 w-3.5" />}
-          label="Address"
-          value={item.formattedAddress ?? "No address recorded"}
-        />
-        {item.etaMinutes !== null && (
-          <DetailRow
-            icon={<Clock className="h-3.5 w-3.5" />}
-            label="ETA"
-            value={`${item.etaMinutes} minutes`}
-          />
-        )}
-        {item.travelStartedAt && (
-          <DetailRow
-            icon={<Clock className="h-3.5 w-3.5" />}
-            label="Started"
-            value={formatTs(item.travelStartedAt)}
-          />
-        )}
-        {item.arrivedAt && (
-          <DetailRow
-            icon={<MapPin className="h-3.5 w-3.5" />}
-            label="Arrived"
-            value={formatTs(item.arrivedAt)}
-          />
-        )}
-      </div>
-
-      {/* Live location data (coordinates, not rendered on a map) */}
-      {item.currentLocation && (
-        <div
-          className="rounded-lg px-3 py-2 text-xs"
-          style={{
-            background: "var(--cs-surface-warm)",
-            border: "1px solid var(--cs-border-soft)",
-          }}
-        >
-          <p
-            className="mb-0.5 font-semibold"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            Last location snapshot
-          </p>
-          <p style={{ color: "var(--cs-text-secondary)" }}>
-            {item.currentLocation.lat.toFixed(5)},{" "}
-            {item.currentLocation.lng.toFixed(5)}
-          </p>
-          <p style={{ color: "var(--cs-text-muted)" }}>
-            Recorded at {formatTs(item.currentLocation.recorded_at)}
-          </p>
+    <div className="relative h-[calc(100vh-235px)] min-h-[620px] overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-sm">
+      {mapError ? (
+        <div className="flex h-full flex-col items-center justify-center bg-[var(--cs-surface-warm)] p-8 text-center">
+          <MapPin className="mb-3 text-[var(--cs-text-muted)]" size={38} />
+          <h3 className="text-lg font-bold text-[var(--cs-text)]">Live Google Map is not ready</h3>
+          <p className="mt-2 max-w-md text-sm text-[var(--cs-text-secondary)]">{mapError}</p>
+          {selectedBooking ? (
+            <a
+              href={selectedRouteUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#155A33] px-5 text-sm font-bold text-white hover:bg-[#104728]"
+            >
+              Open selected customer in Google Maps
+              <ExternalLink size={14} />
+            </a>
+          ) : null}
         </div>
+      ) : (
+        <div ref={mapRef} className="h-full w-full" />
       )}
 
-      <Link
-        href="/crm/bookings"
-        className="text-xs font-medium"
-        style={{ color: "var(--cs-sand)", textDecoration: "none" }}
-      >
-        View in Bookings →
-      </Link>
+      <div className="pointer-events-none absolute left-5 top-5 rounded-2xl border border-white/70 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+        <p className="text-sm font-bold text-[var(--cs-text)]">Live Home-Service Map</p>
+        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-[var(--cs-text-secondary)]">
+            <span className="size-3 rounded-full bg-red-500" />
+            Customer booking locations
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[var(--cs-text-secondary)]">
+            <span className="size-3 rounded-full bg-blue-500" />
+            Driver/staff live GPS
+          </span>
+        </div>
+      </div>
+
+      {selectedBooking ? (
+        <div className="absolute bottom-5 right-5 w-[320px] rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl backdrop-blur">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-xs text-[var(--cs-text-muted)]">{selectedBooking.number}</p>
+              <h3 className="mt-1 truncate text-base font-bold text-[var(--cs-text)]">
+                {selectedBooking.customerName}
+              </h3>
+              <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">
+                {selectedBooking.serviceName} · {formatTime12h(selectedBooking.startTime)}
+              </p>
+            </div>
+            <Badge variant="outline" className={`shrink-0 text-[0.68rem] ${statusClass(selectedBooking)}`}>
+              {statusLabel(selectedBooking)}
+            </Badge>
+          </div>
+
+          <div className="mt-3 space-y-1.5 text-xs text-[var(--cs-text-secondary)]">
+            <div className="flex items-center gap-1.5">
+              <MapPin size={13} />
+              <span className="truncate">{locationLabel(selectedBooking)}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Navigation size={13} />
+              <span>
+                {formatCoord(selectedBooking.lat)}, {formatCoord(selectedBooking.lng)}
+              </span>
+            </div>
+          </div>
+
+          <a
+            href={selectedRouteUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#155A33] px-4 text-sm font-bold text-white hover:bg-[#104728]"
+          >
+            Open Customer Route
+            <ExternalLink size={13} />
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-// ── Main tab ──────────────────────────────────────────────────────────────────
-
 export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const openBookings = useMemo(() => data.items.filter(isOpenHomeServiceBooking), [data.items]);
 
-  const activeTrips = data.items.filter((i) =>
-    ["in_route", "arrived_at_customer", "service_started"].includes(
-      i.dispatchStatus
-    )
-  );
+  const filteredBookings = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return openBookings;
 
-  const selectedTrip = selectedId
-    ? (data.items.find((i) => i.id === selectedId) ?? null)
-    : null;
+    return openBookings.filter((item) => {
+      return [
+        item.customerName,
+        item.serviceName,
+        item.area ?? "",
+        item.formattedAddress ?? "",
+        item.driverName ?? "",
+        item.therapistName ?? "",
+        item.number,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized);
+    });
+  }, [openBookings, query]);
 
-  const tripsWithLocation = data.items.filter((i) => i.currentLocation).length;
-  const tripsMissingCoords = data.items.filter(
-    (i) =>
-      (i.lat === null || i.lng === null) &&
-      i.dispatchStatus !== "cancelled" &&
-      i.dispatchStatus !== "completed"
-  ).length;
+  const [requestedSelectedId, setRequestedSelectedId] = useState<string | null>(null);
+  const selectedId = useMemo(() => {
+    if (filteredBookings.length === 0) return null;
+    if (requestedSelectedId && filteredBookings.some((item) => item.id === requestedSelectedId)) {
+      return requestedSelectedId;
+    }
+    return filteredBookings[0]?.id ?? null;
+  }, [filteredBookings, requestedSelectedId]);
+  const handleMapSelect = useCallback((bookingId: string) => {
+    setRequestedSelectedId(bookingId);
+  }, []);
+
+  if (openBookings.length === 0) {
+    return (
+      <div className="flex min-h-[520px] flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] p-10 text-center">
+        <MapPin className="mb-3 text-[var(--cs-text-muted)]" size={34} />
+        <h3 className="font-bold text-[var(--cs-text)]">No home-service bookings to map</h3>
+        <p className="mt-1 max-w-md text-sm text-[var(--cs-text-muted)]">
+          Pending, confirmed, scheduled, and released home-service bookings will appear here when
+          customer GPS coordinates are saved.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      {/* ── Left: Active trips ── */}
-      <div className="flex flex-col gap-4">
-        <h2
-          className="text-sm font-semibold"
-          style={{ color: "var(--cs-text)" }}
-        >
-          Active Trips ({activeTrips.length})
-        </h2>
-
-        {activeTrips.length === 0 ? (
-          <div
-            className="flex flex-col items-center gap-2 rounded-xl py-12 text-center"
-            style={{
-              border: "1px dashed var(--cs-border)",
-            }}
-          >
-            <Navigation
-              className="h-6 w-6"
-              style={{ color: "var(--cs-text-muted)" }}
-            />
-            <p
-              className="text-sm"
-              style={{ color: "var(--cs-text-secondary)" }}
-            >
-              No active trips right now.
-            </p>
-            <p className="text-xs" style={{ color: "var(--cs-text-muted)" }}>
-              Active trips appear here when drivers are en route.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {activeTrips.map((trip) => (
-              <TripCard
-                key={trip.id}
-                item={trip}
-                selected={selectedId === trip.id}
-                onSelect={() =>
-                  setSelectedId(selectedId === trip.id ? null : trip.id)
-                }
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Center + Right: Map area + selected detail ── */}
-      <div className="flex flex-col gap-4 lg:col-span-2">
-        {/* Map placeholder — honest empty state */}
-        <div
-          className="flex min-h-[360px] flex-col items-center justify-center gap-5 rounded-xl p-8 text-center"
-          style={{
-            background: "var(--cs-surface-warm)",
-            border: "1px solid var(--cs-border-soft)",
-          }}
-        >
-          <div style={{ fontSize: 40, lineHeight: 1 }}>🗺️</div>
-          <div>
-            <p
-              className="text-sm font-semibold"
-              style={{ color: "var(--cs-text)" }}
-            >
-              Live Map
-            </p>
-            <p
-              className="mt-1.5 max-w-sm text-xs"
-              style={{ color: "var(--cs-text-secondary)" }}
-            >
-              Live map will appear here when a map integration (Google Maps or
-              similar) is connected. Driver location and customer destination
-              coordinates are already being collected.
-            </p>
-          </div>
-
-          {/* Status of location data we do have */}
-          <div className="space-y-2">
-            {tripsWithLocation > 0 && (
-              <div
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
-                style={{
-                  background: "var(--cs-success-bg)",
-                  color: "var(--cs-success-text)",
-                }}
-              >
-                <CheckIcon />
-                {tripsWithLocation} trip{tripsWithLocation !== 1 ? "s have" : " has"}{" "}
-                live location snapshots
-              </div>
-            )}
-            {tripsMissingCoords > 0 && (
-              <div
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
-                style={{
-                  background: "var(--cs-warning-bg)",
-                  color: "var(--cs-warning-text)",
-                }}
-              >
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                {tripsMissingCoords} booking{tripsMissingCoords !== 1 ? "s are" : " is"}{" "}
-                missing destination coordinates
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs" style={{ color: "var(--cs-text-muted)" }}>
-            Missing coordinates?{" "}
-            <Link
-              href="/crm/bookings"
-              className="underline"
-              style={{ color: "var(--cs-sand)" }}
-            >
-              Review booking addresses
-            </Link>
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-[var(--cs-text)]">Live Home-Service Map</h2>
+          <p className="mt-1 text-sm text-[var(--cs-text-secondary)]">
+            Every home-service booking with saved customer GPS appears directly on the live map.
           </p>
         </div>
 
-        {/* Selected trip detail */}
-        {selectedTrip && (
-          <div className="cs-card p-5">
-            <p
-              className="mb-3 text-xs font-semibold uppercase tracking-wide"
-              style={{ color: "var(--cs-text-muted)" }}
-            >
-              Trip Detail
-            </p>
-            <TripDetailPanel item={selectedTrip} />
-          </div>
-        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="grid min-w-0 gap-1">
+            <span className="text-[0.68rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+              Search map bookings
+            </span>
+            <span className="relative">
+              <Search
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cs-text-muted)]"
+              />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search client, service, area..."
+                className="h-10 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-3 text-sm outline-none transition focus:border-[#155A33] sm:w-[280px]"
+              />
+            </span>
+          </label>
 
-        {!selectedTrip && activeTrips.length > 0 && (
-          <p
-            className="text-center text-xs"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            Select a trip from the list to see details
-          </p>
-        )}
+          <Button type="button" variant="outline" onClick={() => window.location.reload()}>
+            <RefreshCw size={14} />
+            Refresh
+          </Button>
+        </div>
       </div>
-    </div>
-  );
-}
 
-// Inline check icon to avoid lucide import for trivial case
-function CheckIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
+      <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
+        <aside className="h-[calc(100vh-235px)] min-h-[620px] overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-[var(--cs-text)]">Home-Service Bookings</h3>
+              <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
+                {filteredBookings.length} shown · {openBookings.length} total
+              </p>
+            </div>
+            <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+              {openBookings.length}
+            </Badge>
+          </div>
+
+          <div className="h-[calc(100%-62px)] space-y-3 overflow-y-auto pr-1">
+            {filteredBookings.map((item) => (
+              <BookingSummaryCard
+                key={item.id}
+                item={item}
+                selected={selectedId === item.id}
+                onSelect={() => setRequestedSelectedId(item.id)}
+              />
+            ))}
+
+            {filteredBookings.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-8 text-center text-sm text-[var(--cs-text-muted)]">
+                No matching home-service bookings.
+              </div>
+            ) : null}
+          </div>
+        </aside>
+
+        <MapCanvas
+          bookings={filteredBookings}
+          selectedId={selectedId}
+          onSelect={handleMapSelect}
+        />
+      </div>
+    </section>
   );
 }

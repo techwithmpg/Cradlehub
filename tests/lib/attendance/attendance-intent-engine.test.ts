@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyOpenAttendanceCheckins,
   resolveAttendanceDayForShift,
   resolveAttendanceScanIntent,
   type ResolveAttendanceScanIntentInput,
@@ -38,11 +39,18 @@ const settings: AttendanceSettings = {
   launch_recovery_closing_start_time: "20:30:00",
   launch_recovery_closing_end_time: "23:59:00",
   launch_recovery_reason: null,
+  test_mode_enabled: false,
+  test_mode_reason: null,
+  test_mode_enabled_at: null,
+  test_mode_enabled_by: null,
+  test_mode_disabled_at: null,
+  test_mode_disabled_by: null,
   updated_by: null,
 };
 
 const normalSchedule: ResolvedStaffSchedule = {
   source: "individual",
+  status: "resolved",
   isWorking: true,
   isDayOff: false,
   windows: [{ shiftType: "single", startTime: "09:00:00", endTime: "18:00:00" }],
@@ -92,6 +100,7 @@ describe("resolveAttendanceScanIntent", () => {
   it("keeps overnight active check-out after midnight as clock-out", () => {
     const overnightSchedule: ResolvedStaffSchedule = {
       source: "individual",
+      status: "resolved",
       isWorking: true,
       isDayOff: false,
       windows: [{ shiftType: "closing", startTime: "17:00:00", endTime: "01:00:00" }],
@@ -128,6 +137,7 @@ describe("resolveAttendanceScanIntent", () => {
       input({
         schedule: {
           source: "none",
+          status: "missing",
           isWorking: false,
           isDayOff: false,
           windows: [],
@@ -144,6 +154,7 @@ describe("resolveAttendanceScanIntent", () => {
       input({
         schedule: {
           source: "override",
+          status: "day_off",
           isWorking: false,
           isDayOff: true,
           windows: [],
@@ -173,6 +184,7 @@ describe("resolveAttendanceScanIntent", () => {
         },
         schedule: {
           source: "none",
+          status: "missing",
           isWorking: false,
           isDayOff: false,
           windows: [],
@@ -183,9 +195,140 @@ describe("resolveAttendanceScanIntent", () => {
     expect(intent.requiresRecovery).toBe(true);
   });
 
+  it("uses manager-confirmation copy for first closing scans when configured", () => {
+    const intent = resolveAttendanceScanIntent(
+      input({
+        scanTime: "17:30:00",
+        settings: {
+          ...settings,
+          first_scan_closing_behavior: "require_manager_confirmation",
+        },
+      })
+    );
+    expect(intent.type).toBe("likely_closing_scan_without_clock_in");
+    expect(intent.shouldWriteAttendance).toBe(false);
+    expect(intent.title).toBe("Manager confirmation needed");
+  });
+
+  it("keeps launch-only closing scans in recovery outside launch recovery mode", () => {
+    const intent = resolveAttendanceScanIntent(
+      input({
+        scanTime: "17:30:00",
+        settings: {
+          ...settings,
+          first_scan_closing_behavior: "treat_as_clock_out_launch_only",
+        },
+      })
+    );
+    expect(intent.type).toBe("likely_closing_scan_without_clock_in");
+    expect(intent.shouldWriteAttendance).toBe(false);
+    expect(intent.message).toContain("Launch Recovery is not active");
+  });
+
   it("classifies scans outside all windows as ambiguous recovery", () => {
     const intent = resolveAttendanceScanIntent(input({ scanTime: "13:00:00" }));
     expect(intent.type).toBe("ambiguous_scan");
     expect(intent.shouldWriteAttendance).toBe(false);
+  });
+});
+
+describe("classifyOpenAttendanceCheckins", () => {
+  it("does not treat a prior-day open row as today's active shift", () => {
+    const intent = resolveAttendanceScanIntent(input({ scanTime: "09:05:00" }));
+    const classification = classifyOpenAttendanceCheckins({
+      schedule: intent.schedule,
+      openCheckins: [
+        {
+          id: "launch-row",
+          checkedInAt: "2026-07-09T10:30:00.000Z",
+          scheduledStartAt: "2026-07-09T01:00:00.000Z",
+          scheduledEndAt: "2026-07-09T10:00:00.000Z",
+          shiftDate: "2026-07-09",
+          shiftType: "single",
+        },
+      ],
+    });
+
+    expect(classification.matchingCheckin).toBeNull();
+    expect(classification.staleCheckins.map((checkin) => checkin.id)).toEqual(["launch-row"]);
+  });
+
+  it("matches the exact current shift open row for clock-out", () => {
+    const intent = resolveAttendanceScanIntent(input({ scanTime: "17:55:00" }));
+    const classification = classifyOpenAttendanceCheckins({
+      schedule: intent.schedule,
+      openCheckins: [
+        {
+          id: "current-shift",
+          checkedInAt: "2026-07-10T01:05:00.000Z",
+          scheduledStartAt: "2026-07-10T01:00:00.000Z",
+          scheduledEndAt: "2026-07-10T10:00:00.000Z",
+          shiftDate: "2026-07-10",
+          shiftType: "single",
+        },
+      ],
+    });
+
+    expect(classification.matchingCheckin?.id).toBe("current-shift");
+    expect(classification.staleCheckins).toHaveLength(0);
+  });
+
+  it("matches legacy generic shift rows by scheduled-window overlap", () => {
+    const splitSchedule: ResolvedStaffSchedule = {
+      source: "individual",
+      status: "resolved",
+      isWorking: true,
+      isDayOff: false,
+      windows: [
+        { shiftType: "opening", startTime: "09:00:00", endTime: "13:00:00" },
+        { shiftType: "closing", startTime: "15:00:00", endTime: "21:00:00" },
+      ],
+    };
+    const intent = resolveAttendanceScanIntent(input({ schedule: splitSchedule, scanTime: "20:45:00" }));
+    const classification = classifyOpenAttendanceCheckins({
+      schedule: intent.schedule,
+      openCheckins: [
+        {
+          id: "legacy-closing",
+          checkedInAt: "2026-07-10T07:00:00.000Z",
+          scheduledStartAt: "2026-07-10T07:00:00.000Z",
+          scheduledEndAt: "2026-07-10T13:00:00.000Z",
+          shiftDate: "2026-07-10",
+          shiftType: "single",
+        },
+      ],
+    });
+
+    expect(classification.matchingCheckin?.id).toBe("legacy-closing");
+  });
+
+  it("separates same-day different-shift open rows as conflicts", () => {
+    const splitSchedule: ResolvedStaffSchedule = {
+      source: "individual",
+      status: "resolved",
+      isWorking: true,
+      isDayOff: false,
+      windows: [
+        { shiftType: "opening", startTime: "09:00:00", endTime: "13:00:00" },
+        { shiftType: "closing", startTime: "15:00:00", endTime: "21:00:00" },
+      ],
+    };
+    const intent = resolveAttendanceScanIntent(input({ schedule: splitSchedule, scanTime: "20:45:00" }));
+    const classification = classifyOpenAttendanceCheckins({
+      schedule: intent.schedule,
+      openCheckins: [
+        {
+          id: "opening-still-open",
+          checkedInAt: "2026-07-10T01:00:00.000Z",
+          scheduledStartAt: "2026-07-10T01:00:00.000Z",
+          scheduledEndAt: "2026-07-10T05:00:00.000Z",
+          shiftDate: "2026-07-10",
+          shiftType: "opening",
+        },
+      ],
+    });
+
+    expect(classification.matchingCheckin).toBeNull();
+    expect(classification.conflictingCheckins.map((checkin) => checkin.id)).toEqual(["opening-still-open"]);
   });
 });

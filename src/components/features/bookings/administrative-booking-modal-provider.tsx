@@ -18,6 +18,7 @@ import {
   AdminOverlayBody,
   ConfirmUnsavedChangesDialog,
 } from "@/components/shared/overlays";
+import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import {
   QuickBookingForm,
@@ -190,6 +191,7 @@ export function AdministrativeBookingModalProvider({
         }}
         size="xl"
         placement="center"
+        ariaLabel="New booking"
         className="h-[100dvh] max-h-[100dvh] rounded-none border-0 bg-[var(--cs-surface)] sm:h-auto sm:max-h-[min(92vh,900px)] sm:rounded-2xl sm:border sm:max-w-[900px]"
       >
         <AdminOverlayBody padded={false} className="bg-[var(--cs-bg)]">
@@ -231,9 +233,9 @@ export function AdministrativeBookingModalProvider({
           )}
 
           {customerError ? (
-            <div className="mx-4 mb-4 rounded-xl border border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] px-4 py-3 text-sm font-medium text-[var(--cs-error-text)] sm:mx-5">
+            <WorkspaceNotice tone="error" className="mx-4 mb-4 sm:mx-5">
               {customerError}
-            </div>
+            </WorkspaceNotice>
           ) : null}
         </AdminOverlayBody>
       </AdminDialog>

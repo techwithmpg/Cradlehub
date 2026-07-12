@@ -628,3 +628,67 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - `branch_booking_rules` remains responsible for Home Service policy values such as free km and extra-km fee.
 - CRM Home Service distance should continue resolving origin from selected branch coordinates and destination from customer Places coordinates.
 - Public booking wizard behavior remains independent; the shared Places picker can be reused without changing the public flow.
+
+## DECISION - CRM-BOOKING-FOLLOWUP-STABILIZATION-001
+
+**Decision:** CRM booking follow-up, cancel, reschedule, and staff reassignment audit writes use branch-checked server actions with the service-role client instead of granting authenticated INSERT/UPDATE on `booking_events`.
+
+**Rationale:** `booking_events` is the immutable booking history surface and existing migrations intentionally grant authenticated roles SELECT only. Operational CRM users can update bookings through branch-scoped policies, but trigger/audit writes to `booking_events` must not depend on broadening authenticated table grants. Keeping the write path server-side preserves least privilege while allowing CRM actions to annotate status transitions and write same-status operational audit entries.
+
+**Consequences:**
+- Do not add authenticated INSERT/UPDATE grants or broad RLS write policies to `booking_events` for front-desk follow-up convenience.
+- Status-changing actions should annotate the latest trigger-created event after the booking update.
+- Same-status operational actions such as no-answer follow-up, reschedule notes, and staff reassignment may insert a service-role audit row with equal `from_status`/`to_status`.
+- Client UI should sanitize raw RLS/policy errors and show operator-safe messages.
+- Change Staff preserves the appointment time; Reschedule is the explicit flow that moves date/time.
+
+## DECISION - CRM-PERFORMANCE-OPTIMIZATION-001
+
+**Decision:** During the frozen CRM UI performance pass, prefer measured render/effect optimizations inside existing client workspaces over broad bundle splitting or data-contract rewrites.
+
+**Rationale:** The CRM UI had just completed a freeze sweep, and Bookings still has a known authenticated browser certification blocker. Next.js/Turbopack build artifacts showed broadly similar CRM client-reference manifests, while source audits found clear repeated render/effect work in Today, Bookings, and Dispatch. Render/effect fixes preserve operator behavior with far lower risk than moving modal/tab boundaries or changing live CRM query/cache semantics.
+
+**Consequences:**
+- Bundle analyzer setup, dynamic-import refactors, and deeper client/server boundary changes require a separately scoped certification phase.
+- Live CRM route caching and Supabase query semantics stay unchanged unless future profiling proves a safe change.
+- Frozen UI certification takes priority over payload micro-optimizations when they could disturb mounted modal/tab state.
+
+## DECISION - ATTENDANCE-TODAY-ALIGNMENT-RESET-001
+
+**Decision:** Attendance QR scan intent must be resolved from branch-local time and the current staff schedule before any open `staff_shift_checkins` row is allowed to become a clock-out target.
+
+**Rationale:** Launch-day scans created stale evening clock-ins that caused the old "any open row means clock-out" shortcut to reverse staff attendance across days. Open rows are operational evidence, not sufficient intent. The only safe clock-out target is an open row matching the resolved current shift by staff/branch/test mode plus shift date and shift identity, with legacy generic rows matched only by scheduled-window/actual-clock-in overlap.
+
+**Consequences:**
+- Do not reintroduce a scan path that clocks out just because a staff member has any open attendance row.
+- Stale or conflicting open rows must create/update Recovery exceptions and then let the current scan continue through the schedule-aware intent engine.
+- Resetting next scan state must void only selected interpreted attendance records, preserve raw QR scan events, resolve related exceptions, and write `attendance_corrections` audit history.
+- The new `reset_attendance_state` action requires migration `20260712000100_attendance_state_reset.sql` before production use.
+
+## DECISION - ATTENDANCE-AUTONOMY-HARDENING-001
+
+**Decision:** Attendance now has one local authoritative service chain for scan interpretation: QR/device/identity checks remain in `scan-engine.ts`, schedule intent remains in `attendance-intent-engine.ts`, branch-local time and immutable shift identity live in `shift-instance.ts`, next expected action lives in `attendance-state-machine.ts`, device registry reads staff first through `device-registry.ts`, and corrections remain in `attendance-correction-service.ts` until they are moved into transactional RPCs.
+
+**Rationale:** The repository already had a working Attendance engine. A large rewrite into many new files would risk regressing QR scans, room scans, service starts, Recovery, and Owner/CRM Attendance parity. The safer architecture is to extract the missing pure responsibilities first: stable shift instance, branch time/business date, current state machine, deduped Recovery, and staff-first device registry.
+
+**Consequences:**
+- `shift_date` plus `shift_type` is no longer sufficient identity for live scans; new writes must capture `shift_instance_key`, `schedule_source`, `schedule_source_id`, `branch_timezone`, `attendance_business_date`, and scheduled start/end.
+- Branch timezone and attendance day boundary must come from effective Attendance settings, with `Asia/Manila` only as the default.
+- Device Registry must load staff assigned to the branch first, then devices by `staff_id`; stale device branch metadata must not make a staff member appear disconnected.
+- Production must not silently hash Attendance device cookies without `ATTENDANCE_DEVICE_SECRET`.
+- `qr_scan_events.operation_id` and `operation_result` support app-level same-request replay, but this is not a substitute for the required PostgreSQL transactional scan RPC.
+- Multi-step corrections now fail loudly on failed substeps, but all correction mutations still need transactional RPCs before final production closeout.
+- Account claim, canonical scan host redirects, rotating challenge, scheduled reconciliation, and real-device QA remain mandatory follow-up before Attendance can be declared closed.
+
+## DECISION - ATTENDANCE-TRANSACTIONAL-COMMIT-001
+
+**Decision:** Keep QR/device/auth/schedule/intent interpretation in TypeScript, but move the final interpreted Attendance scan commit into `public.commit_attendance_scan_transaction(...)`; move selected-record Attendance State Reset into `public.reset_attendance_state_transaction(...)`.
+
+**Rationale:** The TypeScript scan engine already owns public QR routing, trusted-device cookies, branch authorization, schedule resolution, and operator-facing result copy. The risk was the multi-step persistence boundary after intent resolution. A PostgreSQL commit function can lock by request/staff/branch/test mode, replay same-request public results, update/insert the interpreted check-in, write the raw scan event, update/insert a deduped Recovery case, update device seen metadata, and store the public operation result atomically. The reset RPC similarly makes the selected interpreted-row void, linked Recovery resolution, and correction audit a single unit.
+
+**Consequences:**
+- New interpreted scan mutation branches should call `commit_attendance_scan_transaction` instead of sequencing check-in, scan-event, exception, and device updates in application code.
+- Event-only/noop scan branches can remain lightweight, but retry/concurrency QA must confirm they do not create misleading public results.
+- New selected-record reset behavior must call `reset_attendance_state_transaction`; do not reintroduce broad staff-day wipes.
+- Manual clock-out, launch recovery, ignore-scan, rule updates, archive-test-data, and future rebuild/manual-attendance actions remain app-level multi-step workflows until their own transactional RPCs exist.
+- Supabase migration history is still unreconciled even though linked schema functions/columns are present; production closure must wait for migration-history repair.

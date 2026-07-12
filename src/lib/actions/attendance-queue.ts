@@ -17,8 +17,18 @@ export async function getAttendanceQueueSuggestionAction(
   | { success: false; error: string }
 > {
   const parsed = (typeof rawInput === "object" && rawInput !== null)
-    ? (rawInput as { branchId?: string; date?: string; serviceId?: string | null })
+    ? (rawInput as { branchId?: string; date?: string; serviceId?: string | null; serviceIds?: string[] })
     : {};
+  const serviceIds = Array.from(
+    new Set(
+      (Array.isArray(parsed.serviceIds) && parsed.serviceIds.length > 0
+        ? parsed.serviceIds
+        : parsed.serviceId
+          ? [parsed.serviceId]
+          : []
+      ).filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    )
+  );
 
   if (!parsed.branchId || typeof parsed.branchId !== "string") {
     return { success: false, error: "Branch ID is required" };
@@ -50,6 +60,7 @@ export async function getAttendanceQueueSuggestionAction(
     .eq("branch_id", parsed.branchId)
     .eq("shift_date", parsed.date)
     .eq("status", "checked_in")
+    .eq("is_test", false)
     .is("checked_out_at", null)
     .order("checked_in_at", { ascending: true });
 
@@ -62,16 +73,20 @@ export async function getAttendanceQueueSuggestionAction(
   // Filter to staff that are checked in and (optionally) can perform the service
   let eligibleStaffIds = staffIds.filter((id) => activeCheckinByStaffId.has(id));
 
-  if (parsed.serviceId && eligibleStaffIds.length > 0) {
+  if (serviceIds.length > 0 && eligibleStaffIds.length > 0) {
     const { data: mappings, error: mappingError } = await admin
       .from("staff_services")
       .select("staff_id, service_id")
-      .in("staff_id", eligibleStaffIds)
-      .eq("service_id", parsed.serviceId);
+      .in("staff_id", eligibleStaffIds);
 
     if (mappingError) return { success: false, error: mappingError.message };
 
-    const mappedStaffIds = new Set((mappings ?? []).map((m) => m.staff_id));
+    const serviceIdsByStaffId = new Map<string, Set<string>>();
+    for (const mapping of mappings ?? []) {
+      const staffServiceIds = serviceIdsByStaffId.get(mapping.staff_id) ?? new Set<string>();
+      staffServiceIds.add(mapping.service_id);
+      serviceIdsByStaffId.set(mapping.staff_id, staffServiceIds);
+    }
 
     // Also include staff whose staff_type implies service capability (fallback)
     const serviceableTypes = new Set([
@@ -85,7 +100,10 @@ export async function getAttendanceQueueSuggestionAction(
     eligibleStaffIds = eligibleStaffIds.filter((id) => {
       const staff = (staffRows ?? []).find((s) => s.id === id);
       if (!staff) return false;
-      if (mappedStaffIds.has(id)) return true;
+      const mappedServiceIds = serviceIdsByStaffId.get(id);
+      if (mappedServiceIds && mappedServiceIds.size > 0) {
+        return serviceIds.every((serviceId) => mappedServiceIds.has(serviceId));
+      }
       const type = (staff.staff_type ?? "").toLowerCase();
       return Array.from(serviceableTypes).some((t) => type.includes(t));
     });
@@ -145,6 +163,7 @@ export async function getAttendanceQueueStatusAction(
     .eq("branch_id", parsed.branchId)
     .eq("shift_date", parsed.date)
     .eq("status", "checked_in")
+    .eq("is_test", false)
     .is("checked_out_at", null)
     .order("checked_in_at", { ascending: true });
 

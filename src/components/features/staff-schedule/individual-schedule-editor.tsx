@@ -22,6 +22,7 @@ import {
   patternToSaveDays,
   rulesToPatternForGroup,
   schedulesToPatternForGroup,
+  toggleSchedulePatternField,
   type DayPattern,
   type ShiftKind,
   type ShiftTimes,
@@ -85,34 +86,6 @@ function todayLabel(date: string): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function togglePatternField(
-  previous: Record<number, DayPattern>,
-  dow: number,
-  field: keyof DayPattern,
-  visibleKinds: ShiftKind[]
-) {
-  const next = clonePattern(previous);
-  const row = next[dow];
-  if (!row) return previous;
-
-  if (field === "dayOff") {
-    const nextValue = !row.dayOff;
-    row.dayOff = nextValue;
-    if (nextValue) {
-      for (const kind of visibleKinds) {
-        row[kind] = false;
-      }
-    }
-    return next;
-  }
-
-  row[field] = !row[field];
-  if (row[field]) {
-    row.dayOff = false;
-  }
-  return next;
 }
 
 export function StaffScheduleHeader({
@@ -439,7 +412,9 @@ function StaffScheduleEditorForm({
 
   const handleToggle = useCallback(
     (dow: number, field: keyof DayPattern) => {
-      setPattern((previous) => togglePatternField(previous, dow, field, visibleKinds));
+      setPattern((previous) =>
+        toggleSchedulePatternField(previous, dow, field, visibleKinds)
+      );
       setDirty(true);
     },
     [visibleKinds]

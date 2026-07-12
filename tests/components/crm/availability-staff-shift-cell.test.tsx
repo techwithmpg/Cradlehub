@@ -32,6 +32,8 @@ function makeStaffRow(
     work_start: shifts[0]?.start_time ?? null,
     work_end: shifts.at(-1)?.end_time ?? null,
     scheduleSource: shifts.length > 0 ? "individual" : "none",
+    scheduleConflictCode: null,
+    scheduleConflictReason: null,
     shifts,
     active_booking: null,
     blocks: [],

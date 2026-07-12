@@ -10,12 +10,12 @@ import { CrmTodayShell } from "@/components/features/crm/today/crm-today-shell";
 import { getBranchBookingDriverIds, getDriverNamesByIds, getAvailableBranchDrivers, assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import { getLatestLocationsForActiveHomeServiceTrips } from "@/lib/actions/location-actions";
 import { getOrCreateCustomerTrackingLinkAction, getActiveTrackingTokensForBookings } from "@/lib/actions/tracking-link-actions";
-import { refreshHomeServiceEtaAction } from "@/lib/actions/eta-actions";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { SYSTEM_ROLE_LABELS, canonicalizeSystemRole } from "@/constants/staff";
 import { updateWorkQueueBookingStatusAction } from "./actions";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import {
   createAttendanceScanFeedFallback,
   getRecentAttendanceScanFeed,
@@ -205,24 +205,30 @@ export default async function CrmTodayPage() {
   });
 
   return (
-    <CrmTodayShell
-      branchName={branchName}
-      dateLabel={dateLabel}
-      roleLabel={roleLabel}
-      queueData={queueData}
-      snapshot={snapshot}
-      actionNotifications={actionNotifications}
-      attendanceScanFeed={attendanceScanFeed}
-      attendanceScanDate={today}
-      readinessIssues={readinessIssues}
-      readinessStatus={readinessStatus}
-      viewerRole={role}
-      paymentAction={updateBookingPaymentAction}
-      statusAction={updateWorkQueueBookingStatusAction}
-      assignDriverAction={assignBookingDriverAction}
-      availableDrivers={availableDrivers}
-      getTrackingLinkAction={getOrCreateCustomerTrackingLinkAction}
-      refreshEtaAction={refreshHomeServiceEtaAction}
-    />
+    <CrmOperationalPageShell
+      title="Work Queue"
+      description="One prioritized list for confirmations, follow-up, exceptions, and home-service work."
+      context={`${branchName} · ${dateLabel} · ${roleLabel}`}
+    >
+      <CrmTodayShell
+        branchName={branchName}
+        dateLabel={dateLabel}
+        roleLabel={roleLabel}
+        queueData={queueData}
+        snapshot={snapshot}
+        actionNotifications={actionNotifications}
+        attendanceScanFeed={attendanceScanFeed}
+        attendanceScanDate={today}
+        readinessIssues={readinessIssues}
+        readinessStatus={readinessStatus}
+        viewerRole={role}
+        paymentAction={updateBookingPaymentAction}
+        statusAction={updateWorkQueueBookingStatusAction}
+        assignDriverAction={assignBookingDriverAction}
+        availableDrivers={availableDrivers}
+        getTrackingLinkAction={getOrCreateCustomerTrackingLinkAction}
+        showHeader={false}
+      />
+    </CrmOperationalPageShell>
   );
 }

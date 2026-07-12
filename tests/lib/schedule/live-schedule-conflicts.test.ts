@@ -53,8 +53,11 @@ function row(overrides: Partial<DailyScheduleStaffRow> = {}): DailyScheduleStaff
     work_end: "18:00:00",
     current_override: null,
     schedule_source: "individual",
+    schedule_status: "resolved",
     schedule_is_day_off: false,
     schedule_windows: [{ shiftType: "single", startTime: "10:00:00", endTime: "18:00:00" }],
+    schedule_conflict_code: null,
+    schedule_conflict_reason: null,
     bookings: [],
     blocks: [],
     ...overrides,
@@ -115,9 +118,9 @@ describe("buildLiveScheduleConflicts", () => {
     const rows = [
       row({ bookings: [booking({ id: "missing-room", resource_id: null, resource_name: null })] }),
       row({ staff_id: "staff-2", staff_name: "Outside", bookings: [booking({ id: "outside", start_time: "09:00:00", end_time: "10:00:00", resource_id: "room-2" })] }),
-      row({ staff_id: "staff-3", staff_name: "Off", schedule_is_day_off: true, schedule_windows: [], bookings: [booking({ id: "day-off", resource_id: "room-3" })] }),
+      row({ staff_id: "staff-3", staff_name: "Off", schedule_status: "day_off", schedule_is_day_off: true, schedule_windows: [], bookings: [booking({ id: "day-off", resource_id: "room-3" })] }),
       row({ staff_id: "staff-4", staff_name: "Blocked", bookings: [booking({ id: "blocked", resource_id: "room-4" })], blocks: [{ id: "break", start_time: "10:30:00", end_time: "11:00:00", reason: "Break" }] }),
-      row({ staff_id: "staff-5", staff_name: "No schedule", work_start: null, work_end: null, schedule_source: "none", schedule_windows: [] }),
+      row({ staff_id: "staff-5", staff_name: "No schedule", work_start: null, work_end: null, schedule_source: "none", schedule_status: "missing", schedule_windows: [] }),
       row({ staff_id: "staff-6", staff_name: "Duplicate", schedule_windows: [{ shiftType: "opening", startTime: "10:00:00", endTime: "14:00:00" }, { shiftType: "closing", startTime: "13:00:00", endTime: "18:00:00" }] }),
       row({
         staff_id: "staff-7",
@@ -152,5 +155,21 @@ describe("buildLiveScheduleConflicts", () => {
 
   it("does not treat staff attendance or check-in absence as a schedule conflict", () => {
     expect(conflictTypes([row()])).toEqual([]);
+  });
+
+  it("surfaces resolver-detected schedule conflicts even when windows are empty", () => {
+    const conflicts = buildLiveScheduleConflicts(
+      [
+        row({
+          schedule_status: "conflict",
+          schedule_windows: [],
+          schedule_conflict_code: "overlapping_windows",
+          schedule_conflict_reason: "Multiple active schedule windows overlap for the same day.",
+        }),
+      ],
+      { date: "2026-07-09", schedulingRules: baseRules }
+    );
+
+    expect(conflicts.map((conflict) => conflict.type)).toContain("schedule_rule_conflict");
   });
 });

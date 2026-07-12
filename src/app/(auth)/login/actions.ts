@@ -18,6 +18,25 @@ export type LoginState = {
   fieldErrors?: { email?: string; password?: string };
 };
 
+export type GoogleLoginCompletion =
+  | { ok: true; redirectTo: string }
+  | { ok: false; error: string };
+
+async function getLoginDestinationForUser(userId: string): Promise<string | LoginState> {
+  try {
+    const workspaces = await getUserWorkspaceAccess(userId);
+    return getWorkspaceSwitchDestination(workspaces);
+  } catch (error) {
+    logError("auth.workspace_access_failed", {
+      userId,
+      error,
+    });
+    return {
+      error: "Workspace access query failed. Please contact your administrator.",
+    };
+  }
+}
+
 export async function loginAction(
   _prev: LoginState,
   formData: FormData
@@ -57,19 +76,30 @@ export async function loginAction(
 
   if (!user) return { error: "Authentication failed. Please try again." };
 
-  let workspaces;
-  try {
-    workspaces = await getUserWorkspaceAccess(user.id);
-  } catch (error) {
-    logError("auth.workspace_access_failed", {
-      userId: user.id,
-      error,
-    });
+  const destination = await getLoginDestinationForUser(user.id);
+  if (typeof destination !== "string") return destination;
+
+  redirect(destination);
+}
+
+export async function completeGoogleLoginAction(): Promise<GoogleLoginCompletion> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
     return {
-      error: "Workspace access query failed. Please contact your administrator.",
+      ok: false,
+      error: "Google sign-in could not be completed. Try again or use your email and password.",
     };
   }
 
-  redirect(getWorkspaceSwitchDestination(workspaces));
+  const destination = await getLoginDestinationForUser(user.id);
+  if (typeof destination !== "string") {
+    return { ok: false, error: destination.error ?? "Authentication failed. Please try again." };
+  }
+
+  return { ok: true, redirectTo: destination };
 }
 

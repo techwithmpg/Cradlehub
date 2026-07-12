@@ -8,24 +8,23 @@ import {
   AdminOverlayFooter,
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
+import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { Button } from "@/components/ui/button";
 import { markBookingConfirmedAction, recordBookingFollowupAction } from "@/app/(dashboard)/crm/bookings/actions";
-import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { formatTime } from "@/lib/utils";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 
 type OneOrMany<T> = T | T[] | null | undefined;
 export type BookingFollowupResult = "confirmed" | "no_answer" | "reschedule" | "cancel";
 type BookingFollowupSaveResult = BookingFollowupResult | "confirm_later";
-type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
 type BookingFollowupModalProps = {
   open: boolean;
   booking: WorkspaceBookingRow | null;
   initialResult?: BookingFollowupResult;
-  cancelBookingAction?: ActionFn;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  onRescheduleRequested?: (booking: WorkspaceBookingRow) => void;
 };
 
 const RESULT_OPTIONS: Array<{ value: BookingFollowupResult; label: string; description: string }> = [
@@ -55,13 +54,27 @@ function sourceLabel(booking: WorkspaceBookingRow): string {
   return booking.type ?? "Booking";
 }
 
+function safeFollowupError(message: string | undefined, fallback: string): string {
+  if (!message) return fallback;
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("row-level security") ||
+    lower.includes("rls") ||
+    lower.includes("policy") ||
+    lower.includes("booking_events")
+  ) {
+    return "Could not save follow-up result. Your account may not have permission or the booking could not be updated. Please try again or contact admin.";
+  }
+  return message;
+}
+
 export function BookingFollowupModal({
   open,
   booking,
   initialResult = "confirmed",
-  cancelBookingAction,
   onOpenChange,
   onSuccess,
+  onRescheduleRequested,
 }: BookingFollowupModalProps) {
   const [result, setResult] = useState<BookingFollowupResult>(initialResult);
   const [note, setNote] = useState("");
@@ -96,7 +109,7 @@ export function BookingFollowupModal({
           note: note.trim() || undefined,
         });
         if (!confirmed.success) {
-          setFeedback({ ok: false, message: confirmed.error ?? "Could not confirm booking." });
+          setFeedback({ ok: false, message: safeFollowupError(confirmed.error, "Could not confirm booking.") });
           return;
         }
         closeAfterSuccess("Booking confirmed.");
@@ -104,14 +117,13 @@ export function BookingFollowupModal({
       }
 
       if (nextResult === "cancel") {
-        const cancelAction = cancelBookingAction ?? updateBookingStatusAction;
-        const cancelled = await cancelAction({
+        const cancelled = await recordBookingFollowupAction({
           bookingId: currentBooking.id,
-          status: "cancelled",
-          notes: note.trim(),
+          result: "cancel",
+          note: note.trim(),
         });
         if (!cancelled.success) {
-          setFeedback({ ok: false, message: cancelled.error ?? "Could not cancel booking." });
+          setFeedback({ ok: false, message: safeFollowupError(cancelled.error, "Could not cancel booking.") });
           return;
         }
         closeAfterSuccess("Booking cancelled.");
@@ -125,7 +137,14 @@ export function BookingFollowupModal({
         followUpAt: followUpAt.trim() || undefined,
       });
       if (!followup.success) {
-        setFeedback({ ok: false, message: followup.error ?? "Could not save follow-up." });
+        setFeedback({ ok: false, message: safeFollowupError(followup.error, "Could not save follow-up.") });
+        return;
+      }
+      if (nextResult === "reschedule") {
+        toast.success("Follow-up note saved.");
+        onSuccess();
+        onOpenChange(false);
+        onRescheduleRequested?.(currentBooking);
         return;
       }
       closeAfterSuccess(nextResult === "no_answer" ? "No-answer follow-up saved." : "Follow-up note saved.");
@@ -133,14 +152,20 @@ export function BookingFollowupModal({
   }
 
   return (
-    <AdminDialog open={open} onOpenChange={onOpenChange} size="md" placement="center">
+    <AdminDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="md"
+      placement="center"
+      ariaLabel="Booking follow-up"
+    >
       <AdminOverlayHeader
         title="Booking Follow-up"
         description="Call customer, record the result, and move the booking forward."
       />
       <AdminOverlayBody className="bg-[var(--cs-surface-warm)]">
         <div className="space-y-4">
-          <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
+          <div className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
             <div className="grid gap-3 sm:grid-cols-2">
               <SummaryItem label="Customer" value={customer?.full_name ?? "Customer"} />
               <SummaryItem label="Service" value={service?.name ?? "Service"} />
@@ -160,8 +185,9 @@ export function BookingFollowupModal({
                   type="button"
                   disabled={isPending}
                   onClick={() => setResult(option.value)}
+                  aria-pressed={selected}
                   className={[
-                    "rounded-xl border p-3 text-left transition-colors",
+                    "rounded-lg border p-3 text-left transition-colors",
                     selected
                       ? "border-[var(--cs-sand)] bg-[var(--cs-sand-mist)]"
                       : "border-[var(--cs-border)] bg-[var(--cs-surface)] hover:border-[var(--cs-border-strong)]",
@@ -200,15 +226,15 @@ export function BookingFollowupModal({
           ) : null}
 
           {result === "reschedule" ? (
-            <div className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-xs leading-5 text-[var(--cs-text-muted)]">
-              The dedicated reschedule flow is not available from this modal yet. Saving will keep the follow-up note attached to the booking.
-            </div>
+            <WorkspaceNotice tone="info">
+              Saving opens the booking reschedule form next.
+            </WorkspaceNotice>
           ) : null}
 
           {feedback ? (
-            <div className={feedback.ok ? "text-sm font-medium text-emerald-700" : "text-sm font-medium text-red-700"}>
+            <WorkspaceNotice tone={feedback.ok ? "success" : "error"}>
               {feedback.message}
-            </div>
+            </WorkspaceNotice>
           ) : null}
         </div>
       </AdminOverlayBody>

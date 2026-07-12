@@ -521,7 +521,7 @@ export async function reviewBranchCorrectionRequestForActor(params: {
     p_review_status: params.status,
     p_reviewer_auth_user_id: params.actor.authUserId,
     p_reviewer_staff_id: params.actor.staffId,
-    p_reviewer_note: params.reviewerNote?.trim() || null,
+    p_reviewer_note: params.reviewerNote?.trim() || undefined,
   });
 
   if (error) return mapReviewError(error.message);

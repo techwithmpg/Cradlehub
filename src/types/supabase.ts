@@ -83,47 +83,65 @@ export type Database = {
       }
       attendance_corrections: {
         Row: {
+          action_type: string | null
           applied_at: string | null
           approved_by: string | null
+          attendance_date: string | null
           branch_id: string
           checkin_id: string | null
+          corrected_at: string | null
+          corrected_by: string | null
           correction_type: string
           created_at: string
           id: string
+          is_test: boolean
           new_values: Json
           previous_values: Json
           reason: string
           requested_by: string | null
+          scan_event_ids: Json
           staff_id: string | null
           status: string
         }
         Insert: {
+          action_type?: string | null
           applied_at?: string | null
           approved_by?: string | null
+          attendance_date?: string | null
           branch_id: string
           checkin_id?: string | null
+          corrected_at?: string | null
+          corrected_by?: string | null
           correction_type: string
           created_at?: string
           id?: string
+          is_test?: boolean
           new_values?: Json
           previous_values?: Json
           reason: string
           requested_by?: string | null
+          scan_event_ids?: Json
           staff_id?: string | null
           status?: string
         }
         Update: {
+          action_type?: string | null
           applied_at?: string | null
           approved_by?: string | null
+          attendance_date?: string | null
           branch_id?: string
           checkin_id?: string | null
+          corrected_at?: string | null
+          corrected_by?: string | null
           correction_type?: string
           created_at?: string
           id?: string
+          is_test?: boolean
           new_values?: Json
           previous_values?: Json
           reason?: string
           requested_by?: string | null
+          scan_event_ids?: Json
           staff_id?: string | null
           status?: string
         }
@@ -150,6 +168,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attendance_corrections_corrected_by_fkey"
+            columns: ["corrected_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "attendance_corrections_requested_by_fkey"
             columns: ["requested_by"]
             isOneToOne: false
@@ -170,11 +195,20 @@ export type Database = {
           branch_id: string
           checkin_id: string | null
           created_at: string
+          dedupe_key: string | null
           detected_at: string
           exception_type: string
+          first_detected_at: string | null
           id: string
+          is_test: boolean
+          last_detected_at: string | null
+          latest_scan_event_id: string | null
           message: string
           metadata: Json
+          occurrence_count: number
+          priority: string
+          recommended_action: string | null
+          related_checkin_ids: string[]
           resolution_note: string | null
           resolved_at: string | null
           resolved_by: string | null
@@ -188,11 +222,20 @@ export type Database = {
           branch_id: string
           checkin_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           detected_at?: string
           exception_type: string
+          first_detected_at?: string | null
           id?: string
+          is_test?: boolean
+          last_detected_at?: string | null
+          latest_scan_event_id?: string | null
           message: string
           metadata?: Json
+          occurrence_count?: number
+          priority?: string
+          recommended_action?: string | null
+          related_checkin_ids?: string[]
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -206,11 +249,20 @@ export type Database = {
           branch_id?: string
           checkin_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           detected_at?: string
           exception_type?: string
+          first_detected_at?: string | null
           id?: string
+          is_test?: boolean
+          last_detected_at?: string | null
+          latest_scan_event_id?: string | null
           message?: string
           metadata?: Json
+          occurrence_count?: number
+          priority?: string
+          recommended_action?: string | null
+          related_checkin_ids?: string[]
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -250,6 +302,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attendance_exceptions_latest_scan_event_id_fkey"
+            columns: ["latest_scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "attendance_exceptions_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
@@ -261,42 +320,126 @@ export type Database = {
       attendance_settings: {
         Row: {
           active_service_blocks_clock_out: boolean
+          ambiguous_scan_behavior: string
+          attendance_day_boundary: string
           branch_id: string
           clock_in_early_grace_minutes: number
           clock_in_late_grace_minutes: number
+          clock_in_window_after_shift_start_minutes: number
+          clock_in_window_before_shift_minutes: number
           clock_out_early_grace_minutes: number
           clock_out_late_grace_minutes: number
+          clock_out_window_after_shift_end_minutes: number
+          clock_out_window_before_shift_end_minutes: number
           created_at: string
+          duplicate_scan_debounce_minutes: number
           duplicate_scan_window_seconds: number
+          early_clock_in_allowed_minutes: number
+          early_leave_threshold_minutes: number
+          first_scan_closing_behavior: string
+          late_grace_minutes: number
+          launch_recovery_closing_end_time: string
+          launch_recovery_closing_start_time: string
+          launch_recovery_enabled: boolean
+          launch_recovery_end_date: string | null
+          launch_recovery_reason: string | null
+          launch_recovery_start_date: string | null
+          missing_schedule_behavior: string
+          off_day_scan_behavior: string
           overnight_shift_cutoff_time: string
+          overtime_threshold_minutes: number
           require_registered_device_for_attendance: boolean
+          test_mode_disabled_at: string | null
+          test_mode_disabled_by: string | null
+          test_mode_enabled: boolean
+          test_mode_enabled_at: string | null
+          test_mode_enabled_by: string | null
+          test_mode_reason: string | null
+          timezone: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           active_service_blocks_clock_out?: boolean
+          ambiguous_scan_behavior?: string
+          attendance_day_boundary?: string
           branch_id: string
           clock_in_early_grace_minutes?: number
           clock_in_late_grace_minutes?: number
+          clock_in_window_after_shift_start_minutes?: number
+          clock_in_window_before_shift_minutes?: number
           clock_out_early_grace_minutes?: number
           clock_out_late_grace_minutes?: number
+          clock_out_window_after_shift_end_minutes?: number
+          clock_out_window_before_shift_end_minutes?: number
           created_at?: string
+          duplicate_scan_debounce_minutes?: number
           duplicate_scan_window_seconds?: number
+          early_clock_in_allowed_minutes?: number
+          early_leave_threshold_minutes?: number
+          first_scan_closing_behavior?: string
+          late_grace_minutes?: number
+          launch_recovery_closing_end_time?: string
+          launch_recovery_closing_start_time?: string
+          launch_recovery_enabled?: boolean
+          launch_recovery_end_date?: string | null
+          launch_recovery_reason?: string | null
+          launch_recovery_start_date?: string | null
+          missing_schedule_behavior?: string
+          off_day_scan_behavior?: string
           overnight_shift_cutoff_time?: string
+          overtime_threshold_minutes?: number
           require_registered_device_for_attendance?: boolean
+          test_mode_disabled_at?: string | null
+          test_mode_disabled_by?: string | null
+          test_mode_enabled?: boolean
+          test_mode_enabled_at?: string | null
+          test_mode_enabled_by?: string | null
+          test_mode_reason?: string | null
+          timezone?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           active_service_blocks_clock_out?: boolean
+          ambiguous_scan_behavior?: string
+          attendance_day_boundary?: string
           branch_id?: string
           clock_in_early_grace_minutes?: number
           clock_in_late_grace_minutes?: number
+          clock_in_window_after_shift_start_minutes?: number
+          clock_in_window_before_shift_minutes?: number
           clock_out_early_grace_minutes?: number
           clock_out_late_grace_minutes?: number
+          clock_out_window_after_shift_end_minutes?: number
+          clock_out_window_before_shift_end_minutes?: number
           created_at?: string
+          duplicate_scan_debounce_minutes?: number
           duplicate_scan_window_seconds?: number
+          early_clock_in_allowed_minutes?: number
+          early_leave_threshold_minutes?: number
+          first_scan_closing_behavior?: string
+          late_grace_minutes?: number
+          launch_recovery_closing_end_time?: string
+          launch_recovery_closing_start_time?: string
+          launch_recovery_enabled?: boolean
+          launch_recovery_end_date?: string | null
+          launch_recovery_reason?: string | null
+          launch_recovery_start_date?: string | null
+          missing_schedule_behavior?: string
+          off_day_scan_behavior?: string
           overnight_shift_cutoff_time?: string
+          overtime_threshold_minutes?: number
           require_registered_device_for_attendance?: boolean
+          test_mode_disabled_at?: string | null
+          test_mode_disabled_by?: string | null
+          test_mode_enabled?: boolean
+          test_mode_enabled_at?: string | null
+          test_mode_enabled_by?: string | null
+          test_mode_reason?: string | null
+          timezone?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -304,6 +447,27 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: true
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_settings_test_mode_disabled_by_fkey"
+            columns: ["test_mode_disabled_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_settings_test_mode_enabled_by_fkey"
+            columns: ["test_mode_enabled_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -850,11 +1014,13 @@ export type Database = {
       branches: {
         Row: {
           address: string
+          barangay: string | null
           city: string | null
           created_at: string
           email: string | null
           fb_page: string | null
-          barangay: string | null
+          home_service_extra_km_fee: number
+          home_service_free_km: number
           id: string
           is_active: boolean
           latitude: number | null
@@ -873,11 +1039,13 @@ export type Database = {
         }
         Insert: {
           address: string
+          barangay?: string | null
           city?: string | null
           created_at?: string
           email?: string | null
           fb_page?: string | null
-          barangay?: string | null
+          home_service_extra_km_fee?: number
+          home_service_free_km?: number
           id?: string
           is_active?: boolean
           latitude?: number | null
@@ -896,11 +1064,13 @@ export type Database = {
         }
         Update: {
           address?: string
+          barangay?: string | null
           city?: string | null
           created_at?: string
           email?: string | null
           fb_page?: string | null
-          barangay?: string | null
+          home_service_extra_km_fee?: number
+          home_service_free_km?: number
           id?: string
           is_active?: boolean
           latitude?: number | null
@@ -1741,8 +1911,12 @@ export type Database = {
           device_id: string | null
           id: string
           ip_address: unknown
+          is_test: boolean
           message: string | null
           metadata: Json
+          operation_id: string | null
+          operation_result: Json | null
+          operation_result_recorded_at: string | null
           outcome: string
           qr_point_id: string | null
           reason_code: string | null
@@ -1761,8 +1935,12 @@ export type Database = {
           device_id?: string | null
           id?: string
           ip_address?: unknown
+          is_test?: boolean
           message?: string | null
           metadata?: Json
+          operation_id?: string | null
+          operation_result?: Json | null
+          operation_result_recorded_at?: string | null
           outcome: string
           qr_point_id?: string | null
           reason_code?: string | null
@@ -1781,8 +1959,12 @@ export type Database = {
           device_id?: string | null
           id?: string
           ip_address?: unknown
+          is_test?: boolean
           message?: string | null
           metadata?: Json
+          operation_id?: string | null
+          operation_result?: Json | null
+          operation_result_recorded_at?: string | null
           outcome?: string
           qr_point_id?: string | null
           reason_code?: string | null
@@ -2307,6 +2489,141 @@ export type Database = {
           },
         ]
       }
+      staff_account_access_events: {
+        Row: {
+          actor_staff_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          ip_hash: string | null
+          metadata: Json
+          outcome: string
+          target_auth_user_id: string | null
+          target_email: string | null
+          target_staff_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          actor_staff_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          outcome: string
+          target_auth_user_id?: string | null
+          target_email?: string | null
+          target_staff_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          actor_staff_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          outcome?: string
+          target_auth_user_id?: string | null
+          target_email?: string | null
+          target_staff_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_account_access_events_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_account_access_events_target_staff_id_fkey"
+            columns: ["target_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_branch_audit_logs: {
+        Row: {
+          change_request_id: string | null
+          changed_by_auth_user_id: string | null
+          changed_by_staff_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          new_branch_id: string
+          old_branch_id: string | null
+          reason: string | null
+          source: string
+          staff_id: string
+        }
+        Insert: {
+          change_request_id?: string | null
+          changed_by_auth_user_id?: string | null
+          changed_by_staff_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          new_branch_id: string
+          old_branch_id?: string | null
+          reason?: string | null
+          source?: string
+          staff_id: string
+        }
+        Update: {
+          change_request_id?: string | null
+          changed_by_auth_user_id?: string | null
+          changed_by_staff_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          new_branch_id?: string
+          old_branch_id?: string | null
+          reason?: string | null
+          source?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_branch_audit_logs_change_request_id_fkey"
+            columns: ["change_request_id"]
+            isOneToOne: false
+            referencedRelation: "staff_branch_change_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_changed_by_staff_id_fkey"
+            columns: ["changed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_new_branch_id_fkey"
+            columns: ["new_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_old_branch_id_fkey"
+            columns: ["old_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_branch_change_requests: {
         Row: {
           created_at: string
@@ -2420,62 +2737,38 @@ export type Database = {
           },
         ]
       }
-      staff_account_access_events: {
+      staff_deletion_backups: {
         Row: {
-          actor_staff_id: string | null
-          created_at: string
-          event_type: string
+          auth_email: string | null
+          auth_user_id: string | null
+          deleted_at: string
+          deleted_reason: string
+          full_name: string
           id: string
-          ip_hash: string | null
-          metadata: Json
-          outcome: string
-          target_auth_user_id: string | null
-          target_email: string | null
-          target_staff_id: string | null
-          user_agent: string | null
+          staff_id: string
+          staff_row: Json
         }
         Insert: {
-          actor_staff_id?: string | null
-          created_at?: string
-          event_type: string
+          auth_email?: string | null
+          auth_user_id?: string | null
+          deleted_at?: string
+          deleted_reason: string
+          full_name: string
           id?: string
-          ip_hash?: string | null
-          metadata?: Json
-          outcome: string
-          target_auth_user_id?: string | null
-          target_email?: string | null
-          target_staff_id?: string | null
-          user_agent?: string | null
+          staff_id: string
+          staff_row: Json
         }
         Update: {
-          actor_staff_id?: string | null
-          created_at?: string
-          event_type?: string
+          auth_email?: string | null
+          auth_user_id?: string | null
+          deleted_at?: string
+          deleted_reason?: string
+          full_name?: string
           id?: string
-          ip_hash?: string | null
-          metadata?: Json
-          outcome?: string
-          target_auth_user_id?: string | null
-          target_email?: string | null
-          target_staff_id?: string | null
-          user_agent?: string | null
+          staff_id?: string
+          staff_row?: Json
         }
-        Relationships: [
-          {
-            foreignKeyName: "staff_account_access_events_actor_staff_id_fkey"
-            columns: ["actor_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_account_access_events_target_staff_id_fkey"
-            columns: ["target_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       staff_devices: {
         Row: {
@@ -2483,6 +2776,7 @@ export type Database = {
           browser_name: string | null
           browser_version: string | null
           created_at: string
+          device_role: string
           device_fingerprint_hash: string
           device_label: string | null
           id: string
@@ -2492,11 +2786,15 @@ export type Database = {
           metadata: Json
           platform_name: string | null
           registration_source: string
+          replacement_confirmed_at: string | null
+          replacement_confirmed_by: string | null
           revocation_reason: string | null
           revoked_at: string | null
           revoked_by: string | null
           staff_id: string
           status: string
+          superseded_by_device_id: string | null
+          security_state: string
           trusted_after: string
           updated_at: string
         }
@@ -2505,6 +2803,7 @@ export type Database = {
           browser_name?: string | null
           browser_version?: string | null
           created_at?: string
+          device_role?: string
           device_fingerprint_hash: string
           device_label?: string | null
           id?: string
@@ -2514,11 +2813,15 @@ export type Database = {
           metadata?: Json
           platform_name?: string | null
           registration_source?: string
+          replacement_confirmed_at?: string | null
+          replacement_confirmed_by?: string | null
           revocation_reason?: string | null
           revoked_at?: string | null
           revoked_by?: string | null
           staff_id: string
           status?: string
+          superseded_by_device_id?: string | null
+          security_state?: string
           trusted_after?: string
           updated_at?: string
         }
@@ -2527,6 +2830,7 @@ export type Database = {
           browser_name?: string | null
           browser_version?: string | null
           created_at?: string
+          device_role?: string
           device_fingerprint_hash?: string
           device_label?: string | null
           id?: string
@@ -2536,11 +2840,15 @@ export type Database = {
           metadata?: Json
           platform_name?: string | null
           registration_source?: string
+          replacement_confirmed_at?: string | null
+          replacement_confirmed_by?: string | null
           revocation_reason?: string | null
           revoked_at?: string | null
           revoked_by?: string | null
           staff_id?: string
           status?: string
+          superseded_by_device_id?: string | null
+          security_state?: string
           trusted_after?: string
           updated_at?: string
         }
@@ -2557,6 +2865,20 @@ export type Database = {
             columns: ["revoked_by"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_devices_replacement_confirmed_by_fkey"
+            columns: ["replacement_confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_devices_superseded_by_device_id_fkey"
+            columns: ["superseded_by_device_id"]
+            isOneToOne: false
+            referencedRelation: "staff_devices"
             referencedColumns: ["id"]
           },
           {
@@ -3068,8 +3390,10 @@ export type Database = {
       }
       staff_shift_checkins: {
         Row: {
+          attendance_business_date: string | null
           attendance_status: string
           branch_id: string
+          branch_timezone: string
           checked_in_at: string
           checked_out_at: string | null
           clock_in_method: string | null
@@ -3080,13 +3404,17 @@ export type Database = {
           early_leave_minutes: number
           exception_state: string
           id: string
+          is_test: boolean
           late_minutes: number
           notes: string | null
           overtime_minutes: number
           recorded_by: string | null
+          schedule_source: string | null
+          schedule_source_id: string | null
           scheduled_end_at: string | null
           scheduled_start_at: string | null
           shift_date: string
+          shift_instance_key: string | null
           shift_type: string
           source_qr_point_id: string | null
           staff_id: string
@@ -3095,8 +3423,10 @@ export type Database = {
           worked_minutes: number
         }
         Insert: {
+          attendance_business_date?: string | null
           attendance_status?: string
           branch_id: string
+          branch_timezone?: string
           checked_in_at?: string
           checked_out_at?: string | null
           clock_in_method?: string | null
@@ -3107,13 +3437,17 @@ export type Database = {
           early_leave_minutes?: number
           exception_state?: string
           id?: string
+          is_test?: boolean
           late_minutes?: number
           notes?: string | null
           overtime_minutes?: number
           recorded_by?: string | null
+          schedule_source?: string | null
+          schedule_source_id?: string | null
           scheduled_end_at?: string | null
           scheduled_start_at?: string | null
           shift_date: string
+          shift_instance_key?: string | null
           shift_type?: string
           source_qr_point_id?: string | null
           staff_id: string
@@ -3122,8 +3456,10 @@ export type Database = {
           worked_minutes?: number
         }
         Update: {
+          attendance_business_date?: string | null
           attendance_status?: string
           branch_id?: string
+          branch_timezone?: string
           checked_in_at?: string
           checked_out_at?: string | null
           clock_in_method?: string | null
@@ -3134,13 +3470,17 @@ export type Database = {
           early_leave_minutes?: number
           exception_state?: string
           id?: string
+          is_test?: boolean
           late_minutes?: number
           notes?: string | null
           overtime_minutes?: number
           recorded_by?: string | null
+          schedule_source?: string | null
+          schedule_source_id?: string | null
           scheduled_end_at?: string | null
           scheduled_start_at?: string | null
           shift_date?: string
+          shift_instance_key?: string | null
           shift_type?: string
           source_qr_point_id?: string | null
           staff_id?: string
@@ -3474,6 +3814,39 @@ export type Database = {
           completed_at: string
         }[]
       }
+      commit_attendance_scan_transaction: {
+        Args: {
+          p_action: string
+          p_branch_id: string
+          p_checkin_id?: string
+          p_checkin_insert?: Json | null
+          p_checkin_update?: Json | null
+          p_device_id: string | null
+          p_device_scan_type?: string
+          p_exception?: Json | null
+          p_ip_address?: string | null
+          p_is_test?: boolean
+          p_message?: string | null
+          p_metadata?: Json | null
+          p_outcome: string
+          p_public_result?: Json | null
+          p_qr_point_id: string | null
+          p_reason_code?: string | null
+          p_request_id?: string | null
+          p_scan_type: string
+          p_staff_id: string | null
+          p_user_agent?: string | null
+        }
+        Returns: {
+          checkin_id: string | null
+          code: string
+          message: string
+          operation_result: Json | null
+          recovery_issue_id: string | null
+          scan_event_id: string | null
+          success: boolean
+        }[]
+      }
       compute_booking_end_time: {
         Args: { p_service_id: string; p_start_time: string }
         Returns: string
@@ -3575,13 +3948,34 @@ export type Database = {
           service_id: string
         }[]
       }
+      reset_attendance_state_transaction: {
+        Args: {
+          p_actor_staff_id: string | null
+          p_branch_id: string
+          p_checkin_id: string
+          p_is_test?: boolean
+          p_reason: string
+          p_reset_mode?: string
+        }
+        Returns: {
+          attendance_date: string | null
+          checkin_id: string | null
+          code: string
+          correction_id: string | null
+          message: string
+          next_expected_action: string | null
+          resolved_exception_count: number
+          staff_id: string | null
+          success: boolean
+        }[]
+      }
       review_staff_branch_change_request: {
         Args: {
           p_request_id: string
           p_review_status: string
           p_reviewer_auth_user_id: string
+          p_reviewer_note?: string
           p_reviewer_staff_id: string
-          p_reviewer_note?: string | null
         }
         Returns: {
           previous_branch_id: string

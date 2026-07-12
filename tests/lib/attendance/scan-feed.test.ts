@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  attendanceCompletedDurationNeedsReview,
   buildAttendanceRecordHref,
   formatShiftTypeLabel,
   formatWorkedMinutesBadge,
+  getAttendanceScanDurationDetail,
   getAttendanceScanBadge,
 } from "@/lib/attendance/scan-feed";
 import type { RecentAttendanceScan } from "@/lib/attendance/types";
@@ -21,6 +23,8 @@ function scan(overrides: Partial<RecentAttendanceScan> = {}): RecentAttendanceSc
     shiftType: "opening",
     attendanceStatus: "present",
     workedMinutes: null,
+    clockInAt: "2026-07-03T01:00:00.000Z",
+    clockOutAt: null,
     sourceLabel: "Main Attendance",
     ...overrides,
   };
@@ -62,14 +66,54 @@ describe("attendance scan feed helpers", () => {
     });
     expect(
       getAttendanceScanBadge(
-        scan({ eventType: "clock_out", workedMinutes: 545 })
+        scan({
+          eventType: "clock_out",
+          workedMinutes: 545,
+          clockOutAt: "2026-07-03T10:05:00.000Z",
+        })
       )
-    ).toEqual({ label: "9h 05m", tone: "info" });
+    ).toEqual({ label: "Completed", tone: "good" });
   });
 
-  it("keeps short clock-out labels stable when duration is missing", () => {
+  it("keeps completed duration as secondary detail", () => {
     expect(formatWorkedMinutesBadge(null)).toBe("Clocked out");
     expect(formatWorkedMinutesBadge(25)).toBe("25m");
+    expect(
+      getAttendanceScanDurationDetail(
+        scan({
+          eventType: "clock_out",
+          workedMinutes: 545,
+          clockOutAt: "2026-07-03T10:05:00.000Z",
+        })
+      )
+    ).toBe("9h 05m");
+  });
+
+  it("marks impossible completed durations for review instead of displaying the raw value", () => {
+    const longShift = scan({
+      eventType: "clock_out",
+      workedMinutes: 4220,
+      clockOutAt: "2026-07-05T23:20:00.000Z",
+    });
+
+    expect(attendanceCompletedDurationNeedsReview(longShift)).toBe(true);
+    expect(getAttendanceScanBadge(longShift)).toEqual({
+      label: "Needs review",
+      tone: "warn",
+    });
+    expect(getAttendanceScanDurationDetail(longShift)).toBeNull();
+  });
+
+  it("marks clock-out records inconsistent with clock timestamps for review", () => {
+    const inconsistent = scan({
+      eventType: "clock_out",
+      workedMinutes: 60,
+      clockInAt: "2026-07-03T01:00:00.000Z",
+      clockOutAt: "2026-07-03T10:05:00.000Z",
+    });
+
+    expect(attendanceCompletedDurationNeedsReview(inconsistent)).toBe(true);
+    expect(getAttendanceScanBadge(inconsistent).label).toBe("Needs review");
   });
 
   it("formats shift type labels for feed rows", () => {

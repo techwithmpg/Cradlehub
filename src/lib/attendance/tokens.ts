@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "crypto";
 
 export const DEVICE_COOKIE_NAME = "cradle_attendance_device";
 export const LEGACY_DEVICE_COOKIE_NAME = "cradle_device";
-const HASH_PEPPER = process.env.ATTENDANCE_DEVICE_SECRET ?? "cradlehub-attendance-v1";
+const LOCAL_DEVICE_SECRET_FALLBACK = "cradlehub-attendance-v1-local-dev-only";
 
 export function createPublicCode(prefix: "att" | "room" | "res" = "att"): string {
   return `${prefix}_${randomBytes(18).toString("base64url")}`;
@@ -23,10 +23,15 @@ export function createDeviceCredential(): string {
 }
 
 export function hashSecret(raw: string): string {
+  const hashPepper = process.env.ATTENDANCE_DEVICE_SECRET?.trim();
+  if (!hashPepper && process.env.NODE_ENV === "production") {
+    throw new Error("ATTENDANCE_DEVICE_SECRET is required in production.");
+  }
+
   return createHash("sha256")
     .update(raw)
     .update(":")
-    .update(HASH_PEPPER)
+    .update(hashPepper || LOCAL_DEVICE_SECRET_FALLBACK)
     .digest("hex");
 }
 

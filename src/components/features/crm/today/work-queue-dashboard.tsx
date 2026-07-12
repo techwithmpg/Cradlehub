@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { Bell, CalendarDays, CheckCircle2, Home, MessageSquare, Plus, ShieldAlert, Users } from "lucide-react";
 import { CrmTodayHeader } from "./crm-today-header";
 import { CrmPanel } from "./crm-panel";
@@ -10,7 +11,6 @@ import { WorkQueuePanel, type WorkQueueBooking } from "./work-queue-panel";
 import { AttendanceScanFeedCard } from "@/components/features/attendance/attendance-scan-feed-card";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import type { AvailableDriver } from "@/components/features/control-console/driver-assign-menu";
-import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
 import { getWorkQueueNextAction } from "@/lib/crm/work-queue-next-actions";
 import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 import type { CrmTodaySnapshot } from "@/lib/queries/crm-today";
@@ -36,7 +36,7 @@ export function WorkQueueDashboard({
   assignDriverAction,
   availableDrivers,
   getTrackingLinkAction,
-  refreshEtaAction,
+  showHeader = true,
 }: {
   branchName: string;
   dateLabel: string;
@@ -54,26 +54,35 @@ export function WorkQueueDashboard({
   assignDriverAction?: MutationAction;
   availableDrivers?: AvailableDriver[];
   getTrackingLinkAction?: TrackingLinkAction;
-  refreshEtaAction?: (bookingId: string) => Promise<EtaRefreshResult>;
+  showHeader?: boolean;
 }) {
   const readinessDrawer = useCrmDrawer();
   const { openBookingModal } = useAdministrativeBookingModal();
-  const actionRows = queueData.map((booking) =>
-    getWorkQueueNextAction({
-      status: booking.status,
-      type: booking.type,
-      paymentStatus: booking.payment_status,
-      staffName: booking.staff_name,
-      resourceName: booking.resource_name,
-      dispatchWarning: booking.dispatch_warning,
-      needsLocationReview: booking.needs_location_review,
-      noDriverWarning: booking.no_driver_warning,
-    })
-  );
-  const needsActionCount = actionRows.filter((row) =>
-    row.category === "confirmation" || row.category === "follow_up" || row.category === "exception"
-  ).length;
-  const homeServiceCount = queueData.filter((booking) => booking.type === "home_service").length;
+  const { needsActionCount, homeServiceCount } = useMemo(() => {
+    let needsAction = 0;
+    let homeService = 0;
+
+    for (const booking of queueData) {
+      if (booking.type === "home_service") homeService += 1;
+
+      const action = getWorkQueueNextAction({
+        status: booking.status,
+        type: booking.type,
+        paymentStatus: booking.payment_status,
+        staffName: booking.staff_name,
+        resourceName: booking.resource_name,
+        dispatchWarning: booking.dispatch_warning,
+        needsLocationReview: booking.needs_location_review,
+        noDriverWarning: booking.no_driver_warning,
+      });
+
+      if (action.category === "confirmation" || action.category === "follow_up" || action.category === "exception") {
+        needsAction += 1;
+      }
+    }
+
+    return { needsActionCount: needsAction, homeServiceCount: homeService };
+  }, [queueData]);
   const readinessLabel =
     readinessStatus === "ok"
       ? "Ready"
@@ -83,7 +92,9 @@ export function WorkQueueDashboard({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      <CrmTodayHeader branchName={branchName} dateLabel={dateLabel} roleLabel={roleLabel} />
+      {showHeader ? (
+        <CrmTodayHeader branchName={branchName} dateLabel={dateLabel} roleLabel={roleLabel} />
+      ) : null}
 
       <section
         aria-label="Work queue summary"
@@ -126,7 +137,6 @@ export function WorkQueueDashboard({
             assignDriverAction={assignDriverAction}
             availableDrivers={availableDrivers}
             getTrackingLinkAction={getTrackingLinkAction}
-            refreshEtaAction={refreshEtaAction}
           />
         </main>
 

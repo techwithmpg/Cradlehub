@@ -26,7 +26,11 @@ import { PaymentStatusBadge } from "@/components/features/dashboard/payment-stat
 import { PaymentMethodBadge } from "@/components/features/dashboard/payment-method-badge";
 import { BookingActionMenu } from "@/components/features/dashboard/booking-action-menu";
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
-import { EmptyState } from "@/components/features/dashboard/empty-state";
+import {
+  ContextChip,
+  EmptyState,
+  WorkspaceSection,
+} from "@/components/features/attendance/attendance-ui";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { cn, formatTime, formatCurrency } from "@/lib/utils";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
@@ -47,6 +51,7 @@ import { canUpdateBooking } from "@/lib/permissions";
 import { BookingFollowupModal, type BookingFollowupResult } from "./booking-followup-modal";
 import { CustomerArrivedModal } from "./customer-arrived-modal";
 import { RoomAssignmentModal } from "./room-assignment-modal";
+import { RescheduleBookingModal } from "./reschedule-booking-modal";
 import { HybridSelectedBookingCard } from "./hybrid-selected-booking-card";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
 
@@ -241,6 +246,7 @@ type BookingModalState =
   | { type: "followup"; booking: WorkspaceBookingRow; initialResult: BookingFollowupResult }
   | { type: "arrival"; booking: WorkspaceBookingRow }
   | { type: "room"; booking: WorkspaceBookingRow }
+  | { type: "reschedule"; booking: WorkspaceBookingRow }
   | null;
 
 function hasOutstandingPayment(booking: WorkspaceBookingRow): boolean {
@@ -474,12 +480,12 @@ export function BookingsTable({
     return (
       <EmptyState
         title="No bookings"
-        description={
+        detail={
           search
             ? "No bookings match your search."
             : "No bookings match the selected filters."
         }
-        icon="Bookings"
+        icon={<CalendarClock className="size-4" />}
       />
     );
   }
@@ -495,6 +501,8 @@ export function BookingsTable({
           background: var(--cs-surface); }
         .bw-row { cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease; }
         .bw-row:hover .bw-td { background: var(--cs-sand-tint); }
+        .bw-row:focus-visible { outline: none; }
+        .bw-row:focus-visible .bw-td { background: var(--cs-sand-tint); box-shadow: inset 0 0 0 2px var(--ring); }
         .bw-row-selected .bw-td { background: var(--cs-sand-tint); }
         .bw-row-selected .bw-td:first-child { box-shadow: inset 4px 0 0 var(--cs-sand); }
         .bw-row:last-child .bw-td { border-bottom: none; }
@@ -532,16 +540,16 @@ export function BookingsTable({
       `}</style>
 
       <div className="bw-shell grid grid-cols-[minmax(0,1fr)_360px] items-start gap-4">
-        <div className="min-w-0 overflow-hidden rounded-3xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
-          <div className="flex items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-4 py-3">
-            <div>
-              <div className="text-sm font-semibold text-[var(--cs-text)]">Booking List</div>
-              <div className="text-xs text-[var(--cs-text-muted)]">Select a row to guide the next front-desk action.</div>
-            </div>
-            <div className="rounded-full bg-[var(--cs-surface)] px-3 py-1 text-xs font-semibold text-[var(--cs-text-muted)]">
+        <WorkspaceSection
+          title="Booking List"
+          description="Select a row to guide the next front-desk action."
+          context={
+            <ContextChip ariaLabel={`Visible bookings: ${filtered.length}`}>
               {filtered.length} total
-            </div>
-          </div>
+            </ContextChip>
+          }
+          className="min-w-0"
+        >
 
           <div className="bw-table-wrap overflow-x-auto">
           <table className="bw-table">
@@ -575,6 +583,13 @@ export function BookingsTable({
                     key={booking.id}
                     className={`bw-row${isSelected ? " bw-row-selected" : ""}`}
                     onClick={() => setSelectedId(booking.id)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      setSelectedId(booking.id);
+                    }}
+                    tabIndex={0}
+                    aria-label={`Select booking ${shortId}`}
                     aria-selected={isSelected}
                   >
                     <td className="bw-td bw-col-time">
@@ -666,7 +681,7 @@ export function BookingsTable({
                   type="button"
                   onClick={() => setSelectedId(booking.id)}
                   className={cn(
-                    "rounded-2xl border bg-[var(--cs-surface)] p-3 text-left shadow-[var(--cs-shadow-xs)]",
+                    "rounded-lg border bg-[var(--cs-surface)] p-3 text-left shadow-[var(--cs-shadow-xs)]",
                     isSelected ? "border-[var(--cs-sand)] bg-[var(--cs-sand-tint)]" : "border-[var(--cs-border-soft)]"
                   )}
                 >
@@ -737,7 +752,7 @@ export function BookingsTable({
               </select>
             </label>
           </div>
-        </div>
+        </WorkspaceSection>
 
         <div className="bw-panel">
           {selected ? (
@@ -753,14 +768,16 @@ export function BookingsTable({
               onOpenFollowup={(booking, initialResult) =>
                 setModalState({ type: "followup", booking, initialResult })
               }
+              onOpenReschedule={(booking) => setModalState({ type: "reschedule", booking })}
               onOpenArrival={(booking) => setModalState({ type: "arrival", booking })}
               onOpenRoomAssignment={(booking) => setModalState({ type: "room", booking })}
               onBookingsChanged={handleBookingsChanged}
             />
           ) : (
-            <div className="flex min-h-[120px] items-center justify-center rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-5">
-              <span className="text-sm text-[var(--cs-text-muted)]">Select a booking to view details.</span>
-            </div>
+            <EmptyState
+              title="No booking selected"
+              detail="Select a booking to view details."
+            />
           )}
         </div>
       </div>
@@ -770,11 +787,11 @@ export function BookingsTable({
         open={modalState?.type === "followup"}
         booking={modalState?.type === "followup" ? modalState.booking : null}
         initialResult={modalState?.type === "followup" ? modalState.initialResult : "confirmed"}
-        cancelBookingAction={statusAction}
         onOpenChange={(open) => {
           if (!open) setModalState(null);
         }}
         onSuccess={handleBookingsChanged}
+        onRescheduleRequested={(booking) => setModalState({ type: "reschedule", booking })}
       />
       <CustomerArrivedModal
         key={modalState?.type === "arrival" ? modalState.booking.id : "arrival-closed"}
@@ -794,6 +811,15 @@ export function BookingsTable({
         }}
         onAssigned={handleBookingsChanged}
       />
+      <RescheduleBookingModal
+        key={modalState?.type === "reschedule" ? modalState.booking.id : "reschedule-closed"}
+        open={modalState?.type === "reschedule"}
+        booking={modalState?.type === "reschedule" ? modalState.booking : null}
+        onOpenChange={(open) => {
+          if (!open) setModalState(null);
+        }}
+        onRescheduled={handleBookingsChanged}
+      />
     </>
   );
 }
@@ -807,6 +833,7 @@ function BookingDetailsPanel({
   paymentAction,
   confirmPaymentAction,
   onOpenFollowup,
+  onOpenReschedule,
   onOpenArrival,
   onOpenRoomAssignment,
   onBookingsChanged,
@@ -819,6 +846,7 @@ function BookingDetailsPanel({
   paymentAction?: ActionFn;
   confirmPaymentAction?: ActionFn;
   onOpenFollowup: (booking: WorkspaceBookingRow, initialResult: BookingFollowupResult) => void;
+  onOpenReschedule: (booking: WorkspaceBookingRow) => void;
   onOpenArrival: (booking: WorkspaceBookingRow) => void;
   onOpenRoomAssignment: (booking: WorkspaceBookingRow) => void;
   onBookingsChanged?: () => void;
@@ -932,7 +960,7 @@ function BookingDetailsPanel({
   }
 
   return (
-    <aside className="sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-sm)]">
+    <aside className="sticky top-4 max-h-[calc(100vh-120px)] overflow-y-auto rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-sm)]">
       <SelectedPanelHeader booking={booking} onClose={onClose} />
 
       <HybridSelectedBookingCard
@@ -968,6 +996,7 @@ function BookingDetailsPanel({
             statusAction={wrappedStatusAction}
             dispatchHref={dispatchHref}
             onOpenFollowup={onOpenFollowup}
+            onOpenReschedule={onOpenReschedule}
             onOpenArrival={onOpenArrival}
             onOpenRoomAssignment={onOpenRoomAssignment}
             onBookingsChanged={onBookingsChanged}
@@ -994,7 +1023,7 @@ function BookingDetailsPanel({
         />
 
         {showPaymentReview && isCrmPendingBookingStatus(booking.status) ? (
-          <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+          <div className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
             <PaymentConfirmationPanel booking={booking} confirmPaymentAction={confirmPaymentAction} />
           </div>
         ) : null}
@@ -1025,6 +1054,7 @@ function BookingDetailsPanel({
           paymentAction={paymentAction}
           price={price}
           onOpenCancel={() => onOpenFollowup(booking, "cancel")}
+          onOpenReschedule={() => onOpenReschedule(booking)}
           onShowPaymentReview={() => setShowPaymentReview(true)}
           onShowRecommendations={() => setShowRecommendations(true)}
           onBookingsChanged={onBookingsChanged}
@@ -1106,12 +1136,12 @@ function RecommendationSummaryPanel({
   ].filter(Boolean).join(" and ");
 
   return (
-    <CompactPanel label="Assignment">
+    <CompactPanel label="Staff Assignment">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 text-sm text-[var(--cs-text-secondary)]">
           {state.shouldShow
             ? `Missing ${label || "assignment"} recommendation.`
-            : "Review or change staff assignment."}
+            : "Change staff while keeping the appointment time."}
         </div>
         <button
           type="button"
@@ -1120,7 +1150,7 @@ function RecommendationSummaryPanel({
           aria-expanded={expanded}
         >
           <ListChecks size={14} />
-          {expanded ? "Hide" : "Review"}
+          {expanded ? "Hide" : state.shouldShow ? "Review" : "Change Staff"}
         </button>
       </div>
       {expanded ? (
@@ -1334,7 +1364,7 @@ function FullDetailsDisclosure({
   const visibleRows = rows.filter((row) => shouldShowSelectedBookingFullDetail(row.key));
 
   return (
-    <details className="group rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
+    <details className="group rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)] marker:hidden">
         Full Details
         <ChevronDown className="transition-transform group-open:rotate-180" size={16} />
@@ -1360,6 +1390,7 @@ function SelectedMoreActionsPanel({
   paymentAction,
   price,
   onOpenCancel,
+  onOpenReschedule,
   onShowPaymentReview,
   onShowRecommendations,
   onBookingsChanged,
@@ -1370,6 +1401,7 @@ function SelectedMoreActionsPanel({
   paymentAction?: ActionFn;
   price: number;
   onOpenCancel: () => void;
+  onOpenReschedule: () => void;
   onShowPaymentReview: () => void;
   onShowRecommendations: () => void;
   onBookingsChanged?: () => void;
@@ -1387,7 +1419,7 @@ function SelectedMoreActionsPanel({
   const cancelAction = plan.overflow.find((action) => action.id === "cancel");
 
   return (
-    <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
+    <div className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -1430,11 +1462,20 @@ function SelectedMoreActionsPanel({
           </div>
           <button
             type="button"
+            onClick={onOpenReschedule}
+            disabled={isClosedOperationalBooking(booking)}
+            className="flex h-12 w-full items-center gap-3 px-3 text-left text-sm font-semibold text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <CalendarClock size={16} />
+            Reschedule Booking
+          </button>
+          <button
+            type="button"
             onClick={onShowRecommendations}
             className="flex h-12 w-full items-center gap-3 px-3 text-left text-sm font-semibold text-[var(--cs-text)]"
           >
             <RotateCcw size={16} />
-            Assign / Reassign Staff
+            Change Staff
           </button>
           <div className="px-3 py-2">
             <PaymentActionMenu
@@ -1482,7 +1523,7 @@ function CompactPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3">
+    <section className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3">
       <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
         {label}
       </div>
@@ -1547,9 +1588,6 @@ function BookingRecommendationSection({
         showTherapists
         showDrivers={isHomeService}
       />
-      <div className="mt-2 text-center text-[10px] text-[var(--cs-text-muted)]">
-        Recommendation only. Use existing booking controls to confirm assignment.
-      </div>
     </div>
   );
 }
@@ -1559,6 +1597,7 @@ export function CrmNextActionsPanel({
   statusAction,
   dispatchHref,
   onOpenFollowup,
+  onOpenReschedule,
   onOpenArrival,
   onOpenRoomAssignment,
   onBookingsChanged,
@@ -1568,6 +1607,7 @@ export function CrmNextActionsPanel({
   statusAction?: ActionFn;
   dispatchHref?: string;
   onOpenFollowup: (booking: WorkspaceBookingRow, initialResult: BookingFollowupResult) => void;
+  onOpenReschedule: (booking: WorkspaceBookingRow) => void;
   onOpenArrival: (booking: WorkspaceBookingRow) => void;
   onOpenRoomAssignment: (booking: WorkspaceBookingRow) => void;
   onBookingsChanged?: () => void;
@@ -1652,7 +1692,7 @@ export function CrmNextActionsPanel({
         onOpenFollowup(booking, "no_answer");
         return;
       case "reschedule":
-        onOpenFollowup(booking, "reschedule");
+        onOpenReschedule(booking);
         return;
       case "mark_arrived":
         onOpenArrival(booking);
@@ -1836,7 +1876,7 @@ function PaymentConfirmationPanel({
 
   return (
     <div className={cn(
-      "rounded-2xl border bg-[var(--cs-surface)] p-3",
+      "rounded-lg border bg-[var(--cs-surface)] p-3",
       holdExpired ? "border-[var(--cs-error-bg)]" : "border-[var(--cs-sand-mist)]"
     )}>
       <div className="flex items-start gap-2">

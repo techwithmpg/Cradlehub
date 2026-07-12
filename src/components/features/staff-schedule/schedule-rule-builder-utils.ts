@@ -11,7 +11,10 @@ export type DayPattern = {
   closing: boolean;
   regular: boolean;
   dayOff: boolean;
+  splitShift: boolean;
 };
+
+export type SchedulePatternField = keyof DayPattern;
 
 export type ShiftTimeRange = {
   start: string;
@@ -167,13 +170,13 @@ export function getGroupKeyForStaffType(staffType: string | null | undefined): s
 
 export function createEmptyPattern(): Record<number, DayPattern> {
   return {
-    0: { opening: false, closing: false, regular: false, dayOff: false },
-    1: { opening: false, closing: false, regular: false, dayOff: false },
-    2: { opening: false, closing: false, regular: false, dayOff: false },
-    3: { opening: false, closing: false, regular: false, dayOff: false },
-    4: { opening: false, closing: false, regular: false, dayOff: false },
-    5: { opening: false, closing: false, regular: false, dayOff: false },
-    6: { opening: false, closing: false, regular: false, dayOff: false },
+    0: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    1: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    2: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    3: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    4: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    5: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
+    6: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
   };
 }
 
@@ -190,9 +193,7 @@ export function createDefaultPattern(groupId: string): Record<number, DayPattern
       continue;
     }
 
-    for (const kind of visibleKinds) {
-      row[kind] = true;
-    }
+    row[visibleKinds[0] ?? "regular"] = true;
   }
 
   return pattern;
@@ -240,6 +241,11 @@ export function rulesToPatternForGroup(
     if (rule.shift_type === "single" && visibleKinds.has("regular")) row.regular = true;
   }
 
+  for (const row of Object.values(pattern)) {
+    const activeCount = Number(row.opening) + Number(row.closing) + Number(row.regular);
+    row.splitShift = activeCount > 1;
+  }
+
   return pattern;
 }
 
@@ -266,6 +272,8 @@ export function schedulesToPatternForGroup(
       if (schedule.shift_type === "closing" && visibleKinds.has("closing")) row.closing = true;
       if (schedule.shift_type === "single" && visibleKinds.has("regular")) row.regular = true;
     }
+
+    row.splitShift = activeRows.length > 1;
   }
 
   return pattern;
@@ -301,6 +309,7 @@ export function patternsMatchForDay(
 ): boolean {
   return (
     current.dayOff === base.dayOff &&
+    current.splitShift === base.splitShift &&
     visibleKinds.every((kind) => current[kind] === base[kind])
   );
 }
@@ -326,6 +335,92 @@ export function countWeeklyShifts(
     if (!row || row.dayOff) return total;
     return total + visibleKinds.filter((kind) => row[kind]).length;
   }, 0);
+}
+
+function activeVisibleKinds(row: DayPattern, visibleKinds: ShiftKind[]): ShiftKind[] {
+  return visibleKinds.filter((kind) => row[kind]);
+}
+
+function setSingleVisibleShift(row: DayPattern, visibleKinds: ShiftKind[], activeKind: ShiftKind) {
+  for (const kind of ALL_SHIFT_KINDS) {
+    row[kind] = visibleKinds.includes(kind) && kind === activeKind;
+  }
+  row.dayOff = false;
+  row.splitShift = false;
+}
+
+function clearHiddenShiftKinds(row: DayPattern, visibleKinds: ShiftKind[]) {
+  for (const kind of ALL_SHIFT_KINDS) {
+    if (!visibleKinds.includes(kind)) row[kind] = false;
+  }
+}
+
+export function toggleSchedulePatternField(
+  previous: Record<number, DayPattern>,
+  dow: number,
+  field: SchedulePatternField,
+  visibleKinds: ShiftKind[]
+): Record<number, DayPattern> {
+  const next = clonePattern(previous);
+  const row = next[dow];
+  if (!row) return previous;
+
+  clearHiddenShiftKinds(row, visibleKinds);
+
+  if (field === "dayOff") {
+    const nextValue = !row.dayOff;
+    row.dayOff = nextValue;
+    row.splitShift = false;
+    for (const kind of visibleKinds) {
+      row[kind] = false;
+    }
+    if (!nextValue) {
+      row[visibleKinds[0] ?? "regular"] = true;
+    }
+    return next;
+  }
+
+  if (field === "splitShift") {
+    if (visibleKinds.length < 2) return previous;
+
+    const nextValue = !row.splitShift;
+    row.dayOff = false;
+    row.splitShift = nextValue;
+
+    if (nextValue) {
+      const activeKinds = activeVisibleKinds(row, visibleKinds);
+      if (activeKinds.length < 2) {
+        for (const kind of visibleKinds.slice(0, 2)) {
+          row[kind] = true;
+        }
+      }
+      return next;
+    }
+
+    setSingleVisibleShift(
+      row,
+      visibleKinds,
+      activeVisibleKinds(row, visibleKinds)[0] ?? visibleKinds[0] ?? "regular"
+    );
+    return next;
+  }
+
+  if (!visibleKinds.includes(field)) return previous;
+
+  if (!row.splitShift) {
+    setSingleVisibleShift(row, visibleKinds, field);
+    return next;
+  }
+
+  row[field] = !row[field];
+  row.dayOff = false;
+
+  const activeKinds = activeVisibleKinds(row, visibleKinds);
+  if (activeKinds.length < 2) {
+    setSingleVisibleShift(row, visibleKinds, activeKinds[0] ?? field);
+  }
+
+  return next;
 }
 
 export function activeDayLabels(
@@ -399,6 +494,9 @@ export function getActiveShiftLabelsForDay(
   const row = pattern[dow];
   if (!row || row.dayOff) return ["Day Off"];
   const labels = visibleKinds.filter((kind) => row[kind]).map(getShiftLabel);
+  if (row.splitShift && labels.length > 1) {
+    return [`Split Shift: ${labels.join(" + ")}`];
+  }
   return labels.length > 0 ? labels : ["Not scheduled"];
 }
 
@@ -415,6 +513,7 @@ export function patternToSaveDays(pattern: Record<number, DayPattern>) {
       closing: false,
       regular: false,
       dayOff: false,
+      splitShift: false,
     };
 
     return {
@@ -423,6 +522,7 @@ export function patternToSaveDays(pattern: Record<number, DayPattern>) {
       closing: row.closing,
       regular: row.regular,
       dayOff: row.dayOff,
+      splitShift: row.splitShift,
     };
   });
 }

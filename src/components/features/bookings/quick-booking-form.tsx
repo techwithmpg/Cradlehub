@@ -27,6 +27,11 @@ import {
   type PlaceSelectResult,
   type PlacesAutocompleteStatus,
 } from "@/components/public/places-autocomplete";
+import {
+  QuickBookingServiceSelector,
+  formatServiceDuration,
+} from "@/components/features/bookings/quick-booking-service-selector";
+import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
 
 export type QuickBookingMode = "walkin" | "phone" | "standard_future" | "home_service";
@@ -197,6 +202,18 @@ function customerName(customer: QuickBookingCustomerOption | null): string {
   return customer?.fullName.trim() || "";
 }
 
+function serviceAvailableForMode(
+  service: QuickBookingServiceOption,
+  mode: QuickBookingMode
+): boolean {
+  return mode === "home_service" ? service.availableHomeService : service.availableInSpa;
+}
+
+function staffCanPerformServices(member: QuickBookingStaffOption, serviceIds: string[]): boolean {
+  if (serviceIds.length === 0) return true;
+  return member.serviceIds.length === 0 || serviceIds.every((id) => member.serviceIds.includes(id));
+}
+
 function formatAttendanceTime(iso: string | null): string {
   if (!iso) return "";
   const date = new Date(iso);
@@ -259,7 +276,10 @@ export function QuickBookingForm({
   const [fullName, setFullName] = useState(initialCustomer?.fullName ?? initialName);
   const [phone, setPhone] = useState(initialCustomer?.phone ?? initialPhone);
   const [email, setEmail] = useState(initialCustomer?.email ?? "");
-  const [serviceId, setServiceId] = useState(initialServiceId);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(() =>
+    initialServiceId ? [initialServiceId] : []
+  );
+  const [serviceModeNotice, setServiceModeNotice] = useState("");
   const [date, setDate] = useState(initialDateValue);
   const [time, setTime] = useState(initialTimeValue);
   const [notes, setNotes] = useState("");
@@ -293,21 +313,36 @@ export function QuickBookingForm({
   const [isSaving, setIsSaving] = useState(false);
   const [slotChecking, setSlotChecking] = useState(false);
   const isHomeService = mode === "home_service";
-  const selectedService = services.find((service) => service.id === serviceId) ?? null;
-  const eligibleServices = useMemo(
-    () =>
-      services.filter((service) =>
-        isHomeService ? service.availableHomeService : service.availableInSpa
-      ),
-    [isHomeService, services]
+  const initialSelectedServiceIds = useMemo(
+    () => (initialServiceId ? [initialServiceId] : []),
+    [initialServiceId]
   );
-  const eligibleStaff = useMemo(
+  const eligibleServices = useMemo(
+    () => services.filter((service) => serviceAvailableForMode(service, mode)),
+    [mode, services]
+  );
+  const selectedServices = useMemo(
     () =>
-      staff.filter((member) => {
-        if (!serviceId) return true;
-        return member.serviceIds.length === 0 || member.serviceIds.includes(serviceId);
-      }),
-    [serviceId, staff]
+      selectedServiceIds
+        .map((id) => services.find((service) => service.id === id))
+        .filter((service): service is QuickBookingServiceOption => Boolean(service)),
+    [selectedServiceIds, services]
+  );
+  const selectedServiceCount = selectedServices.length;
+  const totalDurationMinutes = selectedServices.reduce(
+    (sum, service) => sum + service.durationMinutes,
+    0
+  );
+  const totalPrice = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const serviceSummaryLabel =
+    selectedServiceCount === 0
+      ? "Not selected"
+      : `${selectedServiceCount} service${selectedServiceCount === 1 ? "" : "s"} · ${formatServiceDuration(totalDurationMinutes)} · ${formatCurrency(totalPrice)}`;
+  const selectedStaff = staff.find((member) => member.id === staffId) ?? null;
+  const selectedResource = resources.find((resource) => resource.id === resourceId) ?? null;
+  const eligibleStaff = useMemo(
+    () => staff.filter((member) => staffCanPerformServices(member, selectedServiceIds)),
+    [selectedServiceIds, staff]
   );
   const slotIsAllowedByRules = (slotTime: string, candidateMode: QuickBookingMode): boolean => {
     if (candidateMode === "home_service" && !bookingRules.homeServiceEnabled) return false;
@@ -341,7 +376,8 @@ export function QuickBookingForm({
       fullName !== (initialCustomer?.fullName ?? initialName) ||
       phone !== (initialCustomer?.phone ?? initialPhone) ||
       email !== (initialCustomer?.email ?? "") ||
-      serviceId !== initialServiceId ||
+      selectedServiceIds.length !== initialSelectedServiceIds.length ||
+      selectedServiceIds.some((id, index) => id !== initialSelectedServiceIds[index]) ||
       date !== initialDateValue ||
       time !== initialTimeValue ||
       notes !== "" ||
@@ -369,7 +405,7 @@ export function QuickBookingForm({
       initialMode,
       initialName,
       initialPhone,
-      initialServiceId,
+      initialSelectedServiceIds,
       initialStaffId,
       initialTimeValue,
       mode,
@@ -379,7 +415,7 @@ export function QuickBookingForm({
       phone,
       resourceId,
       selectedCustomer,
-      serviceId,
+      selectedServiceIds,
       seededCustomerQuery,
       staffId,
       time,
@@ -390,7 +426,7 @@ export function QuickBookingForm({
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
 
-  // Fetch attendance queue hint when date or service changes.
+  // Fetch attendance queue hint when date or services change.
   // State updates only happen inside async callbacks to avoid synchronous
   // setState in the effect body.
   useEffect(() => {
@@ -398,7 +434,12 @@ export function QuickBookingForm({
     const id = window.setTimeout(() => {
       if (!branchId || !date || controller.signal.aborted) return;
       setLoadingAttendanceHint(true);
-      getAttendanceQueueSuggestionAction({ branchId, date, serviceId: serviceId || null })
+      getAttendanceQueueSuggestionAction({
+        branchId,
+        date,
+        serviceIds: selectedServiceIds,
+        serviceId: selectedServiceIds[0] ?? null,
+      })
         .then((result) => {
           if (controller.signal.aborted) return;
           setAttendanceHint(result.success ? result.suggestion : null);
@@ -413,7 +454,7 @@ export function QuickBookingForm({
       window.clearTimeout(id);
       controller.abort();
     };
-  }, [branchId, date, serviceId]);
+  }, [branchId, date, selectedServiceIds]);
 
   useEffect(() => {
     const query = customerQuery.trim();
@@ -508,17 +549,26 @@ export function QuickBookingForm({
   }, [branchId, homeServicePlace, isHomeService]);
 
   function changeMode(nextMode: QuickBookingMode) {
-    const currentService = services.find((service) => service.id === serviceId);
+    const validServiceIds = selectedServiceIds.filter((id) => {
+      const service = services.find((item) => item.id === id);
+      return service ? serviceAvailableForMode(service, nextMode) : false;
+    });
+    const removedCount = selectedServiceIds.length - validServiceIds.length;
     setMode(nextMode);
     setFieldErrors({});
     setFormError("");
-    if (
-      currentService &&
-      (nextMode === "home_service"
-        ? !currentService.availableHomeService
-        : !currentService.availableInSpa)
-    ) {
-      setServiceId("");
+    setSelectedServiceIds(validServiceIds);
+    if (removedCount > 0) {
+      setServiceModeNotice(
+        validServiceIds.length === 0
+          ? `Services were cleared because they are not available for ${nextMode === "home_service" ? "Home Service" : "in-spa"} bookings.`
+          : `${removedCount} service${removedCount === 1 ? "" : "s"} removed because ${removedCount === 1 ? "it is" : "they are"} not available for ${nextMode === "home_service" ? "Home Service" : "in-spa"} bookings.`
+      );
+    } else {
+      setServiceModeNotice("");
+    }
+    if (staffId && !staff.some((member) => member.id === staffId && staffCanPerformServices(member, validServiceIds))) {
+      setStaffId("");
     }
     if (nextMode === "walkin") {
       setDate(todayYmd());
@@ -531,6 +581,15 @@ export function QuickBookingForm({
     }
     if (nextMode === "home_service") {
       setResourceId("");
+    }
+  }
+
+  function handleServiceSelectionChange(nextServiceIds: string[]) {
+    setSelectedServiceIds(nextServiceIds);
+    setServiceModeNotice("");
+    setFieldErrors((current) => ({ ...current, service: undefined }));
+    if (staffId && !staff.some((member) => member.id === staffId && staffCanPerformServices(member, nextServiceIds))) {
+      setStaffId("");
     }
   }
 
@@ -581,7 +640,11 @@ export function QuickBookingForm({
     if (phone.trim() && phone.trim().length < 7) {
       nextErrors.phone = "Enter the customer's phone number.";
     }
-    if (!serviceId) nextErrors.service = "Select a service.";
+    if (selectedServiceIds.length === 0) {
+      nextErrors.service = "Select at least one service.";
+    } else if (selectedServiceIds.length > 5) {
+      nextErrors.service = "You can select up to 5 services per booking.";
+    }
     if (!date) nextErrors.date = "Choose a valid date and time.";
     if (!time) nextErrors.time = "Choose a valid date and time.";
     if (isHomeService) {
@@ -598,8 +661,8 @@ export function QuickBookingForm({
   }
 
   async function chooseNextAvailable() {
-    if (!serviceId) {
-      setFieldErrors((current) => ({ ...current, service: "Select a service." }));
+    if (selectedServiceIds.length === 0) {
+      setFieldErrors((current) => ({ ...current, service: "Select at least one service." }));
       return;
     }
     if (!date) {
@@ -643,7 +706,7 @@ export function QuickBookingForm({
     availabilityDate: string,
     availabilityTime: string
   ): Promise<CrmAvailabilityResponse> {
-    if (!serviceId || !availabilityDate || !availabilityTime) {
+    if (selectedServiceIds.length === 0 || !availabilityDate || !availabilityTime) {
       return { available: false, message: NO_SCHEDULED_THERAPIST_MESSAGE, slots: [] };
     }
 
@@ -653,7 +716,7 @@ export function QuickBookingForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         branchId,
-        serviceIds: [serviceId],
+        serviceIds: selectedServiceIds,
         date: availabilityDate,
         time: normalizeTime(availabilityTime),
         staffId: staffId || undefined,
@@ -703,7 +766,7 @@ export function QuickBookingForm({
       const result = await createInhouseBookingMultiAction({
         branchId,
         customerId: selectedCustomer?.id,
-        serviceIds: [serviceId],
+        serviceIds: selectedServiceIds,
         staffId: staffId || undefined,
         resourceId: isHomeService ? undefined : resourceId || undefined,
         date,
@@ -773,7 +836,7 @@ export function QuickBookingForm({
 
   return (
     <div className="crm-fade-up -m-2 bg-[var(--cs-bg)] p-2 sm:-m-4 sm:p-4">
-      <section className="space-y-5 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
+      <section className="space-y-5 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <h1 className="font-display text-2xl font-semibold leading-tight text-[var(--cs-text)] sm:text-3xl">
@@ -909,21 +972,19 @@ export function QuickBookingForm({
               </div>
 
               <div className="md:col-span-2">
-                <FieldLabel icon={<Sparkles size={15} />} label="Service" />
-                <select
-                  value={serviceId}
-                  onChange={(event) => setServiceId(event.target.value)}
+                <QuickBookingServiceSelector
+                  services={eligibleServices}
+                  selectedServiceIds={selectedServiceIds}
+                  onChange={handleServiceSelectionChange}
+                  isHomeService={isHomeService}
                   disabled={isSaving}
-                  className={selectClassName(Boolean(fieldErrors.service))}
-                >
-                  <option value="">Select a service</option>
-                  {eligibleServices.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} - {formatCurrency(service.price)}
-                    </option>
-                  ))}
-                </select>
-                <FieldError message={fieldErrors.service} />
+                  error={fieldErrors.service}
+                />
+                {serviceModeNotice ? (
+                  <p className="mt-2 rounded-xl border border-[var(--cs-warning-bg)] bg-[var(--cs-warning-bg)] px-3 py-2 text-xs font-medium text-[var(--cs-warning-text)]">
+                    {serviceModeNotice}
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -1154,9 +1215,9 @@ export function QuickBookingForm({
             </div>
 
             {formError ? (
-              <div className="rounded-xl border border-[var(--cs-error-bg)] bg-[var(--cs-error-bg)] px-4 py-3 text-sm font-medium text-[var(--cs-error-text)]">
+              <WorkspaceNotice tone="error">
                 {formError}
-              </div>
+              </WorkspaceNotice>
             ) : null}
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -1183,7 +1244,7 @@ export function QuickBookingForm({
             </div>
           </div>
 
-          <aside className="space-y-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
+          <aside className="space-y-3 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
             <div>
               <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">
                 Summary
@@ -1193,8 +1254,19 @@ export function QuickBookingForm({
               </div>
             </div>
             <SummaryRow label="Customer" value={fullName || "Not selected"} />
-            <SummaryRow label="Service" value={selectedService?.name ?? "Not selected"} />
+            <SummaryServices services={selectedServices} />
+            <SummaryRow label="Service total" value={serviceSummaryLabel} />
             <SummaryRow label="When" value={`${date || "No date"} ${time || ""}`.trim()} />
+            <SummaryRow
+              label="Therapist"
+              value={selectedStaff ? selectedStaff.nickname || selectedStaff.name : "First available"}
+            />
+            {!isHomeService ? (
+              <SummaryRow
+                label="Room"
+                value={selectedResource ? selectedResource.name : "First available"}
+              />
+            ) : null}
             {isHomeService ? (
               <>
                 <SummaryRow
@@ -1203,7 +1275,7 @@ export function QuickBookingForm({
                 />
                 <SummaryRow
                   label="Service subtotal"
-                  value={selectedService ? formatCurrency(selectedService.price) : "Select service"}
+                  value={selectedServices.length > 0 ? formatCurrency(totalPrice) : "Select services"}
                 />
                 {homeServiceDistanceStatus === "loading" ? (
                   <SummaryRow label="Distance from branch" value="Calculating…" />
@@ -1227,9 +1299,7 @@ export function QuickBookingForm({
                     />
                     <SummaryRow
                       label="Total"
-                      value={formatCurrency(
-                        (selectedService?.price ?? 0) + homeServiceDistanceQuote.travelFee
-                      )}
+                      value={formatCurrency(totalPrice + homeServiceDistanceQuote.travelFee)}
                     />
                     {homeServiceDistanceQuote.warning ? (
                       <SummaryNote tone="warning" text={homeServiceDistanceQuote.warning} />
@@ -1288,6 +1358,31 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="border-t border-[var(--cs-border-soft)] pt-3">
       <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">{label}</div>
       <div className="mt-1 text-sm font-medium text-[var(--cs-text)]">{value}</div>
+    </div>
+  );
+}
+
+function SummaryServices({ services }: { services: QuickBookingServiceOption[] }) {
+  return (
+    <div className="border-t border-[var(--cs-border-soft)] pt-3">
+      <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">Services</div>
+      {services.length > 0 ? (
+        <ol className="mt-2 space-y-2">
+          {services.map((service, index) => (
+            <li key={service.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 text-sm">
+              <span className="font-semibold text-[var(--cs-sand-dark)]">{index + 1}.</span>
+              <span className="min-w-0">
+                <span className="block font-medium text-[var(--cs-text)]">{service.name}</span>
+                <span className="mt-0.5 block text-xs text-[var(--cs-text-muted)]">
+                  {formatServiceDuration(service.durationMinutes)} · {formatCurrency(service.price)}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="mt-1 text-sm font-medium text-[var(--cs-text)]">Not selected</div>
+      )}
     </div>
   );
 }

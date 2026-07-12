@@ -63,7 +63,7 @@ export function CustomersWorkspace({
             className="cs-btn cs-btn-primary inline-flex items-center gap-1.5"
           >
             <UserSearch size={14} />
-            + New Booking
+            New Booking
           </OpenAdministrativeBookingButton>
         }
       />

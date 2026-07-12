@@ -5,6 +5,17 @@ import { z } from "zod";
 import { canAdjustStaffSchedule, isOwner } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  STAFF_SCHEDULE_CONFLICT_TARGET,
+  STAFF_SCHEDULE_RETURNING_COLUMNS,
+  buildStaffGroupWeeklyRuleRows,
+  savedGroupRuleRowsMatchRequest,
+  savedRowsMatchRequest,
+  type SavedStaffGroupScheduleRuleRow,
+  type SavedStaffScheduleRow,
+  type StaffScheduleUpsertRow,
+} from "@/lib/schedule/staff-schedule-write";
+import { isValidShiftRange, timeToMinutes } from "@/lib/utils/time-format";
 import type { Database } from "@/types/supabase";
 
 const uuid = z.guid("Invalid ID");
@@ -20,6 +31,18 @@ type GroupRuleMutationResult = {
   success: boolean;
   error?: string;
   rule?: StaffGroupScheduleRule;
+};
+
+type SaveGroupRulesResult =
+  | { success: true; rules: SavedStaffGroupScheduleRuleRow[] }
+  | { success: false; error: string };
+
+type GroupApplyPreviewRow = {
+  staffId: string;
+  staffName: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
 };
 
 async function authorizeGroupRuleMutation(
@@ -180,6 +203,91 @@ export async function deleteStaffGroupScheduleRuleAction(
   }
 }
 
+const groupDayPatternSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  opening: z.boolean(),
+  closing: z.boolean(),
+  regular: z.boolean(),
+  dayOff: z.boolean(),
+  splitShift: z.boolean().optional().default(false),
+});
+
+const groupShiftTimesSchema = z.object({
+  opening: z.object({
+    start: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
+    end: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
+  }),
+  closing: z.object({
+    start: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
+    end: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
+  }),
+  regular: z.object({
+    start: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
+    end: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
+  }),
+});
+
+const saveGroupRulesSchema = z.object({
+  groupId: uuid,
+  days: z.array(groupDayPatternSchema).length(7, "Provide all seven days."),
+  times: groupShiftTimesSchema,
+});
+
+export type SaveGroupRulesInput = z.infer<typeof saveGroupRulesSchema>;
+
+export async function saveStaffGroupScheduleRulesAction(
+  input: SaveGroupRulesInput
+): Promise<SaveGroupRulesResult> {
+  try {
+    const parsed = saveGroupRulesSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    }
+
+    const supabase = await createClient();
+    const access = await authorizeGroupRuleMutation(supabase, parsed.data.groupId);
+    if (!access.authorized) return { success: false, error: access.error };
+
+    const normalized = buildStaffGroupWeeklyRuleRows({
+      groupId: parsed.data.groupId,
+      days: parsed.data.days,
+      times: parsed.data.times,
+    });
+    if (!normalized.ok) return { success: false, error: normalized.error };
+
+    const { data: savedRows, error } = await supabase
+      .from("staff_group_schedule_rules")
+      .upsert(normalized.rows, { onConflict: "group_id,day_of_week,shift_type" })
+      .select("*");
+
+    if (error) {
+      console.error("[saveStaffGroupScheduleRulesAction] failed", error);
+      return { success: false, error: getSafeMutationError(error) };
+    }
+
+    const normalizedSavedRows = (savedRows ?? []) as SavedStaffGroupScheduleRuleRow[];
+    if (
+      !savedGroupRuleRowsMatchRequest({
+        requestedRows: normalized.rows,
+        savedRows: normalizedSavedRows,
+      })
+    ) {
+      console.error("[saveStaffGroupScheduleRulesAction] verification failed", {
+        groupId: parsed.data.groupId,
+        requestedRows: normalized.rows.length,
+        savedRows: normalizedSavedRows.length,
+      });
+      return { success: false, error: GROUP_RULE_SAVE_ERROR };
+    }
+
+    revalidateGroupRulePaths();
+    return { success: true, rules: normalizedSavedRows };
+  } catch (err) {
+    console.error("[saveStaffGroupScheduleRulesAction] exception", err);
+    return { success: false, error: GROUP_RULE_SAVE_ERROR };
+  }
+}
+
 const applyGroupSchema = z.object({
   groupId: uuid,
   staffIds: z.array(uuid).optional(),
@@ -188,9 +296,126 @@ const applyGroupSchema = z.object({
 
 export type ApplyGroupInput = z.infer<typeof applyGroupSchema>;
 
+const APPLY_SHIFT_TYPES = ["single", "opening", "closing"] as const;
+type ApplyShiftType = (typeof APPLY_SHIFT_TYPES)[number];
+
+function normalizeTime(value: string | null): string | null {
+  return value ? value.slice(0, 5) : null;
+}
+
+function activeWorkingRulesForDay(rules: StaffGroupScheduleRule[]): StaffGroupScheduleRule[] {
+  return rules.filter((rule) => rule.is_day_off !== true);
+}
+
+function activeRuleForShift(
+  rules: StaffGroupScheduleRule[],
+  shiftType: ApplyShiftType
+): StaffGroupScheduleRule | undefined {
+  return rules.find((rule) => rule.shift_type === shiftType);
+}
+
+function ruleRangesOverlap(first: StaffGroupScheduleRule, second: StaffGroupScheduleRule): boolean {
+  const firstStart = timeToMinutes(first.start_time);
+  let firstEnd = timeToMinutes(first.end_time);
+  const secondStart = timeToMinutes(second.start_time);
+  let secondEnd = timeToMinutes(second.end_time);
+  if (
+    firstStart === null ||
+    firstEnd === null ||
+    secondStart === null ||
+    secondEnd === null
+  ) {
+    return true;
+  }
+
+  if (firstEnd <= firstStart) firstEnd += 24 * 60;
+  if (secondEnd <= secondStart) secondEnd += 24 * 60;
+
+  return firstStart < secondEnd && secondStart < firstEnd;
+}
+
+function validateGroupRulesForApply(rules: StaffGroupScheduleRule[]): string | null {
+  for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++) {
+    const dayRules = rules.filter((rule) => rule.day_of_week === dayOfWeek);
+    const workingRules = activeWorkingRulesForDay(dayRules);
+    const hasDayOffRule = dayRules.some((rule) => rule.is_day_off === true);
+
+    if (hasDayOffRule && workingRules.length > 0) {
+      return "A group day cannot be both day off and scheduled.";
+    }
+
+    for (const rule of workingRules) {
+      if (!isValidShiftRange(rule.start_time, rule.end_time)) {
+        return "One or more group rules has an invalid time range.";
+      }
+    }
+
+    for (let index = 0; index < workingRules.length; index++) {
+      for (let other = index + 1; other < workingRules.length; other++) {
+        const first = workingRules[index]!;
+        const second = workingRules[other]!;
+        if (ruleRangesOverlap(first, second)) {
+          return "Group split shifts cannot overlap. Adjust the group times before applying them.";
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function buildStaffRowsFromGroupRules(params: {
+  staffIds: string[];
+  rules: StaffGroupScheduleRule[];
+}): StaffScheduleUpsertRow[] {
+  const rows: StaffScheduleUpsertRow[] = [];
+
+  for (const staffId of params.staffIds) {
+    for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++) {
+      const dayRules = params.rules.filter((rule) => rule.day_of_week === dayOfWeek);
+      const workingRules = activeWorkingRulesForDay(dayRules);
+      const fallbackStart = normalizeTime(workingRules[0]?.start_time ?? null) ?? "09:00";
+      const fallbackEnd = normalizeTime(workingRules[0]?.end_time ?? null) ?? "18:00";
+
+      for (const shiftType of APPLY_SHIFT_TYPES) {
+        const rule = activeRuleForShift(workingRules, shiftType);
+        rows.push({
+          staff_id: staffId,
+          day_of_week: dayOfWeek,
+          shift_type: shiftType,
+          start_time: normalizeTime(rule?.start_time ?? null) ?? fallbackStart,
+          end_time: normalizeTime(rule?.end_time ?? null) ?? fallbackEnd,
+          is_active: Boolean(rule),
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+function buildGroupApplyPreview(params: {
+  staffRows: Array<{ id: string; full_name: string }>;
+  staffIds: string[];
+  rules: StaffGroupScheduleRule[];
+}): GroupApplyPreviewRow[] {
+  const nameMap = new Map(params.staffRows.map((staff) => [staff.id, staff.full_name]));
+  const workingRules = params.rules.filter((rule) => rule.is_day_off !== true);
+
+  return workingRules.flatMap((rule) =>
+    params.staffIds.map((staffId) => ({
+      staffId,
+      staffName: nameMap.get(staffId) ?? staffId,
+      dayOfWeek: rule.day_of_week,
+      startTime: normalizeTime(rule.start_time) ?? "09:00",
+      endTime: normalizeTime(rule.end_time) ?? "18:00",
+    }))
+  );
+}
+
 export async function applyGroupScheduleToStaffAction(
   input: ApplyGroupInput
-): Promise<{ success: boolean; error?: string; affected?: number; preview?: Array<{ staffId: string; staffName: string; dayOfWeek: number; startTime: string; endTime: string }> }> {
+): Promise<{ success: boolean; error?: string; affected?: number; preview?: GroupApplyPreviewRow[] }> {
   try {
     const parsed = applyGroupSchema.safeParse(input);
     if (!parsed.success) {
@@ -219,13 +444,12 @@ export async function applyGroupScheduleToStaffAction(
       return { success: false, error: groupError?.message ?? "Group not found" };
     }
 
-    // Fetch group rules
+    // Fetch active group rules, including explicit day-off markers.
     const { data: rules, error: rulesError } = await admin
       .from("staff_group_schedule_rules")
       .select("*")
       .eq("group_id", parsed.data.groupId)
-      .eq("is_active", true)
-      .eq("is_day_off", false);
+      .eq("is_active", true);
 
     if (rulesError) {
       return { success: false, error: rulesError.message };
@@ -233,6 +457,12 @@ export async function applyGroupScheduleToStaffAction(
 
     if (!rules || rules.length === 0) {
       return { success: false, error: "No active group rules to apply" };
+    }
+
+    const groupRules = rules as StaffGroupScheduleRule[];
+    const groupRuleError = validateGroupRulesForApply(groupRules);
+    if (groupRuleError) {
+      return { success: false, error: groupRuleError };
     }
 
     const { data: staffRows, error: staffError } = await admin
@@ -254,39 +484,36 @@ export async function applyGroupScheduleToStaffAction(
     }
 
     if (parsed.data.mode === "preview") {
-      const nameMap = new Map((staffRows ?? []).map((s) => [s.id, s.full_name]));
-      const preview = rules.flatMap((rule) =>
-        staffIds.map((sid) => ({
-          staffId: sid,
-          staffName: nameMap.get(sid) ?? sid,
-          dayOfWeek: rule.day_of_week,
-          startTime: rule.start_time ?? "09:00",
-          endTime: rule.end_time ?? "18:00",
-        }))
-      );
+      const preview = buildGroupApplyPreview({
+        staffRows: (staffRows ?? []) as Array<{ id: string; full_name: string }>,
+        staffIds,
+        rules: groupRules,
+      });
 
       return { success: true, affected: preview.length, preview: preview.slice(0, 50) };
     }
 
-    // Apply mode: upsert individual staff_schedules
-    const upserts = rules.flatMap((rule) =>
-      staffIds.map((sid) => ({
-        staff_id: sid,
-        day_of_week: rule.day_of_week,
-        shift_type: rule.shift_type,
-        start_time: rule.start_time ?? "09:00",
-        end_time: rule.end_time ?? "18:00",
-        is_active: true,
-      }))
-    );
+    const upserts = buildStaffRowsFromGroupRules({ staffIds, rules: groupRules });
 
-    const { error: upsertError } = await admin
+    const { data: savedRows, error: upsertError } = await admin
       .from("staff_schedules")
-      .upsert(upserts, { onConflict: "staff_id,day_of_week,shift_type" });
+      .upsert(upserts, { onConflict: STAFF_SCHEDULE_CONFLICT_TARGET })
+      .select(STAFF_SCHEDULE_RETURNING_COLUMNS);
 
     if (upsertError) {
       console.error("[applyGroupScheduleToStaffAction] upsert failed", upsertError);
       return { success: false, error: upsertError.message };
+    }
+
+    const normalizedSavedRows = (savedRows ?? []) as SavedStaffScheduleRow[];
+    if (!savedRowsMatchRequest({ requestedRows: upserts, savedRows: normalizedSavedRows })) {
+      console.error("[applyGroupScheduleToStaffAction] verification failed", {
+        groupId: parsed.data.groupId,
+        staffIds,
+        requestedRows: upserts.length,
+        savedRows: normalizedSavedRows.length,
+      });
+      return { success: false, error: "The group schedule was not fully applied." };
     }
 
     revalidatePath("/crm/staff-availability");

@@ -63,6 +63,12 @@ const DEFAULT_SETTINGS: Omit<AttendanceSettings, "branch_id"> = {
   launch_recovery_closing_start_time: "20:30:00",
   launch_recovery_closing_end_time: "23:59:00",
   launch_recovery_reason: null,
+  test_mode_enabled: false,
+  test_mode_reason: null,
+  test_mode_enabled_at: null,
+  test_mode_enabled_by: null,
+  test_mode_disabled_at: null,
+  test_mode_disabled_by: null,
   updated_by: null,
 };
 
@@ -416,6 +422,7 @@ export async function getAttendanceWorkspaceData(params: {
   canSwitchBranch?: boolean;
 }): Promise<AttendanceWorkspaceData> {
   const admin = asAttendanceDb(createAdminClient());
+  const serverNowMs = new Date().getTime();
   const today = getBranchBusinessDate();
   const historyStart = addDaysToYmd(today, -90);
   const settings = await getAttendanceSettings(params.branchId);
@@ -450,6 +457,7 @@ export async function getAttendanceWorkspaceData(params: {
         "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
       )
       .eq("branch_id", params.branchId)
+      .eq("is_test", false)
       .gte("shift_date", historyStart)
       .order("checked_in_at", { ascending: false })
       .limit(200),
@@ -457,12 +465,14 @@ export async function getAttendanceWorkspaceData(params: {
       .from("attendance_exceptions")
       .select("id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name)")
       .eq("branch_id", params.branchId)
+      .eq("is_test", false)
       .order("detected_at", { ascending: false })
       .limit(100),
     admin
       .from("qr_scan_events")
       .select("id, scan_type, action, outcome, reason_code, message, created_at, booking_id, staff_id, staff:staff!qr_scan_events_staff_id_fkey(id, full_name), qr_points:qr_points!qr_scan_events_qr_point_id_fkey(id, label)")
       .eq("branch_id", params.branchId)
+      .eq("is_test", false)
       .order("created_at", { ascending: false })
       .limit(100),
     admin
@@ -477,7 +487,7 @@ export async function getAttendanceWorkspaceData(params: {
       .limit(100),
     admin
       .from("attendance_corrections")
-      .select("id, branch_id, staff_id, checkin_id, correction_type, previous_values, new_values, reason, status, requested_by, approved_by, applied_at, created_at, staff:staff!attendance_corrections_staff_id_fkey(id, full_name), approved_by_staff:staff!attendance_corrections_approved_by_fkey(id, full_name)")
+      .select("id, branch_id, staff_id, checkin_id, attendance_date, action_type, correction_type, previous_values, new_values, reason, status, requested_by, approved_by, corrected_by, corrected_at, applied_at, created_at, staff:staff!attendance_corrections_staff_id_fkey(id, full_name), approved_by_staff:staff!attendance_corrections_approved_by_fkey(id, full_name), corrected_by_staff:staff!attendance_corrections_corrected_by_fkey(id, full_name)")
       .eq("branch_id", params.branchId)
       .order("created_at", { ascending: false })
       .limit(100),
@@ -527,6 +537,7 @@ export async function getAttendanceWorkspaceData(params: {
   return {
     branchId: params.branchId,
     branchName: params.branchName,
+    serverNowMs,
     settings,
     summary: {
       checkedInNow: records.filter((record) => record.status === "checked_in").length,
@@ -558,9 +569,12 @@ export async function getAttendanceWorkspaceData(params: {
   };
 }
 
-export function revalidateAttendanceSurfaces(): void {
+export function revalidateAttendanceSurfaces(options?: {
+  includeOperationalReadiness?: boolean;
+}): void {
   revalidatePath("/crm/attendance");
   revalidatePath("/owner/attendance");
+  if (!options?.includeOperationalReadiness) return;
   revalidatePath("/crm/today");
   revalidatePath("/crm/bookings");
   revalidatePath("/crm/availability");
@@ -655,7 +669,7 @@ function mapDevice(row: unknown): AttendanceDevice {
     staff_id: string;
     branch_id: string;
     device_label: string | null;
-    status: "active" | "revoked";
+    status: "active" | "revoked" | "expired" | "lost" | "stolen" | "security_blocked";
     trusted_after: string;
     last_seen_at: string | null;
     created_at: string;

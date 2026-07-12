@@ -1,3 +1,207 @@
+# Current Task - SCHEDULE-DATA-OPTIMIZATION-001
+
+Status: COMPLETE
+Started: 2026-07-12
+Last updated: 2026-07-12
+
+## Description
+
+Resume the interrupted Scheduling Data Optimization / Schedule Setup hardening pass from the existing partial edits. The immediate local objective is to make ordinary daily assignments mutually exclusive, require explicit split-shift intent for multiple windows, reject duplicate/overlapping active windows before save, deactivate stale shift rows through complete weekly replacement, and block conflict-state schedules from availability/recommendation consumers.
+
+## Scope
+
+- Continue from the current dirty worktree without reverting unrelated Attendance/CRM changes.
+- Preserve existing scheduling tables: `staff_schedule_groups`, `staff_group_schedule_rules`, `staff_schedules`, `schedule_overrides`, and `blocked_times`.
+- Complete the partial changes already present in `resolve-staff-schedule.ts`, `staff-schedule-write.ts`, `staff-availability/actions.ts`, and `schedule-rule-builder-utils.ts`.
+- Avoid adding parallel schedule tables.
+- Add focused tests and documentation for the completed slice; report any live database/migration-history blockers honestly.
+
+## Planned Verification
+
+- Focused schedule resolver/write/action tests.
+- Booking/availability safety tests where touched.
+- `pnpm type-check`
+- `pnpm lint`
+- `pnpm test`
+- `pnpm build`
+- Database verification or exact blocker report if live migration/history access is unavailable.
+
+## Completed
+
+- Added explicit resolver statuses (`resolved`, `day_off`, `missing`, `conflict`) and conflict metadata for invalid/overlapping/contradictory schedules.
+- Made conflict schedules operationally empty so availability, bookings, and recommendations cannot consume unsafe windows.
+- Updated individual and group schedule saves to write complete 7-day x 3-shift matrices and verify returned row content.
+- Added a single transactional group-rule save action and changed group apply-to-staff to deactivate stale rows by writing complete staff matrices.
+- Wired the Schedule Setup matrix so ordinary shift choices are mutually exclusive and Split Shift is the explicit path for multiple active windows.
+- Propagated schedule conflict status into daily schedule, CRM availability, readiness, live schedule conflicts, and assignment recommendations.
+- Added focused tests for write helpers, resolver conflicts, group rule save, recommendations, live conflicts, and affected UI fixtures.
+
+## Verification
+
+- `npx vitest run tests/lib/schedule/staff-schedule-write.test.ts tests/lib/schedule/resolve-staff-schedule.test.ts tests/lib/actions/staff-schedule-groups.test.ts tests/lib/assignments/recommendation-engine.test.ts tests/lib/schedule/live-schedule-conflicts.test.ts tests/components/crm/availability-staff-shift-cell.test.tsx tests/lib/schedule/daily-timeline-operations.test.ts tests/lib/schedule/daily-timeline-coverage-card.test.tsx`: PASS, 8 files / 52 tests.
+- `npm run type-check`: PASS.
+- `npm run lint`: PASS.
+- `npx vitest run`: PASS, 88 files / 707 tests.
+- `npm run build`: PASS, Next.js 16.2.4, 108 routes.
+
+---
+
+# Current Task - ATTENDANCE-AUTONOMY-HARDENING-001
+
+Status: IMPLEMENTED LOCALLY - NOT PRODUCTION CLOSED
+Started: 2026-07-12
+Last updated: 2026-07-12
+
+## Description
+
+Perform the final system-wide Attendance hardening pass against the current local repository, preserving verified schedule-first and selected-record reset work while closing concrete gaps in authoritative Attendance architecture, shift-instance identity, branch time/business-day behavior, idempotency, Recovery dedupe, and operational documentation.
+
+## Scope
+
+- Work only from the current local repository state in `E:\cradlehub`; do not restore from or compare against any archive.
+- Verify existing Attendance schedule-first scan ordering, stale/conflicting open-row isolation, and selected-record reset before changing them.
+- Prefer focused extraction and typed pure services over a broad rewrite.
+- Add sequential migrations only where the current schema is missing required immutable shift snapshot/idempotency/recovery-dedupe fields.
+- Preserve raw QR scan events, audit history, branch authorization checks, Test Mode separation, and current CRM/Owner Attendance surfaces.
+
+## Planned Verification
+
+- Focused Attendance tests for intent, shift-instance, branch time/business day, persistence/idempotency helpers, corrections, and registry/recovery helpers.
+- `pnpm type-check`
+- `pnpm lint`
+- `pnpm test`
+- `pnpm build`
+- Supabase migration verification or exact blocker report.
+
+## Completed
+
+- Added authoritative shift-instance helpers in `src/lib/attendance/shift-instance.ts` for branch-local timezone conversion, attendance business date, schedule source mapping, and stable shift keys.
+- Added `src/lib/attendance/attendance-state-machine.ts` for current session state and next expected scan action.
+- Extended the scan path to capture immutable schedule snapshots, use configured branch timezone/business date, replay same-request committed public results, and dedupe active Recovery issues.
+- Hardened selected-record reset/correction behavior so failed updates/audits surface instead of silently succeeding, and reset now reports the actual next state-machine action.
+- Updated Device Registry loading to staff-first device lookup and removed broad raw scan-event loading from registry summaries.
+- Enforced `ATTENDANCE_DEVICE_SECRET` in production while preserving an explicit local-development fallback.
+- Added sequential migration `supabase/migrations/20260712035222_attendance_autonomy_hardening.sql`.
+- Regenerated/reconciled `src/types/supabase.ts` after linked generation, including local pending Attendance and branch-booking columns that are not yet present in the remote schema.
+- Added focused tests for shift-instance/timezone/business-day behavior and the Attendance state machine.
+- Added `docs/maintenance/attendance-operations-runbook.md`.
+
+## Continuation Completed - 2026-07-12
+
+- Added sequential migration `supabase/migrations/20260712044527_attendance_transactional_scan_rpc.sql` with `public.commit_attendance_scan_transaction(...)` for transactional interpreted Attendance scan persistence.
+- Routed normal interpreted clock-in, clock-out, active-service-blocked, and Recovery-intent Attendance scan commits through the scan RPC while preserving raw scan evidence and public-result replay.
+- Added sequential migration `supabase/migrations/20260712045429_attendance_transactional_corrections_rpc.sql` with `public.reset_attendance_state_transaction(...)` for selected-record Attendance State Reset.
+- Routed selected-record reset through the reset RPC so the interpreted check-in void, linked open Recovery resolution, and correction audit row commit or roll back together.
+- Updated generated Supabase types for the new RPCs and added migration-contract coverage in `tests/lib/attendance/transactional-scan-rpc-migration.test.ts`.
+- Applied both new RPC definitions to the linked database via `supabase db query --linked --dns-resolver https --file ...`.
+
+## Verification
+
+- `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts tests/lib/attendance/shift-instance.test.ts tests/lib/attendance/attendance-state-machine.test.ts tests/lib/attendance/device-recovery.test.ts`: PASS, 4 files / 27 tests.
+- `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts tests/lib/attendance/shift-instance.test.ts tests/lib/attendance/attendance-state-machine.test.ts tests/lib/attendance/device-recovery.test.ts tests/lib/attendance/transactional-scan-rpc-migration.test.ts`: PASS, 5 files / 30 tests.
+- `npx tsc --noEmit --pretty false`: PASS.
+- Linked schema verification: both new RPCs exist, are `security invoker`, and have EXECUTE only for `postgres` and `service_role`.
+- Linked no-mutation probes: both RPCs return `invalid_request` without inserting data.
+- Linked migration-history verification: `supabase_migrations.schema_migrations` reports `0` rows for `20260710040835`, `20260710055131`, `20260712000100`, `20260712035222`, `20260712044527`, and `20260712045429`; migration history is not reconciled.
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm test`: PASS, 88 files / 699 tests.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+- `pnpm db:types`: PASS, but linked remote schema is behind local pending migrations; local type reconciliation was required afterward.
+
+## Remaining Blockers
+
+- `.\node_modules\.bin\supabase.CMD migration list --local` cannot verify local migrations because local Postgres at `127.0.0.1:54322` is not running.
+- `pnpm db:status` still times out reading linked migration history at `aws-1-ap-northeast-1.pooler.supabase.com:5432`; it reports `Remote schema changed: no` before exiting.
+- `pnpm db:doctor` passes CLI/link/token/pooler checks but exits with migration-history timeout.
+- The main interpreted Attendance scan mutation path now has a PostgreSQL transactional RPC, but event-only/noop scan paths still need retry/concurrency QA.
+- Selected-record Attendance State Reset now has a PostgreSQL transactional RPC, but manual clock-out, launch recovery, ignore-scan, rule updates, archive-test-data, and rebuild/manual-attendance workflows still need transactional RPC coverage.
+- Account claim, OTP/rate-limit flow, canonical host redirect, rotating branch challenge, scheduled reconciliation, and full diagnostic modal remain incomplete.
+- Authenticated CRM browser QA, Owner browser QA, and real-phone/device-cookie QA are still required.
+
+---
+
+# Current Task - ATTENDANCE-TODAY-ALIGNMENT-RESET-001
+
+Status: COMPLETED
+Started: 2026-07-12
+Last updated: 2026-07-12
+
+## Description
+
+Repair the existing CradleHub Attendance QR flow so scan intent is schedule-aware for today's operational shifts, stale launch-era open rows are isolated into Recovery, and the current Recovery reset action becomes a safe Attendance State reset instead of a broad day wipe.
+
+## Scope
+
+- Reuse the current QR scan engine, intent engine, attendance records, Recovery Center, correction service, and CRM/Owner Attendance workspaces.
+- Do not add a second attendance engine, duplicate recovery page, or experimental reset path.
+- Preserve raw QR scan events, correction audit history, branch permissions, active-service clock-out protection, and local Attendance tab state.
+- Add focused tests for schedule-aware active-row matching, stale-row isolation, closing-scan recovery, duplicate behavior, and reset-state safeguards.
+
+## Planned Verification
+
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm test`: PASS, 85 files / 688 tests.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+## Completed
+
+- Reordered the live Attendance QR scan flow so branch time and resolved staff schedule are evaluated before any open attendance row can decide clock-in/out.
+- Added pure open-row classification in `attendance-intent-engine.ts` for exact current-shift matches, legacy generic shift fallback by schedule-window overlap, stale prior rows, and same-day conflicting rows.
+- The scan engine now uses only a matching current-shift open row for clock-out; stale/conflicting open rows create/update Recovery exceptions and the current scan continues through schedule-aware intent.
+- Closing-window scans without a matching current shift remain Recovery-only and do not create new check-ins.
+- Replaced broad Reset Staff Day behavior with selected-record Attendance State Reset: required reason, required void confirmation, raw scans preserved, related open exceptions resolved, and correction audit recorded.
+- Added migration `supabase/migrations/20260712000100_attendance_state_reset.sql` for the new `reset_attendance_state` correction action name.
+
+## Notes
+
+- `pnpm db:doctor` and `pnpm db:status` still time out on the remote Supabase migration-history port 5432 even with unrestricted retries. `db:status` reported `Remote schema changed: no` before exiting. Apply/push the new migration from a working DB path before using `reset_attendance_state` in production.
+- `git diff --check` is blocked by pre-existing unrelated blank-line-at-EOF issues in non-attendance files and line-ending warnings; no whitespace errors were reported in this task's edited attendance files.
+
+---
+
+# Current Task - CRM-PERFORMANCE-OPTIMIZATION-001
+
+Status: COMPLETED
+Started: 2026-07-11
+Last updated: 2026-07-11
+
+## Description
+
+Completed the frozen CRM performance optimization program as a safe, source-level pass after the final CRM UI sweep.
+
+## Scope
+
+- Preserved frozen CRM UI, terminology, routes, workflows, booking lifecycle behavior, payment behavior, dispatch guards, branch/role scoping, mutation refresh behavior, and realtime updates.
+- Avoided schema, migration, RLS, index, route contract, public API, and cache semantics changes.
+- Focused on evidence-backed render/effect optimizations in existing client workspaces.
+
+## Completed
+
+- Captured baseline verification and build artifact evidence.
+- Audited CRM route output, client-reference manifests, large client files, dynamic import candidates, query/realtime patterns, and source re-render hotspots.
+- Memoized Today Work Queue summary derivation in `work-queue-dashboard.tsx`.
+- Memoized Work Queue filter counts and visible rows in `work-queue-panel.tsx`.
+- Memoized Bookings Workspace tab counts and visible rows, and made initial tab derivation lazy.
+- Stabilized Dispatch Live Map marker selection callback so selected booking state does not recreate map work.
+- Added `docs/performance/crm-performance-baseline.md` and `docs/performance/crm-performance-optimization-report.md`.
+
+## Verification
+
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm test -- --run --testTimeout=10000`: PASS, 83 files / 674 tests.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 app routes.
+
+## Notes
+
+- Bundle size did not decrease; final JS chunk total increased by 276 bytes due to React hook imports. The measured value is lower render/effect work, not payload reduction.
+- Bookings should remain NOT CERTIFIED until authenticated browser interaction QA is completed, per the existing booking certification record.
+- Broad bundle splitting, query column narrowing, and database/index work are deferred until a separately certified phase.
+
+---
+
 # Current Task - SCHEDULE-CONFLICT-RESOLUTION-CENTER-001
 
 Status: COMPLETED
@@ -1217,3 +1421,39 @@ Run `git status --short --branch` before continuing.
 - Verification passed with `npx tsc --noEmit`, `npm run lint`, focused schedule tests, full `npx vitest run`, `npm run build`, and `git diff --check`.
 - Remaining infrastructure blocker: fix local pnpm/Supabase CLI first, then rerun `pnpm db:push` and `pnpm db:types` to reconcile migration history and generated types.
 - Remaining security task: rotate the Supabase database password because it was pasted into the chat.
+
+---
+
+# Current Task - CRM-BOOKING-FOLLOWUP-STABILIZATION-001
+
+Status: COMPLETED
+Started: 2026-07-10
+Last updated: 2026-07-10
+
+## Description
+
+Stabilize CRM Today and Booking Follow-up runtime/RLS paths, then finish the operational Change Staff and Reschedule flows without moving an online customer-selected appointment unless staff explicitly reschedules it.
+
+## Completed
+
+- Removed the CRM Today `refreshEtaAction` prop chain from `page -> shell -> dashboard -> panel`; `EtaRefreshButton` now calls `refreshHomeServiceEtaAction` from the stable server-action module directly.
+- Repaired inherited Attendance Recovery type-check and lint blockers so the current project can validate.
+- Updated manager booking status changes to perform the DB update through `createAdminClient()` after normal session/branch checks, then annotate the latest `booking_events` trigger row.
+- Updated CRM follow-up actions to support cancel, friendly RLS-safe UI errors, same-status audit rows, and trigger-event annotation for real status changes.
+- Added Change Staff hardening: assignment candidates are re-scored before save, unavailable therapists are blocked, current booking conflicts are excluded from recommendation checks, and reassignment writes metadata plus a `booking_events` audit row.
+- Added `rescheduleBookingAction` and `RescheduleBookingModal`: explicit date/time moves validate therapist and room availability, preserve staff unless changed separately, store reschedule metadata/history, insert audit history, and notify the assigned therapist.
+- Follow-up `Reschedule` now records the call outcome and opens the real reschedule form instead of showing the old unavailable-flow message.
+- Added focused recommendation-engine tests for overlapping booking and Home Service eligibility blockers.
+
+## Verification
+
+- `pnpm type-check`: PASS.
+- `pnpm lint`: PASS.
+- `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts`: PASS, 1 file / 6 tests.
+- `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
+
+## Notes
+
+- Existing dirty worktree changes unrelated to this task were preserved.
+- `booking_events` remains read-only for authenticated roles; operational follow-up/reschedule/reassign audit writes intentionally go through branch-checked service-role server actions.
+- Authenticated CRM browser QA remains recommended for the actual operator flows.

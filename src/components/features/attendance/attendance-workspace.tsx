@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AttendanceHeader } from "@/components/features/attendance/attendance-header";
 import { AttendanceTabs } from "@/components/features/attendance/attendance-tabs";
-import { EmptyState } from "@/components/features/attendance/attendance-ui";
+import {
+  AttendanceTabPanel,
+  EmptyState,
+  WorkspaceNotice,
+} from "@/components/features/attendance/attendance-ui";
 import { RegisteredDevicesTab } from "@/components/features/attendance/devices/registered-devices-tab";
 import { AttendanceOverview } from "@/components/features/attendance/overview/attendance-overview";
 import { QrCodesTab } from "@/components/features/attendance/qr-codes/qr-codes-tab";
@@ -15,7 +19,7 @@ import { AttendanceReportsTab } from "@/components/features/attendance/reports/a
 import { ServiceSessionsTab } from "@/components/features/attendance/sessions/service-sessions-tab";
 import { createClient } from "@/lib/supabase/client";
 import type { AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
-import { attendanceTabHref } from "@/lib/attendance/tabs";
+import { attendanceTabHref, attendanceTabId, attendanceTabPanelId } from "@/lib/attendance/tabs";
 import type {
   AttendanceQrPoint,
   AttendanceRecordFilters,
@@ -55,7 +59,7 @@ export function AttendanceWorkspace({
   const router = useRouter();
   const [localPatch, setLocalPatch] = useState<WorkspacePatch | null>(null);
   const [selectedTab, setSelectedTab] = useState<AttendanceTab>(activeTab);
-  const [nowMs, setNowMs] = useState(initialNowMs);
+  const [nowMs, setNowMs] = useState(() => initialNowMs);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<QrPrintFormat>("a4");
   const [selectedQrId, setSelectedQrId] = useState<string | null>(() => data.qrPoints[0]?.id ?? null);
@@ -198,24 +202,42 @@ export function AttendanceWorkspace({
       <AttendanceHeader branchName={workspaceData.branchName} nowMs={nowMs} onTabChange={setTab} />
       <AttendanceTabs activeTab={selectedTab} onTabChange={setTab} />
       {notice ? (
-        <div
-          aria-live="polite"
-          className={`rounded-lg border px-4 py-3 text-sm font-semibold ${notice.ok ? "border-emerald-800/20 bg-emerald-50 text-emerald-900" : "border-red-700/20 bg-red-50 text-red-800"}`}
-        >
+        <WorkspaceNotice tone={notice.ok ? "success" : "error"} className="font-semibold">
           {notice.message}
-        </div>
+        </WorkspaceNotice>
       ) : null}
 
-      <section role="tabpanel" hidden={selectedTab !== "overview"}>
+      <AttendanceTabPanel
+        id={attendanceTabPanelId("overview")}
+        labelledBy={attendanceTabId("overview")}
+        active={selectedTab === "overview"}
+      >
         <AttendanceOverview data={workspaceData} nowMs={nowMs} onTabChange={setTab} />
-      </section>
-      <section role="tabpanel" hidden={selectedTab !== "records"}>
+      </AttendanceTabPanel>
+      <AttendanceTabPanel
+        id={attendanceTabPanelId("records")}
+        labelledBy={attendanceTabId("records")}
+        active={selectedTab === "records"}
+      >
         <AttendanceRecordsTab data={workspaceData} initialFilters={initialRecordFilters} onTabChange={setTab} />
-      </section>
-      <section role="tabpanel" hidden={selectedTab !== "sessions"}>
-        <ServiceSessionsTab data={workspaceData} nowMs={nowMs} onActionResult={handleActionResult} />
-      </section>
-      <section role="tabpanel" hidden={selectedTab !== "qr"}>
+      </AttendanceTabPanel>
+      <AttendanceTabPanel
+        id={attendanceTabPanelId("sessions")}
+        labelledBy={attendanceTabId("sessions")}
+        active={selectedTab === "sessions"}
+      >
+        <ServiceSessionsTab
+          data={workspaceData}
+          nowMs={nowMs}
+          onActionResult={handleActionResult}
+          onTabChange={setTab}
+        />
+      </AttendanceTabPanel>
+      <AttendanceTabPanel
+        id={attendanceTabPanelId("qr")}
+        labelledBy={attendanceTabId("qr")}
+        active={selectedTab === "qr"}
+      >
         <QrCodesTab
           data={workspaceData}
           nowMs={nowMs}
@@ -225,21 +247,33 @@ export function AttendanceWorkspace({
           onFormatChange={setSelectedFormat}
           onActionResult={handleActionResult}
         />
-      </section>
-      <section role="tabpanel" hidden={selectedTab !== "devices"}>
+      </AttendanceTabPanel>
+      <AttendanceTabPanel
+        id={attendanceTabPanelId("devices")}
+        labelledBy={attendanceTabId("devices")}
+        active={selectedTab === "devices"}
+      >
         <RegisteredDevicesTab
           data={workspaceData}
           nowMs={nowMs}
           routeBasePath={routeBasePath}
           routeBranchId={routeBranchId}
         />
-      </section>
-      <section role="tabpanel" hidden={selectedTab !== "exceptions"}>
+      </AttendanceTabPanel>
+      <AttendanceTabPanel
+        id={attendanceTabPanelId("exceptions")}
+        labelledBy={attendanceTabId("exceptions")}
+        active={selectedTab === "exceptions"}
+      >
         <AttendanceRecoveryTab data={workspaceData} onActionResult={handleActionResult} onTabChange={setTab} />
-      </section>
-      <section role="tabpanel" hidden={selectedTab !== "reports"}>
+      </AttendanceTabPanel>
+      <AttendanceTabPanel
+        id={attendanceTabPanelId("reports")}
+        labelledBy={attendanceTabId("reports")}
+        active={selectedTab === "reports"}
+      >
         <AttendanceReportsTab data={workspaceData} />
-      </section>
+      </AttendanceTabPanel>
       {workspaceData.staffOptions.length === 0 ? (
         <EmptyState title="No active staff loaded." detail="Attendance needs active branch staff before live status can be useful." />
       ) : null}

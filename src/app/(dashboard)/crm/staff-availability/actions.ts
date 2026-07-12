@@ -11,6 +11,7 @@ import { canAdjustStaffSchedule, isOwner } from "@/lib/permissions";
 import {
   STAFF_SCHEDULE_CONFLICT_TARGET,
   STAFF_SCHEDULE_RETURNING_COLUMNS,
+  buildStaffWeeklyScheduleRows,
   savedRowsMatchRequest,
   type SavedStaffScheduleRow,
   type StaffScheduleUpsertRow,
@@ -529,6 +530,7 @@ const dayPatternInputSchema = z.object({
   closing: z.boolean(),
   regular: z.boolean(),
   dayOff: z.boolean(),
+  splitShift: z.boolean().optional().default(false),
 });
 
 const shiftTimesInputSchema = z.object({
@@ -631,39 +633,12 @@ export async function saveStaffWeeklyScheduleAction(
   }
   if (!staffRecord) return { ok: false, error: "Staff member not found in this branch" };
 
-  // Build 21 rows (7 days × 3 shift types)
-  const rows: StaffScheduleUpsertRow[] = [];
-
-  for (const day of days) {
-    const { dayOfWeek, opening, closing, regular, dayOff } = day;
-
-    rows.push({
-      staff_id: staffId,
-      day_of_week: dayOfWeek,
-      start_time: times.regular.start,
-      end_time: times.regular.end,
-      is_active: !dayOff && regular,
-      shift_type: "single",
-    });
-
-    rows.push({
-      staff_id: staffId,
-      day_of_week: dayOfWeek,
-      start_time: times.opening.start,
-      end_time: times.opening.end,
-      is_active: !dayOff && opening,
-      shift_type: "opening",
-    });
-
-    rows.push({
-      staff_id: staffId,
-      day_of_week: dayOfWeek,
-      start_time: times.closing.start,
-      end_time: times.closing.end,
-      is_active: !dayOff && closing,
-      shift_type: "closing",
-    });
+  const normalized = buildStaffWeeklyScheduleRows({ staffId, days, times });
+  if (!normalized.ok) {
+    return { ok: false, error: normalized.error };
   }
+
+  const rows: StaffScheduleUpsertRow[] = normalized.rows;
 
   const { data: savedRows, error: upsertErr } = await ctx.scheduleClient
     .from("staff_schedules")

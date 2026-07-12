@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { WorkspaceNotice, WorkspaceSection } from "@/components/features/attendance/attendance-ui";
+import { Button } from "@/components/ui/button";
 import { upsertReconciliationAction } from "./actions";
 
 type PaymentSummary = {
@@ -114,235 +116,160 @@ export function ReconciliationForm({
   const varColor = varAmount === 0 ? "var(--cs-success)" : varAmount > 0 ? "var(--cs-info)" : "var(--cs-error)";
 
   return (
-    <div className="cs-card" style={{ padding: "1.5rem" }}>
-      <div
-        style={{
-          fontSize: "0.8125rem",
-          fontWeight: 600,
-          color: "var(--cs-text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          marginBottom: "1.25rem",
-        }}
-      >
-        Enter Actual Counts
-      </div>
-
-      {isApproved && (
-        <div
+    <WorkspaceSection
+      title="Enter Actual Counts"
+      description="Compare counted payments with collected system records."
+      context={
+        <span
+          className="rounded-lg border px-3 py-1.5 text-xs font-bold"
           style={{
-            padding: "0.75rem 1rem",
-            borderRadius: 8,
-            backgroundColor: "#ECFDF5",
-            color: "#065F46",
-            fontSize: "0.8125rem",
-            fontWeight: 600,
-            marginBottom: "1.25rem",
+            borderColor: "var(--cs-border)",
+            color: varColor,
           }}
         >
-          ✅ This reconciliation has been approved and is locked.
-        </div>
-      )}
+          Variance:{" "}
+          {varAmount === 0
+            ? "Balanced"
+            : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+        </span>
+      }
+    >
+      <div className="grid gap-5 p-4">
+        {isApproved && (
+          <WorkspaceNotice tone="success" title="Approved and locked">
+            This reconciliation has been approved and can no longer be edited.
+          </WorkspaceNotice>
+        )}
 
-      {/* Per-method rows */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.25rem" }}>
-        {/* Header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr 80px",
-            gap: "0.5rem",
-            fontSize: "0.6875rem",
-            fontWeight: 700,
-            color: "var(--cs-text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            paddingBottom: "0.25rem",
-            borderBottom: "1px solid var(--cs-border)",
-          }}
-        >
-          <div>Method</div>
-          <div style={{ textAlign: "right" }}>Expected</div>
-          <div style={{ textAlign: "right" }}>Actual</div>
-          <div style={{ textAlign: "right" }}>Variance</div>
-        </div>
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[540px] gap-3">
+            <div className="grid grid-cols-[1fr_1fr_1fr_80px] items-center gap-2 border-b border-[var(--cs-border)] pb-1 text-[0.6875rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+              <div>Method</div>
+              <div className="text-right">Expected</div>
+              <div className="text-right">Actual</div>
+              <div className="text-right">Variance</div>
+            </div>
 
-        {METHODS.map((m) => {
-          const expected = getExpected(m.key, summary);
-          const actual = parseFloat(actuals[m.key]) || 0;
-          const diff = actual - expected;
-          return (
-            <div
-              key={m.key}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 80px",
-                gap: "0.5rem",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.875rem", fontWeight: 500 }}>
-                <span>{m.icon}</span> {m.label}
+            {METHODS.map((m) => {
+              const expected = getExpected(m.key, summary);
+              const actual = parseFloat(actuals[m.key]) || 0;
+              const diff = actual - expected;
+              return (
+                <div
+                  key={m.key}
+                  className="grid grid-cols-[1fr_1fr_1fr_80px] items-center gap-2"
+                >
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--cs-text)]">
+                    <span aria-hidden="true">{m.icon}</span>
+                    {m.label}
+                  </div>
+                  <div className="text-right text-sm text-[var(--cs-text-muted)]">
+                    ₱{expected.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <div>
+                    <input
+                      aria-label={`Actual ${m.label} amount`}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={isApproved}
+                      value={actuals[m.key]}
+                      onChange={(e) => handleChange(m.key, e.target.value)}
+                      className="h-9 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2 text-right text-sm text-[var(--cs-text)] outline-none transition focus:border-emerald-800 disabled:bg-[var(--cs-surface-warm)] disabled:opacity-70"
+                    />
+                  </div>
+                  <div
+                    className="text-right text-sm font-semibold"
+                    style={{
+                      color:
+                        diff === 0
+                          ? "var(--cs-text-muted)"
+                          : diff > 0
+                            ? "var(--cs-info)"
+                            : "var(--cs-error)",
+                    }}
+                  >
+                    {diff === 0
+                      ? "—"
+                      : `${diff > 0 ? "+" : ""}₱${diff.toLocaleString("en-PH", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`}
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="grid grid-cols-[1fr_1fr_1fr_80px] items-center gap-2 border-t-2 border-[var(--cs-border)] pt-2 text-sm font-bold text-[var(--cs-text)]">
+              <div>Total</div>
+              <div className="text-right">
+                ₱{totalExpected().toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div style={{ textAlign: "right", fontSize: "0.875rem", color: "var(--cs-text-muted)" }}>
-                ₱{expected.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className="text-right">
+                ₱{totalActual().toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  disabled={isApproved}
-                  value={actuals[m.key]}
-                  onChange={(e) => handleChange(m.key, e.target.value)}
-                  style={{
-                    width: "100%",
-                    height: 34,
-                    borderRadius: 6,
-                    border: "1px solid var(--cs-border)",
-                    backgroundColor: isApproved ? "var(--cs-surface-warm)" : "var(--cs-surface)",
-                    color: "var(--cs-text)",
-                    padding: "0 0.5rem",
-                    fontSize: "0.875rem",
-                    textAlign: "right",
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  textAlign: "right",
-                  fontSize: "0.875rem",
-                  fontWeight: 600,
-                  color: diff === 0 ? "var(--cs-text-muted)" : diff > 0 ? "var(--cs-info)" : "var(--cs-error)",
-                }}
-              >
-                {diff === 0 ? "—" : `${diff > 0 ? "+" : ""}₱${diff.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              <div className="text-right" style={{ color: varColor }}>
+                {varAmount === 0
+                  ? "✓"
+                  : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`}
               </div>
             </div>
-          );
-        })}
-
-        {/* Totals row */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr 80px",
-            gap: "0.5rem",
-            alignItems: "center",
-            paddingTop: "0.5rem",
-            borderTop: "2px solid var(--cs-border)",
-          }}
-        >
-          <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--cs-text)" }}>Total</div>
-          <div style={{ textAlign: "right", fontSize: "0.875rem", fontWeight: 700, color: "var(--cs-text)" }}>
-            ₱{totalExpected().toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div style={{ textAlign: "right", fontSize: "0.875rem", fontWeight: 700, color: "var(--cs-text)" }}>
-            ₱{totalActual().toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div style={{ textAlign: "right", fontSize: "0.875rem", fontWeight: 700, color: varColor }}>
-            {varAmount === 0 ? "✓" : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </div>
         </div>
-      </div>
 
-      {/* Notes */}
-      {!isApproved && (
-        <div style={{ marginBottom: "1.25rem" }}>
-          <label
-            htmlFor="recon-notes"
-            style={{ display: "block", fontSize: "0.8125rem", fontWeight: 500, marginBottom: 4 }}
-          >
+        {!isApproved && (
+          <label className="grid gap-1.5 text-sm font-medium text-[var(--cs-text)]" htmlFor="recon-notes">
             Notes (optional)
+            <textarea
+              id="recon-notes"
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Explain any variance, missing receipts, etc."
+              className="min-h-20 w-full resize-y rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm text-[var(--cs-text)] outline-none transition focus:border-emerald-800"
+            />
           </label>
-          <textarea
-            id="recon-notes"
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Explain any variance, missing receipts, etc."
-            style={{
-              width: "100%",
-              borderRadius: 6,
-              border: "1px solid var(--cs-border)",
-              backgroundColor: "var(--cs-surface)",
-              color: "var(--cs-text)",
-              padding: "0.5rem 0.75rem",
-              fontSize: "0.875rem",
-              resize: "vertical",
-            }}
-          />
-        </div>
-      )}
+        )}
 
-      {serverError && (
-        <div
-          style={{
-            padding: "0.75rem",
-            backgroundColor: "#FEF2F2",
-            color: "#991B1B",
-            borderRadius: 6,
-            fontSize: "0.8125rem",
-            marginBottom: "1rem",
-          }}
-        >
-          {serverError}
-        </div>
-      )}
+        {serverError && (
+          <WorkspaceNotice tone="error" title="Could not save reconciliation">
+            {serverError}
+          </WorkspaceNotice>
+        )}
 
-      {saved && (
-        <div
-          style={{
-            padding: "0.75rem",
-            backgroundColor: "#ECFDF5",
-            color: "#065F46",
-            borderRadius: 6,
-            fontSize: "0.8125rem",
-            marginBottom: "1rem",
-          }}
-        >
-          {saved === "submitted" ? "Reconciliation submitted for approval." : "Draft saved."}
-        </div>
-      )}
+        {saved && (
+          <WorkspaceNotice tone="success">
+            {saved === "submitted" ? "Reconciliation submitted for approval." : "Draft saved."}
+          </WorkspaceNotice>
+        )}
 
-      {!isApproved && (
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            onClick={() => handleSubmit("draft")}
-            disabled={isPending}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "1px solid var(--cs-border)",
-              backgroundColor: "var(--cs-surface)",
-              color: "var(--cs-text)",
-              fontSize: "0.8125rem",
-              fontWeight: 500,
-              cursor: isPending ? "default" : "pointer",
-              opacity: isPending ? 0.6 : 1,
-            }}
-          >
-            Save Draft
-          </button>
-          <button
-            onClick={() => handleSubmit("submitted")}
-            disabled={isPending}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "none",
-              backgroundColor: "var(--cs-sand)",
-              color: "#fff",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              cursor: isPending ? "default" : "pointer",
-              opacity: isPending ? 0.6 : 1,
-            }}
-          >
-            Submit for Approval
-          </button>
-        </div>
-      )}
-    </div>
+        {!isApproved && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSubmit("draft")}
+              disabled={isPending}
+            >
+              Save Draft
+            </Button>
+            <Button
+              type="button"
+              onClick={() => handleSubmit("submitted")}
+              disabled={isPending}
+              className="bg-[var(--cs-sand)] text-white hover:bg-[var(--cs-sand)]/90"
+            >
+              Submit for Approval
+            </Button>
+          </div>
+        )}
+      </div>
+    </WorkspaceSection>
   );
 }

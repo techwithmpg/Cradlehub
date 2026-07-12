@@ -773,6 +773,7 @@ async function getActiveCheckinQueue(params: {
     .eq("branch_id", params.branchId)
     .eq("shift_date", params.date)
     .eq("status", "checked_in")
+    .eq("is_test", false)
     .is("checked_out_at", null)
     .in("staff_id", params.staffIds)
     .order("checked_in_at", { ascending: true });

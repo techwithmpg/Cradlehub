@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
         .eq("branch_id", parsed.data.branchId)
         .eq("shift_date", parsed.data.date)
         .eq("status", "checked_in")
+        .eq("is_test", false)
         .is("checked_out_at", null),
       admin
         .from("schedule_overrides")

@@ -7,6 +7,7 @@ import {
   AdminOverlayFooter,
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
+import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { Button } from "@/components/ui/button";
 import { markBookingArrivedAction } from "@/app/(dashboard)/crm/bookings/actions";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
@@ -43,16 +44,22 @@ export function CustomerArrivedModal({
   }
 
   return (
-    <AdminDialog open={open} onOpenChange={onOpenChange} size="sm" placement="center">
+    <AdminDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="sm"
+      placement="center"
+      ariaLabel="Customer arrived"
+    >
       <AdminOverlayHeader title="Customer Arrived" />
       <AdminOverlayBody className="bg-[var(--cs-surface-warm)]">
         <p className="text-sm leading-6 text-[var(--cs-text)]">
           Mark this customer as physically present and ready for room assignment?
         </p>
         {feedback ? (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+          <WorkspaceNotice tone="error" className="mt-4">
             {feedback}
-          </div>
+          </WorkspaceNotice>
         ) : null}
       </AdminOverlayBody>
       <AdminOverlayFooter className="flex justify-end gap-2 bg-[var(--cs-surface)]">

@@ -1,87 +1,45 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { CheckCircle2, Clock3, History, RotateCcw, Settings2, TableProperties, Wrench } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  EmptyState,
-  Panel,
-  StatusPill,
-  formatAttendanceDate,
-  formatAttendanceDateTime,
-  formatMinutesCompact,
-  humanizeAttendanceValue,
-} from "@/components/features/attendance/attendance-ui";
+import { CalendarDays, DoorOpen } from "lucide-react";
 import {
   applyAttendanceCorrectionAction,
   resolveAttendanceExceptionAction,
   updateAttendanceRulesAction,
   type AttendanceActionResult,
 } from "@/app/(dashboard)/crm/attendance/actions";
+import { RecoveryAuditLogPanel } from "@/components/features/attendance/recovery/recovery-audit-log-panel";
+import { RecoveryIssueQueue } from "@/components/features/attendance/recovery/recovery-issue-queue";
+import { RulesSafetyPanel } from "@/components/features/attendance/recovery/rules-safety-panel";
+import { SelectedRecoveryIssuePanel } from "@/components/features/attendance/recovery/selected-recovery-issue-panel";
+import { StaffDayRepairPanel } from "@/components/features/attendance/recovery/staff-day-repair-panel";
+import {
+  buildRecoveryIssues,
+  countRecoveryIssues,
+} from "@/components/features/attendance/recovery/recovery-issue-utils";
+import { ContextChip, WorkspaceSection } from "@/components/features/attendance/attendance-ui";
 import type {
-  AttendanceException,
+  RecoveryIssue,
+  RecoveryIssueCategory,
+  RecoveryView,
+} from "@/components/features/attendance/recovery/recovery-issue-types";
+import type {
   AttendanceRecord,
   AttendanceSettings,
   AttendanceTab,
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
 
-type RecoveryView = "today" | "records" | "rules" | "audit";
-
-const VIEWS: Array<{ key: RecoveryView; label: string }> = [
-  { key: "today", label: "Today Recovery" },
-  { key: "records", label: "Staff Records" },
-  { key: "rules", label: "Rules" },
-  { key: "audit", label: "Audit Log" },
+const RECOVERY_VIEWS: Array<{
+  key: RecoveryView;
+  label: string;
+}> = [
+  { key: "today", label: "Today Triage" },
+  { key: "device_recovery", label: "Device Recovery" },
+  { key: "staff_day_repair", label: "Staff Day Repair" },
+  { key: "rules_safety", label: "Rules & Safety" },
+  { key: "audit_log", label: "Audit Log" },
 ];
-
-const RECOVERY_EXCEPTION_TYPES = new Set([
-  "likely_closing_scan_without_clock_in",
-  "missing_schedule",
-  "off_day_exception",
-  "ambiguous_scan",
-  "early_clock_in",
-  "late_clock_in",
-  "early_clock_out",
-  "overtime_clock_out",
-]);
-
-function isRecoveryException(exception: AttendanceException): boolean {
-  return exception.status === "open" && RECOVERY_EXCEPTION_TYPES.has(exception.exception_type);
-}
-
-function isRecordNeedingAttention(record: AttendanceRecord): boolean {
-  return (
-    record.status === "checked_in" ||
-    record.exception_state === "open" ||
-    record.attendance_status !== "present"
-  );
-}
-
-function numericInputValue(value: number): string {
-  return Number.isFinite(value) ? String(value) : "0";
-}
-
-function updateNumberSetting(
-  settings: AttendanceSettings,
-  key: keyof AttendanceSettings,
-  value: string
-): AttendanceSettings {
-  const parsed = Number(value);
-  return {
-    ...settings,
-    [key]: Number.isFinite(parsed) ? parsed : 0,
-  };
-}
-
-function SummaryTile({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-border bg-background p-3">
-      <div className="text-xs font-semibold uppercase text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-bold text-foreground">{value}</div>
-    </div>
-  );
-}
 
 export function AttendanceRecoveryTab({
   data,
@@ -93,70 +51,126 @@ export function AttendanceRecoveryTab({
   onTabChange: (tab: AttendanceTab) => void;
 }) {
   const [view, setView] = useState<RecoveryView>("today");
-  const [rules, setRules] = useState<AttendanceSettings>(data.settings);
+  const [activeCategory, setActiveCategory] = useState<RecoveryIssueCategory | "all">("all");
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [dismissedIssueIds, setDismissedIssueIds] = useState<string[]>([]);
   const [reason, setReason] = useState("Attendance recovery correction.");
+  const [notes, setNotes] = useState("");
+  const [rules, setRules] = useState<AttendanceSettings>(data.settings);
+  const [rulesReason, setRulesReason] = useState(
+    data.settings.test_mode_reason ?? data.settings.launch_recovery_reason ?? ""
+  );
   const [isPending, startTransition] = useTransition();
 
-  const recoveryExceptions = useMemo(
-    () => data.exceptions.filter(isRecoveryException),
-    [data.exceptions]
-  );
-  const openExceptions = useMemo(
-    () => data.exceptions.filter((exception) => exception.status === "open"),
-    [data.exceptions]
-  );
-  const recordsNeedingAttention = useMemo(
-    () => data.records.filter(isRecordNeedingAttention).slice(0, 40),
-    [data.records]
-  );
-  const closingRecoveryCount = recoveryExceptions.filter(
-    (exception) => exception.exception_type === "likely_closing_scan_without_clock_in"
-  ).length;
+  const allIssues = useMemo(() => {
+    return buildRecoveryIssues(data).filter((issue) => !dismissedIssueIds.includes(issue.id));
+  }, [data, dismissedIssueIds]);
 
-  function resolveException(exception: AttendanceException) {
+  const counts = useMemo(() => countRecoveryIssues(allIssues), [allIssues]);
+
+  const visibleIssues = useMemo(() => {
+    if (view === "device_recovery") {
+      return allIssues.filter((issue) => issue.category === "device_access");
+    }
+
+    if (view === "staff_day_repair") {
+      return allIssues.filter((issue) => issue.category === "staff_day_repair");
+    }
+
+    if (view === "rules_safety") {
+      return allIssues.filter((issue) => issue.category === "rules_safety");
+    }
+
+    if (activeCategory === "all") return allIssues;
+
+    return allIssues.filter((issue) => issue.category === activeCategory);
+  }, [activeCategory, allIssues, view]);
+
+  const selectedIssue =
+    visibleIssues.find((issue) => issue.id === selectedIssueId) ?? visibleIssues[0] ?? null;
+
+  function markLocalReviewed(issue: RecoveryIssue) {
+    setDismissedIssueIds((current) => [...current, issue.id]);
+    onActionResult({
+      ok: true,
+      kind: "exception_resolved",
+      tab: "exceptions",
+      message: "Recovery issue marked as reviewed.",
+      exceptionId: issue.id,
+    });
+  }
+
+  function markReviewed(issue: RecoveryIssue) {
+    if (!issue.exception) {
+      markLocalReviewed(issue);
+      return;
+    }
+
     const formData = new FormData();
-    formData.set("exceptionId", exception.id);
-    formData.set("resolutionNote", reason);
+    formData.set("exceptionId", issue.exception.id);
+    formData.set("resolutionNote", `${reason}${notes ? ` ${notes}` : ""}`);
+
     startTransition(async () => {
       onActionResult(await resolveAttendanceExceptionAction(formData));
     });
   }
 
-  function applyLaunchRecovery(exception: AttendanceException) {
+  function ignoreAsTest(issue: RecoveryIssue) {
+    if (!issue.exception) {
+      markLocalReviewed(issue);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("exceptionId", issue.exception.id);
+    formData.set("resolutionNote", `Ignored as test scan. ${notes || reason}`);
+
+    startTransition(async () => {
+      onActionResult(await resolveAttendanceExceptionAction(formData));
+    });
+  }
+
+  function applyLaunchRecovery(issue: RecoveryIssue) {
+    const exception = issue.exception;
+    if (!exception) return;
+
     startTransition(async () => {
       onActionResult(
         await applyAttendanceCorrectionAction({
           branchId: data.branchId,
           actionType: "apply_launch_recovery",
           exceptionId: exception.id,
-          reason,
+          reason: `${reason}${notes ? ` ${notes}` : ""}`,
         })
       );
     });
   }
 
-  function applyManualClockOut(record: AttendanceRecord) {
+  function applyManualClockOut(record: AttendanceRecord, repairReason: string) {
     startTransition(async () => {
       onActionResult(
         await applyAttendanceCorrectionAction({
           branchId: data.branchId,
           actionType: "set_manual_clock_out",
           checkinId: record.id,
-          reason,
+          reason: repairReason,
         })
       );
     });
   }
 
-  function resetStaffDay(record: AttendanceRecord) {
+  function resetAttendanceState(record: AttendanceRecord, repairReason: string, confirmVoid: boolean) {
     startTransition(async () => {
       onActionResult(
         await applyAttendanceCorrectionAction({
           branchId: data.branchId,
-          actionType: "reset_staff_day",
+          actionType: "reset_attendance_state",
+          checkinId: record.id,
           staffId: record.staff_id,
           attendanceDate: record.shift_date,
-          reason,
+          resetMode: "next_scan_state",
+          confirmVoid,
+          reason: repairReason,
         })
       );
     });
@@ -167,305 +181,146 @@ export function AttendanceRecoveryTab({
       const result = await updateAttendanceRulesAction({
         branchId: data.branchId,
         settings: rules,
-        reason: rules.launch_recovery_reason || "Attendance rules updated.",
+        reason: rulesReason || "Attendance recovery rule update.",
       });
+
       onActionResult(result);
+
       if (result.ok && result.kind === "attendance_rules") {
         setRules(result.settings);
+        setRulesReason(
+          result.settings.test_mode_reason ?? result.settings.launch_recovery_reason ?? ""
+        );
       }
     });
   }
 
+  function archiveTestData() {
+    startTransition(async () => {
+      onActionResult(
+        await applyAttendanceCorrectionAction({
+          branchId: data.branchId,
+          actionType: "archive_test_data",
+          reason: rulesReason || "Archive attendance test data.",
+        })
+      );
+    });
+  }
+
   return (
-    <div className="grid gap-4">
-      <Panel title="Recovery Center">
-        <div className="grid gap-3 lg:grid-cols-4">
-          <SummaryTile label="Open Recovery" value={recoveryExceptions.length} />
-          <SummaryTile label="Closing Suspects" value={closingRecoveryCount} />
-          <SummaryTile label="Open Exceptions" value={openExceptions.length} />
-          <SummaryTile label="Audit Entries" value={data.corrections.length} />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {VIEWS.map((item) => (
-            <Button
-              key={item.key}
-              type="button"
-              variant={view === item.key ? "default" : "outline"}
-              size="sm"
-              onClick={() => setView(item.key)}
-            >
-              {item.key === "today" ? <Wrench data-icon="inline-start" /> : null}
-              {item.key === "records" ? <TableProperties data-icon="inline-start" /> : null}
-              {item.key === "rules" ? <Settings2 data-icon="inline-start" /> : null}
-              {item.key === "audit" ? <History data-icon="inline-start" /> : null}
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </Panel>
+    <WorkspaceSection
+      title="Recovery Center"
+      description="Manage blocked scans, device recovery, staff-day repair, and attendance safety."
+      context={
+        <>
+          <ContextChip
+            ariaLabel={`Recovery branch: ${data.branchName}`}
+            className="min-h-10"
+            icon={<DoorOpen className="size-4" />}
+          >
+            {data.branchName}
+          </ContextChip>
+          <ContextChip
+            ariaLabel="Recovery workspace mode"
+            className="min-h-10"
+            icon={<CalendarDays className="size-4" />}
+          >
+            Recovery View
+          </ContextChip>
+        </>
+      }
+    >
+      <div className="border-b border-border px-5 py-4">
+        <div className="grid overflow-hidden rounded-2xl border border-border bg-card md:grid-cols-5">
+          {RECOVERY_VIEWS.map((item) => {
+            const selected = view === item.key;
+            const badge =
+              item.key === "today"
+                ? counts.all
+                : item.key === "device_recovery"
+                  ? counts.deviceAccess
+                  : item.key === "staff_day_repair"
+                    ? counts.staffDayRepair
+                    : item.key === "rules_safety"
+                      ? counts.rulesSafety
+                      : data.corrections.length;
 
-      {view === "today" ? (
-        <Panel title={`Today Recovery (${recoveryExceptions.length})`}>
-          <div className="grid gap-3">
-            <label className="grid gap-1 text-sm font-semibold">
-              Correction reason
-              <input
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            {recoveryExceptions.length === 0 ? (
-              <EmptyState title="No recovery items are open." detail="Closing scans, missing schedules, and ambiguous scans will appear here." />
-            ) : (
-              recoveryExceptions.map((exception) => (
-                <div key={exception.id} className="grid gap-3 rounded-lg border border-border p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-bold">{exception.staff_name ?? "Unassigned staff"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {humanizeAttendanceValue(exception.exception_type)} · {formatAttendanceDateTime(exception.detected_at)}
-                      </div>
-                    </div>
-                    <StatusPill value={exception.severity} tone={exception.severity === "critical" ? "bad" : "warn"} />
-                  </div>
-                  <p className="m-0 text-sm text-muted-foreground">{exception.message}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {exception.exception_type === "likely_closing_scan_without_clock_in" ? (
-                      <Button type="button" size="sm" disabled={isPending} onClick={() => applyLaunchRecovery(exception)}>
-                        <CheckCircle2 data-icon="inline-start" />
-                        Apply Recovery
-                      </Button>
-                    ) : null}
-                    <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={() => resolveException(exception)}>
-                      <CheckCircle2 data-icon="inline-start" />
-                      Mark Reviewed
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => onTabChange("records")}>
-                      <TableProperties data-icon="inline-start" />
-                      Records
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </Panel>
-      ) : null}
-
-      {view === "records" ? (
-        <Panel title={`Staff Records (${recordsNeedingAttention.length})`}>
-          {recordsNeedingAttention.length === 0 ? (
-            <EmptyState title="No staff records need recovery." detail="Records with open exceptions, active check-ins, or non-present status appear here." />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[940px] text-sm">
-                <thead>
-                  <tr className="border-b bg-stone-50 text-left text-xs text-muted-foreground">
-                    {["Date", "Staff", "Schedule", "In", "Out", "Worked", "Status", "Actions"].map((heading) => (
-                      <th key={heading} className="px-3 py-2 font-semibold">{heading}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {recordsNeedingAttention.map((record) => (
-                    <tr key={record.id} className="border-b last:border-b-0">
-                      <td className="px-3 py-3">{formatAttendanceDate(record.shift_date)}</td>
-                      <td className="px-3 py-3 font-semibold">{record.staff_name}</td>
-                      <td className="px-3 py-3 capitalize">{record.shift_type}</td>
-                      <td className="px-3 py-3">{formatAttendanceDateTime(record.checked_in_at)}</td>
-                      <td className="px-3 py-3">{formatAttendanceDateTime(record.checked_out_at)}</td>
-                      <td className="px-3 py-3">{formatMinutesCompact(record.worked_minutes)}</td>
-                      <td className="px-3 py-3"><StatusPill value={record.attendance_status} /></td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          {record.status === "checked_in" ? (
-                            <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={() => applyManualClockOut(record)}>
-                              <Clock3 data-icon="inline-start" />
-                              Clock Out
-                            </Button>
-                          ) : null}
-                          <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={() => resetStaffDay(record)}>
-                            <RotateCcw data-icon="inline-start" />
-                            Reset Day
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Panel>
-      ) : null}
-
-      {view === "rules" ? (
-        <Panel title="Attendance Rules">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="grid gap-1 text-sm font-semibold">
-              Late grace minutes
-              <input
-                type="number"
-                min="0"
-                value={numericInputValue(rules.late_grace_minutes)}
-                onChange={(event) => setRules((current) => updateNumberSetting(current, "late_grace_minutes", event.target.value))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Duplicate debounce minutes
-              <input
-                type="number"
-                min="1"
-                value={numericInputValue(rules.duplicate_scan_debounce_minutes)}
-                onChange={(event) => setRules((current) => updateNumberSetting(current, "duplicate_scan_debounce_minutes", event.target.value))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Clock-in window before shift
-              <input
-                type="number"
-                min="0"
-                value={numericInputValue(rules.clock_in_window_before_shift_minutes)}
-                onChange={(event) => setRules((current) => updateNumberSetting(current, "clock_in_window_before_shift_minutes", event.target.value))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Clock-in window after start
-              <input
-                type="number"
-                min="0"
-                value={numericInputValue(rules.clock_in_window_after_shift_start_minutes)}
-                onChange={(event) => setRules((current) => updateNumberSetting(current, "clock_in_window_after_shift_start_minutes", event.target.value))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Clock-out window before end
-              <input
-                type="number"
-                min="0"
-                value={numericInputValue(rules.clock_out_window_before_shift_end_minutes)}
-                onChange={(event) => setRules((current) => updateNumberSetting(current, "clock_out_window_before_shift_end_minutes", event.target.value))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Clock-out window after end
-              <input
-                type="number"
-                min="0"
-                value={numericInputValue(rules.clock_out_window_after_shift_end_minutes)}
-                onChange={(event) => setRules((current) => updateNumberSetting(current, "clock_out_window_after_shift_end_minutes", event.target.value))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              First closing scan behavior
-              <select
-                value={rules.first_scan_closing_behavior}
-                onChange={(event) => setRules((current) => ({ ...current, first_scan_closing_behavior: event.target.value as AttendanceSettings["first_scan_closing_behavior"] }))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
+            return (
+              <button
+                key={item.key}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  setView(item.key);
+                  setSelectedIssueId(null);
+                }}
+                className={`flex h-14 items-center justify-center gap-2 border-b-2 px-3 text-sm font-semibold transition ${
+                  selected
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                }`}
               >
-                <option value="flag_for_recovery">Flag for recovery</option>
-                <option value="treat_as_clock_out_launch_only">Treat as clock-out during launch</option>
-                <option value="require_manager_confirmation">Require manager confirmation</option>
-                <option value="never_auto_clock_in">Never auto clock-in</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={rules.launch_recovery_enabled}
-                onChange={(event) => setRules((current) => ({ ...current, launch_recovery_enabled: event.target.checked }))}
-                className="size-4"
-              />
-              Launch recovery mode
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Launch start date
-              <input
-                type="date"
-                value={rules.launch_recovery_start_date ?? ""}
-                onChange={(event) => setRules((current) => ({ ...current, launch_recovery_start_date: event.target.value || null }))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Launch end date
-              <input
-                type="date"
-                value={rules.launch_recovery_end_date ?? ""}
-                onChange={(event) => setRules((current) => ({ ...current, launch_recovery_end_date: event.target.value || null }))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Closing start time
-              <input
-                type="time"
-                value={rules.launch_recovery_closing_start_time.slice(0, 5)}
-                onChange={(event) => setRules((current) => ({ ...current, launch_recovery_closing_start_time: `${event.target.value}:00` }))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Closing end time
-              <input
-                type="time"
-                value={rules.launch_recovery_closing_end_time.slice(0, 5)}
-                onChange={(event) => setRules((current) => ({ ...current, launch_recovery_closing_end_time: `${event.target.value}:00` }))}
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold lg:col-span-2">
-              Rule change reason
-              <textarea
-                value={rules.launch_recovery_reason ?? ""}
-                onChange={(event) => setRules((current) => ({ ...current, launch_recovery_reason: event.target.value }))}
-                className="min-h-20 rounded-lg border border-border bg-background p-3 text-sm font-normal outline-none"
-              />
-            </label>
-          </div>
-          <div className="flex justify-end">
-            <Button type="button" disabled={isPending} onClick={saveRules}>
-              <Settings2 data-icon="inline-start" />
-              Save Rules
-            </Button>
-          </div>
-        </Panel>
-      ) : null}
+                {item.label}
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
+                  {badge}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {view === "audit" ? (
-        <Panel title={`Audit Log (${data.corrections.length})`}>
-          {data.corrections.length === 0 ? (
-            <EmptyState title="No attendance corrections yet." detail="Applied corrections and rule changes will appear here." />
-          ) : (
-            <div className="grid gap-3">
-              {data.corrections.map((correction) => (
-                <div key={correction.id} className="grid gap-2 rounded-lg border border-border p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-bold">{humanizeAttendanceValue(correction.action_type)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {correction.staff_name ?? data.branchName} · {formatAttendanceDateTime(correction.corrected_at ?? correction.created_at)}
-                      </div>
-                    </div>
-                    <StatusPill value={correction.status} />
-                  </div>
-                  <p className="m-0 text-sm text-muted-foreground">{correction.reason}</p>
-                  {correction.attendance_date ? (
-                    <div className="text-xs font-semibold text-muted-foreground">{formatAttendanceDate(correction.attendance_date)}</div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
-      ) : null}
-    </div>
+      <div className="p-5">
+        {view === "audit_log" ? (
+          <RecoveryAuditLogPanel data={data} />
+        ) : view === "staff_day_repair" ? (
+          <StaffDayRepairPanel
+            data={data}
+            isPending={isPending}
+            onManualClockOut={applyManualClockOut}
+            onResetAttendanceState={resetAttendanceState}
+          />
+        ) : view === "rules_safety" ? (
+          <RulesSafetyPanel
+            data={data}
+            isPending={isPending}
+            onArchiveTestData={archiveTestData}
+            onSaveRules={saveRules}
+            rules={rules}
+            rulesReason={rulesReason}
+            setRules={setRules}
+            setRulesReason={setRulesReason}
+          />
+        ) : (
+          <div className="grid items-start gap-4 xl:grid-cols-[390px_minmax(0,1fr)]">
+            <RecoveryIssueQueue
+              activeCategory={activeCategory}
+              issues={visibleIssues}
+              onCategoryChange={setActiveCategory}
+              onSelectIssue={(issue) => setSelectedIssueId(issue.id)}
+              selectedIssueId={selectedIssue?.id ?? null}
+            />
+
+            <SelectedRecoveryIssuePanel
+              issue={selectedIssue}
+              isPending={isPending}
+              notes={notes}
+              onApplyLaunchRecovery={applyLaunchRecovery}
+              onIgnoreAsTest={ignoreAsTest}
+              onMarkReviewed={markReviewed}
+              onOpenDevices={() => onTabChange("devices")}
+              onOpenStateReset={() => {
+                setView("staff_day_repair");
+                setSelectedIssueId(null);
+              }}
+              onOpenStaffRecords={() => onTabChange("records")}
+              reason={reason}
+              setNotes={setNotes}
+              setReason={setReason}
+            />
+          </div>
+        )}
+      </div>
+    </WorkspaceSection>
   );
 }

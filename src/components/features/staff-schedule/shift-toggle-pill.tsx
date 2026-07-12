@@ -4,19 +4,22 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ShiftKind } from "./schedule-rule-builder-utils";
 
+type ShiftToggleKind = ShiftKind | "dayOff" | "splitShift";
+
 type ShiftTogglePillProps = {
   label: string;
-  kind: ShiftKind | "dayOff";
+  kind: ShiftToggleKind;
   active: boolean;
   custom?: boolean;
   disabled?: boolean;
   onToggle?: () => void;
 };
 
-const ACTIVE_CLASSES: Record<ShiftKind | "dayOff", string> = {
+const ACTIVE_CLASSES: Record<ShiftToggleKind, string> = {
   opening: "border-emerald-200 bg-emerald-50 text-emerald-900 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.12)]",
   closing: "border-blue-200 bg-blue-50 text-blue-950 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.12)]",
   regular: "border-amber-200 bg-amber-50 text-amber-950 shadow-[inset_0_0_0_1px_rgba(180,83,9,0.10)]",
+  splitShift: "border-teal-200 bg-teal-50 text-teal-950 shadow-[inset_0_0_0_1px_rgba(20,184,166,0.10)]",
   dayOff: "border-stone-300 bg-stone-200 text-stone-800 shadow-[inset_0_0_0_1px_rgba(120,113,108,0.12)]",
 };
 

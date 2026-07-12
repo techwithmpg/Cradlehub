@@ -62,11 +62,14 @@ export function RevokeDeviceDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Revoke device?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Future scans from {entry?.device?.label ?? "this device"} will be blocked. Attendance history stays preserved.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <select value={reason} onChange={(event) => setReason(event.target.value as DeviceRevocationReason)} className="h-9 rounded-lg border border-stone-200 px-3 text-sm">
+        <AlertDialogDescription>
+          Future scans from {entry?.device?.label ?? "this device"} will be blocked. Attendance history stays preserved.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+        <label htmlFor="attendance-device-revoke-reason" className="text-xs font-bold uppercase text-stone-500">
+          Revocation reason
+        </label>
+        <select id="attendance-device-revoke-reason" value={reason} onChange={(event) => setReason(event.target.value as DeviceRevocationReason)} className="h-9 rounded-lg border border-stone-200 px-3 text-sm">
           {REASONS.map((item) => (
             <option key={item.value} value={item.value}>{item.label}</option>
           ))}

@@ -12,10 +12,12 @@ export type AttendanceCorrectionActionType =
   | "set_manual_clock_in"
   | "set_manual_clock_out"
   | "reset_staff_day"
+  | "reset_attendance_state"
   | "rebuild_from_scans"
   | "ignore_scan"
   | "apply_launch_recovery"
   | "update_attendance_rules"
+  | "archive_test_data"
   | "revert_correction";
 
 export type ApplyAttendanceCorrectionInput = {
@@ -27,6 +29,8 @@ export type ApplyAttendanceCorrectionInput = {
   attendanceDate?: string | null;
   manualClockInAt?: string | null;
   manualClockOutAt?: string | null;
+  resetMode?: "next_scan_state" | "void_incorrect_attendance" | "manual_attendance" | "rebuild_from_scans" | null;
+  confirmVoid?: boolean | null;
   reason?: string | null;
 };
 
@@ -71,6 +75,19 @@ type CheckinRow = {
   scheduled_start_at: string | null;
   scheduled_end_at: string | null;
   status: string;
+  is_test?: boolean;
+};
+
+type ResetAttendanceStateTransactionRow = {
+  success?: boolean;
+  code?: string | null;
+  message?: string | null;
+  staff_id?: string | null;
+  checkin_id?: string | null;
+  attendance_date?: string | null;
+  next_expected_action?: string | null;
+  resolved_exception_count?: number | null;
+  correction_id?: string | null;
 };
 
 function safeRecord(value: unknown): Record<string, unknown> {
@@ -95,6 +112,12 @@ function booleanFromRecord(record: Record<string, unknown>, key: string): boolea
 function scheduleFromException(exception: ExceptionRow): Record<string, unknown> {
   const metadata = safeRecord(exception.metadata);
   return safeRecord(metadata.schedule);
+}
+
+function requiredReason(value: string | null | undefined, action: string): string {
+  const reason = value?.trim();
+  if (!reason) throw new Error(`Enter a reason before ${action}.`);
+  return reason;
 }
 
 async function loadException(admin: AttendanceDb, ctx: AttendanceActionContext, exceptionId: string): Promise<ExceptionRow> {
@@ -126,7 +149,7 @@ async function loadScanEvent(admin: AttendanceDb, ctx: AttendanceActionContext, 
 async function loadCheckin(admin: AttendanceDb, ctx: AttendanceActionContext, checkinId: string): Promise<CheckinRow> {
   const { data, error } = await admin
     .from("staff_shift_checkins")
-    .select("id, branch_id, staff_id, shift_date, shift_type, checked_in_at, checked_out_at, scheduled_start_at, scheduled_end_at, status")
+    .select("id, branch_id, staff_id, shift_date, shift_type, checked_in_at, checked_out_at, scheduled_start_at, scheduled_end_at, status, is_test")
     .eq("id", checkinId)
     .eq("branch_id", ctx.branchId)
     .maybeSingle();
@@ -147,7 +170,8 @@ async function insertCorrectionAudit(admin: AttendanceDb, params: {
   newValues?: Record<string, unknown>;
   reason: string;
 }) {
-  await admin.from("attendance_corrections").insert({
+  const settings = await getAttendanceSettings(params.ctx.branchId);
+  const { error } = await admin.from("attendance_corrections").insert({
     branch_id: params.ctx.branchId,
     staff_id: params.staffId ?? null,
     checkin_id: params.checkinId ?? null,
@@ -164,7 +188,9 @@ async function insertCorrectionAudit(admin: AttendanceDb, params: {
     corrected_by: params.ctx.actorStaffId,
     applied_at: new Date().toISOString(),
     corrected_at: new Date().toISOString(),
+    is_test: settings.test_mode_enabled,
   });
+  if (error) throw new Error(error.message);
 }
 
 async function markExceptionResolved(admin: AttendanceDb, params: {
@@ -173,7 +199,7 @@ async function markExceptionResolved(admin: AttendanceDb, params: {
   note: string;
 }) {
   if (!params.exceptionId) return;
-  await admin
+  const { error } = await admin
     .from("attendance_exceptions")
     .update({
       status: "resolved",
@@ -183,6 +209,7 @@ async function markExceptionResolved(admin: AttendanceDb, params: {
     })
     .eq("id", params.exceptionId)
     .eq("branch_id", params.ctx.branchId);
+  if (error) throw new Error(error.message);
 }
 
 async function applyLaunchRecovery(params: {
@@ -226,6 +253,7 @@ async function applyLaunchRecovery(params: {
     .eq("branch_id", params.ctx.branchId)
     .eq("shift_date", shiftDate)
     .eq("shift_type", shiftType)
+    .eq("is_test", settings.test_mode_enabled)
     .neq("status", "voided")
     .limit(1);
 
@@ -256,6 +284,7 @@ async function applyLaunchRecovery(params: {
       attendance_status: metrics.attendanceStatus,
       exception_state: "none",
       recorded_by: params.ctx.actorStaffId,
+      is_test: settings.test_mode_enabled,
     })
     .select("id")
     .maybeSingle();
@@ -321,7 +350,7 @@ async function setManualClockOut(params: {
     earlyLeaveGraceMinutes: settings.early_leave_threshold_minutes,
   });
 
-  const { error } = await params.admin
+  const { data: updated, error } = await params.admin
     .from("staff_shift_checkins")
     .update({
       checked_out_at: checkedOutAt,
@@ -335,9 +364,12 @@ async function setManualClockOut(params: {
       exception_state: metrics.exceptionState,
     })
     .eq("id", checkin.id)
-    .eq("branch_id", params.ctx.branchId);
+    .eq("branch_id", params.ctx.branchId)
+    .select("id")
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+  if (!updated) throw new Error("Attendance record could not be updated.");
 
   await insertCorrectionAudit(params.admin, {
     ctx: params.ctx,
@@ -353,49 +385,50 @@ async function setManualClockOut(params: {
   return "Manual clock-out applied.";
 }
 
-async function resetStaffDay(params: {
+async function resetAttendanceState(params: {
   admin: AttendanceDb;
   ctx: AttendanceActionContext;
   input: ApplyAttendanceCorrectionInput;
   reason: string;
 }): Promise<string> {
-  const staffId = params.input.staffId?.trim();
-  const attendanceDate = params.input.attendanceDate?.trim();
-  if (!staffId || !attendanceDate) throw new Error("Choose a staff member and date before resetting attendance.");
+  const checkinId = params.input.checkinId?.trim();
+  if (!checkinId) throw new Error("Choose one attendance record before resetting state.");
+  const reason = requiredReason(params.reason, "resetting attendance state");
+  const resetMode = params.input.resetMode ?? "next_scan_state";
 
-  const previous = await params.admin
-    .from("staff_shift_checkins")
-    .select("*")
-    .eq("branch_id", params.ctx.branchId)
-    .eq("staff_id", staffId)
-    .eq("shift_date", attendanceDate)
-    .neq("status", "voided");
+  if (resetMode === "rebuild_from_scans" || resetMode === "manual_attendance") {
+    throw new Error("Use the dedicated manual or rebuild action after reviewing raw scan evidence.");
+  }
+  if (!params.input.confirmVoid) {
+    throw new Error("Confirm that the selected interpreted attendance record should be voided.");
+  }
 
-  const { error } = await params.admin
-    .from("staff_shift_checkins")
-    .update({
-      status: "voided",
-      exception_state: "open",
-      notes: params.reason,
+  const settings = await getAttendanceSettings(params.ctx.branchId);
+  const { data, error } = await params.admin
+    .rpc("reset_attendance_state_transaction", {
+      p_branch_id: params.ctx.branchId,
+      p_checkin_id: checkinId,
+      p_actor_staff_id: params.ctx.actorStaffId,
+      p_reason: reason,
+      p_reset_mode: resetMode,
+      p_is_test: settings.test_mode_enabled,
     })
-    .eq("branch_id", params.ctx.branchId)
-    .eq("staff_id", staffId)
-    .eq("shift_date", attendanceDate)
-    .neq("status", "voided");
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+  const row = data as ResetAttendanceStateTransactionRow | null;
+  if (!row?.success) {
+    throw new Error(row?.message ?? "Attendance record was already reset or could not be updated.");
+  }
 
-  await insertCorrectionAudit(params.admin, {
-    ctx: params.ctx,
-    actionType: "reset_staff_day",
-    staffId,
-    attendanceDate,
-    previousValues: { records: previous.data ?? [] },
-    newValues: { status: "voided" },
-    reason: params.reason,
-  });
+  const nextAction =
+    row.next_expected_action === "clock_out"
+      ? "Clock Out"
+      : row.next_expected_action === "clock_in"
+        ? "Clock In"
+        : "Recovery Required";
 
-  return "Staff day reset.";
+  return `Attendance state reset. Next expected action: ${nextAction}.`;
 }
 
 async function ignoreScan(params: {
@@ -424,12 +457,92 @@ async function ignoreScan(params: {
   return "Scan marked reviewed.";
 }
 
+async function archiveTestData(params: {
+  admin: AttendanceDb;
+  ctx: AttendanceActionContext;
+  reason: string;
+}): Promise<string> {
+  if (!params.reason.trim()) {
+    throw new Error("Enter a reason before archiving Test Mode data.");
+  }
+
+  const [checkinsBefore, exceptionsBefore, scansBefore] = await Promise.all([
+    params.admin
+      .from("staff_shift_checkins")
+      .select("id", { count: "exact", head: true })
+      .eq("branch_id", params.ctx.branchId)
+      .eq("is_test", true)
+      .neq("status", "voided"),
+    params.admin
+      .from("attendance_exceptions")
+      .select("id", { count: "exact", head: true })
+      .eq("branch_id", params.ctx.branchId)
+      .eq("is_test", true)
+      .eq("status", "open"),
+    params.admin
+      .from("qr_scan_events")
+      .select("id", { count: "exact", head: true })
+      .eq("branch_id", params.ctx.branchId)
+      .eq("is_test", true),
+  ]);
+
+  if (checkinsBefore.error) throw new Error(checkinsBefore.error.message);
+  if (exceptionsBefore.error) throw new Error(exceptionsBefore.error.message);
+  if (scansBefore.error) throw new Error(scansBefore.error.message);
+
+  const nowIso = new Date().toISOString();
+  const checkinsUpdate = await params.admin
+    .from("staff_shift_checkins")
+    .update({
+      status: "voided",
+      exception_state: "none",
+      notes: params.reason,
+    })
+    .eq("branch_id", params.ctx.branchId)
+    .eq("is_test", true)
+    .neq("status", "voided");
+
+  if (checkinsUpdate.error) throw new Error(checkinsUpdate.error.message);
+
+  const exceptionsUpdate = await params.admin
+    .from("attendance_exceptions")
+    .update({
+      status: "resolved",
+      resolved_at: nowIso,
+      resolved_by: params.ctx.actorStaffId,
+      resolution_note: params.reason,
+    })
+    .eq("branch_id", params.ctx.branchId)
+    .eq("is_test", true)
+    .eq("status", "open");
+
+  if (exceptionsUpdate.error) throw new Error(exceptionsUpdate.error.message);
+
+  await insertCorrectionAudit(params.admin, {
+    ctx: params.ctx,
+    actionType: "archive_test_data",
+    previousValues: {
+      testCheckins: checkinsBefore.count ?? 0,
+      openTestExceptions: exceptionsBefore.count ?? 0,
+      testScanEvents: scansBefore.count ?? 0,
+    },
+    newValues: {
+      testCheckinsVoided: true,
+      openTestExceptionsResolved: true,
+      archivedAt: nowIso,
+    },
+    reason: params.reason,
+  });
+
+  return "Test Mode data archived from live operations.";
+}
+
 export async function applyAttendanceCorrection(params: {
   ctx: AttendanceActionContext;
   input: ApplyAttendanceCorrectionInput;
 }): Promise<{ message: string }> {
   const admin = asAttendanceDb(createAdminClient());
-  const reason = params.input.reason?.trim() || "Attendance recovery correction.";
+  const reason = params.input.reason?.trim() || "";
 
   if (params.input.actionType === "apply_launch_recovery") {
     return { message: await applyLaunchRecovery({ admin, ctx: params.ctx, input: params.input, reason }) };
@@ -437,11 +550,14 @@ export async function applyAttendanceCorrection(params: {
   if (params.input.actionType === "set_manual_clock_out") {
     return { message: await setManualClockOut({ admin, ctx: params.ctx, input: params.input, reason }) };
   }
-  if (params.input.actionType === "reset_staff_day") {
-    return { message: await resetStaffDay({ admin, ctx: params.ctx, input: params.input, reason }) };
+  if (params.input.actionType === "reset_attendance_state" || params.input.actionType === "reset_staff_day") {
+    return { message: await resetAttendanceState({ admin, ctx: params.ctx, input: params.input, reason }) };
   }
   if (params.input.actionType === "ignore_scan") {
     return { message: await ignoreScan({ admin, ctx: params.ctx, input: params.input, reason }) };
+  }
+  if (params.input.actionType === "archive_test_data") {
+    return { message: await archiveTestData({ admin, ctx: params.ctx, reason }) };
   }
 
   throw new Error("This correction action is not available yet.");
@@ -472,6 +588,7 @@ function coerceRules(input: Partial<AttendanceSettings>): Partial<AttendanceSett
     "launch_recovery_closing_start_time",
     "launch_recovery_closing_end_time",
     "launch_recovery_reason",
+    "test_mode_reason",
   ] as const;
 
   for (const key of numberKeys) {
@@ -485,6 +602,8 @@ function coerceRules(input: Partial<AttendanceSettings>): Partial<AttendanceSett
   }
   const launchRecoveryEnabled = booleanFromRecord(input as Record<string, unknown>, "launch_recovery_enabled");
   if (launchRecoveryEnabled !== null) next.launch_recovery_enabled = launchRecoveryEnabled;
+  const testModeEnabled = booleanFromRecord(input as Record<string, unknown>, "test_mode_enabled");
+  if (testModeEnabled !== null) next.test_mode_enabled = testModeEnabled;
 
   if (typeof next.duplicate_scan_debounce_minutes === "number") {
     next.duplicate_scan_window_seconds = next.duplicate_scan_debounce_minutes * 60;
@@ -506,7 +625,52 @@ export async function updateAttendanceRules(params: {
   const admin = asAttendanceDb(createAdminClient());
   const previous = await getAttendanceSettings(params.ctx.branchId);
   const rules = coerceRules(params.input.settings);
-  const reason = params.input.reason?.trim() || "Attendance rules updated.";
+  const reason =
+    params.input.reason?.trim() ||
+    rules.test_mode_reason?.trim() ||
+    rules.launch_recovery_reason?.trim() ||
+    "";
+  const testModeChanged =
+    typeof rules.test_mode_enabled === "boolean" &&
+    rules.test_mode_enabled !== previous.test_mode_enabled;
+  const launchRecoveryEnabled =
+    typeof rules.launch_recovery_enabled === "boolean"
+      ? rules.launch_recovery_enabled
+      : previous.launch_recovery_enabled;
+
+  if (testModeChanged && !reason) {
+    throw new Error("Enter a reason before changing Test / Training Mode.");
+  }
+
+  if (launchRecoveryEnabled) {
+    const startDate = rules.launch_recovery_start_date ?? previous.launch_recovery_start_date;
+    const endDate = rules.launch_recovery_end_date ?? previous.launch_recovery_end_date;
+    const launchReason = reason || rules.launch_recovery_reason?.trim() || previous.launch_recovery_reason?.trim();
+
+    if (!startDate || !endDate) {
+      throw new Error("Launch Recovery needs a start date and end date.");
+    }
+    if (endDate < startDate) {
+      throw new Error("Launch Recovery end date must be on or after the start date.");
+    }
+    if (!launchReason) {
+      throw new Error("Enter a reason before enabling Launch Recovery.");
+    }
+  }
+
+  if (testModeChanged) {
+    const nowIso = new Date().toISOString();
+    rules.test_mode_reason = reason;
+    if (rules.test_mode_enabled) {
+      rules.test_mode_enabled_at = nowIso;
+      rules.test_mode_enabled_by = params.ctx.actorStaffId;
+      rules.test_mode_disabled_at = null;
+      rules.test_mode_disabled_by = null;
+    } else {
+      rules.test_mode_disabled_at = nowIso;
+      rules.test_mode_disabled_by = params.ctx.actorStaffId;
+    }
+  }
 
   const { data, error } = await admin
     .from("attendance_settings")
@@ -525,7 +689,7 @@ export async function updateAttendanceRules(params: {
     actionType: "update_attendance_rules",
     previousValues: previous,
     newValues: { ...previous, ...rules, ...(data ? safeRecord(data) : {}) },
-    reason,
+    reason: reason || "Attendance rules updated.",
   });
 
   return {

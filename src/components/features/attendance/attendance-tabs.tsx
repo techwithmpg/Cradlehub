@@ -8,6 +8,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { ComponentType, KeyboardEvent } from "react";
+import { attendanceTabId, attendanceTabPanelId } from "@/lib/attendance/tabs";
 import { ATTENDANCE_TABS, type AttendanceTab } from "@/lib/attendance/types";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ export function AttendanceTabs({
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
+    const tablist = event.currentTarget;
     const index = ATTENDANCE_TABS.findIndex((tab) => tab.key === activeTab);
     const lastIndex = ATTENDANCE_TABS.length - 1;
     const nextIndex =
@@ -45,7 +47,7 @@ export function AttendanceTabs({
     const nextTab = ATTENDANCE_TABS[nextIndex]?.key ?? "overview";
     onTabChange(nextTab);
     window.setTimeout(() => {
-      const tabs = event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+      const tabs = tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]');
       tabs[nextIndex]?.focus();
     }, 0);
   }
@@ -65,6 +67,8 @@ export function AttendanceTabs({
             key={tab.key}
             type="button"
             role="tab"
+            id={attendanceTabId(tab.key)}
+            aria-controls={attendanceTabPanelId(tab.key)}
             aria-selected={active}
             tabIndex={active ? 0 : -1}
             onClick={() => onTabChange(tab.key)}

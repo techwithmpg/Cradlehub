@@ -203,9 +203,26 @@ function mapStaffReadinessToReadinessIssues(
     });
   }
 
+  if (summary.scheduleConflicts > 0) {
+    const n = summary.scheduleConflicts;
+    issues.push({
+      id: "availability:schedule-conflicts",
+      scope: "schedule",
+      severity: "critical",
+      title: `${n} staff ${n === 1 ? "schedule conflict" : "schedule conflicts"} found`,
+      problem: `${n} active staff member${n === 1 ? "" : "s"} ${n === 1 ? "has" : "have"} an invalid, overlapping, or contradictory schedule.`,
+      impact: "Availability and booking recommendations will exclude these staff until their schedules are corrected.",
+      fix: "Open Schedule Setup and keep one ordinary shift or a non-overlapping Split Shift.",
+      actionLabel: "Open Schedule Setup",
+      actionHref: "/crm/staff-availability",
+      source: "getCrmAvailabilitySnapshot",
+      count: n,
+    });
+  }
+
   // Staff with no schedule row — needs attention beyond just check-in
-  if (summary.needsAttention > 0) {
-    const n = summary.needsAttention;
+  if (summary.noSchedule > 0) {
+    const n = summary.noSchedule;
     issues.push({
       id: "availability:needs-attention",
       scope: "schedule",
@@ -324,6 +341,7 @@ async function getCheckedInNotScheduledIssue(
     .select("staff_id")
     .eq("branch_id", branchId)
     .eq("shift_date", today)
+    .eq("is_test", false)
     .eq("status", "checked_in");
 
   if (checkinRes.error || !checkinRes.data?.length) return null;
@@ -574,6 +592,7 @@ async function getAssignedDriverNotCheckedInIssue(
     .eq("branch_id", branchId)
     .eq("shift_date", today)
     .eq("status", "checked_in")
+    .eq("is_test", false)
     .in("staff_id", driverIds);
 
   const checkedInIds = new Set((checkins ?? []).map((c) => c.staff_id));

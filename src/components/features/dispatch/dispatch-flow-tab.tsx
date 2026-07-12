@@ -1,83 +1,99 @@
 "use client";
 
-/**
- * DispatchFlowTab — Tab 1
- *
- * Left:  Booking queue — all today's home-service bookings with status badges,
- *        missing-info indicators, and therapist/driver/address snippets.
- * Right: Selected booking panel — readiness checklist + driver recommendation
- *        (via AssignmentRecommendationPanel) when awaiting a driver.
- *
- * No fake data. All values from RealDispatchItem.
- * AssignmentRecommendationPanel is the existing recommendation UI;
- * driver assignment calls the existing assignBookingDriverAction.
- */
-
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Car,
-  User,
-  MapPin,
-  CheckCircle2,
   AlertCircle,
-  ExternalLink,
+  Car,
+  CheckCircle2,
+  Clock,
   Inbox,
+  MapPin,
+  Navigation,
+  UserRound,
 } from "lucide-react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";
-import { getDriverRecommendationsAction } from "@/lib/actions/assignment-recommendations";
-import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
+import { Button } from "@/components/ui/button";
+import { HomeServiceDispatchModal } from "./home-service-dispatch-modal";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
-import type { DispatchStatus } from "@/features/dispatch/types";
-
-// ── Status helpers ─────────────────────────────────────────────────────────────
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
-function statusLabel(s: DispatchStatus): string {
-  switch (s) {
-    case "awaiting_driver":     return "Needs Driver";
-    case "ready":               return "Ready";
-    case "in_route":            return "En Route";
-    case "arrived_at_customer": return "Arrived";
-    case "service_started":     return "In Service";
-    case "completed":           return "Completed";
-    case "cancelled":           return "Cancelled";
+function statusText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function getInitials(name: string): string {
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "HS"
+  );
+}
+
+function statusLabel(status: unknown): string {
+  const s = statusText(status);
+  if (s === "awaiting_driver") return "Needs Driver";
+  if (s === "ready") return "Ready";
+  if (s === "scheduled") return "Scheduled";
+  if (s === "released_to_driver") return "Released";
+  if (s === "in_route") return "En Route";
+  if (s === "arrived_at_customer") return "Arrived";
+  if (s === "service_started") return "In Service";
+  if (s === "completed") return "Completed";
+  if (s === "cancelled") return "Cancelled";
+  return "Needs Setup";
+}
+
+function statusBadge(status: unknown): { variant: BadgeVariant; cls: string } {
+  const s = statusText(status);
+
+  if (s === "awaiting_driver") {
+    return { variant: "outline", cls: "border-amber-400 bg-amber-50 text-amber-700" };
   }
-}
 
-function statusBadgeClass(s: DispatchStatus): { variant: BadgeVariant; cls: string } {
-  switch (s) {
-    case "awaiting_driver":
-      return { variant: "outline", cls: "border-amber-400 text-amber-700 bg-amber-50" };
-    case "ready":
-      return { variant: "outline", cls: "border-blue-400 text-blue-700 bg-blue-50" };
-    case "in_route":
-      return { variant: "outline", cls: "border-purple-400 text-purple-700 bg-purple-50" };
-    case "arrived_at_customer":
-      return { variant: "outline", cls: "border-cyan-400 text-cyan-700 bg-cyan-50" };
-    case "service_started":
-      return { variant: "outline", cls: "border-green-500 text-green-700 bg-green-50" };
-    case "completed":
-      return { variant: "secondary", cls: "text-[var(--cs-text-secondary)]" };
-    case "cancelled":
-      return { variant: "outline", cls: "border-red-300 text-red-600 bg-red-50" };
+  if (s === "ready") {
+    return { variant: "outline", cls: "border-green-300 bg-green-50 text-green-700" };
   }
+
+  if (s === "scheduled") {
+    return { variant: "outline", cls: "border-blue-300 bg-blue-50 text-blue-700" };
+  }
+
+  if (s === "released_to_driver") {
+    return { variant: "outline", cls: "border-purple-300 bg-purple-50 text-purple-700" };
+  }
+
+  if (["in_route", "arrived_at_customer", "service_started"].includes(s)) {
+    return { variant: "outline", cls: "border-emerald-300 bg-emerald-50 text-emerald-700" };
+  }
+
+  if (s === "cancelled") {
+    return { variant: "outline", cls: "border-red-300 bg-red-50 text-red-700" };
+  }
+
+  return { variant: "outline", cls: "border-amber-300 bg-amber-50 text-amber-700" };
 }
 
-function paymentLabel(ps: string): { label: string; cls: string } {
-  if (ps === "paid") return { label: "Paid", cls: "border-green-400 text-green-700 bg-green-50" };
-  if (ps === "pending") return { label: "Payment Pending", cls: "border-amber-400 text-amber-700 bg-amber-50" };
-  if (ps === "unpaid") return { label: "Unpaid", cls: "border-red-300 text-red-600 bg-red-50" };
-  return { label: ps, cls: "border-[var(--cs-border)] text-[var(--cs-text-muted)]" };
+function getReadinessBadges(item: RealDispatchItem): string[] {
+  const badges: string[] = [];
+
+  if (!item.driverId) badges.push("Driver Needed");
+  if (!item.therapistId) badges.push("Therapist Needed");
+  if (item.lat === null || item.lng === null) badges.push("GPS Missing");
+  if (badges.length === 0 && statusText(item.dispatchStatus) === "ready") badges.push("GPS Ready");
+  if (statusText(item.dispatchStatus) === "scheduled") badges.push("Scheduled");
+  if (statusText(item.dispatchStatus) === "released_to_driver") badges.push("Released");
+
+  return badges;
 }
 
-// ── Queue item ─────────────────────────────────────────────────────────────────
-
-function QueueItem({
+function QueueCard({
   item,
   selected,
   onSelect,
@@ -86,364 +102,278 @@ function QueueItem({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const ss = statusBadgeClass(item.dispatchStatus);
-  const hasMissingLocation = !item.formattedAddress || item.needsLocationReview;
-  const isPendingPayment =
-    item.paymentStatus !== "paid" &&
-    item.dispatchStatus !== "completed" &&
-    item.dispatchStatus !== "cancelled";
+  const badge = statusBadge(item.dispatchStatus);
+  const readinessBadges = getReadinessBadges(item);
 
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full rounded-xl border px-4 py-3.5 text-left transition-colors hover:border-[var(--cs-sand)] ${
+      className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:border-[#155A33] hover:shadow-md ${
         selected
-          ? "border-[var(--cs-sand)] bg-[var(--cs-sand-tint)]"
-          : "border-[var(--cs-border)]"
+          ? "border-[#155A33] bg-green-50"
+          : "border-[var(--cs-border)] bg-[var(--cs-surface)]"
       }`}
     >
-      {/* Top row: booking reference + status badges */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span
-              className="font-mono text-xs"
-              style={{ color: "var(--cs-text-muted)" }}
-            >
-              {item.number}
-            </span>
-            <span
-              className="text-xs font-medium"
-              style={{ color: "var(--cs-text-muted)" }}
-            >
-              {formatTime12h(item.startTime)}
-            </span>
-          </div>
-          <p
-            className="mt-0.5 text-sm font-semibold truncate"
-            style={{ color: "var(--cs-text)" }}
-          >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-xs text-[var(--cs-text-muted)]">{item.number}</p>
+          <p className="mt-1 truncate text-base font-bold text-[var(--cs-text)]">
             {item.customerName}
           </p>
-          <p
-            className="text-xs truncate"
-            style={{ color: "var(--cs-text-secondary)" }}
-          >
+          <p className="mt-0.5 truncate text-xs text-[var(--cs-text-secondary)]">
             {item.serviceName}
           </p>
         </div>
 
-        {/* Badges */}
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <Badge variant={ss.variant} className={`text-xs ${ss.cls}`}>
-            {statusLabel(item.dispatchStatus)}
-          </Badge>
-          {hasMissingLocation && (
-            <Badge
-              variant="outline"
-              className="text-xs border-red-300 text-red-600 bg-red-50"
-            >
-              Missing Info
-            </Badge>
-          )}
-          {isPendingPayment && (
-            <Badge
-              variant="outline"
-              className="text-xs border-amber-300 text-amber-600 bg-amber-50"
-            >
-              Unpaid
-            </Badge>
-          )}
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--cs-surface-warm)] text-xs font-bold text-[var(--cs-text-muted)]">
+          {getInitials(item.customerName)}
         </div>
       </div>
 
-      {/* Detail row: address + staff */}
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-        {item.formattedAddress ? (
-          <span
-            className="flex items-center gap-1 text-xs"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            <MapPin className="h-3 w-3 shrink-0" />
-            {item.area ?? item.formattedAddress.slice(0, 38)}
+      <div className="mt-3 space-y-1.5 text-xs text-[var(--cs-text-secondary)]">
+        <div className="flex items-center gap-1.5">
+          <Clock size={13} />
+          <span>
+            {formatTime12h(item.startTime)}
+            {item.endTime ? ` – ${formatTime12h(item.endTime)}` : ""}
           </span>
-        ) : (
-          <span className="flex items-center gap-1 text-xs text-red-500">
-            <MapPin className="h-3 w-3 shrink-0" />
-            No address
+        </div>
+        <div className="flex items-center gap-1.5">
+          <MapPin size={13} />
+          <span className="truncate">
+            {item.area ?? item.formattedAddress ?? "Customer GPS saved"}
           </span>
-        )}
-        {item.therapistName && (
-          <span
-            className="flex items-center gap-1 text-xs"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            <User className="h-3 w-3 shrink-0" />
-            {item.therapistName}
-          </span>
-        )}
-        {item.driverName && (
-          <span
-            className="flex items-center gap-1 text-xs"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            <Car className="h-3 w-3 shrink-0" />
-            {item.driverName}
-          </span>
-        )}
+        </div>
       </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <Badge variant={badge.variant} className={`text-[0.68rem] ${badge.cls}`}>
+          {statusLabel(item.dispatchStatus)}
+        </Badge>
+
+        {readinessBadges.slice(0, 3).map((label) => (
+          <Badge
+            key={label}
+            variant="outline"
+            className={`text-[0.68rem] ${
+              label.includes("Needed") || label.includes("Missing")
+                ? "border-amber-300 bg-amber-50 text-amber-700"
+                : "border-green-200 bg-green-50 text-green-700"
+            }`}
+          >
+            {label}
+          </Badge>
+        ))}
+      </div>
+
     </button>
   );
 }
 
-// ── Readiness row ─────────────────────────────────────────────────────────────
-
-function ReadinessRow({
-  status,
-  label,
-  children,
+function Column({
+  title,
+  items,
+  selectedId,
+  onSelect,
 }: {
-  status: "ok" | "warn" | "missing";
-  label: string;
-  children: React.ReactNode;
+  title: string;
+  items: RealDispatchItem[];
+  selectedId: string | null;
+  onSelect: (item: RealDispatchItem) => void;
 }) {
-  const iconEl =
-    status === "ok" ? (
-      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
-    ) : status === "warn" ? (
-      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-    ) : (
-      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
-    );
-
   return (
-    <div className="flex items-center gap-2 border-b border-[var(--cs-border-soft)] py-1.5 last:border-0">
-      {iconEl}
-      <span
-        className="w-20 shrink-0 text-xs font-medium"
-        style={{ color: "var(--cs-text-muted)" }}
-      >
-        {label}
-      </span>
-      <span className="text-xs" style={{ color: "var(--cs-text-secondary)" }}>
-        {children}
-      </span>
+    <div className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="font-bold text-[var(--cs-text)]">{title}</h3>
+        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-[var(--cs-text-muted)] shadow-sm">
+          {items.length}
+        </span>
+      </div>
+
+      <div className="min-h-[430px] space-y-3">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <QueueCard
+              key={item.id}
+              item={item}
+              selected={selectedId === item.id}
+              onSelect={() => onSelect(item)}
+            />
+          ))
+        ) : (
+          <div className="flex min-h-[115px] items-center justify-center rounded-2xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] px-4 text-center text-sm text-[var(--cs-text-muted)]">
+            No bookings here yet
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Selected booking panel ─────────────────────────────────────────────────────
+function DetailTile({
+  icon,
+  label,
+  value,
+  warning,
+  action,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  warning?: boolean;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4">
+      <div className="flex items-start gap-3">
+        <div className={warning ? "text-amber-600" : "text-[var(--cs-text-muted)]"}>{icon}</div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+            {label}
+          </p>
+          <p
+            className={`mt-1 truncate text-sm font-bold ${
+              warning ? "text-amber-700" : "text-[var(--cs-text)]"
+            }`}
+            title={value}
+          >
+            {value}
+          </p>
+          {action ? <div className="mt-2">{action}</div> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChecklistItem({
+  ok,
+  label,
+}: {
+  ok: boolean;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {ok ? (
+        <CheckCircle2 size={16} className="text-emerald-600" />
+      ) : (
+        <AlertCircle size={16} className="text-amber-600" />
+      )}
+      <span className={ok ? "text-[var(--cs-text)]" : "text-amber-700"}>{label}</span>
+    </div>
+  );
+}
 
 function SelectedBookingPanel({
   item,
-  onRefresh,
+  onPrepare,
 }: {
   item: RealDispatchItem;
-  onRefresh: () => void;
+  onPrepare: () => void;
 }) {
-  const hasAddress = !!item.formattedAddress && !item.needsLocationReview;
-  const hasCoords = item.lat !== null && item.lng !== null;
-  const pb = paymentLabel(item.paymentStatus);
+  const badge = statusBadge(item.dispatchStatus);
+  const hasGps = item.lat !== null && item.lng !== null;
+  const hasDriver = Boolean(item.driverId);
+  const hasTherapist = Boolean(item.therapistId);
+  const dispatchOk = hasGps && hasDriver && hasTherapist;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Header */}
-      <div>
-        <div className="flex items-center justify-between gap-2">
-          <h3
-            className="text-base font-semibold"
-            style={{ color: "var(--cs-text)" }}
-          >
-            {item.customerName}
-          </h3>
-          <span
-            className="font-mono text-xs"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            {item.number}
-          </span>
-        </div>
-        <p
-          className="mt-0.5 text-sm"
-          style={{ color: "var(--cs-text-secondary)" }}
-        >
-          {item.serviceName}
-          {" · "}
-          {formatTime12h(item.startTime)}
-          {item.endTime ? ` – ${formatTime12h(item.endTime)}` : ""}
-        </p>
-        {item.formattedAddress && (
-          <p
-            className="mt-0.5 flex items-center gap-1 text-xs"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            <MapPin className="h-3 w-3 shrink-0" />
-            {item.formattedAddress}
+    <aside className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-mono text-xs text-[var(--cs-text-muted)]">{item.number}</p>
+          <h2 className="mt-1 text-2xl font-bold text-[var(--cs-text)]">{item.customerName}</h2>
+          <p className="mt-1 text-sm text-[var(--cs-text-secondary)]">
+            {item.serviceName} · {formatTime12h(item.startTime)}
+            {item.endTime ? ` – ${formatTime12h(item.endTime)}` : ""}
           </p>
-        )}
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+            <MapPin size={13} />
+            {item.area ?? item.formattedAddress ?? "Customer GPS saved"}
+          </p>
+        </div>
+
+        <Badge variant={badge.variant} className={badge.cls}>
+          {statusLabel(item.dispatchStatus)}
+        </Badge>
       </div>
 
-      {/* Readiness checklist */}
-      <div>
-        <p
-          className="mb-2 text-xs font-semibold uppercase tracking-wide"
-          style={{ color: "var(--cs-text-muted)" }}
-        >
-          Dispatch Readiness
+      <div className="grid gap-3 sm:grid-cols-2">
+        <DetailTile
+          icon={<UserRound size={17} />}
+          label="Therapist"
+          value={item.therapistName ?? "Not assigned"}
+          warning={!hasTherapist}
+        />
+        <DetailTile
+          icon={<Car size={17} />}
+          label="Driver"
+          value={item.driverName ?? "Not assigned"}
+          warning={!hasDriver}
+          action={
+            !hasDriver ? (
+              <span className="inline-flex rounded-lg border border-[var(--cs-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--cs-text-secondary)]">
+                Assign in dispatch
+              </span>
+            ) : null
+          }
+        />
+        <DetailTile
+          icon={<MapPin size={17} />}
+          label="GPS Status"
+          value={hasGps ? "Coordinates ready" : "GPS location missing"}
+          warning={!hasGps}
+        />
+        <DetailTile
+          icon={<Clock size={17} />}
+          label="ETA"
+          value={item.etaMinutes ? `${item.etaMinutes} min` : "Will use default ETA"}
+        />
+      </div>
+
+      <div className="mt-4 rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-4">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+          Dispatch Checklist
         </p>
-        <div
-          className="rounded-lg px-3 py-1"
-          style={{ border: "1px solid var(--cs-border-soft)" }}
-        >
-          <ReadinessRow
-            status={item.therapistName ? "ok" : "missing"}
-            label="Therapist"
-          >
-            {item.therapistName ?? "Not assigned"}
-          </ReadinessRow>
-          <ReadinessRow
-            status={item.driverName ? "ok" : "missing"}
-            label="Driver"
-          >
-            {item.driverName ?? "Not assigned"}
-          </ReadinessRow>
-          <ReadinessRow
-            status={hasAddress ? "ok" : "missing"}
-            label="Address"
-          >
-            {hasAddress
-              ? (item.area ?? item.formattedAddress ?? "Address confirmed")
-              : item.needsLocationReview
-              ? "Needs review"
-              : "Missing address"}
-          </ReadinessRow>
-          <ReadinessRow status={hasCoords ? "ok" : "warn"} label="GPS">
-            {hasCoords ? "Coordinates ready" : "No coordinates"}
-          </ReadinessRow>
-          <div className="flex items-center gap-2 py-1.5">
-            <span
-              className="w-20 shrink-0 text-xs font-medium"
-              style={{ color: "var(--cs-text-muted)" }}
-            >
-              Payment
-            </span>
-            <Badge
-              variant="outline"
-              className={`text-xs ${pb.cls}`}
-            >
-              {pb.label}
-            </Badge>
-          </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <ChecklistItem ok={hasDriver} label="Driver assigned" />
+          <ChecklistItem ok={hasTherapist} label="Therapist confirmed" />
+          <ChecklistItem ok={hasGps} label="GPS location ready" />
+          <ChecklistItem ok={dispatchOk} label="Dispatch OK" />
         </div>
       </div>
 
-      {/* Current progress timestamps (if trip has started) */}
-      {(item.travelStartedAt ||
-        item.arrivedAt ||
-        item.sessionStartedAt ||
-        item.completedAt) && (
-        <div>
-          <p
-            className="mb-2 text-xs font-semibold uppercase tracking-wide"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            Trip Timeline
-          </p>
-          <div className="space-y-1">
-            {item.travelStartedAt && (
-              <p className="text-xs" style={{ color: "var(--cs-text-secondary)" }}>
-                <span style={{ color: "var(--cs-text-muted)" }}>Travel started: </span>
-                {new Date(item.travelStartedAt).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-            )}
-            {item.arrivedAt && (
-              <p className="text-xs" style={{ color: "var(--cs-text-secondary)" }}>
-                <span style={{ color: "var(--cs-text-muted)" }}>Arrived: </span>
-                {new Date(item.arrivedAt).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-            )}
-            {item.sessionStartedAt && (
-              <p className="text-xs" style={{ color: "var(--cs-text-secondary)" }}>
-                <span style={{ color: "var(--cs-text-muted)" }}>Session started: </span>
-                {new Date(item.sessionStartedAt).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-            )}
-            {item.completedAt && (
-              <p className="text-xs" style={{ color: "var(--cs-text-secondary)" }}>
-                <span style={{ color: "var(--cs-text-muted)" }}>Completed: </span>
-                {new Date(item.completedAt).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      <div className="mt-4 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-4 py-3 text-sm text-[var(--cs-text-secondary)]">
+        <span className="font-semibold text-[var(--cs-text)]">CRM can prepare dispatch early.</span>{" "}
+        Driver sees it only when released.
+      </div>
 
-      {/* Driver assignment panel (awaiting driver only) */}
-      {item.dispatchStatus === "awaiting_driver" && (
-        <div>
-          <p
-            className="mb-2 text-xs font-semibold uppercase tracking-wide"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            Driver Assignment
-          </p>
-          <AssignmentRecommendationPanel
-            bookingId={item.id}
-            fetchRecommendations={getDriverRecommendationsAction}
-            onAssignDriver={async (driverId) => {
-              await assignBookingDriverAction({ bookingId: item.id, driverId });
-              onRefresh();
-            }}
-            currentDriverId={item.driverId}
-            showTherapists={false}
-            showDrivers={true}
-          />
-        </div>
-      )}
-
-      {/* No dispatch-confirm action exists yet — honest state */}
-      {item.dispatchStatus === "ready" && (
-        <div
-          className="rounded-lg px-3 py-2.5 text-xs"
-          style={{
-            background: "var(--cs-surface-warm)",
-            border: "1px solid var(--cs-border-soft)",
-            color: "var(--cs-text-muted)",
-          }}
-        >
-          This booking is ready to dispatch. Driver and therapist are assigned.
-          Dispatch confirmation and trip start are handled by the driver via the
-          Driver Portal.
-        </div>
-      )}
-
-      {/* View booking link */}
-      <Link
-        href="/crm/bookings"
-        className="flex items-center gap-1.5 text-xs font-medium"
-        style={{ color: "var(--cs-sand)", textDecoration: "none" }}
+      <Button
+        type="button"
+        onClick={onPrepare}
+        className="mt-4 h-12 w-full rounded-2xl bg-[#155A33] text-base font-bold text-white hover:bg-[#104728]"
       >
-        <ExternalLink className="h-3.5 w-3.5" />
-        View in Bookings
-      </Link>
-    </div>
+        <Navigation size={18} />
+        Prepare Dispatch
+      </Button>
+    </aside>
   );
 }
 
-// ── Main tab ───────────────────────────────────────────────────────────────────
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] p-10 text-center">
+      <Inbox className="mb-3 text-[var(--cs-text-muted)]" size={34} />
+      <h3 className="font-bold text-[var(--cs-text)]">No home-service bookings</h3>
+      <p className="mt-1 max-w-sm text-sm text-[var(--cs-text-muted)]">
+        Home-service bookings for this date will appear here for dispatch preparation.
+      </p>
+    </div>
+  );
+}
 
 export function DispatchFlowTab({
   data,
@@ -452,120 +382,117 @@ export function DispatchFlowTab({
   role: string;
 }) {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<string>(
-    data.items[0]?.id ?? ""
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(data.items[0]?.id ?? null);
+  const [modalItem, setModalItem] = useState<RealDispatchItem | null>(null);
 
-  const selectedItem =
-    data.items.find((i) => i.id === selectedId) ?? null;
+  const groups = useMemo(() => {
+    const needsSetup = data.items.filter((item) => {
+      const s = statusText(item.dispatchStatus);
+      return (
+        s === "awaiting_driver" ||
+        !item.driverId ||
+        !item.therapistId ||
+        item.lat === null ||
+        item.lng === null
+      );
+    });
 
-  const activeItems = data.items.filter(
-    (i) =>
-      i.dispatchStatus !== "completed" && i.dispatchStatus !== "cancelled"
-  );
-  const doneItems = data.items.filter(
-    (i) =>
-      i.dispatchStatus === "completed" || i.dispatchStatus === "cancelled"
-  );
+    const ready = data.items.filter((item) => {
+      const s = statusText(item.dispatchStatus);
+      return (
+        s === "ready" &&
+        item.driverId &&
+        item.therapistId &&
+        item.lat !== null &&
+        item.lng !== null
+      );
+    });
+
+    const scheduled = data.items.filter((item) => statusText(item.dispatchStatus) === "scheduled");
+
+    const released = data.items.filter((item) =>
+      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(
+        statusText(item.dispatchStatus)
+      )
+    );
+
+    return { needsSetup, ready, scheduled, released };
+  }, [data.items]);
+
+  const selected =
+    data.items.find((item) => item.id === selectedId) ??
+    data.items[0] ??
+    null;
 
   if (data.items.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <CheckCircle2
-          className="h-8 w-8"
-          style={{ color: "var(--cs-text-muted)" }}
-        />
-        <p className="text-sm" style={{ color: "var(--cs-text-secondary)" }}>
-          No home-service bookings scheduled for today.
-        </p>
-      </div>
-    );
+    return <EmptyState />;
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
-      {/* ── Left: Booking queue (2/5) ── */}
-      <div className="space-y-4 lg:col-span-2">
-        <div className="flex items-center justify-between">
-          <h2
-            className="text-sm font-semibold"
-            style={{ color: "var(--cs-text)" }}
-          >
-            Booking Queue
-          </h2>
-          <span
-            className="text-xs"
-            style={{ color: "var(--cs-text-muted)" }}
-          >
-            {activeItems.length} active{" "}
-            {doneItems.length > 0 ? `· ${doneItems.length} done` : ""}
-          </span>
+    <>
+      <section className="rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
+        <div className="mb-5 flex flex-col gap-3 border-b border-[var(--cs-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--cs-text)]">Dispatch Queue</h2>
+            <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
+              Drag-and-drop style workflow for driver, therapist, GPS, and timed release.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+              {data.items.length} home-service booking{data.items.length === 1 ? "" : "s"}
+            </span>
+          </div>
         </div>
 
-        {/* Active */}
-        {activeItems.length > 0 && (
-          <div className="space-y-2">
-            {activeItems.map((item) => (
-              <QueueItem
-                key={item.id}
-                item={item}
-                selected={selectedId === item.id}
-                onSelect={() => setSelectedId(item.id)}
-              />
-            ))}
+        <div className="grid gap-4 xl:grid-cols-[1.4fr_0.95fr]">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Column
+              title="Needs Setup"
+              items={groups.needsSetup}
+              selectedId={selected?.id ?? null}
+              onSelect={(item) => setSelectedId(item.id)}
+            />
+            <Column
+              title="Ready"
+              items={groups.ready}
+              selectedId={selected?.id ?? null}
+              onSelect={(item) => setSelectedId(item.id)}
+            />
+            <Column
+              title="Scheduled"
+              items={groups.scheduled}
+              selectedId={selected?.id ?? null}
+              onSelect={(item) => setSelectedId(item.id)}
+            />
+            <Column
+              title="Released"
+              items={groups.released}
+              selectedId={selected?.id ?? null}
+              onSelect={(item) => setSelectedId(item.id)}
+            />
           </div>
-        )}
 
-        {/* Completed / Cancelled */}
-        {doneItems.length > 0 && (
-          <div className="space-y-2">
-            <p
-              className="text-xs font-semibold"
-              style={{ color: "var(--cs-text-muted)" }}
-            >
-              Completed / Cancelled
-            </p>
-            <div className="space-y-1.5 opacity-60">
-              {doneItems.map((item) => (
-                <QueueItem
-                  key={item.id}
-                  item={item}
-                  selected={selectedId === item.id}
-                  onSelect={() => setSelectedId(item.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Right: Selected booking panel (3/5) ── */}
-      <div className="lg:col-span-3">
-        {selectedItem ? (
-          <div className="cs-card p-5">
+          {selected ? (
             <SelectedBookingPanel
-              item={selectedItem}
-              onRefresh={() => router.refresh()}
+              item={selected}
+              onPrepare={() => setModalItem(selected)}
             />
-          </div>
-        ) : (
-          <div
-            className="flex flex-col items-center gap-3 py-16 text-center"
-            style={{
-              border: "1px dashed var(--cs-border)",
-              borderRadius: "var(--cs-r-lg)",
-            }}
-          >
-            <Inbox
-              className="h-7 w-7"
-              style={{ color: "var(--cs-text-muted)" }}
-            />
-            <p className="text-sm" style={{ color: "var(--cs-text-muted)" }}>
-              Select a booking from the queue to see details
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+          ) : (
+            <EmptyState />
+          )}
+        </div>
+      </section>
+
+      <HomeServiceDispatchModal
+        open={Boolean(modalItem)}
+        item={modalItem}
+        onOpenChange={(open) => {
+          if (!open) setModalItem(null);
+        }}
+        onChanged={() => router.refresh()}
+      />
+    </>
   );
 }

@@ -6,6 +6,13 @@ import {
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
+import {
+  doesDurationFitWithinScheduleWindow,
+  resolveScheduleForStaffDay,
+  type IndividualScheduleSourceRow,
+  type ResolvedStaffSchedule,
+  type ScheduleOverrideSourceRow,
+} from "@/lib/schedule/resolve-staff-schedule";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -50,13 +57,14 @@ export type ScheduleForScoring = {
   start_time: string;
   end_time: string;
   is_active: boolean;
-  shift_type: string;
+  shift_type: string | null;
 };
 
 export type OverrideForScoring = {
   staff_id: string;
   override_date: string;
   is_day_off: boolean;
+  shift_type: string | null;
   start_time: string | null;
   end_time: string | null;
 };
@@ -80,6 +88,7 @@ export type CheckinForScoring = {
 };
 
 export type ConflictBooking = {
+  booking_id?: string;
   staff_id: string;
   start_time: string;
   end_time: string;
@@ -181,48 +190,6 @@ function workloadToday(staffId: string, existingBookings: ConflictBooking[]): nu
   return existingBookings.filter((b) => b.staff_id === staffId).length;
 }
 
-function hasScheduleForDay(
-  staffId: string,
-  dayOfWeek: number,
-  schedules: ScheduleForScoring[]
-): boolean {
-  return schedules.some(
-    (s) => s.staff_id === staffId && s.day_of_week === dayOfWeek && s.is_active
-  );
-}
-
-function isInsideShift(
-  staffId: string,
-  dayOfWeek: number,
-  bookingStart: string,
-  bookingEnd: string,
-  schedules: ScheduleForScoring[]
-): boolean {
-  const staffSchedules = schedules.filter(
-    (s) => s.staff_id === staffId && s.day_of_week === dayOfWeek && s.is_active
-  );
-  if (staffSchedules.length === 0) return false;
-
-  const bookingStartMin = timeToMinutes(bookingStart);
-  const bookingEndMin = timeToMinutes(bookingEnd);
-
-  return staffSchedules.some((s) => {
-    const shiftStart = timeToMinutes(s.start_time);
-    const shiftEnd = timeToMinutes(s.end_time);
-    return bookingStartMin >= shiftStart && bookingEndMin <= shiftEnd;
-  });
-}
-
-function hasDayOff(
-  staffId: string,
-  bookingDate: string,
-  overrides: OverrideForScoring[]
-): boolean {
-  return overrides.some(
-    (o) => o.staff_id === staffId && o.override_date === bookingDate && o.is_day_off
-  );
-}
-
 function hasBlockedTime(
   staffId: string,
   bookingDate: string,
@@ -238,6 +205,61 @@ function hasBlockedTime(
   );
 }
 
+function bookingDurationMinutes(startTime: string, endTime: string): number {
+  const start = timeToMinutes(startTime);
+  let end = timeToMinutes(endTime);
+  if (start === null || end === null) return 1;
+  if (end <= start) end += 24 * 60;
+  return Math.max(1, end - start);
+}
+
+function resolveScoringSchedule(
+  staffId: string,
+  dayOfWeek: number,
+  ctx: RecommendationContext
+): ResolvedStaffSchedule {
+  const override = ctx.overrides.find(
+    (candidate) => candidate.staff_id === staffId && candidate.override_date === ctx.bookingDate
+  );
+  const individualRows: IndividualScheduleSourceRow[] = ctx.schedules
+    .filter((schedule) => schedule.staff_id === staffId && schedule.day_of_week === dayOfWeek)
+    .map((schedule) => ({
+      shift_type: schedule.shift_type,
+      start_time: schedule.start_time,
+      end_time: schedule.end_time,
+      is_active: schedule.is_active,
+    }));
+  const scheduleOverride: ScheduleOverrideSourceRow = override
+    ? {
+        is_day_off: override.is_day_off,
+        shift_type: override.shift_type,
+        start_time: override.start_time,
+        end_time: override.end_time,
+      }
+    : null;
+
+  return resolveScheduleForStaffDay({
+    override: scheduleOverride,
+    individualRows,
+    groupRules: [],
+  });
+}
+
+function bookingFitsResolvedSchedule(
+  schedule: ResolvedStaffSchedule,
+  ctx: RecommendationContext
+): boolean {
+  if (schedule.status !== "resolved") return false;
+  const durationMinutes = bookingDurationMinutes(ctx.bookingStartTime, ctx.bookingEndTime);
+  return schedule.windows.some((window) =>
+    doesDurationFitWithinScheduleWindow({
+      slotStartTime: ctx.bookingStartTime,
+      durationMinutes,
+      window,
+    })
+  );
+}
+
 function hasBookingConflict(
   staffId: string,
   bookingStart: string,
@@ -250,6 +272,13 @@ function hasBookingConflict(
       !["cancelled", "no_show"].includes(b.status) &&
       timesOverlap(b.start_time, b.end_time, bookingStart, bookingEnd)
   );
+}
+
+function getStaffPreference(
+  staffId: string,
+  preferences: StaffPreference[]
+): StaffPreference | undefined {
+  return preferences.find((preference) => preference.staff_id === staffId);
 }
 
 function isCheckedInToday(
@@ -389,6 +418,7 @@ function scoreTherapist(
   const warnings: string[] = [];
   let score = 0;
   const dayOfWeek = dayOfWeekFromYmd(ctx.bookingDate);
+  const scheduleResolution = resolveScoringSchedule(staff.id, dayOfWeek, ctx);
 
   // Active check
   if (!staff.is_active) {
@@ -443,18 +473,29 @@ function scoreTherapist(
     warnings.push("Does not offer this service");
   }
 
-  // Schedule presence
-  const hasSchedule = hasScheduleForDay(staff.id, dayOfWeek, ctx.schedules);
-  if (!hasSchedule) {
-    score += SCORE.noSchedule;
-    warnings.push("No schedule for this day");
+  if (ctx.isHomeService) {
+    const preference = getStaffPreference(staff.id, ctx.preferences);
+    if (preference?.can_do_home_service === false) {
+      warnings.push("Not eligible for home service");
+    } else if (preference?.can_do_home_service === true) {
+      reasons.push("Home-service eligible");
+    }
   }
 
-  // Day off override
-  const dayOff = hasDayOff(staff.id, ctx.bookingDate, ctx.overrides);
-  if (dayOff) {
+  // Schedule presence
+  if (scheduleResolution.status === "conflict") {
+    score += SCORE.activeConflict;
+    warnings.push("Schedule has conflicting windows");
+  } else if (scheduleResolution.status === "missing") {
+    score += SCORE.noSchedule;
+    warnings.push("No schedule for this day");
+  } else if (scheduleResolution.status === "day_off") {
     score += SCORE.dayOff;
-    warnings.push("Day-off override on this date");
+    warnings.push(
+      scheduleResolution.source === "override"
+        ? "Day-off override on this date"
+        : "Day off for this day"
+    );
   }
 
   // Blocked time
@@ -471,17 +512,11 @@ function scoreTherapist(
   }
 
   // Inside active shift
-  const insideShift = isInsideShift(
-    staff.id,
-    dayOfWeek,
-    ctx.bookingStartTime,
-    ctx.bookingEndTime,
-    ctx.schedules
-  );
+  const insideShift = bookingFitsResolvedSchedule(scheduleResolution, ctx);
   if (insideShift) {
     score += SCORE.insideShift;
     reasons.push("Inside active shift");
-  } else if (hasSchedule) {
+  } else if (scheduleResolution.status === "resolved") {
     warnings.push("Booking extends outside shift hours");
   }
 
@@ -521,6 +556,7 @@ function scoreDriver(
   const warnings: string[] = [];
   let score = 0;
   const dayOfWeek = dayOfWeekFromYmd(ctx.bookingDate);
+  const scheduleResolution = resolveScoringSchedule(staff.id, dayOfWeek, ctx);
 
   // Active check
   if (!staff.is_active) {
@@ -566,17 +602,19 @@ function scoreDriver(
   }
 
   // Schedule presence
-  const hasSchedule = hasScheduleForDay(staff.id, dayOfWeek, ctx.schedules);
-  if (!hasSchedule) {
+  if (scheduleResolution.status === "conflict") {
+    score += SCORE.activeConflict;
+    warnings.push("Schedule has conflicting windows");
+  } else if (scheduleResolution.status === "missing") {
     score += SCORE.noSchedule;
     warnings.push("No schedule for this day");
-  }
-
-  // Day off override
-  const dayOff = hasDayOff(staff.id, ctx.bookingDate, ctx.overrides);
-  if (dayOff) {
+  } else if (scheduleResolution.status === "day_off") {
     score += SCORE.dayOff;
-    warnings.push("Day-off override on this date");
+    warnings.push(
+      scheduleResolution.source === "override"
+        ? "Day-off override on this date"
+        : "Day off for this day"
+    );
   }
 
   // Blocked time
@@ -593,17 +631,11 @@ function scoreDriver(
   }
 
   // Inside active shift
-  const insideShift = isInsideShift(
-    staff.id,
-    dayOfWeek,
-    ctx.bookingStartTime,
-    ctx.bookingEndTime,
-    ctx.schedules
-  );
+  const insideShift = bookingFitsResolvedSchedule(scheduleResolution, ctx);
   if (insideShift) {
     score += SCORE.insideShift;
     reasons.push("Inside active shift");
-  } else if (hasSchedule) {
+  } else if (scheduleResolution.status === "resolved") {
     warnings.push("Dispatch extends outside shift hours");
   }
 
@@ -636,7 +668,19 @@ function buildResult(
 
   // If there are critical warnings, cap status
   const criticalWarnings = warnings.filter((w) =>
-    ["Does not offer this service", "Not a driver", "Staff is inactive"].includes(w)
+    [
+      "Blocked during booking window",
+      "Booking extends outside shift hours",
+      "Day off for this day",
+      "Day-off override on this date",
+      "Does not offer this service",
+      "Has overlapping booking",
+      "No schedule for this day",
+      "Not a driver",
+      "Not eligible for home service",
+      "Schedule has conflicting windows",
+      "Staff is inactive",
+    ].includes(w)
   );
   if (criticalWarnings.length > 0) {
     status = "unavailable";

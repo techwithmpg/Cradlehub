@@ -1,5 +1,6 @@
 import { CalendarDays, ClipboardCheck, ShieldCheck, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ContextChip } from "@/components/features/attendance/attendance-ui";
 import type { AttendanceTab } from "@/lib/attendance/types";
 
 export function AttendanceHeader({
@@ -20,7 +21,7 @@ export function AttendanceHeader({
   }).format(new Date(nowMs));
 
   return (
-    <header className="grid gap-4">
+    <header className="grid gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="m-0 text-2xl font-bold tracking-normal text-foreground">Attendance</h1>
@@ -40,20 +41,18 @@ export function AttendanceHeader({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold"
+        <ContextChip
+          ariaLabel={`Attendance branch: ${branchName}`}
+          icon={<ClipboardCheck className="size-4" />}
         >
-          <ClipboardCheck className="size-4" />
           {branchName}
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold"
+        </ContextChip>
+        <ContextChip
+          ariaLabel={`Attendance date: ${today}`}
+          icon={<CalendarDays className="size-4" />}
         >
-          <CalendarDays className="size-4" />
           {today}
-        </button>
+        </ContextChip>
       </div>
     </header>
   );

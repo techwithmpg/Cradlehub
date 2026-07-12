@@ -49,7 +49,10 @@ export function WorkspaceBreadcrumb({ role }: { role: string }) {
   const accent = ROLE_ACCENT[canonicalRole] ?? "var(--cs-sand)";
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 40 }} className="md:pl-0">
+    <div
+      style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto", paddingLeft: 40 }}
+      className="md:pl-0"
+    >
       <div
         style={{
           width: 6,
@@ -65,14 +68,20 @@ export function WorkspaceBreadcrumb({ role }: { role: string }) {
           fontWeight: 500,
           color: "var(--cs-text)",
           fontFamily: "var(--cs-font-body)",
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
         {workspaceLabel}
       </span>
       <span
+        className="hidden lg:inline"
         style={{
           fontSize: 11,
           color: "var(--cs-text-muted)",
+          whiteSpace: "nowrap",
         }}
       >
         · {roleLabel}

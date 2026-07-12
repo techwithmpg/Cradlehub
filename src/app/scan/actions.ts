@@ -175,7 +175,13 @@ function validateFirstTimeScanLogin(input: FirstTimeScanLoginInput): {
 
 function revalidatePublicScanResult(result: PublicScanResult): void {
   if (result.scanEventId || result.attendance || result.countdown || result.reasonCode === "device_restored") {
-    revalidateAttendanceSurfaces();
+    revalidateAttendanceSurfaces({
+      includeOperationalReadiness: Boolean(
+        result.attendance ||
+          result.countdown ||
+          result.reasonCode === "device_restored"
+      ),
+    });
   }
 }
 

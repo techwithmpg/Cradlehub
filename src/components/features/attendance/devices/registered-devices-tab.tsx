@@ -178,10 +178,10 @@ export function RegisteredDevicesTab({
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-stone-950">Device Registry and Recovery Center</h2>
-          <p className="text-sm text-stone-500">Manage trusted staff devices and one-time recovery links.</p>
+          <h2 className="text-xl font-bold text-foreground">Device Registry and Recovery Center</h2>
+          <p className="text-sm text-muted-foreground">Manage trusted staff devices and one-time recovery links.</p>
         </div>
-        <Button type="button" className="bg-[#9A6A3A] text-white hover:bg-[#82572F]" onClick={() => setRecoveryEntry(selectedEntry)}>
+        <Button type="button" onClick={() => setRecoveryEntry(selectedEntry)}>
           <Plus data-icon="inline-start" />
           Generate recovery link
         </Button>

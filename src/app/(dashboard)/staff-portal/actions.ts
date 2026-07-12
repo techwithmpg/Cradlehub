@@ -106,6 +106,15 @@ function isMissingStaffProfileColumnError(message: string): boolean {
   );
 }
 
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function getStaffBranchName(staff: StaffPortalStaff): string | null {
+  return firstRelation(staff.branches)?.name ?? null;
+}
+
 // ── Resolve authenticated staff record ────────────────────────────────────
 async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   const supabase = await createClient();
@@ -995,6 +1004,8 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
     return Array.isArray(v) ? (v[0] ?? null) : v;
   }
 
+  const staffBranchName = getStaffBranchName(me);
+
   function toDispatchItem(b: RawRow, idx: number): RealDispatchItem {
     const meta = b.metadata as Record<string, unknown> | null;
     const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
@@ -1028,6 +1039,9 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
       formattedAddress: typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
       lat: lat !== null && !isNaN(lat) ? lat : null,
       lng: lng !== null && !isNaN(lng) ? lng : null,
+      branchName: staffBranchName,
+      branchLat: null,
+      branchLng: null,
       needsLocationReview: false,
       driverId,
       driverName: null,
@@ -1107,6 +1121,7 @@ export async function getMyDriverJobByIdAction(bookingId: string): Promise<Drive
 
   const progressStatus = row.booking_progress_status ?? null;
   const driverId = row.driver_id ?? null;
+  const branchName = getStaffBranchName(me);
   let dispatchStatus: import("@/features/dispatch/types").DispatchStatus = "ready";
   if (row.status === "cancelled" || row.status === "no_show") dispatchStatus = "cancelled";
   else if (row.status === "completed" || progressStatus === "completed") dispatchStatus = "completed";
@@ -1127,6 +1142,9 @@ export async function getMyDriverJobByIdAction(bookingId: string): Promise<Drive
     formattedAddress: typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
     lat: lat !== null && !isNaN(lat) ? lat : null,
     lng: lng !== null && !isNaN(lng) ? lng : null,
+    branchName,
+    branchLat: null,
+    branchLng: null,
     needsLocationReview: false,
     driverId,
     driverName: null,

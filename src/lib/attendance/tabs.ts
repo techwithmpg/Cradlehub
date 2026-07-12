@@ -27,3 +27,11 @@ export function attendanceTabHref(
   if (options.branchId) params.set("branchId", options.branchId);
   return `${options.basePath ?? "/crm/attendance"}?${params.toString()}`;
 }
+
+export function attendanceTabId(tab: AttendanceTab): string {
+  return `attendance-tab-${tab}`;
+}
+
+export function attendanceTabPanelId(tab: AttendanceTab): string {
+  return `attendance-panel-${tab}`;
+}

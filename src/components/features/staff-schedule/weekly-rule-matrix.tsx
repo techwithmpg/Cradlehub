@@ -31,6 +31,8 @@ export function WeeklyRuleMatrix({
   basePattern,
   onToggle,
 }: WeeklyRuleMatrixProps) {
+  const showSplitShift = visibleKinds.length > 1;
+
   return (
     <section className="rounded-2xl border border-stone-200 bg-white/80 p-5 shadow-sm">
       <div className="mb-5 flex items-start gap-3">
@@ -44,14 +46,15 @@ export function WeeklyRuleMatrix({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[520px]">
-          <div className="grid grid-cols-[minmax(110px,1fr)_repeat(3,132px)] gap-3 border-b border-stone-200 pb-3 text-xs font-bold uppercase tracking-wide text-stone-500 data-[mode=regular]:grid-cols-[minmax(110px,1fr)_repeat(2,150px)]" data-mode={visibleKinds.length === 1 ? "regular" : "split"}>
+        <div className="min-w-[640px] data-[mode=regular]:min-w-[520px]" data-mode={showSplitShift ? "split" : "regular"}>
+          <div className="grid grid-cols-[minmax(110px,1fr)_repeat(4,124px)] gap-3 border-b border-stone-200 pb-3 text-xs font-bold uppercase tracking-wide text-stone-500 data-[mode=regular]:grid-cols-[minmax(110px,1fr)_repeat(2,150px)]" data-mode={showSplitShift ? "split" : "regular"}>
             <div>Day</div>
             {visibleKinds.map((kind) => (
               <div key={kind} className="text-center">
                 {shiftLabel(kind)}
               </div>
             ))}
+            {showSplitShift ? <div className="text-center">Split Shift</div> : null}
             <div className="text-center">Day Off</div>
           </div>
 
@@ -61,6 +64,7 @@ export function WeeklyRuleMatrix({
               closing: false,
               regular: false,
               dayOff: false,
+              splitShift: false,
             };
             const baseRow = basePattern?.[day.dow];
 

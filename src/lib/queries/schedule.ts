@@ -2,7 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import {
   getScheduleWindowSpan,
+  type ResolvedStaffScheduleConflictCode,
   type ResolvedStaffScheduleSource,
+  type ResolvedStaffScheduleStatus,
   type ResolvedStaffScheduleWindow,
 } from "@/lib/schedule/resolve-staff-schedule";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -47,8 +49,11 @@ export type DailyScheduleStaffRow = {
   work_end: string | null;
   current_override: DailyScheduleOverride | null;
   schedule_source: ResolvedStaffScheduleSource;
+  schedule_status: ResolvedStaffScheduleStatus;
   schedule_is_day_off: boolean;
   schedule_windows: ResolvedStaffScheduleWindow[];
+  schedule_conflict_code: ResolvedStaffScheduleConflictCode | null;
+  schedule_conflict_reason: string | null;
   bookings: DailyScheduleBooking[];
   blocks: DailyScheduleBlock[];
 };
@@ -175,8 +180,11 @@ export async function getDailySchedule(params: {
       work_end: span?.endTime ?? null,
       current_override: overridesByStaff.get(r.staff_id) ?? null,
       schedule_source: resolved?.source ?? "none",
+      schedule_status: resolved?.status ?? "missing",
       schedule_is_day_off: resolved?.isDayOff ?? false,
       schedule_windows: resolved?.windows ?? [],
+      schedule_conflict_code: resolved?.conflictCode ?? null,
+      schedule_conflict_reason: resolved?.conflictReason ?? null,
       bookings: (r.bookings as DailyScheduleBooking[] | null) ?? [],
       blocks:
         blocksByStaff.get(r.staff_id) ??

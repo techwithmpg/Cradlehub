@@ -1,6 +1,81 @@
 # HANDOFF - Next Agent Session
 
+## Current Task - 2026-07-12
+
+ATTENDANCE-AUTONOMY-HARDENING-001 has a continuation checkpoint: the main interpreted scan commit RPC and selected-record reset RPC are implemented and live on the linked schema, but Attendance must not be declared production-closed yet.
+
+- Added authoritative shift-instance and branch-time handling in `src/lib/attendance/shift-instance.ts`.
+- Added `src/lib/attendance/attendance-state-machine.ts` for current state and next expected action after scans/corrections.
+- `scan-engine.ts` now captures immutable shift snapshots (`shift_instance_key`, schedule source/id, branch timezone, attendance business date, scheduled start/end), uses configured branch timezone/business date, dedupes active Recovery cases, and stores idempotent operation metadata on scan events.
+- `attendance-correction-service.ts` now fails loudly when selected-record reset/correction substeps fail and reports the actual post-reset next action.
+- Device Registry now loads branch staff first and devices by staff id, avoiding stale `staff_devices.branch_id` as the primary membership filter and avoiding broad raw scan-event reads.
+- Production `ATTENDANCE_DEVICE_SECRET` is now required; only local development gets the explicit fallback.
+- Added migration `supabase/migrations/20260712035222_attendance_autonomy_hardening.sql`.
+- Added `docs/maintenance/attendance-operations-runbook.md`.
+- Added `supabase/migrations/20260712044527_attendance_transactional_scan_rpc.sql` and routed normal interpreted clock-in, clock-out, active-service-blocked, and Recovery-intent scan commits through `public.commit_attendance_scan_transaction(...)`.
+- Added `supabase/migrations/20260712045429_attendance_transactional_corrections_rpc.sql` and routed selected-record Attendance State Reset through `public.reset_attendance_state_transaction(...)`.
+- Updated generated Supabase types for the new RPCs and added `tests/lib/attendance/transactional-scan-rpc-migration.test.ts`.
+- Linked DB verification confirms both new RPCs exist, are `security invoker`, are executable only by `postgres` and `service_role`, and reject invalid no-mutation probes.
+- Focused continuation verification passed: Attendance tests (5 files / 30 tests) and `npx tsc --noEmit --pretty false`.
+- Final requested suite passed: `pnpm type-check`, `pnpm lint`, `pnpm test` (88 files / 699 tests), and `pnpm build` (Next.js 16.2.4, 108 routes).
+- Follow-up hydration fix: CRM/Owner Attendance now pass the serialized `data.serverNowMs` snapshot into `AttendanceWorkspace`, eliminating the initial worked-time text mismatch while preserving the post-hydration 30-second refresh. Verified with `pnpm type-check`, `pnpm lint`, and `pnpm build`.
+
+Still open:
+- Reconcile the six recent Attendance migrations in Supabase migration history. Local DB is not running at `127.0.0.1:54322`; linked migration-history reads time out to `aws-1-ap-northeast-1.pooler.supabase.com:5432`; linked `supabase_migrations.schema_migrations` currently reports `0` rows for `20260710040835`, `20260710055131`, `20260712000100`, `20260712035222`, `20260712044527`, and `20260712045429`.
+- `pnpm db:types` passed, but the linked remote schema is behind local pending migrations; `src/types/supabase.ts` was locally reconciled afterward.
+- Event-only/noop scan paths still need retry/concurrency QA.
+- Manual clock-out, launch recovery, ignore-scan, rule updates, archive-test-data, and future rebuild/manual-attendance actions still need transactional RPC coverage.
+- Complete account claim/OTP/rate limits, canonical scan host redirect, rotating branch challenge, scheduled reconciliation, full diagnostic modal, authenticated CRM/Owner QA, and real-phone/device-cookie QA.
+
+---
+
+ATTENDANCE-TODAY-ALIGNMENT-RESET-001 is implemented and locally verified.
+
+- Attendance QR now resolves branch time, schedule/overrides, and the selected shift before interpreting open attendance rows.
+- `attendance-intent-engine.ts` now classifies open rows as matching current shift, stale prior row, or same-day conflict. Legacy generic `single`/missing shift rows can match only by schedule-window/actual-clock-in overlap.
+- `scan-engine.ts` now clocks out only against the matching current-shift row. Stale/conflicting rows create or update Recovery exceptions and no longer drive the next scan.
+- Closing-window scans with no matching current clock-in still become `likely_closing_scan_without_clock_in` Recovery items and do not create a check-in.
+- Active service clock-out blocking remains in place for true current-shift clock-outs.
+- Recovery's former Reset Staff Day path is now selected-record Attendance State Reset / Reset Next Scan State with required reason and void confirmation. It preserves raw `qr_scan_events`, resolves related open exceptions, and records an `attendance_corrections` audit row.
+- Added migration `supabase/migrations/20260712000100_attendance_state_reset.sql` for the new `reset_attendance_state` correction action.
+- Verification passed: `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts`, `pnpm type-check`, `pnpm lint`, `pnpm test`, and `pnpm build`.
+
+Still open: apply/push the new Supabase migration from a working DB path. `pnpm db:doctor` and `pnpm db:status` still time out on linked migration-history port 5432 even after unrestricted retry; `db:status` reported `Remote schema changed: no` before exit. Authenticated CRM/Owner browser QA and real QR phone scans remain pending.
+
+---
+
+## Current Task - 2026-07-11
+
+CRM-PERFORMANCE-OPTIMIZATION-001 is complete and locally verified.
+
+- Performance docs were added at `docs/performance/crm-performance-baseline.md` and `docs/performance/crm-performance-optimization-report.md`.
+- The pass stayed inside frozen UI guardrails: no route, schema, RLS, server-action contract, booking lifecycle, payment, dispatch guard, cache, or visible UI behavior changes.
+- Today Work Queue now memoizes the summary pass and visible row filtering/counts.
+- Bookings Workspace now lazily derives the initial tab and memoizes workflow tab counts plus visible rows.
+- Dispatch Live Map now passes a stable marker-selection callback to `MapCanvas`, avoiding map-effect reruns on selected-booking-only state changes.
+- Verification: `pnpm type-check`, `pnpm lint`, `pnpm test -- --run --testTimeout=10000`, and `pnpm build` all pass.
+
+Still open: Bookings remains NOT CERTIFIED until authenticated browser interaction QA is completed. Bundle splitting, query column narrowing, and database/index work should wait for a separately certified performance phase.
+
+---
+
 ## Current Task - 2026-07-10
+
+CRM-BOOKING-FOLLOWUP-STABILIZATION-001 is implemented and locally verified.
+
+- CRM Today ETA refresh no longer passes `refreshEtaAction` through `page -> shell -> dashboard -> work queue panel`; the button imports/calls `refreshHomeServiceEtaAction` directly from the server-action module.
+- Booking Follow-up cancel/no-answer/reschedule/confirm-later paths now save through CRM server actions with friendly RLS-safe UI errors and branch-checked service-role audit writes.
+- Manager status updates use the admin client after session/branch checks and annotate the latest trigger-created `booking_events` row, avoiding the authenticated `booking_events` INSERT RLS failure.
+- Change Staff uses the assignment assistant, re-scores the chosen therapist before save, blocks unavailable candidates, preserves the appointment time, writes assignment metadata, inserts a booking audit row, and notifies newly assigned staff.
+- Reschedule has a real CRM modal and `rescheduleBookingAction`; it moves only date/time, validates current therapist and room availability, stores reschedule metadata/history, inserts a same-status audit row, and notifies the assigned therapist.
+- Assignment recommendation conflicts now include booking ids and exclude the edited booking from conflict scoring; Home Service ineligible therapists and overlaps are unavailable.
+- Verification: `pnpm type-check`, `pnpm lint`, `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts`, and `pnpm build` all pass.
+
+Still open: authenticated CRM browser QA for `/crm/today` ETA refresh and `/crm/bookings` follow-up cancel/reschedule/change-staff flows against live branch data.
+
+---
+
+## Previous Task - 2026-07-10
 
 ATTENDANCE-RECOVERY-RULES-001 is implemented and locally verified.
 
@@ -534,3 +609,19 @@ Suggested next steps:
 2. Rerun `pnpm db:push` and `pnpm db:types`.
 3. Rotate the Supabase database password and update environment variables.
 4. Deploy after migration history/type generation is clean.
+
+---
+
+## Handoff - SCHEDULE-DATA-OPTIMIZATION-001
+
+Done:
+- Schedule resolution now returns explicit `resolved`, `day_off`, `missing`, or `conflict` status.
+- Invalid overrides, overlapping windows, and day-off-plus-working group rules become conflict states with no operational windows.
+- Individual schedule saves, CRM weekly availability saves, group rule saves, and group apply-to-staff now write complete matrices so stale shift rows are deactivated.
+- Schedule Setup UI ordinary shift choices are mutually exclusive; Split Shift is explicit and required for multiple active windows.
+- CRM availability, readiness, live schedule conflicts, and assignment recommendations consume the conflict-safe canonical schedule status.
+- Verification passed: focused scheduling tests, `npm run type-check`, `npm run lint`, full `npx vitest run`, and `npm run build`.
+
+Notes:
+- The repository already had a large unrelated dirty Attendance/CRM worktree before this scheduling continuation. Those changes were preserved and not reverted.
+- No new scheduling tables or migrations were added.

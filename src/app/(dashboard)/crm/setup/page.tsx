@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
+import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
@@ -137,19 +137,18 @@ export default async function CrmSetupPage({
   // ── Health ──────────────────────────────────────────────────────────────────
   if (healthResult.status === "rejected") {
     return (
-      <section className="space-y-5">
-        <PageHeader
-          title="Admin & Setup"
-          description="Configure services, providers, spaces, and booking readiness."
-          icon="🛠️"
-        />
+      <CrmOperationalPageShell
+        title="Admin & Setup"
+        description="Configure services, providers, spaces, and booking readiness."
+        context={`${branchName} · ${role}`}
+      >
         <Alert variant="destructive">
           <AlertTitle>Could not load setup data</AlertTitle>
           <AlertDescription>
             Failed to run the setup health check. Please refresh the page.
           </AlertDescription>
         </Alert>
-      </section>
+      </CrmOperationalPageShell>
     );
   }
   const health = healthResult.value;
@@ -218,13 +217,11 @@ export default async function CrmSetupPage({
   const canEditRules = canManageCrmSetup(role);
 
   return (
-    <section className="space-y-5">
-      <PageHeader
-        title="Admin & Setup"
-        description="Configure services, providers, spaces, and booking readiness."
-        icon="🛠️"
-      />
-
+    <CrmOperationalPageShell
+      title="Admin & Setup"
+      description="Configure services, providers, spaces, and booking readiness."
+      context={`${branchName} · ${role}`}
+    >
       <CrmSetupWorkspace
         initialTab={initialTab}
         health={health}
@@ -259,6 +256,6 @@ export default async function CrmSetupPage({
       <div className="border-t border-[var(--cs-border-soft)] pt-3 text-[0.6875rem] text-[var(--cs-text-muted)]">
         {branchName} · Health check runs on every page load against live data
       </div>
-    </section>
+    </CrmOperationalPageShell>
   );
 }

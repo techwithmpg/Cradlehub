@@ -26,6 +26,7 @@ function row(
     work_end: isOff ? null : "18:00:00",
     current_override: null,
     schedule_source: isOff ? "none" : "individual",
+    schedule_status: isOff ? "day_off" : "resolved",
     schedule_is_day_off: isOff,
     schedule_windows: isOff
       ? []
@@ -36,6 +37,8 @@ function row(
             endTime: shiftType === "closing" ? "22:30:00" : "18:00:00",
           },
         ],
+    schedule_conflict_code: null,
+    schedule_conflict_reason: null,
     bookings: [],
     blocks: [],
   };

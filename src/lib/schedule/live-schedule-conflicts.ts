@@ -176,7 +176,38 @@ function addStaffBookingConflicts(
 ) {
   const activeBookings = row.bookings.filter(isActiveBooking);
 
-  if (row.schedule_source === "none" && !row.schedule_is_day_off) {
+  if (row.schedule_status === "conflict") {
+    conflicts.push(makeConflict({
+      id: `schedule-conflict-${row.staff_id}-${date}`,
+      type: "schedule_rule_conflict",
+      severity: activeBookings.length > 0 ? "critical" : "warning",
+      title: "Conflicting staff schedule",
+      plain_language_message: `${row.staff_name} has a schedule conflict that must be fixed before availability can be trusted.`,
+      staff: [{ id: row.staff_id, name: row.staff_name }],
+      bookings: activeBookings.map((booking) => ({ booking, staffName: row.staff_name })),
+      affected_resource_id: null,
+      affected_resource_name: null,
+      date,
+      start_time: null,
+      end_time: null,
+      broken_rule: "A staff member cannot have invalid, overlapping, or contradictory schedule windows for the same day.",
+      why_it_matters: "Availability and booking recommendations will exclude this staff member until the schedule is corrected.",
+      recommended_fix: "Open Schedule Setup and keep one ordinary shift or a non-overlapping Split Shift.",
+      quick_actions: [
+        { label: "Edit staff schedule", intent: "edit_staff_schedule", staffId: row.staff_id },
+        { label: "Open schedule setup", intent: "open_schedule_setup", staffId: row.staff_id },
+        { label: "View full schedule", intent: "open_full_schedule", staffId: row.staff_id },
+      ],
+      debug_metadata: {
+        schedule_source: row.schedule_source,
+        schedule_status: row.schedule_status,
+        schedule_conflict_code: row.schedule_conflict_code,
+        schedule_conflict_reason: row.schedule_conflict_reason,
+      },
+    }));
+  }
+
+  if (row.schedule_status === "missing" || (row.schedule_source === "none" && !row.schedule_is_day_off)) {
     conflicts.push(makeConflict({
       id: `missing-schedule-${row.staff_id}-${date}`,
       type: "missing_schedule",

@@ -1,6 +1,8 @@
 export type DispatchStatus =
   | "awaiting_driver"
   | "ready"
+  | "scheduled"
+  | "released_to_driver"
   | "in_route"
   | "arrived_at_customer"
   | "service_started"

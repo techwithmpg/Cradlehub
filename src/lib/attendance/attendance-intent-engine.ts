@@ -60,14 +60,128 @@ export type ResolveAttendanceScanIntentInput = {
   scanIso: string;
   scanDate: string;
   scanTime: string;
+  timezone?: string | null;
   settings: AttendanceSettings;
   schedule: ResolvedStaffSchedule;
   duplicateScan?: boolean;
   activeCheckin?: ActiveAttendanceIntentCheckin | null;
 };
 
+export type OpenAttendanceIntentCheckin = ActiveAttendanceIntentCheckin & {
+  id: string;
+  status?: string | null;
+  checkedOutAt?: string | null;
+  shiftInstanceKey?: string | null;
+  isTest?: boolean | null;
+};
+
+export type OpenAttendanceClassification = {
+  matchingCheckin: OpenAttendanceIntentCheckin | null;
+  staleCheckins: OpenAttendanceIntentCheckin[];
+  conflictingCheckins: OpenAttendanceIntentCheckin[];
+};
+
 function minutesOrZero(value: number | null): number {
   return value ?? 0;
+}
+
+function toMillis(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function intervalOverlaps(firstStart: number, firstEnd: number, secondStart: number, secondEnd: number): boolean {
+  return firstStart <= secondEnd && secondStart <= firstEnd;
+}
+
+function normalizedShiftType(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+function isGenericShiftType(value: string | null | undefined): boolean {
+  const normalized = normalizedShiftType(value);
+  return !normalized || normalized === "single" || normalized === "default" || normalized === "legacy";
+}
+
+function checkinFallsInsideScheduleWindow(params: {
+  checkin: OpenAttendanceIntentCheckin;
+  schedule: AttendanceScheduleSelection;
+}): boolean {
+  const scheduledStart = toMillis(params.schedule.scheduledStartAt);
+  const scheduledEnd = toMillis(params.schedule.scheduledEndAt);
+  const checkedInAt = toMillis(params.checkin.checkedInAt);
+  if (scheduledStart === null || scheduledEnd === null || checkedInAt === null) return false;
+
+  const legacyGrace = 4 * 60 * 60000;
+  return checkedInAt >= scheduledStart - legacyGrace && checkedInAt <= scheduledEnd + legacyGrace;
+}
+
+function scheduledWindowsOverlap(params: {
+  checkin: OpenAttendanceIntentCheckin;
+  schedule: AttendanceScheduleSelection;
+}): boolean {
+  const checkinStart = toMillis(params.checkin.scheduledStartAt);
+  const checkinEnd = toMillis(params.checkin.scheduledEndAt);
+  const scheduledStart = toMillis(params.schedule.scheduledStartAt);
+  const scheduledEnd = toMillis(params.schedule.scheduledEndAt);
+  if (
+    checkinStart === null ||
+    checkinEnd === null ||
+    scheduledStart === null ||
+    scheduledEnd === null
+  ) {
+    return false;
+  }
+
+  return intervalOverlaps(checkinStart, checkinEnd, scheduledStart, scheduledEnd);
+}
+
+function openCheckinMatchesSchedule(params: {
+  checkin: OpenAttendanceIntentCheckin;
+  schedule: AttendanceScheduleSelection;
+}): boolean {
+  if (params.schedule.isUnscheduled || params.schedule.isDayOff) return false;
+  if (params.checkin.shiftDate !== params.schedule.shiftDate) return false;
+
+  const checkinShiftType = normalizedShiftType(params.checkin.shiftType);
+  const scheduleShiftType = normalizedShiftType(params.schedule.shiftType);
+  if (checkinShiftType && scheduleShiftType && checkinShiftType === scheduleShiftType) {
+    if (!isGenericShiftType(checkinShiftType)) return true;
+    if (params.schedule.windows.length <= 1) return true;
+    return (
+      scheduledWindowsOverlap(params) ||
+      checkinFallsInsideScheduleWindow(params)
+    );
+  }
+
+  if (!isGenericShiftType(checkinShiftType)) return false;
+  return (
+    scheduledWindowsOverlap(params) ||
+    checkinFallsInsideScheduleWindow(params)
+  );
+}
+
+export function classifyOpenAttendanceCheckins(params: {
+  openCheckins: OpenAttendanceIntentCheckin[];
+  schedule: AttendanceScheduleSelection;
+}): OpenAttendanceClassification {
+  const matching = params.openCheckins
+    .filter((checkin) => openCheckinMatchesSchedule({ checkin, schedule: params.schedule }))
+    .sort((first, second) => (toMillis(second.checkedInAt) ?? 0) - (toMillis(first.checkedInAt) ?? 0));
+  const matchingCheckin = matching[0] ?? null;
+  const extraMatching = matching.slice(1);
+  const unmatched = params.openCheckins.filter((checkin) => !matching.includes(checkin));
+
+  return {
+    matchingCheckin,
+    staleCheckins: unmatched.filter((checkin) => checkin.shiftDate !== params.schedule.shiftDate),
+    conflictingCheckins: [
+      ...extraMatching,
+      ...unmatched.filter((checkin) => checkin.shiftDate === params.schedule.shiftDate),
+    ],
+  };
 }
 
 function absoluteScanMinutesForWindow(time: string, window: ResolvedStaffScheduleWindow): number | null {
@@ -130,6 +244,68 @@ function isLaunchRecoveryClosingScan(input: ResolveAttendanceScanIntentInput): b
   );
 }
 
+function closingScanRecoveryIntent(params: {
+  input: ResolveAttendanceScanIntentInput;
+  schedule: AttendanceScheduleSelection;
+  launchRecoveryWindowActive: boolean;
+}): AttendanceScanIntent {
+  const behavior = params.input.settings.first_scan_closing_behavior;
+  const launchOnlyOutsideWindow =
+    behavior === "treat_as_clock_out_launch_only" && !params.launchRecoveryWindowActive;
+
+  if (behavior === "require_manager_confirmation") {
+    return intent({
+      type: "likely_closing_scan_without_clock_in",
+      action: "recovery_required",
+      schedule: params.schedule,
+      requiresRecovery: true,
+      shouldWriteAttendance: false,
+      severity: "warning",
+      title: "Manager confirmation needed",
+      message: "This looks like a closing scan with no earlier clock-in. A manager must confirm it before attendance is written.",
+    });
+  }
+
+  if (behavior === "never_auto_clock_in") {
+    return intent({
+      type: "likely_closing_scan_without_clock_in",
+      action: "recovery_required",
+      schedule: params.schedule,
+      requiresRecovery: true,
+      shouldWriteAttendance: false,
+      severity: "warning",
+      title: "Closing scan blocked",
+      message: "First scans near closing are never turned into clock-ins. This scan was sent to Recovery.",
+    });
+  }
+
+  if (behavior === "treat_as_clock_out_launch_only" && params.launchRecoveryWindowActive) {
+    return intent({
+      type: "likely_closing_scan_without_clock_in",
+      action: "recovery_required",
+      schedule: params.schedule,
+      requiresRecovery: true,
+      shouldWriteAttendance: false,
+      severity: "warning",
+      title: "Launch recovery review",
+      message: "Launch Recovery is active. This closing scan can be rebuilt from schedule evidence after review.",
+    });
+  }
+
+  return intent({
+    type: "likely_closing_scan_without_clock_in",
+    action: "recovery_required",
+    schedule: params.schedule,
+    requiresRecovery: true,
+    shouldWriteAttendance: false,
+    severity: "warning",
+    title: "Closing scan needs recovery",
+    message: launchOnlyOutsideWindow
+      ? "Launch Recovery is not active for this time, so this closing scan was sent to Recovery."
+      : "This looks like a clock-out scan, but no earlier clock-in was found.",
+  });
+}
+
 function isInClockOutWindow(params: {
   scanTime: string;
   settings: AttendanceSettings;
@@ -178,6 +354,7 @@ function clockInIntentForWindow(params: {
 function scheduleSelectionFromWindow(params: {
   scanDate: string;
   scanTime: string;
+  timezone?: string | null;
   schedule: ResolvedStaffSchedule;
   window: ResolvedStaffScheduleWindow;
 }): AttendanceScheduleSelection {
@@ -194,11 +371,16 @@ function scheduleSelectionFromWindow(params: {
   return {
     shiftDate,
     shiftType: params.window.shiftType,
-    scheduledStartAt: branchDateTimeToIso({ date: shiftDate, time: params.window.startTime }),
+    scheduledStartAt: branchDateTimeToIso({
+      date: shiftDate,
+      time: params.window.startTime,
+      timezone: params.timezone,
+    }),
     scheduledEndAt: branchDateTimeToIso({
       date: shiftDate,
       time: params.window.endTime,
       addDay: isOvernightWindow(params.window.startTime, params.window.endTime),
+      timezone: params.timezone,
     }),
     isUnscheduled: false,
     isDayOff: params.schedule.isDayOff,
@@ -228,6 +410,7 @@ function emptyScheduleSelection(params: {
 export function resolveStaffAttendanceSchedule(params: {
   scanDate: string;
   scanTime: string;
+  timezone?: string | null;
   schedule: ResolvedStaffSchedule;
 }): AttendanceScheduleSelection {
   const windows = params.schedule.windows;
@@ -253,6 +436,7 @@ export function resolveStaffAttendanceSchedule(params: {
   return scheduleSelectionFromWindow({
     scanDate: params.scanDate,
     scanTime: params.scanTime,
+    timezone: params.timezone,
     schedule: params.schedule,
     window: selected,
   });
@@ -285,6 +469,7 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
   const schedule = resolveStaffAttendanceSchedule({
     scanDate: input.scanDate,
     scanTime: input.scanTime,
+    timezone: input.timezone ?? input.settings.timezone,
     schedule: input.schedule,
   });
 
@@ -340,16 +525,12 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
     });
   }
 
-  if (isLaunchRecoveryClosingScan(input)) {
-    return intent({
-      type: "likely_closing_scan_without_clock_in",
-      action: "recovery_required",
+  const launchRecoveryWindowActive = isLaunchRecoveryClosingScan(input);
+  if (launchRecoveryWindowActive) {
+    return closingScanRecoveryIntent({
+      input,
       schedule,
-      requiresRecovery: true,
-      shouldWriteAttendance: false,
-      severity: "warning",
-      title: "Closing scan needs recovery",
-      message: "This looks like a closing scan, but no earlier clock-in was found.",
+      launchRecoveryWindowActive,
     });
   }
 
@@ -387,20 +568,16 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
     })
   );
   if (clockOutWindow) {
-    return intent({
-      type: "likely_closing_scan_without_clock_in",
-      action: "recovery_required",
+    return closingScanRecoveryIntent({
+      input,
       schedule: scheduleSelectionFromWindow({
         scanDate: input.scanDate,
         scanTime: input.scanTime,
+        timezone: input.timezone ?? input.settings.timezone,
         schedule: input.schedule,
         window: clockOutWindow,
       }),
-      requiresRecovery: true,
-      shouldWriteAttendance: false,
-      severity: "warning",
-      title: "Closing scan needs recovery",
-      message: "This looks like a clock-out scan, but no earlier clock-in was found.",
+      launchRecoveryWindowActive,
     });
   }
 
@@ -415,6 +592,7 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
     const clockInSchedule = scheduleSelectionFromWindow({
       scanDate: input.scanDate,
       scanTime: input.scanTime,
+      timezone: input.timezone ?? input.settings.timezone,
       schedule: input.schedule,
       window: clockInWindow,
     });
@@ -485,6 +663,7 @@ export function resolveAttendanceDayForShift(params: {
     scanTime: params.scanTime,
     schedule: {
       source: "none",
+      status: "resolved",
       isWorking: true,
       isDayOff: false,
       windows: [params.window],

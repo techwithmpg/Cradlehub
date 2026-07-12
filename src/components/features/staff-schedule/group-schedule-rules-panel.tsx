@@ -9,23 +9,19 @@ import {
   ALL_SHIFT_KINDS,
   SCHEDULE_DAYS,
   activeDayLabels,
-  clonePattern,
   extractShiftTimesForGroup,
   formatDayList,
   getGroupScheduleConfig,
-  getRuleShiftType,
   getShiftDisplay,
   getShiftLabel,
   getVisibleShiftKinds,
   rulesToPatternForGroup,
+  toggleSchedulePatternField,
   type DayPattern,
   type ShiftKind,
   type ShiftTimes,
 } from "./schedule-rule-builder-utils";
-import {
-  deleteStaffGroupScheduleRuleAction,
-  upsertStaffGroupScheduleRuleAction,
-} from "@/lib/actions/staff-schedule-groups";
+import { saveStaffGroupScheduleRulesAction } from "@/lib/actions/staff-schedule-groups";
 import type { StaffGroupScheduleRule, StaffScheduleGroup } from "@/lib/queries/staff-schedule-groups";
 
 export type { DayPattern, ShiftTimes } from "./schedule-rule-builder-utils";
@@ -88,35 +84,6 @@ type GroupScheduleRulesPanelProps = {
   staffCount?: number;
   onDataRefresh?: () => void;
 };
-
-function togglePatternField(
-  previous: Record<number, DayPattern>,
-  dow: number,
-  field: keyof DayPattern,
-  visibleKinds: ShiftKind[]
-) {
-  const next = clonePattern(previous);
-  const row = next[dow];
-  if (!row) return previous;
-
-  if (field === "dayOff") {
-    const nextValue = !row.dayOff;
-    row.dayOff = nextValue;
-    if (nextValue) {
-      for (const kind of visibleKinds) {
-        row[kind] = false;
-      }
-    }
-    return next;
-  }
-
-  row[field] = !row[field];
-  if (row[field]) {
-    row.dayOff = false;
-  }
-
-  return next;
-}
 
 function ScheduleSummary({
   pattern,
@@ -253,7 +220,9 @@ export function GroupScheduleRulesPanel({
 
   const handleToggle = useCallback(
     (dow: number, field: keyof DayPattern) => {
-      setPattern((previous) => togglePatternField(previous, dow, field, visibleKinds));
+      setPattern((previous) =>
+        toggleSchedulePatternField(previous, dow, field, visibleKinds)
+      );
       setDirty(true);
     },
     [visibleKinds]
@@ -288,54 +257,21 @@ export function GroupScheduleRulesPanel({
     }
 
     startTransition(async () => {
-      const promises: Promise<{ success: boolean; error?: string }>[] = [];
+      const result = await saveStaffGroupScheduleRulesAction({
+        groupId,
+        days: SCHEDULE_DAYS.map(({ dow }) => ({
+          dayOfWeek: dow,
+          opening: pattern[dow]?.opening ?? false,
+          closing: pattern[dow]?.closing ?? false,
+          regular: pattern[dow]?.regular ?? false,
+          dayOff: pattern[dow]?.dayOff ?? false,
+          splitShift: pattern[dow]?.splitShift ?? false,
+        })),
+        times,
+      });
 
-      for (const { dow } of SCHEDULE_DAYS) {
-        const row = pattern[dow];
-        if (!row) continue;
-
-        for (const kind of ALL_SHIFT_KINDS) {
-          const shiftType = getRuleShiftType(kind);
-          const isVisible = visibleKinds.includes(kind);
-          const isActive = isVisible && row[kind] && !row.dayOff;
-
-          if (isActive) {
-            promises.push(
-              upsertStaffGroupScheduleRuleAction({
-                groupId,
-                dayOfWeek: dow,
-                shiftType,
-                startTime: times[kind].start,
-                endTime: times[kind].end,
-                isDayOff: false,
-                isActive: true,
-              })
-            );
-          } else {
-            promises.push(deleteStaffGroupScheduleRuleAction({ groupId, dayOfWeek: dow, shiftType }));
-          }
-        }
-
-        if (row.dayOff) {
-          promises.push(
-            upsertStaffGroupScheduleRuleAction({
-              groupId,
-              dayOfWeek: dow,
-              shiftType: "single",
-              startTime: null,
-              endTime: null,
-              isDayOff: true,
-              isActive: true,
-            })
-          );
-        }
-      }
-
-      const results = await Promise.all(promises);
-      const failed = results.find((result) => !result.success);
-
-      if (failed) {
-        setFeedback({ tone: "error", message: failed.error ?? "Some rules failed to save." });
+      if (!result.success) {
+        setFeedback({ tone: "error", message: result.error ?? "Some rules failed to save." });
         return;
       }
 
@@ -345,7 +281,7 @@ export function GroupScheduleRulesPanel({
       onDataRefresh?.();
       window.setTimeout(() => setFeedback(null), 3000);
     });
-  }, [groupId, onDataRefresh, pattern, times, visibleKinds]);
+  }, [groupId, onDataRefresh, pattern, times]);
 
   return (
     <div className="space-y-5">

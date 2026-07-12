@@ -2,8 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { FileDown, Printer } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Panel, StatusPill, formatMinutesCompact } from "@/components/features/attendance/attendance-ui";
+import {
+  Panel,
+  StatusPill,
+  ToolbarSelect,
+  ToolbarShell,
+  formatMinutesCompact,
+} from "@/components/features/attendance/attendance-ui";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
 
 const REPORTS = [
@@ -21,6 +28,11 @@ const REPORTS = [
   "Device Status",
 ];
 
+function escapeCsvCell(value: string): string {
+  if (!/[",\n]/.test(value)) return value;
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
 export function AttendanceReportsTab({ data }: { data: AttendanceWorkspaceData }) {
   const [selectedReport, setSelectedReport] = useState(REPORTS[0] ?? "Attendance Summary");
   const totals = useMemo(() => {
@@ -34,17 +46,50 @@ export function AttendanceReportsTab({ data }: { data: AttendanceWorkspaceData }
       { worked: 0, late: 0, early: 0, overtime: 0 }
     );
   }, [data.records]);
+  const reportRows = [
+    ["Worked Hours", formatMinutesCompact(totals.worked), "Sum of recorded worked minutes."],
+    ["Late Arrivals", formatMinutesCompact(totals.late), "Late minutes from attendance records."],
+    ["Early Departures", formatMinutesCompact(totals.early), "Early leave minutes from attendance records."],
+    ["Overtime", formatMinutesCompact(totals.overtime), "Overtime minutes from attendance records."],
+  ] as const;
+
+  function exportCsv() {
+    const rows = [
+      ["Report", "Metric", "Value", "Notes"],
+      ...reportRows.map(([metric, value, note]) => [selectedReport, metric, value, note]),
+    ];
+    const csv = rows.map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `attendance-${selectedReport.toLowerCase().replaceAll(" ", "-")}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${selectedReport} CSV exported.`);
+  }
 
   return (
     <div className="grid gap-4">
-      <Panel title="Report Filters">
-        <div className="flex flex-wrap items-center gap-2">
-          <select className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"><option>Today</option></select>
-          <select className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"><option>{data.branchName}</option></select>
-          <select className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"><option>All staff types</option></select>
-          <select className="h-8 rounded-lg border border-border bg-background px-3 text-sm font-semibold"><option>All staff</option></select>
-          <Button type="button" variant="outline"><FileDown data-icon="inline-start" />Export</Button>
-        </div>
+      <Panel title="Report Filters" description="Scope report output before exporting or printing.">
+        <ToolbarShell
+          className="border-0 bg-transparent p-0 shadow-none"
+          fieldsClassName="sm:grid-cols-2 xl:grid-cols-4"
+          actions={<Button type="button" variant="outline" onClick={exportCsv}><FileDown data-icon="inline-start" />Export</Button>}
+        >
+          <ToolbarSelect label="Range" value="today" onChange={() => undefined}>
+            <option value="today">Today</option>
+          </ToolbarSelect>
+          <ToolbarSelect label="Branch" value={data.branchName} disabled onChange={() => undefined}>
+            <option>{data.branchName}</option>
+          </ToolbarSelect>
+          <ToolbarSelect label="Staff Type" value="all" onChange={() => undefined}>
+            <option value="all">All staff types</option>
+          </ToolbarSelect>
+          <ToolbarSelect label="Staff" value="all" onChange={() => undefined}>
+            <option value="all">All staff</option>
+          </ToolbarSelect>
+        </ToolbarShell>
       </Panel>
 
       <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
@@ -55,6 +100,7 @@ export function AttendanceReportsTab({ data }: { data: AttendanceWorkspaceData }
                 key={report}
                 type="button"
                 onClick={() => setSelectedReport(report)}
+                aria-pressed={selectedReport === report}
                 className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${selectedReport === report ? "bg-emerald-900 text-white" : "hover:bg-muted"}`}
               >
                 {report}
@@ -67,7 +113,7 @@ export function AttendanceReportsTab({ data }: { data: AttendanceWorkspaceData }
           title={selectedReport}
           action={
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm"><FileDown data-icon="inline-start" />CSV</Button>
+              <Button type="button" variant="outline" size="sm" onClick={exportCsv}><FileDown data-icon="inline-start" />CSV</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => window.print()}><Printer data-icon="inline-start" />Print</Button>
             </div>
           }
@@ -87,10 +133,9 @@ export function AttendanceReportsTab({ data }: { data: AttendanceWorkspaceData }
                 </tr>
               </thead>
               <tbody>
-                <ReportRow label="Worked Hours" value={formatMinutesCompact(totals.worked)} note="Sum of recorded worked minutes." />
-                <ReportRow label="Late Arrivals" value={formatMinutesCompact(totals.late)} note="Late minutes from attendance records." />
-                <ReportRow label="Early Departures" value={formatMinutesCompact(totals.early)} note="Early leave minutes from attendance records." />
-                <ReportRow label="Overtime" value={formatMinutesCompact(totals.overtime)} note="Overtime minutes from attendance records." />
+                {reportRows.map(([label, value, note]) => (
+                  <ReportRow key={label} label={label} value={value} note={note} />
+                ))}
               </tbody>
             </table>
           </div>

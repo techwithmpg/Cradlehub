@@ -53,6 +53,8 @@ export function Header({ role, fullName, displayName, avatarUrl, readiness, work
       display:         "flex",
       alignItems:      "center",
       justifyContent:  "space-between",
+      gap:             12,
+      minWidth:        0,
       padding:         "0 20px",
       position:        "sticky",
       top:             0,
@@ -64,7 +66,7 @@ export function Header({ role, fullName, displayName, avatarUrl, readiness, work
       <WorkspaceBreadcrumb role={role} />
 
       {/* Right – date + user + sign out */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
 
         <div style={{
           fontSize:           11.5,

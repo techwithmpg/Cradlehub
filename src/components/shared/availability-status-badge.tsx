@@ -5,6 +5,7 @@ const AVAILABILITY_CONFIG: Record<string, { label: string; color: string }> = {
   checked_out:    { label: "Checked out",    color: "var(--cs-text-muted)" },
   off_today:      { label: "Off",            color: "var(--cs-text-muted)" },
   no_schedule:    { label: "No schedule",    color: "var(--cs-warning)"    },
+  conflict:       { label: "Conflict",       color: "var(--cs-error, #b91c1c)" },
 };
 
 export function AvailabilityStatusBadge({ status }: { status: string }) {

@@ -17,6 +17,9 @@ import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { canReassignBooking } from "@/lib/permissions";
+import { buildRecommendationContext } from "@/lib/queries/assignment-recommendations";
+import { scoreTherapistCandidates } from "@/lib/assignments/recommendation-engine";
+import { computeEndTime } from "@/lib/engine/booking-time";
 
 const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -76,9 +79,17 @@ const markBookingConfirmedSchema = bookingIdSchema.extend({
 });
 
 const recordBookingFollowupSchema = bookingIdSchema.extend({
-  result: z.enum(["no_answer", "reschedule", "confirm_later"]),
+  result: z.enum(["no_answer", "reschedule", "confirm_later", "cancel"]),
   note: z.string().max(500).optional(),
   followUpAt: z.string().max(100).optional(),
+});
+
+const rescheduleBookingSchema = bookingIdSchema.extend({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid booking date"),
+  startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Invalid start time"),
+  note: z.string().max(500).optional(),
+  homeServiceAddress: z.string().max(1000).optional(),
+  homeServiceAccessNote: z.string().max(500).optional(),
 });
 
 const assignBookingRoomSchema = bookingIdSchema.extend({
@@ -97,10 +108,16 @@ const assignBookingTherapistSchema = bookingIdSchema.extend({
   ]).optional(),
 });
 
+const prepareHomeServiceDispatchSchema = bookingIdSchema.extend({
+  releaseNow: z.boolean().optional(),
+  note: z.string().max(500).optional(),
+});
+
 type CrmActionContext = NonNullable<Awaited<ReturnType<typeof getCrmActionsContext>>>;
 type CrmBookingActionRow = {
   id: string;
   branch_id: string;
+  service_id: string | null;
   booking_date: string;
   start_time: string;
   end_time: string | null;
@@ -111,8 +128,11 @@ type CrmBookingActionRow = {
   checked_in_at?: string | null;
   resource_id: string | null;
   metadata: Database["public"]["Tables"]["bookings"]["Row"]["metadata"] | null;
+  staff_id?: string | null;
+  driver_id?: string | null;
   customers?: { full_name: string | null } | { full_name: string | null }[] | null;
   services?: { name: string | null } | { name: string | null }[] | null;
+  staff?: { id: string; full_name: string | null } | { id: string; full_name: string | null }[] | null;
   branches?: { name: string | null } | { name: string | null }[] | null;
 };
 
@@ -208,6 +228,154 @@ function withFollowupMetadata(
   } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
 }
 
+function withRescheduleMetadata(
+  metadata: CrmBookingActionRow["metadata"],
+  input: {
+    actorId: string | null;
+    fromDate: string;
+    fromTime: string;
+    note?: string;
+    toDate: string;
+    toTime: string;
+    homeServiceAddress?: string;
+    homeServiceAccessNote?: string;
+  }
+): Database["public"]["Tables"]["bookings"]["Update"]["metadata"] {
+  const current =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const updatedAt = new Date().toISOString();
+  const entry = {
+    from_date: input.fromDate,
+    from_time: input.fromTime,
+    to_date: input.toDate,
+    to_time: input.toTime,
+    note: input.note?.trim() || null,
+    home_service_address: input.homeServiceAddress?.trim() || null,
+    home_service_access_note: input.homeServiceAccessNote?.trim() || null,
+    updated_at: updatedAt,
+    updated_by: input.actorId,
+  };
+  const history = Array.isArray(current.crm_reschedule_history)
+    ? current.crm_reschedule_history.slice(-19)
+    : [];
+
+  const currentAddressRaw = current.home_service_address;
+  const currentAddress =
+    currentAddressRaw && typeof currentAddressRaw === "object" && !Array.isArray(currentAddressRaw)
+      ? (currentAddressRaw as Record<string, unknown>)
+      : {};
+  const shouldUpdateHomeAddress =
+    input.homeServiceAddress !== undefined || input.homeServiceAccessNote !== undefined;
+
+  return {
+    ...current,
+    ...(shouldUpdateHomeAddress
+      ? {
+          home_service_address: {
+            ...currentAddress,
+            ...(input.homeServiceAddress !== undefined
+              ? { full_address: input.homeServiceAddress.trim() }
+              : {}),
+            ...(input.homeServiceAccessNote !== undefined
+              ? { access_note: input.homeServiceAccessNote.trim() }
+              : {}),
+            updated_by: input.actorId,
+            updated_at: updatedAt,
+            source: "crm_reschedule",
+          },
+        }
+      : {}),
+    crm_reschedule: entry,
+    crm_reschedule_history: [...history, entry],
+  } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
+}
+
+function followupResultLabel(result: string): string {
+  if (result === "no_answer") return "No Answer";
+  if (result === "reschedule") return "Reschedule";
+  if (result === "confirm_later") return "Confirm Later";
+  if (result === "cancel") return "Cancel";
+  if (result === "confirmed") return "Confirmed";
+  if (result === "rescheduled") return "Rescheduled";
+  if (result === "staff_reassigned") return "Staff Reassigned";
+  return result;
+}
+
+function auditPrefixForResult(result: string): string {
+  return result === "rescheduled" || result === "staff_reassigned"
+    ? "CRM action"
+    : "CRM follow-up";
+}
+
+function normalizeActionTime(value: string): string {
+  return value.length === 5 ? `${value}:00` : value;
+}
+
+function shortTime(value: string): string {
+  return value.slice(0, 5);
+}
+
+async function insertBookingAuditEvent(params: {
+  actorId: string | null;
+  admin: ReturnType<typeof createAdminClient>;
+  bookingId: string;
+  fromStatus: string | null;
+  note?: string;
+  result: string;
+  toStatus: string;
+}) {
+  const trimmedNote = params.note?.trim();
+  const prefix = auditPrefixForResult(params.result);
+  const auditNote = trimmedNote
+    ? `${prefix}: ${followupResultLabel(params.result)}. ${trimmedNote}`
+    : `${prefix}: ${followupResultLabel(params.result)}.`;
+
+  await params.admin.from("booking_events").insert({
+    booking_id: params.bookingId,
+    changed_by: params.actorId,
+    from_status: params.fromStatus,
+    to_status: params.toStatus,
+    notes: auditNote,
+  });
+}
+
+async function annotateLatestBookingEvent(params: {
+  actorId: string | null;
+  admin: ReturnType<typeof createAdminClient>;
+  bookingId: string;
+  note?: string;
+  previousStatus: string;
+  result: string;
+  nextStatus: string;
+}) {
+  if (params.previousStatus === params.nextStatus) return;
+
+  const { data: eventRow } = await params.admin
+    .from("booking_events")
+    .select("id")
+    .eq("booking_id", params.bookingId)
+    .eq("to_status", params.nextStatus)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!eventRow) return;
+
+  const trimmedNote = params.note?.trim();
+  const prefix = auditPrefixForResult(params.result);
+  await params.admin
+    .from("booking_events")
+    .update({
+      changed_by: params.actorId,
+      notes: trimmedNote
+        ? `${prefix}: ${followupResultLabel(params.result)}. ${trimmedNote}`
+        : `${prefix}: ${followupResultLabel(params.result)}.`,
+    })
+    .eq("id", eventRow.id);
+}
+
 async function loadCrmBookingForAction(
   ctx: CrmActionContext,
   bookingId: string
@@ -216,10 +384,11 @@ async function loadCrmBookingForAction(
     .from("bookings")
     .select(
       `
-        id, branch_id, booking_date, start_time, end_time, type, delivery_type,
+        id, branch_id, service_id, booking_date, start_time, end_time, type, delivery_type, staff_id, driver_id,
         status, booking_progress_status, checked_in_at, resource_id, metadata,
         customers ( full_name ),
         services ( name ),
+        staff ( id, full_name ),
         branches ( name )
       `
     )
@@ -292,6 +461,16 @@ export async function markBookingConfirmedAction(rawInput: unknown): Promise<{ s
     return { success: false, error: "Booking could not be confirmed. You may not have permission to update it." };
   }
 
+  await annotateLatestBookingEvent({
+    actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    admin,
+    bookingId: booking.id,
+    note: parsed.data.note,
+    previousStatus: booking.status,
+    result: "confirmed",
+    nextStatus: "confirmed",
+  });
+
   revalidateOperationalBookingSurfaces(booking.branch_id);
   return { success: true };
 }
@@ -311,15 +490,18 @@ export async function recordBookingFollowupAction(rawInput: unknown): Promise<{ 
     return { success: false, error: "This booking can no longer be updated." };
   }
 
+  const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
+  const nextStatus = parsed.data.result === "cancel" ? "cancelled" : booking.status;
   const admin = createAdminClient();
   const { data: updatedRows, error } = await admin
     .from("bookings")
     .update({
+      status: nextStatus,
       metadata: withFollowupMetadata(booking.metadata, {
         result: parsed.data.result,
         note: parsed.data.note,
         followUpAt: parsed.data.followUpAt,
-        actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+        actorId,
       }),
     })
     .eq("id", booking.id)
@@ -329,6 +511,186 @@ export async function recordBookingFollowupAction(rawInput: unknown): Promise<{ 
   if (error) return { success: false, error: error.message };
   if (!updatedRows || updatedRows.length === 0) {
     return { success: false, error: "Follow-up result could not be saved." };
+  }
+
+  if (nextStatus === booking.status) {
+    await insertBookingAuditEvent({
+      actorId,
+      admin,
+      bookingId: booking.id,
+      fromStatus: booking.status,
+      note: parsed.data.note,
+      result: parsed.data.result,
+      toStatus: booking.status,
+    });
+  } else {
+    await annotateLatestBookingEvent({
+      actorId,
+      admin,
+      bookingId: booking.id,
+      note: parsed.data.note,
+      previousStatus: booking.status,
+      result: parsed.data.result,
+      nextStatus,
+    });
+  }
+
+  revalidateOperationalBookingSurfaces(booking.branch_id);
+  return { success: true };
+}
+
+export async function rescheduleBookingAction(rawInput: unknown): Promise<{ success: boolean; error?: string }> {
+  const parsed = rescheduleBookingSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const ctx = await getCrmActionsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  const booking = await loadCrmBookingForAction(ctx, parsed.data.bookingId);
+  if (!booking) return { success: false, error: "Booking not found" };
+  if (CLOSED_BOOKING_STATUSES.has(booking.status) || booking.booking_progress_status === "completed") {
+    return { success: false, error: "This booking can no longer be rescheduled." };
+  }
+  if (booking.status === "in_progress" || booking.booking_progress_status === "session_started") {
+    return { success: false, error: "This booking has already started." };
+  }
+  if (!booking.service_id) {
+    return { success: false, error: "This booking has no service to validate against." };
+  }
+
+  const nextDate = parsed.data.date;
+  const nextStartTime = normalizeActionTime(parsed.data.startTime);
+  const currentStartTime = normalizeActionTime(booking.start_time);
+  const scheduleChanged =
+    booking.booking_date !== nextDate || shortTime(currentStartTime) !== shortTime(nextStartTime);
+
+  const currentMetadata =
+    booking.metadata && typeof booking.metadata === "object" && !Array.isArray(booking.metadata)
+      ? (booking.metadata as Record<string, unknown>)
+      : {};
+  const currentHomeAddressRaw = currentMetadata.home_service_address;
+  const currentHomeAddress =
+    currentHomeAddressRaw && typeof currentHomeAddressRaw === "object" && !Array.isArray(currentHomeAddressRaw)
+      ? (currentHomeAddressRaw as Record<string, unknown>)
+      : {};
+  const currentAddress =
+    typeof currentHomeAddress.full_address === "string" ? currentHomeAddress.full_address : "";
+  const currentAccessNote =
+    typeof currentHomeAddress.access_note === "string" ? currentHomeAddress.access_note : "";
+  const nextAddress = parsed.data.homeServiceAddress?.trim();
+  const nextAccessNote = parsed.data.homeServiceAccessNote?.trim();
+  const addressChanged =
+    isHomeServiceBooking(booking) &&
+    ((nextAddress !== undefined && nextAddress !== currentAddress) ||
+      (nextAccessNote !== undefined && nextAccessNote !== currentAccessNote));
+
+  if (!scheduleChanged && !addressChanged) {
+    return { success: false, error: "Choose a new date, time, or home-service address before saving." };
+  }
+
+  let nextEndTime: string;
+  try {
+    nextEndTime = await computeEndTime(nextStartTime, booking.service_id);
+  } catch {
+    return { success: false, error: "Could not calculate the new booking end time." };
+  }
+
+  const recommendationContext = await buildRecommendationContext(booking.id, {
+    booking_date: nextDate,
+    start_time: nextStartTime,
+    end_time: nextEndTime,
+  });
+  if (!recommendationContext) {
+    return { success: false, error: "Could not verify staff availability for the new time." };
+  }
+
+  const scoredCandidates = scoreTherapistCandidates(recommendationContext);
+  if (booking.staff_id) {
+    const currentTherapist = scoredCandidates.find((candidate) => candidate.staffId === booking.staff_id);
+    if (!currentTherapist || currentTherapist.status === "unavailable") {
+      return {
+        success: false,
+        error: currentTherapist?.warnings[0] ?? "Assigned therapist is not available at the new time.",
+      };
+    }
+  } else if (!scoredCandidates.some((candidate) => candidate.status !== "unavailable")) {
+    return { success: false, error: "No therapist is available at the new time." };
+  }
+
+  if (booking.resource_id && !isHomeServiceBooking(booking)) {
+    const resourceAvailable = await isResourceAvailable({
+      resourceId: booking.resource_id,
+      date: nextDate,
+      startTime: nextStartTime,
+      endTime: nextEndTime,
+      excludeBookingId: booking.id,
+    });
+    if (!resourceAvailable) {
+      return { success: false, error: "The assigned room is not available at the new time." };
+    }
+  }
+
+  const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
+  const admin = createAdminClient();
+  const { data: updatedRows, error } = await admin
+    .from("bookings")
+    .update({
+      booking_date: nextDate,
+      start_time: nextStartTime,
+      end_time: nextEndTime,
+      metadata: withRescheduleMetadata(booking.metadata, {
+        actorId,
+        fromDate: booking.booking_date,
+        fromTime: currentStartTime,
+        note: parsed.data.note,
+        toDate: nextDate,
+        toTime: nextStartTime,
+        homeServiceAddress: isHomeServiceBooking(booking) ? nextAddress : undefined,
+        homeServiceAccessNote: isHomeServiceBooking(booking) ? nextAccessNote : undefined,
+      }),
+    })
+    .eq("id", booking.id)
+    .eq("branch_id", booking.branch_id)
+    .select("id");
+
+  if (error) return { success: false, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return { success: false, error: "Booking could not be rescheduled. You may not have permission." };
+  }
+
+  const auditNote = [
+    scheduleChanged
+      ? `Rescheduled from ${booking.booking_date} ${shortTime(currentStartTime)} to ${nextDate} ${shortTime(nextStartTime)}.`
+      : null,
+    addressChanged ? "Home-service address updated." : null,
+    parsed.data.note?.trim() || null,
+  ].filter(Boolean).join(" ");
+  await insertBookingAuditEvent({
+    actorId,
+    admin,
+    bookingId: booking.id,
+    fromStatus: booking.status,
+    note: auditNote,
+    result: "rescheduled",
+    toStatus: booking.status,
+  });
+
+  if (booking.staff_id) {
+    await createNotification({
+      branchId: booking.branch_id,
+      targetWorkspace: "staff",
+      recipientStaffId: booking.staff_id,
+      type: "booking_rescheduled",
+      title: "Booking time changed",
+      body: `Your booking has been rescheduled to ${nextDate} at ${shortTime(nextStartTime)}.`,
+      entityType: "booking",
+      entityId: booking.id,
+      actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: booking.id }),
+      priority: "high",
+      requiresAction: true,
+    });
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
@@ -720,7 +1082,7 @@ export async function assignBookingTherapistAction(
   const booking = await loadCrmBookingForAction(ctx, parsed.data.bookingId);
   if (!booking) return { success: false, error: "Booking not found" };
   if (CLOSED_BOOKING_STATUSES.has(booking.status)) {
-    return { success: false, error: "This booking can already closed." };
+    return { success: false, error: "This booking is already closed." };
   }
 
   const admin = createAdminClient();
@@ -728,7 +1090,7 @@ export async function assignBookingTherapistAction(
   // Verify staff exists, is active, and belongs to the booking branch
   const { data: staff, error: staffError } = await admin
     .from("staff")
-    .select("id, branch_id, is_active, staff_type, system_role")
+    .select("id, branch_id, full_name, is_active, staff_type, system_role")
     .eq("id", parsed.data.staffId)
     .maybeSingle();
 
@@ -737,7 +1099,24 @@ export async function assignBookingTherapistAction(
     return { success: false, error: "Selected therapist is not available for this branch." };
   }
 
-  const previousStaffId = (booking as unknown as { staff_id?: string | null }).staff_id ?? null;
+  const recommendationContext = await buildRecommendationContext(booking.id);
+  if (!recommendationContext) {
+    return { success: false, error: "Could not verify staff availability for this booking." };
+  }
+  const candidate = scoreTherapistCandidates(recommendationContext).find(
+    (item) => item.staffId === parsed.data.staffId
+  );
+  if (!candidate) {
+    return { success: false, error: "Selected therapist is not qualified for this service." };
+  }
+  if (candidate.status === "unavailable") {
+    const reason = candidate.warnings[0] ?? "Selected therapist is not available at this time.";
+    return { success: false, error: reason };
+  }
+
+  const previousStaffId = booking.staff_id ?? null;
+  const previousStaffName = firstRelation(booking.staff)?.full_name ?? "Unassigned";
+  const nextStaffName = staff.full_name ?? "Selected therapist";
   const now = new Date().toISOString();
 
   // Build metadata audit entry
@@ -775,7 +1154,15 @@ export async function assignBookingTherapistAction(
   const updated = updatedRows[0]!;
 
   // Audit is stored in bookings.metadata.assignment_audit.
-  // booking_events is reserved for status transitions, so no row is inserted here.
+  await insertBookingAuditEvent({
+    actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    admin,
+    bookingId: booking.id,
+    fromStatus: booking.status,
+    note: `Assigned therapist changed from ${previousStaffName} to ${nextStaffName}. Reason: ${parsed.data.overrideReason ?? "staff_reassigned"}.`,
+    result: "staff_reassigned",
+    toStatus: booking.status,
+  });
 
   // Notify newly assigned therapist
   if (parsed.data.staffId !== previousStaffId) {
@@ -799,6 +1186,210 @@ export async function assignBookingTherapistAction(
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
   return { success: true };
+}
+
+
+function readDispatchNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function readHomeServiceGps(metadata: CrmBookingActionRow["metadata"]): { lat: number | null; lng: number | null } {
+  const current =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const addressRaw = current.home_service_address;
+  const address =
+    addressRaw && typeof addressRaw === "object" && !Array.isArray(addressRaw)
+      ? (addressRaw as Record<string, unknown>)
+      : {};
+  return {
+    lat: readDispatchNumber(address.lat),
+    lng: readDispatchNumber(address.lng),
+  };
+}
+
+function readDispatchEta(metadata: CrmBookingActionRow["metadata"]): number {
+  const current =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const dispatchRaw = current.dispatch;
+  const dispatch =
+    dispatchRaw && typeof dispatchRaw === "object" && !Array.isArray(dispatchRaw)
+      ? (dispatchRaw as Record<string, unknown>)
+      : {};
+  const liveEtaRaw = dispatch.live_eta;
+  const liveEta =
+    liveEtaRaw && typeof liveEtaRaw === "object" && !Array.isArray(liveEtaRaw)
+      ? (liveEtaRaw as Record<string, unknown>)
+      : {};
+  return readDispatchNumber(liveEta.eta_minutes) ?? readDispatchNumber(dispatch.eta_minutes) ?? 25;
+}
+
+function withDispatchMetadata(
+  metadata: CrmBookingActionRow["metadata"],
+  input: {
+    actorId: string | null;
+    status: "scheduled" | "released_to_driver";
+    approvedAt: string;
+    releaseAt: string;
+    releasedAt: string | null;
+    etaMinutes: number;
+    bufferMinutes: number;
+    lat: number;
+    lng: number;
+    note?: string;
+  }
+): Database["public"]["Tables"]["bookings"]["Update"]["metadata"] {
+  const current =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const dispatchRaw = current.dispatch;
+  const dispatch =
+    dispatchRaw && typeof dispatchRaw === "object" && !Array.isArray(dispatchRaw)
+      ? (dispatchRaw as Record<string, unknown>)
+      : {};
+
+  return {
+    ...current,
+    dispatch: {
+      ...dispatch,
+      status: input.status,
+      ready: true,
+      approved_at: input.approvedAt,
+      approved_by: input.actorId,
+      release_at: input.releaseAt,
+      released_at: input.releasedAt,
+      eta_minutes: input.etaMinutes,
+      buffer_minutes: input.bufferMinutes,
+      destination_lat: input.lat,
+      destination_lng: input.lng,
+      note: input.note?.trim() || null,
+      source: "crm_dispatch_modal",
+    },
+  } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"];
+}
+
+export async function prepareHomeServiceDispatchAction(
+  rawInput: unknown
+): Promise<{ success: boolean; error?: string; releasedNow?: boolean; releaseAt?: string }> {
+  const parsed = prepareHomeServiceDispatchSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const ctx = await getCrmActionsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  const booking = await loadCrmBookingForAction(ctx, parsed.data.bookingId);
+  if (!booking) return { success: false, error: "Booking not found" };
+  if (!isHomeServiceBooking(booking)) {
+    return { success: false, error: "Dispatch preparation only applies to home-service bookings." };
+  }
+  if (CLOSED_BOOKING_STATUSES.has(booking.status) || booking.booking_progress_status === "completed") {
+    return { success: false, error: "This booking can no longer be dispatched." };
+  }
+  if (!booking.driver_id) {
+    return { success: false, error: "Assign a driver before dispatch." };
+  }
+  if (!booking.staff_id) {
+    return { success: false, error: "Confirm a therapist before dispatch." };
+  }
+
+  const gps = readHomeServiceGps(booking.metadata);
+  if (gps.lat === null || gps.lng === null) {
+    return { success: false, error: "GPS location is missing. Dispatch cannot be released without coordinates." };
+  }
+
+  const etaMinutes = readDispatchEta(booking.metadata);
+  const bufferMinutes = 10;
+  const appointmentAt = new Date(`${booking.booking_date}T${normalizeActionTime(booking.start_time)}`);
+  const releaseAt = new Date(appointmentAt.getTime() - (etaMinutes + bufferMinutes) * 60_000);
+  const now = new Date();
+  const shouldReleaseNow = parsed.data.releaseNow === true || now.getTime() >= releaseAt.getTime();
+  const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
+  const admin = createAdminClient();
+
+  const { data: updatedRows, error } = await admin
+    .from("bookings")
+    .update({
+      metadata: withDispatchMetadata(booking.metadata, {
+        actorId,
+        status: shouldReleaseNow ? "released_to_driver" : "scheduled",
+        approvedAt: now.toISOString(),
+        releaseAt: releaseAt.toISOString(),
+        releasedAt: shouldReleaseNow ? now.toISOString() : null,
+        etaMinutes,
+        bufferMinutes,
+        lat: gps.lat,
+        lng: gps.lng,
+        note: parsed.data.note,
+      }),
+    })
+    .eq("id", booking.id)
+    .eq("branch_id", booking.branch_id)
+    .select("id");
+
+  if (error) return { success: false, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return { success: false, error: "Dispatch could not be prepared." };
+  }
+
+  await insertBookingAuditEvent({
+    actorId,
+    admin,
+    bookingId: booking.id,
+    fromStatus: booking.status,
+    toStatus: booking.status,
+    result: shouldReleaseNow ? "dispatch_released" : "dispatch_scheduled",
+    note: shouldReleaseNow
+      ? `Home-service dispatch released to driver. ${parsed.data.note?.trim() ?? ""}`.trim()
+      : `Home-service dispatch scheduled for ${releaseAt.toISOString()}. ${parsed.data.note?.trim() ?? ""}`.trim(),
+  });
+
+  if (shouldReleaseNow) {
+    await resolveNotificationsForEntity("booking", booking.id, "driver", "home_service_assigned");
+    await createNotification({
+      branchId: booking.branch_id,
+      targetWorkspace: "driver",
+      recipientStaffId: booking.driver_id,
+      type: "home_service_assigned",
+      title: "Home Service trip released",
+      body: `Trip is ready. Tap View and follow the saved GPS coordinates.`,
+      entityType: "booking",
+      entityId: booking.id,
+      actionHref: `/driver/jobs/${booking.id}`,
+      priority: "high",
+      requiresAction: true,
+      dedupeKey: `dispatch:released:${booking.id}`,
+      metadata: {
+        releaseAt: releaseAt.toISOString(),
+        etaMinutes,
+        destinationLat: gps.lat,
+        destinationLng: gps.lng,
+      },
+    });
+  }
+
+  revalidateOperationalBookingSurfaces(booking.branch_id);
+  revalidatePath("/crm/dispatch");
+  revalidatePath("/manager/dispatch");
+  revalidatePath("/driver");
+  revalidatePath("/driver/dispatch");
+  revalidatePath("/staff-portal/dispatch");
+
+  return {
+    success: true,
+    releasedNow: shouldReleaseNow,
+    releaseAt: releaseAt.toISOString(),
+  };
 }
 
 export async function crmStartServiceAction(
@@ -913,3 +1504,5 @@ export async function crmCompleteServiceAction(
   revalidateServiceSurfaces(booking.branch_id);
   return { success: true };
 }
+
+

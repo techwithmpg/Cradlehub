@@ -97,6 +97,7 @@ export const CONFLICT_TYPE_LABELS: Record<LiveScheduleConflictType, string> = {
   booking_on_day_off: "Staff is off today",
   booking_during_blocked_time: "Booking during blocked time",
   missing_schedule: "Missing staff schedule",
+  schedule_rule_conflict: "Conflicting staff schedule",
   duplicate_schedule_window: "Duplicate schedule window",
   coverage_gap: "Coverage gap",
   home_service_travel_buffer_warning: "Travel buffer too short",
@@ -109,6 +110,7 @@ export function getConflictTypeLabel(type: LiveScheduleConflictType): string {
 export function getConflictCategoryKey(conflict: LiveScheduleConflict): ScheduleConflictTabKey {
   switch (conflict.type) {
     case "staff_overlap":
+    case "schedule_rule_conflict":
       return "staff";
     case "room_double_booked":
     case "missing_room":
@@ -238,6 +240,16 @@ export function classifyScheduleConflict(conflict: LiveScheduleConflict): Omit<
         affectsOnlineBooking: conflict.affected_booking_ids.length > 0,
         priority: conflict.affected_booking_ids.length > 0 ? 18 : 55,
       };
+    case "schedule_rule_conflict":
+      return {
+        impactGroup: "must_fix",
+        systemImpact: "Online booking / availability",
+        operationalImpact: conflict.affected_booking_ids.length > 0 ? "High" : "Medium",
+        canAcceptException: false,
+        affectsAvailability: true,
+        affectsOnlineBooking: true,
+        priority: 12,
+      };
     case "coverage_gap":
       return {
         impactGroup: "informational",
@@ -323,7 +335,7 @@ export function buildScheduleConflictTabCounts(
     if (issue.impactGroup === "must_fix") counts.must_fix += 1;
     if (issue.impactGroup === "needs_approval") counts.needs_approval += 1;
     if (issue.impactGroup === "cleanup_warning") counts.cleanup += 1;
-    if (issue.conflict.type === "staff_overlap") counts.staff += 1;
+    if (issue.conflict.type === "staff_overlap" || issue.conflict.type === "schedule_rule_conflict") counts.staff += 1;
     if (issue.conflict.type === "room_double_booked" || issue.conflict.type === "missing_room") {
       counts.rooms += 1;
     }
@@ -374,7 +386,9 @@ function issueMatchesTab(issue: ScheduleConflictResolutionIssue, tab: ScheduleCo
   if (tab === "needs_approval") return issue.impactGroup === "needs_approval";
   if (tab === "cleanup") return issue.impactGroup === "cleanup_warning";
   if (tab === "rooms") return issue.conflict.type === "room_double_booked" || issue.conflict.type === "missing_room";
-  if (tab === "staff") return issue.conflict.type === "staff_overlap";
+  if (tab === "staff") {
+    return issue.conflict.type === "staff_overlap" || issue.conflict.type === "schedule_rule_conflict";
+  }
   if (tab === "home_service") return issue.conflict.type === "home_service_travel_buffer_warning";
   return true;
 }

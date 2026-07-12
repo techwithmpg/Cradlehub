@@ -8,7 +8,7 @@ import { BookingActionMenu } from "@/components/features/dashboard/booking-actio
 import { PaymentActionMenu } from "@/components/features/dashboard/payment-action-menu";
 import { DriverAssignMenu, type AvailableDriver } from "@/components/features/control-console/driver-assign-menu";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
-import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
+import { refreshHomeServiceEtaAction } from "@/lib/actions/eta-actions";
 import {
   getWorkQueueNextAction,
   type WorkQueueActionCategory,
@@ -202,13 +202,7 @@ function TrackingCopyButton({
   );
 }
 
-function EtaRefreshButton({
-  bookingId,
-  refreshEtaAction,
-}: {
-  bookingId: string;
-  refreshEtaAction: (bookingId: string) => Promise<EtaRefreshResult>;
-}) {
+function EtaRefreshButton({ bookingId }: { bookingId: string }) {
   const [label, setLabel] = useState("Refresh ETA");
   const [isPending, startTransition] = useTransition();
 
@@ -216,7 +210,7 @@ function EtaRefreshButton({
     if (isPending) return;
     setLabel("Refreshing");
     startTransition(async () => {
-      const result = await refreshEtaAction(bookingId);
+      const result = await refreshHomeServiceEtaAction(bookingId);
       setLabel(result.ok ? "ETA updated" : "ETA failed");
       window.setTimeout(() => setLabel("Refresh ETA"), 2500);
     });
@@ -238,7 +232,6 @@ export function WorkQueuePanel({
   assignDriverAction,
   availableDrivers,
   getTrackingLinkAction,
-  refreshEtaAction,
 }: {
   bookings: WorkQueueBooking[];
   viewerRole: string;
@@ -247,12 +240,12 @@ export function WorkQueuePanel({
   assignDriverAction?: MutationAction;
   availableDrivers?: AvailableDriver[];
   getTrackingLinkAction?: TrackingLinkAction;
-  refreshEtaAction?: (bookingId: string) => Promise<EtaRefreshResult>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeFilter = getFilterFromSearchParams(searchParams);
+  const activeFilterIndex = FILTERS.findIndex((filter) => filter.key === activeFilter);
 
   const rows = useMemo(() => {
     return bookings
@@ -276,18 +269,31 @@ export function WorkQueuePanel({
   }, [bookings]);
 
   const filterCounts = useMemo(() => {
-    return {
+    const counts = {
       all: rows.length,
-      confirmations: rows.filter((row) => row.action.category === "confirmation").length,
-      "follow-up": rows.filter((row) => row.action.category === "follow_up").length,
-      exceptions: rows.filter((row) => row.action.category === "exception").length,
+      confirmations: 0,
+      "follow-up": 0,
+      exceptions: 0,
     } satisfies Record<WorkQueueFilterKey, number>;
+
+    for (const row of rows) {
+      if (row.action.category === "confirmation") counts.confirmations += 1;
+      else if (row.action.category === "follow_up") counts["follow-up"] += 1;
+      else if (row.action.category === "exception") counts.exceptions += 1;
+    }
+
+    return counts;
   }, [rows]);
 
-  const filteredRows = rows.filter((row) => {
-    const config = FILTERS.find((filter) => filter.key === activeFilter);
-    return !config?.category || row.action.category === config.category;
-  });
+  const activeFilterConfig = useMemo(
+    () => FILTERS.find((filter) => filter.key === activeFilter),
+    [activeFilter]
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!activeFilterConfig?.category) return rows;
+    return rows.filter((row) => row.action.category === activeFilterConfig.category);
+  }, [activeFilterConfig, rows]);
 
   function setFilter(filter: WorkQueueFilterKey) {
     const params = new URLSearchParams(searchParams.toString());
@@ -298,6 +304,21 @@ export function WorkQueuePanel({
     }
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  function handleFilterKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const lastIndex = FILTERS.length - 1;
+    let nextIndex = activeFilterIndex;
+
+    if (event.key === "ArrowRight") nextIndex = activeFilterIndex === lastIndex ? 0 : activeFilterIndex + 1;
+    else if (event.key === "ArrowLeft") nextIndex = activeFilterIndex === 0 ? lastIndex : activeFilterIndex - 1;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = lastIndex;
+    else return;
+
+    event.preventDefault();
+    const nextFilter = FILTERS[nextIndex];
+    if (nextFilter) setFilter(nextFilter.key);
   }
 
   return (
@@ -328,15 +349,23 @@ export function WorkQueuePanel({
         />
       </div>
 
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "1rem" }} role="tablist" aria-label="Work queue filters">
+      <div
+        style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "1rem" }}
+        role="tablist"
+        aria-label="Work queue filters"
+        onKeyDown={handleFilterKeyDown}
+      >
         {FILTERS.map((filter) => {
           const isActive = activeFilter === filter.key;
           return (
             <button
               key={filter.key}
+              id={`work-queue-filter-${filter.key}`}
               type="button"
               role="tab"
               aria-selected={isActive}
+              aria-controls="work-queue-results"
+              tabIndex={isActive ? 0 : -1}
               onClick={() => setFilter(filter.key)}
               style={{
                 display: "inline-flex",
@@ -360,21 +389,27 @@ export function WorkQueuePanel({
         })}
       </div>
 
-      {filteredRows.length === 0 ? (
-        <div
-          style={{
-            border: "1px solid var(--cs-border-soft)",
-            borderRadius: "var(--cs-r-md)",
-            padding: "1.5rem",
-            color: "var(--cs-text-muted)",
-            fontSize: "0.875rem",
-            textAlign: "center",
-          }}
-        >
-          No bookings match this work queue filter.
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+      <div
+        id="work-queue-results"
+        role="tabpanel"
+        aria-labelledby={`work-queue-filter-${activeFilter}`}
+        tabIndex={0}
+      >
+        {filteredRows.length === 0 ? (
+          <div
+            style={{
+              border: "1px solid var(--cs-border-soft)",
+              borderRadius: "var(--cs-r-md)",
+              padding: "1.5rem",
+              color: "var(--cs-text-muted)",
+              fontSize: "0.875rem",
+              textAlign: "center",
+            }}
+          >
+            No bookings match this work queue filter.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
           {filteredRows.map(({ booking, action }) => {
             const tone = getActionTone(action.category);
             const isHomeService = booking.type === "home_service";
@@ -562,17 +597,16 @@ export function WorkQueuePanel({
                           getTrackingLinkAction={getTrackingLinkAction}
                         />
                       )}
-                      {isHomeService && refreshEtaAction && (
-                        <EtaRefreshButton bookingId={booking.id} refreshEtaAction={refreshEtaAction} />
-                      )}
+                      {isHomeService && <EtaRefreshButton bookingId={booking.id} />}
                     </div>
                   </details>
                 </div>
               </article>
             );
           })}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

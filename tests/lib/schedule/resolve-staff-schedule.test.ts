@@ -161,7 +161,7 @@ describe("resolveScheduleForStaffDay", () => {
         {
           shift_type: "opening",
           start_time: "10:00",
-          end_time: "17:30",
+          end_time: "13:00",
           is_active: true,
         },
         {
@@ -184,12 +184,61 @@ describe("resolveScheduleForStaffDay", () => {
 
     expect(resolved.source).toBe("individual");
     expect(resolved.windows).toEqual([
-      { shiftType: "opening", startTime: "10:00", endTime: "17:30" },
+      { shiftType: "opening", startTime: "10:00", endTime: "13:00" },
       { shiftType: "closing", startTime: "14:00", endTime: "22:30" },
     ]);
     expect(getScheduleWindowSpan(resolved.windows)).toEqual({
       startTime: "10:00",
       endTime: "22:30",
+    });
+  });
+
+  it("blocks overlapping individual windows as a conflict with no operational windows", () => {
+    const resolved = resolveScheduleForStaffDay({
+      individualRows: [
+        {
+          shift_type: "opening",
+          start_time: "10:00",
+          end_time: "17:30",
+          is_active: true,
+        },
+        {
+          shift_type: "closing",
+          start_time: "14:00",
+          end_time: "22:30",
+          is_active: true,
+        },
+      ],
+    });
+
+    expect(resolved).toMatchObject({
+      source: "individual",
+      status: "conflict",
+      isWorking: false,
+      isDayOff: false,
+      windows: [],
+      conflictCode: "overlapping_windows",
+    });
+  });
+
+  it("treats malformed timed overrides as conflicts instead of falling through", () => {
+    const resolved = resolveScheduleForStaffDay({
+      override: { is_day_off: false, shift_type: "single", start_time: null, end_time: null },
+      individualRows: [
+        {
+          shift_type: "single",
+          start_time: "10:00",
+          end_time: "19:00",
+          is_active: true,
+        },
+      ],
+    });
+
+    expect(resolved).toMatchObject({
+      source: "override",
+      status: "conflict",
+      windows: [],
+      conflictCode: "invalid_time_range",
     });
   });
 

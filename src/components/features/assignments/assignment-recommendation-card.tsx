@@ -45,8 +45,10 @@ export function AssignmentRecommendationCard({
     topSuggestedId !== undefined &&
     candidate.staffId !== topSuggestedId &&
     candidate.status !== "unavailable";
+  const canAssign = candidate.status !== "unavailable" && !isAssigned;
 
   const handleAssign = () => {
+    if (!canAssign) return;
     if (requiresOverrideReason && !selectedReason) {
       setShowReason(true);
       return;
@@ -148,7 +150,7 @@ export function AssignmentRecommendationCard({
             <button
               type="button"
               onClick={handleAssign}
-              disabled={isAssigned}
+              disabled={!canAssign}
               style={{
                 padding: "5px 10px",
                 borderRadius: "var(--cs-r-sm)",
@@ -157,10 +159,11 @@ export function AssignmentRecommendationCard({
                 color: isAssigned ? "var(--cs-success-text)" : "var(--cs-sand-dark)",
                 fontSize: 11,
                 fontWeight: 700,
-                cursor: isAssigned ? "default" : "pointer",
+                cursor: canAssign ? "pointer" : "not-allowed",
+                opacity: canAssign || isAssigned ? 1 : 0.55,
               }}
             >
-              {isAssigned ? "Assigned" : assignLabel}
+              {isAssigned ? "Assigned" : candidate.status === "unavailable" ? "Unavailable" : assignLabel}
             </button>
           )}
         </div>

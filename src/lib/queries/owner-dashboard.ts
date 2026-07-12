@@ -231,7 +231,8 @@ export async function getOwnerOverviewDashboardData(
       supabase
         .from("staff_shift_checkins")
         .select("staff_id, branch_id, shift_date, status")
-        .eq("shift_date", today),
+        .eq("shift_date", today)
+        .eq("is_test", false),
       "Could not load shift check-ins",
       []
     ),

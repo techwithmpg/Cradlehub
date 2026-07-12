@@ -6,6 +6,7 @@ import {
   buildAttendanceRecordHref,
   formatAttendanceScanTime,
   formatShiftTypeLabel,
+  getAttendanceScanDurationDetail,
   getAttendanceScanBadge,
   getAttendanceScanEventLabel,
   getAttendanceScanInitials,
@@ -26,7 +27,13 @@ export function AttendanceScanFeedRow({
   selectedDate: string;
 }) {
   const badge = getAttendanceScanBadge(scan);
+  const durationDetail = getAttendanceScanDurationDetail(scan);
   const displayName = scan.staffNickname || scan.staffName;
+  const shiftDetails = [
+    formatShiftTypeLabel(scan.shiftType),
+    scan.branchName,
+    durationDetail,
+  ].filter(Boolean);
   const href = buildAttendanceRecordHref({
     workspace,
     selectedDate,
@@ -62,8 +69,7 @@ export function AttendanceScanFeedRow({
           <span>{formatAttendanceScanTime(scan.occurredAt)}</span>
         </span>
         <span className="mt-0.5 block truncate text-xs text-[var(--cs-text-muted)]">
-          {formatShiftTypeLabel(scan.shiftType)}
-          {scan.branchName ? ` - ${scan.branchName}` : ""}
+          {shiftDetails.join(" - ")}
         </span>
       </span>
       <span className="flex items-center gap-2">
@@ -74,6 +80,7 @@ export function AttendanceScanFeedRow({
             badge.tone === "warn" && "bg-amber-100 text-amber-800",
             badge.tone === "info" && "bg-blue-100 text-blue-800"
           )}
+          aria-label={`Attendance status: ${badge.label}`}
         >
           {badge.label}
         </span>

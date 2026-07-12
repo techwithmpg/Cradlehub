@@ -45,6 +45,7 @@ const DEFAULT_STAFF_READINESS: CrmAvailabilitySummary = {
   checkedOut: 0,
   offToday: 0,
   noSchedule: 0,
+  scheduleConflicts: 0,
   driversReady: 0,
   driversTotal: 0,
   needsAttention: 0,

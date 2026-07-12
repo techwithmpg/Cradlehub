@@ -67,6 +67,8 @@ function currentStageLabel(s: DispatchStatus): string {
   switch (s) {
     case "awaiting_driver":     return "Needs Driver";
     case "ready":               return "Ready";
+    case "scheduled":           return "Scheduled";
+    case "released_to_driver":  return "Released";
     case "in_route":            return "En Route";
     case "arrived_at_customer": return "Arrived";
     case "service_started":     return "In Service";
@@ -79,6 +81,8 @@ function statusBadgeClass(s: DispatchStatus): string {
   switch (s) {
     case "awaiting_driver":     return "border-amber-400 text-amber-700 bg-amber-50";
     case "ready":               return "border-blue-400 text-blue-700 bg-blue-50";
+    case "scheduled":           return "border-sky-400 text-sky-700 bg-sky-50";
+    case "released_to_driver":  return "border-indigo-400 text-indigo-700 bg-indigo-50";
     case "in_route":            return "border-purple-400 text-purple-700 bg-purple-50";
     case "arrived_at_customer": return "border-cyan-400 text-cyan-700 bg-cyan-50";
     case "service_started":     return "border-green-500 text-green-700 bg-green-50";

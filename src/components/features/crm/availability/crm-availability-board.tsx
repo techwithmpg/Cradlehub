@@ -41,6 +41,7 @@ const STATUS_META: Record<LiveStatus, { label: string; bg: string; color: string
   checked_out:    { label: "Checked Out",  bg: "rgba(120,120,120,0.10)", color: "var(--cs-text-muted)" },
   off_today:      { label: "Off Today",    bg: "rgba(120,120,120,0.10)", color: "var(--cs-text-muted)" },
   no_schedule:    { label: "No Schedule",  bg: "rgba(230,126,34,0.12)",  color: "#b35b0a" },
+  conflict:       { label: "Conflict",     bg: "rgba(185,28,28,0.10)",   color: "#b91c1c" },
 };
 
 function StatusChip({ status }: { status: LiveStatus }) {
@@ -66,6 +67,7 @@ const AVATAR_BG: Record<LiveStatus, string> = {
   checked_out:    "#95a5a6",
   off_today:      "#95a5a6",
   no_schedule:    "#e67e22",
+  conflict:       "#b91c1c",
 };
 
 // ── Check-in / out action ─────────────────────────────────────────────────────
@@ -331,10 +333,13 @@ type IssueGroup = {
 };
 
 function buildGroups(staff: CrmAvailabilityStaffRow[]): IssueGroup[] {
+  const conflicts  = staff.filter((s) => s.scheduleStatus === "conflict");
   const noSchedule = staff.filter((s) => s.scheduleStatus === "no_schedule");
-  const other      = staff.filter((s) => s.scheduleStatus !== "no_schedule");
+  const other      = staff.filter((s) => s.scheduleStatus !== "no_schedule" && s.scheduleStatus !== "conflict");
 
   const groups: IssueGroup[] = [];
+  if (conflicts.length > 0)
+    groups.push({ id: "conflict", label: "Schedule Conflicts", count: conflicts.length, members: conflicts });
   if (noSchedule.length > 0)
     groups.push({ id: "no_schedule", label: "No Schedule Set", count: noSchedule.length, members: noSchedule });
   if (other.length > 0)

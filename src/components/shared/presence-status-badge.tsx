@@ -4,6 +4,7 @@ const PRESENCE_CONFIG: Record<string, { label: string; color: string; bg: string
   checked_out:    { label: "Checked out",    color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)"  },
   off_today:      { label: "Off today",      color: "var(--cs-text-muted)", bg: "rgba(107,114,128,0.1)"  },
   no_schedule:    { label: "No schedule",    color: "#D97706",              bg: "rgba(217,119,6,0.1)"    },
+  conflict:       { label: "Conflict",       color: "#B91C1C",              bg: "rgba(185,28,28,0.10)"   },
 };
 
 export function PresenceStatusBadge({ status }: { status: string }) {

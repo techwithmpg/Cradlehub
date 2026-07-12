@@ -50,6 +50,7 @@ function baseScanQuery(
     .select(columns, options)
     .eq("scan_type", "attendance")
     .eq("outcome", "success")
+    .eq("is_test", false)
     .in("action", ["clock_in", "clock_out"]);
 
   if (branchId) query = query.eq("branch_id", branchId);
@@ -90,7 +91,7 @@ export async function getRecentAttendanceScanFeed(
       "staff(id, full_name, nickname, avatar_url)",
       "branches(id, name)",
       "qr_points(label)",
-      "checkin:staff_shift_checkins!qr_scan_events_checkin_id_fkey(shift_type, attendance_status, worked_minutes)",
+      "checkin:staff_shift_checkins!qr_scan_events_checkin_id_fkey(shift_type, attendance_status, worked_minutes, checked_in_at, checked_out_at)",
     ].join(", ")
   )
     .gte("created_at", startIso)

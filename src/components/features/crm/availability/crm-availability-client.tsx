@@ -43,7 +43,7 @@ export function CrmAvailabilityClient({ snapshot }: Props) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
 
-  const issueCount  = snapshot.staff.filter((s) => s.scheduleStatus === "no_schedule").length;
+  const issueCount  = snapshot.staff.filter((s) => s.needsAttention).length;
   const driverCount = snapshot.staff.filter((s) => s.is_driver).length;
 
   return (
@@ -452,9 +452,11 @@ function ScheduleStaffCard({
 }
 
 function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
-  const allIssues       = staff.filter((s) => s.scheduleStatus === "no_schedule");
-  const serviceIssues   = allIssues.filter((s) => s.is_service_provider);
-  const opsIssues       = allIssues.filter((s) => !s.is_service_provider);
+  const conflictIssues  = staff.filter((s) => s.scheduleStatus === "conflict");
+  const noSchedule      = staff.filter((s) => s.scheduleStatus === "no_schedule");
+  const allIssues       = [...conflictIssues, ...noSchedule];
+  const serviceIssues   = noSchedule.filter((s) => s.is_service_provider);
+  const opsIssues       = noSchedule.filter((s) => !s.is_service_provider);
 
   if (allIssues.length === 0) {
     return (
@@ -474,6 +476,39 @@ function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {conflictIssues.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+          <ReadinessIssueCard
+            issue={{
+              id: "schedule-conflicts",
+              scope: "schedule",
+              severity: "critical",
+              title: `${conflictIssues.length} staff schedule ${conflictIssues.length === 1 ? "conflict" : "conflicts"} found`,
+              problem: "One or more staff schedules has invalid, overlapping, or contradictory windows.",
+              impact: "Availability and booking recommendations will exclude these staff until the schedule is corrected.",
+              fix: "Open Schedule Setup and keep one ordinary shift or a non-overlapping Split Shift.",
+              actionLabel: "Open schedule setup",
+              actionHref: "/crm/staff-availability",
+              source: "getCrmAvailabilitySnapshot",
+              entityType: "staff",
+              entityIds: conflictIssues.map((s) => s.staff_id),
+              count: conflictIssues.length,
+            }}
+            compact
+          />
+          <div style={gridStyle}>
+            {conflictIssues.map((s) => (
+              <ScheduleStaffCard
+                key={s.staff_id}
+                staff={s}
+                tagColor="#b91c1c"
+                tagText={s.scheduleConflictReason ?? "Schedule conflict"}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Service staff — affects online booking */}
       {serviceIssues.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>

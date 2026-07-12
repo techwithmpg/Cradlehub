@@ -1,10 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { getHomeServiceBranchRouteOrigin } from "@/lib/home-service/distance-service";
 import { parseLiveEta } from "@/lib/bookings/ops-warnings";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { formatTime12h } from "@/lib/utils/time-format";
-import type { DispatchStatus, DispatchAlert } from "@/features/dispatch/types";
-
-// ── Shared real data types ─────────────────────────────────────────────────────
+import type { DispatchAlert, DispatchStatus } from "@/features/dispatch/types";
 
 export interface RealDispatchItem {
   id: string;
@@ -14,11 +13,13 @@ export interface RealDispatchItem {
   endTime: string;
   customerName: string;
   serviceName: string;
-  /** zone or city from metadata.home_service_address */
   area: string | null;
   formattedAddress: string | null;
   lat: number | null;
   lng: number | null;
+  branchName: string | null;
+  branchLat: number | null;
+  branchLng: number | null;
   needsLocationReview: boolean;
   driverId: string | null;
   driverName: string | null;
@@ -33,9 +34,7 @@ export interface RealDispatchItem {
   arrivedAt: string | null;
   sessionStartedAt: string | null;
   completedAt: string | null;
-  /** No rating system yet — always null */
   rating: null;
-  /** Latest staff location snapshot for this booking */
   currentLocation: { lat: number; lng: number; recorded_at: string } | null;
 }
 
@@ -54,19 +53,108 @@ export interface DispatchData {
   today: string;
 }
 
-// ── Internal helpers ───────────────────────────────────────────────────────────
+type OneOrMany<T> = T | T[] | null | undefined;
 
-type OneOrMany<T> = T | T[] | null;
-
-function first<T>(v: OneOrMany<T>): T | null {
-  if (!v) return null;
-  return Array.isArray(v) ? (v[0] ?? null) : v;
+function first<T>(value: OneOrMany<T>): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function readNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+
+type DispatchBranchLocationRow = {
+  name?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  maps_embed_url?: string | null;
+};
+
+function numberOrNull(value: number | string | null | undefined): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function parseCoordinatesFromMapsUrl(value: string | null | undefined): { lat: number; lng: number } | null {
+  if (!value) return null;
+
+  const qMatch = /[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(value);
+  if (qMatch) {
+    const lat = Number(qMatch[1]);
+    const lng = Number(qMatch[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+
+  const atMatch = /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(value);
+  if (atMatch) {
+    const lat = Number(atMatch[1]);
+    const lng = Number(atMatch[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+
+  return null;
+}
+
+function resolveBranchOrigin(branch: DispatchBranchLocationRow | null | undefined): {
+  branchName: string | null;
+  branchLat: number | null;
+  branchLng: number | null;
+} {
+  if (!branch) {
+    return { branchName: null, branchLat: null, branchLng: null };
+  }
+
+  const lat = numberOrNull(branch.latitude);
+  const lng = numberOrNull(branch.longitude);
+
+  if (lat !== null && lng !== null) {
+    return {
+      branchName: branch.name ?? "Branch",
+      branchLat: lat,
+      branchLng: lng,
+    };
+  }
+
+  const fallback = parseCoordinatesFromMapsUrl(branch.maps_embed_url);
+  if (fallback) {
+    return {
+      branchName: branch.name ?? "Branch",
+      branchLat: fallback.lat,
+      branchLng: fallback.lng,
+    };
+  }
+
+  return {
+    branchName: branch.name ?? "Branch",
+    branchLat: null,
+    branchLng: null,
+  };
+}
 function computeDispatchStatus(
   bookingStatus: string,
   progressStatus: string | null,
-  driverId: string | null
+  driverId: string | null,
+  dispatchMetaStatus: string | null
 ): DispatchStatus {
   if (bookingStatus === "cancelled" || bookingStatus === "no_show") return "cancelled";
   if (bookingStatus === "completed" || progressStatus === "completed") return "completed";
@@ -74,14 +162,16 @@ function computeDispatchStatus(
   if (progressStatus === "arrived") return "arrived_at_customer";
   if (progressStatus === "travel_started") return "in_route";
   if (!driverId) return "awaiting_driver";
+  if (dispatchMetaStatus === "scheduled") return "scheduled";
+  if (dispatchMetaStatus === "released_to_driver") return "released_to_driver";
   return "ready";
 }
-
 
 function timeAgoLabel(bookingDate: string, startTime: string): string {
   const diffMin = Math.round(
     (Date.now() - new Date(`${bookingDate}T${startTime}`).getTime()) / 60000
   );
+
   if (diffMin < 0) return `in ${Math.abs(diffMin)}m`;
   if (diffMin === 0) return "now";
   return `${diffMin}m ago`;
@@ -106,10 +196,10 @@ function computeAlerts(items: RealDispatchItem[]): DispatchAlert[] {
       });
     }
 
-    if (!item.formattedAddress || item.needsLocationReview) {
+    if (!item.lat || !item.lng || item.needsLocationReview) {
       alerts.push({
         id: `location-${item.id}`,
-        title: "Location Needs Confirmation",
+        title: "GPS Location Needed",
         description: `${item.customerName} · ${item.serviceName}`,
         timeAgo: "—",
         severity: "danger",
@@ -120,7 +210,14 @@ function computeAlerts(items: RealDispatchItem[]): DispatchAlert[] {
 
     const appointmentMs = new Date(`${item.bookingDate}T${item.startTime}`).getTime();
     const minutesPast = (now - appointmentMs) / 60000;
-    const notProgressed = !["arrived_at_customer", "service_started"].includes(item.dispatchStatus);
+    const notProgressed = ![
+      "arrived_at_customer",
+      "service_started",
+      "completed",
+      "cancelled",
+      "scheduled",
+    ].includes(item.dispatchStatus);
+
     if (minutesPast > 10 && notProgressed && item.dispatchStatus !== "awaiting_driver") {
       alerts.push({
         id: `delayed-${item.id}`,
@@ -139,31 +236,36 @@ function computeAlerts(items: RealDispatchItem[]): DispatchAlert[] {
 
 function computeStats(items: RealDispatchItem[]): DispatchStats {
   return {
-    totalToday: items.filter((i) => i.dispatchStatus !== "cancelled").length,
-    awaitingDispatch: items.filter((i) => i.dispatchStatus === "awaiting_driver").length,
-    activeTrips: items.filter((i) =>
-      ["ready", "in_route", "arrived_at_customer", "service_started"].includes(i.dispatchStatus)
+    totalToday: items.filter((item) => item.dispatchStatus !== "cancelled").length,
+    awaitingDispatch: items.filter((item) =>
+      ["awaiting_driver", "ready", "scheduled"].includes(item.dispatchStatus)
     ).length,
-    completedToday: items.filter((i) => i.dispatchStatus === "completed").length,
-    cancelledToday: items.filter((i) => i.dispatchStatus === "cancelled").length,
+    activeTrips: items.filter((item) =>
+      ["released_to_driver", "in_route", "arrived_at_customer", "service_started"].includes(item.dispatchStatus)
+    ).length,
+    completedToday: items.filter((item) => item.dispatchStatus === "completed").length,
+    cancelledToday: items.filter((item) => item.dispatchStatus === "cancelled").length,
   };
 }
-
-// ── Main query ─────────────────────────────────────────────────────────────────
 
 export interface GetDispatchDataArgs {
   branchId: string;
   date: string;
-  /** For driver/therapist role: only return their own bookings */
   role?: string;
   staffId?: string;
 }
 
 export async function getDispatchData(args: GetDispatchDataArgs): Promise<DispatchData> {
-  const empty = { items: [], stats: computeStats([]), alerts: [], today: args.date };
+  const empty: DispatchData = {
+    items: [],
+    stats: computeStats([]),
+    alerts: [],
+    today: args.date,
+  };
+
   try {
     const supabase = await createClient();
-
+    const branchRouteOrigin = await getHomeServiceBranchRouteOrigin(args.branchId);
     let query = supabase
       .from("bookings")
       .select(
@@ -175,7 +277,8 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
          session_started_at, completed_at,
          services ( name ),
          therapist:staff!staff_id ( id, full_name, nickname ),
-         customers ( full_name )`
+         customers ( full_name ),
+         branches ( name, latitude, longitude, maps_embed_url )`
       )
       .eq("branch_id", args.branchId)
       .eq("booking_date", args.date)
@@ -190,126 +293,138 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
     }
 
     const { data: rawBookings, error: bookingsError } = await query;
-    if (bookingsError) {
-      console.error("[dispatch] getDispatchData bookings query failed", {
-        branchId: args.branchId,
-        date: args.date,
-        error: bookingsError.message,
-      });
+
+    if (bookingsError || !rawBookings || rawBookings.length === 0) {
       return empty;
     }
 
-    if (!rawBookings || rawBookings.length === 0) return empty;
-
-    const bookingIds = rawBookings.map((b) => b.id);
-
-    const driverIds = [
-      ...new Set(
+    const bookingIds = rawBookings.map((booking) => booking.id);
+    const driverIds = Array.from(
+      new Set(
         rawBookings
-          .map((b) => (b as { driver_id?: string | null }).driver_id)
-          .filter((id): id is string => typeof id === "string")
-      ),
-    ];
+          .map((booking) => booking.driver_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+      )
+    );
 
-    const [driversRes, snapshotsRes] = await Promise.all([
+    const driversPromise =
       driverIds.length > 0
         ? supabase.from("staff").select("id, full_name, nickname").in("id", driverIds)
-        : Promise.resolve({ data: [] as { id: string; full_name: string; nickname: string | null }[] }),
-      supabase
-        .from("staff_location_snapshots")
-        .select("booking_id, lat, lng, recorded_at")
-        .in("booking_id", bookingIds)
-        .order("recorded_at", { ascending: false }),
-    ]);
+        : Promise.resolve({
+            data: [] as { id: string; full_name: string; nickname: string | null }[],
+            error: null,
+          });
 
-    const driverNameMap: Record<string, string> = {};
-    for (const d of driversRes.data ?? []) {
-      driverNameMap[d.id] = getStaffAdminName(d);
+    const snapshotsPromise =
+      bookingIds.length > 0
+        ? supabase
+            .from("staff_location_snapshots")
+            .select("booking_id, lat, lng, recorded_at")
+            .in("booking_id", bookingIds)
+            .order("recorded_at", { ascending: false })
+        : Promise.resolve({
+            data: [] as { booking_id: string | null; lat: number; lng: number; recorded_at: string }[],
+            error: null,
+          });
+
+    const [driversRes, snapshotsRes] = await Promise.all([driversPromise, snapshotsPromise]);
+
+    const driverNameMap = new Map<string, string>();
+    for (const driver of driversRes.data ?? []) {
+      driverNameMap.set(driver.id, getStaffAdminName(driver));
     }
 
-    const locationMap: Record<string, { lat: number; lng: number; recorded_at: string }> = {};
-    for (const snap of snapshotsRes.data ?? []) {
-      if (snap.booking_id && !locationMap[snap.booking_id]) {
-        locationMap[snap.booking_id] = {
-          lat: Number(snap.lat),
-          lng: Number(snap.lng),
-          recorded_at: snap.recorded_at,
-        };
-      }
+    const locationMap = new Map<string, { lat: number; lng: number; recorded_at: string }>();
+    for (const snapshot of snapshotsRes.data ?? []) {
+      if (!snapshot.booking_id || locationMap.has(snapshot.booking_id)) continue;
+
+      locationMap.set(snapshot.booking_id, {
+        lat: Number(snapshot.lat),
+        lng: Number(snapshot.lng),
+        recorded_at: snapshot.recorded_at,
+      });
     }
 
-    const items: RealDispatchItem[] = rawBookings.map((b, idx) => {
-      const meta = (b as { metadata?: unknown }).metadata as Record<string, unknown> | null;
-      const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
-      const dispatch = meta?.dispatch as Record<string, unknown> | null;
+    const mappedItems: RealDispatchItem[] = rawBookings.map((booking, index) => {
+      const metadata = asRecord(booking.metadata);
+      const homeServiceAddress = asRecord(metadata?.home_service_address);
+      const dispatch = asRecord(metadata?.dispatch);
 
-      const rawLat = hsAddr?.lat;
-      const rawLng = hsAddr?.lng;
-      const lat =
-        typeof rawLat === "number" ? rawLat :
-        typeof rawLat === "string" ? parseFloat(rawLat) : null;
-      const lng =
-        typeof rawLng === "number" ? rawLng :
-        typeof rawLng === "string" ? parseFloat(rawLng) : null;
-
-      const driverId = (b as { driver_id?: string | null }).driver_id ?? null;
-      const staffIdVal = (b as { staff_id?: string }).staff_id ?? "";
+      const lat = readNumber(homeServiceAddress?.lat);
+      const lng = readNumber(homeServiceAddress?.lng);
       const liveEta = parseLiveEta(dispatch?.live_eta);
-      const needsLocationReview = dispatch?.needs_location_review === true;
 
-      const bookingStatus = b.status ?? "pending";
-      const progressStatus =
-        (b as { booking_progress_status?: string | null }).booking_progress_status ?? null;
-      const dispatchStatus = computeDispatchStatus(bookingStatus, progressStatus, driverId);
+      const dispatchMetaStatus = readString(dispatch?.status);
+      const driverId = booking.driver_id ?? null;
+      const therapistId = booking.staff_id ?? "";
+      const bookingStatus = booking.status ?? "pending";
+      const progressStatus = booking.booking_progress_status ?? null;
 
       const therapist = first(
-        (b as { therapist?: OneOrMany<{ id: string; full_name: string; nickname?: string | null }> }).therapist
+        booking.therapist as OneOrMany<{ id: string; full_name: string; nickname?: string | null }>
       );
-      const service = first(
-        (b as { services?: OneOrMany<{ name: string }> }).services
+      const service = first(booking.services as OneOrMany<{ name: string }>);
+      const customer = first(booking.customers as OneOrMany<{ full_name: string }>);
+      const branch = first(
+        booking.branches as OneOrMany<{
+          name: string | null;
+          latitude: number | string | null;
+          longitude: number | string | null;
+          maps_embed_url?: string | null;
+        }>
       );
-      const customer = first(
-        (b as { customers?: OneOrMany<{ full_name: string }> }).customers
-      );
+      const branchOrigin = resolveBranchOrigin(branch);
 
       const area =
-        typeof hsAddr?.zone === "string" && hsAddr.zone
-          ? hsAddr.zone
-          : typeof hsAddr?.city === "string" && hsAddr.city
-          ? hsAddr.city
-          : null;
+        readString(homeServiceAddress?.zone) ??
+        readString(homeServiceAddress?.barangay) ??
+        readString(homeServiceAddress?.city);
+
+      const dispatchStatus = computeDispatchStatus(
+        bookingStatus,
+        progressStatus,
+        driverId,
+        dispatchMetaStatus
+      );
 
       return {
-        id: b.id,
-        number: `#${String(idx + 1).padStart(3, "0")}`,
-        bookingDate: b.booking_date,
-        startTime: b.start_time,
-        endTime: b.end_time,
+        id: booking.id,
+        number: `#${String(index + 1).padStart(3, "0")}`,
+        bookingDate: booking.booking_date,
+        startTime: booking.start_time,
+        endTime: booking.end_time,
         customerName: customer?.full_name ?? "Guest Customer",
         serviceName: service?.name ?? "—",
         area,
-        formattedAddress:
-          typeof hsAddr?.full_address === "string" ? hsAddr.full_address : null,
-        lat: lat !== null && !isNaN(lat) ? lat : null,
-        lng: lng !== null && !isNaN(lng) ? lng : null,
-        needsLocationReview,
+        formattedAddress: readString(homeServiceAddress?.full_address),
+        lat,
+        lng,
+        branchName: branchOrigin.branchName ?? branchRouteOrigin?.branchName ?? null,
+        branchLat: branchOrigin.branchLat ?? branchRouteOrigin?.lat ?? null,
+        branchLng: branchOrigin.branchLng ?? branchRouteOrigin?.lng ?? null,
+        needsLocationReview: dispatch?.needs_location_review === true,
         driverId,
-        driverName: driverId ? (driverNameMap[driverId] ?? null) : null,
-        therapistId: staffIdVal,
+        driverName: driverId ? driverNameMap.get(driverId) ?? null : null,
+        therapistId,
         therapistName: therapist ? getStaffAdminName(therapist) : null,
         dispatchStatus,
         bookingStatus,
         bookingProgressStatus: progressStatus ?? "not_started",
-        paymentStatus: (b as { payment_status?: string }).payment_status ?? "pending",
-        etaMinutes: liveEta?.eta_minutes ?? null,
-        travelStartedAt: (b as { travel_started_at?: string | null }).travel_started_at ?? null,
-        arrivedAt: (b as { arrived_at?: string | null }).arrived_at ?? null,
-        sessionStartedAt: (b as { session_started_at?: string | null }).session_started_at ?? null,
-        completedAt: (b as { completed_at?: string | null }).completed_at ?? null,
+        paymentStatus: booking.payment_status ?? "pending",
+        etaMinutes: liveEta?.eta_minutes ?? readNumber(dispatch?.eta_minutes),
+        travelStartedAt: booking.travel_started_at ?? null,
+        arrivedAt: booking.arrived_at ?? null,
+        sessionStartedAt: booking.session_started_at ?? null,
+        completedAt: booking.completed_at ?? null,
         rating: null,
-        currentLocation: locationMap[b.id] ?? null,
+        currentLocation: locationMap.get(booking.id) ?? null,
       };
     });
+
+    const items =
+      args.role === "driver"
+        ? mappedItems.filter((item) => item.dispatchStatus !== "scheduled")
+        : mappedItems;
 
     return {
       items,
@@ -317,12 +432,12 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       alerts: computeAlerts(items),
       today: args.date,
     };
-  } catch (error) {
-    console.error("[dispatch] getDispatchData failed", {
-      branchId: args.branchId,
-      date: args.date,
-      error: error instanceof Error ? error.message : String(error),
-    });
+  } catch {
     return empty;
   }
 }
+
+
+
+
+

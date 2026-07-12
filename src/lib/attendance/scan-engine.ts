@@ -9,15 +9,20 @@ import { createDeviceCredential, hashSecret, maskId } from "@/lib/attendance/tok
 import {
   computeAttendanceMetrics,
   formatMinutesCompact,
-  getBranchNow,
 } from "@/lib/attendance/time";
+import {
+  buildAttendanceShiftInstance,
+  getAttendanceBranchNow,
+} from "@/lib/attendance/shift-instance";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
 import {
+  classifyOpenAttendanceCheckins,
   resolveAttendanceScanIntent,
   resolveStaffAttendanceSchedule,
   type AttendanceScheduleSelection,
   type AttendanceScanIntent,
+  type OpenAttendanceIntentCheckin,
 } from "@/lib/attendance/attendance-intent-engine";
 import type { PublicScanResult, QrScanOutcome, QrScanType } from "@/lib/attendance/types";
 
@@ -53,7 +58,7 @@ type StaffDeviceRow = {
   id: string;
   staff_id: string;
   branch_id: string;
-  status: "active" | "revoked";
+  status: "active" | "revoked" | "expired" | "lost" | "stolen" | "security_blocked";
   staff?: {
     branch_id: string | null;
     full_name: string | null;
@@ -98,11 +103,17 @@ type CheckinRow = {
   branch_id: string;
   shift_date: string;
   shift_type: string;
+  shift_instance_key?: string | null;
   checked_in_at: string;
   checked_out_at: string | null;
   status: string;
   scheduled_start_at?: string | null;
   scheduled_end_at?: string | null;
+  schedule_source?: string | null;
+  schedule_source_id?: string | null;
+  branch_timezone?: string | null;
+  attendance_business_date?: string | null;
+  is_test?: boolean;
 };
 
 type BookingRow = {
@@ -145,7 +156,160 @@ type EventInput = {
   userAgent?: string | null;
   ipAddress?: string | null;
   metadata?: Record<string, unknown>;
+  isTest?: boolean;
 };
+
+type AttendanceScanCommitInput = {
+  event: EventInput;
+  result: PublicScanResult;
+  checkinId?: string | null;
+  checkinInsert?: Record<string, unknown> | null;
+  checkinUpdate?: Record<string, unknown> | null;
+  exception?: {
+    exceptionType: string;
+    severity?: "info" | "warning" | "critical";
+    message: string;
+    metadata?: Record<string, unknown>;
+    dedupeKey?: string | null;
+    recommendedAction?: string | null;
+    priority?: "low" | "normal" | "high" | "urgent";
+  } | null;
+  deviceScanType?: "attendance" | "service" | null;
+};
+
+type AttendanceScanCommitRow = {
+  success?: boolean;
+  code?: string | null;
+  scan_event_id?: string | null;
+  checkin_id?: string | null;
+  recovery_issue_id?: string | null;
+  operation_result?: unknown;
+  message?: string | null;
+};
+
+function isPublicScanResult(value: unknown): value is PublicScanResult {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<PublicScanResult>;
+  return (
+    typeof record.ok === "boolean" &&
+    typeof record.outcome === "string" &&
+    typeof record.title === "string" &&
+    typeof record.message === "string"
+  );
+}
+
+async function commitAttendanceScanTransaction(
+  admin: AttendanceDb,
+  input: AttendanceScanCommitInput
+): Promise<{
+  result: PublicScanResult;
+  scanEventId?: string;
+  checkinId?: string;
+  recoveryIssueId?: string;
+}> {
+  const { data, error } = await admin
+    .rpc("commit_attendance_scan_transaction", {
+      p_request_id: input.event.requestId || null,
+      p_branch_id: input.event.branchId ?? null,
+      p_qr_point_id: input.event.qrPointId ?? null,
+      p_staff_id: input.event.staffId ?? null,
+      p_device_id: input.event.deviceId ?? null,
+      p_scan_type: input.event.scanType,
+      p_action: input.event.action,
+      p_outcome: input.event.outcome,
+      p_reason_code: input.event.reasonCode ?? null,
+      p_message: input.event.message ?? null,
+      p_user_agent: input.event.userAgent ?? null,
+      p_ip_address: input.event.ipAddress ?? null,
+      p_metadata: input.event.metadata ?? {},
+      p_is_test: input.event.isTest ?? false,
+      p_public_result: input.result,
+      p_checkin_id: input.checkinId ?? input.event.checkinId ?? null,
+      p_checkin_insert: input.checkinInsert ?? null,
+      p_checkin_update: input.checkinUpdate ?? null,
+      p_exception: input.exception
+        ? {
+            exception_type: input.exception.exceptionType,
+            severity: input.exception.severity ?? "warning",
+            message: input.exception.message,
+            metadata: input.exception.metadata ?? {},
+            dedupe_key: input.exception.dedupeKey ?? null,
+            recommended_action: input.exception.recommendedAction ?? null,
+            priority: input.exception.priority ?? "normal",
+          }
+        : null,
+      p_device_scan_type: input.deviceScanType ?? null,
+    })
+    .maybeSingle();
+
+  if (error) throw new Error(`Attendance scan transaction failed: ${error.message}`);
+
+  const row = data as AttendanceScanCommitRow | null;
+  if (!row?.success) {
+    throw new Error(row?.message ?? "Attendance scan transaction was rejected.");
+  }
+
+  const committedResult = isPublicScanResult(row.operation_result)
+    ? row.operation_result
+    : {
+        ...input.result,
+        scanEventId: row.scan_event_id ?? input.result.scanEventId,
+      };
+
+  return {
+    result: committedResult,
+    scanEventId: row.scan_event_id ?? undefined,
+    checkinId: row.checkin_id ?? undefined,
+    recoveryIssueId: row.recovery_issue_id ?? undefined,
+  };
+}
+
+async function loadCommittedScanResult(
+  admin: AttendanceDb,
+  requestId: string | null | undefined
+): Promise<PublicScanResult | null> {
+  if (!requestId) return null;
+  const { data } = await admin
+    .from("qr_scan_events")
+    .select("id, operation_result, metadata")
+    .eq("request_id", requestId)
+    .maybeSingle();
+
+  const row = data as { id?: string; operation_result?: unknown; metadata?: unknown } | null;
+  if (isPublicScanResult(row?.operation_result)) return row.operation_result;
+  const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
+  return isPublicScanResult(metadata.committedResult) ? metadata.committedResult : null;
+}
+
+async function persistCommittedScanResult(params: {
+  admin: AttendanceDb;
+  requestId?: string | null;
+  result: PublicScanResult;
+}) {
+  if (!params.requestId) return;
+  const completedAt = new Date().toISOString();
+  await params.admin
+    .from("qr_scan_events")
+    .update({
+      operation_id: params.requestId,
+      operation_result: params.result,
+      operation_result_recorded_at: completedAt,
+    })
+    .eq("request_id", params.requestId);
+}
+
+function testModeMetadata(settings: {
+  test_mode_enabled?: boolean;
+  test_mode_reason?: string | null;
+  test_mode_enabled_at?: string | null;
+}): Record<string, unknown> {
+  if (!settings.test_mode_enabled) return {};
+  return {
+    isTest: true,
+    testModeReason: settings.test_mode_reason ?? null,
+    testModeEnabledAt: settings.test_mode_enabled_at ?? null,
+  };
+}
 
 function first<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
@@ -187,6 +351,10 @@ function parseIp(value: string | null | undefined): string | null {
   return firstIp;
 }
 
+function appendRequestId(requestId: string | null | undefined, suffix: string): string | null {
+  return requestId ? `${requestId}:${suffix}` : null;
+}
+
 async function recordScanEvent(admin: AttendanceDb, input: EventInput): Promise<string | null> {
   const payload = {
     branch_id: input.branchId ?? null,
@@ -204,7 +372,11 @@ async function recordScanEvent(admin: AttendanceDb, input: EventInput): Promise<
     request_id: input.requestId || null,
     user_agent: input.userAgent ?? null,
     ip_address: parseIp(input.ipAddress),
-    metadata: input.metadata ?? {},
+    metadata: input.isTest
+      ? { ...(input.metadata ?? {}), isTest: true }
+      : input.metadata ?? {},
+    is_test: input.isTest ?? false,
+    operation_id: input.requestId || null,
   };
 
   const inserted = await admin.from("qr_scan_events").insert(payload).select("id").maybeSingle();
@@ -240,17 +412,89 @@ async function recordException(admin: AttendanceDb, input: {
   severity?: "info" | "warning" | "critical";
   message: string;
   metadata?: Record<string, unknown>;
-}) {
-  await admin.from("attendance_exceptions").insert({
+  dedupeKey?: string | null;
+  recommendedAction?: string | null;
+  priority?: "low" | "normal" | "high" | "urgent";
+  isTest?: boolean;
+}): Promise<string | null> {
+  const nowIso = new Date().toISOString();
+  const dedupeKey =
+    input.dedupeKey ??
+    [
+      input.staffId ?? "unknown_staff",
+      input.checkinId ?? "no_checkin",
+      input.exceptionType,
+      input.isTest ? "test" : "live",
+    ].join("|");
+  const metadata = {
+    ...(input.metadata ?? {}),
+    dedupeKey,
+  };
+
+  const existing = await admin
+    .from("attendance_exceptions")
+    .select("id, occurrence_count, metadata, related_checkin_ids")
+    .eq("branch_id", input.branchId)
+    .eq("is_test", input.isTest ?? false)
+    .eq("status", "open")
+    .eq("dedupe_key", dedupeKey)
+    .maybeSingle();
+
+  if (existing.data?.id) {
+    const row = existing.data as {
+      id: string;
+      occurrence_count?: number | null;
+      metadata?: unknown;
+      related_checkin_ids?: string[] | null;
+    };
+    const priorMetadata =
+      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? row.metadata as Record<string, unknown>
+        : {};
+    const relatedCheckinIds = new Set(row.related_checkin_ids ?? []);
+    if (input.checkinId) relatedCheckinIds.add(input.checkinId);
+
+    await admin
+      .from("attendance_exceptions")
+      .update({
+        scan_event_id: input.scanEventId ?? null,
+        latest_scan_event_id: input.scanEventId ?? null,
+        severity: input.severity ?? "warning",
+        message: input.message,
+        metadata: { ...priorMetadata, ...metadata },
+        occurrence_count: Math.max(1, row.occurrence_count ?? 1) + 1,
+        last_detected_at: nowIso,
+        detected_at: nowIso,
+        related_checkin_ids: Array.from(relatedCheckinIds),
+        recommended_action: input.recommendedAction ?? null,
+        priority: input.priority ?? "normal",
+      })
+      .eq("id", row.id)
+      .eq("branch_id", input.branchId);
+    return row.id;
+  }
+
+  const inserted = await admin.from("attendance_exceptions").insert({
     branch_id: input.branchId,
     staff_id: input.staffId ?? null,
     checkin_id: input.checkinId ?? null,
     scan_event_id: input.scanEventId ?? null,
+    latest_scan_event_id: input.scanEventId ?? null,
     exception_type: input.exceptionType,
     severity: input.severity ?? "warning",
     message: input.message,
-    metadata: input.metadata ?? {},
-  });
+    metadata,
+    dedupe_key: dedupeKey,
+    occurrence_count: 1,
+    first_detected_at: nowIso,
+    last_detected_at: nowIso,
+    related_checkin_ids: input.checkinId ? [input.checkinId] : [],
+    recommended_action: input.recommendedAction ?? null,
+    priority: input.priority ?? "normal",
+    is_test: input.isTest ?? false,
+  }).select("id").maybeSingle();
+
+  return (inserted.data as { id?: string } | null)?.id ?? null;
 }
 
 async function resolveDevice(admin: AttendanceDb, rawCredential: string | null | undefined): Promise<StaffDeviceRow | null> {
@@ -619,7 +863,27 @@ export async function registerDeviceForAuthenticatedScan(
     }
 
     if (branchDecision === "sync_device_branch") {
+      const previousDeviceBranchId = existingDevice.branch_id;
       await syncDeviceBranchToQrBranch(admin, existingDevice, point);
+      await recordScanEvent(admin, {
+        branchId: point.branch_id,
+        qrPointId: point.id,
+        staffId: staff.id,
+        deviceId: existingDevice.id,
+        scanType: scanTypeForPoint(point),
+        action: "attendance_device_branch_synchronized",
+        outcome: "noop",
+        reasonCode: "sync_device_branch",
+        message: "Device branch metadata was synchronized during staff sign-in.",
+        requestId: appendRequestId(ctx.requestId, "device-branch-sync"),
+        userAgent: ctx.userAgent,
+        ipAddress: ctx.ipAddress,
+        metadata: {
+          previousDeviceBranchId,
+          nextDeviceBranchId: point.branch_id,
+          authUserId,
+        },
+      });
     }
 
     return {
@@ -787,6 +1051,7 @@ async function findRecentDuplicate(admin: AttendanceDb, params: {
   pointId: string;
   deviceId: string;
   seconds: number;
+  isTest: boolean;
 }): Promise<boolean> {
   const cutoff = new Date(Date.now() - params.seconds * 1000).toISOString();
   const { data } = await admin
@@ -794,6 +1059,7 @@ async function findRecentDuplicate(admin: AttendanceDb, params: {
     .select("id")
     .eq("qr_point_id", params.pointId)
     .eq("device_id", params.deviceId)
+    .eq("is_test", params.isTest)
     .in("outcome", ["success", "exception"])
     .gte("created_at", cutoff)
     .limit(1);
@@ -801,22 +1067,133 @@ async function findRecentDuplicate(admin: AttendanceDb, params: {
   return (data?.length ?? 0) > 0;
 }
 
-async function getActiveCheckin(admin: AttendanceDb, params: {
+async function getOpenCheckins(admin: AttendanceDb, params: {
   staffId: string;
   branchId: string;
-}): Promise<CheckinRow | null> {
+  isTest: boolean;
+}): Promise<CheckinRow[]> {
   const { data } = await admin
     .from("staff_shift_checkins")
-    .select("id, staff_id, branch_id, shift_date, shift_type, checked_in_at, checked_out_at, status, scheduled_start_at, scheduled_end_at")
+    .select("id, staff_id, branch_id, shift_date, shift_type, shift_instance_key, checked_in_at, checked_out_at, status, scheduled_start_at, scheduled_end_at, schedule_source, schedule_source_id, branch_timezone, attendance_business_date, is_test")
     .eq("staff_id", params.staffId)
     .eq("branch_id", params.branchId)
+    .eq("is_test", params.isTest)
     .eq("status", "checked_in")
     .is("checked_out_at", null)
     .order("checked_in_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
-  return (data as CheckinRow | null) ?? null;
+  return (data as CheckinRow[] | null) ?? [];
+}
+
+async function getActiveCheckin(admin: AttendanceDb, params: {
+  staffId: string;
+  branchId: string;
+  isTest: boolean;
+}): Promise<CheckinRow | null> {
+  const rows = await getOpenCheckins(admin, params);
+  return rows[0] ?? null;
+}
+
+function toOpenIntentCheckin(checkin: CheckinRow): OpenAttendanceIntentCheckin {
+  return {
+    id: checkin.id,
+    checkedInAt: checkin.checked_in_at,
+    checkedOutAt: checkin.checked_out_at,
+    scheduledStartAt: checkin.scheduled_start_at ?? null,
+    scheduledEndAt: checkin.scheduled_end_at ?? null,
+    shiftDate: checkin.shift_date,
+    shiftType: checkin.shift_type,
+    shiftInstanceKey: checkin.shift_instance_key ?? null,
+    status: checkin.status,
+    isTest: checkin.is_test ?? false,
+  };
+}
+
+async function recordOpenCheckinRecoveryIssues(params: {
+  admin: AttendanceDb;
+  branchId: string;
+  staffId: string;
+  staffName: string;
+  checkins: CheckinRow[];
+  schedule: AttendanceScheduleSelection;
+  scannedAt: string;
+  isTest: boolean;
+  issueType: "stale_open_checkin" | "conflicting_open_checkin";
+}) {
+  for (const checkin of params.checkins) {
+    const existing = await params.admin
+      .from("attendance_exceptions")
+      .select("id, occurrence_count, related_checkin_ids")
+      .eq("branch_id", params.branchId)
+      .eq("checkin_id", checkin.id)
+      .eq("exception_type", params.issueType)
+      .eq("status", "open")
+      .maybeSingle();
+
+    const message =
+      params.issueType === "stale_open_checkin"
+        ? `${params.staffName} has a stale open attendance row from ${checkin.shift_date}. It was not used for this scan.`
+        : `${params.staffName} has another open attendance row for ${checkin.shift_date}. It was not used for this shift scan.`;
+    const payload = {
+      schedule: params.schedule,
+      openCheckin: {
+        id: checkin.id,
+        shiftDate: checkin.shift_date,
+        shiftType: checkin.shift_type,
+        checkedInAt: checkin.checked_in_at,
+        scheduledStartAt: checkin.scheduled_start_at ?? null,
+        scheduledEndAt: checkin.scheduled_end_at ?? null,
+      },
+      scannedAt: params.scannedAt,
+    };
+
+    if (existing.data?.id) {
+      const existingRow = existing.data as {
+        id: string;
+        occurrence_count?: number | null;
+        related_checkin_ids?: string[] | null;
+      };
+      const relatedCheckinIds = new Set(existingRow.related_checkin_ids ?? []);
+      relatedCheckinIds.add(checkin.id);
+      await params.admin
+        .from("attendance_exceptions")
+        .update({
+          severity: params.issueType === "stale_open_checkin" ? "warning" : "critical",
+          message,
+          metadata: payload,
+          detected_at: params.scannedAt,
+          last_detected_at: params.scannedAt,
+          occurrence_count: Math.max(1, existingRow.occurrence_count ?? 1) + 1,
+          latest_scan_event_id: null,
+          related_checkin_ids: Array.from(relatedCheckinIds),
+          recommended_action: "reset_attendance_state",
+          priority: params.issueType === "stale_open_checkin" ? "normal" : "high",
+          is_test: params.isTest,
+        })
+        .eq("id", existingRow.id)
+        .eq("branch_id", params.branchId);
+    } else {
+      await recordException(params.admin, {
+        branchId: params.branchId,
+        staffId: params.staffId,
+        checkinId: checkin.id,
+        exceptionType: params.issueType,
+        severity: params.issueType === "stale_open_checkin" ? "warning" : "critical",
+        message,
+        metadata: payload,
+        dedupeKey: [
+          params.staffId,
+          checkin.id,
+          params.issueType,
+          params.isTest ? "test" : "live",
+        ].join("|"),
+        recommendedAction: "reset_attendance_state",
+        priority: params.issueType === "stale_open_checkin" ? "normal" : "high",
+        isTest: params.isTest,
+      });
+    }
+  }
 }
 
 async function hasActiveService(admin: AttendanceDb, params: {
@@ -842,18 +1219,21 @@ async function selectScheduleWindow(admin: AttendanceDb, params: {
   branchId: string;
   staffId: string;
   staffType: string | null;
-  date: string;
+  scheduleDate: string;
+  scanDate: string;
   branchTime: string;
+  timezone: string;
 }): Promise<ScheduleSelection> {
   const schedules = await getResolvedStaffSchedulesForDate({
     supabase: admin as never,
     branchId: params.branchId,
-    date: params.date,
+    date: params.scheduleDate,
     staff: [{ id: params.staffId, staff_type: params.staffType }],
   });
 
   const resolvedSchedule = schedules.get(params.staffId) ?? {
     source: "none",
+    status: "missing",
     isWorking: false,
     isDayOff: false,
     windows: [],
@@ -861,8 +1241,9 @@ async function selectScheduleWindow(admin: AttendanceDb, params: {
 
   return {
     ...resolveStaffAttendanceSchedule({
-      scanDate: params.date,
+      scanDate: params.scanDate,
       scanTime: params.branchTime,
+      timezone: params.timezone,
       schedule: resolvedSchedule,
     }),
     resolvedSchedule,
@@ -896,59 +1277,65 @@ async function recordAttendanceRecoveryIntent(params: {
   staffName: string;
   intent: AttendanceScanIntent;
   scannedAt: string;
+  isTest: boolean;
+  testMetadata: Record<string, unknown>;
 }): Promise<PublicScanResult> {
-  const eventId = await recordScanEvent(params.admin, {
-    branchId: params.point.branch_id,
-    qrPointId: params.point.id,
-    staffId: params.device.staff_id,
-    deviceId: params.device.id,
-    scanType: "attendance",
-    action: params.intent.action,
-    outcome: "exception",
-    reasonCode: params.intent.reasonCode,
-    message: params.intent.message,
-    requestId: params.ctx.requestId,
-    userAgent: params.ctx.userAgent,
-    ipAddress: params.ctx.ipAddress,
-    metadata: {
-      intent: params.intent.type,
-      schedule: params.intent.schedule,
-      scannedAt: params.scannedAt,
-    },
-  });
-
-  await recordException(params.admin, {
-    branchId: params.point.branch_id,
-    staffId: params.device.staff_id,
-    scanEventId: eventId,
-    exceptionType: params.intent.type,
-    severity: params.intent.severity === "info" ? "warning" : params.intent.severity,
-    message: `${params.staffName}: ${params.intent.message}`,
-    metadata: {
-      intent: params.intent.type,
-      schedule: params.intent.schedule,
-      scanEventId: eventId,
-      scannedAt: params.scannedAt,
-    },
-  });
-
-  await markDeviceScanSuccess(params.admin, {
-    deviceId: params.device.id,
-    scanType: "attendance",
-    scannedAt: params.scannedAt,
-  });
-
-  return blocked(params.intent.title, params.intent.message, {
+  const result = blocked(params.intent.title, params.intent.message, {
     outcome: "exception",
     reasonCode: params.intent.reasonCode,
     severity: params.intent.severity,
     securityNote: "No attendance record was changed. The scan is waiting in Recovery.",
-    scanEventId: eventId ?? undefined,
   });
+
+  const committed = await commitAttendanceScanTransaction(params.admin, {
+    event: {
+      branchId: params.point.branch_id,
+      qrPointId: params.point.id,
+      staffId: params.device.staff_id,
+      deviceId: params.device.id,
+      scanType: "attendance",
+      action: params.intent.action,
+      outcome: "exception",
+      reasonCode: params.intent.reasonCode,
+      message: params.intent.message,
+      requestId: params.ctx.requestId,
+      userAgent: params.ctx.userAgent,
+      ipAddress: params.ctx.ipAddress,
+      metadata: {
+        intent: params.intent.type,
+        schedule: params.intent.schedule,
+        scannedAt: params.scannedAt,
+        ...params.testMetadata,
+      },
+      isTest: params.isTest,
+    },
+    result,
+    exception: {
+      exceptionType: params.intent.type,
+      severity: params.intent.severity === "info" ? "warning" : params.intent.severity,
+      message: `${params.staffName}: ${params.intent.message}`,
+      metadata: {
+        intent: params.intent.type,
+        schedule: params.intent.schedule,
+        scannedAt: params.scannedAt,
+        ...params.testMetadata,
+      },
+      recommendedAction:
+        params.intent.type === "likely_closing_scan_without_clock_in"
+          ? "rebuild_from_raw_scans"
+          : "review_scan",
+      priority: params.intent.severity === "critical" ? "high" : "normal",
+    },
+    deviceScanType: "attendance",
+  });
+
+  return committed.result;
 }
 
 async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, device: StaffDeviceRow, ctx: ScanRequestContext): Promise<PublicScanResult> {
   const settings = await getAttendanceSettings(point.branch_id);
+  const isTest = settings.test_mode_enabled;
+  const testMetadata = testModeMetadata(settings);
   const staff = first(device.staff);
   const staffName = staff?.full_name ?? "Staff member";
   const branchName = first(point.branches)?.name ?? "Branch";
@@ -957,6 +1344,7 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     pointId: point.id,
     deviceId: device.id,
     seconds: settings.duplicate_scan_window_seconds,
+    isTest,
   })) {
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
@@ -971,6 +1359,8 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
     });
     return success("Already recorded", "A recent attendance scan was already accepted.", {
       outcome: "noop",
@@ -980,50 +1370,120 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     });
   }
 
-  const activeCheckin = await getActiveCheckin(admin, {
+  const branchNow = getAttendanceBranchNow(settings);
+  const schedule = await selectScheduleWindow(admin, {
+    branchId: point.branch_id,
+    staffId: device.staff_id,
+    staffType: staff?.staff_type ?? null,
+    scheduleDate: branchNow.businessDate,
+    scanDate: branchNow.localDate,
+    branchTime: branchNow.time,
+    timezone: branchNow.timezone,
+  });
+  const nowIso = new Date().toISOString();
+  const openCheckins = await getOpenCheckins(admin, {
     staffId: device.staff_id,
     branchId: point.branch_id,
+    isTest,
+  });
+  const openCheckinClassification = classifyOpenAttendanceCheckins({
+    openCheckins: openCheckins.map(toOpenIntentCheckin),
+    schedule,
+  });
+  const matchingOpenCheckinId = openCheckinClassification.matchingCheckin?.id ?? null;
+  const activeCheckin =
+    openCheckins.find((checkin) => checkin.id === matchingOpenCheckinId) ?? null;
+
+  await recordOpenCheckinRecoveryIssues({
+    admin,
+    branchId: point.branch_id,
+    staffId: device.staff_id,
+    staffName,
+    checkins: openCheckins.filter((checkin) =>
+      openCheckinClassification.staleCheckins.some((staleCheckin) => staleCheckin.id === checkin.id)
+    ),
+    schedule,
+    scannedAt: nowIso,
+    isTest,
+    issueType: "stale_open_checkin",
+  });
+  await recordOpenCheckinRecoveryIssues({
+    admin,
+    branchId: point.branch_id,
+    staffId: device.staff_id,
+    staffName,
+    checkins: openCheckins.filter((checkin) =>
+      openCheckinClassification.conflictingCheckins.some((conflictCheckin) => conflictCheckin.id === checkin.id)
+    ),
+    schedule,
+    scannedAt: nowIso,
+    isTest,
+    issueType: "conflicting_open_checkin",
+  });
+
+  const scanIntent = resolveAttendanceScanIntent({
+    scanIso: nowIso,
+    scanDate: branchNow.localDate,
+    scanTime: branchNow.time,
+    timezone: branchNow.timezone,
+    settings,
+    schedule: schedule.resolvedSchedule,
+    activeCheckin: activeCheckin ? toOpenIntentCheckin(activeCheckin) : null,
+  });
+  const attendanceSchedule = {
+    ...schedule,
+    ...scanIntent.schedule,
+    resolvedSchedule: schedule.resolvedSchedule,
+  };
+  const shiftInstance = buildAttendanceShiftInstance({
+    staffId: device.staff_id,
+    branchId: point.branch_id,
+    schedule: attendanceSchedule,
+    businessDate: branchNow.businessDate,
+    branchTimezone: branchNow.timezone,
   });
 
   if (activeCheckin) {
-    if (settings.active_service_blocks_clock_out) {
+    if (settings.active_service_blocks_clock_out && !isTest) {
       const activeService = await hasActiveService(admin, {
         staffId: device.staff_id,
         branchId: point.branch_id,
       });
       if (activeService) {
-        const eventId = await recordScanEvent(admin, {
-          branchId: point.branch_id,
-          qrPointId: point.id,
-          staffId: device.staff_id,
-          deviceId: device.id,
-          checkinId: activeCheckin.id,
-          bookingId: activeService.id,
-          scanType: "attendance",
-          action: "clock_out",
-          outcome: "blocked",
-          reasonCode: "active_service",
-          message: "Clock-out blocked because a service session is still active.",
-          requestId: ctx.requestId,
-          userAgent: ctx.userAgent,
-          ipAddress: ctx.ipAddress,
-        });
-        await recordException(admin, {
-          branchId: point.branch_id,
-          staffId: device.staff_id,
-          checkinId: activeCheckin.id,
-          scanEventId: eventId,
-          exceptionType: "active_service",
-          severity: "critical",
-          message: `${staffName} attempted to clock out with an active service session.`,
-          metadata: { bookingId: activeService.id },
-        });
-        return blocked("Service still active", "Complete the active service session before clocking out.", {
+        const result = blocked("Service still active", "Complete the active service session before clocking out.", {
           reasonCode: "active_service",
           securityNote: "Finish the active service before scanning attendance again.",
           countdown: buildCountdown(activeService),
-          scanEventId: eventId ?? undefined,
         });
+        const committed = await commitAttendanceScanTransaction(admin, {
+          event: {
+            branchId: point.branch_id,
+            qrPointId: point.id,
+            staffId: device.staff_id,
+            deviceId: device.id,
+            checkinId: activeCheckin.id,
+            bookingId: activeService.id,
+            scanType: "attendance",
+            action: "clock_out",
+            outcome: "blocked",
+            reasonCode: "active_service",
+            message: "Clock-out blocked because a service session is still active.",
+            requestId: ctx.requestId,
+            userAgent: ctx.userAgent,
+            ipAddress: ctx.ipAddress,
+            isTest,
+          },
+          result,
+          checkinId: activeCheckin.id,
+          exception: {
+            exceptionType: "active_service",
+            severity: "critical",
+            message: `${staffName} attempted to clock out with an active service session.`,
+            metadata: { bookingId: activeService.id, shiftInstance },
+            priority: "high",
+          },
+        });
+        return committed.result;
       }
     }
 
@@ -1043,94 +1503,19 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
           ? "overtime_clock_out"
           : "clock_out";
 
-    const { error: updateError } = await admin
-      .from("staff_shift_checkins")
-      .update({
-        checked_out_at: nowIso,
-        status: "checked_out",
-        clock_out_method: "qr",
-        worked_minutes: metrics.workedMinutes,
-        late_minutes: metrics.lateMinutes,
-        early_leave_minutes: metrics.earlyLeaveMinutes,
-        overtime_minutes: metrics.overtimeMinutes,
-        attendance_status: metrics.attendanceStatus,
-        exception_state: metrics.exceptionState,
-      })
-      .eq("id", activeCheckin.id)
-      .eq("status", "checked_in");
-
-    if (updateError) {
-      const eventId = await recordScanEvent(admin, {
-        branchId: point.branch_id,
-        qrPointId: point.id,
-        staffId: device.staff_id,
-        deviceId: device.id,
-        checkinId: activeCheckin.id,
-        scanType: "attendance",
-        action: "clock_out",
-        outcome: "error",
-        reasonCode: "db_error",
-        message: updateError.message,
-        requestId: ctx.requestId,
-        userAgent: ctx.userAgent,
-        ipAddress: ctx.ipAddress,
-      });
-      return blocked("Clock-out failed", "The attendance record could not be updated.", {
-        outcome: "error",
-        reasonCode: "db_error",
-        securityNote: "No clock-out was recorded from this attempt.",
-        scanEventId: eventId ?? undefined,
-      });
-    }
-
-    const eventId = await recordScanEvent(admin, {
-      branchId: point.branch_id,
-      qrPointId: point.id,
-      staffId: device.staff_id,
-      deviceId: device.id,
-      checkinId: activeCheckin.id,
-      scanType: "attendance",
-      action: "clock_out",
-      outcome: "success",
-      reasonCode: clockOutReasonCode,
-      message: "Clock-out recorded.",
-      requestId: ctx.requestId,
-      userAgent: ctx.userAgent,
-      ipAddress: ctx.ipAddress,
-      metadata: metrics,
-    });
-
-    if (eventId) {
-      await admin
-        .from("staff_shift_checkins")
-        .update({ clock_out_scan_event_id: eventId })
-        .eq("id", activeCheckin.id);
-    }
-    await markDeviceScanSuccess(admin, {
-      deviceId: device.id,
-      scanType: "attendance",
-      scannedAt: nowIso,
-    });
-
-    if (metrics.earlyLeaveMinutes > 0 || metrics.overtimeMinutes >= settings.overtime_threshold_minutes) {
-      await recordException(admin, {
-        branchId: point.branch_id,
-        staffId: device.staff_id,
-        checkinId: activeCheckin.id,
-        scanEventId: eventId,
-        exceptionType: metrics.earlyLeaveMinutes > 0 ? "early_clock_out" : "overtime_clock_out",
-        message:
-          metrics.earlyLeaveMinutes > 0
-            ? `${staffName} clocked out ${formatMinutesCompact(metrics.earlyLeaveMinutes)} early.`
-            : `${staffName} worked ${formatMinutesCompact(metrics.overtimeMinutes)} overtime.`,
-        metadata: metrics,
-      });
-    }
-
-    return success("Clocked out", `${staffName} is clocked out. Worked ${formatMinutesCompact(metrics.workedMinutes)}.`, {
+    const clockOutSnapshotUpdate = activeCheckin.shift_instance_key
+      ? {}
+      : {
+          shift_instance_key: shiftInstance.key,
+          schedule_source: activeCheckin.schedule_source ?? shiftInstance.sourceType,
+          schedule_source_id: activeCheckin.schedule_source_id ?? shiftInstance.sourceId,
+          branch_timezone: activeCheckin.branch_timezone ?? shiftInstance.branchTimezone,
+          attendance_business_date:
+            activeCheckin.attendance_business_date ?? shiftInstance.attendanceBusinessDate,
+        };
+    const result = success("Clocked out", `${staffName} is clocked out. Worked ${formatMinutesCompact(metrics.workedMinutes)}.`, {
       reasonCode: clockOutReasonCode,
       securityNote: "This device is recognized and ready for future scans.",
-      scanEventId: eventId ?? undefined,
       attendance: {
         action: "clock_out",
         staffName,
@@ -1141,29 +1526,57 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
         workedMinutes: metrics.workedMinutes,
       },
     });
-  }
 
-  const branchNow = getBranchNow();
-  const schedule = await selectScheduleWindow(admin, {
-    branchId: point.branch_id,
-    staffId: device.staff_id,
-    staffType: staff?.staff_type ?? null,
-    date: branchNow.date,
-    branchTime: branchNow.time,
-  });
-  const nowIso = new Date().toISOString();
-  const scanIntent = resolveAttendanceScanIntent({
-    scanIso: nowIso,
-    scanDate: branchNow.date,
-    scanTime: branchNow.time,
-    settings,
-    schedule: schedule.resolvedSchedule,
-  });
-  const attendanceSchedule = {
-    ...schedule,
-    ...scanIntent.schedule,
-    resolvedSchedule: schedule.resolvedSchedule,
-  };
+    const exception =
+      metrics.earlyLeaveMinutes > 0 || metrics.overtimeMinutes >= settings.overtime_threshold_minutes
+        ? {
+            exceptionType: metrics.earlyLeaveMinutes > 0 ? "early_clock_out" : "overtime_clock_out",
+            message:
+              metrics.earlyLeaveMinutes > 0
+                ? `${staffName} clocked out ${formatMinutesCompact(metrics.earlyLeaveMinutes)} early.`
+                : `${staffName} worked ${formatMinutesCompact(metrics.overtimeMinutes)} overtime.`,
+            metadata: { metrics, shiftInstance },
+          }
+        : null;
+
+    const committed = await commitAttendanceScanTransaction(admin, {
+      event: {
+        branchId: point.branch_id,
+        qrPointId: point.id,
+        staffId: device.staff_id,
+        deviceId: device.id,
+        checkinId: activeCheckin.id,
+        scanType: "attendance",
+        action: "clock_out",
+        outcome: "success",
+        reasonCode: clockOutReasonCode,
+        message: "Clock-out recorded.",
+        requestId: ctx.requestId,
+        userAgent: ctx.userAgent,
+        ipAddress: ctx.ipAddress,
+        metadata: { metrics, shiftInstance },
+        isTest,
+      },
+      result,
+      checkinId: activeCheckin.id,
+      checkinUpdate: {
+        ...clockOutSnapshotUpdate,
+        checked_out_at: nowIso,
+        status: "checked_out",
+        clock_out_method: "qr",
+        worked_minutes: metrics.workedMinutes,
+        late_minutes: metrics.lateMinutes,
+        early_leave_minutes: metrics.earlyLeaveMinutes,
+        overtime_minutes: metrics.overtimeMinutes,
+        attendance_status: metrics.attendanceStatus,
+        exception_state: metrics.exceptionState,
+      },
+      exception,
+      deviceScanType: "attendance",
+    });
+
+    return committed.result;
+  }
 
   if (scanIntent.requiresRecovery && !scanIntent.shouldWriteAttendance) {
     return recordAttendanceRecoveryIntent({
@@ -1174,18 +1587,55 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       staffName,
       intent: scanIntent,
       scannedAt: nowIso,
+      isTest,
+      testMetadata,
     });
   }
 
-  const existingForShift = await admin
+  const existingForShiftQuery = admin
     .from("staff_shift_checkins")
     .select("id, status")
     .eq("staff_id", device.staff_id)
     .eq("branch_id", point.branch_id)
-    .eq("shift_date", attendanceSchedule.shiftDate)
-    .eq("shift_type", attendanceSchedule.shiftType)
+    .eq("is_test", isTest)
     .neq("status", "voided")
-    .maybeSingle();
+    .limit(1);
+  const existingForShift = await (
+    shiftInstance.key
+      ? existingForShiftQuery.eq("shift_instance_key", shiftInstance.key)
+      : existingForShiftQuery
+          .eq("shift_date", attendanceSchedule.shiftDate)
+          .eq("shift_type", attendanceSchedule.shiftType)
+  ).maybeSingle();
+
+  if (existingForShift.data?.status === "checked_in") {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      staffId: device.staff_id,
+      deviceId: device.id,
+      scanType: "attendance",
+      action: "duplicate_scan",
+      outcome: "noop",
+      reasonCode: "already_checked_in",
+      message: "Staff is already checked in for this shift.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+      metadata: {
+        schedule: attendanceSchedule,
+        shiftInstance,
+        ...testMetadata,
+      },
+      isTest,
+    });
+    return success("Already clocked in", "Attendance is already open for this scheduled shift.", {
+      outcome: "noop",
+      reasonCode: "already_checked_in",
+      securityNote: "No new attendance record was created.",
+      scanEventId: eventId ?? undefined,
+    });
+  }
 
   if (existingForShift.data?.status === "checked_out") {
     const eventId = await recordScanEvent(admin, {
@@ -1201,6 +1651,8 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
     });
     return blocked("Already checked out", "A manager must adjust the attendance record before another check-in.", {
       reasonCode: "already_checked_out",
@@ -1217,110 +1669,88 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     earlyLeaveGraceMinutes: settings.early_leave_threshold_minutes,
   });
 
-  const inserted = await admin
-    .from("staff_shift_checkins")
-    .insert({
-      staff_id: device.staff_id,
-      branch_id: point.branch_id,
-      shift_date: attendanceSchedule.shiftDate,
-      shift_type: attendanceSchedule.shiftType,
-      checked_in_at: nowIso,
-      status: "checked_in",
-      source_qr_point_id: point.id,
-      clock_in_method: "qr",
-      scheduled_start_at: attendanceSchedule.scheduledStartAt,
-      scheduled_end_at: attendanceSchedule.scheduledEndAt,
-      late_minutes: metrics.lateMinutes,
-      attendance_status: attendanceSchedule.isUnscheduled ? "late" : metrics.attendanceStatus,
-      exception_state: attendanceSchedule.isUnscheduled || scanIntent.type !== "clock_in" || metrics.lateMinutes > 0 ? "open" : "none",
-    })
-    .select("id")
-    .maybeSingle();
+  const result = success("Clocked in", `${staffName} is clocked in for ${attendanceSchedule.shiftType}.`, {
+    reasonCode: scanIntent.reasonCode,
+    securityNote: "This device is recognized and ready for future scans.",
+    attendance: {
+      action: "clock_in",
+      staffName,
+      branchName,
+      shiftLabel: attendanceSchedule.shiftType,
+      occurredAt: nowIso,
+      sessionStartedAt: nowIso,
+    },
+  });
 
-  if (inserted.error || !inserted.data) {
-    const eventId = await recordScanEvent(admin, {
+  const needsClockInRecovery =
+    attendanceSchedule.isUnscheduled || scanIntent.type !== "clock_in" || metrics.lateMinutes > 0;
+  const exceptionMessage = attendanceSchedule.isUnscheduled
+    ? `${staffName} clocked in without a resolved schedule.`
+    : scanIntent.type === "early_clock_in"
+      ? `${staffName} clocked in before the scheduled start window.`
+      : scanIntent.type === "late_clock_in"
+        ? `${staffName} clocked in ${formatMinutesCompact(metrics.lateMinutes)} late.`
+        : `${staffName} clock-in needs review.`;
+
+  const committed = await commitAttendanceScanTransaction(admin, {
+    event: {
       branchId: point.branch_id,
       qrPointId: point.id,
       staffId: device.staff_id,
       deviceId: device.id,
       scanType: "attendance",
       action: "clock_in",
-      outcome: "error",
-      reasonCode: "db_error",
-      message: inserted.error?.message ?? "Insert failed.",
+      outcome: "success",
+      reasonCode: scanIntent.reasonCode,
+      message: "Clock-in recorded.",
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
-    });
-    return blocked("Clock-in failed", "The attendance record could not be created.", {
-      outcome: "error",
-      reasonCode: "db_error",
-      securityNote: "No clock-in was recorded from this attempt.",
-      scanEventId: eventId ?? undefined,
-    });
-  }
-
-  const eventId = await recordScanEvent(admin, {
-    branchId: point.branch_id,
-    qrPointId: point.id,
-    staffId: device.staff_id,
-    deviceId: device.id,
-    checkinId: inserted.data.id,
-    scanType: "attendance",
-    action: "clock_in",
-    outcome: "success",
-    reasonCode: scanIntent.reasonCode,
-    message: "Clock-in recorded.",
-    requestId: ctx.requestId,
-    userAgent: ctx.userAgent,
-    ipAddress: ctx.ipAddress,
-    metadata: { intent: scanIntent.type, schedule: attendanceSchedule, lateMinutes: metrics.lateMinutes },
-  });
-
-  if (eventId) {
-    await admin
-      .from("staff_shift_checkins")
-      .update({ clock_in_scan_event_id: eventId })
-      .eq("id", inserted.data.id);
-  }
-  await markDeviceScanSuccess(admin, {
-    deviceId: device.id,
-    scanType: "attendance",
-    scannedAt: nowIso,
-  });
-
-  if (attendanceSchedule.isUnscheduled || scanIntent.type !== "clock_in" || metrics.lateMinutes > 0) {
-    const exceptionMessage = attendanceSchedule.isUnscheduled
-      ? `${staffName} clocked in without a resolved schedule.`
-      : scanIntent.type === "early_clock_in"
-        ? `${staffName} clocked in before the scheduled start window.`
-        : scanIntent.type === "late_clock_in"
-          ? `${staffName} clocked in ${formatMinutesCompact(metrics.lateMinutes)} late.`
-          : `${staffName} clock-in needs review.`;
-    await recordException(admin, {
-      branchId: point.branch_id,
-      staffId: device.staff_id,
-      checkinId: inserted.data.id,
-      scanEventId: eventId,
-      exceptionType: attendanceSchedule.isUnscheduled ? "missing_schedule" : scanIntent.type,
-      message: exceptionMessage,
-      metadata: { intent: scanIntent.type, schedule: attendanceSchedule, lateMinutes: metrics.lateMinutes },
-    });
-  }
-
-  return success("Clocked in", `${staffName} is clocked in for ${attendanceSchedule.shiftType}.`, {
-    reasonCode: scanIntent.reasonCode,
-    securityNote: "This device is recognized and ready for future scans.",
-    scanEventId: eventId ?? undefined,
-    attendance: {
-        action: "clock_in",
-        staffName,
-        branchName,
-        shiftLabel: attendanceSchedule.shiftType,
-      occurredAt: nowIso,
-      sessionStartedAt: nowIso,
+      metadata: {
+        intent: scanIntent.type,
+        schedule: attendanceSchedule,
+        shiftInstance,
+        lateMinutes: metrics.lateMinutes,
+        ...testMetadata,
+      },
+      isTest,
     },
+    result,
+    checkinInsert: {
+      shift_date: attendanceSchedule.shiftDate,
+      shift_type: attendanceSchedule.shiftType,
+      shift_instance_key: shiftInstance.key,
+      checked_in_at: nowIso,
+      status: "checked_in",
+      clock_in_method: "qr",
+      scheduled_start_at: attendanceSchedule.scheduledStartAt,
+      scheduled_end_at: attendanceSchedule.scheduledEndAt,
+      schedule_source: shiftInstance.sourceType,
+      schedule_source_id: shiftInstance.sourceId,
+      branch_timezone: shiftInstance.branchTimezone,
+      attendance_business_date: shiftInstance.attendanceBusinessDate,
+      late_minutes: metrics.lateMinutes,
+      attendance_status: attendanceSchedule.isUnscheduled ? "late" : metrics.attendanceStatus,
+      exception_state: needsClockInRecovery ? "open" : "none",
+      is_test: isTest,
+    },
+    exception: needsClockInRecovery
+      ? {
+          exceptionType: attendanceSchedule.isUnscheduled ? "missing_schedule" : scanIntent.type,
+          message: exceptionMessage,
+          metadata: {
+            intent: scanIntent.type,
+            schedule: attendanceSchedule,
+            shiftInstance,
+            lateMinutes: metrics.lateMinutes,
+            ...testMetadata,
+          },
+        }
+      : null,
+    deviceScanType: "attendance",
   });
+
+  return committed.result;
 }
 
 function timeDistanceFromNow(startTime: string, nowMinutes: number): number {
@@ -1358,6 +1788,8 @@ async function findEligibleBooking(admin: AttendanceDb, params: {
 
 async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: StaffDeviceRow, ctx: ScanRequestContext): Promise<PublicScanResult> {
   const settings = await getAttendanceSettings(point.branch_id);
+  const isTest = settings.test_mode_enabled;
+  const testMetadata = testModeMetadata(settings);
   const staff = first(device.staff);
   const staffName = staff?.full_name ?? "Staff member";
   const resource = first(point.branch_resources);
@@ -1377,6 +1809,8 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
     });
     return blocked("Room unavailable", "This QR is not linked to an active room.", {
       reasonCode: "missing_resource",
@@ -1387,6 +1821,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
   const activeCheckin = await getActiveCheckin(admin, {
     staffId: device.staff_id,
     branchId: point.branch_id,
+    isTest,
   });
 
   if (!activeCheckin) {
@@ -1404,9 +1839,42 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
     });
     return blocked("Clock in first", "Clock in at the attendance QR before starting a service session.", {
       reasonCode: "not_clocked_in",
+      scanEventId: eventId ?? undefined,
+    });
+  }
+
+  if (isTest) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      staffId: device.staff_id,
+      deviceId: device.id,
+      resourceId: point.resource_id,
+      scanType: "room",
+      action: "start_session",
+      outcome: "blocked",
+      reasonCode: "test_mode_protects_real_bookings",
+      message: "Test Mode is enabled. Real booking countdowns are protected.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
+    });
+
+    await markDeviceScanSuccess(admin, {
+      deviceId: device.id,
+      scanType: "service",
+    });
+
+    return blocked("Test Mode protects bookings", "Test Mode is enabled. Real booking countdowns are protected.", {
+      reasonCode: "test_mode_protects_real_bookings",
+      securityNote: "Use a live scan only after Test / Training Mode is disabled.",
       scanEventId: eventId ?? undefined,
     });
   }
@@ -1434,6 +1902,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      isTest,
     });
 
     if (sameResource) {
@@ -1456,6 +1925,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       severity: "critical",
       message: `${staffName} scanned ${resourceName} while another service was active.`,
       metadata: { activeBookingId: activeService.id },
+      isTest,
     });
     return blocked("Session already active", "Complete the current service before starting another room.", {
       reasonCode: "active_service",
@@ -1469,6 +1939,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
     pointId: point.id,
     deviceId: device.id,
     seconds: settings.duplicate_scan_window_seconds,
+    isTest,
   })) {
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
@@ -1484,6 +1955,8 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
     });
     return success("Already recorded", "A recent room scan was already accepted.", {
       outcome: "noop",
@@ -1520,6 +1993,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      isTest,
     });
     await recordException(admin, {
       branchId: point.branch_id,
@@ -1529,6 +2003,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       severity: "critical",
       message: `${staffName} scanned occupied room ${resourceName}.`,
       metadata: { occupiedBookingId: occupied.data.id },
+      isTest,
     });
     return blocked("Room in use", `${resourceName} already has an active service session.`, {
       reasonCode: "resource_conflict",
@@ -1536,11 +2011,11 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
     });
   }
 
-  const branchNow = getBranchNow();
+  const branchNow = getAttendanceBranchNow(settings);
   const booking = await findEligibleBooking(admin, {
     branchId: point.branch_id,
     staffId: device.staff_id,
-    date: branchNow.date,
+    date: branchNow.localDate,
     nowMinutes: branchNow.minutesIntoDay,
   });
 
@@ -1559,6 +2034,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      isTest,
     });
     return blocked("No booking found", "No current in-spa booking is ready for this room scan.", {
       reasonCode: "no_eligible_booking",
@@ -1582,6 +2058,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      isTest,
     });
     await recordException(admin, {
       branchId: point.branch_id,
@@ -1590,6 +2067,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       exceptionType: "resource_conflict",
       message: `${staffName} scanned ${resourceName}, but the booking has another room assigned.`,
       metadata: { bookingId: booking.id, assignedResourceId: booking.resource_id },
+      isTest,
     });
     return blocked("Different room assigned", "This booking is already assigned to another room.", {
       reasonCode: "resource_conflict",
@@ -1636,6 +2114,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      isTest,
     });
     return blocked("Session start failed", "The booking could not be moved into session.", {
       outcome: "error",
@@ -1660,6 +2139,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
     userAgent: ctx.userAgent,
     ipAddress: ctx.ipAddress,
     metadata: { durationMinutes, dueAt },
+    isTest,
   });
 
   if (eventId) {
@@ -1681,8 +2161,11 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
   });
 }
 
-export async function processQrScan(publicCode: string, ctx: ScanRequestContext): Promise<PublicScanResult> {
-  const admin = asAttendanceDb(createAdminClient());
+async function processQrScanFresh(
+  admin: AttendanceDb,
+  publicCode: string,
+  ctx: ScanRequestContext
+): Promise<PublicScanResult> {
   const point = await loadQrPoint(admin, publicCode);
 
   if (!point || !point.is_active) {
@@ -1704,6 +2187,9 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
     });
   }
 
+  const pointSettings = await getAttendanceSettings(point.branch_id);
+  const isTest = pointSettings.test_mode_enabled;
+  const testMetadata = testModeMetadata(pointSettings);
   const device = await resolveDevice(admin, ctx.rawDeviceCredential);
   if (!device) {
     const eventId = await recordScanEvent(admin, {
@@ -1717,12 +2203,16 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
     });
     await recordException(admin, {
       branchId: point.branch_id,
       scanEventId: eventId,
       exceptionType: "unknown_device",
       message: `An unregistered device scanned ${point.label}.`,
+      metadata: testMetadata,
+      isTest,
     });
     return blocked("Sign in", "Use your staff account to continue.", {
       reasonCode: "unknown_device",
@@ -1747,6 +2237,8 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       requestId: ctx.requestId,
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
+      metadata: testMetadata,
+      isTest,
     });
     await recordException(admin, {
       branchId: point.branch_id,
@@ -1755,6 +2247,8 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       exceptionType: "revoked_device",
       severity: "critical",
       message: `A revoked or inactive device scanned ${point.label}.`,
+      metadata: testMetadata,
+      isTest,
     });
     return blocked("Device blocked", "This device is no longer active. Ask the front desk to re-activate it.", {
       reasonCode: "revoked_device",
@@ -1774,16 +2268,19 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
   if (branchDecision === "wrong_branch") {
     const pendingRequest = await loadPendingBranchCorrectionRequest(admin, device.staff_id, point.branch_id);
     const staffBranchName = first(deviceStaff.branches)?.name ?? null;
-    const metadata = wrongBranchMetadata({
-      point,
-      staffId: device.staff_id,
-      staffName: deviceStaff.full_name,
-      staffBranchId: deviceStaff.branch_id,
-      staffBranchName,
-      deviceId: device.id,
-      deviceBranchId: device.branch_id,
-      pendingRequestId: pendingRequest?.id,
-    });
+    const metadata = {
+      ...wrongBranchMetadata({
+        point,
+        staffId: device.staff_id,
+        staffName: deviceStaff.full_name,
+        staffBranchId: deviceStaff.branch_id,
+        staffBranchName,
+        deviceId: device.id,
+        deviceBranchId: device.branch_id,
+        pendingRequestId: pendingRequest?.id,
+      }),
+      ...testMetadata,
+    };
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
       qrPointId: point.id,
@@ -1798,6 +2295,7 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       userAgent: ctx.userAgent,
       ipAddress: ctx.ipAddress,
       metadata,
+      isTest,
     });
     await recordException(admin, {
       branchId: point.branch_id,
@@ -1807,6 +2305,7 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
       severity: "critical",
       message: `${deviceStaff.full_name ?? "Staff member"} scanned a QR for another branch.`,
       metadata,
+      isTest,
     });
     return blocked("Wrong branch detected", "This QR belongs to a different branch than your staff profile. If your profile branch is wrong, request a correction.", {
       reasonCode: "wrong_branch",
@@ -1827,7 +2326,27 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
   }
 
   if (branchDecision === "sync_device_branch") {
+    const previousDeviceBranchId = device.branch_id;
     await syncDeviceBranchToQrBranch(admin, device, point);
+    await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      staffId: device.staff_id,
+      deviceId: device.id,
+      scanType: point.point_type === "attendance" ? "attendance" : "room",
+      action: "attendance_device_branch_synchronized",
+      outcome: "noop",
+      reasonCode: "sync_device_branch",
+      message: "Device branch metadata was synchronized before scan processing.",
+      requestId: ctx.requestId ? `${ctx.requestId}:device-branch-sync` : null,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+      metadata: {
+        previousDeviceBranchId,
+        nextDeviceBranchId: point.branch_id,
+      },
+      isTest,
+    });
   }
 
   await admin
@@ -1840,6 +2359,20 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
   }
 
   return processRoomScan(admin, point, device, ctx);
+}
+
+export async function processQrScan(publicCode: string, ctx: ScanRequestContext): Promise<PublicScanResult> {
+  const admin = asAttendanceDb(createAdminClient());
+  const replayed = await loadCommittedScanResult(admin, ctx.requestId);
+  if (replayed) return replayed;
+
+  const result = await processQrScanFresh(admin, publicCode, ctx);
+  await persistCommittedScanResult({
+    admin,
+    requestId: ctx.requestId,
+    result,
+  });
+  return result;
 }
 
 export async function activateDeviceWithToken(token: string, ctx: ScanRequestContext): Promise<ActivationResult> {

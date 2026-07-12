@@ -1,18 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import {
+  Activity,
+  AlertCircle,
+  Building2,
   CalendarDays,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
   Filter,
   Plus,
   RefreshCw,
   Search,
 } from "lucide-react";
 import { BookingsTable } from "./bookings-table";
+import { Button } from "@/components/ui/button";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
+import {
+  AttendanceTabPanel,
+  ContextChip,
+  ToolbarShell,
+} from "@/components/features/attendance/attendance-ui";
 import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +102,21 @@ const WORKFLOW_TABS: Array<{ key: BookingWorkspaceTab; label: string }> = [
   { key: "active", label: "Active" },
   { key: "completed", label: "Completed" },
 ];
+
+const WORKFLOW_TAB_ICONS = {
+  "needs-action": AlertCircle,
+  upcoming: CalendarClock,
+  active: Activity,
+  completed: CheckCircle2,
+} satisfies Record<BookingWorkspaceTab, typeof AlertCircle>;
+
+function bookingTabId(tab: BookingWorkspaceTab): string {
+  return `booking-tab-${tab}`;
+}
+
+function bookingTabPanelId(tab: BookingWorkspaceTab): string {
+  return `booking-panel-${tab}`;
+}
 
 function isNotStartedProgress(status: string | null | undefined): boolean {
   return !status || status === "not_started";
@@ -208,41 +235,73 @@ function WorkflowTabBar({
   activeKey: BookingWorkspaceTab;
   onSelect: (tab: BookingWorkspaceTab) => void;
 }) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+
+    const tablist = event.currentTarget;
+    const index = tabs.findIndex((tab) => tab.key === activeKey);
+    const lastIndex = tabs.length - 1;
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? lastIndex
+          : event.key === "ArrowRight"
+            ? (index + 1) % tabs.length
+            : (index - 1 + tabs.length) % tabs.length;
+
+    const nextTab = tabs[nextIndex]?.key ?? "needs-action";
+    onSelect(nextTab);
+    window.setTimeout(() => {
+      const tabButtons = tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+      tabButtons[nextIndex]?.focus();
+    }, 0);
+  }
+
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1.5 shadow-[var(--cs-shadow-xs)]">
-      <div className="flex min-w-max gap-1.5" role="tablist" aria-label="Booking workflow">
-        {tabs.map((tab) => {
-          const isActive = tab.key === activeKey;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => onSelect(tab.key)}
+    <div
+      className="flex min-w-0 gap-1 overflow-x-auto border-b border-border"
+      role="tablist"
+      aria-label="Booking workflow"
+      onKeyDown={handleKeyDown}
+    >
+      {tabs.map((tab) => {
+        const isActive = tab.key === activeKey;
+        const Icon = WORKFLOW_TAB_ICONS[tab.key];
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            id={bookingTabId(tab.key)}
+            aria-controls={bookingTabPanelId(tab.key)}
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
+            onClick={() => onSelect(tab.key)}
+            className={cn(
+              "inline-flex h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              isActive
+                ? "border-[var(--cs-crm-text)] text-[var(--cs-crm-text)]"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Icon className="size-4" />
+            <span>{tab.label}</span>
+            <span
               className={cn(
-                "inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+                "inline-flex min-w-5 justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
                 isActive
-                  ? "border-[var(--cs-crm-text)] bg-[var(--cs-crm-text)] text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)]"
-                  : "border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]"
+                  ? "bg-muted text-foreground"
+                  : "bg-muted/70 text-muted-foreground"
               )}
             >
-              <span>{tab.label}</span>
-              <span
-                className={cn(
-                  "inline-flex min-w-5 justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-                  isActive
-                    ? "bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]"
-                    : "bg-[var(--cs-surface)] text-[var(--cs-text-muted)]"
-                )}
-              >
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+              {tab.count}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -267,13 +326,27 @@ export function BookingsWorkspace({
 }: BookingsWorkspaceProps) {
   const basePath = `/${workspaceContext === "owner" ? "owner" : workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
   const dispatchHref = basePath.replace(/\/bookings$/, "/dispatch");
-  const initialBookingTab = deriveTabForBooking(bookings.find((booking) => booking.id === initialSelectedId));
   const [activeTab, setActiveTab] = useState<BookingWorkspaceTab>(
-    initialTab ?? initialBookingTab ?? "needs-action"
+    () => initialTab ?? deriveTabForBooking(bookings.find((booking) => booking.id === initialSelectedId)) ?? "needs-action"
   );
   const [showFilters, setShowFilters] = useState(Boolean(statusFilter || typeFilter || branchFilter));
-  const tabBookings = bookings.filter((booking) => bookingMatchesTab(booking, activeTab));
-  const visibleBookings = applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter);
+  const tabItems = useMemo(
+    () =>
+      WORKFLOW_TABS.map((tab) => ({
+        key: tab.key,
+        label: tab.label,
+        count: bookings.filter((booking) => bookingMatchesTab(booking, tab.key)).length,
+      })),
+    [bookings]
+  );
+  const tabBookings = useMemo(
+    () => bookings.filter((booking) => bookingMatchesTab(booking, activeTab)),
+    [activeTab, bookings]
+  );
+  const visibleBookings = useMemo(
+    () => applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter),
+    [branchFilter, statusFilter, tabBookings, typeFilter]
+  );
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
     weekday: "long",
     month: "long",
@@ -282,11 +355,6 @@ export function BookingsWorkspace({
   const isOwner = workspaceContext === "owner";
   const isCrm = workspaceContext === "crm";
   const hasFilters = Boolean(statusFilter || typeFilter || branchFilter || search);
-  const tabItems = WORKFLOW_TABS.map((tab) => ({
-    key: tab.key,
-    label: tab.label,
-    count: bookings.filter((booking) => bookingMatchesTab(booking, tab.key)).length,
-  }));
   const needsActionCount = tabItems.find((tab) => tab.key === "needs-action")?.count ?? 0;
 
   function handleTabChange(nextTab: BookingWorkspaceTab) {
@@ -303,135 +371,186 @@ export function BookingsWorkspace({
   }
 
   return (
-    <div className="crm-fade-up -m-2 space-y-4 bg-[var(--cs-bg)] p-2 sm:-m-4 sm:space-y-5 sm:p-4">
-      <section className="space-y-4 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
+    <div className="crm-fade-up grid gap-5">
+      <header className="grid gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <h1 className="font-display text-2xl font-semibold leading-tight text-[var(--cs-text)] sm:text-3xl">
+            <h1 className="m-0 text-2xl font-bold tracking-normal text-foreground">
               Bookings
             </h1>
-            <p className="mt-1 text-sm leading-6 text-[var(--cs-text-secondary)]">
-              {bookings.length} booking{bookings.length !== 1 ? "s" : ""} · {needsActionCount} need action · {dateLabel}
-              {branchName && !isOwner ? <span> · {branchName}</span> : null}
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+              Manage booking triage, customer follow-up, payment review, resource assignment, and service progress.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="lg"
               onClick={() => onBookingsChanged?.()}
-              className="cs-btn cs-btn-secondary h-9 rounded-xl px-3"
             >
-              <RefreshCw size={14} />
+              <RefreshCw data-icon="inline-start" />
               Refresh
-            </button>
+            </Button>
             {isCrm ? (
               <OpenAdministrativeBookingButton
                 mode="standard_future"
                 date={date}
-                className="cs-btn h-9 rounded-xl bg-[var(--cs-crm-text)] px-3 text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)] hover:bg-[var(--cs-success-text)]"
+                size="lg"
               >
-                <Plus size={14} />
+                <Plus data-icon="inline-start" />
                 New Booking
               </OpenAdministrativeBookingButton>
             ) : null}
           </div>
         </div>
 
-        <form method="get" className="grid gap-3">
-          <input type="hidden" name="tab" value={activeTab} />
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+        <div className="flex flex-wrap items-center gap-2">
+          <ContextChip ariaLabel={`Bookings date: ${dateLabel}`} icon={<CalendarDays className="size-4" />}>
+            {dateLabel}
+          </ContextChip>
+          {branchName && !isOwner ? (
+            <ContextChip ariaLabel={`Bookings branch: ${branchName}`} icon={<Building2 className="size-4" />}>
+              {branchName}
+            </ContextChip>
+          ) : null}
+          <ContextChip ariaLabel={`Bookings loaded: ${bookings.length}`} icon={<ClipboardList className="size-4" />}>
+            {bookings.length} booking{bookings.length !== 1 ? "s" : ""}
+          </ContextChip>
+          <ContextChip ariaLabel={`Bookings needing action: ${needsActionCount}`} icon={<AlertCircle className="size-4" />}>
+            {needsActionCount} need action
+          </ContextChip>
+        </div>
+      </header>
+
+      <form method="get" className="grid gap-3">
+        <input type="hidden" name="tab" value={activeTab} />
+        <ToolbarShell
+          fieldsClassName="grid-cols-1 gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(0,auto)] xl:items-end"
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => setShowFilters((current) => !current)}
+              aria-expanded={showFilters}
+            >
+              <Filter data-icon="inline-start" />
+              Filters
+            </Button>
+          }
+        >
+          <label className="grid min-w-0 gap-1">
+            <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
+              Search
+            </span>
+            <span className="flex h-10 min-w-0 items-center gap-2 rounded-lg border border-border bg-background px-3 shadow-sm">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
               <input
                 type="search"
                 name="search"
                 defaultValue={search ?? ""}
-                placeholder="Search customer, phone, staff, or booking ID"
-                aria-label="Search bookings"
-                className="h-10 w-full rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] pl-9 pr-3 text-sm text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-muted)] focus:border-[var(--cs-sand)]"
+                placeholder="Customer, phone, staff, or booking ID"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
-            </div>
-            <WorkflowTabBar tabs={tabItems} activeKey={activeTab} onSelect={handleTabChange} />
-            <button
-              type="button"
-              onClick={() => setShowFilters((current) => !current)}
-              className="cs-btn cs-btn-secondary h-10 rounded-xl px-3"
-              aria-expanded={showFilters}
-            >
-              <Filter size={14} />
-              Filters
-            </button>
-          </div>
+            </span>
+          </label>
+          <WorkflowTabBar tabs={tabItems} activeKey={activeTab} onSelect={handleTabChange} />
+        </ToolbarShell>
 
-          {showFilters ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-2">
-              <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text-secondary)]">
-                <CalendarDays size={15} />
-                <input
-                  type="date"
-                  name="date"
-                  defaultValue={date}
-                  aria-label="Select date"
-                  className="bg-transparent text-sm text-[var(--cs-text)] outline-none"
-                />
-              </label>
-              {isOwner && branches && branches.length > 0 ? (
+        {showFilters ? (
+          <ToolbarShell
+            className="bg-muted/40 shadow-none"
+            fieldsClassName="grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            actions={
+              <>
+                <Button type="submit" size="lg">
+                  Filter
+                </Button>
+                {hasFilters ? (
+                  <Button asChild variant="ghost" size="lg">
+                    <Link href={buildClearHref(basePath, activeTab)}>Clear</Link>
+                  </Button>
+                ) : null}
+              </>
+            }
+          >
+            <label className="grid min-w-0 gap-1">
+              <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
+                Date
+              </span>
+              <input
+                type="date"
+                name="date"
+                defaultValue={date}
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
+              />
+            </label>
+            {isOwner && branches && branches.length > 0 ? (
+              <label className="grid min-w-0 gap-1">
+                <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
+                  Branch
+                </span>
                 <select
                   name="branch"
                   defaultValue={branchFilter ?? ""}
-                  aria-label="Filter by branch"
-                  className="h-9 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]"
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
                 >
                   <option value="">All Branches</option>
                   {branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>{branch.name}</option>
                   ))}
                 </select>
-              ) : null}
+              </label>
+            ) : null}
 
+            <label className="grid min-w-0 gap-1">
+              <span className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">
+                Source
+              </span>
               <select
                 name="type"
                 defaultValue={typeFilter ?? ""}
-                aria-label="Filter by type"
-                className="h-9 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]"
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800"
               >
                 <option value="">All Sources</option>
                 <option value="walkin">Walk-in</option>
                 <option value="online">Online</option>
                 <option value="home_service">Home Service</option>
               </select>
+            </label>
+          </ToolbarShell>
+        ) : null}
+      </form>
 
-              <button type="submit" className="cs-btn h-9 rounded-lg bg-[var(--cs-crm-text)] px-4 text-[var(--cs-text-inverse)]">
-                Filter
-              </button>
+      <div className="text-xs text-[var(--cs-text-muted)]">
+        {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
+      </div>
 
-              {hasFilters ? (
-                <Link href={buildClearHref(basePath, activeTab)} className="cs-btn cs-btn-ghost h-9 rounded-lg px-3">
-                  Clear
-                </Link>
-              ) : null}
-            </div>
+      {WORKFLOW_TABS.map((tab) => (
+        <AttendanceTabPanel
+          key={tab.key}
+          id={bookingTabPanelId(tab.key)}
+          labelledBy={bookingTabId(tab.key)}
+          active={activeTab === tab.key}
+        >
+          {activeTab === tab.key ? (
+            <BookingsTable
+              bookings={visibleBookings}
+              allBookings={bookings}
+              viewerRole={viewerRole}
+              dispatchHref={dispatchHref}
+              search={search}
+              statusAction={statusAction}
+              paymentAction={paymentAction}
+              initialSelectedId={initialSelectedId}
+              confirmPaymentAction={confirmPaymentAction}
+              onBookingsChanged={onBookingsChanged}
+            />
           ) : null}
-        </form>
-
-        <div className="text-xs text-[var(--cs-text-muted)]">
-          {visibleBookings.length} booking{visibleBookings.length !== 1 ? "s" : ""} in {tabItems.find((tab) => tab.key === activeTab)?.label.toLowerCase()} for {dateLabel}
-        </div>
-      </section>
-
-      <BookingsTable
-        bookings={visibleBookings}
-        allBookings={bookings}
-        viewerRole={viewerRole}
-        dispatchHref={dispatchHref}
-        search={search}
-        statusAction={statusAction}
-        paymentAction={paymentAction}
-        initialSelectedId={initialSelectedId}
-        confirmPaymentAction={confirmPaymentAction}
-        onBookingsChanged={onBookingsChanged}
-      />
+        </AttendanceTabPanel>
+      ))}
     </div>
   );
 }

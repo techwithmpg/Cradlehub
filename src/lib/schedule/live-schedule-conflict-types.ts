@@ -11,6 +11,7 @@ export type LiveScheduleConflictType =
   | "booking_on_day_off"
   | "booking_during_blocked_time"
   | "missing_schedule"
+  | "schedule_rule_conflict"
   | "duplicate_schedule_window"
   | "coverage_gap"
   | "home_service_travel_buffer_warning";

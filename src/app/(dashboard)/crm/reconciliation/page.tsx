@@ -1,44 +1,22 @@
 import { redirect } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
-import { createClient } from "@/lib/supabase/server";
-import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
+import { EmptyState, WorkspaceSection } from "@/components/features/attendance/attendance-ui";
+import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { getReconciliationsAction } from "./actions";
 import { ReconciliationForm } from "./reconciliation-form";
-import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
-import { canonicalizeSystemRole } from "@/constants/staff";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getFrontDeskContext } from "@/lib/queries/crm-context";
 
-const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  draft:     { bg: "var(--cs-surface-warm)", color: "var(--cs-text-muted)" },
-  submitted: { bg: "#FFF7ED",               color: "#92400E" },
-  approved:  { bg: "#ECFDF5",               color: "#065F46" },
+const STATUS_CLASS: Record<string, string> = {
+  draft: "border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-muted)]",
+  submitted: "border-amber-700/25 bg-amber-50 text-amber-900",
+  approved: "border-emerald-800/20 bg-emerald-50 text-emerald-900",
 };
 
 async function getContext() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  if (isDevAuthBypassEnabled()) {
-    const mock = getDevBypassLayoutStaff();
-    return { branchId: mock.branch_id as string, branchName: mock.branches.name as string };
-  }
-
-  const { data: me } = await supabase
-    .from("staff")
-    .select("branch_id, branches(name), system_role")
-    .eq("auth_user_id", user.id)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  const role = me ? canonicalizeSystemRole(me.system_role) : null;
-  if (!me || !role || !canAccessCrmWorkspace(role) || !me.branch_id) redirect("/login");
-
-  return {
-    branchId:   me.branch_id as string,
-    branchName: (me.branches as { name: string } | null)?.name ?? "Your Branch",
-  };
+  const context = await getFrontDeskContext();
+  if (!context.branchId) redirect("/login");
+  return { branchId: context.branchId, branchName: context.branchName };
 }
 
 export default async function ReconciliationPage() {
@@ -59,177 +37,139 @@ export default async function ReconciliationPage() {
 
   const existing = history.find((r) => r.reconciliation_date === today) ?? null;
 
-  return (
-    <div>
-      <PageHeader
-        title="End-of-Day Reconciliation"
-        description={`${branchName} · Verify today's collections against system records`}
-        icon="📊"
-      />
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 320px",
-          gap: "1.5rem",
-          alignItems: "start",
-        }}
-      >
-        {/* Left: Form */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          {/* Today's summary from system */}
-          {summary && (
-            <div className="cs-card" style={{ padding: "1.25rem" }}>
-              <div
-                style={{
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  color: "var(--cs-text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginBottom: "1rem",
-                }}
-              >
-                System Records — {todayLabel}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
-                {[
-                  { label: "Total Bookings", value: summary.total_count },
-                  { label: "Paid",           value: summary.paid_count },
-                  { label: "Unpaid",         value: summary.unpaid_count },
-                  { label: "Expected",       value: `₱${summary.total_expected.toLocaleString()}` },
-                  { label: "Collected",      value: `₱${summary.total_collected.toLocaleString()}` },
-                  { label: "Outstanding",    value: `₱${summary.total_unpaid.toLocaleString()}` },
-                ].map((kpi) => (
-                  <div
-                    key={kpi.label}
-                    style={{
-                      padding: "0.75rem",
-                      borderRadius: 8,
-                      backgroundColor: "var(--cs-surface-warm)",
-                      border: "1px solid var(--cs-border)",
-                    }}
-                  >
-                    <div style={{ fontSize: "0.6875rem", fontWeight: 600, color: "var(--cs-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-                      {kpi.label}
-                    </div>
-                    <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--cs-text)" }}>
-                      {kpi.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Reconciliation form */}
-          <ReconciliationForm
-            branchId={branchId}
-            date={today}
-            summary={summary}
-            existing={
-              existing
-                ? {
-                    actual_cash:  Number(existing.actual_cash),
-                    actual_gcash: Number(existing.actual_gcash),
-                    actual_maya:  Number(existing.actual_maya),
-                    actual_card:  Number(existing.actual_card),
-                    actual_other: Number(existing.actual_other),
-                    notes:        existing.notes,
-                    status:       existing.status,
-                  }
-                : null
-            }
+  const historyPanel = (
+    <WorkspaceSection
+      title="History"
+      description="Recent end-of-day submissions for this branch."
+    >
+      {history.length === 0 ? (
+        <div className="p-4">
+          <EmptyState
+            title="No reconciliations yet"
+            detail="Saved drafts and submitted reconciliations will appear here."
           />
         </div>
+      ) : (
+        <div className="grid gap-2.5 p-4">
+          {history.map((rec) => {
+            const totalActual =
+              Number(rec.actual_cash) +
+              Number(rec.actual_gcash) +
+              Number(rec.actual_maya) +
+              Number(rec.actual_card) +
+              Number(rec.actual_other);
+            const totalExpected =
+              Number(rec.expected_cash) +
+              Number(rec.expected_gcash) +
+              Number(rec.expected_maya) +
+              Number(rec.expected_card) +
+              Number(rec.expected_other);
+            const diff = totalActual - totalExpected;
+            const statusClass = STATUS_CLASS[rec.status] ?? STATUS_CLASS["draft"]!;
 
-        {/* Right: History */}
-        <div className="cs-card" style={{ padding: "1.25rem" }}>
-          <div
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--cs-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "1rem",
-            }}
-          >
-            History
-          </div>
-
-          {history.length === 0 ? (
-            <div style={{ padding: "1rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
-              No reconciliations yet.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-              {history.map((rec) => {
-                const totalActual =
-                  Number(rec.actual_cash) +
-                  Number(rec.actual_gcash) +
-                  Number(rec.actual_maya) +
-                  Number(rec.actual_card) +
-                  Number(rec.actual_other);
-                const totalExpected =
-                  Number(rec.expected_cash) +
-                  Number(rec.expected_gcash) +
-                  Number(rec.expected_maya) +
-                  Number(rec.expected_card) +
-                  Number(rec.expected_other);
-                const diff = totalActual - totalExpected;
-                const style = STATUS_STYLE[rec.status] ?? STATUS_STYLE["draft"]!;
-
-                return (
-                  <div
-                    key={rec.id}
-                    style={{
-                      padding: "0.75rem",
-                      borderRadius: 8,
-                      border: "1px solid var(--cs-border)",
-                      backgroundColor: rec.reconciliation_date === today ? "var(--cs-sand-mist)" : "var(--cs-surface-warm)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)" }}>
-                        {new Date(rec.reconciliation_date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
-                        {rec.reconciliation_date === today && (
-                          <span style={{ marginLeft: 6, fontSize: "0.6875rem", color: "var(--cs-sand)", fontWeight: 700 }}>Today</span>
-                        )}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "0.6875rem",
-                          fontWeight: 700,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          textTransform: "capitalize",
-                          ...style,
-                        }}
-                      >
-                        {rec.status}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8125rem" }}>
-                      <span style={{ color: "var(--cs-text-muted)" }}>
-                        Actual: ₱{totalActual.toLocaleString()}
-                      </span>
-                      <span style={{ color: diff === 0 ? "var(--cs-text-muted)" : diff > 0 ? "var(--cs-info)" : "var(--cs-error)", fontWeight: 600 }}>
-                        {diff === 0 ? "Balanced" : `${diff > 0 ? "+" : ""}₱${diff.toLocaleString()}`}
-                      </span>
-                    </div>
-                    {rec.notes && (
-                      <div style={{ marginTop: 4, fontSize: "0.75rem", color: "var(--cs-text-muted)", fontStyle: "italic" }}>
-                        {rec.notes}
-                      </div>
+            return (
+              <div
+                key={rec.id}
+                className={`rounded-lg border p-3 ${
+                  rec.reconciliation_date === today
+                    ? "border-[var(--cs-border)] bg-[var(--cs-sand-mist)]"
+                    : "border-[var(--cs-border)] bg-[var(--cs-surface-warm)]"
+                }`}
+              >
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-[var(--cs-text)]">
+                    {new Date(rec.reconciliation_date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
+                    {rec.reconciliation_date === today && (
+                      <span className="ml-1.5 text-[0.6875rem] font-bold text-[var(--cs-sand)]">Today</span>
                     )}
+                  </span>
+                  <span
+                    className={`rounded border px-1.5 py-0.5 text-[0.6875rem] font-bold capitalize ${statusClass}`}
+                  >
+                    {rec.status}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3 text-[0.8125rem]">
+                  <span className="text-[var(--cs-text-muted)]">
+                    Actual: ₱{totalActual.toLocaleString()}
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: diff === 0 ? "var(--cs-text-muted)" : diff > 0 ? "var(--cs-info)" : "var(--cs-error)" }}
+                  >
+                    {diff === 0 ? "Balanced" : `${diff > 0 ? "+" : ""}₱${diff.toLocaleString()}`}
+                  </span>
+                </div>
+                {rec.notes && (
+                  <div className="mt-1 text-xs italic text-[var(--cs-text-muted)]">
+                    {rec.notes}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })}
         </div>
+      )}
+    </WorkspaceSection>
+  );
+
+  return (
+    <CrmOperationalPageShell
+      title="End-of-Day Reconciliation"
+      description="Verify today's collections against system records."
+      context={`${branchName} · ${todayLabel}`}
+      support={historyPanel}
+    >
+      <div className="grid gap-5">
+        {summary && (
+          <WorkspaceSection
+            title="System Records"
+            description={`Expected collections for ${todayLabel}.`}
+          >
+            <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { label: "Total Bookings", value: summary.total_count },
+                { label: "Paid",           value: summary.paid_count },
+                { label: "Unpaid",         value: summary.unpaid_count },
+                { label: "Expected",       value: `₱${summary.total_expected.toLocaleString()}` },
+                { label: "Collected",      value: `₱${summary.total_collected.toLocaleString()}` },
+                { label: "Outstanding",    value: `₱${summary.total_unpaid.toLocaleString()}` },
+              ].map((kpi) => (
+                <div
+                  key={kpi.label}
+                  className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-3"
+                >
+                  <div className="mb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
+                    {kpi.label}
+                  </div>
+                  <div className="text-lg font-bold text-[var(--cs-text)]">
+                    {kpi.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </WorkspaceSection>
+        )}
+
+        <ReconciliationForm
+          branchId={branchId}
+          date={today}
+          summary={summary}
+          existing={
+            existing
+              ? {
+                  actual_cash:  Number(existing.actual_cash),
+                  actual_gcash: Number(existing.actual_gcash),
+                  actual_maya:  Number(existing.actual_maya),
+                  actual_card:  Number(existing.actual_card),
+                  actual_other: Number(existing.actual_other),
+                  notes:        existing.notes,
+                  status:       existing.status,
+                }
+              : null
+          }
+        />
       </div>
-    </div>
+    </CrmOperationalPageShell>
   );
 }

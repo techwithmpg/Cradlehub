@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   STAFF_SCHEDULE_CONFLICT_TARGET,
   STAFF_SCHEDULE_RETURNING_COLUMNS,
+  buildSingleShiftWeeklyScheduleRows,
   savedRowsMatchRequest,
   type SavedStaffScheduleRow,
   type StaffScheduleUpsertRow,
@@ -295,14 +296,15 @@ export async function updateCrmStaffWeeklyAvailabilityAction(
   const targetCheck = await verifyTargetStaff(ctx, staffId, branchId);
   if (!targetCheck.ok) return { ok: false, error: targetCheck.message };
 
-  const rows: StaffScheduleUpsertRow[] = days.map((day) => ({
-    staff_id: staffId,
-    day_of_week: day.dayOfWeek,
-    start_time: day.startTime,
-    end_time: day.endTime,
-    is_active: day.isActive,
-    shift_type: "single",
-  }));
+  const normalized = buildSingleShiftWeeklyScheduleRows({
+    staffId,
+    days,
+  });
+  if (!normalized.ok) {
+    return { ok: false, error: normalized.error };
+  }
+
+  const rows: StaffScheduleUpsertRow[] = normalized.rows;
 
   const { data: savedRows, error } = await ctx.supabase
     .from("staff_schedules")

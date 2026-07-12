@@ -76,3 +76,6 @@ src.zip
 # generated service image artifacts
 docs/service-images/artifacts/
 docs/service-images/generated-batches/
+
+# maintenance backups
+/maintenance-backups/

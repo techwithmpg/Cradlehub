@@ -166,3 +166,34 @@ export function buildHomeServicePricingBreakdown(params: {
     total: params.serviceSubtotal + params.quote.travelFee,
   };
 }
+
+export async function getHomeServiceBranchRouteOrigin(branchId: string): Promise<{
+  branchId: string;
+  branchName: string;
+  lat: number;
+  lng: number;
+} | null> {
+  const admin = createAdminClient();
+
+  const { data: branchData, error } = await admin
+    .from("branches")
+    .select("id, name, is_active, latitude, longitude, maps_embed_url")
+    .eq("id", branchId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error || !branchData) return null;
+
+  const branch = branchData as unknown as BranchDistanceRow;
+  const origin = resolveBranchCoordinates(branch);
+  if (!origin) return null;
+
+  return {
+    branchId: branch.id,
+    branchName: branch.name,
+    lat: origin.lat,
+    lng: origin.lng,
+  };
+}
+
+

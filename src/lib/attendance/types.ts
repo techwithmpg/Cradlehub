@@ -56,6 +56,12 @@ export type AttendanceSettings = {
   launch_recovery_closing_start_time: string;
   launch_recovery_closing_end_time: string;
   launch_recovery_reason: string | null;
+  test_mode_enabled: boolean;
+  test_mode_reason: string | null;
+  test_mode_enabled_at: string | null;
+  test_mode_enabled_by: string | null;
+  test_mode_disabled_at: string | null;
+  test_mode_disabled_by: string | null;
   updated_by: string | null;
 };
 
@@ -88,7 +94,7 @@ export type AttendanceDevice = {
   staff_id: string;
   branch_id: string;
   device_label: string | null;
-  status: "active" | "revoked";
+  status: "active" | "revoked" | "expired" | "lost" | "stolen" | "security_blocked";
   trusted_after: string;
   last_seen_at: string | null;
   created_at: string;
@@ -318,6 +324,8 @@ export type RecentAttendanceScan = {
   shiftType: string | null;
   attendanceStatus: string | null;
   workedMinutes: number | null;
+  clockInAt: string | null;
+  clockOutAt: string | null;
   sourceLabel: string | null;
 };
 
@@ -356,6 +364,7 @@ export type AttendanceSession = {
 export type AttendanceWorkspaceData = {
   branchId: string;
   branchName: string;
+  serverNowMs: number;
   settings: AttendanceSettings;
   summary: {
     checkedInNow: number;

@@ -2,6 +2,7 @@ import { BRANCH_TIMEZONE, getBranchBusinessDate, getBranchTime } from "@/lib/eng
 import { timeToMinutes } from "@/lib/utils/time-format";
 
 const MANILA_OFFSET = "+08:00";
+const DEFAULT_BRANCH_TIMEZONE = "Asia/Manila";
 
 export type AttendanceMetricInput = {
   checkedInAt: string;
@@ -32,12 +33,108 @@ export function addDaysToYmd(ymd: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function localEpoch(parts: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+}): number {
+  return Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  );
+}
+
+function localPartsForInstant(instant: Date, timezone: string): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "0";
+  return {
+    year: Number(get("year")),
+    month: Number(get("month")),
+    day: Number(get("day")),
+    hour: Number(get("hour")) % 24,
+    minute: Number(get("minute")),
+    second: Number(get("second")),
+  };
+}
+
+function parseBranchDateTime(date: string, time: string): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  const [year = "0", month = "1", day = "1"] = date.split("-");
+  const [hour = "0", minute = "0", second = "0"] = normalizeTimeForDateTime(time).split(":");
+  return {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hour: Number(hour),
+    minute: Number(minute),
+    second: Number(second),
+  };
+}
+
+function branchDateTimeToIsoWithTimezone(params: {
+  date: string;
+  time: string;
+  timezone: string;
+}): string {
+  const desiredParts = parseBranchDateTime(params.date, params.time);
+  const desiredLocalEpoch = localEpoch(desiredParts);
+  let utcGuess = desiredLocalEpoch;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const observedParts = localPartsForInstant(new Date(utcGuess), params.timezone);
+    const observedLocalEpoch = localEpoch(observedParts);
+    const delta = desiredLocalEpoch - observedLocalEpoch;
+    if (delta === 0) break;
+    utcGuess += delta;
+  }
+
+  return new Date(utcGuess).toISOString();
+}
+
 export function branchDateTimeToIso(params: {
   date: string;
   time: string;
   addDay?: boolean;
+  timezone?: string | null;
 }): string {
   const date = params.addDay ? addDaysToYmd(params.date, 1) : params.date;
+  const timezone = params.timezone?.trim();
+  if (timezone && timezone !== DEFAULT_BRANCH_TIMEZONE) {
+    return branchDateTimeToIsoWithTimezone({
+      date,
+      time: params.time,
+      timezone,
+    });
+  }
   return new Date(`${date}T${normalizeTimeForDateTime(params.time)}${MANILA_OFFSET}`).toISOString();
 }
 

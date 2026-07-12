@@ -98,6 +98,8 @@ export function getDriverJobDisplayStatus(item: RealDispatchItem): DriverJobDisp
       return "on_route";
     case "awaiting_driver":
     case "ready":
+    case "scheduled":
+    case "released_to_driver":
       return "upcoming";
   }
 }

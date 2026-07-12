@@ -6,7 +6,6 @@ import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
 import { WorkQueueDashboard } from "./work-queue-dashboard";
 import type { WorkQueueBooking } from "./work-queue-panel";
 import type { AvailableDriver } from "@/components/features/control-console/driver-assign-menu";
-import type { EtaRefreshResult } from "@/lib/actions/eta-actions";
 import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 
 type CrmTodayMutationAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -29,7 +28,7 @@ export function CrmTodayShell({
   assignDriverAction,
   availableDrivers,
   getTrackingLinkAction,
-  refreshEtaAction,
+  showHeader = true,
 }: {
   branchName: string;
   dateLabel: string;
@@ -47,7 +46,7 @@ export function CrmTodayShell({
   assignDriverAction?: CrmTodayMutationAction;
   availableDrivers?: AvailableDriver[];
   getTrackingLinkAction?: CrmTodayTrackingAction;
-  refreshEtaAction?: (bookingId: string) => Promise<EtaRefreshResult>;
+  showHeader?: boolean;
 }) {
   return (
     <WorkQueueDashboard
@@ -67,7 +66,7 @@ export function CrmTodayShell({
       assignDriverAction={assignDriverAction}
       availableDrivers={availableDrivers}
       getTrackingLinkAction={getTrackingLinkAction}
-      refreshEtaAction={refreshEtaAction}
+      showHeader={showHeader}
     />
   );
 }

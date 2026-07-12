@@ -171,7 +171,7 @@ export async function getScheduleOverridesForScoring(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("schedule_overrides")
-    .select("staff_id, override_date, is_day_off, start_time, end_time")
+    .select("staff_id, override_date, is_day_off, shift_type, start_time, end_time")
     .eq("override_date", date)
     .in("staff_id", staffIds);
 
@@ -210,6 +210,7 @@ export async function getCheckinsForScoring(
     .select("staff_id, shift_date, status, checked_in_at, checked_out_at, attendance_status, shift_type, branch_id")
     .eq("branch_id", branchId)
     .eq("shift_date", date)
+    .eq("is_test", false)
     .neq("status", "voided");
 
   if (error) throw new Error(error.message);
@@ -225,7 +226,7 @@ export async function getTherapistConflictBookings(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("bookings")
-    .select("staff_id, start_time, end_time, status")
+    .select("id, staff_id, start_time, end_time, status")
     .eq("branch_id", branchId)
     .eq("booking_date", date)
     .not("status", "in", '("cancelled","no_show")')
@@ -233,6 +234,7 @@ export async function getTherapistConflictBookings(
 
   if (error) throw new Error(error.message);
   return (data ?? []).map((b) => ({
+    booking_id: b.id,
     staff_id: b.staff_id as string,
     start_time: b.start_time,
     end_time: b.end_time ?? b.start_time,
@@ -249,7 +251,7 @@ export async function getDriverConflictBookings(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("bookings")
-    .select("driver_id, start_time, end_time, status")
+    .select("id, driver_id, start_time, end_time, status")
     .eq("branch_id", branchId)
     .eq("booking_date", date)
     .not("status", "in", '("cancelled","no_show")')
@@ -257,6 +259,7 @@ export async function getDriverConflictBookings(
 
   if (error) throw new Error(error.message);
   return (data ?? []).map((b) => ({
+    booking_id: b.id,
     staff_id: b.driver_id as string,
     start_time: b.start_time,
     end_time: b.end_time ?? b.start_time,
@@ -473,7 +476,7 @@ async function buildContextFromBooking(
     overrides,
     blockedTimes,
     checkins,
-    existingBookings: conflictBookings,
+    existingBookings: conflictBookings.filter((row) => row.booking_id !== booking.id),
     preferences,
   };
 }
@@ -481,19 +484,21 @@ async function buildContextFromBooking(
 // ── Combined context builder ───────────────────────────────────────────────────
 
 export async function buildRecommendationContext(
-  bookingId: string
+  bookingId: string,
+  overrides: Partial<Pick<BookingForRecommendation, "booking_date" | "start_time" | "end_time">> = {}
 ): Promise<RecommendationContext | null> {
   const booking = await getBookingForRecommendation(bookingId);
   if (!booking) return null;
-  return buildContextFromBooking(booking, "therapist");
+  return buildContextFromBooking({ ...booking, ...overrides }, "therapist");
 }
 
 // ── Convenience: build driver-specific context ─────────────────────────────────
 
 export async function buildDriverRecommendationContext(
-  bookingId: string
+  bookingId: string,
+  overrides: Partial<Pick<BookingForRecommendation, "booking_date" | "start_time" | "end_time">> = {}
 ): Promise<RecommendationContext | null> {
   const booking = await getBookingForRecommendation(bookingId);
   if (!booking) return null;
-  return buildContextFromBooking(booking, "driver");
+  return buildContextFromBooking({ ...booking, ...overrides }, "driver");
 }

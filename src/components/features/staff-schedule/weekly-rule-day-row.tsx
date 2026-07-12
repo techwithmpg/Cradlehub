@@ -30,9 +30,10 @@ export function WeeklyRuleDayRow({
 }: WeeklyRuleDayRowProps) {
   const custom =
     basePattern !== undefined && !patternsMatchForDay(pattern, basePattern, visibleKinds);
+  const showSplitShift = visibleKinds.length > 1;
 
   return (
-    <div className="grid min-w-[520px] grid-cols-[minmax(110px,1fr)_repeat(3,132px)] items-center gap-3 border-b border-stone-100 py-3 last:border-b-0 data-[mode=regular]:grid-cols-[minmax(110px,1fr)_repeat(2,150px)]" data-mode={visibleKinds.length === 1 ? "regular" : "split"}>
+    <div className="grid min-w-[640px] grid-cols-[minmax(110px,1fr)_repeat(4,124px)] items-center gap-3 border-b border-stone-100 py-3 last:border-b-0 data-[mode=regular]:min-w-[520px] data-[mode=regular]:grid-cols-[minmax(110px,1fr)_repeat(2,150px)]" data-mode={showSplitShift ? "split" : "regular"}>
       <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-stone-950">
         <span>{day.label}</span>
         {custom ? (
@@ -52,6 +53,17 @@ export function WeeklyRuleDayRow({
           />
         </div>
       ))}
+      {showSplitShift ? (
+        <div className="flex justify-center">
+          <ShiftTogglePill
+            label="Split"
+            kind="splitShift"
+            active={pattern.splitShift}
+            custom={custom && pattern.splitShift !== basePattern?.splitShift}
+            onToggle={() => onToggle(day.dow, "splitShift")}
+          />
+        </div>
+      ) : null}
       <div className="flex justify-center">
         <ShiftTogglePill
           label="Day Off"

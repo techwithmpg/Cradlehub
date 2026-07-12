@@ -33,7 +33,7 @@ type DeviceRow = {
   staff_id: string;
   branch_id: string;
   device_label: string | null;
-  status: "active" | "revoked";
+  status: "active" | "revoked" | "expired" | "lost" | "stolen" | "security_blocked";
   trusted_after: string;
   last_seen_at: string | null;
   created_at: string;
@@ -46,6 +46,7 @@ type DeviceRow = {
   revoked_at: string | null;
   revoked_by: string | null;
   revocation_reason: string | null;
+  branches?: Relation<{ name: string | null }>;
 };
 
 type TokenRow = {
@@ -56,13 +57,6 @@ type TokenRow = {
   created_at: string;
   expires_at: string;
   revoke_previous_device_id: string | null;
-};
-
-type ScanRow = {
-  device_id: string | null;
-  scan_type: string;
-  outcome: string;
-  created_at: string;
 };
 
 type DeviceScanStats = {
@@ -83,7 +77,8 @@ function first<T>(value: Relation<T>): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function maxIso(current: string | null, next: string): string {
+function maxIso(current: string | null, next: string | null): string | null {
+  if (!next) return current;
   if (!current) return next;
   return new Date(next).getTime() > new Date(current).getTime() ? next : current;
 }
@@ -97,26 +92,16 @@ function emptyStats(): DeviceScanStats {
   };
 }
 
-function buildScanStats(scans: ScanRow[]): Map<string, DeviceScanStats> {
-  const byDevice = new Map<string, DeviceScanStats>();
-
-  for (const scan of scans) {
-    if (!scan.device_id || scan.outcome !== "success") continue;
-    if (scan.scan_type !== "attendance" && scan.scan_type !== "room") continue;
-
-    const stats = byDevice.get(scan.device_id) ?? emptyStats();
-    stats.totalSuccessfulScans += 1;
-    stats.lastScanAt = maxIso(stats.lastScanAt, scan.created_at);
-    if (scan.scan_type === "attendance") {
-      stats.lastAttendanceScanAt = maxIso(stats.lastAttendanceScanAt, scan.created_at);
-    }
-    if (scan.scan_type === "room") {
-      stats.lastServiceScanAt = maxIso(stats.lastServiceScanAt, scan.created_at);
-    }
-    byDevice.set(scan.device_id, stats);
-  }
-
-  return byDevice;
+function scanStatsFromDevice(device: DeviceRow): DeviceScanStats {
+  const lastAttendanceScanAt = device.last_attendance_scan_at;
+  const lastServiceScanAt = device.last_service_scan_at;
+  const lastScanAt = maxIso(lastAttendanceScanAt, lastServiceScanAt);
+  return {
+    totalSuccessfulScans: lastScanAt ? 1 : 0,
+    lastAttendanceScanAt,
+    lastServiceScanAt,
+    lastScanAt,
+  };
 }
 
 function toPendingRecoveryLink(token: TokenRow, staff: StaffRow, branchName: string): PendingDeviceRecoveryLink {
@@ -172,7 +157,7 @@ function toEntry(params: {
           registeredAt: device.created_at,
           registrationSource: device.registration_source,
           registeredBranchId: device.branch_id,
-          registeredBranchName: branchName,
+          registeredBranchName: first(device.branches)?.name ?? branchName,
           lastSeenAt: device.last_seen_at,
           lastAttendanceScanAt: device.last_attendance_scan_at ?? params.stats.lastAttendanceScanAt,
           lastServiceScanAt: device.last_service_scan_at ?? params.stats.lastServiceScanAt,
@@ -213,7 +198,7 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
   const admin = asAttendanceDb(createAdminClient());
   const now = new Date().toISOString();
 
-  const [branches, staffResult, devicesResult, tokensResult, scansResult] = await Promise.all([
+  const [branches, staffResult, tokensResult] = await Promise.all([
     loadBranches(params.canSwitchBranch ?? false),
     admin
       .from("staff")
@@ -221,11 +206,6 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
       .eq("branch_id", params.branchId)
       .order("is_active", { ascending: false })
       .order("full_name", { ascending: true }),
-    admin
-      .from("staff_devices")
-      .select("id, staff_id, branch_id, device_label, status, trusted_after, last_seen_at, created_at, registration_source, browser_name, browser_version, platform_name, last_attendance_scan_at, last_service_scan_at, revoked_at, revoked_by, revocation_reason")
-      .eq("branch_id", params.branchId)
-      .order("created_at", { ascending: false }),
     admin
       .from("device_activation_tokens")
       .select("id, staff_id, branch_id, reason, created_at, expires_at, revoke_previous_device_id")
@@ -235,22 +215,23 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
       .is("revoked_at", null)
       .gt("expires_at", now)
       .order("expires_at", { ascending: true }),
-    admin
-      .from("qr_scan_events")
-      .select("device_id, scan_type, outcome, created_at")
-      .eq("branch_id", params.branchId)
-      .not("device_id", "is", null)
-      .in("scan_type", ["attendance", "room"])
-      .order("created_at", { ascending: false })
-      .limit(5000),
   ]);
 
   if (staffResult.error) throw new Error(staffResult.error.message);
-  if (devicesResult.error) throw new Error(devicesResult.error.message);
   if (tokensResult.error) throw new Error(tokensResult.error.message);
-  if (scansResult.error) throw new Error(scansResult.error.message);
 
   const staffRows = ((staffResult.data ?? []) as unknown as StaffRow[]).filter((staff) => staff.branch_id === params.branchId);
+  const staffIds = staffRows.map((staff) => staff.id);
+  const devicesResult = staffIds.length > 0
+    ? await admin
+        .from("staff_devices")
+        .select("id, staff_id, branch_id, device_label, status, trusted_after, last_seen_at, created_at, registration_source, browser_name, browser_version, platform_name, last_attendance_scan_at, last_service_scan_at, revoked_at, revoked_by, revocation_reason, branches(name)")
+        .in("staff_id", staffIds)
+        .order("created_at", { ascending: false })
+    : { data: [], error: null };
+
+  if (devicesResult.error) throw new Error(devicesResult.error.message);
+
   const staffById = new Map(staffRows.map((staff) => [staff.id, staff]));
   const devices = (devicesResult.data ?? []) as DeviceRow[];
   const tokens = (tokensResult.data ?? []) as TokenRow[];
@@ -260,7 +241,6 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
     if (!pendingByStaff.has(token.staff_id)) pendingByStaff.set(token.staff_id, token);
   }
 
-  const statsByDevice = buildScanStats((scansResult.data ?? []) as ScanRow[]);
   const devicesByStaff = new Map<string, DeviceRow[]>();
   for (const device of devices) {
     const existing = devicesByStaff.get(device.staff_id) ?? [];
@@ -290,7 +270,7 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
         branchName: params.branchName,
         device,
         pendingRecovery,
-        stats: statsByDevice.get(device.id) ?? emptyStats(),
+        stats: scanStatsFromDevice(device),
       }));
     }
   }
@@ -356,6 +336,7 @@ export async function getDeviceScanHistory(params: {
     .select("id, scan_type, action, outcome, reason_code, message, created_at, staff_id, booking_id, resource_id, qr_points(label)")
     .eq("branch_id", params.branchId)
     .eq("device_id", params.deviceId)
+    .eq("is_test", false)
     .order("created_at", { ascending: false })
     .limit(params.limit ?? 100);
   if (error) throw new Error(error.message);

@@ -6,11 +6,12 @@ import { cn } from "@/lib/utils";
 
 type PasswordInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> & {
   leadingIcon?: React.ReactNode;
+  toggleTabIndex?: number;
   wrapperClassName?: string;
 };
 
 export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className, leadingIcon, wrapperClassName, ...props }, ref) => {
+  ({ className, leadingIcon, toggleTabIndex, wrapperClassName, ...props }, ref) => {
     const [isVisible, setIsVisible] = React.useState(false);
 
     return (
@@ -30,8 +31,9 @@ export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputPro
           type="button"
           aria-label={isVisible ? "Hide password" : "Show password"}
           aria-pressed={isVisible}
+          tabIndex={toggleTabIndex}
           onClick={() => setIsVisible((current) => !current)}
-          className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-[#8F8074] transition hover:bg-[#F5F2EE] hover:text-[#5B4A40] focus:outline-none focus:ring-2 focus:ring-[#C8A96B]/45"
+          className="absolute right-0 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-r-[var(--cs-r-lg)] text-[#8F8074] transition hover:bg-[#F5F2EE] hover:text-[#5B4A40] focus:outline-none focus:ring-2 focus:ring-[#C8A96B]/45"
         >
           {isVisible ? (
             <EyeOff className="size-4" aria-hidden="true" />

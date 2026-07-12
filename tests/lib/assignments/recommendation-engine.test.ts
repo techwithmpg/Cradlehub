@@ -161,4 +161,93 @@ describe("assignment recommendation attendance behavior", () => {
       homeServiceScored.some((candidate) => candidate.warnings.includes(NO_CHECKED_IN_STAFF_WARNING))
     ).toBe(false);
   });
+
+  it("marks overlapping therapist bookings unavailable", () => {
+    const scored = scoreTherapistCandidates(
+      makeContext({
+        existingBookings: [
+          {
+            booking_id: "existing-booking",
+            staff_id: "junior-checked-in",
+            start_time: "10:30:00",
+            end_time: "11:30:00",
+            status: "confirmed",
+          },
+        ],
+      })
+    );
+
+    const candidate = scored.find((item) => item.staffId === "junior-checked-in");
+    expect(candidate?.status).toBe("unavailable");
+    expect(candidate?.warnings).toContain("Has overlapping booking");
+  });
+
+  it("marks therapists with conflicting schedule windows unavailable", () => {
+    const bookingDate = getBranchBusinessDate();
+    const scored = scoreTherapistCandidates(
+      makeContext({
+        schedules: [
+          {
+            staff_id: "junior-checked-in",
+            day_of_week: dayOfWeekFromYmd(bookingDate),
+            start_time: "09:00:00",
+            end_time: "13:00:00",
+            is_active: true,
+            shift_type: "opening",
+          },
+          {
+            staff_id: "junior-checked-in",
+            day_of_week: dayOfWeekFromYmd(bookingDate),
+            start_time: "12:00:00",
+            end_time: "18:00:00",
+            is_active: true,
+            shift_type: "closing",
+          },
+          {
+            staff_id: "senior-not-checked-in",
+            day_of_week: dayOfWeekFromYmd(bookingDate),
+            start_time: "09:00:00",
+            end_time: "18:00:00",
+            is_active: true,
+            shift_type: "regular",
+          },
+        ],
+      })
+    );
+
+    const candidate = scored.find((item) => item.staffId === "junior-checked-in");
+    expect(candidate?.status).toBe("unavailable");
+    expect(candidate?.warnings).toContain("Schedule has conflicting windows");
+  });
+
+  it("marks home-service-ineligible therapists unavailable", () => {
+    const scored = scoreTherapistCandidates(
+      makeContext({
+        bookingMode: "home_service",
+        isHomeService: true,
+        preferences: [
+          {
+            staff_id: "senior-not-checked-in",
+            can_do_home_service: false,
+            can_drive: false,
+            max_services_per_day: null,
+            max_trips_per_day: null,
+          },
+          {
+            staff_id: "junior-checked-in",
+            can_do_home_service: true,
+            can_drive: false,
+            max_services_per_day: null,
+            max_trips_per_day: null,
+          },
+        ],
+      })
+    );
+
+    const ineligible = scored.find((item) => item.staffId === "senior-not-checked-in");
+    const eligible = scored.find((item) => item.staffId === "junior-checked-in");
+    expect(ineligible?.status).toBe("unavailable");
+    expect(ineligible?.warnings).toContain("Not eligible for home service");
+    expect(eligible?.warnings).not.toContain("Not eligible for home service");
+  });
 });

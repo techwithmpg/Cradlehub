@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type {
   ServiceLite,
@@ -9,8 +10,6 @@ import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/c
 import type { Database } from "@/types/supabase";
 import type { BranchCorrectionInboxItem } from "@/lib/staff/branch-correction-types";
 import { replaceStaffServiceAssignmentRows } from "@/lib/staff/service-assignment-state";
-import { CrmSegmentTabs } from "@/components/features/crm/premium/crm-segment-tabs";
-import type { CrmSegmentTab } from "@/components/features/crm/premium/crm-segment-tabs";
 import { CrmStaffApplicationsTab } from "./crm-staff-applications-tab";
 import { CrmStaffManagementTab } from "./crm-staff-management-tab";
 import { CrmStaffAssignmentsTab } from "./crm-staff-assignments-tab";
@@ -84,7 +83,7 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
     []
   );
 
-  const tabs = useMemo<CrmSegmentTab[]>(
+  const tabs = useMemo<{ key: StaffTab; label: string; count?: number }[]>(
     () => [
       {
         key: "applications",
@@ -126,16 +125,74 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
     }
   }, []);
 
+  const activeTabIndex = tabs.findIndex((tab) => tab.key === activeTab);
+
+  const handleTabKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const lastIndex = tabs.length - 1;
+      let nextIndex = activeTabIndex;
+
+      if (event.key === "ArrowRight") nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
+      else if (event.key === "ArrowLeft") nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = lastIndex;
+      else return;
+
+      event.preventDefault();
+      const nextTab = tabs[nextIndex];
+      if (nextTab) handleTabChange(nextTab.key);
+    },
+    [activeTabIndex, handleTabChange, tabs]
+  );
+
   return (
     <div className="space-y-6">
-      <CrmSegmentTabs
-        tabs={tabs}
-        activeKey={activeTab}
-        onSelect={handleTabChange}
-        variant="underline"
-      />
+      <div
+        role="tablist"
+        aria-label="Staff sections"
+        onKeyDown={handleTabKeyDown}
+        className="flex gap-0 overflow-x-auto border-b border-[var(--cs-border-soft)]"
+      >
+        {tabs.map((tab) => {
+          const active = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              id={`staff-tab-${tab.key}`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls={`staff-panel-${tab.key}`}
+              tabIndex={active ? 0 : -1}
+              onClick={() => handleTabChange(tab.key)}
+              className={`relative inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] ${
+                active
+                  ? "text-[var(--cs-text)] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-[2px] after:rounded-full after:bg-[var(--cs-sand)]"
+                  : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]"
+              }`}
+            >
+              {tab.label}
+              {tab.count !== undefined ? (
+                <span
+                  className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
+                    active
+                      ? "bg-[var(--cs-sand-mist)] text-[var(--cs-sand)]"
+                      : "bg-[var(--cs-border)] text-[var(--cs-text-muted)]"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
 
-      <div hidden={activeTab !== "applications"}>
+      <AttendanceTabPanel
+        id="staff-panel-applications"
+        labelledBy="staff-tab-applications"
+        active={activeTab === "applications"}
+      >
         <CrmStaffApplicationsTab
           requests={props.onboardingRequests}
           branches={props.branches}
@@ -143,13 +200,21 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           reviewerBranchId={props.reviewerBranchId}
           canReviewOnboarding={props.canReviewOnboarding}
         />
-      </div>
+      </AttendanceTabPanel>
 
-      <div hidden={activeTab !== "branch-corrections"}>
+      <AttendanceTabPanel
+        id="staff-panel-branch-corrections"
+        labelledBy="staff-tab-branch-corrections"
+        active={activeTab === "branch-corrections"}
+      >
         <CrmStaffBranchCorrectionsTab requests={props.branchCorrectionRequests} />
-      </div>
+      </AttendanceTabPanel>
 
-      <div hidden={activeTab !== "management"}>
+      <AttendanceTabPanel
+        id="staff-panel-management"
+        labelledBy="staff-tab-management"
+        active={activeTab === "management"}
+      >
         <CrmStaffManagementTab
           allStaff={props.allStaff}
           pendingStaff={props.pendingStaff}
@@ -160,9 +225,13 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           reviewerSystemRole={props.reviewerSystemRole}
           onStaffServicesSaved={handleStaffServicesSaved}
         />
-      </div>
+      </AttendanceTabPanel>
 
-      <div hidden={activeTab !== "assignments"}>
+      <AttendanceTabPanel
+        id="staff-panel-assignments"
+        labelledBy="staff-tab-assignments"
+        active={activeTab === "assignments"}
+      >
         <CrmStaffAssignmentsTab
           branchId={props.branchId}
           activeServices={props.activeServices}
@@ -171,14 +240,18 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
           providerAssignmentsError={props.providerAssignmentsError}
           onStaffServicesSaved={handleStaffServicesSaved}
         />
-      </div>
+      </AttendanceTabPanel>
 
-      <div hidden={activeTab !== "status"}>
+      <AttendanceTabPanel
+        id="staff-panel-status"
+        labelledBy="staff-tab-status"
+        active={activeTab === "status"}
+      >
         <CrmStaffStatusTab
           allStaff={props.allStaff}
           pendingStaff={props.pendingStaff}
         />
-      </div>
+      </AttendanceTabPanel>
     </div>
   );
 }

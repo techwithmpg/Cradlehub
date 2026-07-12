@@ -147,6 +147,7 @@
 | Date | Change | Reason | Agent |
 |------|--------|--------|-------|
 | _[DATE]_ | Initial roadmap created | Project kickoff | Human |
+| 2026-07-11 | Completed CRM-PERFORMANCE-OPTIMIZATION-001 | Record frozen CRM performance baseline, safe render/effect optimizations, verification, and deferred bundle/query/database follow-ups | Codex |
 | 2026-05-01 | Added CSR Head/CSR Staff RBAC completion note (CRM workspace only, no separate CSR workspace) | Align workspace access with front-desk org structure and server-side permission enforcement | Codex |
 | 2026-05-01 | Logged STAFF-005 mobile accordion/day-card refinement for `/staff-portal/week` | Track focused mobile planner UX/accessibility improvements and verification run | Codex |
 | 2026-05-09 | Logged STABILITY-001 workspace stabilization audit and blocker fixes | Stabilize route aliases, notification count behavior, public booking status copy, and Next.js 16 proxy documentation before broader client/staff testing | Codex |
@@ -159,6 +160,7 @@
 | 2026-05-14 | Logged BOOKING-WIZARD-UX-10.2 public booking wizard optimization | Track modern Places-only active booking path, compact category service picker, and qualified service-provider staff filtering | Codex |
 | 2026-05-15 | Logged STAFF-NICKNAME-001 staff/therapist nicknames | Track optional `staff.nickname`, public nickname-first booking display, and internal full-name-plus-nickname manager/CRM/owner displays | Codex |
 | 2026-07-10 | Logged ATTENDANCE-RECOVERY-RULES-001 schedule-aware Attendance Recovery Center | Track smart QR scan intent classification, closing-scan recovery, Recovery/Rules/Audit UI, correction actions, and migration follow-up | Codex |
+| 2026-07-10 | Completed CRM-BOOKING-FOLLOWUP-STABILIZATION-001 | Stabilize CRM Today ETA refresh, fix booking follow-up `booking_events` RLS path, add audited Change Staff and Reschedule flows | Codex |
 | 2026-05-15 | Logged DISPATCH-LIVE-001 manager dispatch live data wiring | Remove production mock dispatch data and connect `/manager/dispatch` to real branch-scoped Supabase dispatch query data | Codex |
 | 2026-05-20 | Logged BOOKING-MOBILE-SERVICE-GRID-001 mobile service grid patch | Keep public booking service cards compact on mobile, preserve desktop, and verify no page-level horizontal overflow | Codex |
 | 2026-05-20 | Logged BOOKING-HOME-SERVICES-001 public home-service availability fix | Align public booking service reads with admin branch-service Home/Public settings and preserve branch custom price/duration | Codex |
@@ -197,3 +199,6 @@
 | 2026-07-09 | Completed SCHEDULE-CONFLICT-CENTER-001 | Replace the inline right-rail conflict details card with a centralized Schedule Conflict Center modal launched from Coverage Overview | Codex |
 | 2026-07-09 | Completed SCHEDULE-CONFLICT-RESOLUTION-CENTER-001 | Finalize Schedule Conflict Center impact groups, accepted-exception flow, typing cleanup, focused tests, and build verification | Codex |
 | 2026-07-09 | Completed AGENT-COACH-IDLE-LOOP-001 | Fix Agent Coach idle listener maximum-update-depth crash by guarding duplicate idle state updates | Codex |
+| 2026-07-12 | Completed ATTENDANCE-TODAY-ALIGNMENT-RESET-001 | Repair QR Attendance scan ordering so current schedule decides clock-in/out before open rows, isolate stale/conflicting rows into Recovery, and replace broad staff-day reset with selected-record Attendance State Reset | Codex |
+| 2026-07-12 | Implemented local ATTENDANCE-AUTONOMY-HARDENING-001 | Add stable shift-instance snapshots, branch timezone/business-date behavior, Attendance state machine, Recovery dedupe, staff-first Device Registry, production device-secret enforcement, migration/types/runbook updates, and record remaining production closeout blockers | Codex |
+| 2026-07-12 | Continued ATTENDANCE-AUTONOMY-HARDENING-001 transactional hardening | Add linked-applied transactional scan commit and selected-record reset RPCs, service-role-only grants, generated type updates, focused migration tests, and document remaining migration-history/correction/QA blockers | Codex |

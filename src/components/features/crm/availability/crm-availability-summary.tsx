@@ -109,6 +109,15 @@ export function CrmAvailabilitySummary({ summary }: Props) {
       color: "#2471a3",
       dotColor: "#2471a3",
     },
+    ...(summary.scheduleConflicts > 0
+      ? [{
+          label: "Conflicts",
+          value: summary.scheduleConflicts,
+          color: "#b91c1c",
+          dotColor: "#b91c1c",
+          highlight: true,
+        } satisfies Chip]
+      : []),
     {
       label: "Drivers",
       value: `${summary.driversReady}/${summary.driversTotal}`,
