@@ -30,24 +30,22 @@ export function AttendanceScanFeedRow({
   const durationDetail = getAttendanceScanDurationDetail(scan);
   const displayName = scan.staffNickname || scan.staffName;
   const shiftDetails = [
-    formatShiftTypeLabel(scan.shiftType),
+    scan.shiftType ? formatShiftTypeLabel(scan.shiftType) : null,
     scan.branchName,
     durationDetail,
+    scan.outcome === "success" ? null : (scan.message ?? scan.reasonCode),
   ].filter(Boolean);
-  const href = buildAttendanceRecordHref({
-    workspace,
-    selectedDate,
-    staffId: scan.staffId,
-    branchId: scan.branchId,
-  });
+  const href = scan.staffId
+    ? buildAttendanceRecordHref({
+        workspace,
+        selectedDate,
+        staffId: scan.staffId,
+        branchId: scan.branchId,
+      })
+    : null;
 
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className="grid min-h-14 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-1 py-2 text-sm transition hover:bg-[#f7eddd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b78a42]/35"
-      aria-label={`Open ${scan.staffName} attendance record`}
-    >
+  const content = (
+    <>
       <span
         className="flex size-8 items-center justify-center rounded-full bg-[#efe4c4] bg-cover bg-center text-xs font-bold text-[#7c5727]"
         style={
@@ -66,7 +64,7 @@ export function AttendanceScanFeedRow({
         <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[var(--cs-text-muted)]">
           <Clock3 className="size-3" aria-hidden="true" />
           <span>{getAttendanceScanEventLabel(scan)}</span>
-          <span>{formatAttendanceScanTime(scan.occurredAt)}</span>
+          <span>{formatAttendanceScanTime(scan.occurredAt, scan.timezone)}</span>
         </span>
         <span className="mt-0.5 block truncate text-xs text-[var(--cs-text-muted)]">
           {shiftDetails.join(" - ")}
@@ -78,14 +76,37 @@ export function AttendanceScanFeedRow({
             "rounded-full px-2 py-0.5 text-[11px] font-bold",
             badge.tone === "good" && "bg-emerald-100 text-emerald-800",
             badge.tone === "warn" && "bg-amber-100 text-amber-800",
-            badge.tone === "info" && "bg-blue-100 text-blue-800"
+            badge.tone === "info" && "bg-blue-100 text-blue-800",
+            badge.tone === "bad" && "bg-red-100 text-red-800"
           )}
           aria-label={`Attendance status: ${badge.label}`}
         >
           {badge.label}
         </span>
-        <ChevronRight className="size-4 text-[var(--cs-text-muted)]" aria-hidden="true" />
+        {href ? <ChevronRight className="size-4 text-[var(--cs-text-muted)]" aria-hidden="true" /> : null}
       </span>
+    </>
+  );
+
+  if (!href) {
+    return (
+      <div
+        className="grid min-h-14 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-1 py-2 text-sm"
+        aria-label={`${displayName} attendance scan`}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className="grid min-h-14 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-1 py-2 text-sm transition hover:bg-[#f7eddd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b78a42]/35"
+      aria-label={`Open ${scan.staffName} attendance record`}
+    >
+      {content}
     </Link>
   );
 }

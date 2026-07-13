@@ -805,3 +805,30 @@ Still open:
 - Production migration apply remains blocked by the existing Supabase migration-history connectivity issue.
 - Authoritative affected-booking impact analysis is not yet wired into weekly save confirmation.
 - Date-range overrides, expanded blocked-time reasons, override overnight persistence, and durable approved-exception records need separately approved schema/action work.
+## Handoff - CRADLE-ATTENDANCE-DB-CONNECTION-AND-END-TO-END-DIAGNOSTICS-011
+
+Done:
+- Same-project database identity, live schema, RLS, grants, generated types,
+  transaction RPC, recovery RPC, scan writes, Activity query, and Realtime were
+  inspected and exercised.
+- Live browser operations: blocked unknown-device audit, configured-secret
+  recovery, clock-in, duplicate no-op, clock-out, valid early-leave exception.
+- QA schedule restored to 09:00-18:00 and QA device revoked after validation.
+- New migration `20260713120237` is applied and recorded.
+
+Key operation IDs:
+- `998ba4f6-9499-4c76-960b-5543d67cdd6e`: safe unknown-device failure audit.
+- `971879ba-a130-4df2-991c-6b5030b59ea3`: successful atomic clock-in.
+- `4b8e9251-cb03-4565-b459-5c406cd03b53`: pre-write `PGRST201` clock-out failure.
+- `fbf2bebf-2a20-4c0a-b6b0-7e25218b86e4`: successful atomic clock-out plus
+  early-leave exception.
+
+Still open:
+- Restore direct pooler TCP 5432 connectivity and reconcile old migration
+  history before any broad `db push`.
+- `psql` is absent; `db:verify` therefore returns warning exit 2 after all table
+  probes pass.
+- Investigate the separate process/operator that deleted the pre-existing
+  Attendance operational dataset during this task window. `pg_stat_statements`
+  proves the deletes, but does not retain actor/timestamp, and this checkout has
+  no reset backup.

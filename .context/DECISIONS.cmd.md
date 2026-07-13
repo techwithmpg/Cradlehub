@@ -825,3 +825,17 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - Recovery UI reads `metadata.internalExceptionType` when it needs the precise manager-facing label/action.
 - Constraint/RLS/RPC failures now surface through safe public scan codes and operation IDs instead of generic Scan Interrupted.
 - `staff_shift_checkins.schedule_source` now stores `weekly`, `override`, `recovery`, or `none` for new scans; legacy `weekly_schedule` rows were migrated to `weekly`.
+## 2026-07-13 - Failed Attendance attempts remain in `qr_scan_events`
+
+- Keep the existing server-only `qr_scan_events` write path as the failed-scan
+  audit source; do not add a duplicate attempt table while it already safely
+  records blocked, exception, noop, and error outcomes with operation IDs.
+- Attendance Activity must read those safe outcomes without treating them as
+  check-ins, and it must retain rows whose staff/device link is intentionally
+  null (for example, `unknown_device`).
+- Branch-specific Activity day ranges come from
+  `attendance_settings.timezone`; browser timezone and UTC midnight are not
+  authoritative.
+- Device replacement recovery revokes the selected old primary before inserting
+  the new primary, inside one transaction, so the one-active-primary invariant
+  remains enforced without leaving a staff member device-less on rollback.

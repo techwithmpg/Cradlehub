@@ -6,11 +6,13 @@ import {
   mapRecentScan,
   type RecentScanRow,
 } from "@/lib/attendance/recent-scans-map";
+import { attendanceDateBoundaryIso } from "@/lib/attendance/recent-scans-time";
 import type {
   AttendanceScanFeedData,
   AttendanceScanFeedWorkspace,
   RecentAttendanceScan,
 } from "@/lib/attendance/types";
+import { BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
 
 type RecentScanFeedParams = {
   workspace: AttendanceScanFeedWorkspace;
@@ -19,20 +21,6 @@ type RecentScanFeedParams = {
   branchName?: string | null;
   maxItems?: number;
 };
-
-function dateBoundaryIso(date: string, dayOffset = 0): string {
-  const [year, month, day] = date.split("-").map(Number);
-  const utcMs = Date.UTC(
-    year ?? 1970,
-    (month ?? 1) - 1,
-    (day ?? 1) + dayOffset,
-    -8,
-    0,
-    0,
-    0
-  );
-  return new Date(utcMs).toISOString();
-}
 
 function safeLimit(value: number | undefined): number {
   if (!value || !Number.isFinite(value)) return 5;
@@ -49,12 +37,31 @@ function baseScanQuery(
     .from("qr_scan_events")
     .select(columns, options)
     .eq("scan_type", "attendance")
-    .eq("outcome", "success")
-    .eq("is_test", false)
-    .in("action", ["clock_in", "clock_out"]);
+    .eq("is_test", false);
 
   if (branchId) query = query.eq("branch_id", branchId);
   return query;
+}
+
+async function resolveFeedTimezone(
+  admin: AttendanceDb,
+  branchId: string | null | undefined
+): Promise<string> {
+  if (!branchId) return BRANCH_TIMEZONE;
+  const { data, error } = await admin
+    .from("attendance_settings")
+    .select("timezone")
+    .eq("branch_id", branchId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+
+  const timezone = data?.timezone?.trim() || BRANCH_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: timezone }).format();
+    return timezone;
+  } catch {
+    return BRANCH_TIMEZONE;
+  }
 }
 
 export function createAttendanceScanFeedFallback(
@@ -62,6 +69,7 @@ export function createAttendanceScanFeedFallback(
 ): AttendanceScanFeedData {
   return {
     selectedDate: params.selectedDate,
+    timezone: BRANCH_TIMEZONE,
     branchId: params.branchId ?? null,
     branchName: params.branchName ?? null,
     items: [],
@@ -75,8 +83,9 @@ export async function getRecentAttendanceScanFeed(
 ): Promise<AttendanceScanFeedData> {
   const admin = asAttendanceDb(createAdminClient());
   const limit = safeLimit(params.maxItems);
-  const startIso = dateBoundaryIso(params.selectedDate);
-  const endIso = dateBoundaryIso(params.selectedDate, 1);
+  const timezone = await resolveFeedTimezone(admin, params.branchId);
+  const startIso = attendanceDateBoundaryIso(params.selectedDate, timezone);
+  const endIso = attendanceDateBoundaryIso(params.selectedDate, timezone, 1);
   const oneHourAgoIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
   const scanQuery = baseScanQuery(
@@ -87,6 +96,9 @@ export async function getRecentAttendanceScanFeed(
       "branch_id",
       "staff_id",
       "action",
+      "outcome",
+      "reason_code",
+      "message",
       "created_at",
       "staff(id, full_name, nickname, avatar_url)",
       "branches(id, name)",
@@ -111,10 +123,11 @@ export async function getRecentAttendanceScanFeed(
 
   return {
     selectedDate: params.selectedDate,
+    timezone,
     branchId: params.branchId ?? null,
     branchName: params.branchName ?? null,
     items: ((scanResult.data ?? []) as unknown as RecentScanRow[])
-      .map((row) => mapRecentScan(row, params))
+      .map((row) => mapRecentScan(row, { ...params, timezone }))
       .filter((row): row is RecentAttendanceScan => row !== null),
     lastHourCount: countResult.count ?? 0,
     error: null,

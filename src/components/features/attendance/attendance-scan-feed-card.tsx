@@ -50,7 +50,10 @@ export function AttendanceScanFeedCard({
     maxItems,
   });
   const displayError = visibleFeed.error ?? (refreshError ? REFRESH_ERROR : null);
-  const dateLabel = formatAttendanceFeedDateLabel(visibleFeed.selectedDate);
+  const dateLabel = formatAttendanceFeedDateLabel(
+    visibleFeed.selectedDate,
+    visibleFeed.timezone
+  );
   const viewAllHref = buildAttendanceViewAllHref({
     workspace,
     selectedDate,

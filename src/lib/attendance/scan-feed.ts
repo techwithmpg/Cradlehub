@@ -50,20 +50,26 @@ export function getAttendanceScanInitials(name: string): string {
 }
 
 export function getAttendanceScanEventLabel(scan: RecentAttendanceScan): string {
-  return scan.eventType === "clock_out" ? "Clocked out" : "Clocked in";
+  if (scan.eventType === "clock_out") return "Clocked out";
+  if (scan.eventType === "clock_in") return "Clocked in";
+  if (scan.eventType === "duplicate_scan") return "Duplicate scan";
+  if (scan.eventType === "recovery_required") return "Needs review";
+  return scan.eventType
+    .replaceAll("_", " ")
+    .replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
-export function formatAttendanceScanTime(value: string): string {
+export function formatAttendanceScanTime(value: string, timezone: string): string {
   return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Manila",
+    timeZone: timezone,
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
 }
 
-function manilaDateString(date = new Date()): string {
+function branchDateString(date = new Date(), timezone: string = "Asia/Manila"): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
+    timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -72,14 +78,17 @@ function manilaDateString(date = new Date()): string {
   return `${valueFor("year")}-${valueFor("month")}-${valueFor("day")}`;
 }
 
-export function formatAttendanceFeedDateLabel(value: string): string {
-  if (value === manilaDateString()) return "Today";
+export function formatAttendanceFeedDateLabel(
+  value: string,
+  timezone: string = "Asia/Manila"
+): string {
+  if (value === branchDateString(new Date(), timezone)) return "Today";
 
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return value;
 
   return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Manila",
+    timeZone: timezone,
     month: "short",
     day: "numeric",
   }).format(new Date(Date.UTC(year, month - 1, day)));
@@ -147,8 +156,12 @@ export function getAttendanceScanDurationDetail(
 
 export function getAttendanceScanBadge(scan: RecentAttendanceScan): {
   label: string;
-  tone: "good" | "warn" | "info";
+  tone: "good" | "warn" | "info" | "bad";
 } {
+  if (scan.outcome === "error") return { label: "Failed", tone: "bad" };
+  if (scan.outcome === "blocked") return { label: "Blocked", tone: "bad" };
+  if (scan.outcome === "exception") return { label: "Needs review", tone: "warn" };
+  if (scan.outcome === "noop") return { label: "No change", tone: "info" };
   if (scan.eventType === "clock_out") {
     if (attendanceCompletedDurationNeedsReview(scan)) {
       return { label: "Needs review", tone: "warn" };

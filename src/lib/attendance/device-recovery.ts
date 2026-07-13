@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { asAttendanceDb } from "@/lib/attendance/db";
 import { inferDeviceClientHints } from "@/lib/attendance/device-display";
 import { buildActivationUrl } from "@/lib/attendance/qr-url";
+import { createAttendanceDataError } from "@/lib/attendance/scan-errors";
 import {
   createDeviceCredential,
   createRecoveryToken,
@@ -433,7 +434,14 @@ export async function consumeDeviceRecoveryLink(params: {
     p_active_device_limit: ACTIVE_DEVICE_LIMIT,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw createAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "consume_attendance_device_recovery",
+    });
+  }
+
   const row = Array.isArray(data) ? (data[0] as ConsumeRpcRow | undefined) : (data as ConsumeRpcRow | null);
   if (!row) return consumeFailure("invalid_token");
   if (!row.success) return consumeFailure(row.code, row.message);

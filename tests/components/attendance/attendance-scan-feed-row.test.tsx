@@ -33,7 +33,11 @@ function scan(overrides: Partial<RecentAttendanceScan> = {}): RecentAttendanceSc
     branchId: "branch-1",
     branchName: "Main Branch",
     eventType: "clock_out",
+    outcome: "success",
+    reasonCode: "clock_out",
+    message: "Clock-out recorded.",
     occurredAt: "2026-07-03T10:05:00.000Z",
+    timezone: "Asia/Manila",
     shiftType: "opening",
     attendanceStatus: "present",
     workedMinutes: 545,
@@ -74,5 +78,27 @@ describe("AttendanceScanFeedRow", () => {
 
     expect(screen.getByText("Needs review")).toBeTruthy();
     expect(screen.queryByText("70h 20m")).toBeNull();
+  });
+
+  it("renders staff-less rejected attempts as audit rows without a record link", () => {
+    render(
+      <AttendanceScanFeedRow
+        scan={scan({
+          staffId: null,
+          staffName: "Unknown device",
+          eventType: "scan",
+          outcome: "blocked",
+          reasonCode: "unknown_device",
+          message: "No registered device cookie was found.",
+          shiftType: null,
+        })}
+        workspace="crm"
+        selectedDate="2026-07-03"
+      />
+    );
+
+    expect(screen.getByText("Unknown device")).toBeTruthy();
+    expect(screen.getByText("Blocked")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });

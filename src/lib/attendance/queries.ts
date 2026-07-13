@@ -10,6 +10,10 @@ import { canonicalizeSystemRole } from "@/constants/staff-roles";
 import { asAttendanceDb, type AttendanceDb } from "@/lib/attendance/db";
 import { getAttendanceDeviceRegistry } from "@/lib/attendance/device-registry";
 import { buildActivationUrl, getAppBaseUrl, renderQrSvg } from "@/lib/attendance/qr-code";
+import {
+  createAttendanceDataError,
+  createAttendanceScanError,
+} from "@/lib/attendance/scan-errors";
 import { createActivationToken, createPublicCode, hashSecret } from "@/lib/attendance/tokens";
 import { addDaysToYmd, getBranchBusinessDate } from "@/lib/engine/slot-time";
 import type {
@@ -123,9 +127,25 @@ async function requireBranch(admin: AttendanceDb, branchId: string): Promise<Bra
     .eq("id", branchId)
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw createAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "require_branch",
+      details: { branchId },
+    });
+  }
   if (!data) {
-    throw new Error("Attendance needs a real active branch before QR codes can be generated.");
+    throw createAttendanceScanError(
+      "BRANCH_MISMATCH",
+      "Attendance needs a real active branch before QR codes can be generated.",
+      {
+        details: {
+          stage: "require_branch",
+          branchId,
+        },
+      }
+    );
   }
 
   return data as unknown as BranchRow;
@@ -194,21 +214,39 @@ export async function getAttendanceActionContext(options?: {
 
 export async function getAttendanceSettings(branchId: string): Promise<AttendanceSettings> {
   const admin = asAttendanceDb(createAdminClient());
-  const { data } = await admin
+  const { data, error } = await admin
     .from("attendance_settings")
     .select("*")
     .eq("branch_id", branchId)
     .maybeSingle();
 
+  if (error) {
+    throw createAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "get_attendance_settings",
+      details: { branchId },
+    });
+  }
+
   if (data) return normalizeAttendanceSettings(data, branchId);
 
   await requireBranch(admin, branchId);
   const fallback = { branch_id: branchId, ...DEFAULT_SETTINGS };
-  const { data: inserted } = await admin
+  const { data: inserted, error: insertError } = await admin
     .from("attendance_settings")
     .insert(fallback)
     .select("*")
     .maybeSingle();
+
+  if (insertError) {
+    throw createAttendanceDataError({
+      error: insertError,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "create_attendance_settings",
+      details: { branchId },
+    });
+  }
 
   return normalizeAttendanceSettings(inserted ?? fallback, branchId);
 }

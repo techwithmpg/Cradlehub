@@ -1,3 +1,149 @@
+# Current Task - CRADLE-ATTENDANCE-DB-CONNECTION-AND-END-TO-END-DIAGNOSTICS-011
+
+Status: REVIEW
+Started: 2026-07-13
+Last updated: 2026-07-13
+
+## Mission
+
+Establish the exact Supabase database target used by the local application,
+compare migration history with the live Attendance schema and RPC contract,
+trace one controlled database-backed Attendance scan with a single operation
+ID, prove the exact failing stage and resulting database writes, and implement
+only evidence-backed corrections while preserving RLS, device security, raw
+scan history, and atomic attendance semantics.
+
+## Guardrails
+
+- Work only inside `E:\cradlehub`; do not use Vercel or deploy.
+- Do not print secrets, QR credentials, tokens, cookies, access keys, or
+  service-role credentials.
+- Do not run a blind migration push while migration history and live schema may
+  differ.
+- Do not invent scan records or claim completion without a database-backed
+  controlled scan attempt.
+
+## Database-backed outcome
+
+- Local app, linked CLI configuration, MCP config, and database scripts all
+  target Supabase project `lsrbwqhvzjfpiabeolkv`.
+- Linked Management SQL and service-role REST are healthy. The direct
+  migration-history/pooler path still times out on TCP 5432; this is not DNS,
+  authentication, project identity, or schema reachability.
+- The deployed `commit_attendance_scan_transaction` signature matches generated
+  types and the typed scan-engine call, is security-invoker, has a fixed safe
+  search path, and is executable only by `service_role` (plus owner).
+- Controlled failed attempt `998ba4f6-9499-4c76-960b-5543d67cdd6e` reached the
+  route, resolved the live QR and branch, returned `unknown_device`, wrote one
+  blocked scan event plus one open exception, and wrote no check-in.
+- Recovery first failed with SQLSTATE `42702` because the RPC's unqualified
+  `staff_id` conflicted with its `RETURNS TABLE` field. Replacement recovery
+  then failed with `23505` because the old primary device was revoked after the
+  replacement insert. Both are repaired transactionally in the new migration.
+- Configured-secret recovery then succeeded, set the HTTP-only device cookie,
+  and the next scan recognized the QA phone.
+- Controlled clock-in `971879ba-a130-4df2-991c-6b5030b59ea3` wrote exactly one
+  scan row and one check-in with weekly schedule source, source row ID,
+  shift-instance key, `Asia/Manila`, and business date `2026-07-13`.
+- Immediate rescan returned the intended duplicate no-op. Clock-out first failed
+  before mutation with PostgREST `PGRST201` because three booking queries used
+  an ambiguous `branch_resources` embed. Pinning
+  `bookings_resource_id_fkey` repaired it.
+- Controlled clock-out `fbf2bebf-2a20-4c0a-b6b0-7e25218b86e4` updated the same
+  check-in, wrote one success scan event, and atomically created one valid
+  `early_leave` exception. The temporary QA schedule was restored and the QA
+  device was revoked after the test.
+- Attendance Activity now reads all non-test attendance outcomes (success,
+  blocked, exception, noop, error), retains staff-less attempts, uses the
+  branch-configured timezone for date boundaries, and refreshes for every
+  attendance insert. A live Realtime subscriber received the controlled
+  `duplicate_scan` insert without a page reload.
+
+## Corrective migration
+
+- `20260713120237_attendance_recovery_rpc_and_scan_realtime_repair.sql`
+  qualifies recovery RPC columns, revokes a selected primary before inserting
+  its replacement, preserves service-role-only execute, and idempotently adds
+  `qr_scan_events` to `supabase_realtime`.
+- Applied through linked Management SQL and recorded as applied in
+  `supabase_migrations.schema_migrations`. No old deployed migration was edited.
+
+## Verification
+
+- `pnpm db:doctor`: linked config/type generation pass; pooler history read
+  warns on TCP 5432 timeout.
+- `pnpm db:status`: fails only at the same pooler migration-history connection.
+- `pnpm db:verify`: all real required tables pass; exit 2 only because `psql`
+  is not installed.
+- `pnpm db:types`, `pnpm type-check`, `pnpm lint`, `pnpm test --run`,
+  `pnpm build`, and `git diff --check`: pass.
+- Full Vitest result: 101 files and 755 tests passed.
+
+## Remaining operational follow-up
+
+- Migration history still has broad pre-existing drift: many local Attendance
+  migrations have live schema effects but no history row, so do not run a blind
+  `db push` until the direct pooler path is restored and history is reconciled.
+- During this diagnostic window, pre-existing Attendance operational rows were
+  removed by two external `DELETE` executions. `pg_stat_statements` reports 281
+  deleted scan rows, 192 exceptions, 23 check-ins, and 24 devices. No command or
+  code path used by this task issued those deletes, and no reset backup exists
+  in this checkout. The deletion actor/timestamp cannot be recovered from
+  `pg_stat_statements`; investigate the separate reset operator/process and its
+  backup location before relying on historical Attendance reporting.
+
+---
+
+# Current Task - CRADLE-ATTENDANCE-PRODUCTION-SECRET-AND-SCAN-RECOVERY-010
+
+Status: REVIEW
+Started: 2026-07-13
+Last updated: 2026-07-13
+
+## Mission
+
+Fix the local Attendance QR scan failure that currently renders generic "Scan
+interrupted" copy. The work is now explicitly local-only: trace the local QR
+scan path through `/api/attendance/public-scan`, device lookup, schedule
+resolution, intent selection, shift-instance creation, transaction RPC, scan
+event/check-in writes, and result UI until the exact local failure stage is
+known and fixed.
+
+## Guardrails
+
+- Work only inside `E:\cradlehub`.
+- Do not access Vercel, inspect Vercel logs, deploy, or modify production
+  environment/configuration.
+- Do not weaken device security, RLS, branch validation, recovery-token policy,
+  or atomic attendance writes.
+- Do not expose secrets, cookies, QR codes, device tokens, Supabase access
+  tokens, or service-role credentials in logs, reports, or tests.
+- Keep `UNKNOWN_ATTENDANCE_ERROR` only as the final unexpected fallback; known
+  local failure stages must map to structured safe codes.
+- Production must still fail closed when `ATTENDANCE_DEVICE_SECRET` is missing;
+  local development may use only the existing explicit local-only fallback.
+
+## Local Repair Notes
+
+- Local generic failure paths found and repaired:
+  - missing production `ATTENDANCE_DEVICE_SECRET` now maps to
+    `ATTENDANCE_CONFIGURATION_MISSING`;
+  - `attendance_settings` read/insert and fallback branch lookup errors now
+    throw structured Attendance scan errors instead of becoming empty settings
+    state or plain `Error`;
+  - activation-token lookup/update failures now throw structured safe errors
+    instead of collapsing into invalid-link or unchecked update behavior;
+  - device recovery RPC failures now classify as `ATTENDANCE_RPC_*`,
+    `ATTENDANCE_RLS_DENIED`, `ATTENDANCE_CONSTRAINT_FAILED`, or
+    `ATTENDANCE_TRANSACTION_FAILED` instead of `UNKNOWN_ATTENDANCE_ERROR`.
+- Verified locally with `pnpm type-check`, `pnpm lint`, `pnpm test --run`,
+  `pnpm build`, focused Attendance tests, and `git diff --check`.
+- Local Supabase/Docker is unavailable in this environment, so DB-backed QR scan
+  simulation and local type generation from the running local database remain
+  blocked until Docker/local Supabase is available.
+
+---
+
 # Current Task - CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009
 
 Status: REVIEW

@@ -914,3 +914,43 @@
 - **Symptom:** `pnpm db:push --dry-run` and `pnpm db:status` still time out on `aws-1-ap-northeast-1.pooler.supabase.com:5432` even when retried with escalation.
 - **Impact:** Live schema is repaired and verified through the Management API path, but linked migration history cannot be certified from this environment.
 - **Resolution:** Do not blind push pending migrations from this shell. Restore a working direct Postgres pooler/migration-history path, then rerun `pnpm db:status` and reconcile migration history with the live-applied corrective SQL.
+## 2026-07-13 - Attendance DB end-to-end diagnostic failures
+
+- **Symptom:** Device recovery returned a structured generic failure.
+- **Root cause:** `consume_attendance_device_recovery` used unqualified
+  `staff_id` while also returning a `staff_id` output column (`42702`).
+- **Resolution:** Qualify the active-device count with the table alias in
+  migration `20260713120237`.
+
+- **Symptom:** Replacement recovery failed after the ambiguity repair.
+- **Root cause:** The RPC inserted a new default-primary device before revoking
+  the selected old primary, violating `staff_devices_one_active_primary_idx`
+  (`23505`).
+- **Resolution:** Revoke first inside the same transaction, then insert; rollback
+  restores the old device if any later statement fails.
+
+- **Symptom:** Clock-out returned `Attendance not confirmed` with operation
+  `4b8e9251-cb03-4565-b459-5c406cd03b53`.
+- **Root cause:** `bookings` has two foreign keys to `branch_resources`; the
+  unqualified embed in `has_active_service` returned PostgREST `PGRST201`.
+- **Resolution:** Pin all three attendance booking embeds to
+  `bookings_resource_id_fkey`.
+
+- **Symptom:** Attendance Activity stayed empty while blocked/exception rows
+  existed.
+- **Root cause:** The query filtered to successful clock-in/out only, discarded
+  staff-less rows, hardcoded Manila boundaries, and subscribed to a table absent
+  from the Realtime publication.
+- **Resolution:** Include all safe attendance outcomes, preserve missing staff,
+  resolve branch timezone, refresh all attendance inserts, and publish
+  `qr_scan_events`.
+
+- **Symptom:** Preflight and final Attendance operational counts differ by the
+  entire former dataset.
+- **Evidence:** `pg_stat_statements` shows two `DELETE FROM
+  public.qr_scan_events` calls deleting 281 rows, two exception deletes removing
+  192 rows, two check-in deletes removing 23 rows, and one device delete removing
+  24 rows.
+- **Resolution:** Not attributable or reversible from this task. No destructive
+  SQL was issued here and this checkout has no reset backup. Find the external
+  reset operator/process and backup before historical reporting is trusted.

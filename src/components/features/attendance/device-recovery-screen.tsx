@@ -8,6 +8,22 @@ import { Button } from "@/components/ui/button";
 import { formatDeviceReason } from "@/lib/attendance/device-display";
 import type { PublicScanResult, RecoveryTokenPreview } from "@/lib/attendance/types";
 
+function formatRecoveryExpiry(value: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((candidate) => candidate.type === type)?.value ?? "";
+
+  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")} Asia/Manila`;
+}
+
 export function DeviceRecoveryScreen({
   token,
   preview,
@@ -22,14 +38,6 @@ export function DeviceRecoveryScreen({
     startTransition(async () => {
       setResult(await consumeDeviceRecoveryLinkAction({ token }));
     });
-  }
-
-  if (!preview.ok) {
-    return (
-      <RecoveryCard eyebrow="Recovery unavailable" title={preview.title}>
-        <p className="text-sm leading-6 text-stone-600">{preview.message}</p>
-      </RecoveryCard>
-    );
   }
 
   if (result) {
@@ -47,6 +55,14 @@ export function DeviceRecoveryScreen({
     );
   }
 
+  if (!preview.ok) {
+    return (
+      <RecoveryCard eyebrow="Recovery unavailable" title={preview.title}>
+        <p className="text-sm leading-6 text-stone-600">{preview.message}</p>
+      </RecoveryCard>
+    );
+  }
+
   return (
     <RecoveryCard eyebrow="Restore attendance access" title={preview.staffName}>
       <div className="text-sm font-semibold text-stone-600">
@@ -59,7 +75,7 @@ export function DeviceRecoveryScreen({
         Do not continue on a shared or public phone.
       </div>
       <div className="text-xs text-stone-500">
-        Reason: {formatDeviceReason(preview.reason)}. Expires {new Date(preview.expiresAt).toLocaleString()}.
+        Reason: {formatDeviceReason(preview.reason)}. Expires {formatRecoveryExpiry(preview.expiresAt)}.
       </div>
       <Button
         type="button"

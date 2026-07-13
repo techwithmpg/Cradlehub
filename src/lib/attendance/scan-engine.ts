@@ -20,6 +20,7 @@ import {
 } from "@/lib/attendance/exception-codes";
 import {
   classifyAttendanceDbError,
+  createAttendanceDataError,
   createAttendanceScanError,
   normalizeAttendanceOperationId,
   type AttendanceSafeErrorCode,
@@ -1515,7 +1516,7 @@ async function hasActiveService(admin: AttendanceDb, params: {
 }): Promise<BookingRow | null> {
   const { data, error } = await admin
     .from("bookings")
-    .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources(name)")
+    .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources!bookings_resource_id_fkey(name)")
     .eq("staff_id", params.staffId)
     .eq("branch_id", params.branchId)
     .eq("status", "in_progress")
@@ -2122,7 +2123,7 @@ async function findEligibleBooking(admin: AttendanceDb, params: {
 }): Promise<BookingRow | null> {
   const { data, error } = await admin
     .from("bookings")
-    .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources(name)")
+    .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources!bookings_resource_id_fkey(name)")
     .eq("branch_id", params.branchId)
     .eq("staff_id", params.staffId)
     .eq("booking_date", params.date)
@@ -2468,7 +2469,7 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
     .eq("id", booking.id)
     .eq("branch_id", point.branch_id)
     .in("booking_progress_status", ["not_started", "checked_in"])
-    .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources(name)")
+    .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources!bookings_resource_id_fkey(name)")
     .maybeSingle();
 
   if (update.error || !update.data) {
@@ -2761,11 +2762,20 @@ export async function processQrScan(publicCode: string, ctx: ScanRequestContext)
 export async function activateDeviceWithToken(token: string, ctx: ScanRequestContext): Promise<ActivationResult> {
   const admin = asAttendanceDb(createAdminClient());
   const tokenHash = hashSecret(token);
-  const { data: activation } = await admin
+  const { data: activation, error: activationError } = await admin
     .from("device_activation_tokens")
     .select("id, staff_id, branch_id, expires_at, used_at, staff:staff!device_activation_tokens_staff_id_fkey(full_name, is_active)")
     .eq("token_hash", tokenHash)
     .maybeSingle();
+
+  if (activationError) {
+    throw createAttendanceDataError({
+      error: activationError,
+      fallback: "DEVICE_LINK_INVALID",
+      stage: "activate_device_token_lookup",
+      operationId: ctx.requestId,
+    });
+  }
 
   const activationRow = activation as {
     id: string;
@@ -2857,7 +2867,7 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
     });
   }
 
-  await admin
+  const tokenUpdate = await admin
     .from("device_activation_tokens")
     .update({
       used_at: new Date().toISOString(),
@@ -2865,6 +2875,15 @@ export async function activateDeviceWithToken(token: string, ctx: ScanRequestCon
     })
     .eq("id", activationRow.id)
     .is("used_at", null);
+
+  if (tokenUpdate.error) {
+    throw createAttendanceDataError({
+      error: tokenUpdate.error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "activate_device_token_consume",
+      operationId: ctx.requestId,
+    });
+  }
 
   const eventId = await recordScanEvent(admin, {
     branchId: activationRow.branch_id,

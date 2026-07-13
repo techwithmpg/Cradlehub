@@ -6671,3 +6671,24 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 
 **Remaining Caveat:**
 - Physical phone scan QA was not certified in this session. Run registered-device live scans for clock-in, duplicate, clock-out, Recovery, and wrong-branch paths before declaring the operator workflow fully certified.
+## 2026-07-13 - CRADLE-ATTENDANCE-DB-CONNECTION-AND-END-TO-END-DIAGNOSTICS-011
+
+- Certified the local public scan path against linked Supabase with controlled
+  blocked, recovery, clock-in, duplicate, clock-out, and exception outcomes.
+- Added/applied `20260713120237_attendance_recovery_rpc_and_scan_realtime_repair.sql`
+  for the recovery RPC ambiguity, atomic primary-device replacement ordering,
+  and `qr_scan_events` Realtime publication.
+- Fixed ambiguous booking-resource embeds that blocked clock-out after the
+  schema gained a second `branch_resources` foreign key.
+- Attendance Activity now includes safe failed/no-op attempts, handles missing
+  staff, uses branch-local day boundaries, and refreshes on all attendance
+  inserts.
+- Fixed recovery expiry hydration mismatch and success-state replacement after
+  cookie writes.
+- Repaired `db:verify` so missing tables cannot pass through error-less HEAD
+  responses and replaced stale table names with the live Attendance schema.
+- Added safe Realtime probe tooling and Activity/timezone/recovery migration
+  regression coverage.
+- Full validation passes; direct pooler migration-history access remains timed
+  out and an unrelated external Attendance-history deletion requires operator
+  investigation.

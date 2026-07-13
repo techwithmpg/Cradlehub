@@ -16,13 +16,14 @@ const criticalTables = [
   "staff_schedules",
   "schedule_overrides",
   "staff_group_schedule_rules",
-  "staff_schedule_group_members",
   "bookings",
-  "attendance_events",
-  "attendance_sessions",
+  "attendance_settings",
+  "qr_points",
+  "qr_scan_events",
+  "staff_shift_checkins",
+  "attendance_exceptions",
   "staff_devices",
   "device_activation_tokens",
-  "attendance_qr_points",
 ];
 
 let failed = false;
@@ -67,7 +68,10 @@ if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KE
   });
 
   for (const table of criticalTables) {
-    const { error } = await supabase.from(table).select("*", { count: "exact", head: true });
+    // PostgREST can omit the error payload for a HEAD request, which made
+    // missing tables look healthy. A one-row GET is still read-only and
+    // reliably carries schema-cache errors such as PGRST205.
+    const { error } = await supabase.from(table).select("*").limit(1);
     if (error) {
       failed = true;
       statusLine(`Table ${table}`, "FAIL", error.message);

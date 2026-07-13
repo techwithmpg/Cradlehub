@@ -313,14 +313,18 @@ export type AttendanceScanFeedWorkspace = "crm" | "owner";
 
 export type RecentAttendanceScan = {
   eventId: string;
-  staffId: string;
+  staffId: string | null;
   staffName: string;
   staffNickname: string | null;
   staffAvatarUrl: string | null;
   branchId: string | null;
   branchName: string | null;
-  eventType: "clock_in" | "clock_out";
+  eventType: string;
+  outcome: QrScanOutcome;
+  reasonCode: string | null;
+  message: string | null;
   occurredAt: string;
+  timezone: string;
   shiftType: string | null;
   attendanceStatus: string | null;
   workedMinutes: number | null;
@@ -331,6 +335,7 @@ export type RecentAttendanceScan = {
 
 export type AttendanceScanFeedData = {
   selectedDate: string;
+  timezone: string;
   branchId: string | null;
   branchName: string | null;
   items: RecentAttendanceScan[];

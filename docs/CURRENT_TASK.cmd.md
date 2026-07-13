@@ -10,13 +10,13 @@
 
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
-| **Task ID**      | `CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009` |
-| **Description**  | Repair public Attendance QR scans so backend failures surface as precise safe codes and atomic commits keep individual schedule truth |
+| **Task ID**      | `CRADLE-ATTENDANCE-PRODUCTION-SECRET-AND-SCAN-RECOVERY-010` |
+| **Description**  | Fix the local Attendance QR scan failure by tracing the local scan path and replacing generic failures with structured safe codes |
 | **Agent**        | Codex |
 | **Started**      | 2026-07-13 |
 | **Status**       | `REVIEW` |
 | **Branch**       | `main` |
-| **Blocked By**   | Physical registered-phone QA still pending; recent Supabase migration history still needs reconciliation before blind migration push |
+| **Blocked By**   | DB-backed local browser scan simulation requires Docker/local Supabase; Docker is not available in this environment |
 
 ---
 
@@ -35,27 +35,21 @@
 
 ## Notes
 
-CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009 status:
+CRADLE-ATTENDANCE-PRODUCTION-SECRET-AND-SCAN-RECOVERY-010 local-only status:
 
-- Root cause: public scan route/actions swallowed backend failures into generic
-  Scan Interrupted, while internal Recovery codes did not match the stable
-  `attendance_exceptions.exception_type` database CHECK constraint.
-- Added structured safe scan errors with operation IDs and non-200 backend
-  failure responses.
-- Added internal-to-stable exception mapping. Recovery UI reads
-  `metadata.internalExceptionType`; the DB column keeps stable values such as
-  `unscheduled`, `late`, `early_leave`, `overtime`, `missed_checkout`, and
-  `manual`.
-- `staff_shift_checkins.schedule_source` now stores `weekly`, `override`,
-  `recovery`, or `none`; split-shift identity includes source row/window id and
-  window order; override schedules support `ends_next_day`.
-- Added and live-applied
-  `supabase/migrations/20260713082146_attendance_scan_contract_repair.sql`
-  through linked SQL because direct `db push` still timed out on the pooler.
-- Verification passed: `npx tsc --noEmit`, focused attendance tests (5 files /
-  28 tests), and `pnpm build`.
-- Remaining: real registered-device phone QA and broader Supabase migration
-  history reconciliation.
+- Latest instruction supersedes production/Vercel work. Current work is local
+  reproduction and local repair of the generic Attendance QR "Scan interrupted"
+  failure.
+- Scope is limited to the local repository, local env handling, local Supabase
+  development setup where available, local migrations, local tests, and local
+  server logs.
+- Do not access Vercel, inspect Vercel logs, deploy, or modify production
+  environment variables.
+- Known local failures should not collapse into `UNKNOWN_ATTENDANCE_ERROR`; keep
+  it only as the final unexpected fallback.
+- Local code/test/build repair is complete. Remaining limitation is DB-backed
+  local scan simulation and local Supabase type generation while Docker/local
+  Supabase is unavailable.
 
 ---
 

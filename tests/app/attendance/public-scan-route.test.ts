@@ -54,4 +54,33 @@ describe("public attendance scan route", () => {
     });
     expect(json.message).not.toContain("constraint failed");
   });
+
+  it("maps a missing production device secret to the safe configuration code", async () => {
+    processQrScanMock.mockRejectedValueOnce(
+      new Error("ATTENDANCE_DEVICE_SECRET is required in production.")
+    );
+
+    const response = await POST(request({ publicCode: "qr-code", requestId: "scan-op-2" }));
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json).toMatchObject({
+      ok: false,
+      outcome: "error",
+      reasonCode: "ATTENDANCE_CONFIGURATION_MISSING",
+      operationId: "scan-op-2",
+      message:
+        "Attendance is temporarily unavailable because its secure device configuration is incomplete. Please contact the administrator.",
+      recoverable: false,
+    });
+    expect(json.message).not.toContain("ATTENDANCE_DEVICE_SECRET");
+    expect(console.error).toHaveBeenCalledWith(
+      "[public-attendance-scan-route] attendance scan failed",
+      expect.objectContaining({
+        operationId: "scan-op-2",
+        safeCode: "ATTENDANCE_CONFIGURATION_MISSING",
+        safeDetails: { missingVariable: "ATTENDANCE_DEVICE_SECRET" },
+      })
+    );
+  });
 });

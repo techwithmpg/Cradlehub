@@ -1,6 +1,7 @@
 import type { PublicScanResult } from "@/lib/attendance/types";
 
 export type AttendanceSafeErrorCode =
+  | "ATTENDANCE_CONFIGURATION_MISSING"
   | "ATTENDANCE_RPC_MISSING"
   | "ATTENDANCE_RPC_SIGNATURE_MISMATCH"
   | "ATTENDANCE_RPC_REJECTED"
@@ -9,7 +10,10 @@ export type AttendanceSafeErrorCode =
   | "ATTENDANCE_RLS_DENIED"
   | "SCHEDULE_SCHEMA_MISMATCH"
   | "SCHEDULE_QUERY_FAILED"
+  | "SCHEDULE_CONFLICT"
   | "SCHEDULE_STATE_UNSUPPORTED"
+  | "DEVICE_SETUP_REQUIRED"
+  | "DEVICE_NOT_FOUND"
   | "DEVICE_NOT_REGISTERED"
   | "DEVICE_REVOKED"
   | "DEVICE_LINK_INVALID"
@@ -31,6 +35,12 @@ export type AttendanceErrorLike = {
 };
 
 const PUBLIC_MESSAGES: Record<AttendanceSafeErrorCode, { title: string; message: string; status: number }> = {
+  ATTENDANCE_CONFIGURATION_MISSING: {
+    title: "Attendance temporarily unavailable",
+    message:
+      "Attendance is temporarily unavailable because its secure device configuration is incomplete. Please contact the administrator.",
+    status: 503,
+  },
   ATTENDANCE_RPC_MISSING: {
     title: "Attendance service unavailable",
     message: "Attendance cannot be confirmed because the scan transaction is not installed.",
@@ -71,10 +81,25 @@ const PUBLIC_MESSAGES: Record<AttendanceSafeErrorCode, { title: string; message:
     message: "Attendance could not confirm the staff schedule for this scan.",
     status: 500,
   },
+  SCHEDULE_CONFLICT: {
+    title: "Schedule needs review",
+    message: "Attendance could not safely choose between conflicting schedule windows.",
+    status: 409,
+  },
   SCHEDULE_STATE_UNSUPPORTED: {
     title: "Schedule needs review",
     message: "Attendance could not safely interpret this schedule state.",
     status: 409,
+  },
+  DEVICE_SETUP_REQUIRED: {
+    title: "Device setup required",
+    message: "This phone needs to be connected before it can record attendance.",
+    status: 403,
+  },
+  DEVICE_NOT_FOUND: {
+    title: "Device not found",
+    message: "This phone is not connected to an active staff device record.",
+    status: 403,
   },
   DEVICE_NOT_REGISTERED: {
     title: "Device not registered",
@@ -138,6 +163,9 @@ const PUBLIC_MESSAGES: Record<AttendanceSafeErrorCode, { title: string; message:
   },
 };
 
+const REQUIRED_DEVICE_SECRET_NAME = "ATTENDANCE_DEVICE_SECRET";
+const MISSING_DEVICE_SECRET_TEXT = "attendance_device_secret is required in production";
+
 export class AttendanceScanError extends Error {
   readonly code: AttendanceSafeErrorCode;
   readonly status: number;
@@ -173,6 +201,11 @@ function errorText(error: AttendanceErrorLike): string {
     .filter((part): part is string => typeof part === "string" && part.length > 0)
     .join(" ")
     .toLowerCase();
+}
+
+function missingConfigurationDetails(code: AttendanceSafeErrorCode): Record<string, unknown> | undefined {
+  if (code !== "ATTENDANCE_CONFIGURATION_MISSING") return undefined;
+  return { missingVariable: REQUIRED_DEVICE_SECRET_NAME };
 }
 
 export function createAttendanceOperationId(prefix = "attendance-scan"): string {
@@ -225,6 +258,48 @@ export function classifyAttendanceDbError(
   return fallback;
 }
 
+export function createAttendanceDataError(params: {
+  error: AttendanceErrorLike;
+  fallback?: AttendanceSafeErrorCode;
+  stage: string;
+  operationId?: string | null;
+  details?: Record<string, unknown>;
+}): AttendanceScanError {
+  const code = classifyAttendanceDbError(
+    params.error,
+    params.fallback ?? "ATTENDANCE_TRANSACTION_FAILED"
+  );
+  return createAttendanceScanError(code, params.error.message ?? undefined, {
+    operationId: params.operationId ?? undefined,
+    dbCode: params.error.code ?? null,
+    details: {
+      stage: params.stage,
+      ...(params.details ?? {}),
+    },
+    cause: params.error,
+  });
+}
+
+export function classifyAttendanceRuntimeError(
+  error: unknown,
+  fallback: AttendanceSafeErrorCode = "UNKNOWN_ATTENDANCE_ERROR"
+): AttendanceSafeErrorCode {
+  if (isAttendanceScanError(error)) return error.code;
+
+  const details = error instanceof Error && "details" in error ? (error as { details?: unknown }).details : null;
+  const text = error instanceof Error
+    ? errorText({
+        message: error.message,
+        details: typeof details === "string" ? details : null,
+      })
+    : typeof error === "string"
+      ? error.toLowerCase()
+      : "";
+
+  if (text.includes(MISSING_DEVICE_SECRET_TEXT)) return "ATTENDANCE_CONFIGURATION_MISSING";
+  return fallback;
+}
+
 export function attendanceScanFailureFromError(params: {
   error: unknown;
   operationId?: string | null;
@@ -232,15 +307,21 @@ export function attendanceScanFailureFromError(params: {
   title?: string;
 }): { result: PublicScanResult; status: number; code: AttendanceSafeErrorCode } {
   const operationId = normalizeAttendanceOperationId(params.operationId);
+  const fallbackCode = params.fallbackCode ?? "UNKNOWN_ATTENDANCE_ERROR";
+  const runtimeCode = classifyAttendanceRuntimeError(params.error, fallbackCode);
   const classified = isAttendanceScanError(params.error)
     ? params.error
     : createAttendanceScanError(
-        params.fallbackCode ?? "UNKNOWN_ATTENDANCE_ERROR",
+        runtimeCode,
         params.error instanceof Error ? params.error.message : undefined,
-        { operationId, cause: params.error }
+        { operationId, cause: params.error, details: missingConfigurationDetails(runtimeCode) }
       );
   const code = classified.code;
   const publicText = PUBLIC_MESSAGES[code];
+  const recoverable =
+    code !== "DEVICE_REVOKED" &&
+    code !== "ATTENDANCE_RLS_DENIED" &&
+    code !== "ATTENDANCE_CONFIGURATION_MISSING";
 
   return {
     code,
@@ -255,7 +336,7 @@ export function attendanceScanFailureFromError(params: {
       detail: `Operation ID: ${classified.operationId ?? operationId}`,
       securityNote: "No attendance change was confirmed from this attempt.",
       operationId: classified.operationId ?? operationId,
-      recoverable: code !== "DEVICE_REVOKED" && code !== "ATTENDANCE_RLS_DENIED",
+      recoverable,
     },
   };
 }
@@ -268,13 +349,18 @@ export function logAttendanceScanError(params: {
 }) {
   const operationId = params.operationId ?? (isAttendanceScanError(params.error) ? params.error.operationId : null);
   const error = params.error as AttendanceErrorLike & { stack?: string; cause?: unknown };
+  const safeCode = classifyAttendanceRuntimeError(params.error, "UNKNOWN_ATTENDANCE_ERROR");
+  const safeDetails = isAttendanceScanError(params.error)
+    ? params.error.details ?? null
+    : missingConfigurationDetails(safeCode) ?? null;
   console.error(`[${params.scope}] attendance scan failed`, {
     operationId,
-    safeCode: isAttendanceScanError(params.error) ? params.error.code : "UNKNOWN_ATTENDANCE_ERROR",
+    safeCode,
     dbCode: isAttendanceScanError(params.error) ? params.error.dbCode ?? null : error.code ?? null,
     message: error.message ?? null,
     details: error.details ?? null,
     hint: error.hint ?? null,
+    safeDetails,
     context: params.context ?? {},
     stack: error.stack ?? null,
     at: new Date().toISOString(),

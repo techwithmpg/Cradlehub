@@ -7,6 +7,9 @@ export type RecentScanRow = {
   branch_id: string | null;
   staff_id: string | null;
   action: string;
+  outcome: "success" | "blocked" | "noop" | "exception" | "error";
+  reason_code: string | null;
+  message: string | null;
   created_at: string;
   staff?: Relation<{
     id: string;
@@ -28,6 +31,7 @@ export type RecentScanRow = {
 type RecentScanMapContext = {
   branchId?: string | null;
   branchName?: string | null;
+  timezone: string;
 };
 
 function first<T>(value: Relation<T>): T | null {
@@ -39,9 +43,6 @@ export function mapRecentScan(
   row: RecentScanRow,
   context: RecentScanMapContext
 ): RecentAttendanceScan | null {
-  if (!row.staff_id) return null;
-  if (row.action !== "clock_in" && row.action !== "clock_out") return null;
-
   const staff = first(row.staff);
   const branch = first(row.branches);
   const point = first(row.qr_points);
@@ -50,13 +51,17 @@ export function mapRecentScan(
   return {
     eventId: row.id,
     staffId: row.staff_id,
-    staffName: staff?.full_name ?? "Staff member",
+    staffName: staff?.full_name ?? (row.staff_id ? "Staff member" : "Unknown device"),
     staffNickname: staff?.nickname ?? null,
     staffAvatarUrl: staff?.avatar_url ?? null,
     branchId: row.branch_id ?? branch?.id ?? context.branchId ?? null,
     branchName: branch?.name ?? context.branchName ?? null,
     eventType: row.action,
+    outcome: row.outcome,
+    reasonCode: row.reason_code,
+    message: row.message,
     occurredAt: row.created_at,
+    timezone: context.timezone,
     shiftType: checkin?.shift_type ?? null,
     attendanceStatus: checkin?.attendance_status ?? null,
     workedMinutes:

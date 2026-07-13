@@ -34,9 +34,7 @@ export function useAttendanceScanRealtime({
           action?: string;
         };
         const isAttendanceScan =
-          row.scan_type === "attendance" &&
-          row.outcome === "success" &&
-          (row.action === "clock_in" || row.action === "clock_out");
+          row.scan_type === "attendance";
 
         if (isAttendanceScan) onRefresh();
       }

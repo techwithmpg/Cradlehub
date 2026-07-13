@@ -20,6 +20,39 @@ describe("attendance transactional scan RPC migration", () => {
     expect(migrationSql).toContain("operation_result");
   });
 
+  it("keeps the scan RPC signature aligned with the TypeScript scan engine", () => {
+    [
+      "p_request_id text",
+      "p_branch_id uuid",
+      "p_qr_point_id uuid",
+      "p_staff_id uuid",
+      "p_device_id uuid",
+      "p_scan_type text",
+      "p_action text",
+      "p_outcome text",
+      "p_public_result jsonb",
+      "p_checkin_id uuid",
+      "p_checkin_insert jsonb",
+      "p_checkin_update jsonb",
+      "p_exception jsonb",
+      "p_device_scan_type text",
+    ].forEach((parameter) => {
+      expect(migrationSql).toContain(parameter);
+    });
+
+    [
+      "shift_instance_key",
+      "scheduled_start_at",
+      "scheduled_end_at",
+      "schedule_source",
+      "schedule_source_id",
+      "branch_timezone",
+      "attendance_business_date",
+    ].forEach((column) => {
+      expect(migrationSql).toContain(column);
+    });
+  });
+
   it("keeps execution restricted to the server-owned service role", () => {
     expect(migrationSql).toContain("revoke all on function public.commit_attendance_scan_transaction");
     expect(migrationSql).toContain("from public");
