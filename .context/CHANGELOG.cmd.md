@@ -6692,3 +6692,26 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Full validation passes; direct pooler migration-history access remains timed
   out and an unrelated external Attendance-history deletion requires operator
   investigation.
+
+## 2026-07-13 - ONLINE-STAFF-PREFERENCE-EXCEPTIONS-001
+
+- Made `auto` the single explicit initial/reset value for the public staff
+  preference while keeping ranked recommendations display-only.
+- Expanded the public picker from schedule-valid staff only to all operational
+  providers explicitly qualified for every selected service; schedule problems
+  use neutral customer copy and remain selectable.
+- Split manual-staff server validation into hard eligibility and soft schedule
+  compatibility. Automatic assignment still uses the unchanged authoritative
+  availability engine.
+- Persisted open/resolved staff schedule exception state, stable reason codes,
+  actor/time, reassignment details, and immutable resolution history in booking
+  metadata without adding a booking status.
+- Reused idempotent CRM notifications and workflow tasks, with amber warnings
+  in Today, booking list/details, notifications, and prioritized work queue.
+- Connected Keep selected staff and Mark resolved actions; existing reassignment
+  and reschedule actions resolve and audit the review, while existing follow-up
+  and schedule routes handle Contact customer and Open staff schedule.
+- No migration or RLS change. Verification passed: focused 7 files / 25 tests,
+  full Vitest 108 files / 780 tests, `pnpm type-check`, `pnpm lint`, `pnpm
+  build`, and public browser verification. Authenticated CRM browser QA remains
+  blocked by `/login`.

@@ -1,3 +1,52 @@
+# Current Task - ONLINE-STAFF-PREFERENCE-EXCEPTIONS-001
+
+Status: COMPLETE
+Started: 2026-07-13
+Last updated: 2026-07-13
+
+## Mission
+
+Keep `Any available staff` as the explicit public-booking default and treat a
+manually selected, active, branch-valid, service-qualified staff member as a
+customer preference whose schedule incompatibility creates CRM review work
+without changing the booking lifecycle status or silently reassigning staff.
+
+## Completed behavior
+
+- Public staff state initializes and resets to `DEFAULT_STAFF_PREFERENCE`
+  (`auto`); recommendation badges remain display-only.
+- Public preference options include every operational provider explicitly
+  qualified for all selected services. Schedule-valid staff stay ranked first;
+  other qualified staff remain selectable with neutral `Preference request`
+  copy.
+- Server validation first hard-blocks missing, inactive, archived/merged,
+  wrong-branch, non-provider, unqualified, and malformed/tampered staff IDs.
+- Schedule state, blocks/leave, booking overlap, shift coverage, and overrides
+  are evaluated separately. A soft failure preserves `staff_id`, normal booking
+  status/payment flow, and writes an open review record in booking metadata.
+- Existing CRM notification and workflow-task stores receive deterministic,
+  idempotent review signals. CRM Today, booking list/details, notifications,
+  and work queue render amber review state.
+- Keep selected staff and Mark resolved close the review directly. Existing
+  reassignment and reschedule actions close it with actor/time/audit history;
+  existing follow-up and schedule links provide Contact customer and Open staff
+  schedule.
+- No database migration, new status, or RLS change was required.
+
+## Verification
+
+- Focused: 7 files / 25 tests passed.
+- Full: 108 files / 780 tests passed.
+- `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check` passed.
+- Browser: public flow reached the therapist step with Any available pressed,
+  a separate recommended staff badge, neutral off-schedule preferences, and a
+  retained manual preference. No booking was submitted against live data.
+- Authenticated CRM click-through QA was blocked by the local redirect to
+  `/login`; action/component contracts remain covered by static and focused
+  tests.
+
+---
+
 # Current Task - CRADLE-ATTENDANCE-DB-CONNECTION-AND-END-TO-END-DIAGNOSTICS-011
 
 Status: REVIEW

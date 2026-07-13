@@ -37,8 +37,6 @@ export function buildTherapistPickerOptions(
   staff: TherapistPickerStaff[],
   slotLabel: string
 ): TherapistPickerOption[] {
-  const availabilityLabel = slotLabel ? `Available at ${slotLabel}` : "Available now";
-
   return staff.map((member, index) => {
     const fullName = member.staff_full_name?.trim() || member.staff_name;
     const displayName = fullName;
@@ -51,9 +49,14 @@ export function buildTherapistPickerOptions(
       displayName,
       nickname,
       initials,
-      availabilityLabel,
+      availabilityLabel:
+        member.staff_schedule_available === false
+          ? "Preference request"
+          : slotLabel
+            ? `Available at ${slotLabel}`
+            : "Available now",
       isAvailable: true,
-      isRecommended: index === 0,
+      isRecommended: index === 0 && member.staff_schedule_available !== false,
       avatarUrl: member.staff_avatar_url ?? null,
     };
   });

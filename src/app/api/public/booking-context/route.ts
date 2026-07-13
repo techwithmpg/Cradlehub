@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllBranches, getBranchServices, getBranchServicesForPublicBooking } from "@/lib/queries/branches";
 import { getBranchBookingRulesOrDefaultCached } from "@/lib/queries/branch-booking-rules";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
+import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import { resolveServiceImage } from "@/lib/service-images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -59,6 +60,9 @@ type StaffWithServicesRow = {
   is_head: boolean | null;
   nickname: string | null;
   avatar_url: string | null;
+  archived_at: string | null;
+  merged_into_staff_id: string | null;
+  metadata: Record<string, unknown> | null;
   staff_services: { service_id: string }[] | null;
 };
 
@@ -76,7 +80,7 @@ async function getPublicStaffByBranch(branchId: string): Promise<StaffWithServic
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("staff")
-    .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url, staff_services(service_id)")
+    .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url, archived_at, merged_into_staff_id, metadata, staff_services(service_id)")
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .order("tier")
@@ -196,11 +200,13 @@ export async function GET(request: NextRequest) {
   );
 
   const staff = rawStaff
-    .filter((member) =>
-      canActAsBookingServiceProvider(
-        member,
-        (serviceIdsByStaff.get(member.id)?.length ?? 0) > 0
-      )
+    .filter(
+      (member) =>
+        isOperationalStaff(member) &&
+        canActAsBookingServiceProvider(
+          member,
+          (serviceIdsByStaff.get(member.id)?.length ?? 0) > 0
+        )
     )
     .map((member) => ({
       id: member.id,

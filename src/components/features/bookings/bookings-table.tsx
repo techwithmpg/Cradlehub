@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   CalendarClock,
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   Copy,
@@ -37,7 +39,12 @@ import { AssignmentRecommendationPanel } from "@/components/features/assignments
 import { getAssignmentRecommendationsAction } from "@/lib/actions/assignment-recommendations";
 import { assignBookingDriverAction } from "@/lib/actions/driver-actions";
 import { editBookingAction, updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
-import { crmStartServiceAction, crmCompleteServiceAction, assignBookingTherapistAction } from "@/app/(dashboard)/crm/bookings/actions";
+import {
+  crmStartServiceAction,
+  crmCompleteServiceAction,
+  assignBookingTherapistAction,
+  resolveStaffScheduleExceptionAction,
+} from "@/app/(dashboard)/crm/bookings/actions";
 import { autoCompleteDueSessionAction } from "@/app/(dashboard)/staff-portal/actions";
 import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import {
@@ -54,6 +61,11 @@ import { RoomAssignmentModal } from "./room-assignment-modal";
 import { RescheduleBookingModal } from "./reschedule-booking-modal";
 import { HybridSelectedBookingCard } from "./hybrid-selected-booking-card";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
+import {
+  getOpenStaffScheduleException,
+  getStaffScheduleExceptionMessage,
+  type StaffScheduleException,
+} from "@/lib/bookings/staff-schedule-exception";
 
 type OneOrMany<T> = T | T[] | null;
 
@@ -181,6 +193,15 @@ function OperationalStatusPill({ booking }: { booking: WorkspaceBookingRow }) {
   return (
     <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize", statusToneClass(status.tone))}>
       {status.label}
+    </span>
+  );
+}
+
+function StaffReviewPill() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+      <AlertTriangle size={12} />
+      Staff review
     </span>
   );
 }
@@ -636,7 +657,12 @@ export function BookingsTable({
                     </td>
 
                     <td className="bw-td bw-col-status">
-                      <OperationalStatusPill booking={booking} />
+                      <div className="flex flex-col items-start gap-1.5">
+                        <OperationalStatusPill booking={booking} />
+                        {getOpenStaffScheduleException(booking.metadata) ? (
+                          <StaffReviewPill />
+                        ) : null}
+                      </div>
                     </td>
 
                     <td className="bw-td bw-col-primary" onClick={(event) => event.stopPropagation()}>
@@ -699,6 +725,9 @@ export function BookingsTable({
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <SourcePill booking={booking} />
                     <PaymentStatusBadge status={booking.payment_status} />
+                    {getOpenStaffScheduleException(booking.metadata) ? (
+                      <StaffReviewPill />
+                    ) : null}
                     {price > 0 ? (
                       <span className="rounded-full bg-[var(--cs-surface-warm)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cs-text-secondary)]">
                         {formatCurrency(price)}
@@ -868,6 +897,7 @@ function BookingDetailsPanel({
   const [noteOverride, setNoteOverride] = useState<string | null>(null);
   const [showPaymentReview, setShowPaymentReview] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const scheduleException = getOpenStaffScheduleException(booking.metadata);
 
   // Effective fields: optimistic values take precedence until server data arrives.
   const effectiveStatus           = sessionOverride?.status                   ?? booking.status;
@@ -985,6 +1015,17 @@ function BookingDetailsPanel({
       />
 
       <div className="mt-4 space-y-3">
+        {scheduleException ? (
+          <StaffScheduleExceptionPanel
+            booking={booking}
+            exception={scheduleException}
+            onKeepOrResolve={onBookingsChanged}
+            onReassign={() => setShowRecommendations(true)}
+            onReschedule={() => onOpenReschedule(booking)}
+            onContact={() => onOpenFollowup(booking, "confirmed")}
+          />
+        ) : null}
+
         {isServiceActive ? (
           <ActiveServiceActionPanel
             onCompleteService={handleCompleteService}
@@ -1094,6 +1135,115 @@ function SelectedPanelHeader({
         <X size={18} />
       </button>
     </div>
+  );
+}
+
+function StaffScheduleExceptionPanel({
+  booking,
+  exception,
+  onKeepOrResolve,
+  onReassign,
+  onReschedule,
+  onContact,
+}: {
+  booking: WorkspaceBookingRow;
+  exception: StaffScheduleException;
+  onKeepOrResolve?: () => void;
+  onReassign: () => void;
+  onReschedule: () => void;
+  onContact: () => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function resolve(
+    resolution: "kept_selected_staff" | "marked_resolved"
+  ) {
+    startTransition(async () => {
+      const result = await resolveStaffScheduleExceptionAction({
+        bookingId: booking.id,
+        resolution,
+      });
+      if (!result.success) {
+        toast.error(result.error ?? "Could not resolve staff review.");
+        return;
+      }
+      toast.success(
+        resolution === "kept_selected_staff"
+          ? "Selected staff kept."
+          : "Staff review resolved."
+      );
+      onKeepOrResolve?.();
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 shrink-0 text-amber-700" size={17} />
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-amber-950">
+            Staff schedule exception
+          </p>
+          <p className="mt-1 text-xs font-semibold text-amber-800">
+            {exception.reasonLabel}
+          </p>
+          <p className="mt-2 text-sm leading-5 text-amber-950/80">
+            {getStaffScheduleExceptionMessage(
+              exception.reasonCode,
+              exception.selectedStaffName
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => resolve("kept_selected_staff")}
+          className="h-9 rounded-lg bg-amber-700 px-3 text-xs font-semibold text-white disabled:opacity-60"
+        >
+          Keep selected staff
+        </button>
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => resolve("marked_resolved")}
+          className="h-9 rounded-lg border border-amber-400 bg-white px-3 text-xs font-semibold text-amber-900 disabled:opacity-60"
+        >
+          Mark resolved
+        </button>
+        <button
+          type="button"
+          onClick={onReassign}
+          className="h-9 rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900"
+        >
+          Reassign staff
+        </button>
+        <button
+          type="button"
+          onClick={onReschedule}
+          className="h-9 rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900"
+        >
+          Adjust booking time
+        </button>
+        <button
+          type="button"
+          onClick={onContact}
+          className="h-9 rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900"
+        >
+          Contact customer
+        </button>
+        <Link
+          href={`/crm/schedule?staffId=${encodeURIComponent(exception.selectedStaffId)}&date=${encodeURIComponent(exception.bookingDate)}`}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900"
+        >
+          Open staff schedule
+        </Link>
+      </div>
+    </section>
   );
 }
 

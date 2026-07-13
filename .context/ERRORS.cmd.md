@@ -954,3 +954,13 @@
 - **Resolution:** Not attributable or reversible from this task. No destructive
   SQL was issued here and this checkout has no reset backup. Find the external
   reset operator/process and backup before historical reporting is trusted.
+
+## 2026-07-13 - ONLINE-STAFF-PREFERENCE-EXCEPTIONS-001 QA limitation
+
+- **Symptom:** The local in-app browser redirects `/crm/today` to `/login`.
+- **Impact:** The real public picker was verified end-to-end through manual
+  preference selection, but authenticated CRM warning and resolution clicks
+  could not be certified in-browser without a safe signed-in CRM fixture.
+- **Resolution:** Run the CRM manual-verification matrix in an authenticated
+  test session. Static, unit, type, lint, build, and full-suite verification
+  cover the implementation contracts in this task.

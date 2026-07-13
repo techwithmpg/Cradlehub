@@ -839,3 +839,27 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - Device replacement recovery revokes the selected old primary before inserting
   the new primary, inside one transaction, so the one-active-primary invariant
   remains enforced without leaving a staff member device-less on rollback.
+
+## 2026-07-13 - Manual online staff selections are preferences
+
+**Decision:** Keep automatic online assignment authoritative, but treat a
+customer's manually selected operational and fully service-qualified staff
+member as a preference. Schedule incompatibility is a CRM review condition, not
+a booking lifecycle status and not permission to bypass identity, branch,
+qualification, security, or input validation.
+
+**Rationale:** Public customers should be able to request a specific qualified
+provider without seeing internal scheduling details, while CRM retains explicit
+operational control. Booking metadata already provides durable per-booking state
+and history, and existing notification/work-task stores already provide
+idempotent CRM signals, so a parallel exception table/status is unnecessary.
+
+**Consequences:**
+- `Any available staff` continues through the existing schedule/block/conflict/
+  duration-aware assignment engine and never creates this exception.
+- Manual soft reasons preserve `staff_id` and normal booking status, and return
+  only safe preference-confirmation copy to the customer.
+- Metadata stores stable reason/resolution fields and immutable history;
+  deterministic notification/task dedupe keys identify booking, staff, reason.
+- Keep, reassignment, and valid rescheduling resolve with actor/time/audit data;
+  contacting the customer alone leaves the review open.

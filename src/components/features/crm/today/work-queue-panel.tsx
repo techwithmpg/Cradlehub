@@ -62,7 +62,13 @@ function buildBookingHref(bookingId: string): string {
   return `/crm/bookings?bookingId=${bookingId}`;
 }
 
-function getActionTone(category: WorkQueueActionCategory): { bg: string; border: string; color: string } {
+function getActionTone(
+  category: WorkQueueActionCategory,
+  needsStaffScheduleReview = false
+): { bg: string; border: string; color: string } {
+  if (needsStaffScheduleReview) {
+    return { bg: "#FFF7ED", border: "#FED7AA", color: "#92400E" };
+  }
   if (category === "exception") {
     return { bg: "#FEF2F2", border: "#FECACA", color: "#991B1B" };
   }
@@ -260,6 +266,8 @@ export function WorkQueuePanel({
           dispatchWarning: booking.dispatch_warning,
           needsLocationReview: booking.needs_location_review,
           noDriverWarning: booking.no_driver_warning,
+          needsStaffScheduleReview: booking.needs_staff_schedule_review,
+          staffScheduleExceptionLabel: booking.staff_schedule_exception_label,
         }),
       }))
       .sort((a, b) => {
@@ -411,7 +419,10 @@ export function WorkQueuePanel({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
           {filteredRows.map(({ booking, action }) => {
-            const tone = getActionTone(action.category);
+            const tone = getActionTone(
+              action.category,
+              booking.needs_staff_schedule_review
+            );
             const isHomeService = booking.type === "home_service";
             return (
               <article
@@ -445,6 +456,11 @@ export function WorkQueuePanel({
                       {action.category === "follow_up" ? "Follow-up" : action.category.replace("_", " ")}
                     </span>
                     <span style={pillStyle}>{formatBookingType(booking.type)}</span>
+                    {booking.needs_staff_schedule_review ? (
+                      <span style={{ ...pillStyle, background: "#FFF7ED", color: "#92400E" }}>
+                        Staff review
+                      </span>
+                    ) : null}
                   </div>
 
                   <div

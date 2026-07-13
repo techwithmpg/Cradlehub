@@ -20,6 +20,7 @@ import {
   createAttendanceScanFeedFallback,
   getRecentAttendanceScanFeed,
 } from "@/lib/attendance/recent-scans";
+import { getOpenStaffScheduleException } from "@/lib/bookings/staff-schedule-exception";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ export default async function CrmTodayPage() {
     const meta = b.metadata ?? null;
     const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
     const dispatch = meta?.dispatch as Record<string, unknown> | null;
+    const staffScheduleException = getOpenStaffScheduleException(meta);
     const priceRaw = meta?.price_paid;
     const pricePaid = typeof priceRaw === "number" && Number.isFinite(priceRaw) ? priceRaw : 0;
     const rawLat = hsAddr?.lat;
@@ -178,6 +180,9 @@ export default async function CrmTodayPage() {
       hs_map_url:            typeof hsAddr?.map_url === "string" ? hsAddr.map_url : null,
       dispatch_warning:      typeof dispatch?.dispatch_warning === "string" ? dispatch.dispatch_warning : null,
       needs_location_review: dispatch?.needs_location_review === true,
+      needs_staff_schedule_review: Boolean(staffScheduleException),
+      staff_schedule_exception_label: staffScheduleException?.reasonLabel ?? null,
+      staff_schedule_exception_reason: staffScheduleException?.reasonCode ?? null,
       driver_id:             driverIdMap[b.id] ?? null,
       driver_name:           driverIdMap[b.id] ? (driverNameMap[driverIdMap[b.id]!] ?? null) : null,
       no_driver_warning:     isHomeService && !driverIdMap[b.id],

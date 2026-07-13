@@ -20,6 +20,11 @@ import { canReassignBooking } from "@/lib/permissions";
 import { buildRecommendationContext } from "@/lib/queries/assignment-recommendations";
 import { scoreTherapistCandidates } from "@/lib/assignments/recommendation-engine";
 import { computeEndTime } from "@/lib/engine/booking-time";
+import {
+  getOpenStaffScheduleException,
+  resolveStaffScheduleExceptionMetadata,
+} from "@/lib/bookings/staff-schedule-exception";
+import { resolveStaffScheduleExceptionSignals } from "@/lib/bookings/staff-schedule-exception-signals";
 
 const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -90,6 +95,10 @@ const rescheduleBookingSchema = bookingIdSchema.extend({
   note: z.string().max(500).optional(),
   homeServiceAddress: z.string().max(1000).optional(),
   homeServiceAccessNote: z.string().max(500).optional(),
+});
+
+const resolveStaffScheduleExceptionSchema = bookingIdSchema.extend({
+  resolution: z.enum(["kept_selected_staff", "marked_resolved"]),
 });
 
 const assignBookingRoomSchema = bookingIdSchema.extend({
@@ -633,6 +642,28 @@ export async function rescheduleBookingAction(rawInput: unknown): Promise<{ succ
   }
 
   const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
+  const openScheduleException = getOpenStaffScheduleException(currentMetadata);
+  const rescheduleMetadata = withRescheduleMetadata(booking.metadata, {
+    actorId,
+    fromDate: booking.booking_date,
+    fromTime: currentStartTime,
+    note: parsed.data.note,
+    toDate: nextDate,
+    toTime: nextStartTime,
+    homeServiceAddress: isHomeServiceBooking(booking) ? nextAddress : undefined,
+    homeServiceAccessNote: isHomeServiceBooking(booking) ? nextAccessNote : undefined,
+  });
+  const nextMetadata =
+    scheduleChanged && openScheduleException
+      ? resolveStaffScheduleExceptionMetadata(
+          rescheduleMetadata as Record<string, unknown>,
+          {
+            resolution: "rescheduled_booking",
+            resolvedAt: new Date().toISOString(),
+            resolvedByStaffId: actorId,
+          }
+        )
+      : rescheduleMetadata;
   const admin = createAdminClient();
   const { data: updatedRows, error } = await admin
     .from("bookings")
@@ -640,16 +671,7 @@ export async function rescheduleBookingAction(rawInput: unknown): Promise<{ succ
       booking_date: nextDate,
       start_time: nextStartTime,
       end_time: nextEndTime,
-      metadata: withRescheduleMetadata(booking.metadata, {
-        actorId,
-        fromDate: booking.booking_date,
-        fromTime: currentStartTime,
-        note: parsed.data.note,
-        toDate: nextDate,
-        toTime: nextStartTime,
-        homeServiceAddress: isHomeServiceBooking(booking) ? nextAddress : undefined,
-        homeServiceAccessNote: isHomeServiceBooking(booking) ? nextAccessNote : undefined,
-      }),
+      metadata: nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
     })
     .eq("id", booking.id)
     .eq("branch_id", booking.branch_id)
@@ -692,6 +714,85 @@ export async function rescheduleBookingAction(rawInput: unknown): Promise<{ succ
       requiresAction: true,
     });
   }
+
+  if (scheduleChanged && openScheduleException) {
+    await resolveStaffScheduleExceptionSignals({
+      bookingId: booking.id,
+      branchId: booking.branch_id,
+      staffId: openScheduleException.selectedStaffId,
+      reasonCode: openScheduleException.reasonCode,
+      completedByStaffId: actorId,
+    });
+  }
+
+  revalidateOperationalBookingSurfaces(booking.branch_id);
+  return { success: true };
+}
+
+export async function resolveStaffScheduleExceptionAction(
+  rawInput: unknown
+): Promise<{ success: boolean; error?: string }> {
+  const parsed = resolveStaffScheduleExceptionSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+
+  const ctx = await getCrmActionsContext();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  const booking = await loadCrmBookingForAction(ctx, parsed.data.bookingId);
+  if (!booking) return { success: false, error: "Booking not found" };
+  const currentMetadata =
+    booking.metadata && typeof booking.metadata === "object" && !Array.isArray(booking.metadata)
+      ? (booking.metadata as Record<string, unknown>)
+      : {};
+  const scheduleException = getOpenStaffScheduleException(currentMetadata);
+  if (!scheduleException) return { success: true };
+
+  const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
+  const nextMetadata = resolveStaffScheduleExceptionMetadata(currentMetadata, {
+    resolution: parsed.data.resolution,
+    resolvedAt: new Date().toISOString(),
+    resolvedByStaffId: actorId,
+  });
+  const admin = createAdminClient();
+  const { data: updatedRows, error } = await admin
+    .from("bookings")
+    .update({
+      metadata: nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
+    })
+    .eq("id", booking.id)
+    .eq("branch_id", booking.branch_id)
+    .select("id");
+
+  if (error) return { success: false, error: error.message };
+  if (!updatedRows || updatedRows.length === 0) {
+    return { success: false, error: "Staff review could not be resolved." };
+  }
+
+  const resolutionLabel =
+    parsed.data.resolution === "kept_selected_staff"
+      ? "kept selected staff"
+      : "marked resolved";
+  await insertBookingAuditEvent({
+    actorId,
+    admin,
+    bookingId: booking.id,
+    fromStatus: booking.status,
+    note: `Resolved staff schedule exception (${resolutionLabel}). Original reason: ${scheduleException.reasonLabel}.`,
+    result: "staff_schedule_exception_resolved",
+    toStatus: booking.status,
+  });
+  await resolveStaffScheduleExceptionSignals({
+    bookingId: booking.id,
+    branchId: booking.branch_id,
+    staffId: scheduleException.selectedStaffId,
+    reasonCode: scheduleException.reasonCode,
+    completedByStaffId: actorId,
+  });
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
   return { success: true };
@@ -1118,6 +1219,12 @@ export async function assignBookingTherapistAction(
   const previousStaffName = firstRelation(booking.staff)?.full_name ?? "Unassigned";
   const nextStaffName = staff.full_name ?? "Selected therapist";
   const now = new Date().toISOString();
+  const openScheduleException = getOpenStaffScheduleException(
+    booking.metadata && typeof booking.metadata === "object" && !Array.isArray(booking.metadata)
+      ? (booking.metadata as Record<string, unknown>)
+      : {}
+  );
+  const actorId = ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id;
 
   // Build metadata audit entry
   const metadata = booking.metadata ?? {};
@@ -1129,18 +1236,30 @@ export async function assignBookingTherapistAction(
     previous_staff_id: previousStaffId,
     reason: parsed.data.overrideReason ?? "recommendation_top_pick",
     assigned_at: now,
-    assigned_by: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    assigned_by: actorId,
     source: "assignment_assistant",
   });
+
+  const assignmentMetadata = {
+    ...(metadata as Record<string, unknown>),
+    assignment_audit: assignmentAudit,
+  };
+  const nextMetadata =
+    openScheduleException && parsed.data.staffId !== previousStaffId
+      ? resolveStaffScheduleExceptionMetadata(assignmentMetadata, {
+          resolution: "reassigned_staff",
+          resolvedAt: now,
+          resolvedByStaffId: actorId,
+          previousStaffId,
+          newStaffId: parsed.data.staffId,
+        })
+      : assignmentMetadata;
 
   const { data: updatedRows, error } = await admin
     .from("bookings")
     .update({
       staff_id: parsed.data.staffId,
-      metadata: {
-        ...(metadata as Record<string, unknown>),
-        assignment_audit: assignmentAudit,
-      } as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
+      metadata: nextMetadata as Database["public"]["Tables"]["bookings"]["Update"]["metadata"],
     })
     .eq("id", booking.id)
     .eq("branch_id", booking.branch_id)
@@ -1155,7 +1274,7 @@ export async function assignBookingTherapistAction(
 
   // Audit is stored in bookings.metadata.assignment_audit.
   await insertBookingAuditEvent({
-    actorId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    actorId,
     admin,
     bookingId: booking.id,
     fromStatus: booking.status,
@@ -1181,6 +1300,16 @@ export async function assignBookingTherapistAction(
       actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: booking.id }),
       priority: isHS ? "high" : "normal",
       requiresAction: isHS,
+    });
+  }
+
+  if (openScheduleException && parsed.data.staffId !== previousStaffId) {
+    await resolveStaffScheduleExceptionSignals({
+      bookingId: booking.id,
+      branchId: booking.branch_id,
+      staffId: openScheduleException.selectedStaffId,
+      reasonCode: openScheduleException.reasonCode,
+      completedByStaffId: actorId,
     });
   }
 

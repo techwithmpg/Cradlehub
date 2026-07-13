@@ -20,6 +20,7 @@ type TherapistSelectionStepProps = {
   serviceCount: number;
   totalDuration: number;
   totalPriceLabel: string;
+  preferenceConfirmationRequired?: boolean;
 };
 
 export function TherapistSelectionStep({
@@ -29,6 +30,7 @@ export function TherapistSelectionStep({
   serviceCount,
   totalDuration,
   totalPriceLabel,
+  preferenceConfirmationRequired = false,
 }: TherapistSelectionStepProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const selectedOption = getSelectedTherapistOption(options, value);
@@ -67,7 +69,9 @@ export function TherapistSelectionStep({
             Choose a specific therapist, optional
           </p>
           <p className="mt-1 text-[12px] leading-5 text-[#F6EBD6]/68">
-            Keep the default or choose from staff available for your selected time.
+            {preferenceConfirmationRequired
+              ? "Keep the default or choose a specific staff preference. Our team will confirm a manual preference after we receive your booking."
+              : "Keep the default or choose from staff available for your selected time."}
           </p>
         </div>
 
@@ -81,7 +85,7 @@ export function TherapistSelectionStep({
 
         {!hasProviders ? (
           <div className="rounded-xl border border-dashed border-[#D4B57A]/25 bg-[#05241D]/50 px-5 py-5 text-[14px] leading-7 text-[#F6EBD6]/68">
-            No specific therapists are available for this time. You can continue with Any available provider and we&apos;ll assign the best available staff.
+            No specific therapists are available for these services. You can continue with Any available provider and we&apos;ll assign the best available staff.
           </div>
         ) : null}
       </div>

@@ -22,6 +22,9 @@ export type ControlBooking = {
   hs_map_url?: string | null;
   dispatch_warning?: string | null;
   needs_location_review?: boolean;
+  needs_staff_schedule_review?: boolean;
+  staff_schedule_exception_label?: string | null;
+  staff_schedule_exception_reason?: string | null;
   /** Phase 5: driver assignment */
   driver_id?: string | null;
   driver_name?: string | null;

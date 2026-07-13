@@ -13,8 +13,6 @@ import {
 import {
   assignTherapistBySeniority,
   assignTherapistBySeniorityMulti,
-  assertMultiServiceSlotAvailable,
-  assertSlotAvailable,
 } from "@/lib/engine/availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
@@ -26,9 +24,20 @@ import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { getPublicBookingHoldExpiresAt } from "@/lib/bookings/hold-status";
+import { evaluateOnlineSelectedStaff } from "@/lib/bookings/online-selected-staff";
+import {
+  createOpenStaffScheduleException,
+  readStaffScheduleException,
+  type StaffScheduleExceptionReasonCode,
+} from "@/lib/bookings/staff-schedule-exception";
+import { createStaffScheduleExceptionSignals } from "@/lib/bookings/staff-schedule-exception-signals";
 
 export type CreateOnlineBookingResult =
-  | { ok: true; bookingId: string }
+  | {
+      ok: true;
+      bookingId: string;
+      staffPreferenceNeedsConfirmation?: boolean;
+    }
   | { ok: false; code: string; message: string };
 
 function logBookingError(context: Record<string, unknown>, error: unknown) {
@@ -116,7 +125,12 @@ export async function createOnlineBookingAction(
       };
     }
 
+    const endTime = await computeEndTime(d.startTime, d.serviceId);
     let resolvedStaffId: string;
+    let selectedStaffException: {
+      reason: StaffScheduleExceptionReasonCode;
+      staffName: string;
+    } | null = null;
     if (!d.staffId) {
       resolvedStaffId = await assignTherapistBySeniority({
         branchId: d.branchId,
@@ -125,18 +139,38 @@ export async function createOnlineBookingAction(
         startTime: d.startTime,
       });
     } else {
-      await assertSlotAvailable({
+      const selectedStaff = await evaluateOnlineSelectedStaff({
         branchId: d.branchId,
-        serviceId: d.serviceId,
+        serviceIds: [d.serviceId],
         staffId: d.staffId,
         date: d.date,
         startTime: d.startTime,
+        endTime,
       });
+      if (!selectedStaff.ok) return selectedStaff;
       resolvedStaffId = d.staffId;
+      selectedStaffException = selectedStaff.exceptionReason
+        ? {
+            reason: selectedStaff.exceptionReason,
+            staffName: selectedStaff.staffName,
+          }
+        : null;
     }
 
-    const endTime = await computeEndTime(d.startTime, d.serviceId);
-    const metadata = await buildBookingSnapshot(d.branchId, d.serviceId, d.notes);
+    const baseMetadata = await buildBookingSnapshot(d.branchId, d.serviceId, d.notes);
+    const metadata = selectedStaffException
+      ? createOpenStaffScheduleException(baseMetadata, {
+          reasonCode: selectedStaffException.reason,
+          selectedStaffId: resolvedStaffId,
+          selectedStaffName: selectedStaffException.staffName,
+          customerName: d.fullName,
+          branchId: d.branchId,
+          bookingDate: d.date,
+          startTime: d.startTime,
+          endTime,
+          createdAt: new Date().toISOString(),
+        })
+      : baseMetadata;
     const holdExpiresAt = getPublicBookingHoldExpiresAt();
 
     const { data: customerId, error: custErr } = await supabase.rpc(
@@ -175,7 +209,7 @@ export async function createOnlineBookingAction(
         amount_paid: 0,
         hold_expires_at: holdExpiresAt,
         travel_buffer_mins: null,
-        metadata,
+        metadata: metadata as Json,
       })
       .select("id")
       .single();
@@ -187,6 +221,21 @@ export async function createOnlineBookingAction(
         code: "BOOKING_INSERT_FAILED",
         message: "Could not create booking. The slot may have been taken. Please select a different time.",
       };
+    }
+
+    const scheduleException = readStaffScheduleException(metadata);
+    if (scheduleException) {
+      try {
+        await createStaffScheduleExceptionSignals({
+          bookingId: booking.id,
+          exception: scheduleException,
+        });
+      } catch (notifyErr) {
+        logBookingError(
+          { ...logContext, notificationType: "staff_schedule_exception" },
+          notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr))
+        );
+      }
     }
 
     // Notifications are best-effort; do not fail the booking if they error.
@@ -218,7 +267,11 @@ export async function createOnlineBookingAction(
       bookingType: d.type,
     });
     revalidateOperationalBookingSurfaces(d.branchId);
-    return { ok: true, bookingId: booking.id };
+    return {
+      ok: true,
+      bookingId: booking.id,
+      ...(scheduleException ? { staffPreferenceNeedsConfirmation: true } : {}),
+    };
   } catch (err) {
     if (err instanceof SlotUnavailableError) {
       return {
@@ -325,7 +378,27 @@ export async function createOnlineBookingMultiAction(
       }
     }
 
+    const serviceTimes: Array<{
+      serviceId: string;
+      startTime: string;
+      endTime: string;
+    }> = [];
+    let selectedRangeEnd = d.startTime;
+    for (const serviceId of d.serviceIds) {
+      const endTime = await computeEndTime(selectedRangeEnd, serviceId);
+      serviceTimes.push({
+        serviceId,
+        startTime: selectedRangeEnd,
+        endTime,
+      });
+      selectedRangeEnd = endTime;
+    }
+
     let resolvedStaffId: string;
+    let selectedStaffException: {
+      reason: StaffScheduleExceptionReasonCode;
+      staffName: string;
+    } | null = null;
     if (!d.staffId) {
       resolvedStaffId = await assignTherapistBySeniorityMulti({
         branchId: d.branchId,
@@ -334,14 +407,22 @@ export async function createOnlineBookingMultiAction(
         startTime: d.startTime,
       });
     } else {
-      await assertMultiServiceSlotAvailable({
+      const selectedStaff = await evaluateOnlineSelectedStaff({
         branchId: d.branchId,
         serviceIds: d.serviceIds,
         staffId: d.staffId,
         date: d.date,
         startTime: d.startTime,
+        endTime: selectedRangeEnd,
       });
+      if (!selectedStaff.ok) return selectedStaff;
       resolvedStaffId = d.staffId;
+      selectedStaffException = selectedStaff.exceptionReason
+        ? {
+            reason: selectedStaff.exceptionReason,
+            staffName: selectedStaff.staffName,
+          }
+        : null;
     }
 
     const { data: customerId, error: custErr } = await supabase.rpc("upsert_customer", {
@@ -460,16 +541,32 @@ export async function createOnlineBookingMultiAction(
       } satisfies { [key: string]: Json | undefined };
     }
 
-    let currentStart = d.startTime;
     const insertedIds: string[] = [];
+    const insertedScheduleExceptions: Array<{
+      bookingId: string;
+      exception: NonNullable<ReturnType<typeof readStaffScheduleException>>;
+    }> = [];
     const holdExpiresAt = getPublicBookingHoldExpiresAt();
 
-    for (const serviceId of d.serviceIds) {
-      const endTime = await computeEndTime(currentStart, serviceId);
+    for (const serviceTime of serviceTimes) {
+      const { serviceId, startTime, endTime } = serviceTime;
       const baseSnapshot = await buildBookingSnapshot(d.branchId, serviceId, d.notes);
-      const metadata = hsAddressData
+      const deliveryMetadata = hsAddressData
         ? { ...baseSnapshot, home_service_address: hsAddressData, dispatch: dispatchData }
         : baseSnapshot;
+      const metadata = selectedStaffException
+        ? createOpenStaffScheduleException(deliveryMetadata, {
+            reasonCode: selectedStaffException.reason,
+            selectedStaffId: resolvedStaffId,
+            selectedStaffName: selectedStaffException.staffName,
+            customerName: d.fullName,
+            branchId: d.branchId,
+            bookingDate: d.date,
+            startTime,
+            endTime,
+            createdAt: new Date().toISOString(),
+          })
+        : deliveryMetadata;
 
       const { data: booking, error: bookErr } = await supabase
         .from("bookings")
@@ -479,7 +576,7 @@ export async function createOnlineBookingMultiAction(
           staff_id: resolvedStaffId,
           customer_id: resolvedCustomerId,
           booking_date: d.date,
-          start_time: currentStart,
+          start_time: startTime,
           end_time: endTime,
           type: d.type,
           delivery_type: deliveryType,
@@ -492,7 +589,7 @@ export async function createOnlineBookingMultiAction(
             deliveryType === "home_service"
               ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
               : null,
-          metadata,
+          metadata: metadata as Json,
         })
         .select("id")
         .single();
@@ -505,7 +602,7 @@ export async function createOnlineBookingMultiAction(
             .in("id", insertedIds);
         }
         logBookingError(
-          { ...logContext, serviceId, currentStart, endTime },
+          { ...logContext, serviceId, currentStart: startTime, endTime },
           bookErr ?? new Error("insert returned no booking")
         );
         return {
@@ -516,7 +613,13 @@ export async function createOnlineBookingMultiAction(
       }
 
       insertedIds.push(booking.id);
-      currentStart = endTime;
+      const scheduleException = readStaffScheduleException(metadata);
+      if (scheduleException) {
+        insertedScheduleExceptions.push({
+          bookingId: booking.id,
+          exception: scheduleException,
+        });
+      }
     }
 
     const isHSMulti = deliveryType === "home_service";
@@ -536,6 +639,12 @@ export async function createOnlineBookingMultiAction(
         dedupeKey: `booking:${insertedIds[0]}:payment_pending`,
       }),
     ];
+
+    for (const scheduleException of insertedScheduleExceptions) {
+      notificationJobs.push(
+        createStaffScheduleExceptionSignals(scheduleException)
+      );
+    }
 
     if (isHSMulti && dispatchData.needs_location_review === true) {
       notificationJobs.push(
@@ -592,7 +701,13 @@ export async function createOnlineBookingMultiAction(
       serviceCount: insertedIds.length,
     });
     revalidateOperationalBookingSurfaces(d.branchId);
-    return { ok: true, bookingId: insertedIds[0]! };
+    return {
+      ok: true,
+      bookingId: insertedIds[0]!,
+      ...(insertedScheduleExceptions.length > 0
+        ? { staffPreferenceNeedsConfirmation: true }
+        : {}),
+    };
   } catch (err) {
     if (err instanceof SlotUnavailableError) {
       return {

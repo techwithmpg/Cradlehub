@@ -28,6 +28,9 @@ type BookingCardData = {
   hs_map_url?: string | null;
   dispatch_warning?: string | null;
   needs_location_review?: boolean;
+  needs_staff_schedule_review?: boolean;
+  staff_schedule_exception_label?: string | null;
+  staff_schedule_exception_reason?: string | null;
 };
 
 type PaymentAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -249,6 +252,22 @@ function BookingCard({ booking, isNext, paymentAction }: { booking: BookingCardD
             }}
           >
             Review Location
+          </span>
+        )}
+        {booking.needs_staff_schedule_review && (
+          <span
+            style={{
+              fontSize: "0.5625rem",
+              fontWeight: 700,
+              padding: "2px 5px",
+              borderRadius: 3,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              backgroundColor: "#FFF7ED",
+              color: "#92400E",
+            }}
+          >
+            Staff review
           </span>
         )}
       </div>

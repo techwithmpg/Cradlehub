@@ -22,6 +22,7 @@ export type NotificationType =
   | "payment_overdue"
   | "home_service_dispatch_conflict"
   | "home_service_location_review"
+  | "staff_schedule_exception"
   | "waitlist_request_submitted"
   | "reconciliation_submitted"
   | "service_setup_warning"

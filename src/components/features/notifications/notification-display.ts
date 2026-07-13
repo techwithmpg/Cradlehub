@@ -40,6 +40,7 @@ const BOOKING_TYPES = new Set([
   "customer_arrived",
   "home_service_location_review",
   "home_service_dispatch_conflict",
+  "staff_schedule_exception",
 ]);
 
 const PAYMENT_TYPES = new Set(["payment_pending", "payment_overdue"]);
@@ -160,7 +161,9 @@ function bookingDisplay(notification: WorkspaceNotification): NotificationDispla
   const detail = compactJoin([customer, service]) || safeDetail(notification);
   const meta = compactJoin([time, branch]);
   const title =
-    notification.type === "home_service_location_review"
+    notification.type === "staff_schedule_exception"
+      ? "Staff Schedule Exception"
+      : notification.type === "home_service_location_review"
       ? "Location Review"
       : notification.type === "home_service_dispatch_conflict"
         ? "Dispatch Conflict"
@@ -175,13 +178,15 @@ function bookingDisplay(notification: WorkspaceNotification): NotificationDispla
     actionLabel: "View Booking",
     tone:
       notification.type === "home_service_dispatch_conflict" ||
-      notification.type === "home_service_location_review"
+      notification.type === "home_service_location_review" ||
+      notification.type === "staff_schedule_exception"
         ? "warning"
         : "booking",
     href: resolvedHref(notification),
     iconName:
       notification.type === "home_service_dispatch_conflict" ||
-      notification.type === "home_service_location_review"
+      notification.type === "home_service_location_review" ||
+      notification.type === "staff_schedule_exception"
         ? "warning"
         : "calendar",
   };

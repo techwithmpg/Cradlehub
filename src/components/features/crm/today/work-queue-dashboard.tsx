@@ -74,6 +74,8 @@ export function WorkQueueDashboard({
         dispatchWarning: booking.dispatch_warning,
         needsLocationReview: booking.needs_location_review,
         noDriverWarning: booking.no_driver_warning,
+        needsStaffScheduleReview: booking.needs_staff_schedule_review,
+        staffScheduleExceptionLabel: booking.staff_schedule_exception_label,
       });
 
       if (action.category === "confirmation" || action.category === "follow_up" || action.category === "exception") {

@@ -19,9 +19,23 @@ export function TodayActionRequiredTab({
   const unassigned = queueData.filter((b) => b.status === "confirmed" && !b.staff_name);
   const unpaid = queueData.filter((b) => b.payment_status !== "paid" && !isBookingClosedForCrm(b.status));
   const homeServiceIssues = queueData.filter((b) => b.type === "home_service" && (b.needs_location_review || b.dispatch_warning));
+  const staffScheduleIssues = queueData.filter(
+    (b) => b.needs_staff_schedule_review
+  );
 
   // Build action items from real data
   const actionItems = [
+    ...staffScheduleIssues.map((b) => ({
+      id: `staff-schedule-${b.id}`,
+      title: `Staff preference review: ${b.customer_name ?? "Unnamed"}`,
+      description:
+        b.staff_schedule_exception_label ??
+        "The customer-selected staff preference needs schedule review.",
+      category: "Bookings",
+      severity: "warning" as const,
+      actionLabel: "Review Booking",
+      actionHref: `/crm/bookings?bookingId=${b.id}`,
+    })),
     ...unpaid.map((b) => ({
       id: `payment-${b.id}`,
       title: `Payment pending for ${b.customer_name ?? "Unnamed"}`,

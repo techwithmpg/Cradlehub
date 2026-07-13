@@ -21,4 +21,5 @@ export type TherapistPickerStaff = {
   staff_avatar_url?: string | null;
   staff_tier: string;
   staff_type?: string;
+  staff_schedule_available?: boolean;
 };

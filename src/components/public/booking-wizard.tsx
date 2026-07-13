@@ -99,6 +99,7 @@ type StaffOption = {
   staff_avatar_url?: string | null;
   staff_tier: string;
   staff_type?: string;
+  staff_schedule_available?: boolean;
 };
 
 type StaffLookup = {
@@ -107,6 +108,7 @@ type StaffLookup = {
   nickname: string | null;
   avatarUrl: string | null;
   staffType: string | null;
+  tier: string;
   serviceIds: string[];
   isServiceProvider: boolean;
 };
@@ -134,6 +136,7 @@ type BookingContextStaff = {
   nickname?: string | null;
   avatarUrl?: string | null;
   staffType?: string | null;
+  tier?: string;
   serviceIds?: string[];
 };
 
@@ -165,6 +168,7 @@ const STEPS_HS = [
 const MOBILE_PROGRESS_STEPS = ["Branch", "Service", "Date & Time", "Details", "Confirm"] as const;
 const PRECISE_LOCATION_ERROR =
   "Please select your address from the Google suggestions so our therapist and driver can find you accurately.";
+const DEFAULT_STAFF_PREFERENCE = "auto" as const;
 const BOOKING_PAGE_BACKGROUND =
   "radial-gradient(circle at 80% 8%, rgba(212,181,122,0.14), transparent 34%), radial-gradient(circle at 12% 18%, rgba(30,61,47,0.38), transparent 38%), linear-gradient(180deg, #031B16 0%, #05241D 45%, #02140F 100%)";
 const BOOKING_HERO_OVERLAY =
@@ -346,6 +350,56 @@ function staffAtSlot(
   return out;
 }
 
+function staffQualifiedForSelectedServices(
+  lookup: StaffLookup,
+  selectedServiceIds: string[]
+): boolean {
+  return (
+    lookup.isServiceProvider &&
+    selectedServiceIds.length > 0 &&
+    selectedServiceIds.every((serviceId) => lookup.serviceIds.includes(serviceId))
+  );
+}
+
+function qualifiedStaffPreferenceOptions(
+  staffLookup: Map<string, StaffLookup>,
+  availableStaff: StaffOption[],
+  selectedServiceIds: string[]
+): StaffOption[] {
+  const availableById = new Map(
+    availableStaff.map((member) => [member.staff_id, member])
+  );
+
+  return Array.from(staffLookup.entries())
+    .filter(([, lookup]) =>
+      staffQualifiedForSelectedServices(lookup, selectedServiceIds)
+    )
+    .map(([staffId, lookup]) => {
+      const available = availableById.get(staffId);
+      const fullName = lookup.fullName ?? lookup.name ?? "Staff member";
+      return {
+        staff_id: staffId,
+        staff_name: lookup.nickname ?? lookup.name ?? fullName,
+        staff_full_name: fullName,
+        staff_nickname: lookup.nickname,
+        staff_avatar_url: lookup.avatarUrl,
+        staff_tier: lookup.tier,
+        staff_type: lookup.staffType ?? undefined,
+        staff_schedule_available: Boolean(available),
+      };
+    })
+    .sort((a, b) => {
+      const availabilityDifference =
+        Number(b.staff_schedule_available) - Number(a.staff_schedule_available);
+      if (availabilityDifference !== 0) return availabilityDifference;
+      const tierDifference =
+        (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+      return tierDifference !== 0
+        ? tierDifference
+        : a.staff_name.localeCompare(b.staff_name);
+    });
+}
+
 export function BookingWizard({
   mode = "public",
   initialBranchId = null,
@@ -383,7 +437,10 @@ export function BookingWizard({
   const [loadingServices, setLoadingServices] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<{ bookingId: string } | null>(null);
+  const [success, setSuccess] = useState<{
+    bookingId: string;
+    staffPreferenceNeedsConfirmation: boolean;
+  } | null>(null);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
 
   // Selections
@@ -391,7 +448,9 @@ export function BookingWizard({
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [selectedStaff, setSelectedStaff] = useState<"auto" | string>("auto");
+  const [selectedStaff, setSelectedStaff] = useState<"auto" | string>(
+    DEFAULT_STAFF_PREFERENCE
+  );
   const [bookingType, setBookingType] = useState<BookingType>(
     // Seed from initialVisitType when provided (CRM walk-in / home-service routing).
     // Falls back to "in_spa" default — preserves existing public booking behavior.
@@ -479,17 +538,29 @@ export function BookingWizard({
         : [],
     [rawSlots, selectedSlot, selectedServiceIds, staffLookup]
   );
+  const staffPreferenceOptions = useMemo(
+    () =>
+      mode === "public"
+        ? qualifiedStaffPreferenceOptions(
+            staffLookup,
+            availableStaffAtSlot,
+            selectedServiceIds
+          )
+        : availableStaffAtSlot,
+    [availableStaffAtSlot, mode, selectedServiceIds, staffLookup]
+  );
   const selectedStaffForBooking = useMemo(
     () => {
-      // Specific provider chosen — validate they are still available at this slot.
+      // Public manual choices are preferences: qualification is required, but
+      // schedule conflicts are reviewed by CRM after the booking is received.
       if (selectedStaff !== "auto") {
-        return availableStaffAtSlot.some((s) => s.staff_id === selectedStaff)
+        return staffPreferenceOptions.some((s) => s.staff_id === selectedStaff)
           ? selectedStaff
-          : "auto";
+          : DEFAULT_STAFF_PREFERENCE;
       }
-      return "auto";
+      return DEFAULT_STAFF_PREFERENCE;
     },
-    [availableStaffAtSlot, selectedStaff]
+    [selectedStaff, staffPreferenceOptions]
   );
 
   // Dispatch status per slot_time (home_service only)
@@ -568,6 +639,7 @@ export function BookingWizard({
             nickname: member.nickname ?? null,
             avatarUrl: member.avatarUrl ?? null,
             staffType: member.staffType ?? null,
+            tier: member.tier ?? "therapist",
             serviceIds: member.serviceIds ?? [],
             isServiceProvider: true,
           });
@@ -649,7 +721,7 @@ export function BookingWizard({
     setRawSlots([]);
     setSlots([]);
     setSelectedSlot(null);
-    setSelectedStaff("auto");
+    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
     setAvailabilityMessage("");
   }, []);
 
@@ -667,7 +739,7 @@ export function BookingWizard({
     setRawSlots([]);
     setSlots([]);
     setSelectedSlot(null);
-    setSelectedStaff("auto");
+    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
     setAvailabilityMessage("");
     setExistingHsBookings([]);
     setHsDriverCapacity(1);
@@ -685,9 +757,9 @@ export function BookingWizard({
   const handleBack = useCallback(() => {
     if (currentStepName === "date_time") {
       setSelectedSlot(null);
-      setSelectedStaff("auto");
+      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
     } else if (currentStepName === "therapist") {
-      setSelectedStaff("auto");
+      setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
     }
     setStep((s) => Math.max(1, s - 1));
   }, [currentStepName]);
@@ -796,12 +868,21 @@ export function BookingWizard({
 
     setSubmitting(false);
     if (result.ok) {
+      const staffPreferenceNeedsConfirmation =
+        mode === "public" &&
+        "staffPreferenceNeedsConfirmation" in result &&
+        result.staffPreferenceNeedsConfirmation === true;
       toast.success(mode === "inhouse" ? "Booking saved" : "Booking request received", {
         description: mode === "inhouse"
           ? "Appointment saved to the CRM workspace."
-          : "Our CRM team will contact you shortly to confirm payment and finalize your appointment.",
+          : staffPreferenceNeedsConfirmation
+            ? "Your booking has been received. Our team will confirm your selected staff preference."
+            : "Our CRM team will contact you shortly to confirm payment and finalize your appointment.",
       });
-      setSuccess({ bookingId: result.bookingId });
+      setSuccess({
+        bookingId: result.bookingId,
+        staffPreferenceNeedsConfirmation,
+      });
       setStep(successStep);
     } else {
       const isNetworkError =
@@ -1049,7 +1130,7 @@ export function BookingWizard({
                     setRawSlots([]);
                     setSlots([]);
                     setSelectedSlot(null);
-                    setSelectedStaff("auto");
+                    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
                     setAvailabilityMessage("");
                   }}
                 />
@@ -1100,7 +1181,7 @@ export function BookingWizard({
                     setRawSlots([]);
                     setSlots([]);
                     setSelectedSlot(null);
-                    setSelectedStaff("auto");
+                    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
                     setAvailabilityMessage("");
                   }}
                   slots={displaySlots}
@@ -1110,7 +1191,7 @@ export function BookingWizard({
                   selectedSlot={selectedSlot}
                   onSelectSlot={(s) => {
                     setSelectedSlot(s);
-                    setSelectedStaff("auto");
+                    setSelectedStaff(DEFAULT_STAFF_PREFERENCE);
                   }}
                   dispatchStatuses={dispatchStatuses}
                   mode={mode}
@@ -1118,13 +1199,14 @@ export function BookingWizard({
               )}
               {currentStepName === "therapist" && (
                 <StepTherapist
-                  availableStaff={availableStaffAtSlot}
+                  availableStaff={staffPreferenceOptions}
                   selectedSlot={selectedSlot}
                   selected={selectedStaffForBooking}
                   onSelect={setSelectedStaff}
                   selectedServices={selectedServices}
                   totalDuration={totalDuration}
                   totalPrice={totalPrice}
+                  preferenceConfirmationRequired={mode === "public"}
                 />
               )}
               {currentStepName === "details" && (
@@ -1137,7 +1219,14 @@ export function BookingWizard({
                 />
               )}
               {currentStepName === "success" && success && (
-                <StepSuccess bookingId={success.bookingId} services={selectedServices} mode={mode} />
+                <StepSuccess
+                  bookingId={success.bookingId}
+                  services={selectedServices}
+                  mode={mode}
+                  staffPreferenceNeedsConfirmation={
+                    success.staffPreferenceNeedsConfirmation
+                  }
+                />
               )}
             </div>
 
@@ -1218,7 +1307,7 @@ export function BookingWizard({
                 selectedDate={selectedDate}
                 selectedSlot={selectedSlot}
                 selectedStaff={selectedStaffForBooking}
-                availableStaff={availableStaffAtSlot}
+                availableStaff={staffPreferenceOptions}
                 visitType={visitType}
                 bookingRules={bookingRules}
                 variant={isTherapistStep ? "therapist" : "default"}
@@ -1327,7 +1416,11 @@ function BookingSummary({
       : selectedStaffOption?.staff_full_name ?? selectedStaffOption?.staff_name;
   const staffSubLabel =
     selectedStaffOption && staffLabel
-      ? `${selectedStaffOption.staff_nickname?.trim() || getTherapistInitials(staffLabel)} · Available at ${selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time"}`
+      ? `${selectedStaffOption.staff_nickname?.trim() || getTherapistInitials(staffLabel)} · ${
+          selectedStaffOption.staff_schedule_available === false
+            ? "Preference subject to confirmation"
+            : `Available at ${selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time"}`
+        }`
       : undefined;
   const visitOption = VISIT_TYPE_OPTIONS[visitType];
   const availability = getVisitTypeAvailability(visitType, bookingRules);
@@ -2207,6 +2300,7 @@ function StepTherapist({
   selectedServices,
   totalDuration,
   totalPrice,
+  preferenceConfirmationRequired,
 }: {
   availableStaff: StaffOption[];
   selectedSlot: Slot | null;
@@ -2215,6 +2309,7 @@ function StepTherapist({
   selectedServices: Service[];
   totalDuration: number;
   totalPrice: number;
+  preferenceConfirmationRequired: boolean;
 }) {
   const slotLabel = selectedSlot ? formatTime(selectedSlot.slot_time) : "selected time";
   const pickerOptions = buildTherapistPickerOptions(availableStaff, slotLabel);
@@ -2227,6 +2322,7 @@ function StepTherapist({
       serviceCount={selectedServices.length}
       totalDuration={totalDuration}
       totalPriceLabel={formatCurrency(totalPrice)}
+      preferenceConfirmationRequired={preferenceConfirmationRequired}
     />
   );
 }
@@ -2774,10 +2870,12 @@ function StepSuccess({
   bookingId,
   services,
   mode,
+  staffPreferenceNeedsConfirmation,
 }: {
   bookingId: string;
   services: Service[];
   mode: BookingWizardMode;
+  staffPreferenceNeedsConfirmation: boolean;
 }) {
   return (
     <div className="text-center py-12">
@@ -2795,6 +2893,14 @@ function StepSuccess({
           ? "The appointment has been saved and confirmed in the CRM workspace."
           : "We can't wait to care for you. Our CRM team will contact you shortly to confirm your payment and finalize your appointment."}
       </p>
+
+      {mode === "public" && staffPreferenceNeedsConfirmation ? (
+        <div className="mx-auto mb-6 max-w-md rounded-xl border border-amber-300/35 bg-amber-300/10 px-5 py-4 text-left">
+          <p className="text-[13px] leading-6 text-[#F6EBD6]">
+            Your booking has been received. Our team will confirm your selected staff preference.
+          </p>
+        </div>
+      ) : null}
 
       {mode === "public" && (
         <div

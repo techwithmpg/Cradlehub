@@ -12,6 +12,8 @@ export type WorkQueueActionInput = {
   dispatchWarning?: string | null;
   needsLocationReview?: boolean;
   noDriverWarning?: boolean;
+  needsStaffScheduleReview?: boolean;
+  staffScheduleExceptionLabel?: string | null;
 };
 
 export type WorkQueueNextAction = {
@@ -33,6 +35,19 @@ function needsPaymentFollowUp(paymentStatus?: string | null): boolean {
 }
 
 export function getWorkQueueNextAction(input: WorkQueueActionInput): WorkQueueNextAction {
+  if (input.needsStaffScheduleReview) {
+    return {
+      category: "exception",
+      instruction: "Review the customer-selected staff preference.",
+      detail: input.staffScheduleExceptionLabel
+        ? `${input.staffScheduleExceptionLabel}. Keep the preference, reassign staff, or adjust the booking time.`
+        : "The selected staff preference needs an operational schedule review.",
+      primaryKind: "booking",
+      primaryLabel: "Review booking",
+      priority: 98,
+    };
+  }
+
   if (input.needsLocationReview || input.dispatchWarning) {
     return {
       category: "exception",

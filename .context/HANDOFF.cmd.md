@@ -832,3 +832,28 @@ Still open:
   Attendance operational dataset during this task window. `pg_stat_statements`
   proves the deletes, but does not retain actor/timestamp, and this checkout has
   no reset backup.
+
+## Handoff - ONLINE-STAFF-PREFERENCE-EXCEPTIONS-001
+
+Done:
+- Public booking defaults/resets to Any available and never derives the form
+  value from the recommended provider.
+- Manual preferences are hard-validated for tenant/branch/provider/service
+  eligibility, then soft-evaluated for schedule, leave/block, overlap, override,
+  and full buffered duration.
+- Soft exceptions preserve normal booking creation and selected `staff_id`, use
+  metadata plus idempotent notification/task signals, and show safe customer
+  confirmation wording.
+- CRM Today, booking list/details, notifications, and work queue show amber
+  review state with resolution actions wired to existing workflows.
+- No database/RLS change.
+
+Verified:
+- Focused 7 files / 25 tests, full 108 files / 780 tests, type-check, lint,
+  build, and diff check.
+- Public browser flow confirmed default/recommendation/manual-preference state.
+
+Still open:
+- Run authenticated CRM browser QA for Today/list/details and Keep/Reassign/
+  Reschedule/Mark-resolved clicks using a safe test booking. The local browser
+  session redirects CRM routes to `/login`.
