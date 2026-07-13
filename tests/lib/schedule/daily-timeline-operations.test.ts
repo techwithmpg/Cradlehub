@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import {
   filterTimelineRows,
+  getScheduleDisplayLabel,
+  getScheduleDisplayState,
   getShiftGroup,
   getStaffGroupKey,
   getTimelineStatus,
@@ -43,6 +45,15 @@ describe("Daily Timeline operations model", () => {
     expect(getShiftGroup(row({ schedule_is_day_off: true, schedule_windows: [] }))).toBe("off");
   });
 
+  it("keeps no schedule, configured day off, and needs review as distinct display states", () => {
+    expect(getScheduleDisplayState(row({ schedule_status: "missing", schedule_source: "none", schedule_windows: [] }))).toBe("not_configured");
+    expect(getScheduleDisplayLabel(row({ schedule_status: "missing", schedule_source: "none", schedule_windows: [] }))).toBe("Not Configured");
+    expect(getScheduleDisplayState(row({ schedule_status: "day_off", schedule_is_day_off: true, schedule_windows: [] }))).toBe("day_off");
+    expect(getScheduleDisplayLabel(row({ schedule_status: "day_off", schedule_is_day_off: true, schedule_windows: [] }))).toBe("Day Off");
+    expect(getScheduleDisplayState(row({ schedule_status: "conflict", schedule_windows: [] }))).toBe("needs_review");
+    expect(getScheduleDisplayLabel(row({ schedule_status: "conflict", schedule_windows: [] }))).toBe("Needs Review");
+  });
+
   it("filters by staff group, name, and shift without changing source rows", () => {
     const rows = [row(), row({ staff_id: "staff-2", staff_name: "Melrose Delina" })];
     const result = filterTimelineRows({
@@ -54,6 +65,29 @@ describe("Daily Timeline operations model", () => {
     });
     expect(result.map((item) => item.staff_id)).toEqual(["staff-1"]);
     expect(rows).toHaveLength(2);
+  });
+
+  it("filters split-shift rows by any matching window", () => {
+    const rows = [
+      row({
+        staff_id: "staff-1",
+        schedule_windows: [
+          { shiftType: "opening", startTime: "06:00:00", endTime: "10:00:00" },
+          { shiftType: "single", startTime: "14:00:00", endTime: "18:00:00" },
+        ],
+      }),
+      row({ staff_id: "staff-2", schedule_windows: [{ shiftType: "closing", startTime: "15:00:00", endTime: "23:00:00" }] }),
+    ];
+
+    const result = filterTimelineRows({
+      rows,
+      staffTypeById: new Map([["staff-1", "therapist"], ["staff-2", "therapist"]]),
+      group: "therapist",
+      filters: { query: "", shift: "regular", status: "all" },
+      date: "2026-06-17",
+    });
+
+    expect(result.map((item) => item.staff_id)).toEqual(["staff-1"]);
   });
 
   it("derives live available and busy states from schedule, bookings, and blocks", () => {
@@ -77,15 +111,23 @@ describe("Daily Timeline operations model", () => {
     ).toBe("available");
   });
 
-  it("detects staff and room conflicts while retaining travel and missing-room signals", () => {
+  it("detects staff and room conflicts while retaining travel and explicit missing-room signals", () => {
     const bookings = [
       { id: "a", start_time: "10:00:00", end_time: "11:00:00", service: "Massage", customer: "A", status: "confirmed", type: "online", resource_id: "room-1", resource_name: "Room 1" },
       { id: "b", start_time: "10:30:00", end_time: "11:30:00", service: "Facial", customer: "B", status: "confirmed", type: "online", resource_id: "room-1", resource_name: "Room 1" },
       { id: "c", start_time: "13:00:00", end_time: "14:00:00", service: "Home Massage", customer: "C", status: "confirmed", type: "home_service", resource_id: null, resource_name: null },
-      { id: "d", start_time: "15:00:00", end_time: "16:00:00", service: "Massage", customer: "D", status: "confirmed", type: "walkin", resource_id: null, resource_name: null },
+      { id: "d", start_time: "15:00:00", end_time: "16:00:00", service: "Massage", service_metadata: { requires_room: true }, customer: "D", status: "confirmed", type: "walkin", resource_id: null, resource_name: null },
     ];
     const alerts = buildDailyTimelineAlerts([row({ bookings })]);
     expect(alerts.map((alert) => alert.type)).toEqual(expect.arrayContaining(["staff_conflict", "resource_conflict", "travel", "missing_resource"]));
+  });
+
+  it("does not flag missing room when the service has no explicit resource requirement", () => {
+    const bookings = [
+      { id: "d", start_time: "15:00:00", end_time: "16:00:00", service: "Massage", service_metadata: {}, customer: "D", status: "confirmed", type: "walkin", resource_id: null, resource_name: null },
+    ];
+
+    expect(buildDailyTimelineAlerts([row({ bookings })])).toHaveLength(0);
   });
 
   it("ignores cancelled bookings when calculating conflicts", () => {

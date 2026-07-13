@@ -14,6 +14,17 @@ import {
   buildAttendanceShiftInstance,
   getAttendanceBranchNow,
 } from "@/lib/attendance/shift-instance";
+import {
+  attendanceExceptionMetadata,
+  toAttendanceDbExceptionType,
+} from "@/lib/attendance/exception-codes";
+import {
+  classifyAttendanceDbError,
+  createAttendanceScanError,
+  normalizeAttendanceOperationId,
+  type AttendanceSafeErrorCode,
+  type AttendanceErrorLike,
+} from "@/lib/attendance/scan-errors";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
 import {
@@ -25,6 +36,7 @@ import {
   type OpenAttendanceIntentCheckin,
 } from "@/lib/attendance/attendance-intent-engine";
 import type { PublicScanResult, QrScanOutcome, QrScanType } from "@/lib/attendance/types";
+import type { Database, Json } from "@/types/supabase";
 
 export type ScanRequestContext = {
   requestId?: string | null;
@@ -63,12 +75,14 @@ type StaffDeviceRow = {
     branch_id: string | null;
     full_name: string | null;
     staff_type: string | null;
+    system_role: string | null;
     is_active: boolean;
     branches?: { name: string | null } | Array<{ name: string | null }> | null;
   } | Array<{
     branch_id: string | null;
     full_name: string | null;
     staff_type: string | null;
+    system_role: string | null;
     is_active: boolean;
     branches?: { name: string | null } | Array<{ name: string | null }> | null;
   }> | null;
@@ -79,6 +93,7 @@ type AuthenticatedStaffRow = {
   branch_id: string;
   full_name: string | null;
   staff_type: string | null;
+  system_role: string | null;
   is_active: boolean;
   branches?: { name: string | null } | Array<{ name: string | null }> | null;
 };
@@ -159,12 +174,57 @@ type EventInput = {
   isTest?: boolean;
 };
 
+type StaffShiftCheckinInsertPayload = Partial<
+  Pick<
+    Database["public"]["Tables"]["staff_shift_checkins"]["Insert"],
+    | "shift_date"
+    | "shift_type"
+    | "shift_instance_key"
+    | "checked_in_at"
+    | "status"
+    | "clock_in_method"
+    | "scheduled_start_at"
+    | "scheduled_end_at"
+    | "schedule_source"
+    | "schedule_source_id"
+    | "branch_timezone"
+    | "attendance_business_date"
+    | "late_minutes"
+    | "attendance_status"
+    | "exception_state"
+    | "is_test"
+  >
+> & {
+  shift_date: string;
+};
+
+type StaffShiftCheckinUpdatePayload = Partial<
+  Pick<
+    Database["public"]["Tables"]["staff_shift_checkins"]["Update"],
+    | "shift_instance_key"
+    | "schedule_source"
+    | "schedule_source_id"
+    | "branch_timezone"
+    | "attendance_business_date"
+    | "checked_out_at"
+    | "status"
+    | "clock_out_method"
+    | "worked_minutes"
+    | "late_minutes"
+    | "early_leave_minutes"
+    | "overtime_minutes"
+    | "attendance_status"
+    | "exception_state"
+    | "notes"
+  >
+>;
+
 type AttendanceScanCommitInput = {
   event: EventInput;
   result: PublicScanResult;
   checkinId?: string | null;
-  checkinInsert?: Record<string, unknown> | null;
-  checkinUpdate?: Record<string, unknown> | null;
+  checkinInsert?: StaffShiftCheckinInsertPayload | null;
+  checkinUpdate?: StaffShiftCheckinUpdatePayload | null;
   exception?: {
     exceptionType: string;
     severity?: "info" | "warning" | "critical";
@@ -177,15 +237,8 @@ type AttendanceScanCommitInput = {
   deviceScanType?: "attendance" | "service" | null;
 };
 
-type AttendanceScanCommitRow = {
-  success?: boolean;
-  code?: string | null;
-  scan_event_id?: string | null;
-  checkin_id?: string | null;
-  recovery_issue_id?: string | null;
-  operation_result?: unknown;
-  message?: string | null;
-};
+type AttendanceScanCommitRow =
+  Database["public"]["Functions"]["commit_attendance_scan_transaction"]["Returns"][number];
 
 function isPublicScanResult(value: unknown): value is PublicScanResult {
   if (!value || typeof value !== "object") return false;
@@ -198,6 +251,65 @@ function isPublicScanResult(value: unknown): value is PublicScanResult {
   );
 }
 
+function toJson(value: unknown): Json {
+  return value as Json;
+}
+
+function withOperationId(result: PublicScanResult, operationId: string): PublicScanResult {
+  return {
+    ...result,
+    operationId: result.operationId ?? operationId,
+  };
+}
+
+function throwAttendanceDataError(params: {
+  error: AttendanceErrorLike;
+  fallback: AttendanceSafeErrorCode;
+  stage: string;
+  operationId?: string | null;
+}): never {
+  const code = classifyAttendanceDbError(params.error, params.fallback);
+  throw createAttendanceScanError(code, params.error.message ?? undefined, {
+    operationId: params.operationId ?? undefined,
+    dbCode: params.error.code ?? null,
+    details: { stage: params.stage },
+    cause: params.error,
+  });
+}
+
+function rpcRejectionCode(code: string | null | undefined): AttendanceSafeErrorCode {
+  switch (code) {
+    case "checkin_required":
+    case "checkin_not_open":
+    case "invalid_checkin_insert":
+    case "invalid_request":
+    case "invalid_scan_type":
+    case "invalid_outcome":
+      return "ATTENDANCE_RPC_REJECTED";
+    case "already_checked_in":
+    case "already_checked_out":
+      return "DUPLICATE_SCAN";
+    default:
+      return "ATTENDANCE_RPC_REJECTED";
+  }
+}
+
+function buildExceptionDedupeKey(params: {
+  input: NonNullable<AttendanceScanCommitInput["exception"]>;
+  event: EventInput;
+  checkinId?: string | null;
+}): string {
+  return (
+    params.input.dedupeKey ??
+    [
+      params.event.staffId ?? "unknown_staff",
+      params.checkinId ?? params.event.checkinId ?? "no_checkin",
+      params.input.exceptionType,
+      params.event.isTest ? "test" : "live",
+    ].join("|")
+  );
+}
+
 async function commitAttendanceScanTransaction(
   admin: AttendanceDb,
   input: AttendanceScanCommitInput
@@ -207,52 +319,114 @@ async function commitAttendanceScanTransaction(
   checkinId?: string;
   recoveryIssueId?: string;
 }> {
+  const operationId = normalizeAttendanceOperationId(input.event.requestId);
+  if (
+    !input.event.branchId ||
+    !input.event.qrPointId ||
+    !input.event.staffId ||
+    !input.event.deviceId
+  ) {
+    throw createAttendanceScanError(
+      "ATTENDANCE_TRANSACTION_FAILED",
+      "Attendance scan transaction is missing required identity fields.",
+      {
+        operationId,
+        details: {
+          hasBranchId: Boolean(input.event.branchId),
+          hasQrPointId: Boolean(input.event.qrPointId),
+          hasStaffId: Boolean(input.event.staffId),
+          hasDeviceId: Boolean(input.event.deviceId),
+        },
+      }
+    );
+  }
+
+  const publicResult = withOperationId(input.result, operationId);
+  const exception = input.exception
+    ? {
+        internalType: input.exception.exceptionType,
+        dbType: toAttendanceDbExceptionType(input.exception.exceptionType),
+        metadata: attendanceExceptionMetadata({
+          internalType: input.exception.exceptionType,
+          metadata: input.exception.metadata,
+        }),
+        dedupeKey: buildExceptionDedupeKey({
+          input: input.exception,
+          event: input.event,
+          checkinId: input.checkinId,
+        }),
+      }
+    : null;
+
+  const rpcArgs: Database["public"]["Functions"]["commit_attendance_scan_transaction"]["Args"] = {
+    p_request_id: operationId,
+    p_branch_id: input.event.branchId,
+    p_qr_point_id: input.event.qrPointId,
+    p_staff_id: input.event.staffId,
+    p_device_id: input.event.deviceId,
+    p_scan_type: input.event.scanType,
+    p_action: input.event.action,
+    p_outcome: input.event.outcome,
+    p_reason_code: input.event.reasonCode ?? undefined,
+    p_message: input.event.message ?? undefined,
+    p_user_agent: input.event.userAgent ?? undefined,
+    p_ip_address: input.event.ipAddress ?? undefined,
+    p_metadata: toJson({
+      ...(input.event.metadata ?? {}),
+      operationId,
+    }),
+    p_is_test: input.event.isTest ?? false,
+    p_public_result: toJson(publicResult),
+    p_checkin_id: input.checkinId ?? input.event.checkinId ?? undefined,
+    p_checkin_insert: input.checkinInsert ? toJson(input.checkinInsert) : undefined,
+    p_checkin_update: input.checkinUpdate ? toJson(input.checkinUpdate) : undefined,
+    p_exception: exception
+      ? toJson({
+          exception_type: exception.dbType,
+          severity: input.exception!.severity ?? "warning",
+          message: input.exception!.message,
+          metadata: exception.metadata,
+          dedupe_key: exception.dedupeKey,
+          recommended_action: input.exception!.recommendedAction ?? null,
+          priority: input.exception!.priority ?? "normal",
+        })
+      : undefined,
+    p_device_scan_type: input.deviceScanType ?? undefined,
+  };
+
   const { data, error } = await admin
-    .rpc("commit_attendance_scan_transaction", {
-      p_request_id: input.event.requestId || null,
-      p_branch_id: input.event.branchId ?? null,
-      p_qr_point_id: input.event.qrPointId ?? null,
-      p_staff_id: input.event.staffId ?? null,
-      p_device_id: input.event.deviceId ?? null,
-      p_scan_type: input.event.scanType,
-      p_action: input.event.action,
-      p_outcome: input.event.outcome,
-      p_reason_code: input.event.reasonCode ?? null,
-      p_message: input.event.message ?? null,
-      p_user_agent: input.event.userAgent ?? null,
-      p_ip_address: input.event.ipAddress ?? null,
-      p_metadata: input.event.metadata ?? {},
-      p_is_test: input.event.isTest ?? false,
-      p_public_result: input.result,
-      p_checkin_id: input.checkinId ?? input.event.checkinId ?? null,
-      p_checkin_insert: input.checkinInsert ?? null,
-      p_checkin_update: input.checkinUpdate ?? null,
-      p_exception: input.exception
-        ? {
-            exception_type: input.exception.exceptionType,
-            severity: input.exception.severity ?? "warning",
-            message: input.exception.message,
-            metadata: input.exception.metadata ?? {},
-            dedupe_key: input.exception.dedupeKey ?? null,
-            recommended_action: input.exception.recommendedAction ?? null,
-            priority: input.exception.priority ?? "normal",
-          }
-        : null,
-      p_device_scan_type: input.deviceScanType ?? null,
-    })
+    .rpc("commit_attendance_scan_transaction", rpcArgs)
     .maybeSingle();
 
-  if (error) throw new Error(`Attendance scan transaction failed: ${error.message}`);
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "commit_attendance_scan_transaction",
+      operationId,
+    });
+  }
 
   const row = data as AttendanceScanCommitRow | null;
   if (!row?.success) {
-    throw new Error(row?.message ?? "Attendance scan transaction was rejected.");
+    throw createAttendanceScanError(
+      rpcRejectionCode(row?.code),
+      row?.message ?? "Attendance scan transaction was rejected.",
+      {
+        operationId,
+        details: {
+          rpcCode: row?.code ?? null,
+          scanEventId: row?.scan_event_id ?? null,
+          checkinId: row?.checkin_id ?? null,
+        },
+      }
+    );
   }
 
   const committedResult = isPublicScanResult(row.operation_result)
-    ? row.operation_result
+    ? withOperationId(row.operation_result, operationId)
     : {
-        ...input.result,
+        ...publicResult,
         scanEventId: row.scan_event_id ?? input.result.scanEventId,
       };
 
@@ -269,16 +443,27 @@ async function loadCommittedScanResult(
   requestId: string | null | undefined
 ): Promise<PublicScanResult | null> {
   if (!requestId) return null;
-  const { data } = await admin
+  const { data, error } = await admin
     .from("qr_scan_events")
     .select("id, operation_result, metadata")
     .eq("request_id", requestId)
     .maybeSingle();
 
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "load_committed_scan_result",
+      operationId: requestId,
+    });
+  }
+
   const row = data as { id?: string; operation_result?: unknown; metadata?: unknown } | null;
-  if (isPublicScanResult(row?.operation_result)) return row.operation_result;
+  if (isPublicScanResult(row?.operation_result)) return withOperationId(row.operation_result, requestId);
   const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
-  return isPublicScanResult(metadata.committedResult) ? metadata.committedResult : null;
+  return isPublicScanResult(metadata.committedResult)
+    ? withOperationId(metadata.committedResult, requestId)
+    : null;
 }
 
 async function persistCommittedScanResult(params: {
@@ -288,14 +473,22 @@ async function persistCommittedScanResult(params: {
 }) {
   if (!params.requestId) return;
   const completedAt = new Date().toISOString();
-  await params.admin
+  const { error } = await params.admin
     .from("qr_scan_events")
     .update({
       operation_id: params.requestId,
-      operation_result: params.result,
+      operation_result: withOperationId(params.result, params.requestId),
       operation_result_recorded_at: completedAt,
     })
     .eq("request_id", params.requestId);
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "persist_committed_scan_result",
+      operationId: params.requestId,
+    });
+  }
 }
 
 function testModeMetadata(settings: {
@@ -356,7 +549,11 @@ function appendRequestId(requestId: string | null | undefined, suffix: string): 
 }
 
 async function recordScanEvent(admin: AttendanceDb, input: EventInput): Promise<string | null> {
-  const payload = {
+  const operationId = input.requestId || null;
+  const metadata = input.isTest
+    ? { ...(input.metadata ?? {}), isTest: true }
+    : input.metadata ?? {};
+  const payload: Database["public"]["Tables"]["qr_scan_events"]["Insert"] = {
     branch_id: input.branchId ?? null,
     qr_point_id: input.qrPointId ?? null,
     staff_id: input.staffId ?? null,
@@ -372,11 +569,9 @@ async function recordScanEvent(admin: AttendanceDb, input: EventInput): Promise<
     request_id: input.requestId || null,
     user_agent: input.userAgent ?? null,
     ip_address: parseIp(input.ipAddress),
-    metadata: input.isTest
-      ? { ...(input.metadata ?? {}), isTest: true }
-      : input.metadata ?? {},
+    metadata: toJson(metadata),
     is_test: input.isTest ?? false,
-    operation_id: input.requestId || null,
+    operation_id: operationId,
   };
 
   const inserted = await admin.from("qr_scan_events").insert(payload).select("id").maybeSingle();
@@ -388,6 +583,14 @@ async function recordScanEvent(admin: AttendanceDb, input: EventInput): Promise<
       .select("id")
       .eq("request_id", input.requestId)
       .maybeSingle();
+    if (existing.error) {
+      throwAttendanceDataError({
+        error: existing.error,
+        fallback: "ATTENDANCE_WRITE_FAILED",
+        stage: "record_scan_event_lookup_duplicate",
+        operationId,
+      });
+    }
     return existing.data?.id ?? null;
   }
 
@@ -397,10 +600,21 @@ async function recordScanEvent(admin: AttendanceDb, input: EventInput): Promise<
       .insert({ ...payload, ip_address: null })
       .select("id")
       .maybeSingle();
-    return retry.data?.id ?? null;
+    if (!retry.error) return retry.data?.id ?? null;
+    throwAttendanceDataError({
+      error: retry.error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "record_scan_event_retry_without_ip",
+      operationId,
+    });
   }
 
-  return null;
+  throwAttendanceDataError({
+    error: inserted.error,
+    fallback: "ATTENDANCE_WRITE_FAILED",
+    stage: "record_scan_event",
+    operationId,
+  });
 }
 
 async function recordException(admin: AttendanceDb, input: {
@@ -418,6 +632,7 @@ async function recordException(admin: AttendanceDb, input: {
   isTest?: boolean;
 }): Promise<string | null> {
   const nowIso = new Date().toISOString();
+  const dbExceptionType = toAttendanceDbExceptionType(input.exceptionType);
   const dedupeKey =
     input.dedupeKey ??
     [
@@ -426,10 +641,13 @@ async function recordException(admin: AttendanceDb, input: {
       input.exceptionType,
       input.isTest ? "test" : "live",
     ].join("|");
-  const metadata = {
-    ...(input.metadata ?? {}),
-    dedupeKey,
-  };
+  const metadata = attendanceExceptionMetadata({
+    internalType: input.exceptionType,
+    metadata: {
+      ...(input.metadata ?? {}),
+      dedupeKey,
+    },
+  });
 
   const existing = await admin
     .from("attendance_exceptions")
@@ -439,6 +657,14 @@ async function recordException(admin: AttendanceDb, input: {
     .eq("status", "open")
     .eq("dedupe_key", dedupeKey)
     .maybeSingle();
+
+  if (existing.error) {
+    throwAttendanceDataError({
+      error: existing.error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "record_exception_lookup",
+    });
+  }
 
   if (existing.data?.id) {
     const row = existing.data as {
@@ -454,14 +680,14 @@ async function recordException(admin: AttendanceDb, input: {
     const relatedCheckinIds = new Set(row.related_checkin_ids ?? []);
     if (input.checkinId) relatedCheckinIds.add(input.checkinId);
 
-    await admin
+    const updated = await admin
       .from("attendance_exceptions")
       .update({
         scan_event_id: input.scanEventId ?? null,
         latest_scan_event_id: input.scanEventId ?? null,
         severity: input.severity ?? "warning",
         message: input.message,
-        metadata: { ...priorMetadata, ...metadata },
+        metadata: toJson({ ...priorMetadata, ...metadata }),
         occurrence_count: Math.max(1, row.occurrence_count ?? 1) + 1,
         last_detected_at: nowIso,
         detected_at: nowIso,
@@ -471,6 +697,13 @@ async function recordException(admin: AttendanceDb, input: {
       })
       .eq("id", row.id)
       .eq("branch_id", input.branchId);
+    if (updated.error) {
+      throwAttendanceDataError({
+        error: updated.error,
+        fallback: "ATTENDANCE_WRITE_FAILED",
+        stage: "record_exception_update",
+      });
+    }
     return row.id;
   }
 
@@ -480,10 +713,10 @@ async function recordException(admin: AttendanceDb, input: {
     checkin_id: input.checkinId ?? null,
     scan_event_id: input.scanEventId ?? null,
     latest_scan_event_id: input.scanEventId ?? null,
-    exception_type: input.exceptionType,
+    exception_type: dbExceptionType,
     severity: input.severity ?? "warning",
     message: input.message,
-    metadata,
+    metadata: toJson(metadata),
     dedupe_key: dedupeKey,
     occurrence_count: 1,
     first_detected_at: nowIso,
@@ -494,16 +727,32 @@ async function recordException(admin: AttendanceDb, input: {
     is_test: input.isTest ?? false,
   }).select("id").maybeSingle();
 
+  if (inserted.error) {
+    throwAttendanceDataError({
+      error: inserted.error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "record_exception_insert",
+    });
+  }
+
   return (inserted.data as { id?: string } | null)?.id ?? null;
 }
 
 async function resolveDevice(admin: AttendanceDb, rawCredential: string | null | undefined): Promise<StaffDeviceRow | null> {
   if (!rawCredential) return null;
-  const { data } = await admin
+  const { data, error } = await admin
     .from("staff_devices")
-    .select("id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, staff_type, is_active, branches(name))")
+    .select("id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, staff_type, system_role, is_active, branches(name))")
     .eq("device_fingerprint_hash", hashSecret(rawCredential))
     .maybeSingle();
+
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "resolve_device",
+    });
+  }
 
   return (data as StaffDeviceRow | null) ?? null;
 }
@@ -519,7 +768,14 @@ async function markDeviceScanSuccess(admin: AttendanceDb, params: {
       ? { last_seen_at: scannedAt, last_attendance_scan_at: scannedAt }
       : { last_seen_at: scannedAt, last_service_scan_at: scannedAt };
 
-  await admin.from("staff_devices").update(update).eq("id", params.deviceId);
+  const { error } = await admin.from("staff_devices").update(update).eq("id", params.deviceId);
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "mark_device_scan_success",
+    });
+  }
 }
 
 async function syncDeviceBranchToQrBranch(
@@ -529,19 +785,34 @@ async function syncDeviceBranchToQrBranch(
 ) {
   if (device.branch_id === point.branch_id) return;
 
-  await admin
+  const { error } = await admin
     .from("staff_devices")
     .update({ branch_id: point.branch_id })
     .eq("id", device.id);
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "sync_device_branch",
+    });
+  }
   device.branch_id = point.branch_id;
 }
 
 async function loadQrPoint(admin: AttendanceDb, publicCode: string): Promise<QrPointRow | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("qr_points")
     .select("id, branch_id, public_code, point_type, resource_id, label, is_active, requires_registered_device, scan_behavior, branch_resources(name, type), branches(name)")
     .eq("public_code", publicCode)
     .maybeSingle();
+
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "load_qr_point",
+    });
+  }
 
   return (data as QrPointRow | null) ?? null;
 }
@@ -559,7 +830,13 @@ async function loadPendingBranchCorrectionRequest(
     .eq("status", "pending")
     .maybeSingle();
 
-  if (error) return null;
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "load_pending_branch_correction_request",
+    });
+  }
   return (data as { id: string; created_at: string } | null) ?? null;
 }
 
@@ -723,7 +1000,7 @@ export async function registerDeviceForAuthenticatedScan(
 
   const staffResult = await admin
     .from("staff")
-    .select("id, branch_id, full_name, staff_type, is_active, branches(name)")
+    .select("id, branch_id, full_name, staff_type, system_role, is_active, branches(name)")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
@@ -1054,7 +1331,7 @@ async function findRecentDuplicate(admin: AttendanceDb, params: {
   isTest: boolean;
 }): Promise<boolean> {
   const cutoff = new Date(Date.now() - params.seconds * 1000).toISOString();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("qr_scan_events")
     .select("id")
     .eq("qr_point_id", params.pointId)
@@ -1064,6 +1341,14 @@ async function findRecentDuplicate(admin: AttendanceDb, params: {
     .gte("created_at", cutoff)
     .limit(1);
 
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "find_recent_duplicate",
+    });
+  }
+
   return (data?.length ?? 0) > 0;
 }
 
@@ -1072,7 +1357,7 @@ async function getOpenCheckins(admin: AttendanceDb, params: {
   branchId: string;
   isTest: boolean;
 }): Promise<CheckinRow[]> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("staff_shift_checkins")
     .select("id, staff_id, branch_id, shift_date, shift_type, shift_instance_key, checked_in_at, checked_out_at, status, scheduled_start_at, scheduled_end_at, schedule_source, schedule_source_id, branch_timezone, attendance_business_date, is_test")
     .eq("staff_id", params.staffId)
@@ -1082,6 +1367,14 @@ async function getOpenCheckins(admin: AttendanceDb, params: {
     .is("checked_out_at", null)
     .order("checked_in_at", { ascending: false })
     .limit(10);
+
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "get_open_checkins",
+    });
+  }
 
   return (data as CheckinRow[] | null) ?? [];
 }
@@ -1122,14 +1415,23 @@ async function recordOpenCheckinRecoveryIssues(params: {
   issueType: "stale_open_checkin" | "conflicting_open_checkin";
 }) {
   for (const checkin of params.checkins) {
+    const dbExceptionType = toAttendanceDbExceptionType(params.issueType);
     const existing = await params.admin
       .from("attendance_exceptions")
       .select("id, occurrence_count, related_checkin_ids")
       .eq("branch_id", params.branchId)
       .eq("checkin_id", checkin.id)
-      .eq("exception_type", params.issueType)
+      .eq("exception_type", dbExceptionType)
       .eq("status", "open")
       .maybeSingle();
+
+    if (existing.error) {
+      throwAttendanceDataError({
+        error: existing.error,
+        fallback: "ATTENDANCE_WRITE_FAILED",
+        stage: "record_open_checkin_recovery_lookup",
+      });
+    }
 
     const message =
       params.issueType === "stale_open_checkin"
@@ -1147,6 +1449,10 @@ async function recordOpenCheckinRecoveryIssues(params: {
       },
       scannedAt: params.scannedAt,
     };
+    const exceptionMetadata = attendanceExceptionMetadata({
+      internalType: params.issueType,
+      metadata: payload,
+    });
 
     if (existing.data?.id) {
       const existingRow = existing.data as {
@@ -1156,12 +1462,12 @@ async function recordOpenCheckinRecoveryIssues(params: {
       };
       const relatedCheckinIds = new Set(existingRow.related_checkin_ids ?? []);
       relatedCheckinIds.add(checkin.id);
-      await params.admin
+      const updated = await params.admin
         .from("attendance_exceptions")
         .update({
           severity: params.issueType === "stale_open_checkin" ? "warning" : "critical",
           message,
-          metadata: payload,
+          metadata: toJson(exceptionMetadata),
           detected_at: params.scannedAt,
           last_detected_at: params.scannedAt,
           occurrence_count: Math.max(1, existingRow.occurrence_count ?? 1) + 1,
@@ -1173,6 +1479,13 @@ async function recordOpenCheckinRecoveryIssues(params: {
         })
         .eq("id", existingRow.id)
         .eq("branch_id", params.branchId);
+      if (updated.error) {
+        throwAttendanceDataError({
+          error: updated.error,
+          fallback: "ATTENDANCE_WRITE_FAILED",
+          stage: "record_open_checkin_recovery_update",
+        });
+      }
     } else {
       await recordException(params.admin, {
         branchId: params.branchId,
@@ -1200,7 +1513,7 @@ async function hasActiveService(admin: AttendanceDb, params: {
   staffId: string;
   branchId: string;
 }): Promise<BookingRow | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("bookings")
     .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources(name)")
     .eq("staff_id", params.staffId)
@@ -1212,6 +1525,14 @@ async function hasActiveService(admin: AttendanceDb, params: {
     .limit(1)
     .maybeSingle();
 
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "has_active_service",
+    });
+  }
+
   return (data as BookingRow | null) ?? null;
 }
 
@@ -1219,21 +1540,46 @@ async function selectScheduleWindow(admin: AttendanceDb, params: {
   branchId: string;
   staffId: string;
   staffType: string | null;
+  systemRole: string | null;
   scheduleDate: string;
   scanDate: string;
   branchTime: string;
   timezone: string;
 }): Promise<ScheduleSelection> {
-  const schedules = await getResolvedStaffSchedulesForDate({
-    supabase: admin as never,
-    branchId: params.branchId,
-    date: params.scheduleDate,
-    staff: [{ id: params.staffId, staff_type: params.staffType }],
-  });
+  let schedules: Map<string, ResolvedStaffSchedule>;
+  try {
+    schedules = await getResolvedStaffSchedulesForDate({
+      supabase: admin as never,
+      branchId: params.branchId,
+      date: params.scheduleDate,
+      staff: [
+        {
+          id: params.staffId,
+          staff_type: params.staffType,
+          system_role: params.systemRole,
+        },
+      ],
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Schedule query failed.";
+    const code = message.toLowerCase().includes("schema cache") ||
+      message.toLowerCase().includes("column")
+      ? "SCHEDULE_SCHEMA_MISMATCH"
+      : "SCHEDULE_QUERY_FAILED";
+    throw createAttendanceScanError(code, message, {
+      details: {
+        stage: "select_schedule_window",
+        staffId: params.staffId,
+        scheduleDate: params.scheduleDate,
+      },
+      cause: error,
+    });
+  }
 
   const resolvedSchedule = schedules.get(params.staffId) ?? {
     source: "none",
     status: "missing",
+    state: "NO_SCHEDULE_CONFIGURED",
     isWorking: false,
     isDayOff: false,
     windows: [],
@@ -1375,6 +1721,7 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
     branchId: point.branch_id,
     staffId: device.staff_id,
     staffType: staff?.staff_type ?? null,
+    systemRole: staff?.system_role ?? null,
     scheduleDate: branchNow.businessDate,
     scanDate: branchNow.localDate,
     branchTime: branchNow.time,
@@ -1608,6 +1955,15 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
           .eq("shift_type", attendanceSchedule.shiftType)
   ).maybeSingle();
 
+  if (existingForShift.error) {
+    throwAttendanceDataError({
+      error: existingForShift.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "existing_for_shift_lookup",
+      operationId: ctx.requestId,
+    });
+  }
+
   if (existingForShift.data?.status === "checked_in") {
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
@@ -1764,7 +2120,7 @@ async function findEligibleBooking(admin: AttendanceDb, params: {
   date: string;
   nowMinutes: number;
 }): Promise<BookingRow | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("bookings")
     .select("id, branch_id, staff_id, booking_date, start_time, end_time, status, booking_progress_status, resource_id, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot, customers(full_name), services(name, duration_minutes), branch_resources(name)")
     .eq("branch_id", params.branchId)
@@ -1775,7 +2131,15 @@ async function findEligibleBooking(admin: AttendanceDb, params: {
     .in("booking_progress_status", ["not_started", "checked_in", "session_started"])
     .order("start_time");
 
-  const candidates = ((data as BookingRow[] | null) ?? []).filter((booking) => {
+  if (error) {
+    throwAttendanceDataError({
+      error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "find_eligible_booking",
+    });
+  }
+
+  const candidates = ((data as unknown as BookingRow[] | null) ?? []).filter((booking) => {
     const [startHour = "0", startMinute = "0"] = booking.start_time.slice(0, 5).split(":");
     const [endHour = "0", endMinute = "0"] = booking.end_time.slice(0, 5).split(":");
     const start = Number(startHour) * 60 + Number(startMinute);
@@ -1976,6 +2340,15 @@ async function processRoomScan(admin: AttendanceDb, point: QrPointRow, device: S
     .is("session_completed_at", null)
     .limit(1)
     .maybeSingle();
+
+  if (occupied.error) {
+    throwAttendanceDataError({
+      error: occupied.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "room_occupied_lookup",
+      operationId: ctx.requestId,
+    });
+  }
 
   if (occupied.data) {
     const eventId = await recordScanEvent(admin, {
@@ -2349,10 +2722,18 @@ async function processQrScanFresh(
     });
   }
 
-  await admin
+  const seenUpdate = await admin
     .from("staff_devices")
     .update({ last_seen_at: new Date().toISOString() })
     .eq("id", device.id);
+  if (seenUpdate.error) {
+    throwAttendanceDataError({
+      error: seenUpdate.error,
+      fallback: "ATTENDANCE_WRITE_FAILED",
+      stage: "device_last_seen_update",
+      operationId: ctx.requestId,
+    });
+  }
 
   if (point.point_type === "attendance") {
     return processAttendanceScan(admin, point, device, ctx);
@@ -2363,16 +2744,18 @@ async function processQrScanFresh(
 
 export async function processQrScan(publicCode: string, ctx: ScanRequestContext): Promise<PublicScanResult> {
   const admin = asAttendanceDb(createAdminClient());
-  const replayed = await loadCommittedScanResult(admin, ctx.requestId);
+  const operationId = normalizeAttendanceOperationId(ctx.requestId);
+  const scanCtx: ScanRequestContext = { ...ctx, requestId: operationId };
+  const replayed = await loadCommittedScanResult(admin, operationId);
   if (replayed) return replayed;
 
-  const result = await processQrScanFresh(admin, publicCode, ctx);
+  const result = await processQrScanFresh(admin, publicCode, scanCtx);
   await persistCommittedScanResult({
     admin,
-    requestId: ctx.requestId,
-    result,
+    requestId: operationId,
+    result: withOperationId(result, operationId),
   });
-  return result;
+  return withOperationId(result, operationId);
 }
 
 export async function activateDeviceWithToken(token: string, ctx: ScanRequestContext): Promise<ActivationResult> {

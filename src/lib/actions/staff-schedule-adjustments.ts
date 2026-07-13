@@ -116,7 +116,7 @@ function revalidateScheduleSurfaces() {
   revalidatePath("/manager");
   revalidatePath("/crm");
   revalidatePath("/manager/staff-availability");
-  revalidatePath("/crm/staff-availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/staff-portal");
   revalidatePath("/staff-portal/schedule");
   revalidatePath("/book");

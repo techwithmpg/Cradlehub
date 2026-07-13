@@ -6,6 +6,7 @@ import { computeAttendanceMetrics } from "@/lib/attendance/time";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
 import type { AttendanceActionContext } from "@/lib/attendance/queries";
 import type { AttendanceSettings } from "@/lib/attendance/types";
+import type { Json } from "@/types/supabase";
 
 export type AttendanceCorrectionActionType =
   | "reclassify_scan"
@@ -19,6 +20,10 @@ export type AttendanceCorrectionActionType =
   | "update_attendance_rules"
   | "archive_test_data"
   | "revert_correction";
+
+function toJson(value: unknown): Json {
+  return value as Json;
+}
 
 export type ApplyAttendanceCorrectionInput = {
   branchId?: string | null;
@@ -179,8 +184,8 @@ async function insertCorrectionAudit(admin: AttendanceDb, params: {
     scan_event_ids: params.scanEventIds ?? [],
     correction_type: params.actionType,
     action_type: params.actionType,
-    previous_values: params.previousValues ?? {},
-    new_values: params.newValues ?? {},
+    previous_values: toJson(params.previousValues ?? {}),
+    new_values: toJson(params.newValues ?? {}),
     reason: params.reason,
     status: "applied",
     requested_by: params.ctx.actorStaffId,
@@ -401,6 +406,9 @@ async function resetAttendanceState(params: {
   }
   if (!params.input.confirmVoid) {
     throw new Error("Confirm that the selected interpreted attendance record should be voided.");
+  }
+  if (!params.ctx.actorStaffId) {
+    throw new Error("A staff actor is required before resetting attendance state.");
   }
 
   const settings = await getAttendanceSettings(params.ctx.branchId);

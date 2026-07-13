@@ -49,7 +49,7 @@ const impactClasses: Record<ScheduleConflictResolutionIssue["impactGroup"], stri
 };
 
 function formatConflictTime(conflict: LiveScheduleConflict): string {
-  if (!conflict.start_time || !conflict.end_time) return "All day";
+  if (!conflict.start_time || !conflict.end_time) return "Time not set";
   return `${formatScheduleTime(conflict.start_time)} - ${formatScheduleTime(conflict.end_time)}`;
 }
 

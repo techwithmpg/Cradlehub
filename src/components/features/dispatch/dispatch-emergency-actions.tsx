@@ -10,8 +10,8 @@ import { ShieldAlert } from "lucide-react";
 
 const EMERGENCY_LINKS = [
   { label: "Review Home-Service Bookings", href: "/crm/bookings" },
-  { label: "Open Live Availability", href: "/crm/availability" },
-  { label: "Open Schedule Setup", href: "/crm/staff-availability" },
+  { label: "Open Daily Timeline", href: "/crm/schedule" },
+  { label: "Open Schedule Setup", href: "/crm/schedule?tab=setup" },
   { label: "Open Daily Operations", href: "/crm/today" },
   { label: "Open Customer Records", href: "/crm/customers" },
   { label: "Open Notifications", href: "/crm/notifications" },

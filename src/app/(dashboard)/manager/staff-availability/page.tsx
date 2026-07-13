@@ -5,10 +5,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getManagerBranchId } from "@/lib/queries/manager-context";
 import { getAllBranches } from "@/lib/queries/branches";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
-import { getScheduleSetupOverview } from "@/lib/queries/staff-schedule-groups";
 import { createClient } from "@/lib/supabase/server";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -35,19 +34,12 @@ async function canSwitchBranches(): Promise<boolean> {
 
 async function getPageData(branchId: string): Promise<{
   items: StaffScheduleItem[];
-  groups: Awaited<ReturnType<typeof getScheduleSetupOverview>>["groups"];
-  rulesByGroup: Awaited<ReturnType<typeof getScheduleSetupOverview>>["rulesByGroup"];
   error: string | null;
 }> {
   try {
-    const [items, overview] = await Promise.all([
-      getStaffWithAvailability(branchId),
-      getScheduleSetupOverview(branchId),
-    ]);
+    const items = await getStaffWithAvailability(branchId);
     return {
       items: items as unknown as StaffScheduleItem[],
-      groups: overview.groups,
-      rulesByGroup: overview.rulesByGroup,
       error: null,
     };
   } catch (err) {
@@ -57,38 +49,9 @@ async function getPageData(branchId: string): Promise<{
     });
     return {
       items: [],
-      groups: [],
-      rulesByGroup: {},
       error: "Failed to load schedule setup data. Please refresh.",
     };
   }
-}
-
-// ── Action buttons ─────────────────────────────────────────────────────────
-
-function PageActions() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-      <button
-        type="button"
-        disabled
-        title="Coverage overview will be available in a future release"
-        className="cs-btn cs-btn-secondary cs-btn-sm"
-        style={{ opacity: 0.55, cursor: "not-allowed" }}
-      >
-        📊 Coverage Overview
-      </button>
-      <button
-        type="button"
-        disabled
-        title="Publish schedules will be available in a future release"
-        className="cs-btn cs-btn-primary cs-btn-sm"
-        style={{ opacity: 0.55, cursor: "not-allowed" }}
-      >
-        🚀 Publish Schedules
-      </button>
-    </div>
-  );
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
@@ -119,14 +82,13 @@ export default async function ManagerStaffAvailabilityPage({
     }
   }
 
-  const { items, groups, rulesByGroup, error } = await getPageData(branchId);
+  const { items, error } = await getPageData(branchId);
 
   return (
     <section className="space-y-5">
       <PageHeader
         title="Schedule Setup"
-        description="Configure universal schedules by staff group, then customize individual schedules only when needed."
-        action={<PageActions />}
+        description="Configure each staff member's recurring weekly schedule, one-time schedule changes, and blocked time."
       />
 
       {ownerAccess && branches.length > 1 && (
@@ -141,8 +103,6 @@ export default async function ManagerStaffAvailabilityPage({
       ) : (
         <ScheduleSetupWorkspace
           items={items}
-          groups={groups}
-          rulesByGroup={rulesByGroup}
           branchId={branchId}
         />
       )}

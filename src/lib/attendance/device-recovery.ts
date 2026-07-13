@@ -425,11 +425,11 @@ export async function consumeDeviceRecoveryLink(params: {
   const { data, error } = await admin.rpc("consume_attendance_device_recovery", {
     p_raw_token: token,
     p_device_fingerprint_hash: hashSecret(rawDeviceCredential),
-    p_device_label: hints.label,
-    p_user_agent: params.userAgent ?? null,
-    p_browser_name: hints.browserName,
-    p_browser_version: hints.browserVersion,
-    p_platform_name: hints.platformName,
+    p_device_label: hints.label ?? undefined,
+    p_user_agent: params.userAgent ?? undefined,
+    p_browser_name: hints.browserName ?? undefined,
+    p_browser_version: hints.browserVersion ?? undefined,
+    p_platform_name: hints.platformName ?? undefined,
     p_active_device_limit: ACTIVE_DEVICE_LIMIT,
   });
 

@@ -51,7 +51,7 @@ const TODAY_SCHEDULE_SELECT = `
   id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata,
   resource_id,
-  services  ( id, name, duration_minutes ),
+  services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
   customers ( id, full_name, phone )
 `;
@@ -59,7 +59,7 @@ const TODAY_SCHEDULE_SELECT = `
 const TODAY_SCHEDULE_SELECT_CORE = `
   id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
   travel_buffer_mins, metadata,
-  services  ( id, name, duration_minutes ),
+  services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
   customers ( id, full_name, phone )
 `;
@@ -72,7 +72,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
   booking_progress_status,
   checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
   resource_id,
-  services  ( id, name, duration_minutes ),
+  services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
   customers ( id, full_name, phone )
 `;
@@ -84,7 +84,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   hold_expires_at,
   booking_progress_status,
   checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
-  services  ( id, name, duration_minutes ),
+  services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
   customers ( id, full_name, phone )
 `;
@@ -121,6 +121,7 @@ type ServiceRelation = OneOrMany<{
   id: string;
   name: string;
   duration_minutes?: number;
+  metadata?: Record<string, unknown> | null;
 }>;
 type StaffRelation = OneOrMany<{ id: string; full_name: string; nickname?: string | null; tier?: string }>;
 type CustomerRelation = OneOrMany<{

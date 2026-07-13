@@ -17,7 +17,7 @@ import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-b
 import { StaffScheduleCalendarModal } from "@/components/features/staff-schedule/staff-schedule-calendar-modal";
 import { formatScheduleTime } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow, DailyScheduleBooking } from "@/lib/queries/schedule";
-import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 import type { Database } from "@/types/supabase";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];

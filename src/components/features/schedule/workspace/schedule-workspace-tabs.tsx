@@ -2,19 +2,11 @@
 
 import { useRef, useEffect, useState } from "react";
 
-export type ScheduleTabKey =
-  | "daily"
-  | "availability"
-  | "setup"
-  | "coverage"
-  | "staff";
+export type ScheduleTabKey = "daily" | "setup";
 
 const TABS: { key: ScheduleTabKey; label: string; badge?: number }[] = [
   { key: "daily", label: "Daily Timeline" },
-  { key: "availability", label: "Live Availability" },
   { key: "setup", label: "Schedule Setup" },
-  { key: "coverage", label: "Coverage Issues" },
-  { key: "staff", label: "Staff Schedule" },
 ];
 
 export function ScheduleWorkspaceTabs({

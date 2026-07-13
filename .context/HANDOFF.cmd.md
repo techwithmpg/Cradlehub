@@ -1,5 +1,130 @@
 # HANDOFF - Next Agent Session
 
+## Current Task - 2026-07-13
+
+CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009 is implemented, live contract migration applied, and code/build verified.
+
+Done:
+- Audited the public Attendance QR scan pipeline end-to-end: route, server actions, client processor, device/QR lookups, schedule resolver, intent engine, shift instance identity, transaction RPC, and Recovery exception persistence.
+- Live DB probes confirmed the RPC exists and preserves rejection codes, RLS remains enabled, and the root mismatch was internal exception codes being persisted against the stable `attendance_exceptions.exception_type` CHECK constraint.
+- Added `src/lib/attendance/scan-errors.ts` for structured safe public error codes, operation IDs, server-only technical logging, and non-200 backend failure responses.
+- Added `src/lib/attendance/exception-codes.ts` to map internal scan reasons to stable DB exception types while preserving `metadata.internalExceptionType` for Recovery UI.
+- Restored generated Supabase typing for Attendance DB access in `src/lib/attendance/db.ts` and fixed typed JSON/RPC boundaries exposed by that change.
+- Patched scan helpers so query/write errors are no longer treated as empty results, including QR/device lookup, duplicate lookup, open checkins, schedule queries, Recovery exception writes, and idempotency replay.
+- Patched shift identity/source handling: `weekly | override | recovery | none`, source row/window id, window order, and authoritative `ends_next_day`.
+- Added and live-applied `supabase/migrations/20260713082146_attendance_scan_contract_repair.sql` through linked SQL because direct `db push` timed out. Verified `schedule_overrides.ends_next_day`, the new schedule-source constraint, migrated source counts, migration record, and safe no-mutation RPC rejection.
+- Verification passed: `npx tsc --noEmit`, focused attendance tests (5 files / 28 tests), and `pnpm build` (Next.js 16.2.4, 108 routes).
+
+Still open:
+- A real physical phone scan was not certified in this session. Operator QA should scan with a registered active staff device and confirm the phone either commits attendance or shows the new precise safe code/operation ID.
+- Recent Supabase migration history is still behind live schema effects from prior manual repairs. Do not run a blind `db push` until migration history is reconciled from a working direct DB path.
+
+Next steps:
+1. Run live registered-device QR QA for clock-in, duplicate scan, clock-out, off-day/missing-schedule Recovery, and wrong-branch correction.
+2. Reconcile recent Supabase migration history, including manually applied schedule and attendance repair migrations.
+3. Regenerate DB types from the reconciled live schema and rerun type-check/tests/build.
+
+---
+
+CRADLE-SCHEDULE-LEFTOVER-CLEANUP-008 is implemented, live cleanup applied, and code/build verified.
+
+Done:
+- Audited the three leftover visible warnings against live data:
+  - Dante/Boy has real invalid individual schedule windows (`02:00-22:00`, 20 hours) and now surfaces as `schedule_invalid_time_window` / `INVALID_TIME_WINDOW` with exact source ids and fingerprint.
+  - Angels Massage booking `1ea3ce31-6ead-49e0-9ff4-43501d5cf20d` has no explicit service/resource requirement, so missing-room warnings were broad false positives.
+  - Main Spa's 29-staff coverage warning came from corrupted `scheduling_rules` minima, not an explicit coverage rule.
+- Added and live-applied `supabase/migrations/20260713090000_schedule_leftover_cleanup.sql`.
+- Verified `schedule_repair_backups` contains 7 stale schedule-row backups and 1 scheduling-rule backup; stale superseded active `single` rows are removed; Main Spa minima are restored to `1/1/1/0/0`.
+- Patched live conflict generation to emit exact schedule issue types/codes/fingerprints/source ids, remove the "All day" false fallback, require explicit service metadata for missing room/resource warnings, and require explicit coverage requirements for coverage gaps.
+- Patched Schedule, Spaces/Rules, Manager Today, and mobile manager surfaces to use the same explicit resource-requirement helper.
+- Added regression tests for no-explicit-room warnings, explicit-room warnings, coverage gating, exact invalid-window fingerprints, and Manager Today room assignment counts.
+- Verification passed: `npx tsc --noEmit`, focused schedule/manager tests (5 files / 24 tests), `pnpm test --run` (95 files / 735 tests), `pnpm lint`, and `pnpm build` (Next.js 16.2.4, 108 routes).
+
+Still open:
+- Dante/Boy's invalid 20-hour windows are legitimate data needing CRM correction, not a stale fallback issue.
+- Nikki's ambiguous active Opening/Closing overlaps remain for CRM review.
+- Linked Supabase migration-history reads through the direct pooler path remain uncertified from this environment. Live effects are verified through Management API SQL probes.
+
+Next steps:
+1. Reconcile migration history for recent schedule migrations from a working direct DB path.
+2. Run authenticated CRM browser QA for Daily Timeline, Conflict Center, Manager Today, and Adjust Schedule with live branch data.
+3. Correct remaining genuine schedule data issues in CRM, starting with Dante/Boy's invalid 20-hour windows and Nikki's ambiguous overlaps.
+
+---
+
+CRADLE-SCHEDULE-SYSTEM-UNIFICATION-007 is implemented, live realtime repaired, and code/build verified.
+
+Done:
+- Added canonical shift adapter in `src/lib/schedule/schedule-domain.ts`: UI `regular/opening/closing`, DB `single/opening/closing`, no active UI display of `single`.
+- Extended resolver with `STAFF_NOT_OPERATIONAL`; kept missing schedule, configured day off, valid schedules, split, overnight, and conflicts as distinct states.
+- Replaced Daily Timeline data loading with an operational branch roster query plus direct joins for `staff_schedules`, `schedule_overrides`, `blocked_times`, `staff_shift_checkins`, `bookings`, and `branch_resources`.
+- Preserved Daily Timeline layout while adding Not Configured / Day Off / Needs Review states, split-window filtering, opening/regular/closing colors, overnight rendering, and attendance presence labels.
+- Schedule Setup now imports `individual-schedule-window-editor`, which uses the same Adjust Schedule draft DTO, weekly editor, validation, preview, and `updateCrmStaffWeeklyWindowScheduleAction` save action.
+- Staff portal week planning now groups same-day windows and resolves through the shared resolver instead of overwriting split shifts.
+- Live conflicts no longer emit `missing_schedule`; missing schedule is a schedule state, not a conflict.
+- Added `staff_shift_checkins` realtime subscription.
+- Added and live-applied `supabase/migrations/20260713064332_schedule_realtime_publication.sql`; verified `staff`, `staff_schedules`, `schedule_overrides`, `blocked_times`, `staff_shift_checkins`, `bookings`, and `branch_resources` are in `supabase_realtime`.
+- Verification passed: focused schedule/staff-portal tests (8 files / 41 tests), `npx tsc --noEmit`, `pnpm test` (94 files / 731 tests), `pnpm lint`, `pnpm build`, and `git diff --check` with CRLF warnings only.
+
+Still open:
+- Linked Supabase migration-history reads through the direct pooler path remain uncertified from this environment. Live schema effects are verified through Management API SQL probes.
+- Authenticated CRM browser QA against live branch data is still recommended for the Schedule Setup/Adjust Schedule save flows and Daily Timeline realtime refresh.
+- The old `individual-schedule-editor.tsx` file remains in the tree but Schedule Setup no longer imports it; it can be deleted in a cleanup pass if desired.
+
+Next steps:
+1. Reconcile Supabase migration history from a working migration-history connection for the schedule repair and realtime publication migrations.
+2. Run authenticated CRM QA: Schedule Setup save, Adjust Schedule save, Daily Timeline roster/status/realtime refresh, booking availability smoke.
+3. After migration history is reconciled, rerun DB status/types and app verification.
+
+---
+
+CRADLE-SCHEDULE-UPDATE-INTEGRATION-REPAIR-006 is implemented, live schema repaired, and code/build verified.
+
+Done:
+- Reproduced root cause: Adjust Schedule/Schedule Setup called `replace_staff_weekly_schedule(uuid, uuid, jsonb)` but the linked live DB had no RPC and still used the old `staff_id, day_of_week, shift_type` unique constraint.
+- Added `supabase/migrations/20260713035024_schedule_update_integration_repair.sql` with stale inactive placeholder backups/cleanup, ordered-window `staff_schedules` constraint repair, 1..12 window check, validation trigger, operational helper functions, `replace_staff_weekly_schedule`, and PostgREST schema reload.
+- Applied that corrective migration to the linked live schema through `supabase db query --linked --dns-resolver https --file ...` because the project `db push/status` pooler path still timed out.
+- Verified live catalog: only `staff_schedules_staff_day_window_unique` remains, `replace_staff_weekly_schedule` exists as `SECURITY DEFINER`, trigger/index/check constraints exist, duplicate staff/day/window keys are zero, and invalid inactive placeholders are zero.
+- Verified app-facing PostgREST RPC visibility with a fake-ID `supabase-js` service-role call: returned business validation `23514`, not function-not-found.
+- Verified rollbacked live RPC round-trip with a real staff member's current rows: returned 7 rows and rolled back.
+- Patched Adjust Schedule, Schedule Setup, and manager single-day schedule write paths to use the ordered-window RPC contract and structured safe error codes.
+- Patched schedule consumers/selectors to carry `window_order` and `ends_next_day` where the resolver/scoring/display needs them.
+- Verification passed: focused schedule/action tests (5 files / 38 tests), `npx tsc --noEmit`, and `pnpm build`.
+
+Still open:
+- `pnpm db:push --dry-run` and `pnpm db:status` still time out against `aws-1-ap-northeast-1.pooler.supabase.com:5432`, including escalated retries. Live schema is fixed, but migration history is not certified from this environment.
+- Authenticated CRM browser QA against live branch data is still recommended for the Adjust Schedule save flow.
+
+Next steps:
+1. Restore/reconcile the direct Supabase migration-history path and run `pnpm db:status`.
+2. If migration history does not include `20260713035024`, reconcile it with the live-applied corrective SQL using the approved database runbook.
+3. Run authenticated CRM QA: open Daily Timeline, Adjust Schedule, edit/save weekly rows, reopen, and confirm booking/Today/Timeline refresh behavior.
+
+---
+
+CRADLE-BACKEND-STABILIZATION-AND-SCHEDULE-REPAIR-001 is locally implemented and fully verified, but production database apply is still blocked.
+
+Done:
+- Added `supabase/migrations/20260712165012_backend_stabilization_schedule_repair.sql` with schedule repair backups, operational staff helpers/view, booking-rule fee columns, overlap validation triggers, and transactional weekly replacement RPCs for staff and schedule groups.
+- CRM weekly staff schedule saves now call `replace_staff_weekly_schedule(...)` and verify returned rows.
+- Group weekly schedule saves now call `replace_group_weekly_schedule(...)` and verify returned rows.
+- Availability provider selection now excludes inactive, archived, merged, test, and explicitly non-schedulable staff through `src/lib/staff/operational-staff.ts`.
+- Supabase types were regenerated from the linked schema and locally reconciled for pending booking-rule fee columns.
+- Verification passed: migration rollback dry-run against linked DB, focused schedule/action/staff tests, `pnpm type-check`, `pnpm lint`, `pnpm test` (89 files / 710 tests), and `pnpm build` (Next.js 16.2.4, 108 routes).
+
+Still blocked:
+- The migration was not applied to production. `pnpm db:doctor` and `pnpm db:status` still time out while reading linked Supabase migration history on `aws-1-ap-northeast-1.pooler.supabase.com:5432`; `db:status` reports `Remote schema changed: no` before failing.
+- Do not run a blind `db push` from this environment because remote migration history is behind live schema effects.
+
+Next steps:
+1. Apply `supabase/migrations/20260712165012_backend_stabilization_schedule_repair.sql` from a working migration-history path.
+2. Rerun `pnpm db:types`, `pnpm type-check`, `pnpm lint`, `pnpm test`, and `pnpm build`.
+3. Resolve Nikki's same-timestamp active opening/closing schedule overlaps manually after business confirmation.
+4. Move manual import and group apply-to-staff schedule replacement onto transactional RPC paths.
+5. Complete duplicate staff merge/identity cleanup only after reviewing bookings, attendance, payroll, and Auth ownership.
+
+---
+
 ## Current Task - 2026-07-12
 
 ATTENDANCE-AUTONOMY-HARDENING-001 has a continuation checkpoint: the main interpreted scan commit RPC and selected-record reset RPC are implemented and live on the linked schema, but Attendance must not be declared production-closed yet.
@@ -625,3 +750,58 @@ Done:
 Notes:
 - The repository already had a large unrelated dirty Attendance/CRM worktree before this scheduling continuation. Those changes were preserved and not reverted.
 - No new scheduling tables or migrations were added.
+
+---
+
+## Handoff - CRADLE-INDIVIDUAL-SCHEDULING-SIMPLIFICATION-005
+
+Done:
+- Manual/paper schedule importer, paper roster constants, importer action paths, and duplicate scheduling UI were removed.
+- CRM Schedule now exposes only Daily Timeline and Schedule Setup; old CRM staff availability and availability pages redirect to the Schedule workspace.
+- Runtime schedule resolver, queries, realtime subscriptions, booking availability, attendance, dispatch recommendations, readiness, and schedule conflict text no longer use group schedule fallback.
+- Individual weekly schedule saves use ordered windows, operational staff filtering, exact returned-row verification, and minimal day-off markers.
+- Supabase types were regenerated and app checks pass on the current tree.
+
+Verified:
+- `pnpm db:types`
+- `pnpm type-check`
+- `pnpm lint`
+- `pnpm test --run` (88 files / 702 tests)
+- `pnpm build` (108 routes)
+- `git diff --check`
+
+Still blocked:
+- Production migration apply is not verified. `pnpm db:doctor` and `pnpm db:status` still time out while reading linked migration history through the pooler.
+- `pnpm db:verify` can run linked SQL/table checks but exits nonzero because `psql` is missing for fallback.
+- Linked generated types still show `branch_booking_rules` without pending distance-fee columns until migrations are applied.
+
+Next pickup:
+1. Apply `20260712165012_backend_stabilization_schedule_repair.sql` and `20260712190359_individual_schedule_runtime_only.sql` from a working Supabase migration-history connection.
+2. Rerun `pnpm db:types`, `pnpm type-check`, `pnpm lint`, `pnpm test --run`, and `pnpm build`.
+3. Run authenticated CRM browser QA for `/crm/schedule` Daily Timeline and Schedule Setup.
+
+---
+
+## Handoff - CRADLE-ADJUST-SCHEDULE-MODAL-003
+
+Done:
+- Added the reusable `src/components/features/schedule-adjustment` modal suite with staff identity strip, left adjustment navigation, Staff Shift Profile, weekly matrix, right Schedule Status/Preview/Impact rail, sticky validation footer, mobile weekday cards, and honest exceptions empty state.
+- Replaced CRM Schedule Daily Timeline Quick Actions > Adjust Staff with `AdjustScheduleDialog` in Weekly Schedule mode.
+- Added Adjust Schedule to the selected-staff card beside Edit Profile, Edit Capabilities, and View Full Schedule; it uses the same modal target/state/save/refresh behavior.
+- Kept Daily Timeline visuals unchanged outside action wiring.
+- Kept individual schedules authoritative and excluded all group schedule controls/runtime fallback language.
+- Added ordered-window weekly save support through `updateCrmStaffWeeklyWindowScheduleAction`, `buildStaffWeeklyWindowScheduleRows`, and the pending schedule repair migration.
+
+Verified:
+- Focused tests: `pnpm test --run tests/lib/schedule/adjust-schedule-utils.test.ts tests/lib/schedule/staff-schedule-write.test.ts tests/lib/schedule/daily-timeline-selection-card.test.tsx tests/lib/schedule/adjust-schedule-dialog.test.tsx` (4 files / 21 tests).
+- `pnpm type-check`
+- `pnpm lint`
+- `pnpm test --run` (91 files / 717 tests)
+- `pnpm build` (Next.js 16.2.4, 108 routes)
+- `git diff --check` (passes with CRLF warnings only)
+
+Still open:
+- Authenticated CRM browser QA/visual certification for the modal against live branch data.
+- Production migration apply remains blocked by the existing Supabase migration-history connectivity issue.
+- Authoritative affected-booking impact analysis is not yet wired into weekly save confirmation.
+- Date-range overrides, expanded blocked-time reasons, override overnight persistence, and durable approved-exception records need separately approved schema/action work.

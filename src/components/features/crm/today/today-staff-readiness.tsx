@@ -88,7 +88,7 @@ export function TodayStaffReadiness({ summary }: Props) {
           Staff Readiness
         </div>
         <Link
-          href="/crm/availability"
+          href="/crm/schedule"
           style={{
             fontSize: "0.6875rem",
             fontWeight: 600,
@@ -96,7 +96,7 @@ export function TodayStaffReadiness({ summary }: Props) {
             textDecoration: "none",
           }}
         >
-          Full View →
+          Daily Timeline →
         </Link>
       </div>
 

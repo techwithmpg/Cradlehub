@@ -1,4 +1,9 @@
 import { formatTime } from "@/lib/utils";
+import {
+  resolveScheduleForStaffDay,
+  type IndividualScheduleSourceRow,
+  type ScheduleOverrideSourceRow,
+} from "@/lib/schedule/resolve-staff-schedule";
 import type { Database } from "@/types/supabase";
 
 const SHORT_DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -223,6 +228,17 @@ function formatWorkHours(startTime: string | null | undefined, endTime: string |
   return `${start} — ${end}`;
 }
 
+function formatResolvedWorkHours(
+  windows: Array<{ startTime: string; endTime: string; endsNextDay?: boolean }>
+): string {
+  return windows
+    .map((window) => {
+      const suffix = window.endsNextDay ? " +1 day" : "";
+      return `${formatWorkHours(window.startTime, window.endTime)}${suffix}`;
+    })
+    .join(", ");
+}
+
 function toSafeMetadata(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -262,9 +278,11 @@ export function buildStaffWeekPlanner({
   overrides,
   todayIso = toLocalIsoDate(new Date()),
 }: BuildPlannerArgs): { days: StaffWeekDay[]; summary: StaffWeekSummary } {
-  const scheduleByDay: Partial<Record<number, ScheduleRow>> = {};
+  const scheduleByDay: Partial<Record<number, ScheduleRow[]>> = {};
   for (const scheduleRow of schedule) {
-    scheduleByDay[scheduleRow.day_of_week] = scheduleRow;
+    const list = scheduleByDay[scheduleRow.day_of_week] ?? [];
+    list.push(scheduleRow);
+    scheduleByDay[scheduleRow.day_of_week] = list;
   }
 
   const overrideByDate: Record<string, OverrideRow> = {};
@@ -297,7 +315,7 @@ export function buildStaffWeekPlanner({
 
     const dayOfWeek = parsedDate.getDay();
     const override = overrideByDate[date];
-    const scheduleRow = scheduleByDay[dayOfWeek];
+    const scheduleRows = scheduleByDay[dayOfWeek] ?? [];
     const dayBookings = (bookingsByDate[date] ?? []).slice().sort((a, b) => a.start_time.localeCompare(b.start_time));
 
     const appointments: StaffWeekAppointment[] = dayBookings.map((booking) => {
@@ -332,14 +350,34 @@ export function buildStaffWeekPlanner({
 
     let workHoursLabel: string | null = null;
     let isDayOff = false;
-    if (override) {
-      isDayOff = override.is_day_off;
-      workHoursLabel = override.is_day_off
-        ? "Day off"
-        : formatWorkHours(override.start_time, override.end_time);
-    } else if (scheduleRow) {
-      isDayOff = false;
-      workHoursLabel = formatWorkHours(scheduleRow.start_time, scheduleRow.end_time);
+    const resolved = resolveScheduleForStaffDay({
+      override: override
+        ? ({
+            id: override.id,
+            is_day_off: override.is_day_off,
+            shift_type: override.shift_type,
+            start_time: override.start_time,
+            end_time: override.end_time,
+          } satisfies ScheduleOverrideSourceRow)
+        : null,
+      individualRows: scheduleRows.map(
+        (scheduleRow): IndividualScheduleSourceRow => ({
+          id: scheduleRow.id,
+          shift_type: scheduleRow.shift_type,
+          start_time: scheduleRow.start_time,
+          end_time: scheduleRow.end_time,
+          is_active: scheduleRow.is_active,
+          window_order: scheduleRow.window_order,
+          ends_next_day: scheduleRow.ends_next_day,
+        })
+      ),
+    });
+
+    if (resolved.isDayOff) {
+      isDayOff = true;
+      workHoursLabel = "Day off";
+    } else if (resolved.isWorking) {
+      workHoursLabel = formatResolvedWorkHours(resolved.windows);
     }
 
     dayModels.push({

@@ -1,6 +1,5 @@
 import { formatShiftTimeRange, formatTime12h } from "@/lib/utils/time-format";
-import type { StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
-import type { StaffScheduleItem } from "./staff-schedule-list";
+import type { StaffScheduleItem } from "./staff-schedule-types";
 
 export type ScheduleMode = "opening_closing" | "regular_only";
 export type ShiftKind = "opening" | "closing" | "regular";
@@ -178,75 +177,6 @@ export function createEmptyPattern(): Record<number, DayPattern> {
     5: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
     6: { opening: false, closing: false, regular: false, dayOff: false, splitShift: false },
   };
-}
-
-export function createDefaultPattern(groupId: string): Record<number, DayPattern> {
-  const pattern = createEmptyPattern();
-  const visibleKinds = getVisibleShiftKinds(groupId);
-
-  for (const { dow } of SCHEDULE_DAYS) {
-    const row = pattern[dow];
-    if (!row) continue;
-
-    if (dow === 0) {
-      row.dayOff = true;
-      continue;
-    }
-
-    row[visibleKinds[0] ?? "regular"] = true;
-  }
-
-  return pattern;
-}
-
-export function extractShiftTimesForGroup(
-  rules: StaffGroupScheduleRule[],
-  groupId: string
-): ShiftTimes {
-  const times: ShiftTimes = structuredClone(getGroupScheduleConfig(groupId).defaults);
-
-  for (const rule of rules) {
-    if (rule.is_day_off || !rule.start_time || !rule.end_time) continue;
-    const start = rule.start_time.slice(0, 5);
-    const end = rule.end_time.slice(0, 5);
-    if (rule.shift_type === "opening") times.opening = { start, end };
-    if (rule.shift_type === "closing") times.closing = { start, end };
-    if (rule.shift_type === "single") times.regular = { start, end };
-  }
-
-  return times;
-}
-
-export function rulesToPatternForGroup(
-  rules: StaffGroupScheduleRule[],
-  groupId: string
-): Record<number, DayPattern> {
-  const hasRules = rules.some((rule) => rule.is_active);
-  if (!hasRules) return createDefaultPattern(groupId);
-
-  const pattern = createEmptyPattern();
-  const visibleKinds = new Set(getVisibleShiftKinds(groupId));
-
-  for (const rule of rules) {
-    const row = pattern[rule.day_of_week];
-    if (!row || !rule.is_active) continue;
-
-    if (rule.is_day_off) {
-      row.dayOff = true;
-      continue;
-    }
-
-    if (rule.shift_type === "opening" && visibleKinds.has("opening")) row.opening = true;
-    if (rule.shift_type === "closing" && visibleKinds.has("closing")) row.closing = true;
-    if (rule.shift_type === "single" && visibleKinds.has("regular")) row.regular = true;
-  }
-
-  for (const row of Object.values(pattern)) {
-    const activeCount = Number(row.opening) + Number(row.closing) + Number(row.regular);
-    row.splitShift = activeCount > 1;
-  }
-
-  return pattern;
 }
 
 export function schedulesToPatternForGroup(

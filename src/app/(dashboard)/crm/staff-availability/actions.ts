@@ -6,31 +6,50 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
-import { canonicalizeSystemRole, isFrontDeskRole } from "@/constants/staff";
+import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAdjustStaffSchedule, isOwner } from "@/lib/permissions";
+import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
 import {
-  STAFF_SCHEDULE_CONFLICT_TARGET,
-  STAFF_SCHEDULE_RETURNING_COLUMNS,
   buildStaffWeeklyScheduleRows,
   savedRowsMatchRequest,
   type SavedStaffScheduleRow,
   type StaffScheduleUpsertRow,
 } from "@/lib/schedule/staff-schedule-write";
 import {
-  MANUAL_DAY_OFF_2026,
-  MANUAL_SALON_DAY_OFF_2026,
-  MANUAL_OPENING_2026,
-} from "@/lib/schedule/manual-schedule-2026";
-import type { DayOfWeek } from "@/lib/schedule/manual-schedule-2026";
+  SCHEDULE_GENERIC_SAVE_ERROR,
+  classifyScheduleMutationError,
+  createScheduleOperationId,
+  genericScheduleActionFailure,
+  logScheduleMutationError,
+  scheduleActionFailureFromError,
+  type ScheduleActionFailure,
+} from "@/lib/actions/schedule-mutation-errors";
 
 // ── Permission ─────────────────────────────────────────────────────────────────
 
 const SCHEDULE_PERMISSION_DENIED_MESSAGE =
   "You do not have permission to update this staff schedule.";
-const GENERIC_SCHEDULE_SAVE_ERROR = "We could not update this schedule. Please try again.";
 const INVALID_TIME_ERROR = "Please check the start and end times.";
 
-async function requireImportAccess(branchId: string) {
+type ScheduleRpcError = {
+  code?: string;
+  message: string;
+  details?: string | null;
+  hint?: string | null;
+};
+
+type StaffScheduleMutationRpcClient = {
+  rpc(
+    fn: "replace_staff_weekly_schedule",
+    args: {
+      p_staff_id: string;
+      p_branch_id: string;
+      p_rows: StaffScheduleUpsertRow[];
+    }
+  ): PromiseLike<{ data: SavedStaffScheduleRow[] | null; error: ScheduleRpcError | null }>;
+};
+
+async function requireScheduleAccess(branchId: string) {
   // Session client — used only for auth checks (respects RLS).
   const supabase = await createClient();
   const {
@@ -66,433 +85,6 @@ async function requireImportAccess(branchId: string) {
 
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
-
-// ── Overnight-safe validation helpers (used by import schema) ─────────────────
-
-function parseImportMinutes(t: string): number {
-  const p = t.split(":");
-  return parseInt(p[0] ?? "0", 10) * 60 + parseInt(p[1] ?? "0", 10);
-}
-
-/**
- * Duration-based shift validity check — supports overnight spans.
- * e.g. "17:00"–"01:00" = 8 h, not a parse error.
- */
-function isValidImportShift(start: string, end: string): boolean {
-  const s = parseImportMinutes(start);
-  let e = parseImportMinutes(end);
-  if (e <= s) e += 24 * 60; // overnight adjustment
-  const dur = e - s;
-  return dur > 0 && dur <= 16 * 60;
-}
-
-export type ScheduleImportTimes = {
-  therapistOpeningStart: string;
-  therapistOpeningEnd: string;
-  therapistClosingStart: string;
-  therapistClosingEnd: string;
-  crmOpeningStart: string;
-  crmOpeningEnd: string;
-  crmClosingStart: string;
-  crmClosingEnd: string;
-  driverStart: string;
-  driverEnd: string;
-  utilityStart: string;
-  utilityEnd: string;
-  salonStart: string;
-  salonEnd: string;
-};
-
-const applyImportSchema = z
-  .object({
-    branchId: uuid,
-    resolvedMatches: z
-      .array(
-        z.object({
-          paperName: z.string().min(1),
-          staffId: uuid,
-        })
-      )
-      .min(1, "At least one staff match is required"),
-    // Grouped shift times — replaces old regularStart/regularEnd/openingStart/openingEnd
-    therapistOpeningStart: timeStr,
-    therapistOpeningEnd: timeStr,
-    therapistClosingStart: timeStr,
-    therapistClosingEnd: timeStr,
-    crmOpeningStart: timeStr,
-    crmOpeningEnd: timeStr,
-    crmClosingStart: timeStr,
-    crmClosingEnd: timeStr,
-    driverStart: timeStr,
-    driverEnd: timeStr,
-    utilityStart: timeStr,
-    utilityEnd: timeStr,
-    salonStart: timeStr,
-    salonEnd: timeStr,
-  })
-  .refine((d) => isValidImportShift(d.therapistOpeningStart, d.therapistOpeningEnd), {
-    message: "Therapist opening shift times are invalid (must span 1 min – 16 h)",
-    path: ["therapistOpeningEnd"],
-  })
-  .refine((d) => isValidImportShift(d.therapistClosingStart, d.therapistClosingEnd), {
-    message: "Therapist closing shift times are invalid (must span 1 min – 16 h)",
-    path: ["therapistClosingEnd"],
-  })
-  .refine((d) => isValidImportShift(d.crmOpeningStart, d.crmOpeningEnd), {
-    message: "CRM opening shift times are invalid (must span 1 min – 16 h)",
-    path: ["crmOpeningEnd"],
-  })
-  .refine((d) => isValidImportShift(d.crmClosingStart, d.crmClosingEnd), {
-    message: "CRM closing shift times are invalid (must span 1 min – 16 h)",
-    path: ["crmClosingEnd"],
-  })
-  .refine((d) => isValidImportShift(d.driverStart, d.driverEnd), {
-    message: "Driver shift times are invalid (must span 1 min – 16 h)",
-    path: ["driverEnd"],
-  })
-  .refine((d) => isValidImportShift(d.utilityStart, d.utilityEnd), {
-    message: "Utility shift times are invalid (must span 1 min – 16 h)",
-    path: ["utilityEnd"],
-  })
-  .refine((d) => isValidImportShift(d.salonStart, d.salonEnd), {
-    message: "Salon shift times are invalid (must span 1 min – 16 h)",
-    path: ["salonEnd"],
-  });
-
-export type ApplyImportResult =
-  | { ok: true; staffCount: number; rowsWritten: number }
-  | { ok: false; error: string };
-
-// ── Action ─────────────────────────────────────────────────────────────────────
-
-// ── Staff-type classification helper ─────────────────────────────────────────
-
-type StaffClassification = {
-  staff_type: string | null;
-  system_role: string | null;
-};
-
-type ResolvedShift = {
-  shiftType: "opening" | "closing" | "single";
-  startTime: string;
-  endTime: string;
-  isActive: boolean;
-};
-
-/**
- * Determines what shift a staff member works for a given day.
- *
- * Business rules (priority order):
- *  1. Day-off → inactive single row (placeholder)
- *  2. Therapist (service provider) → opening/closing rotation
- *  3. CRM / CSR / Front Desk → opening/closing rotation (different times)
- *  4. Driver → regular single shift
- *  5. Utility → regular single shift
- *  6. Salon / Nail / Aesthetician / Facialist → regular single shift
- *  7. Unclassified → treat as therapist (backwards-compatible default)
- */
-function resolveScheduleForStaffDay(
-  staff: StaffClassification,
-  isOff: boolean,
-  isOpening: boolean,
-  times: ScheduleImportTimes
-): ResolvedShift {
-  if (isOff) {
-    // Day-off: write an inactive placeholder using salon times as neutral default
-    return {
-      shiftType: "single",
-      startTime: times.salonStart,
-      endTime: times.salonEnd,
-      isActive: false,
-    };
-  }
-
-  const staffType = (staff.staff_type ?? "").toLowerCase();
-  const systemRole = (staff.system_role ?? "").toLowerCase();
-
-  const isTherapist =
-    staffType.includes("therapist") ||
-    staffType.includes("nail_tech") ||
-    staffType.includes("aesthetician") ||
-    staffType.includes("facialist") ||
-    staffType.includes("salon_head");
-
-  const isCrm =
-    staffType.includes("csr") ||
-    staffType.includes("front") ||
-    isFrontDeskRole(systemRole);
-
-  const isDriver = staffType.includes("driver") || systemRole === "driver";
-  const isUtility = staffType.includes("utility");
-  const isSalon =
-    staffType.includes("salon") ||
-    staffType.includes("nail") ||
-    staffType.includes("aesthetician") ||
-    staffType.includes("facialist");
-
-  if (isCrm) {
-    // CRM/CSR/Front Desk: opening/closing rotation with CRM times
-    if (isOpening) {
-      return {
-        shiftType: "opening",
-        startTime: times.crmOpeningStart,
-        endTime: times.crmOpeningEnd,
-        isActive: true,
-      };
-    }
-    return {
-      shiftType: "closing",
-      startTime: times.crmClosingStart,
-      endTime: times.crmClosingEnd,
-      isActive: true,
-    };
-  }
-
-  if (isDriver) {
-    return {
-      shiftType: "single",
-      startTime: times.driverStart,
-      endTime: times.driverEnd,
-      isActive: true,
-    };
-  }
-
-  if (isUtility) {
-    return {
-      shiftType: "single",
-      startTime: times.utilityStart,
-      endTime: times.utilityEnd,
-      isActive: true,
-    };
-  }
-
-  if (isSalon && !isTherapist) {
-    // Pure salon staff (nail tech listed separately as non-therapist)
-    return {
-      shiftType: "single",
-      startTime: times.salonStart,
-      endTime: times.salonEnd,
-      isActive: true,
-    };
-  }
-
-  // Therapist or unclassified (default) — opening/closing rotation with therapist times
-  if (isOpening) {
-    return {
-      shiftType: "opening",
-      startTime: times.therapistOpeningStart,
-      endTime: times.therapistOpeningEnd,
-      isActive: true,
-    };
-  }
-  return {
-    shiftType: "closing",
-    startTime: times.therapistClosingStart,
-    endTime: times.therapistClosingEnd,
-    isActive: true,
-  };
-}
-
-/**
- * Applies the 2026 manual schedule import to the staff_schedules table.
- *
- * For each resolved match, writes 21 rows (7 days × 3 shift types):
- *   - Day-off days → all 3 shift types inactive, single uses the inactive placeholder
- *   - Working days → the resolved active shift type gets is_active=true;
- *                    the other two shift types get is_active=false with fallback times
- *
- * Shift assignment by staff type:
- *   - Therapist / unclassified  → opening / closing rotation (therapist times)
- *   - CRM / CSR / Front Desk    → opening / closing rotation (CRM times)
- *   - Driver                    → regular single shift
- *   - Utility                   → regular single shift
- *   - Salon / Nail / Aesthetician → regular single shift
- *
- * Uses upsert on (staff_id, day_of_week, shift_type) — safe to re-run.
- */
-export async function applyManualScheduleImportAction(
-  rawInput: unknown
-): Promise<ApplyImportResult> {
-  const parsed = applyImportSchema.safeParse(rawInput);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues[0]?.message ?? "Invalid input",
-    };
-  }
-
-  const { branchId, resolvedMatches, ...times } = parsed.data;
-
-  const ctx = await requireImportAccess(branchId);
-  if (!ctx) return { ok: false, error: SCHEDULE_PERMISSION_DENIED_MESSAGE };
-
-  // Verify all staff IDs belong to this branch and fetch staff_type + system_role
-  // so resolveScheduleForStaffDay can classify each staff member correctly.
-  const staffIds = resolvedMatches.map((m) => m.staffId);
-
-  const { data: verifiedStaff, error: verifyErr } = await ctx.scheduleClient
-    .from("staff")
-    .select("id, staff_type, system_role")
-    .eq("branch_id", branchId)
-    .in("id", staffIds);
-
-  if (verifyErr) {
-    return { ok: false, error: "Could not verify staff records" };
-  }
-
-  const verifiedStaffList = verifiedStaff ?? [];
-  const verifiedIdSet = new Set(verifiedStaffList.map((s) => s.id));
-  const outsideIds = staffIds.filter((id) => !verifiedIdSet.has(id));
-  if (outsideIds.length > 0) {
-    return {
-      ok: false,
-      error: `${outsideIds.length} staff member(s) are not assigned to this branch`,
-    };
-  }
-
-  // Build a quick lookup: staffId → classification
-  type StaffRow = { id: string; staff_type?: string | null; system_role?: string | null };
-  const staffClassMap = new Map<string, StaffClassification>();
-  for (const s of verifiedStaffList as StaffRow[]) {
-    staffClassMap.set(s.id, {
-      staff_type: s.staff_type ?? null,
-      system_role: s.system_role ?? null,
-    });
-  }
-
-  // Build combined day-off map: dayOfWeek → Set<UPPER_NAME>
-  const dayOffMap = new Map<number, Set<string>>();
-
-  const addToOffMap = (day: number, names: string[]) => {
-    const set = dayOffMap.get(day) ?? new Set<string>();
-    for (const n of names) set.add(n.toUpperCase());
-    dayOffMap.set(day, set);
-  };
-
-  for (const [d, names] of Object.entries(MANUAL_DAY_OFF_2026) as [
-    string,
-    string[],
-  ][]) {
-    addToOffMap(Number(d), names);
-  }
-  for (const [d, names] of Object.entries(MANUAL_SALON_DAY_OFF_2026) as [
-    string,
-    string[],
-  ][]) {
-    addToOffMap(Number(d), names);
-  }
-
-  // Opening map: dayOfWeek → Set<UPPER_NAME>
-  const openingMap = new Map<number, Set<string>>();
-  for (const [d, names] of Object.entries(MANUAL_OPENING_2026) as [
-    string,
-    string[],
-  ][]) {
-    openingMap.set(Number(d), new Set(names.map((n) => n.toUpperCase())));
-  }
-
-  // Build upsert rows — 21 rows per staff (7 days × 3 shift types)
-  type ScheduleRow = {
-    staff_id: string;
-    day_of_week: number;
-    start_time: string;
-    end_time: string;
-    is_active: boolean;
-    shift_type: string;
-  };
-
-  // Two different paper names may have been fuzzy-matched to the same staff ID.
-  // Union their patterns: day-off wins across all mapped names.
-  const staffPaperNames = new Map<string, string[]>();
-  for (const { paperName, staffId } of resolvedMatches) {
-    const names = staffPaperNames.get(staffId) ?? [];
-    names.push(paperName.toUpperCase());
-    staffPaperNames.set(staffId, names);
-  }
-
-  const rows: ScheduleRow[] = [];
-
-  for (const [staffId, paperNames] of staffPaperNames) {
-    const classification = staffClassMap.get(staffId) ?? {
-      staff_type: null,
-      system_role: null,
-    };
-
-    for (let day = 0 as DayOfWeek; day <= 6; day++) {
-      // Union across all paper names mapped to this staff member
-      const isOff     = paperNames.some((n) => dayOffMap.get(day)?.has(n) ?? false);
-      const isOpening = !isOff && paperNames.some((n) => openingMap.get(day)?.has(n) ?? false);
-
-      const active = resolveScheduleForStaffDay(classification, isOff, isOpening, times);
-
-      // Write all 3 shift types for this day so the upsert covers every conflict key.
-      // Only the resolved active shift gets is_active=true.
-      rows.push({
-        staff_id: staffId,
-        day_of_week: day,
-        shift_type: "opening",
-        start_time: active.shiftType === "opening" ? active.startTime : times.therapistOpeningStart,
-        end_time:   active.shiftType === "opening" ? active.endTime   : times.therapistOpeningEnd,
-        is_active:  active.shiftType === "opening" && active.isActive,
-      });
-
-      rows.push({
-        staff_id: staffId,
-        day_of_week: day,
-        shift_type: "closing",
-        start_time: active.shiftType === "closing" ? active.startTime : times.therapistClosingStart,
-        end_time:   active.shiftType === "closing" ? active.endTime   : times.therapistClosingEnd,
-        is_active:  active.shiftType === "closing" && active.isActive,
-      });
-
-      rows.push({
-        staff_id: staffId,
-        day_of_week: day,
-        shift_type: "single",
-        start_time: active.shiftType === "single" ? active.startTime : times.salonStart,
-        end_time:   active.shiftType === "single" ? active.endTime   : times.salonEnd,
-        is_active:  active.shiftType === "single" && active.isActive,
-      });
-    }
-  }
-
-  if (rows.length === 0) {
-    return { ok: false, error: "No schedule rows to write" };
-  }
-
-  // Batch upsert through the authenticated client so schedule RLS remains the
-  // database enforcement layer after the server-side branch and role checks.
-  const { error: upsertErr } = await ctx.scheduleClient
-    .from("staff_schedules")
-    .upsert(rows, { onConflict: "staff_id,day_of_week,shift_type" });
-
-  if (upsertErr) {
-    console.error("[schedule-import] upsert failed", {
-      code: upsertErr.code,
-      message: upsertErr.message,
-      details: upsertErr.details,
-      hint: upsertErr.hint,
-    });
-    return {
-      ok: false,
-      error:
-        process.env.NODE_ENV === "development"
-          ? `Save failed: ${upsertErr.message}`
-          : "Could not save schedule data. Please try again.",
-    };
-  }
-
-  // Revalidate all affected CRM paths
-  revalidatePath("/crm/staff-availability");
-  revalidatePath("/crm/availability");
-  revalidatePath("/crm/today");
-  revalidatePath("/crm/setup");
-  revalidatePath("/book");
-  invalidateCrmWorkspace(branchId);
-
-  // staffCount = unique staff members (multiple paper names may map to one person)
-  return { ok: true, staffCount: staffPaperNames.size, rowsWritten: rows.length };
-}
 
 // ── Overnight-shift time helpers ─────────────────────────────────────────────
 
@@ -587,16 +179,22 @@ const saveStaffWeeklyScheduleSchema = z
 
 export type SaveStaffWeeklyScheduleResult =
   | { ok: true; rowsWritten: number; savedRows: SavedStaffScheduleRow[] }
-  | { ok: false; error: string };
+  | ScheduleActionFailure;
+
+function scheduleValidationFailure(error: string): ScheduleActionFailure {
+  const classified = classifyScheduleMutationError({ message: error });
+  return genericScheduleActionFailure(
+    classified.code === "SAVE_FAILED" ? "INVALID_INPUT" : classified.code,
+    error
+  );
+}
 
 /**
  * Saves a staff member's full weekly schedule.
  *
- * Writes exactly 21 rows (7 days × 3 shift types) to staff_schedules:
- *   - is_active=true  when that shift type is checked for that day (and not dayOff)
- *   - is_active=false when unchecked or dayOff
- *
- * Uses upsert on (staff_id, day_of_week, shift_type) — safe to re-run.
+ * Writes the normalized individual pattern through replace_staff_weekly_schedule:
+ *   - one active row per saved working window
+ *   - one inactive day-off marker for configured days off
  */
 export async function saveStaffWeeklyScheduleAction(
   rawInput: unknown
@@ -606,18 +204,23 @@ export async function saveStaffWeeklyScheduleAction(
     const invalidTime = parsed.error.issues.some((issue) =>
       issue.path.some((part) => part === "times" || part === "start" || part === "end")
     );
-    return { ok: false, error: invalidTime ? INVALID_TIME_ERROR : "Invalid input" };
+    return genericScheduleActionFailure(
+      "INVALID_INPUT",
+      invalidTime ? INVALID_TIME_ERROR : "Invalid input"
+    );
   }
 
   const { staffId, branchId, days, times } = parsed.data;
 
-  const ctx = await requireImportAccess(branchId);
-  if (!ctx) return { ok: false, error: SCHEDULE_PERMISSION_DENIED_MESSAGE };
+  const ctx = await requireScheduleAccess(branchId);
+  if (!ctx) {
+    return genericScheduleActionFailure("UNAUTHORIZED", SCHEDULE_PERMISSION_DENIED_MESSAGE);
+  }
 
   // Verify staff belongs to this branch
   const { data: staffRecord, error: verifyErr } = await ctx.scheduleClient
     .from("staff")
-    .select("id")
+    .select("id, staff_type, system_role, is_active, archived_at, merged_into_staff_id, metadata")
     .eq("id", staffId)
     .eq("branch_id", branchId)
     .maybeSingle();
@@ -629,49 +232,67 @@ export async function saveStaffWeeklyScheduleAction(
       code: verifyErr.code,
       message: verifyErr.message,
     });
-    return { ok: false, error: GENERIC_SCHEDULE_SAVE_ERROR };
+    return genericScheduleActionFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR);
   }
-  if (!staffRecord) return { ok: false, error: "Staff member not found in this branch" };
+  if (!staffRecord) {
+    return genericScheduleActionFailure("NOT_FOUND", "Staff member not found in this branch");
+  }
+  if (!isOperationalStaff(staffRecord as OperationalStaffFlags)) {
+    return genericScheduleActionFailure("NOT_FOUND", "This staff member is not schedulable.");
+  }
 
-  const normalized = buildStaffWeeklyScheduleRows({ staffId, days, times });
+  const normalized = buildStaffWeeklyScheduleRows({
+    staffId,
+    days,
+    times,
+    staff: {
+      staff_type: staffRecord.staff_type ?? null,
+      system_role: staffRecord.system_role ?? null,
+    },
+  });
   if (!normalized.ok) {
-    return { ok: false, error: normalized.error };
+    return scheduleValidationFailure(normalized.error);
   }
 
   const rows: StaffScheduleUpsertRow[] = normalized.rows;
 
-  const { data: savedRows, error: upsertErr } = await ctx.scheduleClient
-    .from("staff_schedules")
-    .upsert(rows, { onConflict: STAFF_SCHEDULE_CONFLICT_TARGET })
-    .select(STAFF_SCHEDULE_RETURNING_COLUMNS);
+  const scheduleRpcClient =
+    ctx.scheduleClient as unknown as StaffScheduleMutationRpcClient;
+  const operationId = createScheduleOperationId("schedule-setup-weekly");
+  const { data: savedRows, error: upsertErr } = await scheduleRpcClient.rpc(
+    "replace_staff_weekly_schedule",
+    {
+      p_staff_id: staffId,
+      p_branch_id: branchId,
+      p_rows: rows,
+    }
+  );
 
   if (upsertErr) {
-    console.error("[save-staff-weekly-schedule] upsert failed", {
-      code: upsertErr.code,
-      message: upsertErr.message,
-      details: upsertErr.details,
-      hint: upsertErr.hint,
+    logScheduleMutationError({
+      scope: "save-staff-weekly-schedule",
+      operationId,
+      branchId,
+      staffId,
+      actorId: ctx.userId,
+      error: upsertErr,
     });
-    return {
-      ok: false,
-      error: GENERIC_SCHEDULE_SAVE_ERROR,
-    };
+    return scheduleActionFailureFromError(upsertErr, operationId);
   }
 
   const normalizedSavedRows = (savedRows ?? []) as SavedStaffScheduleRow[];
   if (!savedRowsMatchRequest({ requestedRows: rows, savedRows: normalizedSavedRows })) {
     console.error("[save-staff-weekly-schedule] upsert returned unexpected row count", {
+      operationId,
       branchId,
       staffId,
       requestedRows: rows.length,
       savedRows: normalizedSavedRows.length,
     });
-    return { ok: false, error: GENERIC_SCHEDULE_SAVE_ERROR };
+    return genericScheduleActionFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR, operationId);
   }
 
   revalidatePath("/crm/schedule");
-  revalidatePath("/crm/staff-availability");
-  revalidatePath("/crm/availability");
   revalidatePath("/crm/today");
   revalidatePath("/crm/setup");
   revalidatePath("/book");

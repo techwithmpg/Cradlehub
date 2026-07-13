@@ -342,7 +342,7 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
   revalidatePath("/owner/staff");
   revalidatePath("/manager/staff");
   revalidatePath("/crm/staff");
-  revalidatePath("/crm/availability");
+  revalidatePath("/crm/schedule");
   return { success: true } as const;
 }
 

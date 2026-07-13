@@ -382,7 +382,7 @@ const staffMissingSchedule: FollowUpRule = {
           body: `${staff.full_name} has no schedule set for ${targetDate} (${DAYS_IN_3} days away).`,
           entityType: "staff",
           entityId: staff.id,
-          actionHref: "/crm/staff-availability",
+          actionHref: "/crm/schedule?tab=setup",
           priority: "normal",
           dueAt: new Date(ctx.now.getTime() + 24 * 60 * 60_000).toISOString(),
           metadata: { source: "agent_follow_up", target_date: targetDate },

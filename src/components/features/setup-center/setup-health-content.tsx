@@ -71,7 +71,7 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
           : `${missingSchedule} need schedules`,
       status: d.serviceStaffTotal === 0 ? "warning" : missingSchedule === 0 ? "ready" : "warning",
       actionLabel: missingSchedule > 0 ? "Fix Schedules" : undefined,
-      actionHref: missingSchedule > 0 ? "/crm/staff-availability" : undefined,
+      actionHref: missingSchedule > 0 ? "/crm/schedule?tab=setup" : undefined,
     },
     {
       icon: "✨",
@@ -132,7 +132,7 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
 }
 
 const SHORTCUTS = [
-  { icon: "🗓️", label: "Fix Schedules", description: "Set up missing staff schedules", href: "/crm/staff-availability" },
+  { icon: "🗓️", label: "Fix Schedules", description: "Set up missing staff schedules", href: "/crm/schedule?tab=setup" },
   { icon: "✨", label: "Assign Therapists", description: "Assign providers to services", href: "/crm/services" },
   { icon: "🏠", label: "Edit Rooms & Rules", description: "Manage rooms and booking rules", href: "/crm/spaces-rules" },
   { icon: "📋", label: "Work Queue", description: "Check today's booking exceptions", href: "/crm/today?filter=exceptions" },

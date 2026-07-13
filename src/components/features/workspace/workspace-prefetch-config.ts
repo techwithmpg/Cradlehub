@@ -41,11 +41,11 @@ export const CRM_PREFETCH: WorkspacePrefetchConfig = {
   // hidden and secondary routes stay live, but wait for explicit navigation.
   hover: [
     "/crm/live-operations",
-    "/crm/availability",
+    "/crm/schedule",
     "/crm/setup",
     "/crm/staff",
     "/crm/staff-applications",
-    "/crm/staff-availability",
+    "/crm/schedule?tab=setup",
     "/crm/services",
     "/crm/spaces-rules",
     "/crm/repeats",

@@ -17,6 +17,7 @@ export const HEADER_HEIGHT_PX = 44;
 
 const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
+const MAX_TIMELINE_MINUTES = MINUTES_PER_DAY * 2;
 
 // ── Density-aware helpers ────────────────────────────────────────────────────
 
@@ -81,22 +82,31 @@ function parseScheduleTime(time: string | null | undefined): number | null {
   const hours = Number(hourPart);
   const minutes = Number(minutePart);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-  return clamp(hours * MINUTES_PER_HOUR + minutes, 0, MINUTES_PER_DAY);
+  return clamp(hours * MINUTES_PER_HOUR + minutes, 0, MINUTES_PER_DAY - 1);
 }
 
 function minutesToTime(minutes: number): string {
-  const clamped = clamp(Math.round(minutes), 0, MINUTES_PER_DAY);
-  const hours = Math.floor(clamped / MINUTES_PER_HOUR);
-  const mins = clamped % MINUTES_PER_HOUR;
+  const clamped = clamp(Math.round(minutes), 0, MAX_TIMELINE_MINUTES);
+  const dayMinutes = clamped % MINUTES_PER_DAY;
+  const hours = Math.floor(dayMinutes / MINUTES_PER_HOUR);
+  const mins = dayMinutes % MINUTES_PER_HOUR;
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
 
 function createTimelineRange(startMinutes: number, endMinutes: number): TimelineRange {
-  const safeStart = clamp(Math.floor(startMinutes / MINUTES_PER_HOUR) * MINUTES_PER_HOUR, 0, MINUTES_PER_DAY - MINUTES_PER_HOUR);
-  let safeEnd = clamp(Math.ceil(endMinutes / SLOT_MINUTES) * SLOT_MINUTES, safeStart + SLOT_MINUTES, MINUTES_PER_DAY);
+  const safeStart = clamp(
+    Math.floor(startMinutes / MINUTES_PER_HOUR) * MINUTES_PER_HOUR,
+    0,
+    MAX_TIMELINE_MINUTES - MINUTES_PER_HOUR
+  );
+  let safeEnd = clamp(
+    Math.ceil(endMinutes / SLOT_MINUTES) * SLOT_MINUTES,
+    safeStart + SLOT_MINUTES,
+    MAX_TIMELINE_MINUTES
+  );
 
   if (safeEnd <= safeStart) {
-    safeEnd = Math.min(safeStart + SLOT_MINUTES, MINUTES_PER_DAY);
+    safeEnd = Math.min(safeStart + SLOT_MINUTES, MAX_TIMELINE_MINUTES);
   }
 
   const totalMinutes = safeEnd - safeStart;
@@ -122,21 +132,35 @@ export function timeToMinutes(time: string): number {
 }
 
 export function getDurationMinutes(range: TimeRange): number {
-  return timeToMinutes(range.endTime) - timeToMinutes(range.startTime);
+  const start = timeToMinutes(range.startTime);
+  const end = timeToMinutes(range.endTime);
+  return end <= start ? end + MINUTES_PER_DAY - start : end - start;
 }
 
 export function buildTimelineRange(staffRows: DailyScheduleStaffRow[]): TimelineRange {
   const points: number[] = [];
 
-  const addRange = (startTime: string | null | undefined, endTime: string | null | undefined) => {
+  const addRange = (
+    startTime: string | null | undefined,
+    endTime: string | null | undefined,
+    endsNextDay = false
+  ) => {
     const start = parseScheduleTime(startTime);
-    const end = parseScheduleTime(endTime);
-    if (start === null || end === null || end <= start) return;
+    let end = parseScheduleTime(endTime);
+    if (start === null || end === null) return;
+    if (endsNextDay || end <= start) end += MINUTES_PER_DAY;
+    if (end <= start) return;
     points.push(start, end);
   };
 
   for (const staff of staffRows) {
-    addRange(staff.work_start, staff.work_end);
+    if (staff.schedule_windows.length > 0) {
+      for (const window of staff.schedule_windows) {
+        addRange(window.startTime, window.endTime, window.endsNextDay === true);
+      }
+    } else {
+      addRange(staff.work_start, staff.work_end);
+    }
 
     if (staff.current_override && !staff.current_override.is_day_off) {
       addRange(staff.current_override.start_time, staff.current_override.end_time);
@@ -159,13 +183,14 @@ export function buildTimelineRange(staffRows: DailyScheduleStaffRow[]): Timeline
 }
 
 export function formatMinutesAsScheduleTime(minutes: number): string {
-  const clamped = clamp(Math.round(minutes), 0, MINUTES_PER_DAY);
-  const dayMinute = clamped === MINUTES_PER_DAY ? 0 : clamped;
+  const clamped = clamp(Math.round(minutes), 0, MAX_TIMELINE_MINUTES);
+  const dayMinute = clamped % MINUTES_PER_DAY;
   const hours = Math.floor(dayMinute / MINUTES_PER_HOUR);
   const mins = dayMinute % MINUTES_PER_HOUR;
   const period = hours >= 12 ? "PM" : "AM";
   const displayHour = hours % 12 || 12;
-  return `${displayHour}:${String(mins).padStart(2, "0")} ${period}`;
+  const nextDay = clamped >= MINUTES_PER_DAY ? " +1d" : "";
+  return `${displayHour}:${String(mins).padStart(2, "0")} ${period}${nextDay}`;
 }
 
 export function getTimelineHourMarks(range: TimelineRange): TimelineHourMark[] {
@@ -197,10 +222,21 @@ export function getTimelineOffsetPercent(time: string, range: TimelineRange): nu
   return clamp(((minutes - range.startMinutes) / range.totalMinutes) * 100, 0, 100);
 }
 
-export function getTimelineWidthPercent(startTime: string, endTime: string, range: TimelineRange): number {
+function normalizeEndMinutes(start: number, end: number, endsNextDay: boolean): number {
+  if (endsNextDay || end <= start) return end + MINUTES_PER_DAY;
+  return end;
+}
+
+export function getTimelineWidthPercent(
+  startTime: string,
+  endTime: string,
+  range: TimelineRange,
+  endsNextDay = false
+): number {
   const start = parseScheduleTime(startTime);
-  const end = parseScheduleTime(endTime);
-  if (start === null || end === null || range.totalMinutes <= 0) return 0;
+  const rawEnd = parseScheduleTime(endTime);
+  if (start === null || rawEnd === null || range.totalMinutes <= 0) return 0;
+  const end = normalizeEndMinutes(start, rawEnd, endsNextDay);
   const clampedStart = clamp(start, range.startMinutes, range.endMinutes);
   const clampedEnd = clamp(end, range.startMinutes, range.endMinutes);
   return Math.max(0, ((clampedEnd - clampedStart) / range.totalMinutes) * 100);
@@ -209,11 +245,12 @@ export function getTimelineWidthPercent(startTime: string, endTime: string, rang
 export function getTimelineBlockPercent(
   startTime: string,
   endTime: string,
-  range: TimelineRange
+  range: TimelineRange,
+  endsNextDay = false
 ): { leftPercent: number; widthPercent: number } {
   return {
     leftPercent: getTimelineOffsetPercent(startTime, range),
-    widthPercent: getTimelineWidthPercent(startTime, endTime, range),
+    widthPercent: getTimelineWidthPercent(startTime, endTime, range, endsNextDay),
   };
 }
 

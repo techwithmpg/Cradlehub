@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCrmApiContext } from "@/lib/api/get-api-context";
 import { getStaffWithAvailability } from "@/lib/queries/staff";
-import { getScheduleSetupOverview } from "@/lib/queries/staff-schedule-groups";
 
 export async function GET(request: NextRequest) {
   void request.url;
@@ -12,17 +11,10 @@ export async function GET(request: NextRequest) {
   const ctx = auth.context;
 
   try {
-    const [items, overview] = await Promise.all([
-      getStaffWithAvailability(ctx.branchId),
-      getScheduleSetupOverview(ctx.branchId),
-    ]);
+    const items = await getStaffWithAvailability(ctx.branchId);
 
     return NextResponse.json(
-      {
-        items,
-        groups: overview.groups,
-        rulesByGroup: overview.rulesByGroup,
-      },
+      { items },
       {
         headers: {
           "Cache-Control": "private, max-age=30, stale-while-revalidate=60",

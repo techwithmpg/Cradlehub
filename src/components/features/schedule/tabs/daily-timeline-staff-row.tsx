@@ -9,8 +9,18 @@ import {
   type TimelineHourMark,
   type TimelineRange,
 } from "@/lib/utils/schedule-timeline";
+import {
+  databaseShiftToUi,
+  getScheduleShiftLabel,
+  type ScheduleShiftKind,
+} from "@/lib/schedule/schedule-domain";
 import type { LiveScheduleConflict } from "@/lib/schedule/live-schedule-conflict-types";
-import { getTimelineStatus, type TimelineStatusFilter } from "./daily-timeline-operations";
+import {
+  getScheduleDisplayLabel,
+  getScheduleDisplayState,
+  getTimelineStatus,
+  type TimelineStatusFilter,
+} from "./daily-timeline-operations";
 
 type Props = {
   row: DailyScheduleStaffRow;
@@ -34,8 +44,26 @@ const STATUS_COLORS: Record<Exclude<TimelineStatusFilter, "all">, string> = {
   off: "bg-stone-400",
 };
 
+const SHIFT_BLOCK_CLASS: Record<ScheduleShiftKind, string> = {
+  opening: "border-emerald-200 bg-emerald-50/90 text-emerald-900",
+  regular: "border-blue-200 bg-blue-50/90 text-blue-900",
+  closing: "border-purple-200 bg-purple-50/90 text-purple-900",
+};
+
 function getInitials(name: string): string {
   return name.split(" ").filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+}
+
+function getAttendanceLabel(row: DailyScheduleStaffRow): string {
+  const state = row.attendance_presence?.state;
+  if (state === "checked_in") return "Checked in";
+  if (state === "checked_out") return "Checked out";
+  if (state === "not_checked_in") return "Not checked in";
+  return "Not expected";
+}
+
+function formatWindowTitle(startTime: string, endTime: string, endsNextDay?: boolean): string {
+  return `${formatScheduleTime(startTime)} - ${formatScheduleTime(endTime)}${endsNextDay ? " +1 day" : ""}`;
 }
 
 function getBookingClass(status: string, type: string | null, conflict: LiveScheduleConflict | null): string {
@@ -68,6 +96,9 @@ export function DailyTimelineStaffRow({
   onBookingSelect,
 }: Props) {
   const status = getTimelineStatus(row, date, now);
+  const displayState = getScheduleDisplayState(row);
+  const scheduleEmptyLabel = getScheduleDisplayLabel(row);
+  const attendanceLabel = getAttendanceLabel(row);
   const staffConflictSummary = conflicts
     .map((conflict) => conflict.plain_language_message)
     .slice(0, 3)
@@ -91,9 +122,15 @@ export function DailyTimelineStaffRow({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs font-semibold text-[var(--cs-text)]">{row.staff_name}</span>
-          <span className="block truncate text-[10px] text-[var(--cs-text-muted)]">{staffTypeLabel}</span>
+          <span className="block truncate text-[10px] text-[var(--cs-text-muted)]">
+            {staffTypeLabel} · {attendanceLabel}
+          </span>
         </span>
-        <span className={`size-2 shrink-0 rounded-full ${STATUS_COLORS[status]}`} aria-label={status} />
+        <span
+          className={`size-2 shrink-0 rounded-full ${STATUS_COLORS[status]}`}
+          aria-label={`${status}; ${attendanceLabel}`}
+          title={attendanceLabel}
+        />
         {conflicts.length > 0 ? (
           <span
             className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-700"
@@ -118,26 +155,28 @@ export function DailyTimelineStaffRow({
           />
         ))}
 
-        {row.schedule_windows.map((window) => {
-          const position = getTimelineBlockPercent(window.startTime, window.endTime, range);
-          const closing = window.shiftType === "closing";
+        {(displayState === "valid" ? row.schedule_windows : []).map((window) => {
+          const shiftKind = databaseShiftToUi(window.shiftType);
+          const position = getTimelineBlockPercent(
+            window.startTime,
+            window.endTime,
+            range,
+            window.endsNextDay === true
+          );
+          const title = `${getScheduleShiftLabel(shiftKind)} ${formatWindowTitle(window.startTime, window.endTime, window.endsNextDay)}`;
           return (
             <button
-              key={`${window.shiftType}-${window.startTime}-${window.endTime}`}
+              key={window.id ?? `${row.staff_id}-${window.windowOrder ?? window.startTime}-${window.endTime}`}
               type="button"
               onClick={() => onStaffSelect(row.staff_id)}
-              className={
-                closing
-                  ? "absolute top-2 h-9 overflow-hidden rounded-md border border-sky-200 bg-sky-50/90 px-2 text-left text-sky-900"
-                  : "absolute top-2 h-9 overflow-hidden rounded-md border border-emerald-200 bg-emerald-50/90 px-2 text-left text-emerald-900"
-              }
+              className={`absolute top-2 h-9 overflow-hidden rounded-md border px-2 text-left ${SHIFT_BLOCK_CLASS[shiftKind]}`}
               style={{ left: `${position.leftPercent}%`, width: `${position.widthPercent}%`, minWidth: 36 }}
-              title={`${formatScheduleTime(window.startTime)} - ${formatScheduleTime(window.endTime)}`}
+              title={title}
             >
               <span className="block truncate text-[10px] font-semibold">
-                {formatScheduleTime(window.startTime)} - {formatScheduleTime(window.endTime)}
+                {formatWindowTitle(window.startTime, window.endTime, window.endsNextDay)}
               </span>
-              <span className="block truncate text-[9px] capitalize opacity-70">{window.shiftType} shift</span>
+              <span className="block truncate text-[9px] opacity-70">{getScheduleShiftLabel(shiftKind)}</span>
             </button>
           );
         })}
@@ -186,8 +225,16 @@ export function DailyTimelineStaffRow({
           );
         })}
 
-        {row.schedule_windows.length === 0 ? (
-          <span className="absolute inset-y-0 left-3 flex items-center text-[11px] font-medium text-stone-500">Day off</span>
+        {displayState !== "valid" ? (
+          <span
+            className={
+              displayState === "needs_review"
+                ? "absolute inset-y-0 left-3 flex items-center text-[11px] font-semibold text-red-700"
+                : "absolute inset-y-0 left-3 flex items-center text-[11px] font-medium text-stone-500"
+            }
+          >
+            {scheduleEmptyLabel}
+          </span>
         ) : null}
 
         {currentTimePercent !== null ? (

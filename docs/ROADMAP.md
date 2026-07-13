@@ -18,6 +18,26 @@
 
 ---
 
+## Current Delivery Notes
+
+- ✅ `CRADLE-SCHEDULE-LEFTOVER-CLEANUP-008` completed on 2026-07-13:
+  leftover legacy warnings now require authoritative contracts. Dante/Boy's
+  real invalid 20-hour schedule window surfaces with exact issue code/source
+  data, Angels Massage no longer gets a missing-room warning without explicit
+  service metadata, and Main Spa's corrupted coverage minima were backed up and
+  restored to defaults.
+- ✅ `CRADLE-SCHEDULE-SYSTEM-UNIFICATION-007` completed on 2026-07-13:
+  CRM-controlled individual `staff_schedules` are the runtime schedule source,
+  Schedule Setup and Adjust Schedule share the same weekly draft/save path,
+  Daily Timeline starts from the operational branch roster, missing schedule is
+  distinct from day off/conflict, split and overnight windows render correctly,
+  and live realtime publication now includes the schedule runtime tables.
+- 🔴 Supabase migration-history reconciliation remains required from a working
+  direct DB path. Do not blind `db push` while live schema effects are verified
+  but migration history is not certified from this environment.
+
+---
+
 ## Phase 0: Project Bootstrap `[STATUS: ⬜]`
 
 > **Goal:** Repo exists, runs, and every developer/agent can start working immediately.
@@ -202,3 +222,6 @@
 | 2026-07-12 | Completed ATTENDANCE-TODAY-ALIGNMENT-RESET-001 | Repair QR Attendance scan ordering so current schedule decides clock-in/out before open rows, isolate stale/conflicting rows into Recovery, and replace broad staff-day reset with selected-record Attendance State Reset | Codex |
 | 2026-07-12 | Implemented local ATTENDANCE-AUTONOMY-HARDENING-001 | Add stable shift-instance snapshots, branch timezone/business-date behavior, Attendance state machine, Recovery dedupe, staff-first Device Registry, production device-secret enforcement, migration/types/runbook updates, and record remaining production closeout blockers | Codex |
 | 2026-07-12 | Continued ATTENDANCE-AUTONOMY-HARDENING-001 transactional hardening | Add linked-applied transactional scan commit and selected-record reset RPCs, service-role-only grants, generated type updates, focused migration tests, and document remaining migration-history/correction/QA blockers | Codex |
+| 2026-07-13 | Implemented local CRADLE-INDIVIDUAL-SCHEDULING-SIMPLIFICATION-005 | Remove paper import, group runtime fallback, duplicate schedule UI, and route runtime consumers through CRM-entered individual schedules; production migration apply remains blocked by migration-history connectivity | Codex |
+| 2026-07-13 | Completed local CRADLE-ADJUST-SCHEDULE-MODAL-003 | Add reusable Adjust Schedule modal from Daily Timeline Quick Actions and selected-staff card, preserve Daily Timeline UI and individual schedule authority, add role-aware split/overnight weekly editing and focused verification | Codex |
+| 2026-07-13 | Completed CRADLE-SCHEDULE-UPDATE-INTEGRATION-REPAIR-006 | Repair live CRM schedule save failure by applying ordered-window staff_schedules RPC/constraint migration, structured save errors, stale inactive cleanup, and focused/live verification; migration-history pooler path remains blocked | Codex |

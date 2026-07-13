@@ -37,9 +37,9 @@ const ACTIONS: Action[] = [
     href: "/crm/customers",
   },
   {
-    label: "Live Availability",
+    label: "Daily Timeline",
     description: "See who is checked in, busy, missing, or available now.",
-    href: "/crm/availability",
+    href: "/crm/schedule",
   },
 ];
 

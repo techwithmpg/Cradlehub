@@ -26,11 +26,11 @@ const TOOL_LINKS: ToolLink[] = [
   },
   {
     icon: "✅",
-    title: "Live Availability",
+    title: "Daily Timeline",
     description:
       "Daily staff check-in, live presence, and same-day operational readiness. CRM uses this alongside room availability for walk-ins.",
-    href: "/crm/availability",
-    label: "Open Live Availability →",
+    href: "/crm/schedule",
+    label: "Open Daily Timeline →",
   },
   {
     icon: "✨",
@@ -42,10 +42,10 @@ const TOOL_LINKS: ToolLink[] = [
   },
   {
     icon: "📅",
-    title: "Schedule Setup Center",
+    title: "Schedule Setup",
     description:
       "Staff schedules, overrides, and blocked time. Schedules are the primary availability source for online booking.",
-    href: "/crm/staff-availability",
+    href: "/crm/schedule?tab=setup",
     label: "Open Schedule Setup →",
   },
   {

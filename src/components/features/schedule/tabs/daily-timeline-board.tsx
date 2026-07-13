@@ -22,10 +22,10 @@ const SHIFT_GROUPS: Array<{
   icon: typeof Sun;
   className: string;
 }> = [
-  { key: "opening", label: "Opening Shift", icon: Sun, className: "bg-amber-50 text-amber-950" },
-  { key: "regular", label: "Regular Shift", icon: Clock3, className: "bg-stone-50 text-stone-800" },
-  { key: "closing", label: "Closing Shift", icon: Moon, className: "bg-sky-50 text-sky-950" },
-  { key: "off", label: "Day Off", icon: CalendarOff, className: "bg-stone-100 text-stone-700" },
+  { key: "opening", label: "Opening Shift", icon: Sun, className: "bg-emerald-50 text-emerald-950" },
+  { key: "regular", label: "Regular Shift", icon: Clock3, className: "bg-blue-50 text-blue-950" },
+  { key: "closing", label: "Closing Shift", icon: Moon, className: "bg-purple-50 text-purple-950" },
+  { key: "off", label: "Off / Setup Needed", icon: CalendarOff, className: "bg-stone-100 text-stone-700" },
 ];
 
 type Props = {

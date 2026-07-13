@@ -1,26 +1,52 @@
-import { timeToMinutes } from "@/lib/utils/time-format";
 import { getDayOfWeekFromYmd } from "@/lib/engine/slot-time";
+import {
+  canUseScheduleShiftType,
+  type ScheduleShiftEligibilityStaff,
+} from "@/lib/schedule/shift-eligibility";
+import { timeToMinutes } from "@/lib/utils/time-format";
 
 export const STAFF_SCHEDULE_SHIFT_TYPES = ["single", "opening", "closing"] as const;
 
 export type StaffScheduleShiftType = (typeof STAFF_SCHEDULE_SHIFT_TYPES)[number];
 
-export type ResolvedStaffScheduleSource = "override" | "individual" | "group" | "none";
-export type ResolvedStaffScheduleStatus = "resolved" | "day_off" | "missing" | "conflict";
+export type ResolvedStaffScheduleSource = "override" | "individual" | "none";
+export type ResolvedStaffScheduleStatus =
+  | "resolved"
+  | "day_off"
+  | "missing"
+  | "conflict"
+  | "not_operational";
+export type ResolvedStaffScheduleState =
+  | "NO_SCHEDULE_CONFIGURED"
+  | "CONFIGURED_DAY_OFF"
+  | "VALID_SCHEDULE"
+  | "VALID_SPLIT_SHIFT"
+  | "VALID_OVERNIGHT_SHIFT"
+  | "OVERLAPPING_WINDOWS"
+  | "INVALID_TIME_WINDOW"
+  | "INELIGIBLE_SHIFT_TYPE"
+  | "CONTRADICTORY_DAY_STATE"
+  | "STAFF_NOT_OPERATIONAL";
 export type ResolvedStaffScheduleConflictCode =
   | "invalid_time_range"
   | "overlapping_windows"
-  | "day_off_with_working_window";
+  | "day_off_with_working_window"
+  | "ineligible_shift_type"
+  | "contradictory_day_state";
 
 export type ResolvedStaffScheduleWindow = {
   shiftType: StaffScheduleShiftType;
   startTime: string;
   endTime: string;
+  id?: string;
+  windowOrder?: number;
+  endsNextDay?: boolean;
 };
 
 export type ResolvedStaffSchedule = {
   source: ResolvedStaffScheduleSource;
   status: ResolvedStaffScheduleStatus;
+  state: ResolvedStaffScheduleState;
   isWorking: boolean;
   isDayOff: boolean;
   windows: ResolvedStaffScheduleWindow[];
@@ -29,30 +55,37 @@ export type ResolvedStaffSchedule = {
 };
 
 export type IndividualScheduleSourceRow = {
+  id?: string | null;
   shift_type: string | null;
   start_time: string | null;
   end_time: string | null;
   is_active: boolean | null;
+  window_order?: number | null;
+  ends_next_day?: boolean | null;
 };
 
 export type ScheduleOverrideSourceRow = {
+  id?: string | null;
   shift_type?: string | null;
   is_day_off: boolean | null;
   start_time: string | null;
   end_time: string | null;
+  ends_next_day?: boolean | null;
 } | null;
-
-export type GroupScheduleRuleSourceRow = {
-  shift_type: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  is_active: boolean | null;
-  is_day_off: boolean | null;
-};
 
 export const UNSCHEDULED_STAFF_SCHEDULE: ResolvedStaffSchedule = {
   source: "none",
   status: "missing",
+  state: "NO_SCHEDULE_CONFIGURED",
+  isWorking: false,
+  isDayOff: false,
+  windows: [],
+};
+
+export const NON_OPERATIONAL_STAFF_SCHEDULE: ResolvedStaffSchedule = {
+  source: "none",
+  status: "not_operational",
+  state: "STAFF_NOT_OPERATIONAL",
   isWorking: false,
   isDayOff: false,
   windows: [],
@@ -62,6 +95,7 @@ const DAY_OFF_BY_SOURCE: Record<Exclude<ResolvedStaffScheduleSource, "none">, Re
   override: {
     source: "override",
     status: "day_off",
+    state: "CONFIGURED_DAY_OFF",
     isWorking: false,
     isDayOff: true,
     windows: [],
@@ -69,13 +103,7 @@ const DAY_OFF_BY_SOURCE: Record<Exclude<ResolvedStaffScheduleSource, "none">, Re
   individual: {
     source: "individual",
     status: "day_off",
-    isWorking: false,
-    isDayOff: true,
-    windows: [],
-  },
-  group: {
-    source: "group",
-    status: "day_off",
+    state: "CONFIGURED_DAY_OFF",
     isWorking: false,
     isDayOff: true,
     windows: [],
@@ -84,21 +112,6 @@ const DAY_OFF_BY_SOURCE: Record<Exclude<ResolvedStaffScheduleSource, "none">, Re
 
 export function dayOfWeekFromDateString(date: string): number {
   return getDayOfWeekFromYmd(date);
-}
-
-export function getScheduleGroupKeyForStaffType(
-  staffType: string | null | undefined
-): string | null {
-  if (!staffType) return null;
-  if (staffType === "csr") {
-    return "csr";
-  }
-  if (staffType === "driver") return "driver";
-  if (staffType === "utility") return "utility";
-  if (staffType === "nail_tech" || staffType === "salon_head") return "nail_tech";
-  if (staffType === "aesthetician" || staffType === "facialist") return "aesthetician";
-  if (staffType === "managerial") return "managerial";
-  return "therapist";
 }
 
 export function normalizeScheduleShiftType(
@@ -133,21 +146,31 @@ function sameTimeRange(
 }
 
 function toWindow(row: {
+  id?: string | null;
   shift_type: string | null;
   start_time: string;
   end_time: string;
+  window_order?: number | null;
+  ends_next_day?: boolean | null;
 }): ResolvedStaffScheduleWindow {
-  return {
+  const window: ResolvedStaffScheduleWindow = {
     shiftType: normalizeScheduleShiftType(row.shift_type),
     startTime: row.start_time,
     endTime: row.end_time,
   };
+  if (row.id) window.id = row.id;
+  if (row.window_order != null) window.windowOrder = row.window_order;
+  if (row.ends_next_day != null) window.endsNextDay = row.ends_next_day;
+  return window;
 }
 
 function sortWindows(
   windows: ResolvedStaffScheduleWindow[]
 ): ResolvedStaffScheduleWindow[] {
   return [...windows].sort((a, b) => {
+    if (a.windowOrder != null || b.windowOrder != null) {
+      return (a.windowOrder ?? 999) - (b.windowOrder ?? 999);
+    }
     const aStart = timeToMinutes(a.startTime) ?? 0;
     const bStart = timeToMinutes(b.startTime) ?? 0;
     return aStart - bStart;
@@ -164,23 +187,36 @@ function absoluteWindowRange(window: ResolvedStaffScheduleWindow): {
     return { start: null, end: null };
   }
 
+  const crossesMidnight = window.endsNextDay ?? end <= start;
   return {
     start,
-    end: end <= start ? end + 24 * 60 : end,
+    end: crossesMidnight ? end + 24 * 60 : end,
   };
 }
 
 function getWindowConflict(
   windows: ResolvedStaffScheduleWindow[]
-): { code: ResolvedStaffScheduleConflictCode; reason: string } | null {
+): { code: ResolvedStaffScheduleConflictCode; reason: string; state: ResolvedStaffScheduleState } | null {
   const sorted = sortWindows(windows);
 
   for (const window of sorted) {
+    const start = timeToMinutes(window.startTime);
+    const end = timeToMinutes(window.endTime);
     const range = absoluteWindowRange(window);
-    if (range.start === null || range.end === null || range.end <= range.start) {
+    if (
+      start === null ||
+      end === null ||
+      range.start === null ||
+      range.end === null ||
+      range.end <= range.start ||
+      range.end - range.start > 16 * 60 ||
+      (window.endsNextDay === false && end <= start) ||
+      (window.endsNextDay === true && end > start)
+    ) {
       return {
         code: "invalid_time_range",
         reason: "A schedule window has an invalid or zero-length time range.",
+        state: "INVALID_TIME_WINDOW",
       };
     }
   }
@@ -204,6 +240,7 @@ function getWindowConflict(
         return {
           code: "overlapping_windows",
           reason: "Multiple active schedule windows overlap for the same day.",
+          state: "OVERLAPPING_WINDOWS",
         };
       }
     }
@@ -212,18 +249,38 @@ function getWindowConflict(
   return null;
 }
 
+function getEligibilityConflict(params: {
+  staff?: ScheduleShiftEligibilityStaff;
+  windows: ResolvedStaffScheduleWindow[];
+}): { code: ResolvedStaffScheduleConflictCode; reason: string; state: ResolvedStaffScheduleState } | null {
+  if (!params.staff) return null;
+
+  const invalidWindow = params.windows.find(
+    (window) => !canUseScheduleShiftType(params.staff!, window.shiftType)
+  );
+  if (!invalidWindow) return null;
+
+  return {
+    code: "ineligible_shift_type",
+    reason: "Opening and Closing shifts are only valid for therapists and CRM staff.",
+    state: "INELIGIBLE_SHIFT_TYPE",
+  };
+}
+
 function conflictSchedule(params: {
   source: Exclude<ResolvedStaffScheduleSource, "none">;
   windows: ResolvedStaffScheduleWindow[];
   code: ResolvedStaffScheduleConflictCode;
   reason: string;
+  state: ResolvedStaffScheduleState;
 }): ResolvedStaffSchedule {
   return {
     source: params.source,
     status: "conflict",
+    state: params.state,
     isWorking: false,
     isDayOff: false,
-    windows: [],
+    windows: sortWindows(params.windows),
     conflictCode: params.code,
     conflictReason: params.reason,
   };
@@ -234,9 +291,16 @@ function workingSchedule(
   windows: ResolvedStaffScheduleWindow[]
 ): ResolvedStaffSchedule {
   const sortedWindows = sortWindows(windows);
+  const hasOvernight = sortedWindows.some((window) => window.endsNextDay === true);
   return {
     source,
     status: "resolved",
+    state:
+      sortedWindows.length > 1
+        ? "VALID_SPLIT_SHIFT"
+        : hasOvernight
+          ? "VALID_OVERNIGHT_SHIFT"
+          : "VALID_SCHEDULE",
     isWorking: sortedWindows.length > 0,
     isDayOff: false,
     windows: sortedWindows,
@@ -245,37 +309,22 @@ function workingSchedule(
 
 function getLegacyOverrideSourceRows(params: {
   individualRows: IndividualScheduleSourceRow[];
-  groupRules: GroupScheduleRuleSourceRow[];
 }): Array<{
   shift_type: string | null;
   start_time: string;
   end_time: string;
 }> {
-  const individualRows = params.individualRows
-    .filter(
-      (
-        row
-      ): row is IndividualScheduleSourceRow & { start_time: string; end_time: string } =>
-        row.is_active === true && hasTimeRange(row)
-    );
-
-  if (individualRows.length > 0) {
-    return individualRows;
-  }
-
-  return params.groupRules
-    .filter(
-      (
-        rule
-      ): rule is GroupScheduleRuleSourceRow & { start_time: string; end_time: string } =>
-        rule.is_active !== false && rule.is_day_off !== true && hasTimeRange(rule)
-    );
+  return params.individualRows.filter(
+    (
+      row
+    ): row is IndividualScheduleSourceRow & { start_time: string; end_time: string } =>
+      row.is_active === true && hasTimeRange(row)
+  );
 }
 
 function resolveOverrideShiftType(params: {
   override: NonNullable<ScheduleOverrideSourceRow> & { start_time: string; end_time: string };
   individualRows: IndividualScheduleSourceRow[];
-  groupRules: GroupScheduleRuleSourceRow[];
 }): StaffScheduleShiftType {
   if (isKnownScheduleShiftType(params.override.shift_type)) {
     return params.override.shift_type;
@@ -283,7 +332,6 @@ function resolveOverrideShiftType(params: {
 
   const sourceRows = getLegacyOverrideSourceRows({
     individualRows: params.individualRows,
-    groupRules: params.groupRules,
   });
   const exactMatch = sourceRows.find(
     (row) => isKnownScheduleShiftType(row.shift_type) && sameTimeRange(row, params.override)
@@ -306,8 +354,13 @@ function resolveOverrideShiftType(params: {
 export function resolveScheduleForStaffDay(params: {
   override?: ScheduleOverrideSourceRow;
   individualRows?: IndividualScheduleSourceRow[];
-  groupRules?: GroupScheduleRuleSourceRow[];
+  staff?: ScheduleShiftEligibilityStaff;
+  operational?: boolean;
 }): ResolvedStaffSchedule {
+  if (params.operational === false) {
+    return NON_OPERATIONAL_STAFF_SCHEDULE;
+  }
+
   const override = params.override ?? null;
   if (override?.is_day_off === true) {
     return DAY_OFF_BY_SOURCE.override;
@@ -320,20 +373,34 @@ export function resolveScheduleForStaffDay(params: {
         windows: [],
         code: "invalid_time_range",
         reason: "A date-specific schedule override is missing a valid time range.",
+        state: "INVALID_TIME_WINDOW",
       });
     }
 
     const shiftType = resolveOverrideShiftType({
       override,
       individualRows: params.individualRows ?? [],
-      groupRules: params.groupRules ?? [],
     });
 
-    const window = {
-      shiftType,
-      startTime: override.start_time,
-      endTime: override.end_time,
-    };
+    const window = toWindow({
+      id: override.id,
+      shift_type: shiftType,
+      start_time: override.start_time,
+      end_time: override.end_time,
+      window_order: 1,
+      ends_next_day: override.ends_next_day,
+    });
+    const eligibilityConflict = getEligibilityConflict({ staff: params.staff, windows: [window] });
+    if (eligibilityConflict) {
+      return conflictSchedule({
+        source: "override",
+        windows: [window],
+        code: eligibilityConflict.code,
+        reason: eligibilityConflict.reason,
+        state: eligibilityConflict.state,
+      });
+    }
+
     const conflict = getWindowConflict([window]);
     if (conflict) {
       return conflictSchedule({
@@ -341,6 +408,7 @@ export function resolveScheduleForStaffDay(params: {
         windows: [window],
         code: conflict.code,
         reason: conflict.reason,
+        state: conflict.state,
       });
     }
 
@@ -366,6 +434,18 @@ export function resolveScheduleForStaffDay(params: {
         windows,
         code: "invalid_time_range",
         reason: "An active individual schedule row is missing a valid time range.",
+        state: "INVALID_TIME_WINDOW",
+      });
+    }
+
+    const eligibilityConflict = getEligibilityConflict({ staff: params.staff, windows });
+    if (eligibilityConflict) {
+      return conflictSchedule({
+        source: "individual",
+        windows,
+        code: eligibilityConflict.code,
+        reason: eligibilityConflict.reason,
+        state: eligibilityConflict.state,
       });
     }
 
@@ -376,6 +456,7 @@ export function resolveScheduleForStaffDay(params: {
         windows,
         code: conflict.code,
         reason: conflict.reason,
+        state: conflict.state,
       });
     }
 
@@ -386,64 +467,12 @@ export function resolveScheduleForStaffDay(params: {
     return DAY_OFF_BY_SOURCE.individual;
   }
 
-  const groupRules = (params.groupRules ?? []).filter((rule) => rule.is_active !== false);
-  const activeGroupWindows = groupRules.filter(
-    (rule) => rule.is_day_off !== true && hasTimeRange(rule)
-  );
-  const invalidActiveGroupRules = groupRules.filter(
-    (rule) => rule.is_day_off !== true && !hasTimeRange(rule)
-  );
-
-  if (groupRules.some((rule) => rule.is_day_off === true) && activeGroupWindows.length > 0) {
-    return conflictSchedule({
-      source: "group",
-      windows: activeGroupWindows.map((rule) =>
-        toWindow(rule as GroupScheduleRuleSourceRow & { start_time: string; end_time: string })
-      ),
-      code: "day_off_with_working_window",
-      reason: "A group default marks the day off and also defines an active working window.",
-    });
-  }
-
-  if (groupRules.some((rule) => rule.is_day_off === true)) {
-    return DAY_OFF_BY_SOURCE.group;
-  }
-
-  const groupWindows = activeGroupWindows.map((rule) =>
-    toWindow(rule as GroupScheduleRuleSourceRow & { start_time: string; end_time: string })
-  );
-
-  if (invalidActiveGroupRules.length > 0) {
-    return conflictSchedule({
-      source: "group",
-      windows: groupWindows,
-      code: "invalid_time_range",
-      reason: "An active group schedule rule is missing a valid time range.",
-    });
-  }
-
-  const groupConflict = getWindowConflict(groupWindows);
-  if (groupConflict) {
-    return conflictSchedule({
-      source: "group",
-      windows: groupWindows,
-      code: groupConflict.code,
-      reason: groupConflict.reason,
-    });
-  }
-
-  if (groupWindows.length > 0) {
-    return workingSchedule("group", groupWindows);
-  }
-
   return UNSCHEDULED_STAFF_SCHEDULE;
 }
 
 function absoluteWindowEndMinutes(window: ResolvedStaffScheduleWindow): number {
-  const start = timeToMinutes(window.startTime);
-  const end = timeToMinutes(window.endTime);
-  if (start === null || end === null) return 0;
-  return end <= start ? end + 24 * 60 : end;
+  const range = absoluteWindowRange(window);
+  return range.end ?? 0;
 }
 
 export function getScheduleWindowSpan(
@@ -451,7 +480,11 @@ export function getScheduleWindowSpan(
 ): { startTime: string; endTime: string } | null {
   if (windows.length === 0) return null;
 
-  const sortedByStart = sortWindows(windows);
+  const sortedByStart = [...windows].sort((a, b) => {
+    const aStart = timeToMinutes(a.startTime) ?? 0;
+    const bStart = timeToMinutes(b.startTime) ?? 0;
+    return aStart - bStart;
+  });
   const startWindow = sortedByStart[0]!;
   const endWindow = [...windows].sort(
     (a, b) => absoluteWindowEndMinutes(b) - absoluteWindowEndMinutes(a)
@@ -475,7 +508,8 @@ export function isTimeWithinScheduleWindows(
     const end = timeToMinutes(window.endTime);
     if (start === null || end === null) return false;
 
-    if (end <= start) {
+    const crossesMidnight = window.endsNextDay ?? end <= start;
+    if (crossesMidnight) {
       return current >= start || current <= end;
     }
 
@@ -493,7 +527,7 @@ export function doesDurationFitWithinScheduleWindow(params: {
   let workEnd = timeToMinutes(params.window.endTime);
   if (slotStartRaw === null || workStart === null || workEnd === null) return false;
 
-  const isOvernight = workEnd <= workStart;
+  const isOvernight = params.window.endsNextDay ?? workEnd <= workStart;
   if (isOvernight) {
     workEnd += 24 * 60;
   }

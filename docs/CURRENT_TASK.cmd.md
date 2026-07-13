@@ -10,13 +10,13 @@
 
 | Field            | Value                                            |
 |------------------|--------------------------------------------------|
-| **Task ID**      | `ATTENDANCE-RECOVERY-RULES-001` |
-| **Description**  | Upgrade Attendance with schedule-aware recovery, rules, audit, and closing-scan intent handling |
+| **Task ID**      | `CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009` |
+| **Description**  | Repair public Attendance QR scans so backend failures surface as precise safe codes and atomic commits keep individual schedule truth |
 | **Agent**        | Codex |
-| **Started**      | 2026-07-10 |
-| **Status**       | `DONE` |
+| **Started**      | 2026-07-13 |
+| **Status**       | `REVIEW` |
 | **Branch**       | `main` |
-| **Blocked By**   | None |
+| **Blocked By**   | Physical registered-phone QA still pending; recent Supabase migration history still needs reconciliation before blind migration push |
 
 ---
 
@@ -34,6 +34,42 @@
 ---
 
 ## Notes
+
+CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009 status:
+
+- Root cause: public scan route/actions swallowed backend failures into generic
+  Scan Interrupted, while internal Recovery codes did not match the stable
+  `attendance_exceptions.exception_type` database CHECK constraint.
+- Added structured safe scan errors with operation IDs and non-200 backend
+  failure responses.
+- Added internal-to-stable exception mapping. Recovery UI reads
+  `metadata.internalExceptionType`; the DB column keeps stable values such as
+  `unscheduled`, `late`, `early_leave`, `overtime`, `missed_checkout`, and
+  `manual`.
+- `staff_shift_checkins.schedule_source` now stores `weekly`, `override`,
+  `recovery`, or `none`; split-shift identity includes source row/window id and
+  window order; override schedules support `ends_next_day`.
+- Added and live-applied
+  `supabase/migrations/20260713082146_attendance_scan_contract_repair.sql`
+  through linked SQL because direct `db push` still timed out on the pooler.
+- Verification passed: `npx tsc --noEmit`, focused attendance tests (5 files /
+  28 tests), and `pnpm build`.
+- Remaining: real registered-device phone QA and broader Supabase migration
+  history reconciliation.
+
+---
+
+CRADLE-SCHEDULE-LEFTOVER-CLEANUP-008 status:
+
+- Dante/Boy's visible conflict is real invalid individual schedule data (`02:00-22:00`, 20 hours), now surfaced as `schedule_invalid_time_window` / `INVALID_TIME_WINDOW` with exact source ids and fingerprint.
+- Angels Massage missing-room warning was a false positive: the service has no explicit resource requirement, so missing `resource_id` alone no longer generates a warning.
+- Main Spa's 29-staff coverage warning came from corrupted `scheduling_rules` minima. Cleanup backed up the row and restored defaults to `1/1/1/0/0`.
+- Added and live-applied `supabase/migrations/20260713090000_schedule_leftover_cleanup.sql`, backing up affected rows before removing deterministic stale active `single` windows.
+- Missing room/resource warnings now require explicit service metadata; coverage gaps require explicit `coverageRequirement`; schedule conflicts expose exact issue codes.
+- Verification passed: `npx tsc --noEmit`, focused schedule/manager tests (5 files / 24 tests), `pnpm test --run` (95 files / 735 tests), `pnpm lint`, and `pnpm build` (108 routes).
+- Remaining blocker: migration-history reads via the direct Supabase pooler path remain uncertified from this environment; reconcile from a working DB path before blind pushing migrations.
+
+---
 
 ATTENDANCE-RECOVERY-RULES-001 status:
 

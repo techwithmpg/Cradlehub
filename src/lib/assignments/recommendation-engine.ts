@@ -49,15 +49,21 @@ export type StaffForScoring = {
   tier: string | null;
   is_active: boolean;
   branch_id: string;
+  archived_at?: string | null;
+  merged_into_staff_id?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type ScheduleForScoring = {
+  id?: string | null;
   staff_id: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
   is_active: boolean;
   shift_type: string | null;
+  window_order?: number | null;
+  ends_next_day?: boolean | null;
 };
 
 export type OverrideForScoring = {
@@ -214,20 +220,23 @@ function bookingDurationMinutes(startTime: string, endTime: string): number {
 }
 
 function resolveScoringSchedule(
-  staffId: string,
+  staff: StaffForScoring,
   dayOfWeek: number,
   ctx: RecommendationContext
 ): ResolvedStaffSchedule {
   const override = ctx.overrides.find(
-    (candidate) => candidate.staff_id === staffId && candidate.override_date === ctx.bookingDate
+    (candidate) => candidate.staff_id === staff.id && candidate.override_date === ctx.bookingDate
   );
   const individualRows: IndividualScheduleSourceRow[] = ctx.schedules
-    .filter((schedule) => schedule.staff_id === staffId && schedule.day_of_week === dayOfWeek)
+    .filter((schedule) => schedule.staff_id === staff.id && schedule.day_of_week === dayOfWeek)
     .map((schedule) => ({
+      id: schedule.id ?? null,
       shift_type: schedule.shift_type,
       start_time: schedule.start_time,
       end_time: schedule.end_time,
       is_active: schedule.is_active,
+      window_order: schedule.window_order ?? null,
+      ends_next_day: schedule.ends_next_day ?? null,
     }));
   const scheduleOverride: ScheduleOverrideSourceRow = override
     ? {
@@ -241,7 +250,7 @@ function resolveScoringSchedule(
   return resolveScheduleForStaffDay({
     override: scheduleOverride,
     individualRows,
-    groupRules: [],
+    staff,
   });
 }
 
@@ -418,7 +427,7 @@ function scoreTherapist(
   const warnings: string[] = [];
   let score = 0;
   const dayOfWeek = dayOfWeekFromYmd(ctx.bookingDate);
-  const scheduleResolution = resolveScoringSchedule(staff.id, dayOfWeek, ctx);
+  const scheduleResolution = resolveScoringSchedule(staff, dayOfWeek, ctx);
 
   // Active check
   if (!staff.is_active) {
@@ -556,7 +565,7 @@ function scoreDriver(
   const warnings: string[] = [];
   let score = 0;
   const dayOfWeek = dayOfWeekFromYmd(ctx.bookingDate);
-  const scheduleResolution = resolveScoringSchedule(staff.id, dayOfWeek, ctx);
+  const scheduleResolution = resolveScoringSchedule(staff, dayOfWeek, ctx);
 
   // Active check
   if (!staff.is_active) {

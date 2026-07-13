@@ -1,4 +1,4 @@
-import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import { timeToMinutes } from "@/lib/utils/schedule-timeline";
 import { BRANCH_TIMEZONE, getBranchTime } from "@/lib/engine/slot-time";
@@ -16,6 +16,7 @@ export type StaffGroupKey =
 
 export type ShiftGroupKey = "opening" | "regular" | "closing" | "off";
 export type TimelineStatusFilter = "all" | "available" | "busy" | "scheduled" | "off";
+export type ScheduleDisplayState = "valid" | "day_off" | "not_configured" | "needs_review";
 
 export type TimelineFilters = {
   query: string;
@@ -62,17 +63,47 @@ export function getStaffTypeLabel(staffType: string | null | undefined): string 
 }
 
 export function getShiftGroup(row: DailyScheduleStaffRow): ShiftGroupKey {
-  if (row.schedule_is_day_off || row.schedule_windows.length === 0) return "off";
+  if (getScheduleDisplayState(row) !== "valid") return "off";
   if (row.schedule_windows.some((window) => window.shiftType === "opening")) return "opening";
   if (row.schedule_windows.some((window) => window.shiftType === "closing")) return "closing";
   return "regular";
 }
 
-function overlapsNow(start: string, end: string, minutes: number): boolean {
+export function getScheduleDisplayState(row: DailyScheduleStaffRow): ScheduleDisplayState {
+  if (row.schedule_status === "conflict") return "needs_review";
+  if (row.schedule_is_day_off || row.schedule_status === "day_off") return "day_off";
+  if (row.schedule_status === "missing" || row.schedule_source === "none") return "not_configured";
+  if (row.schedule_windows.length === 0) return "not_configured";
+  return "valid";
+}
+
+export function getScheduleDisplayLabel(row: DailyScheduleStaffRow): string {
+  const state = getScheduleDisplayState(row);
+  if (state === "day_off") return "Day Off";
+  if (state === "not_configured") return "Not Configured";
+  if (state === "needs_review") return "Needs Review";
+  return "Scheduled";
+}
+
+export function rowMatchesShiftFilter(
+  row: DailyScheduleStaffRow,
+  filter: TimelineFilters["shift"]
+): boolean {
+  if (filter === "all") return true;
+  const displayState = getScheduleDisplayState(row);
+  if (filter === "off") return displayState !== "valid";
+  if (displayState !== "valid") return false;
+  if (filter === "regular") {
+    return row.schedule_windows.some((window) => window.shiftType === "single");
+  }
+  return row.schedule_windows.some((window) => window.shiftType === filter);
+}
+
+function overlapsNow(start: string, end: string, minutes: number, endsNextDay = false): boolean {
   const startMinutes = timeToMinutes(start);
   let endMinutes = timeToMinutes(end);
   let currentMinutes = minutes;
-  if (endMinutes <= startMinutes) {
+  if (endsNextDay || endMinutes <= startMinutes) {
     endMinutes += 24 * 60;
     if (currentMinutes < startMinutes) currentMinutes += 24 * 60;
   }
@@ -91,7 +122,7 @@ export function getTimelineStatus(
 
   const minutes = Math.floor(branchNow.minutesIntoDay);
   const onShift = row.schedule_windows.some((window) =>
-    overlapsNow(window.startTime, window.endTime, minutes)
+    overlapsNow(window.startTime, window.endTime, minutes, window.endsNextDay === true)
   );
   if (!onShift) return "scheduled";
 
@@ -118,7 +149,7 @@ export function filterTimelineRows(params: {
     const staffType = params.staffTypeById.get(row.staff_id) ?? null;
     const groupMatches = params.group === "all" || getStaffGroupKey(staffType) === params.group;
     const queryMatches = !query || row.staff_name.toLowerCase().includes(query);
-    const shiftMatches = params.filters.shift === "all" || getShiftGroup(row) === params.filters.shift;
+    const shiftMatches = rowMatchesShiftFilter(row, params.filters.shift);
     const status = getTimelineStatus(row, params.date, params.now);
     const statusMatches = params.filters.status === "all" || status === params.filters.status;
     return groupMatches && queryMatches && shiftMatches && statusMatches;

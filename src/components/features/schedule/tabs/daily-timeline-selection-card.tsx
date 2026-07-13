@@ -1,7 +1,15 @@
-import { CalendarDays, Sparkles, UserRound } from "lucide-react";
+import { CalendarClock, CalendarDays, Sparkles, UserRound } from "lucide-react";
 import type { DailyScheduleBooking, DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import {
+  databaseShiftToUi,
+  getScheduleShiftLabel,
+} from "@/lib/schedule/schedule-domain";
 import { formatScheduleTime } from "@/lib/utils/schedule-timeline";
-import { getStaffTypeLabel, getTimelineStatus } from "./daily-timeline-operations";
+import {
+  getScheduleDisplayLabel,
+  getStaffTypeLabel,
+  getTimelineStatus,
+} from "./daily-timeline-operations";
 
 type Props = {
   staff: DailyScheduleStaffRow | null;
@@ -12,6 +20,7 @@ type Props = {
   onEditProfile: () => void;
   onEditCapabilities: () => void;
   onViewFullSchedule: () => void;
+  onAdjustSchedule: () => void;
 };
 
 function getInitials(name: string): string {
@@ -27,6 +36,20 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
+function formatWindow(window: DailyScheduleStaffRow["schedule_windows"][number]): string {
+  const shiftKind = databaseShiftToUi(window.shiftType);
+  const suffix = window.endsNextDay ? " +1 day" : "";
+  return `${getScheduleShiftLabel(shiftKind)} ${formatScheduleTime(window.startTime)} - ${formatScheduleTime(window.endTime)}${suffix}`;
+}
+
+function getAttendanceLabel(staff: DailyScheduleStaffRow): string {
+  const state = staff.attendance_presence?.state;
+  if (state === "checked_in") return "Checked in";
+  if (state === "checked_out") return "Checked out";
+  if (state === "not_checked_in") return "Not checked in";
+  return "Not expected";
+}
+
 export function DailyTimelineSelectionCard({
   staff,
   booking,
@@ -36,6 +59,7 @@ export function DailyTimelineSelectionCard({
   onEditProfile,
   onEditCapabilities,
   onViewFullSchedule,
+  onAdjustSchedule,
 }: Props) {
   if (!staff) {
     return (
@@ -65,10 +89,18 @@ export function DailyTimelineSelectionCard({
           <button
             type="button"
             disabled
-            className="col-span-2 flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-muted)] disabled:opacity-60"
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-muted)] disabled:opacity-60"
           >
             <CalendarDays className="size-3" />
             View Full Schedule
+          </button>
+          <button
+            type="button"
+            disabled
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-muted)] disabled:opacity-60"
+          >
+            <CalendarClock className="size-3" />
+            Adjust Schedule
           </button>
         </div>
       </section>
@@ -102,10 +134,13 @@ export function DailyTimelineSelectionCard({
         <div className="mt-3">
           <DetailRow
             label="Shift"
-            value={staff.schedule_windows.length > 0
-              ? staff.schedule_windows.map((window) => `${formatScheduleTime(window.startTime)} - ${formatScheduleTime(window.endTime)}`).join(", ")
-              : "Day off"}
+            value={
+              staff.schedule_windows.length > 0
+                ? staff.schedule_windows.map(formatWindow).join(", ")
+                : getScheduleDisplayLabel(staff)
+            }
           />
+          <DetailRow label="Attendance" value={getAttendanceLabel(staff)} />
           <DetailRow label="Bookings" value={staff.bookings.length} />
           <DetailRow label="Blocked periods" value={staff.blocks.length} />
           <DetailRow label="Schedule source" value={<span className="capitalize">{staff.schedule_source}</span>} />
@@ -131,14 +166,24 @@ export function DailyTimelineSelectionCard({
             Edit Capabilities
           </button>
         </div>
-        <button
-          type="button"
-          onClick={onViewFullSchedule}
-          className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-secondary)] transition hover:bg-stone-100 hover:text-emerald-800"
-        >
-          <CalendarDays className="size-3" />
-          View Full Schedule
-        </button>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={onViewFullSchedule}
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-secondary)] transition hover:bg-stone-100 hover:text-emerald-800"
+          >
+            <CalendarDays className="size-3" />
+            View Full Schedule
+          </button>
+          <button
+            type="button"
+            onClick={onAdjustSchedule}
+            className="flex h-8 items-center justify-center gap-2 rounded-md bg-stone-50 text-[10px] font-semibold text-[var(--cs-text-secondary)] transition hover:bg-stone-100 hover:text-emerald-800"
+          >
+            <CalendarClock className="size-3" />
+            Adjust Schedule
+          </button>
+        </div>
       </div>
     </section>
   );

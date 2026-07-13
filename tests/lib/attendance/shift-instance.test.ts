@@ -5,6 +5,7 @@ import {
   buildAttendanceShiftInstance,
   getAttendanceBranchNow,
 } from "@/lib/attendance/shift-instance";
+import type { AttendanceScheduleSelection } from "@/lib/attendance/attendance-intent-engine";
 import type { AttendanceSettings } from "@/lib/attendance/types";
 import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
 
@@ -51,9 +52,16 @@ const baseSettings: AttendanceSettings = {
 const schedule: ResolvedStaffSchedule = {
   source: "individual",
   status: "resolved",
+  state: "VALID_SCHEDULE",
   isWorking: true,
   isDayOff: false,
-  windows: [{ shiftType: "single", startTime: "09:00:00", endTime: "18:00:00" }],
+  windows: [{
+    id: "weekly-row-1",
+    windowOrder: 1,
+    shiftType: "single",
+    startTime: "09:00:00",
+    endTime: "18:00:00",
+  }],
 };
 
 describe("attendance shift instances", () => {
@@ -119,7 +127,88 @@ describe("attendance shift instances", () => {
 
     expect(instance.scheduledStartAt).toBe("2026-07-10T13:00:00.000Z");
     expect(instance.scheduledEndAt).toBe("2026-07-10T22:00:00.000Z");
-    expect(instance.sourceType).toBe("weekly_schedule");
-    expect(instance.key).toContain("staff-1|branch-1|2026-07-10|single");
+    expect(instance.sourceType).toBe("weekly");
+    expect(instance.sourceId).toBe("weekly-row-1");
+    expect(instance.key).toContain("staff-1|branch-1|2026-07-10|single|window:1");
+    expect(instance.key).toContain("weekly|weekly-row-1");
+  });
+
+  it("uses window order and row id so split shifts stay distinct", () => {
+    const morningWindow = {
+      id: "weekly-row-opening",
+      windowOrder: 1,
+      shiftType: "opening" as const,
+      startTime: "06:00:00",
+      endTime: "14:00:00",
+    };
+    const eveningWindow = {
+      id: "weekly-row-closing",
+      windowOrder: 2,
+      shiftType: "closing" as const,
+      startTime: "15:00:00",
+      endTime: "23:00:00",
+    };
+    const baseSelection = {
+      shiftDate: "2026-07-10",
+      scheduledStartAt: "2026-07-10T10:00:00.000Z",
+      scheduledEndAt: "2026-07-10T18:00:00.000Z",
+      isUnscheduled: false,
+      isDayOff: false,
+      source: "individual",
+      windows: [morningWindow, eveningWindow],
+    } satisfies Omit<AttendanceScheduleSelection, "shiftType" | "selectedWindow">;
+
+    const morning = buildAttendanceShiftInstance({
+      staffId: "staff-1",
+      branchId: "branch-1",
+      schedule: { ...baseSelection, shiftType: "opening", selectedWindow: morningWindow },
+      businessDate: "2026-07-10",
+      branchTimezone: "Asia/Manila",
+    });
+    const evening = buildAttendanceShiftInstance({
+      staffId: "staff-1",
+      branchId: "branch-1",
+      schedule: { ...baseSelection, shiftType: "closing", selectedWindow: eveningWindow },
+      businessDate: "2026-07-10",
+      branchTimezone: "Asia/Manila",
+    });
+
+    expect(morning.key).not.toBe(evening.key);
+    expect(morning.key).toContain("window:1");
+    expect(evening.key).toContain("window:2");
+    expect(morning.sourceId).toBe("weekly-row-opening");
+    expect(evening.sourceId).toBe("weekly-row-closing");
+  });
+
+  it("uses the authoritative overnight flag when building shift identity", () => {
+    const overnight = buildAttendanceShiftInstance({
+      staffId: "staff-1",
+      branchId: "branch-1",
+      schedule: {
+        shiftDate: "2026-07-10",
+        shiftType: "closing",
+        scheduledStartAt: "2026-07-10T14:00:00.000Z",
+        scheduledEndAt: "2026-07-10T22:00:00.000Z",
+        isUnscheduled: false,
+        isDayOff: false,
+        source: "override",
+        selectedWindow: {
+          id: "override-1",
+          windowOrder: 1,
+          shiftType: "closing",
+          startTime: "22:00:00",
+          endTime: "06:00:00",
+          endsNextDay: true,
+        },
+        windows: [],
+      },
+      businessDate: "2026-07-10",
+      branchTimezone: "Asia/Manila",
+    });
+
+    expect(overnight.sourceType).toBe("override");
+    expect(overnight.sourceId).toBe("override-1");
+    expect(overnight.isOvernight).toBe(true);
+    expect(overnight.attendanceBusinessDate).toBe("2026-07-10");
   });
 });

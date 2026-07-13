@@ -78,6 +78,53 @@ CRM nav items use existing route paths (`/crm/live-operations`, `/crm/staff-avai
 - Fewer files, less routing complexity, same result for users.
 - Active route highlighting works correctly against existing routes.
 
+### DEC-SCHEDULE-007: Individual schedules are the only runtime schedule source
+**Status:** ACCEPTED — 2026-07-13
+
+**Decision:**
+- Runtime schedule resolution starts from operational staff and uses only
+  `staff_schedules`, `schedule_overrides`, `blocked_times`,
+  `staff_shift_checkins`, `bookings`, and `branch_resources`.
+- UI shift language is `regular | opening | closing`; DB shift storage remains
+  `single | opening | closing`, with conversion centralized in
+  `src/lib/schedule/schedule-domain.ts`.
+- Missing schedule, configured day off, conflict/needs-review, valid split, and
+  valid overnight are separate states. Missing schedule is not a conflict.
+- Schedule Setup and Adjust Schedule share the same weekly draft/editor/save
+  path and write through `replace_staff_weekly_schedule`.
+- Group schedules, duty assignments, paper imports, attendance history, and
+  booking history may remain as historical/dormant data but must not generate
+  effective runtime schedules.
+
+**Rationale:**
+- Prevents silent fallback behavior from masking CRM schedule configuration
+  gaps.
+- Keeps Daily Timeline, booking, attendance, dispatch, readiness, coverage, and
+  staff portal behavior aligned around one resolver contract.
+- Avoids leaking database terminology (`single`) into operator-facing UI.
+
+### DEC-SCHEDULE-008: Schedule warnings must be contract-backed
+**Status:** ACCEPTED — 2026-07-13
+
+**Decision:**
+- Runtime schedule warnings must carry exact issue type, resolver/state code,
+  source ids, and a stable fingerprint when they come from schedule data.
+- Missing room/resource warnings require an explicit service/resource contract
+  in service metadata, such as `requires_room` or `required_resource_type`.
+  A missing `resource_id` alone is not a warning.
+- Coverage-gap warnings require an explicit `coverageRequirement` with a time
+  window, category, actual count, and minimum. Roster-total comparison against
+  broad `scheduling_rules.min_daily_staff` is not a live conflict source.
+
+**Rationale:**
+- Prevents old health checks from rebranding valid operational data as urgent
+  warnings after the individual schedule unification.
+- Keeps genuine schedule data issues actionable; for example, a 20-hour staff
+  window should display `INVALID_TIME_WINDOW` with the exact window instead of
+  "Conflicting staff schedule" / "All day".
+- Avoids customer booking/resource false positives where the service does not
+  actually require a room assignment.
+
 ### DEC-CRM-002: Keep owner/manager/staff nav flat, group only CRM roles
 **Status:** ACCEPTED — 2026-05-21
 
@@ -692,3 +739,89 @@ Final Attendance QR verification may report automated checks as passing, but aut
 - New selected-record reset behavior must call `reset_attendance_state_transaction`; do not reintroduce broad staff-day wipes.
 - Manual clock-out, launch recovery, ignore-scan, rule updates, archive-test-data, and future rebuild/manual-attendance actions remain app-level multi-step workflows until their own transactional RPCs exist.
 - Supabase migration history is still unreconciled even though linked schema functions/columns are present; production closure must wait for migration-history repair.
+
+## DECISION - CRADLE-BACKEND-STABILIZATION-AND-SCHEDULE-REPAIR-001
+
+**Decision:** Schedule replacement semantics belong in PostgreSQL RPCs, while Schedule Setup keeps the existing `single` / `opening` / `closing` model and explicit UI Split Shift behavior.
+
+**Rationale:** The current app already resolves individual schedules, group fallback, overrides, and booking/availability post-filters around the existing schedule tables. Adding parallel tables or a new shift taxonomy would widen risk. The unsafe boundary was the multi-step save/cleanup path: old active rows could survive after a UI save, and group templates could be partially replaced. Transactional replacement RPCs can lock, authorize, validate the complete 7-day x 3-shift matrix, back up prior active rows, deactivate stale rows, and insert the requested state atomically.
+
+**Consequences:**
+- New weekly schedule save paths should prefer `replace_staff_weekly_schedule(...)` or `replace_group_weekly_schedule(...)` over ad hoc table upserts.
+- UI ordinary shift toggles remain mutually exclusive; multiple active windows are allowed only through explicit Split Shift intent and must not overlap.
+- Conflict-state schedules remain operationally empty for availability, online booking, and recommendations until corrected.
+- Manual import and group apply-to-staff remain follow-up work until they use transactional replacement paths.
+- Do not auto-resolve ambiguous same-timestamp active schedule overlaps without business confirmation.
+
+**Decision:** Operational staff filtering uses existing live fields (`is_active`, `archived_at`, `merged_into_staff_id`, and `metadata`) instead of adding new `is_test` or `is_schedulable` columns in this repair.
+
+**Rationale:** The linked schema already contains archive/merge columns and JSON metadata, while proposed `is_test` / `is_schedulable` columns do not exist live. Reusing existing fields lets availability exclude archived, merged, test, and explicitly non-schedulable records without forcing a wider staff schema migration during the schedule repair.
+
+**Consequences:**
+- Availability provider queries must select archive/merge/metadata fields before applying operational filtering.
+- Future duplicate cleanup can set `merged_into_staff_id` and metadata flags without changing the filter contract.
+- A future explicit staff status migration can replace the metadata convention only after a broader identity/merge plan is approved.
+
+**Decision:** Do not run a blind Supabase `db push` from this environment until migration-history drift is reconciled.
+
+**Rationale:** Linked schema probes show some local migration effects are already live while `schema_migrations` is behind. Current `pnpm db:doctor` and `pnpm db:status` time out while reading migration history over port 5432. A blind push could replay old SQL into a partially applied schema.
+
+**Consequences:**
+- New migration SQL may be rollback dry-run verified through `supabase db query`, but production apply must happen from a working migration-history path.
+- After applying the schedule repair migration, regenerate Supabase types and rerun type-check, lint, tests, and build.
+
+## DECISION - CRADLE-INDIVIDUAL-SCHEDULING-SIMPLIFICATION-005
+
+**Decision:** Runtime scheduling must not include group schedule fallback, even as an opt-in resolver compatibility branch.
+
+**Rationale:** The product contract is CRM-entered individual staff schedules. Keeping a group fallback branch in the resolver makes it too easy for a future consumer to accidentally revive automatic effective schedules. Dormant group tables may remain as historical data, but no callable runtime path should produce a group-sourced schedule.
+
+**Consequences:**
+- `resolveScheduleForStaffDay` now returns only `override`, `individual`, or `none` sources.
+- Group schedule UI, actions, query helpers, and realtime subscriptions were removed.
+- Future template support must be a separately scoped explicit workflow that writes reviewed rows into `staff_schedules`; it must not feed runtime availability directly.
+- Generated Supabase types may still describe group tables until a safe schema deprecation/drop plan exists.
+
+## DECISION - CRADLE-ADJUST-SCHEDULE-MODAL-003
+
+**Decision:** The Adjust Schedule modal owns one canonical UI draft model and serializes only at the persistence boundary, where UI `regular` maps to database `single`.
+
+**Rationale:** The product needs CRM operators to reason in domain terms while preserving the existing database contract. Keeping the mapping in adapter utilities prevents legacy `single` naming from leaking through the modal and keeps tests focused on the boundary.
+
+**Consequences:**
+- Modal components use `opening | regular | closing`; server-action payloads map `regular` to `single`.
+- Split shifts are multiple ordered windows, not another shift type.
+- Day Off and Not Configured remain distinct states.
+
+**Decision:** Reuse the existing override and blocked-time mutation components inside the new modal, and show an honest empty state for Approved Exceptions.
+
+**Rationale:** The current schema/actions support single-date schedule overrides and blocked time. They do not yet support durable approved exceptions, date-range bulk overrides with weekday filtering, expanded blocked-time reason taxonomy, or override `ends_next_day`. Adding fake UI or a new migration just to match the reference image would create a misleading operational system.
+
+**Consequences:**
+- The modal is functional for real weekly saves, single-date overrides, and blocked-time mutations.
+- Group controls stay excluded.
+- Date range, expanded reasons, durable exceptions, and server-calculated booking-impact acknowledgement are documented follow-ups.
+
+## DECISION - CRADLE-SCHEDULE-UPDATE-INTEGRATION-REPAIR-006
+
+**Decision:** Repair the live `staff_schedules` write contract with a narrow idempotent corrective migration and apply it through `supabase db query --linked --file` when the normal direct Postgres migration-history path times out.
+
+**Rationale:** The production-facing bug was caused by a missing app-called RPC and stale table constraint in the live schema. `pnpm db:push --dry-run` and `pnpm db:status` both timed out on the pooler path, including escalated retries, while the Supabase Management API query path was able to reach and verify the linked database. Applying a single audited migration file through that supported path fixed the live contract without replaying unrelated pending migrations.
+
+**Consequences:**
+- Live schedule saves can use `replace_staff_weekly_schedule` immediately.
+- The local migration file remains the durable source for the corrective SQL.
+- Migration history is still not certified from this environment; future DB work must reconcile `pnpm db:status` before blind pushes.
+- App actions classify missing-RPC/stale-constraint/RLS/validation failures with safe structured codes instead of exposing SQL details to operators.
+
+## DECISION - CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009
+
+**Decision:** Keep `attendance_exceptions.exception_type` constrained to stable database values and map internal scan/recovery reason codes into those values before persistence.
+
+**Rationale:** The live CHECK constraint correctly prevents arbitrary Recovery categories from leaking into durable attendance data. The scan engine can still preserve operator-specific context by storing the original internal code in JSON metadata, while reports and Recovery queries keep a small stable set of exception classes.
+
+**Consequences:**
+- Internal codes such as `missing_schedule`, `off_day_exception`, `ambiguous_scan`, `late_clock_in`, `early_clock_out`, `overtime_clock_out`, `stale_open_checkin`, and `likely_closing_scan_without_clock_in` are not stored directly in `exception_type`.
+- Recovery UI reads `metadata.internalExceptionType` when it needs the precise manager-facing label/action.
+- Constraint/RLS/RPC failures now surface through safe public scan codes and operation IDs instead of generic Scan Interrupted.
+- `staff_shift_checkins.schedule_source` now stores `weekly`, `override`, `recovery`, or `none` for new scans; legacy `weekly_schedule` rows were migrated to `weekly`.

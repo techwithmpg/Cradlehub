@@ -84,7 +84,7 @@ export function useScheduleRealtime({
         {
           event: "*",
           schema: "public",
-          table: "staff_group_schedule_rules",
+          table: "blocked_times",
         },
         invalidate
       )
@@ -93,7 +93,8 @@ export function useScheduleRealtime({
         {
           event: "*",
           schema: "public",
-          table: "blocked_times",
+          table: "staff_shift_checkins",
+          filter: `branch_id=eq.${branchId}`,
         },
         invalidate
       )

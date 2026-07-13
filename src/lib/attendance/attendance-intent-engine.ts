@@ -21,6 +21,8 @@ export type AttendanceScanIntentType =
   | "likely_closing_scan_without_clock_in"
   | "missing_schedule"
   | "off_day_exception"
+  | "staff_not_operational"
+  | "schedule_state_unsupported"
   | "recovery_required"
   | "ignored_test_scan";
 
@@ -190,7 +192,8 @@ function absoluteScanMinutesForWindow(time: string, window: ResolvedStaffSchedul
   const end = timeToMinutes(window.endTime);
   if (current === null || start === null || end === null) return null;
 
-  if (end <= start && current <= end) {
+  const crossesMidnight = window.endsNextDay ?? end <= start;
+  if (crossesMidnight && current <= end) {
     return current + DAY_MINUTES;
   }
 
@@ -201,7 +204,7 @@ function absoluteWindowEndMinutes(window: ResolvedStaffScheduleWindow): number |
   const start = timeToMinutes(window.startTime);
   const end = timeToMinutes(window.endTime);
   if (start === null || end === null) return null;
-  return end <= start ? end + DAY_MINUTES : end;
+  return (window.endsNextDay ?? end <= start) ? end + DAY_MINUTES : end;
 }
 
 function inWindowMinutes(params: {
@@ -360,8 +363,10 @@ function scheduleSelectionFromWindow(params: {
 }): AttendanceScheduleSelection {
   const scanMinutes = timeToMinutes(params.scanTime);
   const startMinutes = timeToMinutes(params.window.startTime);
+  const crossesMidnight = params.window.endsNextDay ??
+    isOvernightWindow(params.window.startTime, params.window.endTime);
   const shiftDate =
-    isOvernightWindow(params.window.startTime, params.window.endTime) &&
+    crossesMidnight &&
     scanMinutes !== null &&
     startMinutes !== null &&
     scanMinutes < startMinutes
@@ -379,7 +384,7 @@ function scheduleSelectionFromWindow(params: {
     scheduledEndAt: branchDateTimeToIso({
       date: shiftDate,
       time: params.window.endTime,
-      addDay: isOvernightWindow(params.window.startTime, params.window.endTime),
+      addDay: crossesMidnight,
       timezone: params.timezone,
     }),
     isUnscheduled: false,
@@ -465,6 +470,16 @@ function intent(params: {
   };
 }
 
+function isUnsupportedScheduleState(schedule: ResolvedStaffSchedule): boolean {
+  return (
+    schedule.status === "conflict" ||
+    schedule.state === "OVERLAPPING_WINDOWS" ||
+    schedule.state === "INVALID_TIME_WINDOW" ||
+    schedule.state === "INELIGIBLE_SHIFT_TYPE" ||
+    schedule.state === "CONTRADICTORY_DAY_STATE"
+  );
+}
+
 export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentInput): AttendanceScanIntent {
   const schedule = resolveStaffAttendanceSchedule({
     scanDate: input.scanDate,
@@ -522,6 +537,32 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
       schedule,
       title: "Clock-out",
       message: "Active attendance can be closed.",
+    });
+  }
+
+  if (input.schedule.status === "not_operational" || input.schedule.state === "STAFF_NOT_OPERATIONAL") {
+    return intent({
+      type: "staff_not_operational",
+      action: "recovery_required",
+      schedule,
+      requiresRecovery: true,
+      shouldWriteAttendance: false,
+      severity: "critical",
+      title: "Staff unavailable",
+      message: "This staff member is not operational for attendance scans.",
+    });
+  }
+
+  if (isUnsupportedScheduleState(input.schedule)) {
+    return intent({
+      type: "schedule_state_unsupported",
+      action: "recovery_required",
+      schedule,
+      requiresRecovery: true,
+      shouldWriteAttendance: false,
+      severity: "critical",
+      title: "Schedule needs review",
+      message: input.schedule.conflictReason ?? "This schedule state cannot be safely used for attendance.",
     });
   }
 
@@ -664,6 +705,7 @@ export function resolveAttendanceDayForShift(params: {
     schedule: {
       source: "none",
       status: "resolved",
+      state: "VALID_SCHEDULE",
       isWorking: true,
       isDayOff: false,
       windows: [params.window],

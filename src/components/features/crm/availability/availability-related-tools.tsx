@@ -20,9 +20,9 @@ const TOOLS: ToolCard[] = [
   },
   {
     icon: "📅",
-    title: "Schedule Setup Center",
+    title: "Schedule Setup",
     description: "Set weekly schedules, blocked time, and overrides that control online booking availability.",
-    href: "/crm/staff-availability",
+    href: "/crm/schedule?tab=setup",
     label: "Manage Schedules",
   },
   {

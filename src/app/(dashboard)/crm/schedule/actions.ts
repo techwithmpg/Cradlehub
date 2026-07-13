@@ -11,7 +11,6 @@ import { canonicalizeSystemRole } from "@/constants/staff";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { isOwner } from "@/lib/permissions";
 import { logError } from "@/lib/logger";
-import { getScheduleGroupKeyForStaffType } from "@/lib/schedule/resolve-staff-schedule";
 import {
   getCrmStaffNestedService,
   getCrmStaffServiceId,
@@ -65,21 +64,8 @@ type ScheduleRow = {
   end_time: string;
   is_active: boolean;
   shift_type: string | null;
-};
-
-type GroupRow = {
-  id: string;
-  group_key: string;
-};
-
-type GroupRuleRow = {
-  id: string;
-  day_of_week: number;
-  shift_type: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  is_day_off: boolean | null;
-  is_active: boolean | null;
+  window_order: number | null;
+  ends_next_day: boolean | null;
 };
 
 type OverrideRow = {
@@ -146,15 +132,6 @@ export type StaffFullScheduleData = {
     is_active: boolean;
     shift_type: "opening" | "closing" | "single";
   }>;
-  groupRules: Array<{
-    id: string;
-    day_of_week: number;
-    shift_type: "opening" | "closing" | "single";
-    start_time: string | null;
-    end_time: string | null;
-    is_day_off: boolean;
-    is_active: boolean;
-  }>;
   custom_overrides: Array<{
     id: string;
     date: string;
@@ -193,13 +170,6 @@ function first<T>(value: OneOrMany<T>): T | null {
 function normalizeShiftType(value: string | null | undefined): "opening" | "closing" | "single" {
   if (value === "opening" || value === "closing") return value;
   return "single";
-}
-
-function groupKeysForStaffType(staffType: string | null | undefined): string[] {
-  const mapped = getScheduleGroupKeyForStaffType(staffType);
-  return Array.from(
-    new Set([mapped, staffType].filter((value): value is string => Boolean(value)))
-  );
 }
 
 async function getActorContext(
@@ -439,27 +409,14 @@ export async function getStaffFullScheduleAction(
     const actor = await getActorContext(staff.branch_id);
     if (!actor.ok) return actor;
 
-    const groupKeys = groupKeysForStaffType(staff.staff_type);
-    const groupResult =
-      groupKeys.length > 0 && staff.branch_id
-        ? await admin
-            .from("staff_schedule_groups")
-            .select("id, group_key")
-            .eq("branch_id", staff.branch_id)
-            .eq("is_active", true)
-            .in("group_key", groupKeys)
-        : { data: null, error: null };
-
-    const groupIds = ((groupResult.data ?? []) as GroupRow[]).map((group) => group.id);
-
-    const [schedulesResult, overridesResult, blockedResult, bookingsResult, groupRulesResult] =
+    const [schedulesResult, overridesResult, blockedResult, bookingsResult] =
       await Promise.all([
         admin
           .from("staff_schedules")
-          .select("id, day_of_week, start_time, end_time, is_active, shift_type")
+          .select("id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day")
           .eq("staff_id", staffId)
           .order("day_of_week")
-          .order("shift_type"),
+          .order("window_order"),
         admin
           .from("schedule_overrides")
           .select("id, override_date, is_day_off, shift_type, start_time, end_time, reason")
@@ -484,15 +441,6 @@ export async function getStaffFullScheduleAction(
           .not("status", "in", '("cancelled","no_show")')
           .order("booking_date")
           .order("start_time"),
-        groupIds.length > 0
-          ? admin
-              .from("staff_group_schedule_rules")
-              .select("id, day_of_week, shift_type, start_time, end_time, is_day_off, is_active")
-              .in("group_id", groupIds)
-              .eq("is_active", true)
-              .order("day_of_week")
-              .order("shift_type")
-          : Promise.resolve({ data: [], error: null }),
       ]);
 
     const firstError =
@@ -500,8 +448,6 @@ export async function getStaffFullScheduleAction(
       overridesResult.error ??
       blockedResult.error ??
       bookingsResult.error ??
-      groupRulesResult.error ??
-      groupResult.error ??
       null;
 
     if (firstError) return { ok: false, error: firstError.message };
@@ -514,16 +460,8 @@ export async function getStaffFullScheduleAction(
       end_time: row.end_time,
       is_active: row.is_active,
       shift_type: normalizeShiftType(row.shift_type),
-    }));
-
-    const groupRules = ((groupRulesResult.data ?? []) as GroupRuleRow[]).map((row) => ({
-      id: row.id,
-      day_of_week: row.day_of_week,
-      shift_type: normalizeShiftType(row.shift_type),
-      start_time: row.start_time,
-      end_time: row.end_time,
-      is_day_off: row.is_day_off ?? false,
-      is_active: row.is_active ?? false,
+      window_order: row.window_order,
+      ends_next_day: row.ends_next_day,
     }));
 
     const custom_overrides = ((overridesResult.data ?? []) as OverrideRow[]).map((row) => ({
@@ -566,7 +504,6 @@ export async function getStaffFullScheduleAction(
           branch_name: branch?.name ?? null,
         },
         schedules,
-        groupRules,
         custom_overrides,
         blocked_times,
         bookings,

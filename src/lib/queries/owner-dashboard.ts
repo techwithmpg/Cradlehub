@@ -69,7 +69,14 @@ type StaffRow = Pick<
 
 type ScheduleRow = Pick<
   Database["public"]["Tables"]["staff_schedules"]["Row"],
-  "staff_id" | "day_of_week" | "start_time" | "end_time" | "is_active" | "shift_type"
+  | "staff_id"
+  | "day_of_week"
+  | "start_time"
+  | "end_time"
+  | "is_active"
+  | "shift_type"
+  | "window_order"
+  | "ends_next_day"
 >;
 
 type CheckinRow = Pick<
@@ -221,7 +228,7 @@ export async function getOwnerOverviewDashboardData(
     queryOrThrow<ScheduleRow[]>(
       supabase
         .from("staff_schedules")
-        .select("staff_id, day_of_week, start_time, end_time, is_active, shift_type")
+        .select("staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day")
         .eq("day_of_week", dayOfWeek)
         .eq("is_active", true),
       "Could not load today schedule",

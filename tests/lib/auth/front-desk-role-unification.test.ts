@@ -41,7 +41,7 @@ const CRM_PAGE_PATHS = [
   "/crm/today",
   "/crm/bookings",
   "/crm/staff",
-  "/crm/staff-availability",
+  "/crm/schedule?tab=setup",
   "/crm/setup",
   "/crm/reconciliation",
 ] as const;
@@ -162,7 +162,7 @@ describe("Front Desk role unification", () => {
         "/crm/setup?tab=services",
         "/crm/setup?tab=spaces",
         "/crm/setup?tab=booking_rules",
-        "/crm/staff-availability",
+        "/crm/schedule?tab=setup",
         "/crm/reconciliation",
       ])
     );

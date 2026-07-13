@@ -18,7 +18,7 @@ const TILES: ShortcutTile[] = [
     icon: "🗓️",
     label: "Fix Schedules",
     description: "Add weekly schedules, day-offs, and blocked time.",
-    href: "/crm/staff-availability",
+    href: "/crm/schedule?tab=setup",
   },
   {
     icon: "🏠",

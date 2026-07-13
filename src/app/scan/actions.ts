@@ -11,6 +11,11 @@ import { consumeDeviceRecoveryLink } from "@/lib/attendance/device-recovery";
 import { revalidateAttendanceSurfaces } from "@/lib/attendance/queries";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
 import {
+  attendanceScanFailureFromError,
+  logAttendanceScanError,
+  normalizeAttendanceOperationId,
+} from "@/lib/attendance/scan-errors";
+import {
   cancelOwnBranchCorrectionRequestForScan,
   createBranchCorrectionRequestForScan,
 } from "@/lib/staff/branch-correction";
@@ -132,16 +137,14 @@ function appendRequestStep(requestId: string | null | undefined, step: string): 
   return requestId ? `${requestId}:${step}` : null;
 }
 
-function safeScanError(title = "Scan interrupted"): PublicScanResult {
-  return {
-    ok: false,
-    outcome: "error",
-    reasonCode: "server_action_error",
-    severity: "critical",
-    title,
-    message: "Something interrupted the scan. Please try again or ask the front desk for help.",
-    securityNote: "No attendance change was confirmed from this attempt.",
-  };
+function safeScanError(error: unknown, title: string, operationId: string): PublicScanResult {
+  logAttendanceScanError({
+    scope: "attendance-scan-action",
+    operationId,
+    error,
+    context: { title },
+  });
+  return attendanceScanFailureFromError({ error, operationId, title }).result;
 }
 
 function validateFirstTimeScanLogin(input: FirstTimeScanLoginInput): {
@@ -196,6 +199,8 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     detail: result.detail,
     securityNote: result.securityNote,
     scanEventId: result.scanEventId,
+    operationId: result.operationId,
+    recoverable: result.recoverable,
     nextHref: result.nextHref,
     attendance: result.attendance,
     countdown: result.countdown,
@@ -243,6 +248,7 @@ export async function signInAndRegisterAttendanceDeviceAction(
   input: FirstTimeScanLoginInput
 ): Promise<FirstTimeAttendanceDeviceRegistrationResult> {
   const parsed = validateFirstTimeScanLogin(input);
+  const operationId = normalizeAttendanceOperationId(appendRequestStep(input.requestId, "register"));
   if (!parsed.publicCode) {
     return {
       ok: false,
@@ -254,6 +260,7 @@ export async function signInAndRegisterAttendanceDeviceAction(
         title: "QR not recognized",
         message: "This scan link is missing its QR code.",
         securityNote: "No attendance change was recorded from this scan.",
+        operationId,
       },
     };
   }
@@ -292,17 +299,18 @@ export async function signInAndRegisterAttendanceDeviceAction(
     const registration = await registerDeviceForAuthenticatedScan(
       parsed.publicCode,
       user.id,
-      await getRequestContext(appendRequestStep(input.requestId, "register"))
+      await getRequestContext(operationId)
     );
 
     if (!registration.ok) {
       if (registration.result.reasonCode !== "wrong_branch") {
         await supabase.auth.signOut();
       }
-      revalidatePublicScanResult(registration.result);
+      const publicResult = { ...registration.result, operationId: registration.result.operationId ?? operationId };
+      revalidatePublicScanResult(publicResult);
       return {
         ok: false,
-        result: toPublicResult(registration.result),
+        result: toPublicResult(publicResult),
       };
     }
 
@@ -319,10 +327,10 @@ export async function signInAndRegisterAttendanceDeviceAction(
       branchName: registration.branchName,
       message: "This phone is now connected for faster attendance scans.",
     };
-  } catch {
+  } catch (error) {
     return {
       ok: false,
-      result: safeScanError("Sign-in interrupted"),
+      result: safeScanError(error, "Sign-in interrupted", operationId),
     };
   }
 }
@@ -409,6 +417,7 @@ export async function tryAnotherScanAccountAction(): Promise<{ ok: true }> {
 
 export async function processPublicQrScanAction(input: PublicScanInput): Promise<PublicScanResult> {
   const publicCode = input.publicCode?.trim();
+  const operationId = normalizeAttendanceOperationId(input.requestId);
   if (!publicCode) {
     return {
       ok: false,
@@ -418,20 +427,22 @@ export async function processPublicQrScanAction(input: PublicScanInput): Promise
       title: "QR not recognized",
       message: "This scan link is missing its QR code.",
       securityNote: "No attendance change was recorded from this scan.",
+      operationId,
     };
   }
 
   try {
-    const result = await processQrScan(publicCode, await getRequestContext(input.requestId));
+    const result = await processQrScan(publicCode, await getRequestContext(operationId));
     revalidatePublicScanResult(result);
     return result;
-  } catch {
-    return safeScanError();
+  } catch (error) {
+    return safeScanError(error, "Scan interrupted", operationId);
   }
 }
 
 export async function activateDeviceAction(input: ActivationInput): Promise<PublicScanResult> {
   const token = input.token?.trim();
+  const operationId = normalizeAttendanceOperationId(input.requestId, "attendance-activation");
   if (!token) {
     return {
       ok: false,
@@ -440,24 +451,27 @@ export async function activateDeviceAction(input: ActivationInput): Promise<Publ
       severity: "warning",
       title: "Activation expired",
       message: "Ask the front desk for a new activation link.",
+      operationId,
     };
   }
 
   try {
-    const result = await activateDeviceWithToken(token, await getRequestContext(input.requestId));
+    const result = await activateDeviceWithToken(token, await getRequestContext(operationId));
     if (result.ok && result.rawDeviceCredential) {
       await setDeviceCookie(result.rawDeviceCredential);
     }
-    revalidatePublicScanResult(result);
+    const publicResult = { ...result, operationId: result.operationId ?? operationId };
+    revalidatePublicScanResult(publicResult);
 
-    return toPublicResult(result);
-  } catch {
-    return safeScanError("Activation interrupted");
+    return toPublicResult(publicResult);
+  } catch (error) {
+    return safeScanError(error, "Activation interrupted", operationId);
   }
 }
 
 export async function consumeDeviceRecoveryLinkAction(input: RecoveryInput): Promise<PublicScanResult> {
   const token = input.token?.trim();
+  const operationId = normalizeAttendanceOperationId(null, "attendance-recovery");
   if (!token) {
     return {
       ok: false,
@@ -466,6 +480,7 @@ export async function consumeDeviceRecoveryLinkAction(input: RecoveryInput): Pro
       severity: "warning",
       title: "Link invalid",
       message: "This recovery link could not be verified.",
+      operationId,
     };
   }
 
@@ -484,6 +499,7 @@ export async function consumeDeviceRecoveryLinkAction(input: RecoveryInput): Pro
         severity: "warning",
         title: result.title,
         message: result.message,
+        operationId,
       };
     }
 
@@ -494,6 +510,7 @@ export async function consumeDeviceRecoveryLinkAction(input: RecoveryInput): Pro
       reasonCode: "device_restored",
       title: "Phone connected",
       message: "This phone is ready for attendance and service QR scanning.",
+      operationId,
     });
 
     return {
@@ -505,8 +522,9 @@ export async function consumeDeviceRecoveryLinkAction(input: RecoveryInput): Pro
       message: "This phone is ready for attendance and service QR scanning.",
       detail: `${result.staffName} - ${result.branchName}`,
       securityNote: "This phone is now trusted for this staff member.",
+      operationId,
     };
-  } catch {
-    return safeScanError("Recovery interrupted");
+  } catch (error) {
+    return safeScanError(error, "Recovery interrupted", operationId);
   }
 }

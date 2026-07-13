@@ -488,7 +488,7 @@ function ScheduleIssuesView({ staff }: { staff: CrmAvailabilityStaffRow[] }) {
               impact: "Availability and booking recommendations will exclude these staff until the schedule is corrected.",
               fix: "Open Schedule Setup and keep one ordinary shift or a non-overlapping Split Shift.",
               actionLabel: "Open schedule setup",
-              actionHref: "/crm/staff-availability",
+              actionHref: "/crm/schedule?tab=setup",
               source: "getCrmAvailabilitySnapshot",
               entityType: "staff",
               entityIds: conflictIssues.map((s) => s.staff_id),

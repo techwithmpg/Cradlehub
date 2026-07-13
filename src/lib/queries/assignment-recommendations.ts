@@ -11,7 +11,7 @@ import type {
   StaffServiceMapping,
   StaffPreference,
 } from "@/lib/assignments/recommendation-engine";
-import { getScheduleGroupKeyForStaffType } from "@/lib/schedule/resolve-staff-schedule";
+import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
 import type { Json } from "@/types/supabase";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -103,22 +103,29 @@ export async function getBranchStaffForScoring(branchId: string): Promise<StaffF
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("staff")
-    .select("id, full_name, staff_type, system_role, tier, is_active, branch_id")
+    .select("id, full_name, staff_type, system_role, tier, is_active, branch_id, archived_at, merged_into_staff_id, metadata")
     .eq("branch_id", branchId)
     .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
     .order("full_name");
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((s) => ({
-    id: s.id,
-    full_name: s.full_name,
-    staff_type: s.staff_type ?? null,
-    system_role: s.system_role ?? null,
-    tier: s.tier ?? null,
-    is_active: s.is_active,
-    branch_id: s.branch_id,
-  }));
+  return (data ?? [])
+    .filter((s) => isOperationalStaff(s as OperationalStaffFlags))
+    .map((s) => ({
+      id: s.id,
+      full_name: s.full_name,
+      staff_type: s.staff_type ?? null,
+      system_role: s.system_role ?? null,
+      tier: s.tier ?? null,
+      is_active: s.is_active,
+      branch_id: s.branch_id,
+      archived_at: s.archived_at ?? null,
+      merged_into_staff_id: s.merged_into_staff_id ?? null,
+      metadata: (s.metadata as Record<string, unknown> | null) ?? null,
+    }));
 }
 
 // ── Staff services ─────────────────────────────────────────────────────────────
@@ -151,7 +158,7 @@ export async function getStaffSchedulesForScoring(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("staff_schedules")
-    .select("staff_id, day_of_week, start_time, end_time, is_active, shift_type")
+    .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day")
     .eq("day_of_week", dayOfWeek)
     .eq("is_active", true)
     .in("staff_id", staffIds);
@@ -297,92 +304,6 @@ export async function getStaffPreferencesForScoring(
   }));
 }
 
-// ── Group schedule fallback ────────────────────────────────────────────────────
-
-async function getGroupSchedulesFallback(
-  staffWithoutSchedule: StaffForScoring[],
-  branchId: string,
-  dayOfWeek: number
-): Promise<ScheduleForScoring[]> {
-  if (staffWithoutSchedule.length === 0) return [];
-
-  const staffGroupKeys = new Map<string, string[]>();
-  for (const staff of staffWithoutSchedule) {
-    const mapped = getScheduleGroupKeyForStaffType(staff.staff_type);
-    staffGroupKeys.set(
-      staff.id,
-      Array.from(
-        new Set([mapped, staff.staff_type].filter((value): value is string => Boolean(value)))
-      )
-    );
-  }
-
-  const staffTypesNeeded = [
-    ...new Set(Array.from(staffGroupKeys.values()).flat()),
-  ];
-  if (staffTypesNeeded.length === 0) return [];
-
-  const supabase = await createClient();
-
-  const groupsResult = await supabase
-    .from("staff_schedule_groups")
-    .select("id, group_key")
-    .eq("branch_id", branchId)
-    .eq("is_active", true)
-    .in("group_key", staffTypesNeeded);
-
-  if (groupsResult.error || !groupsResult.data || groupsResult.data.length === 0) {
-    return [];
-  }
-
-  type GroupRow = { id: string; group_key: string };
-  const groupRows = groupsResult.data as GroupRow[];
-  const groupIds = groupRows.map((g) => g.id);
-  const groupKeyById = new Map(groupRows.map((g) => [g.id, g.group_key]));
-
-  const rulesResult = await supabase
-    .from("staff_group_schedule_rules")
-    .select("group_id, day_of_week, shift_type, start_time, end_time, is_day_off")
-    .in("group_id", groupIds)
-    .eq("day_of_week", dayOfWeek)
-    .eq("is_active", true)
-    .eq("is_day_off", false);
-
-  if (rulesResult.error || !rulesResult.data) return [];
-
-  type GroupRuleRow = {
-    group_id: string;
-    day_of_week: number;
-    shift_type: string;
-    start_time: string | null;
-    end_time: string | null;
-    is_day_off: boolean;
-  };
-  const ruleRows = rulesResult.data as GroupRuleRow[];
-
-  const syntheticSchedules: ScheduleForScoring[] = [];
-
-  for (const staff of staffWithoutSchedule) {
-    const candidateKeys = staffGroupKeys.get(staff.id) ?? [];
-    if (candidateKeys.length === 0) continue;
-    const matchingRules = ruleRows.filter(
-      (r) => candidateKeys.includes(groupKeyById.get(r.group_id) ?? "") && r.start_time && r.end_time
-    );
-    for (const rule of matchingRules) {
-      syntheticSchedules.push({
-        staff_id:    staff.id,
-        day_of_week: rule.day_of_week,
-        start_time:  rule.start_time!,
-        end_time:    rule.end_time!,
-        is_active:   true,
-        shift_type:  rule.shift_type,
-      });
-    }
-  }
-
-  return syntheticSchedules;
-}
-
 // ── Internal context builder ───────────────────────────────────────────────────
 
 function isRecord(value: Json | null): value is Record<string, Json> {
@@ -447,12 +368,6 @@ async function buildContextFromBooking(
     getStaffPreferencesForScoring(staffIds),
   ]);
 
-  // Group fallback: staff with no individual schedule use their group's default
-  const staffIdsWithSchedule = new Set(individualSchedules.map((s) => s.staff_id));
-  const staffWithoutSchedule = staffList.filter((s) => !staffIdsWithSchedule.has(s.id));
-  const groupSchedules = await getGroupSchedulesFallback(staffWithoutSchedule, branchId, dayOfWeek);
-  const schedules = [...individualSchedules, ...groupSchedules];
-
   const isHomeService =
     booking.delivery_type === "home_service" || booking.type === "home_service";
 
@@ -472,7 +387,7 @@ async function buildContextFromBooking(
       : null,
     staffList,
     staffServices,
-    schedules,
+    schedules: individualSchedules,
     overrides,
     blockedTimes,
     checkins,

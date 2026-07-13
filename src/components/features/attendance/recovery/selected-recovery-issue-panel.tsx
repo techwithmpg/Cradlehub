@@ -15,6 +15,7 @@ import {
   StatusPill,
   formatAttendanceDateTime,
 } from "@/components/features/attendance/attendance-ui";
+import { getInternalAttendanceExceptionType } from "@/lib/attendance/exception-codes";
 import type { RecoveryIssue } from "@/components/features/attendance/recovery/recovery-issue-types";
 
 function priorityTone(priority: RecoveryIssue["priority"]): "bad" | "warn" | "neutral" {
@@ -68,7 +69,7 @@ export function SelectedRecoveryIssuePanel({
   }
 
   const canApplyLaunchRecovery =
-    issue.exception?.exception_type === "likely_closing_scan_without_clock_in";
+    issue.exception ? getInternalAttendanceExceptionType(issue.exception) === "likely_closing_scan_without_clock_in" : false;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">

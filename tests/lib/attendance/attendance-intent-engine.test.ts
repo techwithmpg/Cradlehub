@@ -51,6 +51,7 @@ const settings: AttendanceSettings = {
 const normalSchedule: ResolvedStaffSchedule = {
   source: "individual",
   status: "resolved",
+  state: "VALID_SCHEDULE",
   isWorking: true,
   isDayOff: false,
   windows: [{ shiftType: "single", startTime: "09:00:00", endTime: "18:00:00" }],
@@ -101,6 +102,7 @@ describe("resolveAttendanceScanIntent", () => {
     const overnightSchedule: ResolvedStaffSchedule = {
       source: "individual",
       status: "resolved",
+      state: "VALID_OVERNIGHT_SHIFT",
       isWorking: true,
       isDayOff: false,
       windows: [{ shiftType: "closing", startTime: "17:00:00", endTime: "01:00:00" }],
@@ -138,6 +140,7 @@ describe("resolveAttendanceScanIntent", () => {
         schedule: {
           source: "none",
           status: "missing",
+          state: "NO_SCHEDULE_CONFIGURED",
           isWorking: false,
           isDayOff: false,
           windows: [],
@@ -155,6 +158,7 @@ describe("resolveAttendanceScanIntent", () => {
         schedule: {
           source: "override",
           status: "day_off",
+          state: "CONFIGURED_DAY_OFF",
           isWorking: false,
           isDayOff: true,
           windows: [],
@@ -185,6 +189,7 @@ describe("resolveAttendanceScanIntent", () => {
         schedule: {
           source: "none",
           status: "missing",
+          state: "NO_SCHEDULE_CONFIGURED",
           isWorking: false,
           isDayOff: false,
           windows: [],
@@ -277,6 +282,7 @@ describe("classifyOpenAttendanceCheckins", () => {
     const splitSchedule: ResolvedStaffSchedule = {
       source: "individual",
       status: "resolved",
+      state: "VALID_SPLIT_SHIFT",
       isWorking: true,
       isDayOff: false,
       windows: [
@@ -306,6 +312,7 @@ describe("classifyOpenAttendanceCheckins", () => {
     const splitSchedule: ResolvedStaffSchedule = {
       source: "individual",
       status: "resolved",
+      state: "VALID_SPLIT_SHIFT",
       isWorking: true,
       isDayOff: false,
       windows: [

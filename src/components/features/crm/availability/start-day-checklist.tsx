@@ -28,8 +28,8 @@ const ITEMS: ChecklistItem[] = [
   {
     step: 4,
     label: "Check schedule issues",
-    detail: "The Schedule Issues tab flags staff with no saved schedule who should not appear in bookings.",
-    link: { label: "Schedule Setup Center", href: "/crm/staff-availability" },
+    detail: "Schedule Setup flags staff with no saved individual schedule who should not appear in bookings.",
+    link: { label: "Schedule Setup", href: "/crm/schedule?tab=setup" },
   },
   {
     step: 5,

@@ -1,5 +1,6 @@
 import type { Database } from "@/types/supabase";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
+import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
 
 export type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 
@@ -12,6 +13,7 @@ export type ConflictBooking = {
   resource_id: string | null;
   staff_id: string | null;
   service_id: string | null;
+  service_metadata?: Record<string, unknown> | null;
   customer_name: string | null;
   service_name: string | null;
   staff_name: string | null;
@@ -71,13 +73,27 @@ export function computeResourceConflicts(
 
   // 1. Missing assignments
   for (const b of activeBookings) {
-    if (b.type !== "home_service" && !b.resource_id) {
+    const requiredResourceType = getRequiredResourceType({
+      id: b.id,
+      start_time: b.start_time,
+      end_time: b.end_time,
+      service_id: b.service_id,
+      service: b.service_name ?? "Booking",
+      service_metadata: b.service_metadata ?? null,
+      customer: b.customer_name ?? "Customer",
+      status: b.status,
+      type: b.type,
+      resource_id: b.resource_id,
+      resource_name: null,
+    });
+
+    if (requiredResourceType && !b.resource_id) {
       conflicts.push({
         id: `missing-${b.id}`,
         type: "missing_assignment",
         severity: "warning",
         bookingId: b.id,
-        description: `${b.service_name ?? "Booking"} — ${b.customer_name ?? "Customer"} has no room assigned`,
+        description: `${b.service_name ?? "Booking"} - ${b.customer_name ?? "Customer"} has no ${requiredResourceType.replace(/_/g, " ")} assigned`,
       });
     }
   }

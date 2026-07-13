@@ -91,7 +91,7 @@ export function CrmStaffReadinessPanel({ data }: { data: CrmSetupHealthData }) {
           sub={missingSchedule === 0 ? "All staff have schedules" : `${missingSchedule} missing`}
           status={missingSchedule === 0 ? "ready" : "warning"}
           actionLabel={missingSchedule > 0 ? "Fix Schedules" : undefined}
-          actionHref={missingSchedule > 0 ? "/crm/staff-availability" : undefined}
+          actionHref={missingSchedule > 0 ? "/crm/schedule?tab=setup" : undefined}
         />
         <ReadinessStat
           label="Services With Provider"

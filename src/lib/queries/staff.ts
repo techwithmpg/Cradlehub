@@ -135,11 +135,11 @@ export async function getStaffSchedule(staffId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("staff_schedules")
-    .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, created_at")
+    .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day, created_at")
     .eq("staff_id", staffId)
     .eq("is_active", true)
     .order("day_of_week")
-    .order("shift_type");
+    .order("window_order");
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -272,8 +272,10 @@ export type StaffAvailabilityItem = {
     id: string;
     full_name: string;
     nickname: string | null;
+    avatar_url: string | null;
     tier: string | null;
     staff_type: string | null;
+    system_role: string | null;
     is_head: boolean | null;
     is_active: boolean;
   };
@@ -284,6 +286,9 @@ export type StaffAvailabilityItem = {
     end_time: string;
     is_active: boolean;
     shift_type: "single" | "opening" | "closing";
+    window_order: number | null;
+    ends_next_day: boolean | null;
+    created_at: string | null;
   }>;
   overrides: Array<{
     id: string;
@@ -315,7 +320,7 @@ async function buildAvailabilityItems(
   const [schedulesResult, overridesResult, blockedResult] = await Promise.all([
     supabase
       .from("staff_schedules")
-      .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type")
+      .select("id, staff_id, day_of_week, start_time, end_time, is_active, shift_type, window_order, ends_next_day, created_at")
       .in("staff_id", staffIds),
     supabase
       .from("schedule_overrides")
@@ -349,6 +354,9 @@ async function buildAvailabilityItems(
         end_time: s.end_time,
         is_active: s.is_active,
         shift_type: (s.shift_type ?? "single") as "single" | "opening" | "closing",
+        window_order: s.window_order ?? null,
+        ends_next_day: s.ends_next_day ?? null,
+        created_at: s.created_at ?? null,
       })),
     overrides: overrides
       .filter((o) => o.staff_id === member.id)
@@ -381,7 +389,7 @@ export async function getStaffWithAvailability(branchId: string): Promise<StaffA
   // Fetch all staff for the branch (active + inactive for full visibility)
   const staffResult = await supabase
     .from("staff")
-    .select("id, full_name, nickname, tier, system_role, staff_type, is_head, is_active")
+    .select("id, full_name, nickname, avatar_url, tier, system_role, staff_type, is_head, is_active")
     .eq("branch_id", branchId)
     .order("tier")
     .order("full_name");
@@ -402,8 +410,10 @@ export async function getStaffWithAvailability(branchId: string): Promise<StaffA
           id: r.id,
           full_name: r.full_name,
           nickname: null,
+          avatar_url: null,
           tier: r.tier ?? null,
           staff_type: "therapist",
+          system_role: r.system_role ?? null,
           is_head: false,
           is_active: r.is_active,
         })),
@@ -418,8 +428,10 @@ export async function getStaffWithAvailability(branchId: string): Promise<StaffA
     id: r.id,
     full_name: r.full_name,
     nickname: (r.nickname as string | null | undefined) ?? null,
+    avatar_url: (r.avatar_url as string | null | undefined) ?? null,
     tier: r.tier ?? null,
     staff_type: (r.staff_type as string | null | undefined) ?? "therapist",
+    system_role: r.system_role ?? null,
     is_head: (r.is_head as boolean | null | undefined) ?? false,
     is_active: r.is_active,
   }));

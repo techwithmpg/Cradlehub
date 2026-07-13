@@ -396,6 +396,8 @@ export type PublicScanResult = {
   detail?: string;
   securityNote?: string;
   scanEventId?: string;
+  operationId?: string;
+  recoverable?: boolean;
   nextHref?: string;
   attendance?: {
     action: "clock_in" | "clock_out";

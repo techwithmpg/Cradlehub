@@ -5,13 +5,10 @@ import { SchedulePanel } from "../workspace/schedule-panel";
 import { ScheduleEmptyState } from "../workspace/schedule-empty-state";
 import { Loader2, Settings } from "lucide-react";
 import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/schedule-setup-workspace";
-import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
-import type { StaffScheduleGroup, StaffGroupScheduleRule } from "@/lib/queries/staff-schedule-groups";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 
 type SetupData = {
   items: StaffScheduleItem[];
-  groups: StaffScheduleGroup[];
-  rulesByGroup: Record<string, StaffGroupScheduleRule[]>;
 };
 
 async function fetcher(url: string): Promise<SetupData> {
@@ -62,8 +59,6 @@ export function ScheduleSetupTab({
   return (
     <ScheduleSetupWorkspace
       items={data.items}
-      groups={data.groups}
-      rulesByGroup={data.rulesByGroup}
       branchId={branchId}
       onDataRefresh={handleDataRefresh}
     />

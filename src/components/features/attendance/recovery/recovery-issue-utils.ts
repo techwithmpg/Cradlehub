@@ -11,6 +11,7 @@ import type {
   RecoveryIssueCounts,
   RecoveryIssuePriority,
 } from "@/components/features/attendance/recovery/recovery-issue-types";
+import { getInternalAttendanceExceptionType } from "@/lib/attendance/exception-codes";
 
 const DEVICE_EXCEPTION_TYPES = new Set([
   "unknown_device",
@@ -67,23 +68,24 @@ function categoryForException(exceptionType: string): RecoveryIssueCategory {
 }
 
 function issueTitleForException(exception: AttendanceException): string {
-  if (exception.exception_type === "unknown_device") return "Unregistered device scan";
-  if (exception.exception_type === "revoked_device") return "Revoked device scan";
-  if (exception.exception_type === "browser_data_cleared") return "Browser data cleared";
-  if (exception.exception_type === "likely_closing_scan_without_clock_in") {
+  const exceptionType = getInternalAttendanceExceptionType(exception);
+  if (exceptionType === "unknown_device") return "Unregistered device scan";
+  if (exceptionType === "revoked_device") return "Revoked device scan";
+  if (exceptionType === "browser_data_cleared") return "Browser data cleared";
+  if (exceptionType === "likely_closing_scan_without_clock_in") {
     return "First scan near closing";
   }
-  if (exception.exception_type === "stale_open_checkin") return "Stale open attendance row";
-  if (exception.exception_type === "conflicting_open_checkin") return "Conflicting open attendance row";
+  if (exceptionType === "stale_open_checkin") return "Stale open attendance row";
+  if (exceptionType === "conflicting_open_checkin") return "Conflicting open attendance row";
 
-  return titleCase(exception.exception_type);
+  return titleCase(exceptionType);
 }
 
 function issueForException(
   exception: AttendanceException,
   branchName: string
 ): RecoveryIssue {
-  const category = categoryForException(exception.exception_type);
+  const category = categoryForException(getInternalAttendanceExceptionType(exception));
 
   return {
     id: `exception-${exception.id}`,

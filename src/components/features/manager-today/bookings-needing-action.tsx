@@ -7,6 +7,7 @@ import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-b
 import { BookingActionMenu } from "@/components/features/dashboard/booking-action-menu";
 import {
   getUrgencyScore,
+  bookingNeedsResourceAssignment,
   readRelation,
   formatTime12,
   type TodayBooking,
@@ -87,7 +88,7 @@ export function BookingsNeedingAction({
 
             const issues: string[] = [];
             if (booking.status === "pending") issues.push("Pending");
-            if (!booking.resource_id && booking.type !== "home_service")
+            if (bookingNeedsResourceAssignment(booking))
               issues.push("No room");
             if (!staffMember) issues.push("No therapist");
             if (getUrgencyScore(booking, nowMins) === 70) issues.push("Starting soon");
@@ -150,7 +151,7 @@ export function BookingsNeedingAction({
                     {resource && (
                       <span style={{ color: "var(--cs-sand)" }}>· {resource.name}</span>
                     )}
-                    {!resource && booking.type !== "home_service" && (
+                    {bookingNeedsResourceAssignment(booking) && (
                       <span style={{ color: "var(--cs-error)" }}>· No room</span>
                     )}
                   </div>

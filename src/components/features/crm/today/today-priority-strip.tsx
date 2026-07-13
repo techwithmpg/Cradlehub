@@ -45,7 +45,7 @@ export function TodayPriorityStrip({
     {
       label: "Not Checked In",
       value: staffReadiness.notCheckedIn,
-      href: "/crm/staff-availability",
+      href: "/crm/schedule",
       valueColor:
         staffReadiness.notCheckedIn > 0 ? "var(--cs-info)" : "var(--cs-text-muted)",
     },

@@ -20,6 +20,7 @@ import {
   computeKpiData,
   computeAlerts,
   getUrgencyScore,
+  bookingNeedsResourceAssignment,
   type TodayBooking,
   type StaffAvailability,
 } from "@/components/features/manager-today/manager-today-utils";
@@ -398,7 +399,7 @@ function AttentionCard({
 
   const issues: string[] = [];
   if (booking.status === "pending") issues.push("Pending confirmation");
-  if (!booking.resource_id && booking.type !== "home_service") issues.push("No room assigned");
+  if (bookingNeedsResourceAssignment(booking)) issues.push("No room assigned");
   if (!staffMember) issues.push("No therapist");
   if (getUrgencyScore(booking, nowMins) === 70) issues.push("Starting soon");
 

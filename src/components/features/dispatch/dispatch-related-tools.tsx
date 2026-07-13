@@ -10,8 +10,8 @@ import { Wrench } from "lucide-react";
 
 const RELATED_TOOLS = [
   { label: "Daily Operations Center", href: "/crm/today" },
-  { label: "Live Availability & Check-In", href: "/crm/availability" },
-  { label: "Schedule Setup Center", href: "/crm/staff-availability" },
+  { label: "Daily Timeline", href: "/crm/schedule" },
+  { label: "Schedule Setup", href: "/crm/schedule?tab=setup" },
   { label: "Services & Therapist Setup", href: "/crm/services" },
   { label: "Spaces & Booking Rules", href: "/crm/spaces-rules" },
   { label: "Rules & Setup Center", href: "/crm/setup" },

@@ -1,4 +1,5 @@
 import type { DailyScheduleBooking, DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
 
 export type DailyTimelineAlert = {
   id: string;
@@ -32,7 +33,7 @@ export function buildDailyTimelineAlerts(rows: DailyScheduleStaffRow[]): DailyTi
           title: `${row.staff_name} has a home-service trip`,
         });
       }
-      if (booking.type !== "home_service" && !booking.resource_id) {
+      if (getRequiredResourceType(booking) && !booking.resource_id) {
         alerts.push({
           id: `resource-${booking.id}`,
           type: "missing_resource",

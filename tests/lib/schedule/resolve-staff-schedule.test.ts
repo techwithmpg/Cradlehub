@@ -19,15 +19,6 @@ describe("resolveScheduleForStaffDay", () => {
           is_active: true,
         },
       ],
-      groupRules: [
-        {
-          shift_type: "single",
-          start_time: "08:00",
-          end_time: "20:00",
-          is_active: true,
-          is_day_off: false,
-        },
-      ],
     });
 
     expect(resolved).toMatchObject({
@@ -53,7 +44,7 @@ describe("resolveScheduleForStaffDay", () => {
 
     expect(resolved.source).toBe("override");
     expect(resolved.windows).toEqual([
-      { shiftType: "single", startTime: "12:00", endTime: "18:00" },
+      { shiftType: "single", startTime: "12:00", endTime: "18:00", windowOrder: 1 },
     ]);
   });
 
@@ -72,7 +63,7 @@ describe("resolveScheduleForStaffDay", () => {
 
     expect(resolved.source).toBe("override");
     expect(resolved.windows).toEqual([
-      { shiftType: "opening", startTime: "11:00", endTime: "16:00" },
+      { shiftType: "opening", startTime: "11:00", endTime: "16:00", windowOrder: 1 },
     ]);
   });
 
@@ -90,7 +81,7 @@ describe("resolveScheduleForStaffDay", () => {
     });
 
     expect(resolved.windows).toEqual([
-      { shiftType: "closing", startTime: "15:00", endTime: "21:00" },
+      { shiftType: "closing", startTime: "15:00", endTime: "21:00", windowOrder: 1 },
     ]);
   });
 
@@ -108,7 +99,7 @@ describe("resolveScheduleForStaffDay", () => {
     });
 
     expect(resolved.windows).toEqual([
-      { shiftType: "single", startTime: "10:00", endTime: "18:00" },
+      { shiftType: "single", startTime: "10:00", endTime: "18:00", windowOrder: 1 },
     ]);
   });
 
@@ -132,30 +123,21 @@ describe("resolveScheduleForStaffDay", () => {
     });
 
     expect(resolved.windows).toEqual([
-      { shiftType: "closing", startTime: "14:00", endTime: "22:30" },
+      { shiftType: "closing", startTime: "14:00", endTime: "22:30", windowOrder: 1 },
     ]);
   });
 
-  it("falls back to group rules for legacy timed overrides when no individual schedule exists", () => {
+  it("uses single shift type for legacy timed overrides when no individual schedule exists", () => {
     const resolved = resolveScheduleForStaffDay({
       override: { is_day_off: false, shift_type: null, start_time: "14:00", end_time: "22:30" },
-      groupRules: [
-        {
-          shift_type: "closing",
-          start_time: "14:00",
-          end_time: "22:30",
-          is_active: true,
-          is_day_off: false,
-        },
-      ],
     });
 
     expect(resolved.windows).toEqual([
-      { shiftType: "closing", startTime: "14:00", endTime: "22:30" },
+      { shiftType: "single", startTime: "14:00", endTime: "22:30", windowOrder: 1 },
     ]);
   });
 
-  it("uses active individual rows before group fallback and preserves multiple windows", () => {
+  it("uses active individual rows and preserves multiple windows", () => {
     const resolved = resolveScheduleForStaffDay({
       individualRows: [
         {
@@ -171,15 +153,6 @@ describe("resolveScheduleForStaffDay", () => {
           is_active: true,
         },
       ],
-      groupRules: [
-        {
-          shift_type: "single",
-          start_time: "08:00",
-          end_time: "20:00",
-          is_active: true,
-          is_day_off: false,
-        },
-      ],
     });
 
     expect(resolved.source).toBe("individual");
@@ -193,7 +166,7 @@ describe("resolveScheduleForStaffDay", () => {
     });
   });
 
-  it("blocks overlapping individual windows as a conflict with no operational windows", () => {
+  it("blocks overlapping individual windows as a non-operational conflict", () => {
     const resolved = resolveScheduleForStaffDay({
       individualRows: [
         {
@@ -216,9 +189,12 @@ describe("resolveScheduleForStaffDay", () => {
       status: "conflict",
       isWorking: false,
       isDayOff: false,
-      windows: [],
       conflictCode: "overlapping_windows",
     });
+    expect(resolved.windows).toEqual([
+      { shiftType: "opening", startTime: "10:00", endTime: "17:30" },
+      { shiftType: "closing", startTime: "14:00", endTime: "22:30" },
+    ]);
   });
 
   it("treats malformed timed overrides as conflicts instead of falling through", () => {
@@ -242,7 +218,7 @@ describe("resolveScheduleForStaffDay", () => {
     });
   });
 
-  it("treats inactive individual rows as an individual day off, not group fallback", () => {
+  it("treats inactive individual rows as an individual day off", () => {
     const resolved = resolveScheduleForStaffDay({
       individualRows: [
         {
@@ -250,15 +226,6 @@ describe("resolveScheduleForStaffDay", () => {
           start_time: "10:00",
           end_time: "19:00",
           is_active: false,
-        },
-      ],
-      groupRules: [
-        {
-          shift_type: "single",
-          start_time: "08:00",
-          end_time: "20:00",
-          is_active: true,
-          is_day_off: false,
         },
       ],
     });
@@ -271,24 +238,40 @@ describe("resolveScheduleForStaffDay", () => {
     });
   });
 
-  it("falls back to group rules when no individual schedule exists", () => {
+  it("returns no schedule when no individual schedule exists", () => {
+    const resolved = resolveScheduleForStaffDay({});
+
+    expect(resolved).toMatchObject({
+      source: "none",
+      status: "missing",
+      isWorking: false,
+      windows: [],
+    });
+  });
+
+  it("returns a distinct state for non-operational staff", () => {
     const resolved = resolveScheduleForStaffDay({
-      groupRules: [
+      operational: false,
+      individualRows: [
         {
           shift_type: "single",
-          start_time: "08:00",
-          end_time: "20:00",
+          start_time: "10:00",
+          end_time: "19:00",
           is_active: true,
-          is_day_off: false,
         },
       ],
     });
 
-    expect(resolved.source).toBe("group");
-    expect(resolved.windows).toEqual([
-      { shiftType: "single", startTime: "08:00", endTime: "20:00" },
-    ]);
+    expect(resolved).toMatchObject({
+      source: "none",
+      status: "not_operational",
+      state: "STAFF_NOT_OPERATIONAL",
+      isWorking: false,
+      isDayOff: false,
+      windows: [],
+    });
   });
+
 });
 
 describe("schedule date and time helpers", () => {

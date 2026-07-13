@@ -1,3 +1,88 @@
+## 2026-07-13 - CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009 scan interruption root cause
+
+- **Symptom:** Real public Attendance QR scans could reach the workflow and then
+  display generic "Scan interrupted" / "Something interrupted the scan" even
+  though the backend had a concrete failure.
+- **Root cause:** The public route and scan server actions caught all backend
+  exceptions and returned a generic HTTP 200 result. At the same time, scan
+  engine exceptions used internal values such as `missing_schedule`,
+  `ambiguous_scan`, `late_clock_in`, `early_clock_out`, and
+  `likely_closing_scan_without_clock_in`, while the live
+  `attendance_exceptions.exception_type` CHECK constraint only allows stable DB
+  values such as `unscheduled`, `late`, `early_leave`, `overtime`,
+  `missed_checkout`, and `manual`.
+- **Impact:** Atomic scan commits could fail on a Recovery exception insert, and
+  the phone saw only a generic interruption instead of a safe actionable code.
+- **Resolution:** Internal exception reasons now map to stable DB exception
+  values before the RPC/direct insert, with the original internal reason stored
+  in metadata for Recovery UI. Public route/actions now return structured safe
+  error codes with operation IDs and non-200 status for unexpected backend
+  failures.
+
+- **Symptom:** `supabase db push --linked --dns-resolver https` still times out
+  on the direct Postgres pooler from this environment.
+- **Impact:** The attendance scan contract migration could not be applied via
+  normal migration push. The remote migration history also remains partially
+  behind live schema effects from prior manual repairs.
+- **Resolution:** Applied
+  `20260713082146_attendance_scan_contract_repair.sql` idempotently through
+  linked `db query` and inserted the migration record for this version. Future
+  DB work should reconcile the broader recent migration history from a working
+  direct DB path before a blind `db push`.
+
+---
+
+## 2026-07-13 - CRADLE-SCHEDULE-LEFTOVER-CLEANUP-008 data cleanup note
+
+- **Symptom:** The first stale schedule cleanup approach attempted to mark
+  deterministic superseded active `single` windows inactive, but the live
+  `validate_staff_schedule_window` trigger only allows inactive rows as the
+  canonical day-off marker (`single`, `window_order=1`, `00:00-00:01`,
+  `ends_next_day=false`).
+- **Impact:** Updating stale overlapping rows to inactive would either fail the
+  trigger or collide with existing day/window identity. It also would leave
+  ambiguous inactive siblings in the runtime table after the schedule contract
+  moved to explicit ordered windows.
+- **Resolution:** The live-applied cleanup backs up affected rows to
+  `schedule_repair_backups` first, then deletes only deterministic stale active
+  `single` windows that are superseded by newer active Opening/Closing rows.
+  Ambiguous overlapping Opening/Closing data remains active for CRM review.
+
+- **Symptom:** Linked Supabase migration-history reads through the direct
+  pooler path still time out from this environment.
+- **Impact:** The live schema/data effects of
+  `20260713090000_schedule_leftover_cleanup.sql` are verified through linked SQL
+  probes, but migration-history reconciliation is not certified here.
+- **Resolution:** Reconcile recent schedule migrations from a working
+  migration-history connection before any blind migration push.
+
+---
+
+## 2026-07-13 - CRADLE-SCHEDULE-SYSTEM-UNIFICATION-007 database notes
+
+- **Symptom:** Before this task, Daily Timeline realtime subscriptions included
+  schedule tables but the linked database publication had none of the required
+  runtime tables in `supabase_realtime`.
+- **Impact:** Client subscriptions could be wired correctly while Postgres
+  changes still failed to publish for schedules, overrides, blocks, check-ins,
+  bookings, staff, or resources.
+- **Resolution:** Added and live-applied
+  `supabase/migrations/20260713064332_schedule_realtime_publication.sql`.
+  Verification confirmed `staff`, `staff_schedules`, `schedule_overrides`,
+  `blocked_times`, `staff_shift_checkins`, `bookings`, and
+  `branch_resources` are now published.
+
+- **Symptom:** Linked Supabase migration-history reads through the direct
+  pooler path remain unreliable/time out from this environment.
+- **Impact:** Live schema effects for schedule repair and realtime publication
+  are verified through Management API SQL probes, but migration history is not
+  certified from this environment.
+- **Resolution:** Do not blind `db push`; reconcile migration history from a
+  working migration-history connection, then rerun DB status/types and app
+  verification.
+
+---
+
 ## 2026-07-12 - ATTENDANCE-AUTONOMY-HARDENING-001 blockers and prevention notes
 
 - **Symptom:** Local migration verification cannot run because `supabase migration list --local` cannot connect to `127.0.0.1:54322`.
@@ -773,3 +858,59 @@
 - **Impact:** The database can run the verified live schema, but the normal Supabase migration engine cannot be trusted to know these migrations are applied. A future `db push` from a healthy migration-history connection may try to replay SQL that is already partially present.
 - **Resolution:** Applied only the two new RPC definitions through linked `supabase db query --file` after normal `db push --dry-run` remained blocked by migration-history timeouts. Verified function presence, grants, and no-mutation rejection probes. Do not manually edit migration history from this environment.
 - **Follow-up:** Reconcile migration history from a working Supabase DB path, then regenerate types and rerun final app checks. Review any replay plan carefully because some earlier migration effects are already live.
+
+## 2026-07-13 - CRADLE-BACKEND-STABILIZATION-AND-SCHEDULE-REPAIR-001 blockers and findings
+
+- **Symptom:** `pnpm db:doctor` and `pnpm db:status` still time out while reading linked Supabase migration history on `aws-1-ap-northeast-1.pooler.supabase.com:5432`.
+- **Impact:** The schedule repair migration `supabase/migrations/20260712165012_backend_stabilization_schedule_repair.sql` was created and rollback dry-run verified, but was not applied to production from this environment. `db:status` reports `Remote schema changed: no` before failing the migration-history read.
+- **Resolution:** Do not run a blind `db push` here. Apply the migration from a working migration-history connection, then rerun `pnpm db:types`, `pnpm type-check`, `pnpm lint`, `pnpm test`, and `pnpm build`.
+
+- **Symptom:** Linked generated types do not include `branch_booking_rules.home_service_free_km` or `branch_booking_rules.home_service_extra_km_fee`, while existing app code expects those fields.
+- **Impact:** Regenerating `src/types/supabase.ts` from the current linked schema can remove pending local columns and break type-check.
+- **Resolution:** The schedule repair migration adds/backfills the two columns from `branches`; `src/types/supabase.ts` was locally reconciled after type generation. Regenerate types again after the migration is applied so the generated file matches the real schema without manual reconciliation.
+
+- **Symptom:** Live data contains corrupted Main Spa scheduling minimums, stale older active `single` staff schedules superseded by newer opening/closing rows, overlapping active group default templates, and ambiguous Nikki opening/closing overlaps with the same created timestamp.
+- **Impact:** Coverage/readiness can report impossible staffing requirements, stale rows can create schedule conflicts, and ambiguous same-timestamp overlaps cannot be safely repaired without business confirmation.
+- **Resolution:** The migration backs up and fixes deterministic cases only: corrupted scheduling minimums, older superseded `single` rows, and overlapping group templates. Nikki overlaps remain manual follow-up.
+
+- **Symptom:** Live duplicate staff identities are present and staged in `staff_merge_map_work`, but the merge was not executed.
+- **Impact:** Duplicate staff can still appear in operational surfaces unless archived/merged/test/non-schedulable fields are honored.
+- **Resolution:** Availability provider selection now filters inactive, archived, merged, test, and explicitly non-schedulable staff. Full staff identity merge remains a separate data-governance task because bookings, attendance, payroll, and Auth ownership must be reviewed first.
+
+## 2026-07-13 - CRADLE-INDIVIDUAL-SCHEDULING-SIMPLIFICATION-005 verification blockers
+
+- **Symptom:** `pnpm db:doctor` and `pnpm db:status` time out while reading linked Supabase migration history through `aws-1-ap-northeast-1.pooler.supabase.com`.
+- **Impact:** Local migrations for individual-only runtime scheduling were created but not applied or verified in production from this environment.
+- **Resolution:** Do not claim live DB completion or run blind `db push` here. Apply from a working migration-history connection and rerun type generation plus app checks.
+
+- **Symptom:** `pnpm db:verify` reports linked SQL probe and required table checks as PASS, but exits nonzero because `psql` is not installed for the documented fallback path.
+- **Impact:** DB table visibility is verified, but the emergency fallback capability remains unavailable locally.
+- **Resolution:** Install `psql` or run fallback checks from an environment that has it before relying on fallback operations.
+
+- **Symptom:** Regenerated linked Supabase types omit `branch_booking_rules.home_service_free_km` and `home_service_extra_km_fee`.
+- **Impact:** Type generation can break app code until pending migrations are applied.
+- **Resolution:** `src/lib/queries/branch-booking-rules.ts` now treats those fields as optional so the app compiles against both schemas; regenerate types again after production migration apply.
+
+## 2026-07-13 - CRADLE-ADJUST-SCHEDULE-MODAL-003 limitations and QA blockers
+
+- **Symptom:** Authenticated CRM browser certification was not run for the new Adjust Schedule modal.
+- **Impact:** Local type/lint/test/build verification passed, but final visual/operator acceptance against live branch data still needs a signed-in CRM session and viewport checks.
+- **Resolution:** Run CRM Schedule browser QA: open Daily Timeline, select staff, use Quick Actions > Adjust Staff, use selected-card Adjust Schedule, edit preview, validate overlap blocking, save, refresh, reopen, and test desktop/tablet/mobile widths.
+
+- **Symptom:** Weekly schedule saves validate/persist ordered windows but do not yet call a server-calculated affected-booking impact analysis.
+- **Impact:** Existing bookings are not changed by the save path, and the modal requires operator impact acknowledgement, but it does not return authoritative affected-booking counts.
+- **Resolution:** Add a server action/RPC that evaluates proposed weekly/override changes against future bookings and returns affected booking details before save confirmation.
+
+- **Symptom:** The existing `schedule_overrides` and `blocked_times` action contracts do not cover every reference-image requirement.
+- **Impact:** Date mode currently saves one date at a time, override overnight state is not persisted, blocked-time reasons remain the existing enum, and Approved Exceptions cannot show durable records.
+- **Resolution:** Extend schema/actions in a separately scoped migration only after the persistence contract is approved.
+
+## 2026-07-13 - CRADLE-SCHEDULE-UPDATE-INTEGRATION-REPAIR-006 root cause and remaining blocker
+
+- **Symptom:** CRM Adjust Schedule weekly save showed only "We could not update this schedule. Please try again."
+- **Root cause:** The linked live schema did not expose `public.replace_staff_weekly_schedule(uuid, uuid, jsonb)`, but the app save action called it. The table also still enforced `staff_schedules_staff_day_shift_unique` instead of ordered `staff_id, day_of_week, window_order`.
+- **Resolution:** Added/applied `supabase/migrations/20260713035024_schedule_update_integration_repair.sql`, creating the RPC/helpers/trigger, replacing the unique constraint, widening `window_order` to 1..12, backing up and normalizing stale inactive placeholders, and reloading PostgREST schema. App actions now classify missing RPC, stale constraint, RLS, overlap, overnight, and shift-eligibility errors with safe codes/messages.
+
+- **Symptom:** `pnpm db:push --dry-run` and `pnpm db:status` still time out on `aws-1-ap-northeast-1.pooler.supabase.com:5432` even when retried with escalation.
+- **Impact:** Live schema is repaired and verified through the Management API path, but linked migration history cannot be certified from this environment.
+- **Resolution:** Do not blind push pending migrations from this shell. Restore a working direct Postgres pooler/migration-history path, then rerun `pnpm db:status` and reconcile migration history with the live-applied corrective SQL.

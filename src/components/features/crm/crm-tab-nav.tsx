@@ -17,9 +17,8 @@ export const BOOKINGS_TABS: CrmTabItem[] = [
 ];
 
 export const SCHEDULE_TABS: CrmTabItem[] = [
-  { label: "Daily Timeline",    href: "/crm/schedule"           },
-  { label: "Live Availability", href: "/crm/availability"       },
-  { label: "Schedule Setup",    href: "/crm/staff-availability" },
+  { label: "Daily Timeline", href: "/crm/schedule" },
+  { label: "Schedule Setup", href: "/crm/schedule?tab=setup" },
 ];
 
 export const CUSTOMERS_TABS: CrmTabItem[] = [

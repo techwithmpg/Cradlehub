@@ -96,8 +96,12 @@ export const CONFLICT_TYPE_LABELS: Record<LiveScheduleConflictType, string> = {
   booking_outside_shift: "Booking outside staff shift",
   booking_on_day_off: "Staff is off today",
   booking_during_blocked_time: "Booking during blocked time",
-  missing_schedule: "Missing staff schedule",
-  schedule_rule_conflict: "Conflicting staff schedule",
+  missing_schedule: "Schedule not configured",
+  schedule_rule_conflict: "Schedule needs review",
+  schedule_invalid_time_window: "Invalid schedule time window",
+  schedule_overlapping_windows: "Overlapping schedule windows",
+  schedule_ineligible_shift_type: "Shift type not allowed",
+  schedule_contradictory_day_state: "Contradictory schedule state",
   duplicate_schedule_window: "Duplicate schedule window",
   coverage_gap: "Coverage gap",
   home_service_travel_buffer_warning: "Travel buffer too short",
@@ -111,6 +115,10 @@ export function getConflictCategoryKey(conflict: LiveScheduleConflict): Schedule
   switch (conflict.type) {
     case "staff_overlap":
     case "schedule_rule_conflict":
+    case "schedule_invalid_time_window":
+    case "schedule_overlapping_windows":
+    case "schedule_ineligible_shift_type":
+    case "schedule_contradictory_day_state":
       return "staff";
     case "room_double_booked":
     case "missing_room":
@@ -241,6 +249,10 @@ export function classifyScheduleConflict(conflict: LiveScheduleConflict): Omit<
         priority: conflict.affected_booking_ids.length > 0 ? 18 : 55,
       };
     case "schedule_rule_conflict":
+    case "schedule_invalid_time_window":
+    case "schedule_overlapping_windows":
+    case "schedule_ineligible_shift_type":
+    case "schedule_contradictory_day_state":
       return {
         impactGroup: "must_fix",
         systemImpact: "Online booking / availability",
@@ -335,7 +347,14 @@ export function buildScheduleConflictTabCounts(
     if (issue.impactGroup === "must_fix") counts.must_fix += 1;
     if (issue.impactGroup === "needs_approval") counts.needs_approval += 1;
     if (issue.impactGroup === "cleanup_warning") counts.cleanup += 1;
-    if (issue.conflict.type === "staff_overlap" || issue.conflict.type === "schedule_rule_conflict") counts.staff += 1;
+    if (
+      issue.conflict.type === "staff_overlap" ||
+      issue.conflict.type === "schedule_rule_conflict" ||
+      issue.conflict.type === "schedule_invalid_time_window" ||
+      issue.conflict.type === "schedule_overlapping_windows" ||
+      issue.conflict.type === "schedule_ineligible_shift_type" ||
+      issue.conflict.type === "schedule_contradictory_day_state"
+    ) counts.staff += 1;
     if (issue.conflict.type === "room_double_booked" || issue.conflict.type === "missing_room") {
       counts.rooms += 1;
     }
@@ -387,7 +406,14 @@ function issueMatchesTab(issue: ScheduleConflictResolutionIssue, tab: ScheduleCo
   if (tab === "cleanup") return issue.impactGroup === "cleanup_warning";
   if (tab === "rooms") return issue.conflict.type === "room_double_booked" || issue.conflict.type === "missing_room";
   if (tab === "staff") {
-    return issue.conflict.type === "staff_overlap" || issue.conflict.type === "schedule_rule_conflict";
+    return (
+      issue.conflict.type === "staff_overlap" ||
+      issue.conflict.type === "schedule_rule_conflict" ||
+      issue.conflict.type === "schedule_invalid_time_window" ||
+      issue.conflict.type === "schedule_overlapping_windows" ||
+      issue.conflict.type === "schedule_ineligible_shift_type" ||
+      issue.conflict.type === "schedule_contradictory_day_state"
+    );
   }
   if (tab === "home_service") return issue.conflict.type === "home_service_travel_buffer_warning";
   return true;

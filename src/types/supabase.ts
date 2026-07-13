@@ -150,6 +150,13 @@ export type Database = {
             foreignKeyName: "attendance_corrections_approved_by_fkey"
             columns: ["approved_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -171,6 +178,13 @@ export type Database = {
             foreignKeyName: "attendance_corrections_corrected_by_fkey"
             columns: ["corrected_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_corrected_by_fkey"
+            columns: ["corrected_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -178,7 +192,21 @@ export type Database = {
             foreignKeyName: "attendance_corrections_requested_by_fkey"
             columns: ["requested_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -288,6 +316,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attendance_exceptions_latest_scan_event_id_fkey"
+            columns: ["latest_scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "attendance_exceptions_resolved_by_fkey"
             columns: ["resolved_by"]
             isOneToOne: false
@@ -302,10 +344,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "attendance_exceptions_latest_scan_event_id_fkey"
-            columns: ["latest_scan_event_id"]
+            foreignKeyName: "attendance_exceptions_staff_id_fkey"
+            columns: ["staff_id"]
             isOneToOne: false
-            referencedRelation: "qr_scan_events"
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -453,6 +495,13 @@ export type Database = {
             foreignKeyName: "attendance_settings_test_mode_disabled_by_fkey"
             columns: ["test_mode_disabled_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_settings_test_mode_disabled_by_fkey"
+            columns: ["test_mode_disabled_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -460,7 +509,21 @@ export type Database = {
             foreignKeyName: "attendance_settings_test_mode_enabled_by_fkey"
             columns: ["test_mode_enabled_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_settings_test_mode_enabled_by_fkey"
+            columns: ["test_mode_enabled_by"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -508,7 +571,21 @@ export type Database = {
             foreignKeyName: "blocked_times_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocked_times_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocked_times_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -554,6 +631,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_events_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -617,6 +701,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_payment_logs_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -774,6 +865,13 @@ export type Database = {
             foreignKeyName: "bookings_driver_id_fkey"
             columns: ["driver_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -789,6 +887,13 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_session_extended_by_fkey"
+            columns: ["session_extended_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -816,6 +921,13 @@ export type Database = {
             foreignKeyName: "bookings_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -828,8 +940,6 @@ export type Database = {
           home_service_driver_capacity: number
           home_service_enabled: boolean
           home_service_end_time: string
-          home_service_extra_km_fee: number
-          home_service_free_km: number
           home_service_start_time: string
           id: string
           in_spa_end_time: string
@@ -844,8 +954,6 @@ export type Database = {
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
-          home_service_extra_km_fee?: number
-          home_service_free_km?: number
           home_service_start_time?: string
           id?: string
           in_spa_end_time?: string
@@ -860,8 +968,6 @@ export type Database = {
           home_service_driver_capacity?: number
           home_service_enabled?: boolean
           home_service_end_time?: string
-          home_service_extra_km_fee?: number
-          home_service_free_km?: number
           home_service_start_time?: string
           id?: string
           in_spa_end_time?: string
@@ -1089,6 +1195,50 @@ export type Database = {
         }
         Relationships: []
       }
+      coverage_requirements: {
+        Row: {
+          branch_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          is_active: boolean
+          minimum_required: number
+          staff_type: string
+          start_time: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          is_active?: boolean
+          minimum_required: number
+          staff_type: string
+          start_time: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          minimum_required?: number
+          staff_type?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_requirements_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_tracking_links: {
         Row: {
           access_count: number
@@ -1148,6 +1298,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_tracking_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -1236,6 +1393,13 @@ export type Database = {
             foreignKeyName: "customers_preferred_staff_id_fkey"
             columns: ["preferred_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_preferred_staff_id_fkey"
+            columns: ["preferred_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -1308,6 +1472,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_cash_reconciliations_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -1416,6 +1587,13 @@ export type Database = {
             foreignKeyName: "device_activation_tokens_requested_by_fkey"
             columns: ["requested_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_activation_tokens_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -1430,7 +1608,21 @@ export type Database = {
             foreignKeyName: "device_activation_tokens_revoked_by_fkey"
             columns: ["revoked_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_activation_tokens_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_activation_tokens_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -1478,6 +1670,13 @@ export type Database = {
           reason?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_adjustments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payroll_adjustments_created_by_fkey"
             columns: ["created_by"]
@@ -1580,6 +1779,13 @@ export type Database = {
             foreignKeyName: "payroll_items_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_items_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -1636,6 +1842,13 @@ export type Database = {
             foreignKeyName: "payroll_periods_approved_by_fkey"
             columns: ["approved_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -1644,6 +1857,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -1726,6 +1946,13 @@ export type Database = {
           weekend_adjustment?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payroll_settings_updated_by_fkey"
             columns: ["updated_by"]
@@ -1889,6 +2116,13 @@ export type Database = {
             foreignKeyName: "qr_points_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_points_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -2021,6 +2255,13 @@ export type Database = {
             foreignKeyName: "qr_scan_events_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_scan_events_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -2096,6 +2337,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           end_time: string | null
+          ends_next_day: boolean
           id: string
           is_day_off: boolean
           override_date: string
@@ -2108,6 +2350,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_time?: string | null
+          ends_next_day?: boolean
           id?: string
           is_day_off?: boolean
           override_date: string
@@ -2120,6 +2363,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_time?: string | null
+          ends_next_day?: boolean
           id?: string
           is_day_off?: boolean
           override_date?: string
@@ -2133,7 +2377,21 @@ export type Database = {
             foreignKeyName: "schedule_overrides_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_overrides_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_overrides_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2144,6 +2402,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      schedule_repair_backups: {
+        Row: {
+          batch_id: string
+          created_at: string
+          id: number
+          original_row: Json
+          reason: string
+          source_pk: string
+          source_table: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          id?: number
+          original_row: Json
+          reason: string
+          source_pk: string
+          source_table: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          id?: number
+          original_row?: Json
+          reason?: string
+          source_pk?: string
+          source_table?: string
+        }
+        Relationships: []
       }
       schedule_suggestions: {
         Row: {
@@ -2220,6 +2508,13 @@ export type Database = {
             foreignKeyName: "schedule_suggestions_approved_by_fkey"
             columns: ["approved_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_suggestions_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -2234,7 +2529,21 @@ export type Database = {
             foreignKeyName: "schedule_suggestions_rejected_by_fkey"
             columns: ["rejected_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_suggestions_rejected_by_fkey"
+            columns: ["rejected_by"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_suggestions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2418,6 +2727,8 @@ export type Database = {
       staff: {
         Row: {
           access_notes: string | null
+          archive_reason: string | null
+          archived_at: string | null
           auth_user_id: string | null
           avatar_path: string | null
           avatar_url: string | null
@@ -2425,8 +2736,10 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          identity_verified_at: string | null
           is_active: boolean
           is_head: boolean
+          merged_into_staff_id: string | null
           metadata: Json
           nickname: string | null
           phone: string | null
@@ -2439,6 +2752,8 @@ export type Database = {
         }
         Insert: {
           access_notes?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
           auth_user_id?: string | null
           avatar_path?: string | null
           avatar_url?: string | null
@@ -2446,8 +2761,10 @@ export type Database = {
           created_at?: string
           full_name: string
           id?: string
+          identity_verified_at?: string | null
           is_active?: boolean
           is_head?: boolean
+          merged_into_staff_id?: string | null
           metadata?: Json
           nickname?: string | null
           phone?: string | null
@@ -2460,6 +2777,8 @@ export type Database = {
         }
         Update: {
           access_notes?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
           auth_user_id?: string | null
           avatar_path?: string | null
           avatar_url?: string | null
@@ -2467,8 +2786,10 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          identity_verified_at?: string | null
           is_active?: boolean
           is_head?: boolean
+          merged_into_staff_id?: string | null
           metadata?: Json
           nickname?: string | null
           phone?: string | null
@@ -2485,6 +2806,20 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_merged_into_staff_id_fkey"
+            columns: ["merged_into_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_merged_into_staff_id_fkey"
+            columns: ["merged_into_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -2534,7 +2869,21 @@ export type Database = {
             foreignKeyName: "staff_account_access_events_actor_staff_id_fkey"
             columns: ["actor_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_account_access_events_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_account_access_events_target_staff_id_fkey"
+            columns: ["target_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2598,6 +2947,13 @@ export type Database = {
             foreignKeyName: "staff_branch_audit_logs_changed_by_staff_id_fkey"
             columns: ["changed_by_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_changed_by_staff_id_fkey"
+            columns: ["changed_by_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -2613,6 +2969,13 @@ export type Database = {
             columns: ["old_branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_audit_logs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2711,7 +3074,21 @@ export type Database = {
             foreignKeyName: "staff_branch_change_requests_requested_by_staff_id_fkey"
             columns: ["requested_by_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_requested_by_staff_id_fkey"
+            columns: ["requested_by_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_reviewed_by_staff_id_fkey"
+            columns: ["reviewed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2726,6 +3103,13 @@ export type Database = {
             columns: ["scan_event_id"]
             isOneToOne: false
             referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_branch_change_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2776,9 +3160,9 @@ export type Database = {
           browser_name: string | null
           browser_version: string | null
           created_at: string
-          device_role: string
           device_fingerprint_hash: string
           device_label: string | null
+          device_role: string
           id: string
           last_attendance_scan_at: string | null
           last_seen_at: string | null
@@ -2791,10 +3175,10 @@ export type Database = {
           revocation_reason: string | null
           revoked_at: string | null
           revoked_by: string | null
+          security_state: string
           staff_id: string
           status: string
           superseded_by_device_id: string | null
-          security_state: string
           trusted_after: string
           updated_at: string
         }
@@ -2803,9 +3187,9 @@ export type Database = {
           browser_name?: string | null
           browser_version?: string | null
           created_at?: string
-          device_role?: string
           device_fingerprint_hash: string
           device_label?: string | null
+          device_role?: string
           id?: string
           last_attendance_scan_at?: string | null
           last_seen_at?: string | null
@@ -2818,10 +3202,10 @@ export type Database = {
           revocation_reason?: string | null
           revoked_at?: string | null
           revoked_by?: string | null
+          security_state?: string
           staff_id: string
           status?: string
           superseded_by_device_id?: string | null
-          security_state?: string
           trusted_after?: string
           updated_at?: string
         }
@@ -2830,9 +3214,9 @@ export type Database = {
           browser_name?: string | null
           browser_version?: string | null
           created_at?: string
-          device_role?: string
           device_fingerprint_hash?: string
           device_label?: string | null
+          device_role?: string
           id?: string
           last_attendance_scan_at?: string | null
           last_seen_at?: string | null
@@ -2845,10 +3229,10 @@ export type Database = {
           revocation_reason?: string | null
           revoked_at?: string | null
           revoked_by?: string | null
+          security_state?: string
           staff_id?: string
           status?: string
           superseded_by_device_id?: string | null
-          security_state?: string
           trusted_after?: string
           updated_at?: string
         }
@@ -2861,6 +3245,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "staff_devices_replacement_confirmed_by_fkey"
+            columns: ["replacement_confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_devices_replacement_confirmed_by_fkey"
+            columns: ["replacement_confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_devices_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "staff_devices_revoked_by_fkey"
             columns: ["revoked_by"]
             isOneToOne: false
@@ -2868,8 +3273,15 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "staff_devices_replacement_confirmed_by_fkey"
-            columns: ["replacement_confirmed_by"]
+            foreignKeyName: "staff_devices_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_devices_staff_id_fkey"
+            columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
@@ -2881,8 +3293,53 @@ export type Database = {
             referencedRelation: "staff_devices"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      staff_duty_assignments: {
+        Row: {
+          branch_id: string
+          created_at: string
+          day_of_week: number
+          duty_type: string
+          id: string
+          is_active: boolean
+          staff_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          day_of_week: number
+          duty_type: string
+          id?: string
+          is_active?: boolean
+          staff_id: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          day_of_week?: number
+          duty_type?: string
+          id?: string
+          is_active?: boolean
+          staff_id?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "staff_devices_staff_id_fkey"
+            foreignKeyName: "staff_duty_assignments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_duty_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_duty_assignments_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
@@ -2936,6 +3393,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      staff_identity_merge_backups: {
+        Row: {
+          backed_up_at: string
+          id: string
+          merge_batch: string
+          row_data: Json
+          source_row_id: string
+          source_table: string
+        }
+        Insert: {
+          backed_up_at?: string
+          id?: string
+          merge_batch: string
+          row_data: Json
+          source_row_id: string
+          source_table: string
+        }
+        Update: {
+          backed_up_at?: string
+          id?: string
+          merge_batch?: string
+          row_data?: Json
+          source_row_id?: string
+          source_table?: string
+        }
+        Relationships: []
       }
       staff_location_snapshots: {
         Row: {
@@ -2993,6 +3477,63 @@ export type Database = {
             foreignKeyName: "staff_location_snapshots_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_location_snapshots_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_merge_map_work: {
+        Row: {
+          canonical_staff_id: string
+          created_at: string
+          identity_name: string
+          source_staff_id: string
+        }
+        Insert: {
+          canonical_staff_id: string
+          created_at?: string
+          identity_name: string
+          source_staff_id: string
+        }
+        Update: {
+          canonical_staff_id?: string
+          created_at?: string
+          identity_name?: string
+          source_staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_merge_map_canonical_fkey"
+            columns: ["canonical_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_merge_map_canonical_fkey"
+            columns: ["canonical_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_merge_map_source_fkey"
+            columns: ["source_staff_id"]
+            isOneToOne: true
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_merge_map_source_fkey"
+            columns: ["source_staff_id"]
+            isOneToOne: true
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -3074,7 +3615,21 @@ export type Database = {
             foreignKeyName: "staff_onboarding_requests_reviewed_by_staff_id_fkey"
             columns: ["reviewed_by_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_onboarding_requests_reviewed_by_staff_id_fkey"
+            columns: ["reviewed_by_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_onboarding_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -3153,7 +3708,21 @@ export type Database = {
             foreignKeyName: "staff_pay_profiles_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_pay_profiles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_pay_profiles_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -3211,33 +3780,46 @@ export type Database = {
           created_at: string
           day_of_week: number
           end_time: string
+          ends_next_day: boolean
           id: string
           is_active: boolean
           shift_type: string
           staff_id: string
           start_time: string
+          window_order: number
         }
         Insert: {
           created_at?: string
           day_of_week: number
           end_time: string
+          ends_next_day?: boolean
           id?: string
           is_active?: boolean
           shift_type?: string
           staff_id: string
           start_time: string
+          window_order?: number
         }
         Update: {
           created_at?: string
           day_of_week?: number
           end_time?: string
+          ends_next_day?: boolean
           id?: string
           is_active?: boolean
           shift_type?: string
           staff_id?: string
           start_time?: string
+          window_order?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "staff_schedules_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "staff_schedules_staff_id_fkey"
             columns: ["staff_id"]
@@ -3246,6 +3828,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      staff_schedules_merge_backup_20260712: {
+        Row: {
+          backed_up_at: string | null
+          backup_reason: string | null
+          created_at: string | null
+          day_of_week: number | null
+          end_time: string | null
+          id: string | null
+          is_active: boolean | null
+          shift_type: string | null
+          staff_id: string | null
+          start_time: string | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          backup_reason?: string | null
+          created_at?: string | null
+          day_of_week?: number | null
+          end_time?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          shift_type?: string | null
+          staff_id?: string | null
+          start_time?: string | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          backup_reason?: string | null
+          created_at?: string | null
+          day_of_week?: number | null
+          end_time?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          shift_type?: string | null
+          staff_id?: string | null
+          start_time?: string | null
+        }
+        Relationships: []
       }
       staff_scheduling_preferences: {
         Row: {
@@ -3311,6 +3932,13 @@ export type Database = {
             foreignKeyName: "staff_scheduling_preferences_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: true
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_scheduling_preferences_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -3347,6 +3975,13 @@ export type Database = {
             foreignKeyName: "staff_service_categories_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_service_categories_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -3377,6 +4012,13 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_services_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -3514,6 +4156,13 @@ export type Database = {
             foreignKeyName: "staff_shift_checkins_recorded_by_fkey"
             columns: ["recorded_by"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_shift_checkins_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -3522,6 +4171,13 @@ export type Database = {
             columns: ["source_qr_point_id"]
             isOneToOne: false
             referencedRelation: "qr_points"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_shift_checkins_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -3594,6 +4250,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_requests_contacted_by_fkey"
+            columns: ["contacted_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -3691,6 +4354,13 @@ export type Database = {
             foreignKeyName: "workflow_tasks_assigned_to_staff_id_fkey"
             columns: ["assigned_to_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_tasks_assigned_to_staff_id_fkey"
+            columns: ["assigned_to_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -3699,6 +4369,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_tasks_completed_by_staff_id_fkey"
+            columns: ["completed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
@@ -3782,6 +4459,13 @@ export type Database = {
             foreignKeyName: "workspace_notifications_actor_staff_id_fkey"
             columns: ["actor_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_notifications_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -3796,6 +4480,13 @@ export type Database = {
             foreignKeyName: "workspace_notifications_recipient_staff_id_fkey"
             columns: ["recipient_staff_id"]
             isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_notifications_recipient_staff_id_fkey"
+            columns: ["recipient_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -3803,48 +4494,151 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      operational_staff: {
+        Row: {
+          access_notes: string | null
+          archive_reason: string | null
+          archived_at: string | null
+          auth_user_id: string | null
+          avatar_path: string | null
+          avatar_url: string | null
+          branch_id: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string | null
+          identity_verified_at: string | null
+          is_active: boolean | null
+          is_head: boolean | null
+          merged_into_staff_id: string | null
+          metadata: Json | null
+          nickname: string | null
+          phone: string | null
+          staff_type: string | null
+          system_role: string | null
+          temporary_access_expires_at: string | null
+          tier: string | null
+          updated_at: string | null
+          workspace_access: string[] | null
+        }
+        Insert: {
+          access_notes?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
+          auth_user_id?: string | null
+          avatar_path?: string | null
+          avatar_url?: string | null
+          branch_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          identity_verified_at?: string | null
+          is_active?: boolean | null
+          is_head?: boolean | null
+          merged_into_staff_id?: string | null
+          metadata?: Json | null
+          nickname?: string | null
+          phone?: string | null
+          staff_type?: string | null
+          system_role?: string | null
+          temporary_access_expires_at?: string | null
+          tier?: string | null
+          updated_at?: string | null
+          workspace_access?: string[] | null
+        }
+        Update: {
+          access_notes?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
+          auth_user_id?: string | null
+          avatar_path?: string | null
+          avatar_url?: string | null
+          branch_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          identity_verified_at?: string | null
+          is_active?: boolean | null
+          is_head?: boolean | null
+          merged_into_staff_id?: string | null
+          metadata?: Json | null
+          nickname?: string | null
+          phone?: string | null
+          staff_type?: string | null
+          system_role?: string | null
+          temporary_access_expires_at?: string | null
+          tier?: string | null
+          updated_at?: string | null
+          workspace_access?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_merged_into_staff_id_fkey"
+            columns: ["merged_into_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_merged_into_staff_id_fkey"
+            columns: ["merged_into_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      complete_due_service_sessions: {
-        Args: { p_limit?: number }
-        Returns: {
-          booking_id: string
-          branch_id: string
-          completed_at: string
-        }[]
+      can_mutate_schedule_for_branch: {
+        Args: { p_branch_id: string }
+        Returns: boolean
       }
       commit_attendance_scan_transaction: {
         Args: {
           p_action: string
           p_branch_id: string
           p_checkin_id?: string
-          p_checkin_insert?: Json | null
-          p_checkin_update?: Json | null
-          p_device_id: string | null
+          p_checkin_insert?: Json
+          p_checkin_update?: Json
+          p_device_id: string
           p_device_scan_type?: string
-          p_exception?: Json | null
-          p_ip_address?: string | null
+          p_exception?: Json
+          p_ip_address?: string
           p_is_test?: boolean
-          p_message?: string | null
-          p_metadata?: Json | null
+          p_message?: string
+          p_metadata?: Json
           p_outcome: string
-          p_public_result?: Json | null
-          p_qr_point_id: string | null
-          p_reason_code?: string | null
-          p_request_id?: string | null
+          p_public_result?: Json
+          p_qr_point_id: string
+          p_reason_code?: string
+          p_request_id: string
           p_scan_type: string
-          p_staff_id: string | null
-          p_user_agent?: string | null
+          p_staff_id: string
+          p_user_agent?: string
         }
         Returns: {
-          checkin_id: string | null
+          checkin_id: string
           code: string
           message: string
-          operation_result: Json | null
-          recovery_issue_id: string | null
-          scan_event_id: string | null
+          operation_result: Json
+          recovery_issue_id: string
+          scan_event_id: string
           success: boolean
+        }[]
+      }
+      complete_due_service_sessions: {
+        Args: { p_limit?: number }
+        Returns: {
+          booking_id: string
+          branch_id: string
+          completed_at: string
         }[]
       }
       compute_booking_end_time: {
@@ -3948,9 +4742,30 @@ export type Database = {
           service_id: string
         }[]
       }
+      replace_staff_weekly_schedule: {
+        Args: { p_branch_id: string; p_rows: Json; p_staff_id: string }
+        Returns: {
+          created_at: string
+          day_of_week: number
+          end_time: string
+          ends_next_day: boolean
+          id: string
+          is_active: boolean
+          shift_type: string
+          staff_id: string
+          start_time: string
+          window_order: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "staff_schedules"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       reset_attendance_state_transaction: {
         Args: {
-          p_actor_staff_id: string | null
+          p_actor_staff_id: string
           p_branch_id: string
           p_checkin_id: string
           p_is_test?: boolean
@@ -3958,14 +4773,14 @@ export type Database = {
           p_reset_mode?: string
         }
         Returns: {
-          attendance_date: string | null
-          checkin_id: string | null
+          attendance_date: string
+          checkin_id: string
           code: string
-          correction_id: string | null
+          correction_id: string
           message: string
-          next_expected_action: string | null
+          next_expected_action: string
           resolved_exception_count: number
-          staff_id: string | null
+          staff_id: string
           success: boolean
         }[]
       }
@@ -3986,9 +4801,46 @@ export type Database = {
           staff_id: string
         }[]
       }
+      schedule_explicit_time_end_min: {
+        Args: { p_end: string; p_ends_next_day: boolean; p_start: string }
+        Returns: number
+      }
+      schedule_explicit_time_ranges_overlap: {
+        Args: {
+          p_first_end: string
+          p_first_ends_next_day: boolean
+          p_first_start: string
+          p_second_end: string
+          p_second_ends_next_day: boolean
+          p_second_start: string
+        }
+        Returns: boolean
+      }
       schedule_group_key_for_staff_type: {
         Args: { p_staff_type: string }
         Returns: string
+      }
+      schedule_time_end_min: {
+        Args: { p_end: string; p_start: string }
+        Returns: number
+      }
+      schedule_time_ranges_overlap: {
+        Args: {
+          p_first_end: string
+          p_first_start: string
+          p_second_end: string
+          p_second_start: string
+        }
+        Returns: boolean
+      }
+      schedule_time_start_min: { Args: { p_time: string }; Returns: number }
+      staff_is_operational: {
+        Args: { p_staff: Database["public"]["Tables"]["staff"]["Row"] }
+        Returns: boolean
+      }
+      staff_metadata_flag: {
+        Args: { p_default: boolean; p_key: string; p_metadata: Json }
+        Returns: boolean
       }
       update_booking_progress: {
         Args: { p_booking_id: string; p_next_status: string }

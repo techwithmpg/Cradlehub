@@ -577,7 +577,7 @@ export function revalidateAttendanceSurfaces(options?: {
   if (!options?.includeOperationalReadiness) return;
   revalidatePath("/crm/today");
   revalidatePath("/crm/bookings");
-  revalidatePath("/crm/availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/staff-portal");
 }
 

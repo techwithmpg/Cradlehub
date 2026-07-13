@@ -5,13 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Loader2, RefreshCw, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
-import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 import { AdminDialog, AdminOverlayBody, AdminOverlayHeader } from "@/components/shared/overlays";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { CrmEditStaffProfileModal } from "@/components/features/crm/staff/crm-edit-staff-profile-modal";
 import { StaffServiceEditorSheet } from "@/components/features/staff/staff-service-editor-sheet";
-import { EditAvailabilityModal } from "@/components/features/crm/schedule/edit-availability-modal";
 import { CheckAvailabilityModal } from "@/components/features/crm/schedule/check-availability-modal";
+import { AdjustScheduleDialog } from "@/components/features/schedule-adjustment/adjust-schedule-dialog";
 import { StaffScheduleCalendarModal } from "@/components/features/staff-schedule/staff-schedule-calendar-modal";
 import {
   getCrmScheduleStaffProfileAction,
@@ -26,6 +26,7 @@ import type {
 import type { SchedulingRules } from "@/lib/scheduling/types";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import type { AvailabilityTab } from "@/components/features/crm/schedule/edit-availability-types";
+import type { AdjustScheduleMode } from "@/components/features/schedule-adjustment/adjust-schedule-types";
 import { runDailyTimelineConflictAction } from "./daily-timeline-conflict-actions";
 import { DailyTimelineBoard } from "./daily-timeline-board";
 import {
@@ -42,6 +43,12 @@ import { DailyTimelineToolbar } from "./daily-timeline-toolbar";
 import { ScheduleConflictCenterDialog } from "./schedule-conflict-center-dialog";
 
 const DEFAULT_FILTERS: TimelineFilters = { query: "", shift: "all", status: "all" };
+
+function availabilityTabToAdjustMode(tab: AvailabilityTab): AdjustScheduleMode {
+  if (tab === "overrides") return "date";
+  if (tab === "blocks") return "blocked";
+  return "weekly";
+}
 
 type Props = {
   branchId: string;
@@ -99,9 +106,9 @@ export function DailyTimelineTab({
   const [capabilitiesError, setCapabilitiesError] = useState<string | null>(null);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
   const [fullScheduleStaffId, setFullScheduleStaffId] = useState<string | null>(null);
-  const [availabilityEditor, setAvailabilityEditor] = useState<{
+  const [adjustScheduleTarget, setAdjustScheduleTarget] = useState<{
     staffId: string;
-    initialTab: AvailabilityTab;
+    initialMode: AdjustScheduleMode;
   } | null>(null);
   const [checkAvailabilityOpen, setCheckAvailabilityOpen] = useState(false);
   const [conflictCenterOpen, setConflictCenterOpen] = useState(false);
@@ -205,8 +212,8 @@ export function DailyTimelineTab({
   const selectedAvailabilityItem = selectedStaff
     ? availabilityItems.find((item) => item.staff.id === selectedStaff.staff_id) ?? null
     : null;
-  const availabilityEditorItem = availabilityEditor
-    ? availabilityItems.find((item) => item.staff.id === availabilityEditor.staffId) ?? null
+  const adjustScheduleItem = adjustScheduleTarget
+    ? availabilityItems.find((item) => item.staff.id === adjustScheduleTarget.staffId) ?? null
     : null;
   const fullScheduleStaff = useMemo(() => {
     if (!fullScheduleStaffId) return null;
@@ -305,7 +312,7 @@ export function DailyTimelineTab({
       toast.error("Schedule details are not available for this staff member.");
       return;
     }
-    setAvailabilityEditor({ staffId, initialTab: "weekly" });
+    setAdjustScheduleTarget({ staffId, initialMode: "weekly" });
   }, [requireSelectedStaff, selectedAvailabilityItem]);
 
   const handleBlockStaffTime = useCallback(() => {
@@ -315,7 +322,7 @@ export function DailyTimelineTab({
       toast.error("Schedule details are not available for this staff member.");
       return;
     }
-    setAvailabilityEditor({ staffId, initialTab: "blocks" });
+    setAdjustScheduleTarget({ staffId, initialMode: "blocked" });
   }, [requireSelectedStaff, selectedAvailabilityItem]);
 
   const handleConflictAction = useCallback(
@@ -329,7 +336,8 @@ export function DailyTimelineTab({
         selectBooking: onSelectedBookingChange,
         openScheduleSetup: handleOpenScheduleSetup,
         openFullSchedule: setFullScheduleStaffId,
-        openAvailabilityEditor: (staffId, initialTab) => setAvailabilityEditor({ staffId, initialTab }),
+        openAvailabilityEditor: (staffId, initialTab) =>
+          setAdjustScheduleTarget({ staffId, initialMode: availabilityTabToAdjustMode(initialTab) }),
         openCheckAvailability: () => setCheckAvailabilityOpen(true),
         notify: (title, description) => toast(title, { description }),
         notifyError: (title, description) => toast.error(title, { description }),
@@ -344,10 +352,10 @@ export function DailyTimelineTab({
     ]
   );
 
-  const handleAvailabilitySaved = useCallback(
+  const handleScheduleAdjustmentSaved = useCallback(
     (message?: string) => {
-      toast.success(message ?? "Availability updated.");
-      setAvailabilityEditor(null);
+      toast.success(message ?? "Schedule updated.");
+      setAdjustScheduleTarget(null);
       void onScheduleChanged();
     },
     [onScheduleChanged]
@@ -489,6 +497,7 @@ export function DailyTimelineTab({
           onEditStaffProfile={handleEditStaffProfile}
           onEditStaffCapabilities={handleEditStaffCapabilities}
           onViewFullSchedule={handleViewFullSchedule}
+          onAdjustSchedule={handleAdjustStaff}
           onAddBooking={handleAddBooking}
           onCheckAvailability={handleCheckAvailability}
           onAdjustStaff={handleAdjustStaff}
@@ -520,17 +529,17 @@ export function DailyTimelineTab({
         initialDate={date}
         branchName={branchName}
       />
-      <EditAvailabilityModal
-        item={availabilityEditorItem}
-        open={availabilityEditor !== null && availabilityEditorItem !== null}
+      <AdjustScheduleDialog
+        item={adjustScheduleItem}
+        open={adjustScheduleTarget !== null && adjustScheduleItem !== null}
         branchId={branchId}
         branchName={branchName}
-        initialTab={availabilityEditor?.initialTab}
+        initialMode={adjustScheduleTarget?.initialMode}
         initialDate={date}
         onOpenChange={(open) => {
-          if (!open) setAvailabilityEditor(null);
+          if (!open) setAdjustScheduleTarget(null);
         }}
-        onSaved={handleAvailabilitySaved}
+        onSaved={handleScheduleAdjustmentSaved}
       />
       <CrmEditStaffProfileModal
         open={profileStaffId !== null && profileData !== null}

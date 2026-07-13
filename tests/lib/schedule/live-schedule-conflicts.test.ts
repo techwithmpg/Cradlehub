@@ -114,9 +114,9 @@ describe("buildLiveScheduleConflicts", () => {
     expect(roomConflict?.plain_language_message).toContain("Room 1 is assigned to two bookings");
   });
 
-  it("detects missing room, outside shift, day off, blocked time, missing schedule, duplicate windows, travel buffer, and coverage gap", () => {
+  it("detects explicit missing room, outside shift, day off, blocked time, duplicate windows, travel buffer, and explicit coverage gap", () => {
     const rows = [
-      row({ bookings: [booking({ id: "missing-room", resource_id: null, resource_name: null })] }),
+      row({ bookings: [booking({ id: "missing-room", resource_id: null, resource_name: null, service_metadata: { requires_room: true } })] }),
       row({ staff_id: "staff-2", staff_name: "Outside", bookings: [booking({ id: "outside", start_time: "09:00:00", end_time: "10:00:00", resource_id: "room-2" })] }),
       row({ staff_id: "staff-3", staff_name: "Off", schedule_status: "day_off", schedule_is_day_off: true, schedule_windows: [], bookings: [booking({ id: "day-off", resource_id: "room-3" })] }),
       row({ staff_id: "staff-4", staff_name: "Blocked", bookings: [booking({ id: "blocked", resource_id: "room-4" })], blocks: [{ id: "break", start_time: "10:30:00", end_time: "11:00:00", reason: "Break" }] }),
@@ -136,6 +136,14 @@ describe("buildLiveScheduleConflicts", () => {
       date: "2026-07-09",
       schedulingRules: { ...baseRules, min_daily_staff: 10 },
       includeCoverageGap: true,
+      coverageRequirement: {
+        id: "front-desk-coverage",
+        label: "Front desk coverage",
+        minimum: 10,
+        category: "staff",
+        start_time: "10:00:00",
+        end_time: "18:00:00",
+      },
     });
 
     expect(conflicts.map((conflict) => conflict.type)).toEqual(
@@ -144,32 +152,62 @@ describe("buildLiveScheduleConflicts", () => {
         "booking_outside_shift",
         "booking_on_day_off",
         "booking_during_blocked_time",
-        "missing_schedule",
         "duplicate_schedule_window",
         "home_service_travel_buffer_warning",
         "coverage_gap",
       ])
     );
+    expect(conflicts.map((conflict) => conflict.type)).not.toContain("missing_schedule");
     expect(conflicts.every((conflict) => conflict.quick_actions.length > 0)).toBe(true);
+  });
+
+  it("does not flag missing room or coverage from legacy broad rules", () => {
+    const conflicts = buildLiveScheduleConflicts(
+      [row({ bookings: [booking({ id: "no-room", resource_id: null, resource_name: null, service_metadata: {} })] })],
+      {
+        date: "2026-07-09",
+        schedulingRules: { ...baseRules, min_daily_staff: 99 },
+        includeCoverageGap: true,
+      }
+    );
+
+    expect(conflicts.map((conflict) => conflict.type)).not.toContain("missing_room");
+    expect(conflicts.map((conflict) => conflict.type)).not.toContain("coverage_gap");
   });
 
   it("does not treat staff attendance or check-in absence as a schedule conflict", () => {
     expect(conflictTypes([row()])).toEqual([]);
   });
 
-  it("surfaces resolver-detected schedule conflicts even when windows are empty", () => {
+  it("surfaces resolver-detected schedule conflicts with exact code, time, and fingerprint", () => {
     const conflicts = buildLiveScheduleConflicts(
       [
         row({
           schedule_status: "conflict",
-          schedule_windows: [],
-          schedule_conflict_code: "overlapping_windows",
-          schedule_conflict_reason: "Multiple active schedule windows overlap for the same day.",
+          schedule_state: "INVALID_TIME_WINDOW",
+          schedule_windows: [
+            {
+              id: "schedule-row-1",
+              shiftType: "single",
+              startTime: "02:00:00",
+              endTime: "22:00:00",
+              windowOrder: 1,
+            },
+          ],
+          schedule_conflict_code: "invalid_time_range",
+          schedule_conflict_reason: "A schedule window has an invalid or zero-length time range.",
         }),
       ],
       { date: "2026-07-09", schedulingRules: baseRules }
     );
 
-    expect(conflicts.map((conflict) => conflict.type)).toContain("schedule_rule_conflict");
+    const scheduleConflict = conflicts.find((conflict) => conflict.type === "schedule_invalid_time_window");
+    expect(scheduleConflict).toMatchObject({
+      issue_code: "INVALID_TIME_WINDOW",
+      start_time: "02:00:00",
+      end_time: "22:00:00",
+    });
+    expect(scheduleConflict?.plain_language_message).toContain("Regular Shift #1");
+    expect(scheduleConflict?.fingerprint).toBe("schedule:2026-07-09:staff-1:invalid_time_window:schedule-row-1");
   });
 });

@@ -6,7 +6,7 @@
  *
  * Architecture rule communicated here:
  *   Online booking = saved schedules + blocked time (NOT daily check-in)
- *   In-house CRM  = schedule + daily check-in + live status
+ *   In-house CRM  = schedule + daily check-in + Daily Timeline status
  *   Home-service  = schedule + dispatch/location
  */
 
@@ -32,8 +32,8 @@ const CARDS: ExplainerCard[] = [
     badgeColor: "var(--cs-info,#2980b9)",
     badgeBg: "rgba(41,128,185,0.08)",
     description:
-      "Normal weekly working hours for each staff member or group. Online booking uses this to calculate future availability for customers. Set these first before configuring anything else.",
-    tabHint: "Edit in the General Rules or Individual Adjustments tab below.",
+      "Normal weekly working hours for each staff member. Online booking uses this to calculate future availability for customers. Set these first before configuring anything else.",
+    tabHint: "Edit in the Weekly Pattern section below.",
   },
   {
     icon: "🚫",
@@ -43,7 +43,7 @@ const CARDS: ExplainerCard[] = [
     badgeBg: "rgba(230,126,34,0.08)",
     description:
       "One-day changes, absences, breaks, and unavailable periods. These override the weekly schedule for specific dates and block those time slots in both online and CRM bookings.",
-    tabHint: "Manage in the Overrides tab below.",
+    tabHint: "Manage in the One-Time Changes and Blocked Time sections below.",
   },
   {
     icon: "✅",
@@ -53,8 +53,8 @@ const CARDS: ExplainerCard[] = [
     badgeBg: "rgba(39,174,96,0.08)",
     description:
       "Daily staff check-in records who is physically present and ready for CRM in-house operations. It does not control online booking — customers always book against saved schedules.",
-    linkLabel: "Open Live Availability →",
-    linkHref: "/crm/availability",
+    linkLabel: "Open Daily Timeline →",
+    linkHref: "/crm/schedule",
   },
 ];
 
@@ -148,7 +148,7 @@ export function ScheduleSetupExplainer() {
         }}
       >
         <strong style={{ color: "var(--cs-info,#2980b9)" }}>Online booking follows saved schedules and blocked time — not daily staff check-in.</strong>
-        {" CRM live availability also depends on check-in, but that is separate from this setup workspace."}
+        {" CRM same-day readiness also depends on check-in, but that is separate from this setup workspace."}
       </div>
 
       {/* 3 cards */}

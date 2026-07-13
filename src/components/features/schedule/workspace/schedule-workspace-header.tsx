@@ -4,24 +4,17 @@ import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { addDaysToYmd, BRANCH_TIMEZONE, formatBranchYmd, getBranchTime } from "@/lib/engine/slot-time";
 import { isToday as isScheduleToday } from "@/lib/utils/schedule-timeline";
-import { cn } from "@/lib/utils";
-
-export type ScheduleViewMode = "daily_timeline" | "full_schedule";
 
 export function ScheduleWorkspaceHeader({
   branchName,
   date,
   initialNow,
-  viewMode,
   onDateChange,
-  onViewModeChange,
 }: {
   branchName: string;
   date: string;
   initialNow: string;
-  viewMode: ScheduleViewMode;
   onDateChange: (date: string) => void;
-  onViewModeChange: (mode: ScheduleViewMode) => void;
 }) {
   const now = new Date(initialNow);
   const dateLabel = formatBranchYmd(date, {
@@ -87,26 +80,6 @@ export function ScheduleWorkspaceHeader({
         >
           {branchName}
         </p>
-        <div className="mt-3 inline-flex rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1">
-          {[
-            { key: "daily_timeline" as const, label: "Daily Timeline" },
-            { key: "full_schedule" as const, label: "Full Schedule + Live Bookings" },
-          ].map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => onViewModeChange(option.key)}
-              className={cn(
-                "h-8 rounded-md px-3 text-xs font-bold transition-colors",
-                viewMode === option.key
-                  ? "bg-emerald-800 text-white"
-                  : "text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:shrink-0">

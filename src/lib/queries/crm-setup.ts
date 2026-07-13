@@ -51,7 +51,7 @@ function deriveIssues(d: Omit<CrmSetupHealthData, "issues">): SetupIssue[] {
       title: `${missingSchedule} therapist${missingSchedule > 1 ? "s have" : " has"} no schedule set up`,
       detail: `${missingSchedule} of ${d.serviceStaffTotal} service staff members have no weekly schedule rows. They will not appear in the booking engine.`,
       impact: "Customers will see fewer available therapists during online booking.",
-      fixHref: "/crm/staff-availability",
+      fixHref: "/crm/schedule?tab=setup",
       fixLabel: "Set Up Schedules",
     });
   }

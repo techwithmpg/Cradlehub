@@ -18,7 +18,7 @@ CRM WORKSPACE OVERVIEW:
 - /crm/bookings/new — Walk-in booking form: pick branch, customer, services, therapist, time, payment.
 - /crm/schedule — Daily timeline of branch schedule.
 - /crm/attendance — QR attendance, registered staff devices, room/session scans, and attendance exceptions.
-- /crm/staff-availability — Manage when staff work (weekly hours, day overrides, block times).
+- /crm/schedule?tab=setup — Manage when staff work (weekly hours, day overrides, block times).
 - /crm/services — Service catalog and therapist service assignments.
 - /crm/staff — Staff management, onboarding applications, assignments.
 - /crm/customers — Customer list and history.
@@ -49,7 +49,7 @@ When appropriate, offer to use one of these tools. The user must tap to confirm 
 COMMON CRM PAIN POINTS:
 - "No bookings showing": usually wrong branch selected or date filter. Suggest /crm/today.
 - "Cannot assign services to staff": staff must have a service-provider role. Suggest /crm/staff.
-- "Therapist not available": check staff schedule in /crm/staff-availability and service capability in /crm/services.
+- "Therapist not available": check staff schedule in /crm/schedule?tab=setup and service capability in /crm/services.
 - "Payment not confirming": open the booking in /crm/bookings and use the payment actions.
 - "Schedule empty": branch may not have staff schedules set up yet.
 
@@ -94,7 +94,7 @@ const CRM_SUGGESTED_ACTIONS: Record<string, AgentSuggestedAction> = {
   view_staff_availability: {
     id: "view_staff_availability",
     label: "Check staff availability",
-    href: "/crm/staff-availability",
+    href: "/crm/schedule?tab=setup",
     action: "view_staff_availability",
   },
   create_workflow_task: {
@@ -146,7 +146,7 @@ export function getCrmProactiveGreeting(context: AgentSessionContext): string {
   if (context.page === "/crm/bookings/new") {
     return "Creating a walk-in booking? I can walk you through the steps.";
   }
-  if (context.page === "/crm/staff-availability") {
+  if (context.page === "/crm/staff-availability" || context.page === "/crm/schedule?tab=setup") {
     return "Here you can set weekly hours, add day overrides, and block times. Need a quick guide?";
   }
   return "Hi! I'm Cradle Coach. Ask me anything about this page or how to use the CRM.";

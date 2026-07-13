@@ -6,6 +6,7 @@ import {
   staffTypeCanPerformService,
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
+import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
 import {
   BRANCH_TIMEZONE,
   filterPastSlotsForDate,
@@ -17,9 +18,7 @@ import {
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import {
   doesDurationFitWithinScheduleWindow,
-  getScheduleGroupKeyForStaffType,
   resolveScheduleForStaffDay,
-  type GroupScheduleRuleSourceRow,
   type IndividualScheduleSourceRow,
 } from "@/lib/schedule/resolve-staff-schedule";
 
@@ -29,6 +28,9 @@ type StaffProviderRow = {
   is_active: boolean;
   staff_type: string | null;
   system_role: string | null;
+  archived_at?: string | null;
+  merged_into_staff_id?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 type StaffServiceRow = {
@@ -48,11 +50,14 @@ type ServiceTiming = ServiceCapabilityContext & {
 };
 
 type StaffScheduleRow = {
+  id?: string | null;
   staff_id: string;
   shift_type: string | null;
   start_time: string;
   end_time: string;
   is_active: boolean;
+  window_order?: number | null;
+  ends_next_day?: boolean | null;
 };
 
 type ScheduleOverrideRow = {
@@ -61,6 +66,7 @@ type ScheduleOverrideRow = {
   start_time: string | null;
   end_time: string | null;
   is_day_off: boolean;
+  ends_next_day?: boolean | null;
 };
 
 type BlockingBookingRow = {
@@ -232,9 +238,8 @@ function totalBlockMinutes(
  * Window priority (matches the SQL RPC):
  *   1. schedule_override with explicit times → single override window
  *   2. schedule_override is_day_off = TRUE   → slot dropped
- *   3. individual staff_schedules rows        → one window per shift_type
- *   4. group schedule rules (fallback)        → one window per shift_type rule
- *   5. no window                              → slot dropped
+ *   3. individual staff_schedules rows        → ordered weekly windows
+ *   4. no individual schedule                 → slot dropped
  *
  * Multi-window: a slot passes if it fits inside ANY one window. This correctly
  * handles opening (09:00–17:00) + closing (14:00–22:30) scenarios where a slot
@@ -256,12 +261,12 @@ async function filterSlotsToWorkingWindows(params: {
   const [schedulesResult, overridesResult] = await Promise.all([
     params.supabase
       .from("staff_schedules")
-      .select("staff_id, shift_type, start_time, end_time, is_active")
+      .select("id, staff_id, shift_type, start_time, end_time, is_active, window_order, ends_next_day")
       .in("staff_id", staffIds)
       .eq("day_of_week", dayOfWeek),
     params.supabase
       .from("schedule_overrides")
-      .select("staff_id, shift_type, start_time, end_time, is_day_off")
+      .select("staff_id, shift_type, start_time, end_time, is_day_off, ends_next_day")
       .in("staff_id", staffIds)
       .eq("override_date", params.date),
   ]);
@@ -277,10 +282,13 @@ async function filterSlotsToWorkingWindows(params: {
   for (const row of (schedulesResult.data ?? []) as StaffScheduleRow[]) {
     const rows = individualRowsByStaff.get(row.staff_id) ?? [];
     rows.push({
+      id: row.id ?? null,
       shift_type: row.shift_type ?? "single",
       start_time: row.start_time,
       end_time: row.end_time,
       is_active: row.is_active,
+      window_order: row.window_order ?? null,
+      ends_next_day: row.ends_next_day ?? null,
     });
     individualRowsByStaff.set(row.staff_id, rows);
   }
@@ -290,98 +298,11 @@ async function filterSlotsToWorkingWindows(params: {
     overridesByStaff.set(row.staff_id, row);
   }
 
-  // Group fallback: only needed for staff who have no individual schedule rows and
-  // no day-off override. These staff members got their slots from the RPC's
-  // group-rule branch; the TypeScript filter must honour the same source.
-  const staffNeedingGroupLookup = staffIds.filter(
-    (id) => !individualRowsByStaff.has(id) && !overridesByStaff.get(id)?.is_day_off
-  );
-
-  const groupRulesByStaff = new Map<string, GroupScheduleRuleSourceRow[]>();
-
-  if (staffNeedingGroupLookup.length > 0) {
-    const staffTypeResult = await params.supabase
-      .from("staff")
-      .select("id, staff_type")
-      .in("id", staffNeedingGroupLookup);
-
-    if (!staffTypeResult.error && staffTypeResult.data) {
-      type StaffTypeRow = { id: string; staff_type: string | null };
-      const staffTypeRows = staffTypeResult.data as StaffTypeRow[];
-      const staffTypeMap = new Map<string, string | null>(
-        staffTypeRows.map((s) => [s.id, s.staff_type])
-      );
-      const staffTypesNeeded = [
-        ...new Set(
-          staffTypeRows
-            .flatMap((s) => [getScheduleGroupKeyForStaffType(s.staff_type), s.staff_type])
-            .filter((t): t is string => t !== null)
-        ),
-      ];
-
-      if (staffTypesNeeded.length > 0) {
-        const groupsResult = await params.supabase
-          .from("staff_schedule_groups")
-          .select("id, group_key")
-          .eq("branch_id", params.branchId)
-          .eq("is_active", true)
-          .in("group_key", staffTypesNeeded);
-
-        if (!groupsResult.error && groupsResult.data && groupsResult.data.length > 0) {
-          type GroupRow = { id: string; group_key: string };
-          const groupRows = groupsResult.data as GroupRow[];
-          const groupIds = groupRows.map((g) => g.id);
-          const groupKeyById = new Map(groupRows.map((g) => [g.id, g.group_key]));
-
-          const rulesResult = await params.supabase
-            .from("staff_group_schedule_rules")
-            .select("group_id, shift_type, start_time, end_time, is_active, is_day_off")
-            .in("group_id", groupIds)
-            .eq("day_of_week", dayOfWeek)
-            .eq("is_active", true);
-
-          if (!rulesResult.error && rulesResult.data) {
-            type GroupRuleRow = {
-              group_id: string;
-              shift_type: string | null;
-              start_time: string | null;
-              end_time: string | null;
-              is_active: boolean | null;
-              is_day_off: boolean;
-            };
-            const ruleRows = rulesResult.data as GroupRuleRow[];
-
-            for (const [staffId, staffType] of staffTypeMap) {
-              const candidateKeys = [
-                getScheduleGroupKeyForStaffType(staffType),
-                staffType,
-              ].filter((value): value is string => Boolean(value));
-              const matchingRules = ruleRows
-                .filter((r) => candidateKeys.includes(groupKeyById.get(r.group_id) ?? ""))
-                .map((r) => ({
-                  shift_type: r.shift_type ?? "single",
-                  start_time: r.start_time,
-                  end_time: r.end_time,
-                  is_active: r.is_active,
-                  is_day_off: r.is_day_off,
-                }));
-
-              if (matchingRules.length > 0) {
-                groupRulesByStaff.set(staffId, matchingRules);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
   return uniqueSlotsByStaffAndTime(
     params.slots.filter((slot) => {
       const resolved = resolveScheduleForStaffDay({
         override: overridesByStaff.get(slot.staff_id) ?? null,
         individualRows: individualRowsByStaff.get(slot.staff_id) ?? [],
-        groupRules: groupRulesByStaff.get(slot.staff_id) ?? [],
       });
 
       if (!resolved.isWorking) return false;
@@ -401,12 +322,16 @@ async function getActiveStaffProviderRows(branchId: string): Promise<StaffProvid
   const supabase = createAdminClient();
   const primary = await supabase
     .from("staff")
-    .select("id, branch_id, is_active, staff_type, system_role")
+    .select("id, branch_id, is_active, staff_type, system_role, archived_at, merged_into_staff_id, metadata")
     .eq("branch_id", branchId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null);
 
   if (!primary.error) {
-    return (primary.data ?? []) as StaffProviderRow[];
+    return ((primary.data ?? []) as StaffProviderRow[]).filter((member) =>
+      isOperationalStaff(member as OperationalStaffFlags)
+    );
   }
 
   if (!isMissingStaffProviderColumnError(primary.error.message)) {
@@ -415,20 +340,22 @@ async function getActiveStaffProviderRows(branchId: string): Promise<StaffProvid
 
   const fallback = await supabase
     .from("staff")
-    .select("id, branch_id, is_active, system_role")
+    .select("id, branch_id, is_active, system_role, archived_at, merged_into_staff_id, metadata")
     .eq("branch_id", branchId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null);
 
   if (fallback.error) {
     throw new Error(`Staff provider fallback query failed: ${fallback.error.message}`);
   }
 
-  return ((fallback.data ?? []) as Array<Omit<StaffProviderRow, "staff_type">>).map(
-    (member) => ({
+  return ((fallback.data ?? []) as Array<Omit<StaffProviderRow, "staff_type">>)
+    .filter((member) => isOperationalStaff(member as OperationalStaffFlags))
+    .map((member) => ({
       ...member,
       staff_type: null,
-    })
-  );
+    }));
 }
 
 async function fetchAvailableSlotsFromRpc(

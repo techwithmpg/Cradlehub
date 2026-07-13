@@ -17,6 +17,10 @@ import {
 
 type BranchBookingRulesRow =
   Database["public"]["Tables"]["branch_booking_rules"]["Row"];
+type BranchBookingRulesRowWithDistance = BranchBookingRulesRow & {
+  home_service_free_km?: number | string | null;
+  home_service_extra_km_fee?: number | string | null;
+};
 
 type ActionResult =
   | { success: true; rules: BranchBookingRules }
@@ -74,7 +78,7 @@ function isMissingRulesTableError(message: string): boolean {
   );
 }
 
-function mapRowToRules(row: BranchBookingRulesRow): BranchBookingRules {
+function mapRowToRules(row: BranchBookingRulesRowWithDistance): BranchBookingRules {
   return {
     id: row.id,
     branchId: row.branch_id,

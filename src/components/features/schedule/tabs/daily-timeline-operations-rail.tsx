@@ -18,6 +18,7 @@ type Props = {
   onEditStaffProfile: () => void;
   onEditStaffCapabilities: () => void;
   onViewFullSchedule: () => void;
+  onAdjustSchedule: () => void;
   onAddBooking: () => void;
   onCheckAvailability: () => void;
   onAdjustStaff: () => void;
@@ -43,6 +44,7 @@ export function DailyTimelineOperationsRail(props: Props) {
         onEditProfile={props.onEditStaffProfile}
         onEditCapabilities={props.onEditStaffCapabilities}
         onViewFullSchedule={props.onViewFullSchedule}
+        onAdjustSchedule={props.onAdjustSchedule}
       />
       <DailyTimelineActionsCard
         onAddBooking={props.onAddBooking}

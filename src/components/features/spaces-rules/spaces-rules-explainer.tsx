@@ -41,7 +41,7 @@ const CARDS: ExplainerCard[] = [
       "Walk-ins and CRM-managed bookings use the same spaces and rules, but CRM also considers live room readiness, current bookings, and daily staff check-in before confirming availability.",
     links: [
       { label: "Daily Operations Center →", href: "/crm/today" },
-      { label: "Live Availability →", href: "/crm/availability" },
+      { label: "Daily Timeline →", href: "/crm/schedule" },
     ],
   },
   {
@@ -54,7 +54,7 @@ const CARDS: ExplainerCard[] = [
       "Home-service bookings use separate time windows, travel buffers, customer address/location data, driver readiness, and the dispatch workflow. These settings are configured in Booking Rules.",
     links: [
       { label: "Dispatch →", href: "/crm/dispatch" },
-      { label: "Schedule Setup →", href: "/crm/staff-availability" },
+      { label: "Schedule Setup →", href: "/crm/schedule?tab=setup" },
     ],
   },
 ];

@@ -17,7 +17,8 @@ import { EditAvailabilityModal } from "@/components/features/crm/schedule/edit-a
 import type { ScheduleViewMode } from "./schedule-mode-switcher";
 import type { TimelineDisplayMode } from "@/lib/utils/schedule-timeline";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
-import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 import type { Database } from "@/types/supabase";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
@@ -64,7 +65,7 @@ function computeAlerts(staffRows: DailyScheduleStaffRow[]): import("./schedule-a
           description: `${booking.service} — ${booking.customer}`,
         });
       }
-      if (booking.type !== "home_service" && !booking.resource_id && booking.status !== "cancelled" && booking.status !== "no_show") {
+      if (getRequiredResourceType(booking) && !booking.resource_id && booking.status !== "cancelled" && booking.status !== "no_show") {
         alerts.push({
           id: `missing-${booking.id}`,
           type: "missing_assignment",

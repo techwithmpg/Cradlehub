@@ -18,7 +18,7 @@ const SYSTEM_LINKS: SystemLink[] = [
   {
     label: "Staff readiness",
     description: "See who is checked in, missing, busy, or available now.",
-    href: "/crm/availability",
+    href: "/crm/schedule",
   },
   {
     label: "Services & therapists",
@@ -33,7 +33,7 @@ const SYSTEM_LINKS: SystemLink[] = [
   {
     label: "Schedule setup",
     description: "Review staff schedules, overrides, and blocked time.",
-    href: "/crm/staff-availability",
+    href: "/crm/schedule?tab=setup",
   },
   {
     label: "Dispatch readiness",

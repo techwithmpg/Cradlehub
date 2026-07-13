@@ -142,7 +142,7 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
     return { ok: false, code: "DB_ERROR", message: error.message };
   }
 
-  revalidatePath("/crm/availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/manager/staff-availability");
   invalidateCrmWorkspace(effectiveBranchId);
   invalidateManagerWorkspace(effectiveBranchId);
@@ -193,7 +193,7 @@ export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<Ch
 
   if (error) return { ok: false, code: "DB_ERROR", message: error.message };
 
-  revalidatePath("/crm/availability");
+  revalidatePath("/crm/schedule");
   revalidatePath("/manager/staff-availability");
   invalidateCrmWorkspace(checkin.branch_id);
   invalidateManagerWorkspace(checkin.branch_id);

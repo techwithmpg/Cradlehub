@@ -1,4 +1,4 @@
-import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-list";
+import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import type {
   LiveScheduleConflict,

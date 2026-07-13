@@ -69,7 +69,7 @@ const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [
   { label: "Services & Providers", href: "/crm/setup?tab=services",       icon: "Sparkles"       },
   { label: "Rooms & Resources",    href: "/crm/setup?tab=spaces",         icon: "Building2"      },
   { label: "Booking Rules",        href: "/crm/setup?tab=booking_rules",  icon: "ClipboardCheck" },
-  { label: "Schedule Management",  href: "/crm/staff-availability",       icon: "CalendarClock"  },
+  { label: "Schedule Management",  href: "/crm/schedule?tab=setup",       icon: "CalendarClock"  },
   { label: "System Health",        href: "/crm/setup?tab=health",         icon: "Activity"       },
   { label: "Close Day",            href: "/crm/reconciliation",           icon: "DollarSign"     },
 ];

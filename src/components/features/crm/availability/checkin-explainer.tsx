@@ -34,11 +34,11 @@ const CARDS: ExplainerCard[] = [
     body: "Public customers book using saved weekly schedules, booking rules, and resource availability — check-in status has zero effect on online booking. Slots open and close based on the saved schedule alone.",
     bullets: [
       "Not affected by check-in status at all",
-      "Manage weekly schedules at Schedule Setup Center",
+      "Manage individual weekly schedules at Schedule Setup",
       "Set booking windows at Spaces & Booking Rules",
     ],
     links: [
-      { label: "Schedule Setup", href: "/crm/staff-availability" },
+      { label: "Schedule Setup", href: "/crm/schedule?tab=setup" },
       { label: "Spaces & Rules", href: "/crm/spaces-rules" },
     ],
   },

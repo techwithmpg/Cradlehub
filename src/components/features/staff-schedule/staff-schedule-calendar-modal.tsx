@@ -57,7 +57,7 @@ type ShiftBlock = {
   label: string;
   start_time: string;
   end_time: string;
-  source: "individual" | "group" | "override";
+  source: "individual" | "override";
   isOvernight: boolean;
 };
 
@@ -364,31 +364,11 @@ function buildDayModel(date: string, data: StaffFullScheduleData): DayModel {
     };
   }
 
-  const groupRows = data.groupRules.filter((row) => row.day_of_week === dayOfWeek && row.is_active);
-  const isGroupDayOff = groupRows.some((row) => row.is_day_off);
-  const activeGroupRows = groupRows.filter((row) => !row.is_day_off && row.start_time && row.end_time);
-
   return {
     date,
-    isDayOff: isGroupDayOff,
-    dayOffReason: isGroupDayOff ? "Group day off" : null,
-    shifts: isGroupDayOff
-      ? []
-      : activeGroupRows.map((row) => {
-          const type = shiftTypeFromRaw(row.shift_type);
-          const startTime = row.start_time ?? "09:00";
-          const endTime = row.end_time ?? "18:00";
-          return {
-            id: `group-${row.id}`,
-            date,
-            type,
-            label: shiftLabel(type),
-            start_time: startTime,
-            end_time: endTime,
-            source: "group" as const,
-            isOvernight: isOvernight(startTime, endTime),
-          };
-        }),
+    isDayOff: false,
+    dayOffReason: null,
+    shifts: [],
     bookings,
     blockedTimes,
   };

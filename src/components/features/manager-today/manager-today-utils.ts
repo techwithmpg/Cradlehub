@@ -1,5 +1,6 @@
 import type { BookingRowWithResource } from "@/lib/queries/booking-resources";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
 
 export type TodayBooking = BookingRowWithResource<{
   id: string;
@@ -10,7 +11,10 @@ export type TodayBooking = BookingRowWithResource<{
   status: string;
   travel_buffer_mins: number | null;
   resource_id: string | null;
-  services: { name: string; duration_minutes?: number } | { name: string; duration_minutes?: number }[] | null;
+  services:
+    | { name: string; duration_minutes?: number; metadata?: Record<string, unknown> | null }
+    | { name: string; duration_minutes?: number; metadata?: Record<string, unknown> | null }[]
+    | null;
   staff:
     | { id: string; full_name: string; nickname?: string | null }
     | { id: string; full_name: string; nickname?: string | null }[]
@@ -66,6 +70,23 @@ export function formatTimeRange(start: string, end: string): string {
   return `${formatTime12(start)} – ${formatTime12(end)}`;
 }
 
+export function bookingNeedsResourceAssignment(booking: TodayBooking): boolean {
+  if (booking.resource_id) return false;
+  const service = readRelation(booking.services);
+  return getRequiredResourceType({
+    id: booking.id,
+    start_time: booking.start_time,
+    end_time: booking.end_time,
+    service: service?.name ?? "Booking",
+    service_metadata: service?.metadata ?? null,
+    customer: "Customer",
+    status: booking.status,
+    type: booking.type,
+    resource_id: booking.resource_id,
+    resource_name: null,
+  }) !== null;
+}
+
 export function computeKpiData(
   bookings: TodayBooking[],
   staffCount: number
@@ -78,7 +99,7 @@ export function computeKpiData(
     (b) => b.status === "in_progress" || b.status === "confirmed"
   ).length;
 
-  const missingRooms = activeBookings.filter((b) => !b.resource_id).length;
+  const missingRooms = activeBookings.filter(bookingNeedsResourceAssignment).length;
 
   // Conflicts = overlaps + missing assignments
   const conflicts = computeOverlapCount(activeBookings) + missingRooms;
@@ -107,7 +128,7 @@ export function computeAlerts(bookings: TodayBooking[], nowMins: number): TodayA
   const active = bookings.filter((b) => b.status !== "cancelled" && b.status !== "no_show");
 
   // Missing room assignments
-  const missingRooms = active.filter((b) => !b.resource_id);
+  const missingRooms = active.filter(bookingNeedsResourceAssignment);
   if (missingRooms.length > 0) {
     alerts.push({
       id: "missing-rooms",
@@ -273,7 +294,7 @@ export function getUrgencyScore(booking: TodayBooking, nowMins: number): number 
   const isSoon = startMins >= nowMins && startMins <= nowMins + 120;
 
   if (booking.status === "pending") return 100;
-  if (!booking.resource_id && booking.type !== "home_service") return 90;
+  if (bookingNeedsResourceAssignment(booking)) return 90;
   if (!readRelation(booking.staff)) return 85;
   if (booking.status === "confirmed" && isSoon) return 70;
   if (booking.status === "confirmed" && isPast) return 60;

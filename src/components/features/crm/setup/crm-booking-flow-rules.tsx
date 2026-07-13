@@ -39,7 +39,7 @@ const FLOW_CARDS: BookingFlowCard[] = [
       "Public online booking uses saved schedules, services, staff-service capability, blocked time, current bookings, and branch booking rules. It does not depend on daily staff check-in.",
     links: [
       { label: "Services",        href: "/crm/services" },
-      { label: "Schedule Setup",  href: "/crm/staff-availability" },
+      { label: "Schedule Setup",  href: "/crm/schedule?tab=setup" },
       { label: "Spaces & Rules",  href: "/crm/spaces-rules" },
     ],
   },
@@ -49,9 +49,9 @@ const FLOW_CARDS: BookingFlowCard[] = [
     badgeColor: "var(--cs-sand)",
     badgeBg: "var(--cs-sand-mist)",
     description:
-      "CRM bookings can use daily staff check-in, live availability, room readiness, current bookings, and operational status before confirming service.",
+      "CRM bookings can use daily staff check-in, the Daily Timeline, room readiness, current bookings, and operational status before confirming service.",
     links: [
-      { label: "Live Availability", href: "/crm/availability" },
+      { label: "Daily Timeline", href: "/crm/schedule" },
       { label: "New Walk-in",       bookingMode: "walkin" },
       { label: "Today",             href: "/crm/today" },
     ],

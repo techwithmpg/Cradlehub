@@ -8,7 +8,7 @@
 import Link from "next/link";
 
 const TOOL_LINKS = [
-  { icon: "✅", title: "Live Availability", href: "/crm/availability" },
+  { icon: "✅", title: "Daily Timeline", href: "/crm/schedule" },
   { icon: "📋", title: "Daily Operations", href: "/crm/today" },
   { icon: "✨", title: "Services & Therapists", href: "/crm/services" },
 ] as const;

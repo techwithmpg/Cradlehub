@@ -32,7 +32,7 @@ export async function generateScheduleSuggestions(
     .from("staff")
     .select(
       `id, full_name, nickname, system_role, staff_type,
-       staff_schedules!inner(day_of_week, start_time, end_time, is_active)`,
+       staff_schedules!inner(day_of_week, start_time, end_time, is_active, window_order, ends_next_day)`,
     )
     .eq("branch_id", branchId)
     .eq("is_active", true);
@@ -74,15 +74,19 @@ export async function generateScheduleSuggestions(
     const schedules = Array.isArray(s.staff_schedules)
       ? s.staff_schedules
       : [s.staff_schedules];
-    const todaySchedule = schedules.find(
-      (sc) => sc.is_active && sc.day_of_week === dayOfWeek,
-    );
-    if (!todaySchedule) continue;
+    const todaySchedules = schedules
+      .filter((sc) => sc.is_active && sc.day_of_week === dayOfWeek)
+      .sort(
+        (a, b) =>
+          (a.window_order ?? Number.MAX_SAFE_INTEGER) - (b.window_order ?? Number.MAX_SAFE_INTEGER) ||
+          a.start_time.localeCompare(b.start_time)
+      );
+    if (todaySchedules.length === 0) continue;
 
     const override = overrideMap.get(s.id);
     const isDayOff = override?.is_day_off ?? false;
-    const shiftStart = override?.start_time ?? todaySchedule.start_time ?? null;
-    const shiftEnd   = override?.end_time   ?? todaySchedule.end_time   ?? null;
+    const shiftStart = override?.start_time ?? todaySchedules[0]?.start_time ?? null;
+    const shiftEnd   = override?.end_time   ?? todaySchedules[todaySchedules.length - 1]?.end_time   ?? null;
 
     const staffBookings = activeBookingRows.filter((b) => b.staff_id === s.id);
     const staffBlocks   = (blockedRows  ?? []).filter((b) => b.staff_id === s.id);

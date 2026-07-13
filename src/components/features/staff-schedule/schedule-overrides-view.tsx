@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarX2, Clock, AlertCircle } from "lucide-react";
-import type { StaffScheduleItem } from "./staff-schedule-list";
+import type { StaffScheduleItem } from "./staff-schedule-types";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 
 type Props = {
@@ -28,8 +28,8 @@ export function ScheduleOverridesView({ items }: Props) {
       >
         <AlertCircle size={14} style={{ color: "var(--cs-info)", flexShrink: 0 }} />
         <span style={{ fontSize: 12, color: "var(--cs-info-text)" }}>
-          Full override and block-time editing is available per-staff in the{" "}
-          <strong>Individual Adjustments</strong> tab.
+          One-time changes and blocked time stay tied to the selected staff member&apos;s
+          individual schedule.
         </span>
       </div>
 

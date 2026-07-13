@@ -13,7 +13,7 @@
  * Sources deferred to Phase 9E:
  *   - Service provider public/non-public distinction (needs staff_type filter)
  *   - Resource conflict detection (spaces-rules-utils — per-booking compute)
- *   - Schedule coverage issues (schedule-coverage-issues — per-staff detail)
+ *   - Schedule coverage issue detail with exact resolver windows
  *   - 14 missing checks identified in CRM_READINESS_AUDIT.md Section E
  *
  * Do NOT modify:
@@ -33,6 +33,7 @@ import type { CrmAvailabilitySummary } from "./crm-availability";
 import type { DispatchStats } from "./dispatch-queries";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getDailySchedule, type DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import {
   buildReadinessResult,
   sortReadinessIssues,
@@ -195,9 +196,9 @@ function mapStaffReadinessToReadinessIssues(
       title: `${n} scheduled staff ${n === 1 ? "has" : "have"} not checked in`,
       problem: `${n} staff member${n === 1 ? "" : "s"} scheduled today ${n === 1 ? "has" : "have"} not been marked present.`,
       impact: "CRM cannot rely on them for walk-ins, in-house bookings, or dispatch until they check in.",
-      fix: "Mark arrived staff as checked in or update their status in Live Availability.",
-      actionLabel: "Open Live Availability",
-      actionHref: "/crm/availability",
+      fix: "Mark arrived staff as checked in or review today's Daily Timeline.",
+      actionLabel: "Open Daily Timeline",
+      actionHref: "/crm/schedule",
       source: "getCrmAvailabilitySnapshot",
       count: n,
     });
@@ -214,7 +215,7 @@ function mapStaffReadinessToReadinessIssues(
       impact: "Availability and booking recommendations will exclude these staff until their schedules are corrected.",
       fix: "Open Schedule Setup and keep one ordinary shift or a non-overlapping Split Shift.",
       actionLabel: "Open Schedule Setup",
-      actionHref: "/crm/staff-availability",
+      actionHref: "/crm/schedule?tab=setup",
       source: "getCrmAvailabilitySnapshot",
       count: n,
     });
@@ -232,7 +233,7 @@ function mapStaffReadinessToReadinessIssues(
       impact: "They will not appear in online booking and cannot be assigned to sessions without a schedule.",
       fix: "Add individual schedule rows for each affected staff member in Schedule Setup.",
       actionLabel: "Open Schedule Setup",
-      actionHref: "/crm/staff-availability",
+      actionHref: "/crm/schedule?tab=setup",
       source: "getCrmAvailabilitySnapshot",
       count: n,
     });
@@ -247,7 +248,7 @@ function mapStaffReadinessToReadinessIssues(
       title: "No drivers are ready for dispatch",
       problem: `This branch has ${summary.driversTotal} driver${summary.driversTotal === 1 ? "" : "s"}, but none are currently checked in and available.`,
       impact: "Home-service trips cannot depart until at least one driver is checked in.",
-      fix: "Check in an available driver or confirm their readiness in Live Availability.",
+      fix: "Check in an available driver or confirm readiness from the Daily Timeline.",
       actionLabel: "Open Dispatch",
       actionHref: "/crm/dispatch",
       source: "getCrmAvailabilitySnapshot",
@@ -323,15 +324,14 @@ function mapPaymentSummaryToReadinessIssues(
  * Check 1 — Staff checked in but not scheduled today ("ghost check-ins").
  *
  * Queries staff_shift_checkins for today's active check-ins at the branch,
- * then cross-references with staff_schedules for today's day_of_week.
- * Staff who checked in but have no schedule row are "ghost" check-ins.
+ * then cross-references with the resolved Daily Timeline schedule.
  *
  * Returns null if no such staff exist or if the query fails.
  */
 async function getCheckedInNotScheduledIssue(
   branchId: string,
   today: string,
-  dayOfWeek: number
+  dailySchedule: DailyScheduleStaffRow[]
 ): Promise<ReadinessIssue | null> {
   const supabase = await createClient();
 
@@ -350,15 +350,11 @@ async function getCheckedInNotScheduledIssue(
   const checkedInIds = [...new Set(checkinRes.data.map((r) => r.staff_id))];
   if (!checkedInIds.length) return null;
 
-  // For those checked-in staff, find which ones have a schedule for today's day_of_week.
-  const scheduledRes = await supabase
-    .from("staff_schedules")
-    .select("staff_id")
-    .in("staff_id", checkedInIds)
-    .eq("day_of_week", dayOfWeek)
-    .eq("is_active", true);
-
-  const scheduledIds = new Set((scheduledRes.data ?? []).map((r) => r.staff_id));
+  const scheduledIds = new Set(
+    dailySchedule
+      .filter((row) => row.schedule_status === "resolved")
+      .map((row) => row.staff_id)
+  );
   const ghostIds = checkedInIds.filter((id) => !scheduledIds.has(id));
 
   if (ghostIds.length === 0) return null;
@@ -373,9 +369,9 @@ async function getCheckedInNotScheduledIssue(
     problem: `${n} staff member${plural ? "s have" : " has"} checked in even though ${plural ? "they are" : "they are"} not in the schedule for today.`,
     impact:
       "CRM may need to confirm whether these staff should be available for walk-ins, in-house bookings, or dispatch.",
-    fix: "Review live availability and update the staff schedule or check-in status as appropriate.",
-    actionLabel: "Open Live Availability",
-    actionHref: "/crm/availability",
+    fix: "Review the Daily Timeline and update the staff schedule or check-in status as appropriate.",
+    actionLabel: "Open Daily Timeline",
+    actionHref: "/crm/schedule",
     source: "getCrmReadiness",
     entityType: "staff",
     entityIds: ghostIds.slice(0, 10),
@@ -386,45 +382,22 @@ async function getCheckedInNotScheduledIssue(
 /**
  * Check 2 — No opening-shift staff configured for today.
  *
- * Gets the branch's active staff IDs, then queries staff_schedules for today's
- * day_of_week.  If staff are scheduled (branch is operating) but none have
- * shift_type = 'opening', emits a warning.  Suppressed on days when no staff
- * are scheduled at all (branch likely closed).
+ * Uses the resolved Daily Timeline schedule. If staff are scheduled (branch is
+ * operating) but none have an opening window, emits a warning. Suppressed on
+ * days when no staff are scheduled at all (branch likely closed).
  *
  * Returns null if opening shift exists, if branch has no staff, or if the
  * query fails.
  */
 async function getNoOpeningShiftIssue(
-  branchId: string,
-  dayOfWeek: number
+  dailySchedule: DailyScheduleStaffRow[]
 ): Promise<ReadinessIssue | null> {
-  const supabase = await createClient();
+  const scheduledRows = dailySchedule.filter((row) => row.schedule_status === "resolved");
+  if (scheduledRows.length === 0) return null;
 
-  // Lightweight lookup: just the IDs of active branch staff.
-  const staffRes = await supabase
-    .from("staff")
-    .select("id")
-    .eq("branch_id", branchId)
-    .eq("is_active", true);
-
-  const staffIds = (staffRes.data ?? []).map((r) => r.id);
-  if (!staffIds.length) return null;
-
-  // Get all active schedules for today's day_of_week for this branch's staff.
-  const schedulesRes = await supabase
-    .from("staff_schedules")
-    .select("staff_id, shift_type")
-    .in("staff_id", staffIds)
-    .eq("day_of_week", dayOfWeek)
-    .eq("is_active", true);
-
-  const schedules = schedulesRes.data ?? [];
-
-  // If no staff are scheduled at all, branch is likely closed today — suppress.
-  if (!schedules.length) return null;
-
-  // Check if any scheduled staff has an opening shift.
-  const hasOpening = schedules.some((s) => s.shift_type === "opening");
+  const hasOpening = scheduledRows.some((row) =>
+    row.schedule_windows.some((window) => window.shiftType === "opening")
+  );
   if (hasOpening) return null;
 
   return {
@@ -438,7 +411,7 @@ async function getNoOpeningShiftIssue(
       "Opening-shift duty designation is optional. CRM can manually confirm who opens the branch without this configuration.",
     fix: "Optionally assign opening-shift duty in the schedule for clearer CRM visibility.",
     actionLabel: "Open Schedule Setup",
-    actionHref: "/crm/staff-availability",
+    actionHref: "/crm/schedule?tab=setup",
     source: "getCrmReadiness",
   };
 }
@@ -502,12 +475,12 @@ async function getPendingBookingFollowUpIssue(
  */
 async function getDailyOperationsReadinessIssues(
   branchId: string,
-  today: string,
-  dayOfWeek: number
+  today: string
 ): Promise<ReadinessIssue[]> {
+  const dailySchedule = await getDailySchedule({ branchId, date: today });
   const [ghostResult, openingResult, pendingResult] = await Promise.allSettled([
-    getCheckedInNotScheduledIssue(branchId, today, dayOfWeek),
-    getNoOpeningShiftIssue(branchId, dayOfWeek),
+    getCheckedInNotScheduledIssue(branchId, today, dailySchedule),
+    getNoOpeningShiftIssue(dailySchedule),
     getPendingBookingFollowUpIssue(branchId, today),
   ]);
 
@@ -611,7 +584,7 @@ async function getAssignedDriverNotCheckedInIssue(
     problem: `${n} active home-service trip${plural ? "s have" : " has"} a driver assigned, but that driver has not checked in today.`,
     impact:
       "Trips cannot depart until the driver is checked in. Customers may experience delays or failed service.",
-    fix: "Check in the assigned driver in Live Availability, or reassign the trip to a checked-in driver.",
+    fix: "Check in the assigned driver from the Daily Timeline, or reassign the trip to a checked-in driver.",
     actionLabel: "Open Dispatch",
     actionHref: "/crm/dispatch",
     source: "getCrmReadiness",
@@ -797,8 +770,6 @@ export async function getCrmReadinessIssues(
   branchId: string
 ): Promise<ReadinessIssue[]> {
   const today = getBranchBusinessDate();
-  // day_of_week matches staff_schedules.day_of_week convention (0 = Sunday).
-  const dayOfWeek = new Date(today + "T00:00:00").getDay();
   const allIssues: ReadinessIssue[] = [];
 
   // Run all four primary source groups in parallel.
@@ -809,7 +780,7 @@ export async function getCrmReadinessIssues(
     await Promise.allSettled([
       getCrmSetupHealthCached(branchId),
       getCrmTodaySnapshotCached(branchId, today),
-      getDailyOperationsReadinessIssues(branchId, today, dayOfWeek),
+      getDailyOperationsReadinessIssues(branchId, today),
       getDispatchMissingReadinessIssues(branchId, today),
     ]);
 

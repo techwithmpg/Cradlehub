@@ -6,6 +6,7 @@ import {
   readRelation,
   formatTime12,
   getUrgencyScore,
+  bookingNeedsResourceAssignment,
   type TodayBooking,
 } from "@/components/features/manager-today/manager-today-utils";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -199,7 +200,7 @@ function BookingCard({ booking }: { booking: TodayBooking; userRole: string }) {
 
   const issueLabels: string[] = [];
   if (booking.status === "pending") issueLabels.push("Pending");
-  if (!booking.resource_id && booking.type !== "home_service") issueLabels.push("No room");
+  if (bookingNeedsResourceAssignment(booking)) issueLabels.push("No room");
   if (!staffMember) issueLabels.push("No therapist");
   if (getUrgencyScore(booking, nowMins) === 70) issueLabels.push("Starting soon");
 
@@ -241,7 +242,7 @@ function BookingCard({ booking }: { booking: TodayBooking; userRole: string }) {
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <MapPin size={12} /> {booking.branch_resources.name}
           </span>
-        ) : booking.type !== "home_service" ? (
+        ) : bookingNeedsResourceAssignment(booking) ? (
           <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cs-error)" }}>
             <MapPin size={12} /> No room
           </span>

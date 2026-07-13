@@ -7,15 +7,27 @@ import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { canAdjustStaffSchedule, isOwner } from "@/lib/permissions";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { createClient } from "@/lib/supabase/server";
+import { uiShiftToDatabase } from "@/lib/schedule/schedule-domain";
 import {
-  STAFF_SCHEDULE_CONFLICT_TARGET,
-  STAFF_SCHEDULE_RETURNING_COLUMNS,
+  buildStaffWeeklyWindowScheduleRows,
   buildSingleShiftWeeklyScheduleRows,
   savedRowsMatchRequest,
   type SavedStaffScheduleRow,
   type StaffScheduleUpsertRow,
+  type StaffScheduleWindowDayInput,
 } from "@/lib/schedule/staff-schedule-write";
+import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
 import { isValidShiftRange } from "@/lib/utils/time-format";
+import {
+  SCHEDULE_GENERIC_SAVE_ERROR,
+  classifyScheduleMutationError,
+  createScheduleOperationId,
+  genericScheduleActionFailure,
+  logScheduleMutationError,
+  scheduleActionFailureFromError,
+  type ScheduleActionFailure,
+  type ScheduleMutationErrorCode,
+} from "@/lib/actions/schedule-mutation-errors";
 
 const uuid = z.guid("Invalid ID");
 const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM");
@@ -41,6 +53,27 @@ const updateWeeklyScheduleSchema = z.object({
   branchId: uuid,
   staffId: uuid,
   days: z.array(weeklyDaySchema).length(7, "Provide all seven days."),
+});
+
+const weeklyWindowSchema = z.object({
+  id: z.string().optional(),
+  shiftKind: z.enum(["opening", "regular", "closing"]),
+  startTime: timeStr,
+  endTime: timeStr,
+  endsNextDay: z.boolean(),
+  order: z.number().int().min(1).max(12),
+});
+
+const weeklyWindowDaySchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  mode: z.enum(["unconfigured", "working", "day_off"]),
+  windows: z.array(weeklyWindowSchema).max(12),
+});
+
+const updateWeeklyWindowScheduleSchema = z.object({
+  branchId: uuid,
+  staffId: uuid,
+  days: z.array(weeklyWindowDaySchema).length(7, "Provide all seven days."),
 });
 
 const scheduleOverrideSchema = z
@@ -108,19 +141,37 @@ const deleteBlockedTimeSchema = z.object({
 
 type ScheduleActionResult =
   | { ok: true; rowsWritten: number; savedRows: SavedStaffScheduleRow[] }
-  | { ok: false; error: string };
+  | ScheduleActionFailure;
 
-type ScheduleMutationErrorCode =
-  | "UNAUTHORIZED"
-  | "BRANCH_MISMATCH"
-  | "INVALID_INPUT"
-  | "NOT_FOUND"
-  | "SAVE_FAILED";
+type ScheduleRpcError = {
+  code?: string;
+  message: string;
+  details?: string | null;
+  hint?: string | null;
+};
+
+type StaffScheduleMutationRpcClient = {
+  rpc(
+    fn: "replace_staff_weekly_schedule",
+    args: {
+      p_staff_id: string;
+      p_branch_id: string;
+      p_rows: StaffScheduleUpsertRow[];
+    }
+  ): PromiseLike<{ data: SavedStaffScheduleRow[] | null; error: ScheduleRpcError | null }>;
+};
 
 type ScheduleMutationFailure = {
   ok: false;
   code: ScheduleMutationErrorCode;
   message: string;
+};
+
+type TargetScheduleStaff = OperationalStaffFlags & {
+  id: string;
+  branch_id: string | null;
+  staff_type: string | null;
+  system_role: string | null;
 };
 
 type ScheduleOverrideRow = {
@@ -166,7 +217,6 @@ type ScheduleEditContext = {
 
 type ScheduleEditFailure = { error: string };
 
-const GENERIC_SCHEDULE_SAVE_ERROR = "We could not update this schedule. Please try again.";
 const INVALID_TIME_ERROR = "Please check the start and end times.";
 const PERMISSION_ERROR = "You do not have permission to update this staff schedule.";
 
@@ -220,8 +270,6 @@ async function getScheduleEditContext(
 
 function revalidateSchedulePaths(branchId: string) {
   revalidatePath("/crm/schedule");
-  revalidatePath("/crm/staff-availability");
-  revalidatePath("/crm/availability");
   revalidatePath("/crm/today");
   revalidatePath("/crm/setup");
   revalidatePath("/manager/schedule");
@@ -244,6 +292,14 @@ function scheduleFailure(
   return { ok: false, code, message };
 }
 
+function scheduleActionValidationFailure(error: string): ScheduleActionFailure {
+  const classified = classifyScheduleMutationError({ message: error });
+  return genericScheduleActionFailure(
+    classified.code === "SAVE_FAILED" ? "INVALID_INPUT" : classified.code,
+    error
+  );
+}
+
 async function verifyTargetStaff(
   ctx: ScheduleEditContext,
   staffId: string,
@@ -251,7 +307,7 @@ async function verifyTargetStaff(
 ): Promise<{ ok: true } | ScheduleMutationFailure> {
   const { data: staff, error: staffError } = await ctx.supabase
     .from("staff")
-    .select("id, branch_id, is_active")
+    .select("id, branch_id, is_active, archived_at, merged_into_staff_id, metadata")
     .eq("id", staffId)
     .maybeSingle();
 
@@ -262,7 +318,7 @@ async function verifyTargetStaff(
       code: staffError.code,
       message: staffError.message,
     });
-    return scheduleFailure("SAVE_FAILED", GENERIC_SCHEDULE_SAVE_ERROR);
+    return scheduleFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR);
   }
   if (!staff) return scheduleFailure("NOT_FOUND", "Staff member not found.");
   if ((staff.branch_id ?? "").toLowerCase() !== branchId.toLowerCase()) {
@@ -271,10 +327,60 @@ async function verifyTargetStaff(
       "The schedule was not changed. Your account may not have access to this staff record."
     );
   }
-  if (!staff.is_active) {
-    return scheduleFailure("NOT_FOUND", "This staff member is inactive.");
+  if (!isOperationalStaff(staff as OperationalStaffFlags)) {
+    return scheduleFailure("NOT_FOUND", "This staff member is not schedulable.");
   }
   return { ok: true };
+}
+
+async function loadTargetScheduleStaff(
+  ctx: ScheduleEditContext,
+  staffId: string,
+  branchId: string
+): Promise<{ ok: true; staff: TargetScheduleStaff } | ScheduleMutationFailure> {
+  const { data: staff, error: staffError } = await ctx.supabase
+    .from("staff")
+    .select("id, branch_id, staff_type, system_role, is_active, archived_at, merged_into_staff_id, metadata")
+    .eq("id", staffId)
+    .maybeSingle();
+
+  if (staffError) {
+    console.error("[crm-schedule-availability] staff window verification failed", {
+      branchId,
+      staffId,
+      code: staffError.code,
+      message: staffError.message,
+    });
+    return scheduleFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR);
+  }
+  if (!staff) return scheduleFailure("NOT_FOUND", "Staff member not found.");
+
+  const targetStaff = staff as TargetScheduleStaff;
+  if ((targetStaff.branch_id ?? "").toLowerCase() !== branchId.toLowerCase()) {
+    return scheduleFailure(
+      "BRANCH_MISMATCH",
+      "The schedule was not changed. Your account may not have access to this staff record."
+    );
+  }
+  if (!isOperationalStaff(targetStaff)) {
+    return scheduleFailure("NOT_FOUND", "This staff member is not schedulable.");
+  }
+
+  return { ok: true, staff: targetStaff };
+}
+
+function mapWindowDays(days: z.infer<typeof updateWeeklyWindowScheduleSchema>["days"]): StaffScheduleWindowDayInput[] {
+  return days.map((day) => ({
+    dayOfWeek: day.dayOfWeek,
+    mode: day.mode,
+    windows: day.windows.map((window) => ({
+      shiftType: uiShiftToDatabase(window.shiftKind),
+      startTime: window.startTime,
+      endTime: window.endTime,
+      endsNextDay: window.endsNextDay,
+      order: window.order,
+    })),
+  }));
 }
 
 export async function updateCrmStaffWeeklyAvailabilityAction(
@@ -285,56 +391,135 @@ export async function updateCrmStaffWeeklyAvailabilityAction(
     const invalidTime = parsed.error.issues.some((issue) =>
       issue.path.some((part) => part === "startTime" || part === "endTime")
     );
-    return { ok: false, error: invalidTime ? INVALID_TIME_ERROR : "Invalid schedule." };
+    return genericScheduleActionFailure(
+      "INVALID_INPUT",
+      invalidTime ? INVALID_TIME_ERROR : "Invalid schedule."
+    );
   }
 
   const { branchId, staffId, days } = parsed.data;
   const ctxResult = await getScheduleEditContext(branchId);
-  if ("error" in ctxResult) return { ok: false, error: PERMISSION_ERROR };
+  if ("error" in ctxResult) return genericScheduleActionFailure("UNAUTHORIZED", PERMISSION_ERROR);
   const ctx = ctxResult;
 
   const targetCheck = await verifyTargetStaff(ctx, staffId, branchId);
-  if (!targetCheck.ok) return { ok: false, error: targetCheck.message };
+  if (!targetCheck.ok) return genericScheduleActionFailure(targetCheck.code, targetCheck.message);
 
   const normalized = buildSingleShiftWeeklyScheduleRows({
     staffId,
     days,
   });
   if (!normalized.ok) {
-    return { ok: false, error: normalized.error };
+    return scheduleActionValidationFailure(normalized.error);
   }
 
   const rows: StaffScheduleUpsertRow[] = normalized.rows;
 
-  const { data: savedRows, error } = await ctx.supabase
-    .from("staff_schedules")
-    .upsert(rows, { onConflict: STAFF_SCHEDULE_CONFLICT_TARGET })
-    .select(STAFF_SCHEDULE_RETURNING_COLUMNS);
+  const scheduleRpcClient = ctx.supabase as unknown as StaffScheduleMutationRpcClient;
+  const operationId = createScheduleOperationId("crm-weekly-schedule");
+  const { data: savedRows, error } = await scheduleRpcClient.rpc(
+    "replace_staff_weekly_schedule",
+    {
+      p_staff_id: staffId,
+      p_branch_id: branchId,
+      p_rows: rows,
+    }
+  );
 
   if (error) {
-    console.error("[crm-schedule-availability] upsert failed", {
+    logScheduleMutationError({
+      scope: "crm-schedule-availability",
+      operationId,
       branchId,
       staffId,
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
+      actorId: ctx.actorId,
+      error,
     });
-    return {
-      ok: false,
-      error: GENERIC_SCHEDULE_SAVE_ERROR,
-    };
+    return scheduleActionFailureFromError(error, operationId);
   }
 
   const normalizedSavedRows = (savedRows ?? []) as SavedStaffScheduleRow[];
   if (!savedRowsMatchRequest({ requestedRows: rows, savedRows: normalizedSavedRows })) {
     console.error("[crm-schedule-availability] upsert returned unexpected row count", {
+      operationId,
       branchId,
       staffId,
       requestedRows: rows.length,
       savedRows: normalizedSavedRows.length,
     });
-    return { ok: false, error: GENERIC_SCHEDULE_SAVE_ERROR };
+    return genericScheduleActionFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR, operationId);
+  }
+
+  revalidateSchedulePaths(branchId);
+  return { ok: true, rowsWritten: normalizedSavedRows.length, savedRows: normalizedSavedRows };
+}
+
+export async function updateCrmStaffWeeklyWindowScheduleAction(
+  rawInput: unknown
+): Promise<ScheduleActionResult> {
+  const parsed = updateWeeklyWindowScheduleSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      code: "INVALID_INPUT",
+      error: parsed.error.issues[0]?.message ?? "Invalid schedule.",
+    };
+  }
+
+  const { branchId, staffId, days } = parsed.data;
+  const ctxResult = await getScheduleEditContext(branchId);
+  if ("error" in ctxResult) return genericScheduleActionFailure("UNAUTHORIZED", PERMISSION_ERROR);
+  const ctx = ctxResult;
+
+  const target = await loadTargetScheduleStaff(ctx, staffId, branchId);
+  if (!target.ok) return genericScheduleActionFailure(target.code, target.message);
+
+  const normalized = buildStaffWeeklyWindowScheduleRows({
+    staffId,
+    days: mapWindowDays(days),
+    staff: {
+      staff_type: target.staff.staff_type,
+      system_role: target.staff.system_role,
+    },
+  });
+  if (!normalized.ok) {
+    return scheduleActionValidationFailure(normalized.error);
+  }
+
+  const rows: StaffScheduleUpsertRow[] = normalized.rows;
+  const scheduleRpcClient = ctx.supabase as unknown as StaffScheduleMutationRpcClient;
+  const operationId = createScheduleOperationId("crm-window-schedule");
+  const { data: savedRows, error } = await scheduleRpcClient.rpc(
+    "replace_staff_weekly_schedule",
+    {
+      p_staff_id: staffId,
+      p_branch_id: branchId,
+      p_rows: rows,
+    }
+  );
+
+  if (error) {
+    logScheduleMutationError({
+      scope: "crm-schedule-availability-window",
+      operationId,
+      branchId,
+      staffId,
+      actorId: ctx.actorId,
+      error,
+    });
+    return scheduleActionFailureFromError(error, operationId);
+  }
+
+  const normalizedSavedRows = (savedRows ?? []) as SavedStaffScheduleRow[];
+  if (!savedRowsMatchRequest({ requestedRows: rows, savedRows: normalizedSavedRows })) {
+    console.error("[crm-schedule-availability] window schedule returned unexpected rows", {
+      operationId,
+      branchId,
+      staffId,
+      requestedRows: rows.length,
+      savedRows: normalizedSavedRows.length,
+    });
+    return genericScheduleActionFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR, operationId);
   }
 
   revalidateSchedulePaths(branchId);
@@ -394,7 +579,7 @@ export async function upsertCrmScheduleOverrideAction(
       details: error.details,
       hint: error.hint,
     });
-    return scheduleFailure("SAVE_FAILED", GENERIC_SCHEDULE_SAVE_ERROR);
+    return scheduleFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR);
   }
 
   const saved = data as ScheduleOverrideRow | null;
@@ -459,7 +644,7 @@ export async function deleteCrmScheduleOverrideAction(
       code: error.code,
       message: error.message,
     });
-    return scheduleFailure("SAVE_FAILED", GENERIC_SCHEDULE_SAVE_ERROR);
+    return scheduleFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR);
   }
   if (!data?.id) {
     return scheduleFailure("NOT_FOUND", "Day override was not found or could not be removed.");
@@ -513,7 +698,7 @@ export async function createCrmBlockedTimeAction(
       details: error.details,
       hint: error.hint,
     });
-    return scheduleFailure("SAVE_FAILED", GENERIC_SCHEDULE_SAVE_ERROR);
+    return scheduleFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR);
   }
 
   const saved = data as BlockedTimeRow | null;
@@ -577,7 +762,7 @@ export async function deleteCrmBlockedTimeAction(
       code: error.code,
       message: error.message,
     });
-    return scheduleFailure("SAVE_FAILED", GENERIC_SCHEDULE_SAVE_ERROR);
+    return scheduleFailure("SAVE_FAILED", SCHEDULE_GENERIC_SAVE_ERROR);
   }
   if (!data?.id) {
     return scheduleFailure("NOT_FOUND", "Blocked time was not found or could not be removed.");

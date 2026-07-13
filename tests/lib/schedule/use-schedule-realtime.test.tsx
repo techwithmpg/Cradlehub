@@ -72,10 +72,13 @@ describe("useScheduleRealtime", () => {
       "branch_resources",
       "staff_schedules",
       "schedule_overrides",
-      "staff_group_schedule_rules",
       "blocked_times",
+      "staff_shift_checkins",
     ]);
     expect(mocks.onCalls.find((call) => call.table === "bookings")?.filter).toBe(
+      "branch_id=eq.branch-1"
+    );
+    expect(mocks.onCalls.find((call) => call.table === "staff_shift_checkins")?.filter).toBe(
       "branch_id=eq.branch-1"
     );
 

@@ -53,11 +53,22 @@ async function processPublicQrScan(input: { publicCode: string; requestId: strin
     body: JSON.stringify(input),
   });
 
+  let result: PublicScanResult | null = null;
+  try {
+    result = (await response.json()) as PublicScanResult;
+  } catch {
+    result = null;
+  }
+
+  if (result && typeof result.ok === "boolean" && typeof result.title === "string") {
+    return result;
+  }
+
   if (!response.ok) {
     throw new Error("Public scan request failed.");
   }
 
-  return (await response.json()) as PublicScanResult;
+  throw new Error("Public scan response was invalid.");
 }
 
 function isMissingDeviceResult(result: PublicScanResult): boolean {
@@ -129,8 +140,12 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
         nextResult = {
           ok: false,
           outcome: "error",
+          reasonCode: "UNKNOWN_ATTENDANCE_ERROR",
           title: "Scan interrupted",
           message: "We could not complete this scan. Check your connection and scan the QR code again.",
+          detail: `Operation ID: ${requestId}`,
+          operationId: requestId,
+          securityNote: "No attendance change was confirmed from this attempt.",
         };
       }
 

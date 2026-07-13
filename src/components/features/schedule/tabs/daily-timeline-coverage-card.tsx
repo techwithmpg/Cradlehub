@@ -129,14 +129,14 @@ export function DailyTimelineCoverageCard({
           label="Closing shift"
           clear={groupedRows.closing.clear}
           total={groupedRows.closing.total}
-          tone="bg-amber-500"
+          tone="bg-purple-600"
         />
         {groupedRows.regular.total > 0 ? (
           <CoverageBar
             label="Regular shift"
             clear={groupedRows.regular.clear}
             total={groupedRows.regular.total}
-            tone="bg-sky-600"
+            tone="bg-blue-600"
           />
         ) : null}
       </div>

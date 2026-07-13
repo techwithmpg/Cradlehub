@@ -2,16 +2,15 @@ import { addDaysToYmd, getBranchTime } from "@/lib/engine/slot-time";
 import { timeToMinutes } from "@/lib/utils/time-format";
 import type { AttendanceScheduleSelection } from "@/lib/attendance/attendance-intent-engine";
 import type { AttendanceSettings } from "@/lib/attendance/types";
-import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
 
 const DEFAULT_ATTENDANCE_TIMEZONE = "Asia/Manila";
 const DEFAULT_ATTENDANCE_DAY_BOUNDARY = "06:00:00";
 
 export type AttendanceScheduleSourceType =
-  | "weekly_schedule"
+  | "weekly"
   | "override"
-  | "temporary_branch_assignment"
-  | "manual_authorized_shift";
+  | "recovery"
+  | "none";
 
 export type AttendanceShiftInstance = {
   key: string;
@@ -177,11 +176,12 @@ export function getAttendanceBranchNow(
 }
 
 export function scheduleSourceType(
-  source: ResolvedStaffSchedule["source"]
+  schedule: Pick<AttendanceScheduleSelection, "source" | "isUnscheduled" | "isDayOff">
 ): AttendanceScheduleSourceType {
-  if (source === "override") return "override";
-  if (source === "none") return "manual_authorized_shift";
-  return "weekly_schedule";
+  if (schedule.source === "override") return "override";
+  if (schedule.source === "individual") return "weekly";
+  if (schedule.isUnscheduled || schedule.isDayOff) return "recovery";
+  return "none";
 }
 
 export function buildAttendanceShiftInstance(params: {
@@ -195,16 +195,19 @@ export function buildAttendanceShiftInstance(params: {
   const selectedWindow = params.schedule.selectedWindow;
   const isOvernight = Boolean(
     selectedWindow &&
-      (timeToMinutes(selectedWindow.endTime) ?? 0) <=
-        (timeToMinutes(selectedWindow.startTime) ?? 0)
+      (selectedWindow.endsNextDay ??
+        (timeToMinutes(selectedWindow.endTime) ?? 0) <=
+          (timeToMinutes(selectedWindow.startTime) ?? 0))
   );
-  const sourceType = scheduleSourceType(params.schedule.source);
-  const sourceId = params.scheduleSourceId ?? null;
+  const sourceType = scheduleSourceType(params.schedule);
+  const sourceId = params.scheduleSourceId ?? selectedWindow?.id ?? null;
+  const windowOrder = selectedWindow?.windowOrder ?? 1;
   const keyParts = [
     params.staffId,
     params.branchId,
     params.schedule.shiftDate,
     params.schedule.shiftType,
+    `window:${windowOrder}`,
     normalizeTimeForKey(selectedWindow?.startTime),
     normalizeTimeForKey(selectedWindow?.endTime),
     sourceType,

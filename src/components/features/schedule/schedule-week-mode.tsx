@@ -6,6 +6,7 @@ import { ScheduleWeekDayCard } from "./schedule-week-day-card";
 import { ScheduleWeekDayPreview } from "./schedule-week-day-preview";
 import { getWeekRange, formatWeekRange, isToday } from "./schedule-week-utils";
 import type { DailyScheduleStaffRow, DailyScheduleBooking } from "@/lib/queries/schedule";
+import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
 import type { ScheduleViewMode } from "./schedule-mode-switcher";
 import type { Database } from "@/types/supabase";
 
@@ -44,7 +45,7 @@ function computeDayMetrics(staffRows: DailyScheduleStaffRow[]) {
     for (const booking of staff.bookings) {
       if (booking.status === "cancelled" || booking.status === "no_show") continue;
       if (booking.type === "home_service") alertCount++;
-      if (booking.type !== "home_service" && !booking.resource_id) alertCount++;
+      if (getRequiredResourceType(booking) && !booking.resource_id) alertCount++;
     }
   }
 
