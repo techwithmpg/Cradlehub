@@ -134,7 +134,7 @@ describe("resolveAttendanceScanIntent", () => {
     expect(intent.shouldWriteAttendance).toBe(false);
   });
 
-  it("routes missing schedules to recovery", () => {
+  it("records missing schedules and flags them for review", () => {
     const intent = resolveAttendanceScanIntent(
       input({
         schedule: {
@@ -149,10 +149,11 @@ describe("resolveAttendanceScanIntent", () => {
     );
     expect(intent.type).toBe("missing_schedule");
     expect(intent.requiresRecovery).toBe(true);
-    expect(intent.shouldWriteAttendance).toBe(false);
+    expect(intent.shouldWriteAttendance).toBe(true);
+    expect(intent.action).toBe("clock_in");
   });
 
-  it("routes day-off scans to recovery", () => {
+  it("records day-off scans and flags them for review", () => {
     const intent = resolveAttendanceScanIntent(
       input({
         schedule: {
@@ -167,6 +168,7 @@ describe("resolveAttendanceScanIntent", () => {
     );
     expect(intent.type).toBe("off_day_exception");
     expect(intent.requiresRecovery).toBe(true);
+    expect(intent.shouldWriteAttendance).toBe(true);
   });
 
   it("routes first scans in the clock-out window to recovery instead of clock-in", () => {
@@ -176,7 +178,7 @@ describe("resolveAttendanceScanIntent", () => {
     expect(intent.requiresRecovery).toBe(true);
   });
 
-  it("routes launch recovery closing scans to recovery even without a schedule", () => {
+  it("does not let legacy launch settings override missing-schedule record-first policy", () => {
     const intent = resolveAttendanceScanIntent(
       input({
         scanTime: "21:13:00",
@@ -196,11 +198,12 @@ describe("resolveAttendanceScanIntent", () => {
         },
       })
     );
-    expect(intent.type).toBe("likely_closing_scan_without_clock_in");
+    expect(intent.type).toBe("missing_schedule");
     expect(intent.requiresRecovery).toBe(true);
+    expect(intent.shouldWriteAttendance).toBe(true);
   });
 
-  it("uses manager-confirmation copy for first closing scans when configured", () => {
+  it("ignores legacy manager-confirmation behavior and uses the fixed captured result", () => {
     const intent = resolveAttendanceScanIntent(
       input({
         scanTime: "17:30:00",
@@ -212,10 +215,10 @@ describe("resolveAttendanceScanIntent", () => {
     );
     expect(intent.type).toBe("likely_closing_scan_without_clock_in");
     expect(intent.shouldWriteAttendance).toBe(false);
-    expect(intent.title).toBe("Manager confirmation needed");
+    expect(intent.title).toBe("Scan captured for review");
   });
 
-  it("keeps launch-only closing scans in recovery outside launch recovery mode", () => {
+  it("ignores legacy launch-only behavior for closing scans", () => {
     const intent = resolveAttendanceScanIntent(
       input({
         scanTime: "17:30:00",
@@ -227,13 +230,13 @@ describe("resolveAttendanceScanIntent", () => {
     );
     expect(intent.type).toBe("likely_closing_scan_without_clock_in");
     expect(intent.shouldWriteAttendance).toBe(false);
-    expect(intent.message).toContain("Launch Recovery is not active");
+    expect(intent.message).toContain("no earlier clock-in exists");
   });
 
-  it("classifies scans outside all windows as ambiguous recovery", () => {
+  it("records ordinary scans outside all windows and flags them", () => {
     const intent = resolveAttendanceScanIntent(input({ scanTime: "13:00:00" }));
-    expect(intent.type).toBe("ambiguous_scan");
-    expect(intent.shouldWriteAttendance).toBe(false);
+    expect(intent.type).toBe("outside_schedule_window");
+    expect(intent.shouldWriteAttendance).toBe(true);
   });
 });
 

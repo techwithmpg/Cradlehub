@@ -3,6 +3,30 @@
 import { createClient } from "@/lib/supabase/server";
 import type { WorkspaceNotification } from "./types";
 import { logError } from "@/lib/logger";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createOrUpdateNotification } from "./workflow-notifications-store";
+
+export async function respondToAttendanceIssueAction(input: { notificationId: string; response: string }): Promise<{ ok: boolean; message: string }> {
+  const response = input.response.trim();
+  if (!response || response.length > 1000) return { ok: false, message: "Enter a response up to 1,000 characters." };
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { ok: false, message: "Please sign in again." };
+  const notification = await supabase.from("workspace_notifications").select("id, branch_id, recipient_staff_id, entity_id, type").eq("id", input.notificationId).eq("type", "attendance_issue_question").eq("requires_action", true).maybeSingle();
+  if (notification.error || !notification.data?.entity_id || !notification.data.recipient_staff_id || !notification.data.branch_id) return { ok: false, message: "This Attendance question is no longer available." };
+  const admin = createAdminClient();
+  const staff = await admin.from("staff").select("id").eq("id", notification.data.recipient_staff_id).eq("auth_user_id", auth.user.id).maybeSingle();
+  if (!staff.data) return { ok: false, message: "This question is assigned to another staff member." };
+  const issue = await admin.from("attendance_exceptions").select("id, staff_id, branch_id").eq("id", notification.data.entity_id).eq("staff_id", staff.data.id).eq("branch_id", notification.data.branch_id).eq("status", "open").maybeSingle();
+  if (!issue.data) return { ok: false, message: "This Attendance issue is no longer open." };
+  const messages = admin.from("attendance_issue_messages" as never) as unknown as { insert: (value: Record<string, unknown>) => Promise<{ error: { message: string } | null }> };
+  const inserted = await messages.insert({ exception_id: issue.data.id, branch_id: issue.data.branch_id, staff_id: staff.data.id, sender_staff_id: staff.data.id, sender_workspace: "staff", message: response, response_choices: [] });
+  if (inserted.error) return { ok: false, message: "Your response could not be saved." };
+  await admin.from("attendance_exceptions").update({ resolution_status: "waiting_for_crm", staff_response_required: false }).eq("id", issue.data.id);
+  await admin.from("workspace_notifications").update({ status: "resolved", resolved_at: new Date().toISOString(), requires_action: false }).eq("id", notification.data.id);
+  await createOrUpdateNotification({ branchId: issue.data.branch_id, targetWorkspace: "crm", type: "attendance_issue_response", title: "Staff responded to an Attendance issue", body: response, entityType: "attendance_exception", entityId: issue.data.id, actionHref: "/crm/attendance?tab=exceptions", priority: "high", requiresAction: true, dedupeKey: `attendance-response:${issue.data.id}` });
+  return { ok: true, message: "Response sent to CRM." };
+}
 
 const PRIORITY_RANK: Record<string, number> = {
   critical: 4,

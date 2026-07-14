@@ -1,5 +1,4 @@
 import type {
-  AttendanceDeviceRegistryEntry,
   AttendanceException,
   AttendanceRecord,
   AttendanceScanEvent,
@@ -199,48 +198,6 @@ function issueForRecord(record: AttendanceRecord, branchName: string): RecoveryI
   };
 }
 
-function issueForDeviceEntry(entry: AttendanceDeviceRegistryEntry): RecoveryIssue | null {
-  if (entry.status === "active" || entry.status === "never_used") return null;
-
-  const title =
-    entry.status === "recovery_pending"
-      ? "Browser data cleared"
-      : entry.status === "revoked"
-        ? "Revoked device scan"
-        : "Staff has no connected phone";
-
-  return {
-    id: `device-${entry.rowId}`,
-    category: "device_access",
-    priority: entry.status === "no_device" ? "high" : "medium",
-    source: "device_registry",
-    title,
-    subtitle: entry.staffNickname ?? entry.staffName,
-    description:
-      entry.status === "recovery_pending"
-        ? "A recovery link exists or is needed for this staff member."
-        : "This staff member does not currently have a trusted active phone.",
-    detectedAt: entry.pendingRecovery?.createdAt ?? entry.device?.lastSeenAt ?? new Date().toISOString(),
-    branchName: entry.homeBranchName,
-    staffId: entry.staffId,
-    staffName: entry.staffName,
-    staffRole: entry.staffType,
-    deviceInfo: entry.device
-      ? [entry.device.platformName, entry.device.browserName].filter(Boolean).join(" · ")
-      : "No active device",
-    scanCount: entry.device?.totalSuccessfulScans ?? null,
-    recommendedAction: "Open the Devices tab and generate a recovery link.",
-    reasonBullets: [
-      "The staff member may need phone activation support.",
-      "Recovery links safely reconnect phones to staff profiles.",
-      "Old devices can be revoked after the new phone is confirmed.",
-    ],
-    exception: null,
-    record: null,
-    scanEvent: null,
-  };
-}
-
 function issueForSystemRule(
   title: string,
   description: string,
@@ -287,13 +244,15 @@ function numberMetadata(metadata: Record<string, unknown>, key: string): number 
 export function buildRecoveryIssues(data: AttendanceWorkspaceData): RecoveryIssue[] {
   const branchName = data.branchName;
 
-  const scanDeviceIssues = data.scanEvents.filter(isBlockedDeviceScan).map((event) => {
-    const scanCount = data.scanEvents.filter(
-      (item) => item.point_label === event.point_label && isBlockedDeviceScan(item)
-    ).length;
-
-    return issueForScanEvent(event, branchName, scanCount);
-  });
+  const blockedScans = data.scanEvents.filter(isBlockedDeviceScan);
+  const scanGroups = new Map<string, AttendanceScanEvent[]>();
+  for (const event of blockedScans) {
+    const key = `${event.staff_name ?? "unknown"}|${event.point_label ?? "unknown"}|${event.reason_code ?? "device"}`;
+    scanGroups.set(key, [...(scanGroups.get(key) ?? []), event]);
+  }
+  const scanDeviceIssues = [...scanGroups.values()].map((events) =>
+    issueForScanEvent(events[0]!, branchName, events.length)
+  );
 
   const exceptionIssues = data.exceptions
     .filter((exception) => exception.status === "open")
@@ -308,10 +267,6 @@ export function buildRecoveryIssues(data: AttendanceWorkspaceData): RecoveryIssu
       );
     })
     .map((record) => issueForRecord(record, branchName));
-
-  const deviceRegistryIssues = data.deviceRegistry.entries
-    .map(issueForDeviceEntry)
-    .filter((issue): issue is RecoveryIssue => Boolean(issue));
 
   const systemIssues: RecoveryIssue[] = [];
 
@@ -340,7 +295,6 @@ export function buildRecoveryIssues(data: AttendanceWorkspaceData): RecoveryIssu
   return [
     ...scanDeviceIssues,
     ...exceptionIssues,
-    ...deviceRegistryIssues,
     ...recordIssues,
     ...systemIssues,
   ].sort((first, second) => {

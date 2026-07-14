@@ -26,6 +26,7 @@ import {
 } from "@/lib/staff/branch-correction";
 import { createClient } from "@/lib/supabase/server";
 import type { PublicScanResult } from "@/lib/attendance/types";
+import { withAttendanceScanResolution } from "@/lib/attendance/scan-resolution";
 import type {
   BranchCorrectionRequestResult,
   BranchCorrectionReviewResult,
@@ -162,7 +163,7 @@ function safeScanError(error: unknown, title: string, operationId: string): Publ
     error,
     context: { title },
   });
-  return attendanceScanFailureFromError({ error, operationId, title }).result;
+  return withAttendanceScanResolution(attendanceScanFailureFromError({ error, operationId, title }).result);
 }
 
 function validateFirstTimeScanLogin(input: FirstTimeScanLoginInput): {

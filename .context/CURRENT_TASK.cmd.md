@@ -1,4 +1,100 @@
-# Current Task - ATTENDANCE-COMPLETE-SYSTEM-001
+# Current Task - ATTENDANCE-FLUID-OPERATIONS-001
+
+Status: COMPLETE LOCALLY — MIGRATION APPLY AND AUTHENTICATED DEVICE QA PENDING
+Started: 2026-07-14
+Last updated: 2026-07-14
+
+## Mission
+
+Make Attendance dependable and quiet for operations: recognize the staff/device,
+record clear attendance safely, and route uncertainty into one simple audited
+review queue. Raw scan attempts remain permanent evidence; attendance records are
+the official result; exceptions explain uncertainty; corrections retain before/
+after evidence.
+
+## Required policy
+
+- Only genuine security/identity failures block a scan.
+- Exactly one open Attendance record means the next valid scan clocks it out,
+  preserving the original schedule snapshot and flagging timing/schedule anomalies.
+- Multiple open records and a first scan near closing are captured without
+  inventing attendance and sent to review.
+- Missing schedule, scheduled off, and ordinary outside-schedule scans record first
+  and flag second; legacy blocking settings are compatibility-only.
+- Accepted scan persistence must be atomic and idempotent, including raw evidence,
+  attendance, exception, device timestamps, and the committed result.
+- Effective branch permission resolves temporary assignment, date schedule,
+  approved cross-branch authorization, then home branch; device branch is metadata.
+- All Attendance consumers use one branch-timezone/business-date staff-day status.
+- Human intervention uses one review queue; corrections are atomic and audited.
+- Only Daily Attendance, Exceptions and Corrections, and Payroll Export remain as
+  operational report contracts.
+
+## Work order
+
+1. Trace the real scan route, engine, transaction RPC, constraints, settings,
+   schedules/branches, Recovery, reports, Realtime, and tests.
+2. Record root causes and compatibility constraints.
+3. Implement one-open-record and record-first policy with atomic idempotency.
+4. Consolidate effective branch and shared staff-day status resolution.
+5. Simplify review/correction actions and repair the three report contracts.
+6. Add the required focused/database contract coverage and run all checks.
+7. Update architecture/context records and hand off remaining deployment/E2E risk.
+
+## Completion
+
+- Implemented the fixed record-first decision model, global sole-open behavior,
+  date-effective branch authority, exact shared operational status, atomic audited
+  review corrections, durable device lifecycle evidence, and exactly three reports.
+- Added migration `20260714143000_attendance_fluid_operations.sql` and the 28-scenario
+  contract in `docs/attendance/FLUID_OPERATIONS.md`.
+- Passed cold TypeScript validation, ESLint, the full 123-file / 859-test suite,
+  production Next.js 16.2.4 build (109 static pages generated), and `git diff --check`.
+- The migration was not applied because linked migration history remains
+  unreconciled and the standing project handoff forbids a blind broad push.
+- Authenticated CRM/Staff Portal and physical-phone scan E2E remain pending.
+
+---
+
+# Previous Task - ATTENDANCE-SCAN-RESOLUTION-001
+
+Status: COMPLETE LOCALLY — AUTHENTICATED DEVICE/ROLE QA PENDING
+Started: 2026-07-14
+Last updated: 2026-07-14
+
+## Proven root causes
+
+- The public scan boundary has structured safe error codes, but its generic catch path
+  renders the shared `Attendance not confirmed` copy and places the operation id in
+  the main detail text. There is no canonical staff/CRM resolution model carried by
+  `PublicScanResult`.
+- Recovery synthesizes incidents from static device inventory through
+  `deviceRegistry.entries.map(issueForDeviceEntry)`. A normal `no_device` roster row
+  becomes a high-priority `Staff has no connected phone` issue without any scan or
+  support event.
+- Recovery's `Mark as Reviewed` invokes `resolveAttendanceExceptionAction`, while
+  non-exception cards are locally removed. Reviewed and resolved are therefore not
+  distinct in the current implementation.
+
+## Implementation scope
+
+Add one typed scan-resolution classifier, carry it through public results, render
+issue-specific safe guidance, make Recovery event-backed and deduplicated, separate
+review acknowledgement from resolution, and reuse workspace notifications/tasks for
+staff questions and technical escalation. Preserve the existing scan engine and
+first-time registration continuation.
+
+## Completion
+
+- Focused migration applied and live RLS/grants verified.
+- Type-check, lint, production build, full 121-file/848-test suite, and diff
+  check pass.
+- Remaining QA is limited to physical first-scan and authenticated CRM/Staff
+  role walkthroughs plus migration-history reconciliation.
+
+---
+
+# Previous Task - ATTENDANCE-COMPLETE-SYSTEM-001
 
 Status: PHASE 1 COMPLETE LOCALLY — AUTHENTICATED BROWSER QA PENDING
 Started: 2026-07-14

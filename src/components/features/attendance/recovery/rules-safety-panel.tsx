@@ -28,7 +28,7 @@ export function RulesSafetyPanel({
       <div>
         <h2 className="text-lg font-bold text-foreground">Rules & Safety</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage live mode, QR routing, scan timing, launch recovery, and test data safety.
+          Manage training data safety and inspect the fixed operational policy.
         </p>
       </div>
 
@@ -85,24 +85,11 @@ export function RulesSafetyPanel({
           </div>
         </SafetyCard>
 
-        <SafetyCard icon={<Wrench className="size-5" />} title="Launch Recovery">
-          <label className="inline-flex items-center gap-2 text-sm font-semibold">
-            <input
-              type="checkbox"
-              checked={rules.launch_recovery_enabled}
-              onChange={(event) =>
-                setRules({
-                  ...rules,
-                  launch_recovery_enabled: event.target.checked,
-                })
-              }
-              className="size-4"
-            />
-            Launch Recovery Mode
-          </label>
+        <SafetyCard icon={<Wrench className="size-5" />} title="Fixed Scan Policy">
           <p className="text-sm text-muted-foreground">
-            Use only for launch days or training periods where closing scans need safe review.
+            Valid ordinary scans record attendance and flag uncertainty. A sole open record is always closed by the next valid scan. First scans near expected closing are captured for review without inventing time.
           </p>
+          <StatusPill value="Record first · Review uncertainty" tone="good" />
         </SafetyCard>
       </div>
 

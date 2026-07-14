@@ -23,10 +23,10 @@ const FILTERS: Array<{ key: StaffFilter; label: string }> = [
 
 function filterMatches(row: AttendanceDayStaffState, filter: StaffFilter): boolean {
   if (filter === "all") return true;
-  if (filter === "available") return row.availabilityState === "available";
-  if (filter === "in_service") return row.currentAttendanceState === "in_service";
-  if (filter === "late") return row.currentAttendanceState === "late_not_arrived";
-  return row.currentAttendanceState === "not_arrived";
+  if (filter === "available") return row.operationalStatus === "clocked_in" && row.availabilityState === "available";
+  if (filter === "in_service") return row.operationalStatus === "on_service";
+  if (filter === "late") return row.operationalStatus === "missing";
+  return row.operationalStatus === "expected_later";
 }
 
 function formatShiftTime(value: string, timezone: string): string {
@@ -68,18 +68,18 @@ function rowSubtitle(row: AttendanceDayStaffState): string {
 }
 
 function stateTone(row: AttendanceDayStaffState): "good" | "warn" | "bad" | "neutral" {
-  if (row.currentAttendanceState === "late_not_arrived") return "bad";
-  if (row.currentAttendanceState === "not_arrived" || row.currentAttendanceState === "needs_review") return "warn";
-  if (row.availabilityState === "available" || row.currentAttendanceState === "in_service") return "good";
+  if (row.operationalStatus === "missing") return "bad";
+  if (row.operationalStatus === "expected_later" || row.operationalStatus === "needs_review" || row.operationalStatus === "scan_captured") return "warn";
+  if (row.operationalStatus === "clocked_in" || row.operationalStatus === "on_service") return "good";
   return "neutral";
 }
 
 function rowShellClass(row: AttendanceDayStaffState): string {
-  if (row.currentAttendanceState === "late_not_arrived") return "border-red-100 bg-red-50/55";
-  if (row.currentAttendanceState === "not_arrived" || row.currentAttendanceState === "needs_review") {
+  if (row.operationalStatus === "missing") return "border-red-100 bg-red-50/55";
+  if (["expected_later", "needs_review", "scan_captured"].includes(row.operationalStatus)) {
     return "border-amber-200 bg-amber-50/45";
   }
-  if (row.currentAttendanceState === "clocked_in" || row.currentAttendanceState === "available" || row.currentAttendanceState === "in_service") {
+  if (row.operationalStatus === "clocked_in" || row.operationalStatus === "on_service") {
     return "border-emerald-100 bg-white";
   }
   return "border-border bg-white";
@@ -98,11 +98,11 @@ export function LiveStaffTable({ data }: { data: AttendanceWorkspaceData; nowMs:
     () =>
       [...data.dailyStaffStates].sort((first, second) => {
         const priority = (row: AttendanceDayStaffState) => {
-          if (row.currentAttendanceState === "in_service") return 0;
+          if (row.operationalStatus === "on_service") return 0;
           if (row.availabilityState === "available") return 1;
-          if (row.currentAttendanceState === "late_not_arrived") return 2;
-          if (row.currentAttendanceState === "not_arrived") return 3;
-          if (row.currentAttendanceState === "needs_review") return 4;
+          if (row.operationalStatus === "missing") return 2;
+          if (row.operationalStatus === "expected_later") return 3;
+          if (row.operationalStatus === "needs_review" || row.operationalStatus === "scan_captured") return 4;
           return 5;
         };
         return priority(first) - priority(second) || first.staffName.localeCompare(second.staffName);
@@ -171,7 +171,7 @@ export function LiveStaffTable({ data }: { data: AttendanceWorkspaceData; nowMs:
               <div className="flex min-w-0 items-center gap-3"><StaffAvatar name={row.staffName} /><div className="min-w-0"><div className="truncate text-sm font-bold text-foreground" title={row.staffName}>{row.staffName}</div><div className="truncate text-xs capitalize text-muted-foreground">{humanizeAttendanceValue(row.staffType ?? "staff")}</div></div></div>
               <div className="min-w-0 text-sm"><div className="truncate font-semibold text-foreground">{shiftLabel(row)}</div><div className="truncate text-xs text-muted-foreground" title={rowSubtitle(row)}>{rowSubtitle(row)}</div></div>
               <div className="text-sm">{row.clockInAt ? <><div className="text-[0.68rem] font-semibold leading-none text-muted-foreground">Worked</div><div className="mt-1 font-bold">{formatMinutesCompact(row.workedMinutes)}</div></> : <span className="text-muted-foreground">—</span>}</div>
-              <div><StatusPill value={row.displayLabel} tone={stateTone(row)} /></div>
+              <div><StatusPill value={humanizeAttendanceValue(row.operationalStatus)} tone={stateTone(row)} /></div>
               <button type="button" className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-stone-100 hover:text-foreground" aria-label={`Open attendance records for ${row.staffName}`} onClick={() => openStaffRecords(row.staffId, row.businessDate)}><ArrowRight className="size-4" /></button>
             </div>
           ))}

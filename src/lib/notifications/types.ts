@@ -42,7 +42,10 @@ export type NotificationType =
   | "attendance_device_registration_requested"
   | "attendance_device_registration_approved"
   | "attendance_device_registration_rejected"
-  | "attendance_device_registration_completed";
+  | "attendance_device_registration_completed"
+  | "attendance_issue_question"
+  | "attendance_issue_response"
+  | "attendance_issue_resolved";
 
 export type NotificationWorkspace =
   | "owner"

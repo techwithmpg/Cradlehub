@@ -1,5 +1,36 @@
 # HANDOFF - Next Agent Session
 
+## ATTENDANCE-FLUID-OPERATIONS-001 - 2026-07-14
+
+The local record-first Attendance implementation is complete. A sole open row is
+now closed by the next valid scan even when stale/mismatched, multiple opens and
+first closing scans are captured for review, effective branch authority is
+date/schedule/cross-branch/home ordered, and all consumers share the exact eight-
+state operational model. Review corrections are transactionally linked to the
+exception and actor audit. Reports are limited to the three operational outputs.
+
+Migration `20260714143000_attendance_fluid_operations.sql` is intentionally not
+applied to the linked database because project context forbids a blind broad push
+while migration history is unreconciled. Before runtime deployment, reconcile
+history, apply this migration through the approved focused path, regenerate types,
+and verify grants/RLS/triggers/RPCs. Then run authenticated CRM + physical-phone QA,
+including temporary branch work, cleared-browser recovery, simultaneous scans,
+manual correction, and payroll export. Static verification: type-check/lint pass;
+full tests pass (123 files / 859 tests), the production build passes (109 static
+pages generated), and `git diff --check` passes.
+
+---
+
+## ATTENDANCE-SCAN-RESOLUTION-001 - 2026-07-14
+
+Canonical safe resolutions, event-backed Recovery, review semantics, CRM/staff
+conversation, and technical escalation are implemented. Migration `20260714105907`
+was applied through linked SQL and its RLS/grants verified. Type-check, lint, full
+tests (848), and diff check pass. Physical phone/authenticated browser QA and
+migration-history reconciliation remain pending.
+
+---
+
 ## Current Task - 2026-07-13
 
 CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009 is implemented, live contract migration applied, and code/build verified.

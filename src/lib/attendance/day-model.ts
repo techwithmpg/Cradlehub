@@ -39,6 +39,16 @@ export type AttendanceAvailabilityState =
   | "in_service"
   | "on_break";
 
+export type AttendanceOperationalStatus =
+  | "not_expected"
+  | "expected_later"
+  | "missing"
+  | "clocked_in"
+  | "on_service"
+  | "clocked_out"
+  | "needs_review"
+  | "scan_captured";
+
 export type AttendanceDayShiftWindow = {
   id: string | null;
   shiftType: string;
@@ -68,6 +78,7 @@ export type AttendanceDayStaffState = {
   clockInAt: string | null;
   clockOutAt: string | null;
   currentAttendanceState: AttendanceDayCurrentState;
+  operationalStatus: AttendanceOperationalStatus;
   workedMinutes: number;
   lateMinutes: number;
   earlyLeaveMinutes: number;
@@ -278,6 +289,23 @@ export function resolveAttendanceDayStaffStates(params: {
     } else if (scheduleState === "expected_now") currentAttendanceState = "not_arrived";
     else currentAttendanceState = "not_expected";
 
+    const capturedWithoutAttendance = !record && openExceptions.length > 0 && openExceptions.every(
+      (exception) => [
+        "likely_closing_scan_without_clock_in",
+        "already_checked_out",
+        "wrong_branch",
+      ].includes(exception.exception_type)
+    );
+    let operationalStatus: AttendanceOperationalStatus;
+    if (activeServiceSession) operationalStatus = "on_service";
+    else if (capturedWithoutAttendance) operationalStatus = "scan_captured";
+    else if (openExceptions.length > 0 || scheduleState === "schedule_conflict") operationalStatus = "needs_review";
+    else if (isOpen) operationalStatus = "clocked_in";
+    else if (record?.checked_out_at || record?.status === "checked_out") operationalStatus = "clocked_out";
+    else if (scheduleState === "expected_now" && lateBoundary !== null && nowMs > lateBoundary) operationalStatus = "missing";
+    else if (["expected_now", "expected_soon", "scheduled_later"].includes(scheduleState)) operationalStatus = "expected_later";
+    else operationalStatus = "not_expected";
+
     const workedMinutes = record
       ? record.checked_out_at
         ? record.worked_minutes
@@ -294,8 +322,7 @@ export function resolveAttendanceDayStaffStates(params: {
         ? "available"
         : "not_available";
     const actionRequired =
-      currentAttendanceState === "late_not_arrived" ||
-      currentAttendanceState === "needs_review";
+      operationalStatus === "missing" || operationalStatus === "needs_review";
 
     return {
       staffId: staff.id,
@@ -315,6 +342,7 @@ export function resolveAttendanceDayStaffStates(params: {
       clockInAt: record?.checked_in_at ?? null,
       clockOutAt: record?.checked_out_at ?? null,
       currentAttendanceState,
+      operationalStatus,
       workedMinutes,
       lateMinutes,
       earlyLeaveMinutes: record?.early_leave_minutes ?? 0,

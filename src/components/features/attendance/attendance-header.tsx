@@ -34,7 +34,7 @@ export function AttendanceHeader({
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" onClick={() => onTabChange("exceptions")}>
             <Wrench data-icon="inline-start" />
-            Recovery Center
+            Review Queue
           </Button>
           <Button type="button" onClick={() => onTabChange("devices")}>
             <ShieldCheck data-icon="inline-start" />

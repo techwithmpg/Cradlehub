@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Link2,
+  MessageSquareText,
   ShieldCheck,
   Smartphone,
   UserRound,
@@ -34,9 +35,12 @@ export function SelectedRecoveryIssuePanel({
   issue,
   isPending,
   notes,
-  onApplyLaunchRecovery,
+  onAllowBranchToday,
+  onAskStaff,
+  onEscalateTechnical,
   onIgnoreAsTest,
   onMarkReviewed,
+  onCorrectPermanentBranch,
   onOpenDevices,
   onOpenStateReset,
   onOpenStaffRecords,
@@ -47,9 +51,12 @@ export function SelectedRecoveryIssuePanel({
   issue: RecoveryIssue | null;
   isPending: boolean;
   notes: string;
-  onApplyLaunchRecovery: (issue: RecoveryIssue) => void;
+  onAllowBranchToday: (issue: RecoveryIssue) => void;
+  onAskStaff: (issue: RecoveryIssue) => void;
+  onEscalateTechnical: (issue: RecoveryIssue) => void;
   onIgnoreAsTest: (issue: RecoveryIssue) => void;
   onMarkReviewed: (issue: RecoveryIssue) => void;
+  onCorrectPermanentBranch: (issue: RecoveryIssue) => void;
   onOpenDevices: () => void;
   onOpenStateReset: () => void;
   onOpenStaffRecords: () => void;
@@ -68,8 +75,8 @@ export function SelectedRecoveryIssuePanel({
     );
   }
 
-  const canApplyLaunchRecovery =
-    issue.exception ? getInternalAttendanceExceptionType(issue.exception) === "likely_closing_scan_without_clock_in" : false;
+  const canResolveBranch =
+    issue.exception ? getInternalAttendanceExceptionType(issue.exception) === "wrong_branch" && Boolean(issue.staffId) : false;
 
   return (
     <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
@@ -172,7 +179,7 @@ export function SelectedRecoveryIssuePanel({
             )}
           </div>
 
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          {issue.category === "device_access" ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 size-5 shrink-0 text-amber-800" />
               <div>
@@ -183,7 +190,7 @@ export function SelectedRecoveryIssuePanel({
                 </p>
               </div>
             </div>
-          </div>
+          </div> : null}
         </div>
 
         <aside className="grid content-start gap-4 rounded-3xl border border-border bg-card p-4">
@@ -196,11 +203,15 @@ export function SelectedRecoveryIssuePanel({
             </Button>
           ) : null}
 
-          {canApplyLaunchRecovery ? (
-            <Button type="button" disabled={isPending} onClick={() => onApplyLaunchRecovery(issue)}>
-              <CheckCircle2 className="mr-2 size-4" />
-              Apply Recovery
-            </Button>
+          {canResolveBranch ? (
+            <>
+              <Button type="button" disabled={isPending} onClick={() => onAllowBranchToday(issue)}>
+                Allow This Branch Today
+              </Button>
+              <Button type="button" variant="outline" disabled={isPending} onClick={() => onCorrectPermanentBranch(issue)}>
+                Correct Permanent Branch
+              </Button>
+            </>
           ) : null}
 
           {issue.category === "staff_day_repair" || issue.category === "scan_recovery" ? (
@@ -210,10 +221,26 @@ export function SelectedRecoveryIssuePanel({
             </Button>
           ) : null}
 
-          <Button type="button" variant="outline" onClick={onOpenDevices}>
-            <Smartphone className="mr-2 size-4" />
-            Open Devices Tab
-          </Button>
+          {issue.category === "device_access" ? (
+            <Button type="button" variant="outline" onClick={onOpenDevices}>
+              <Smartphone className="mr-2 size-4" />
+              Open Devices Tab
+            </Button>
+          ) : null}
+
+          {issue.staffId ? (
+            <Button type="button" variant="outline" disabled={isPending} onClick={() => onAskStaff(issue)}>
+              <MessageSquareText className="mr-2 size-4" />
+              Ask Staff for Information
+            </Button>
+          ) : null}
+
+          {issue.exception?.exception_type.toLowerCase().includes("attendance_") || issue.exception?.severity === "critical" ? (
+            <Button type="button" variant="outline" disabled={isPending} onClick={() => onEscalateTechnical(issue)}>
+              <ShieldCheck className="mr-2 size-4" />
+              Escalate to Technical Support
+            </Button>
+          ) : null}
 
           <Button type="button" variant="outline" disabled={isPending} onClick={() => onMarkReviewed(issue)}>
             <CheckCircle2 className="mr-2 size-4" />
@@ -253,14 +280,6 @@ export function SelectedRecoveryIssuePanel({
               />
             </label>
 
-            <Button
-              type="button"
-              className="mt-3 w-full"
-              disabled={isPending}
-              onClick={() => onMarkReviewed(issue)}
-            >
-              Apply Action
-            </Button>
           </div>
         </aside>
       </div>

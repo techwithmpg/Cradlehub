@@ -14,7 +14,7 @@ const ACTIONS: Array<{
   { label: "Generate Missing QRs", detail: "Rooms", tab: "qr", icon: QrCode },
   { label: "Activate Staff Phone", detail: "Register device", tab: "devices", icon: ShieldCheck },
   { label: "View Attendance Records", detail: "Today", tab: "records", icon: ClipboardList },
-  { label: "Open Recovery", detail: "Rules and fixes", tab: "exceptions", icon: Wrench },
+  { label: "Open Review Queue", detail: "Issues and corrections", tab: "exceptions", icon: Wrench },
   { label: "Open Reports", detail: "Exportable", tab: "reports", icon: FileText },
 ];
 

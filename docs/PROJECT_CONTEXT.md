@@ -573,3 +573,17 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Adjust Schedule, Schedule Setup, and manager single-day saves now use the same ordered-window RPC contract with safe structured error codes.
 - Verified focused schedule/action tests, `npx tsc --noEmit`, live schema/RPC probes, rollbacked RPC round-trip, and `pnpm build`.
 - Remaining: `pnpm db:status`/`db:push --dry-run` direct pooler path still times out, so migration history must be reconciled from a working DB path; authenticated CRM browser QA is still recommended.
+
+## Latest Agent Update (2026-07-14 - Attendance Fluid Operations)
+
+- Completed the local record-first Attendance refactor: valid ordinary scans are
+  evidence first, a sole open row closes, uncertainty is reviewed, and only
+  security/identity failures block.
+- Added effective branch resolution, single-open concurrency enforcement, atomic
+  exception-linked corrections, device lifecycle audit, and compatibility comments
+  for deprecated policy fields in migration `20260714143000`.
+- Added the exact shared operational statuses and reduced reporting to three real,
+  filterable/exportable operational reports.
+- Full suite passes at 123 files / 859 tests; type-check and lint pass. Migration
+  apply and authenticated physical-device E2E remain gated by migration-history
+  reconciliation.

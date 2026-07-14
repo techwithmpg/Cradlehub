@@ -96,6 +96,26 @@ function safeJsonRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+type AttendancePageResult = {
+  data: unknown[] | null;
+  error: { message: string } | null;
+};
+
+async function loadAllAttendancePages(params: {
+  label: string;
+  fetchPage: (from: number, to: number) => PromiseLike<AttendancePageResult>;
+}): Promise<unknown[]> {
+  const pageSize = 1000;
+  const rows: unknown[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = await params.fetchPage(from, from + pageSize - 1);
+    if (page.error) throw new Error(`${params.label} could not be loaded: ${page.error.message}`);
+    const pageRows = page.data ?? [];
+    rows.push(...pageRows);
+    if (pageRows.length < pageSize) return rows;
+  }
+}
+
 function normalizeAttendanceSettings(row: unknown, branchId: string): AttendanceSettings {
   const value = (row ?? {}) as Partial<AttendanceSettings>;
   const duplicateScanWindowSeconds =
@@ -450,6 +470,24 @@ export async function resolveAttendanceException(params: {
   if (error) throw new Error(error.message);
 }
 
+export async function reviewAttendanceException(params: {
+  ctx: AttendanceActionContext;
+  exceptionId: string;
+}): Promise<void> {
+  const admin = asAttendanceDb(createAdminClient());
+  const { error } = await admin
+    .from("attendance_exceptions")
+    .update({
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: params.ctx.actorStaffId,
+      resolution_status: "reviewed",
+    })
+    .eq("id", params.exceptionId)
+    .eq("branch_id", params.ctx.branchId)
+    .eq("status", "open");
+  if (error) throw new Error(error.message);
+}
+
 export async function completeDueServiceSessionsNow(): Promise<number> {
   const admin = asAttendanceDb(createAdminClient());
   const { data, error } = await admin.rpc("complete_due_service_sessions", { p_limit: 100 });
@@ -494,23 +532,29 @@ export async function getAttendanceWorkspaceData(params: {
       .eq("branch_id", params.branchId)
       .order("created_at", { ascending: false })
       .limit(100),
-    admin
-      .from("staff_shift_checkins")
-      .select(
-        "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
-      )
-      .eq("branch_id", params.branchId)
-      .eq("is_test", false)
-      .gte("shift_date", historyStart)
-      .order("checked_in_at", { ascending: false })
-      .limit(200),
-    admin
-      .from("attendance_exceptions")
-      .select("id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name)")
-      .eq("branch_id", params.branchId)
-      .eq("is_test", false)
-      .order("detected_at", { ascending: false })
-      .limit(100),
+    loadAllAttendancePages({
+      label: "Attendance records",
+      fetchPage: (from, to) => admin
+        .from("staff_shift_checkins")
+        .select(
+          "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
+        )
+        .eq("branch_id", params.branchId)
+        .eq("is_test", false)
+        .gte("shift_date", historyStart)
+        .order("checked_in_at", { ascending: false })
+        .range(from, to) as unknown as PromiseLike<AttendancePageResult>,
+    }),
+    loadAllAttendancePages({
+      label: "Attendance exceptions",
+      fetchPage: (from, to) => admin
+        .from("attendance_exceptions")
+        .select("id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, resolved_by, resolution_note, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name), resolved_by_staff:staff!attendance_exceptions_resolved_by_fkey(id, full_name)")
+        .eq("branch_id", params.branchId)
+        .eq("is_test", false)
+        .order("detected_at", { ascending: false })
+        .range(from, to) as unknown as PromiseLike<AttendancePageResult>,
+    }),
     admin
       .from("qr_scan_events")
       .select("id, scan_type, action, outcome, reason_code, message, created_at, booking_id, staff_id, staff:staff!qr_scan_events_staff_id_fkey(id, full_name), qr_points:qr_points!qr_scan_events_qr_point_id_fkey(id, label)")
@@ -528,12 +572,15 @@ export async function getAttendanceWorkspaceData(params: {
       .gte("booking_date", historyStart)
       .order("session_started_at", { ascending: false, nullsFirst: false })
       .limit(100),
-    admin
-      .from("attendance_corrections")
-      .select("id, branch_id, staff_id, checkin_id, attendance_date, action_type, correction_type, previous_values, new_values, reason, status, requested_by, approved_by, corrected_by, corrected_at, applied_at, created_at, staff:staff!attendance_corrections_staff_id_fkey(id, full_name), approved_by_staff:staff!attendance_corrections_approved_by_fkey(id, full_name), corrected_by_staff:staff!attendance_corrections_corrected_by_fkey(id, full_name)")
-      .eq("branch_id", params.branchId)
-      .order("created_at", { ascending: false })
-      .limit(100),
+    loadAllAttendancePages({
+      label: "Attendance corrections",
+      fetchPage: (from, to) => admin
+        .from("attendance_corrections")
+        .select("id, branch_id, staff_id, checkin_id, exception_id, attendance_date, action_type, correction_type, previous_values, new_values, reason, status, requested_by, approved_by, corrected_by, corrected_at, applied_at, created_at, staff:staff!attendance_corrections_staff_id_fkey(id, full_name), approved_by_staff:staff!attendance_corrections_approved_by_fkey(id, full_name), corrected_by_staff:staff!attendance_corrections_corrected_by_fkey(id, full_name)")
+        .eq("branch_id", params.branchId)
+        .order("created_at", { ascending: false })
+        .range(from, to) as unknown as PromiseLike<AttendancePageResult>,
+    }),
     admin
       .from("staff")
       .select("id, full_name, staff_type, system_role, is_active, archived_at, merged_into_staff_id, metadata")
@@ -557,11 +604,8 @@ export async function getAttendanceWorkspaceData(params: {
 
   if (qrPointsResult.error) throw new Error(`QR points could not be loaded: ${qrPointsResult.error.message}`);
   if (devicesResult.error) throw new Error(`Attendance devices could not be loaded: ${devicesResult.error.message}`);
-  if (recordsResult.error) throw new Error(`Attendance records could not be loaded: ${recordsResult.error.message}`);
-  if (exceptionsResult.error) throw new Error(`Attendance exceptions could not be loaded: ${exceptionsResult.error.message}`);
   if (scanEventsResult.error) throw new Error(`Attendance scan events could not be loaded: ${scanEventsResult.error.message}`);
   if (sessionsResult.error) throw new Error(`Service sessions could not be loaded: ${sessionsResult.error.message}`);
-  if (correctionsResult.error) throw new Error(`Attendance audit log could not be loaded: ${correctionsResult.error.message}`);
   if (staffResult.error) throw new Error(`Staff options could not be loaded: ${staffResult.error.message}`);
   if (resourcesResult.error) throw new Error(`Branch resources could not be loaded: ${resourcesResult.error.message}`);
 
@@ -572,11 +616,11 @@ export async function getAttendanceWorkspaceData(params: {
   });
 
   const devices = (devicesResult.data ?? []).map(mapDevice);
-  const records = (recordsResult.data ?? []).map(mapRecord);
-  const exceptions = (exceptionsResult.data ?? []).map(mapException);
+  const records = recordsResult.map(mapRecord);
+  const exceptions = exceptionsResult.map(mapException);
   const scanEvents = (scanEventsResult.data ?? []).map(mapScanEvent);
   const sessions = (sessionsResult.data ?? []).map(mapSession);
-  const corrections = (correctionsResult.data ?? []).map(mapCorrection);
+  const corrections = correctionsResult.map(mapCorrection);
   const staffRows = (staffResult.data ?? []) as Array<{
     id: string;
     full_name: string;
@@ -841,7 +885,10 @@ function mapException(row: unknown): AttendanceException {
     metadata?: unknown;
     detected_at: string;
     resolved_at: string | null;
+    resolved_by?: string | null;
+    resolution_note?: string | null;
     staff?: Relation<{ full_name: string | null }>;
+    resolved_by_staff?: Relation<{ full_name: string | null }>;
   };
 
   return {
@@ -858,6 +905,9 @@ function mapException(row: unknown): AttendanceException {
     metadata: safeJsonRecord(exception.metadata),
     detected_at: exception.detected_at,
     resolved_at: exception.resolved_at,
+    resolved_by: exception.resolved_by ?? null,
+    resolved_by_name: first(exception.resolved_by_staff)?.full_name ?? null,
+    resolution_note: exception.resolution_note ?? null,
   };
 }
 
@@ -867,6 +917,7 @@ function mapCorrection(row: unknown): AttendanceCorrection {
     branch_id: string;
     staff_id: string | null;
     checkin_id: string | null;
+    exception_id?: string | null;
     attendance_date?: string | null;
     action_type?: string | null;
     correction_type: string;
@@ -894,6 +945,7 @@ function mapCorrection(row: unknown): AttendanceCorrection {
     staff_id: correction.staff_id,
     staff_name: first(correction.staff)?.full_name ?? null,
     checkin_id: correction.checkin_id,
+    exception_id: correction.exception_id ?? null,
     attendance_date: correction.attendance_date ?? null,
     action_type: actionType,
     correction_type: correction.correction_type,

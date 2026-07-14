@@ -4,7 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import { CalendarDays, DoorOpen } from "lucide-react";
 import {
   applyAttendanceCorrectionAction,
-  resolveAttendanceExceptionAction,
+  askStaffAboutAttendanceIssueAction,
+  escalateAttendanceIssueAction,
+  reviewAttendanceExceptionAction,
   updateAttendanceRulesAction,
   type AttendanceActionResult,
 } from "@/app/(dashboard)/crm/attendance/actions";
@@ -34,7 +36,7 @@ const RECOVERY_VIEWS: Array<{
   key: RecoveryView;
   label: string;
 }> = [
-  { key: "today", label: "Today Triage" },
+  { key: "today", label: "Review Queue" },
   { key: "device_recovery", label: "Device Recovery" },
   { key: "staff_day_repair", label: "Staff Day Repair" },
   { key: "rules_safety", label: "Rules & Safety" },
@@ -53,7 +55,6 @@ export function AttendanceRecoveryTab({
   const [view, setView] = useState<RecoveryView>("today");
   const [activeCategory, setActiveCategory] = useState<RecoveryIssueCategory | "all">("all");
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-  const [dismissedIssueIds, setDismissedIssueIds] = useState<string[]>([]);
   const [reason, setReason] = useState("Attendance recovery correction.");
   const [notes, setNotes] = useState("");
   const [rules, setRules] = useState<AttendanceSettings>(data.settings);
@@ -63,8 +64,8 @@ export function AttendanceRecoveryTab({
   const [isPending, startTransition] = useTransition();
 
   const allIssues = useMemo(() => {
-    return buildRecoveryIssues(data).filter((issue) => !dismissedIssueIds.includes(issue.id));
-  }, [data, dismissedIssueIds]);
+    return buildRecoveryIssues(data);
+  }, [data]);
 
   const counts = useMemo(() => countRecoveryIssues(allIssues), [allIssues]);
 
@@ -90,12 +91,11 @@ export function AttendanceRecoveryTab({
     visibleIssues.find((issue) => issue.id === selectedIssueId) ?? visibleIssues[0] ?? null;
 
   function markLocalReviewed(issue: RecoveryIssue) {
-    setDismissedIssueIds((current) => [...current, issue.id]);
     onActionResult({
       ok: true,
-      kind: "exception_resolved",
+      kind: "exception_reviewed",
       tab: "exceptions",
-      message: "Recovery issue marked as reviewed.",
+      message: "Issue acknowledged and kept open.",
       exceptionId: issue.id,
     });
   }
@@ -108,10 +108,8 @@ export function AttendanceRecoveryTab({
 
     const formData = new FormData();
     formData.set("exceptionId", issue.exception.id);
-    formData.set("resolutionNote", `${reason}${notes ? ` ${notes}` : ""}`);
-
     startTransition(async () => {
-      onActionResult(await resolveAttendanceExceptionAction(formData));
+      onActionResult(await reviewAttendanceExceptionAction(formData));
     });
   }
 
@@ -121,29 +119,47 @@ export function AttendanceRecoveryTab({
       return;
     }
 
-    const formData = new FormData();
-    formData.set("exceptionId", issue.exception.id);
-    formData.set("resolutionNote", `Ignored as test scan. ${notes || reason}`);
-
     startTransition(async () => {
-      onActionResult(await resolveAttendanceExceptionAction(formData));
+      onActionResult(await applyAttendanceCorrectionAction({
+        branchId: data.branchId,
+        actionType: "ignore_scan",
+        exceptionId: issue.exception!.id,
+        checkinId: issue.exception!.checkin_id,
+        staffId: issue.exception!.staff_id,
+        reason: `Marked as an accidental or test scan. ${notes || reason}`,
+      }));
     });
   }
 
-  function applyLaunchRecovery(issue: RecoveryIssue) {
-    const exception = issue.exception;
-    if (!exception) return;
-
+  function resolveBranchAssignment(issue: RecoveryIssue, permanent: boolean) {
+    if (!issue.exception || !issue.staffId) return;
+    const scannedBranchId = typeof issue.exception.metadata.scanned_branch_id === "string"
+      ? issue.exception.metadata.scanned_branch_id
+      : data.branchId;
     startTransition(async () => {
-      onActionResult(
-        await applyAttendanceCorrectionAction({
-          branchId: data.branchId,
-          actionType: "apply_launch_recovery",
-          exceptionId: exception.id,
-          reason: `${reason}${notes ? ` ${notes}` : ""}`,
-        })
-      );
+      onActionResult(await applyAttendanceCorrectionAction({
+        branchId: data.branchId,
+        targetBranchId: scannedBranchId,
+        actionType: permanent ? "change_permanent_branch" : "allow_branch_today",
+        exceptionId: issue.exception!.id,
+        staffId: issue.staffId,
+        attendanceDate: data.businessDate,
+        reason: `${reason}${notes ? ` ${notes}` : ""}`,
+      }));
     });
+  }
+
+  function askStaff(issue: RecoveryIssue) {
+    if (!issue.exception || !issue.staffId) return;
+    startTransition(async () => onActionResult(await askStaffAboutAttendanceIssueAction({
+      exceptionId: issue.exception!.id,
+      message: notes.trim() || "Please tell CRM what happened when you attempted this Attendance scan.",
+    })));
+  }
+
+  function escalateTechnical(issue: RecoveryIssue) {
+    if (!issue.exception) return;
+    startTransition(async () => onActionResult(await escalateAttendanceIssueAction(issue.exception!.id)));
   }
 
   function applyManualClockOut(record: AttendanceRecord, repairReason: string) {
@@ -209,23 +225,23 @@ export function AttendanceRecoveryTab({
 
   return (
     <WorkspaceSection
-      title="Recovery Center"
-      description="Manage blocked scans, device recovery, staff-day repair, and attendance safety."
+      title="Attendance Review Queue"
+      description="One queue for uncertain scans, attendance corrections, device recovery, and audit history."
       context={
         <>
           <ContextChip
-            ariaLabel={`Recovery branch: ${data.branchName}`}
+            ariaLabel={`Review queue branch: ${data.branchName}`}
             className="min-h-10"
             icon={<DoorOpen className="size-4" />}
           >
             {data.branchName}
           </ContextChip>
           <ContextChip
-            ariaLabel="Recovery workspace mode"
+            ariaLabel="Attendance review workspace mode"
             className="min-h-10"
             icon={<CalendarDays className="size-4" />}
           >
-            Recovery View
+            Review Queue
           </ContextChip>
         </>
       }
@@ -305,9 +321,12 @@ export function AttendanceRecoveryTab({
               issue={selectedIssue}
               isPending={isPending}
               notes={notes}
-              onApplyLaunchRecovery={applyLaunchRecovery}
+              onAllowBranchToday={(issue) => resolveBranchAssignment(issue, false)}
+              onAskStaff={askStaff}
+              onEscalateTechnical={escalateTechnical}
               onIgnoreAsTest={ignoreAsTest}
               onMarkReviewed={markReviewed}
+              onCorrectPermanentBranch={(issue) => resolveBranchAssignment(issue, true)}
               onOpenDevices={() => onTabChange("devices")}
               onOpenStateReset={() => {
                 setView("staff_day_repair");

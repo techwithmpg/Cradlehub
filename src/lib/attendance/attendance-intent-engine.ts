@@ -18,6 +18,7 @@ export type AttendanceScanIntentType =
   | "overtime_clock_out"
   | "duplicate_scan"
   | "ambiguous_scan"
+  | "outside_schedule_window"
   | "likely_closing_scan_without_clock_in"
   | "missing_schedule"
   | "off_day_exception"
@@ -218,83 +219,9 @@ function inWindowMinutes(params: {
   return current >= params.start && current <= params.end;
 }
 
-function isTimeWithinSimpleRange(time: string, start: string, end: string): boolean {
-  const current = timeToMinutes(time);
-  const startMinutes = timeToMinutes(start);
-  const endMinutes = timeToMinutes(end);
-  if (current === null || startMinutes === null || endMinutes === null) return false;
-
-  if (endMinutes < startMinutes) {
-    return current >= startMinutes || current <= endMinutes;
-  }
-
-  return current >= startMinutes && current <= endMinutes;
-}
-
-function isDateInLaunchRecoveryRange(date: string, settings: AttendanceSettings): boolean {
-  if (!settings.launch_recovery_enabled) return false;
-  if (settings.launch_recovery_start_date && date < settings.launch_recovery_start_date) return false;
-  if (settings.launch_recovery_end_date && date > settings.launch_recovery_end_date) return false;
-  return true;
-}
-
-function isLaunchRecoveryClosingScan(input: ResolveAttendanceScanIntentInput): boolean {
-  if (!isDateInLaunchRecoveryRange(input.scanDate, input.settings)) return false;
-  return isTimeWithinSimpleRange(
-    input.scanTime,
-    input.settings.launch_recovery_closing_start_time,
-    input.settings.launch_recovery_closing_end_time
-  );
-}
-
 function closingScanRecoveryIntent(params: {
-  input: ResolveAttendanceScanIntentInput;
   schedule: AttendanceScheduleSelection;
-  launchRecoveryWindowActive: boolean;
 }): AttendanceScanIntent {
-  const behavior = params.input.settings.first_scan_closing_behavior;
-  const launchOnlyOutsideWindow =
-    behavior === "treat_as_clock_out_launch_only" && !params.launchRecoveryWindowActive;
-
-  if (behavior === "require_manager_confirmation") {
-    return intent({
-      type: "likely_closing_scan_without_clock_in",
-      action: "recovery_required",
-      schedule: params.schedule,
-      requiresRecovery: true,
-      shouldWriteAttendance: false,
-      severity: "warning",
-      title: "Manager confirmation needed",
-      message: "This looks like a closing scan with no earlier clock-in. A manager must confirm it before attendance is written.",
-    });
-  }
-
-  if (behavior === "never_auto_clock_in") {
-    return intent({
-      type: "likely_closing_scan_without_clock_in",
-      action: "recovery_required",
-      schedule: params.schedule,
-      requiresRecovery: true,
-      shouldWriteAttendance: false,
-      severity: "warning",
-      title: "Closing scan blocked",
-      message: "First scans near closing are never turned into clock-ins. This scan was sent to Recovery.",
-    });
-  }
-
-  if (behavior === "treat_as_clock_out_launch_only" && params.launchRecoveryWindowActive) {
-    return intent({
-      type: "likely_closing_scan_without_clock_in",
-      action: "recovery_required",
-      schedule: params.schedule,
-      requiresRecovery: true,
-      shouldWriteAttendance: false,
-      severity: "warning",
-      title: "Launch recovery review",
-      message: "Launch Recovery is active. This closing scan can be rebuilt from schedule evidence after review.",
-    });
-  }
-
   return intent({
     type: "likely_closing_scan_without_clock_in",
     action: "recovery_required",
@@ -302,10 +229,8 @@ function closingScanRecoveryIntent(params: {
     requiresRecovery: true,
     shouldWriteAttendance: false,
     severity: "warning",
-    title: "Closing scan needs recovery",
-    message: launchOnlyOutsideWindow
-      ? "Launch Recovery is not active for this time, so this closing scan was sent to Recovery."
-      : "This looks like a clock-out scan, but no earlier clock-in was found.",
+    title: "Scan captured for review",
+    message: "This looks like a clock-out scan, but no earlier clock-in exists. The scan was preserved without inventing attendance.",
   });
 }
 
@@ -556,32 +481,23 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
   if (isUnsupportedScheduleState(input.schedule)) {
     return intent({
       type: "schedule_state_unsupported",
-      action: "recovery_required",
+      action: "clock_in",
       schedule,
       requiresRecovery: true,
-      shouldWriteAttendance: false,
-      severity: "critical",
+      shouldWriteAttendance: true,
+      severity: "warning",
       title: "Schedule needs review",
-      message: input.schedule.conflictReason ?? "This schedule state cannot be safely used for attendance.",
-    });
-  }
-
-  const launchRecoveryWindowActive = isLaunchRecoveryClosingScan(input);
-  if (launchRecoveryWindowActive) {
-    return closingScanRecoveryIntent({
-      input,
-      schedule,
-      launchRecoveryWindowActive,
+      message: input.schedule.conflictReason ?? "Attendance was recorded and the conflicting schedule needs review.",
     });
   }
 
   if (input.schedule.isDayOff) {
     return intent({
       type: "off_day_exception",
-      action: "recovery_required",
+      action: "clock_in",
       schedule,
       requiresRecovery: true,
-      shouldWriteAttendance: input.settings.off_day_scan_behavior === "allow_clock_in_with_exception",
+      shouldWriteAttendance: true,
       severity: "warning",
       title: "Off-day scan",
       message: "This staff member is marked off for this schedule day.",
@@ -591,10 +507,10 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
   if (schedule.isUnscheduled) {
     return intent({
       type: "missing_schedule",
-      action: "recovery_required",
+      action: "clock_in",
       schedule,
       requiresRecovery: true,
-      shouldWriteAttendance: input.settings.missing_schedule_behavior === "allow_clock_in_with_exception",
+      shouldWriteAttendance: true,
       severity: "warning",
       title: "Missing schedule",
       message: "No resolved schedule window was found for this staff member.",
@@ -610,7 +526,6 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
   );
   if (clockOutWindow) {
     return closingScanRecoveryIntent({
-      input,
       schedule: scheduleSelectionFromWindow({
         scanDate: input.scanDate,
         scanTime: input.scanTime,
@@ -618,7 +533,6 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
         schedule: input.schedule,
         window: clockOutWindow,
       }),
-      launchRecoveryWindowActive,
     });
   }
 
@@ -653,14 +567,14 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
   }
 
   return intent({
-    type: "ambiguous_scan",
-    action: "recovery_required",
+    type: "outside_schedule_window",
+    action: "clock_in",
     schedule,
     requiresRecovery: true,
-    shouldWriteAttendance: false,
+    shouldWriteAttendance: true,
     severity: "warning",
-    title: "Scan needs review",
-    message: "The scan is outside the configured clock-in and clock-out windows.",
+    title: "Attendance recorded outside schedule",
+    message: "The scan is outside the expected schedule windows. Attendance was recorded and flagged for review.",
   });
 }
 

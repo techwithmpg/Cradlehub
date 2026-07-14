@@ -13,7 +13,7 @@ export const ATTENDANCE_TABS: Array<{ key: AttendanceTab; label: string }> = [
   { key: "sessions", label: "Sessions" },
   { key: "qr", label: "QR Codes" },
   { key: "devices", label: "Devices" },
-  { key: "exceptions", label: "Recovery" },
+  { key: "exceptions", label: "Review Queue" },
   { key: "reports", label: "Reports" },
 ];
 
@@ -273,6 +273,9 @@ export type AttendanceException = {
   metadata: Record<string, unknown>;
   detected_at: string;
   resolved_at: string | null;
+  resolved_by?: string | null;
+  resolved_by_name?: string | null;
+  resolution_note?: string | null;
 };
 
 export type AttendanceCorrection = {
@@ -281,6 +284,7 @@ export type AttendanceCorrection = {
   staff_id: string | null;
   staff_name: string | null;
   checkin_id: string | null;
+  exception_id?: string | null;
   attendance_date: string | null;
   action_type: string;
   correction_type: string;
@@ -407,6 +411,7 @@ export type PublicScanResult = {
   scanEventId?: string;
   operationId?: string;
   recoverable?: boolean;
+  resolution?: import("@/lib/attendance/scan-resolution").AttendanceScanResolution;
   nextHref?: string;
   attendance?: {
     action: "clock_in" | "clock_out";

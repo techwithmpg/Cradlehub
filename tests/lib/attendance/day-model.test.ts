@@ -61,7 +61,7 @@ function resolve(params: {
 
 describe("authoritative attendance day model", () => {
   it("classifies an ordinary active shift without a record as not arrived", () => {
-    expect(resolve({}).currentAttendanceState).toBe("not_arrived");
+    expect(resolve({})).toMatchObject({ currentAttendanceState: "not_arrived", operationalStatus: "expected_later" });
   });
 
   it("keeps a split-shift gap scheduled later", () => {
@@ -74,6 +74,7 @@ describe("authoritative attendance day model", () => {
     });
     expect(state.scheduleState).toBe("scheduled_later");
     expect(state.nextShiftWindow?.windowOrder).toBe(2);
+    expect(state.operationalStatus).toBe("expected_later");
   });
 
   it("resolves an overnight window against its business date", () => {
@@ -92,7 +93,7 @@ describe("authoritative attendance day model", () => {
 
   it("classifies an approved day off as not expected", () => {
     const state = resolve({ resolved: { source: "override", status: "day_off", state: "CONFIGURED_DAY_OFF", isWorking: false, isDayOff: true, windows: [] } });
-    expect(state).toMatchObject({ scheduleState: "day_off", currentAttendanceState: "not_expected", displayLabel: "Day Off" });
+    expect(state).toMatchObject({ scheduleState: "day_off", currentAttendanceState: "not_expected", operationalStatus: "not_expected", displayLabel: "Day Off" });
   });
 
   it("keeps a missing schedule distinct from a day off", () => {
@@ -102,7 +103,7 @@ describe("authoritative attendance day model", () => {
 
   it("routes a conflicting schedule to review", () => {
     const state = resolve({ resolved: { source: "individual", status: "conflict", state: "OVERLAPPING_WINDOWS", isWorking: false, isDayOff: false, windows: [], conflictCode: "overlapping_windows", conflictReason: "Overlap" } });
-    expect(state).toMatchObject({ scheduleState: "schedule_conflict", currentAttendanceState: "needs_review", actionRequired: true });
+    expect(state).toMatchObject({ scheduleState: "schedule_conflict", currentAttendanceState: "needs_review", operationalStatus: "needs_review", actionRequired: true });
   });
 
   it("does not mark a later shift as not arrived", () => {
@@ -111,16 +112,16 @@ describe("authoritative attendance day model", () => {
   });
 
   it("marks a missing arrival late only after grace expires", () => {
-    expect(resolve({ now: "2026-07-14T01:11:00.000Z" }).currentAttendanceState).toBe("late_not_arrived");
+    expect(resolve({ now: "2026-07-14T01:11:00.000Z" })).toMatchObject({ currentAttendanceState: "late_not_arrived", operationalStatus: "missing" });
   });
 
   it("reports a checked-in staff member as operationally available", () => {
-    expect(resolve({ records: [record()] })).toMatchObject({ currentAttendanceState: "available", availabilityState: "available", displayLabel: "Available" });
+    expect(resolve({ records: [record()] })).toMatchObject({ currentAttendanceState: "available", operationalStatus: "clocked_in", availabilityState: "available", displayLabel: "Available" });
   });
 
   it("reports a completed attendance record as clocked out", () => {
     const state = resolve({ records: [record({ status: "checked_out", checked_out_at: "2026-07-14T10:00:00.000Z", worked_minutes: 540 })] });
-    expect(state).toMatchObject({ currentAttendanceState: "clocked_out", workedMinutes: 540 });
+    expect(state).toMatchObject({ currentAttendanceState: "clocked_out", operationalStatus: "clocked_out", workedMinutes: 540 });
   });
 
   it("gives active service precedence over generic availability", () => {
@@ -130,7 +131,7 @@ describe("authoritative attendance day model", () => {
       status: "in_progress", booking_progress_status: "session_started", session_started_at: "2026-07-14T02:00:00.000Z",
       session_due_at: null, session_completed_at: null, duration_minutes: 60,
     };
-    expect(resolve({ records: [record()], sessions: [session] })).toMatchObject({ currentAttendanceState: "in_service", availabilityState: "in_service", activeBookingId: "booking-1" });
+    expect(resolve({ records: [record()], sessions: [session] })).toMatchObject({ currentAttendanceState: "in_service", operationalStatus: "on_service", availabilityState: "in_service", activeBookingId: "booking-1" });
   });
 
   it("ignores a wrong-branch attendance record", () => {
@@ -151,8 +152,19 @@ describe("authoritative attendance day model", () => {
       id: "exception-1", branch_id: "branch-1", staff_id: "staff-1", checkin_id: null, scan_event_id: null,
       staff_name: "Maria Santos", exception_type: "schedule_mismatch", severity: "warning", status: "open",
       message: "Review", metadata: {}, detected_at: "2026-07-14T01:00:00.000Z", resolved_at: null,
+      resolved_by: null, resolved_by_name: null, resolution_note: null,
     }] });
-    expect(state).toMatchObject({ currentAttendanceState: "needs_review", issueCodes: ["schedule_mismatch"], actionRequired: true });
+    expect(state).toMatchObject({ currentAttendanceState: "needs_review", operationalStatus: "needs_review", issueCodes: ["schedule_mismatch"], actionRequired: true });
+  });
+
+  it("surfaces a first closing scan without attendance as scan captured", () => {
+    const state = resolve({ exceptions: [{
+      id: "exception-captured", branch_id: "branch-1", staff_id: "staff-1", checkin_id: null, scan_event_id: "scan-1",
+      staff_name: "Maria Santos", exception_type: "likely_closing_scan_without_clock_in", severity: "warning", status: "open",
+      message: "Captured", metadata: {}, detected_at: "2026-07-14T10:00:00.000Z", resolved_at: null,
+      resolved_by: null, resolved_by_name: null, resolution_note: null,
+    }] });
+    expect(state.operationalStatus).toBe("scan_captured");
   });
 
   it("labels a non-operational active profile as not scheduled", () => {

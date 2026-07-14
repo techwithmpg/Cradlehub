@@ -16,6 +16,11 @@ export type AttendanceCorrectionActionType =
   | "reset_attendance_state"
   | "rebuild_from_scans"
   | "ignore_scan"
+  | "accept_recorded_attendance"
+  | "void_duplicate"
+  | "mark_accidental_scan"
+  | "allow_branch_today"
+  | "change_permanent_branch"
   | "apply_launch_recovery"
   | "update_attendance_rules"
   | "archive_test_data"
@@ -32,6 +37,7 @@ export type ApplyAttendanceCorrectionInput = {
   checkinId?: string | null;
   staffId?: string | null;
   attendanceDate?: string | null;
+  targetBranchId?: string | null;
   manualClockInAt?: string | null;
   manualClockOutAt?: string | null;
   resetMode?: "next_scan_state" | "void_incorrect_attendance" | "manual_attendance" | "rebuild_from_scans" | null;
@@ -94,6 +100,42 @@ type ResetAttendanceStateTransactionRow = {
   resolved_exception_count?: number | null;
   correction_id?: string | null;
 };
+
+type ReviewCorrectionTransactionRow = {
+  success?: boolean;
+  code?: string | null;
+  message?: string | null;
+  correction_id?: string | null;
+};
+
+async function applyReviewCorrectionTransaction(params: {
+  admin: AttendanceDb;
+  ctx: AttendanceActionContext;
+  action: AttendanceCorrectionActionType;
+  reason: string;
+  exceptionId?: string | null;
+  checkinId?: string | null;
+  values?: Record<string, unknown>;
+}): Promise<string> {
+  if (!params.ctx.actorStaffId) throw new Error("A staff actor is required before correcting attendance.");
+  const settings = await getAttendanceSettings(params.ctx.branchId);
+  const { data, error } = await params.admin
+    .rpc("apply_attendance_review_correction", {
+      p_branch_id: params.ctx.branchId,
+      p_actor_staff_id: params.ctx.actorStaffId,
+      p_action: params.action,
+      p_reason: requiredReason(params.reason, "applying this review action"),
+      p_exception_id: params.exceptionId ?? undefined,
+      p_checkin_id: params.checkinId ?? undefined,
+      p_values: toJson(params.values ?? {}),
+      p_is_test: settings.test_mode_enabled,
+    })
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const row = data as ReviewCorrectionTransactionRow | null;
+  if (!row?.success) throw new Error(row?.message ?? "Attendance review correction could not be applied.");
+  return row.message ?? "Attendance review correction applied.";
+}
 
 function safeRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -355,36 +397,21 @@ async function setManualClockOut(params: {
     earlyLeaveGraceMinutes: settings.early_leave_threshold_minutes,
   });
 
-  const { data: updated, error } = await params.admin
-    .from("staff_shift_checkins")
-    .update({
-      checked_out_at: checkedOutAt,
-      status: "checked_out",
-      clock_out_method: "manual_recovery",
-      worked_minutes: metrics.workedMinutes,
-      late_minutes: metrics.lateMinutes,
-      early_leave_minutes: metrics.earlyLeaveMinutes,
-      overtime_minutes: metrics.overtimeMinutes,
-      attendance_status: metrics.attendanceStatus,
-      exception_state: metrics.exceptionState,
-    })
-    .eq("id", checkin.id)
-    .eq("branch_id", params.ctx.branchId)
-    .select("id")
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  if (!updated) throw new Error("Attendance record could not be updated.");
-
-  await insertCorrectionAudit(params.admin, {
+  await applyReviewCorrectionTransaction({
+    admin: params.admin,
     ctx: params.ctx,
-    actionType: "set_manual_clock_out",
-    staffId: checkin.staff_id,
-    checkinId: checkin.id,
-    attendanceDate: checkin.shift_date,
-    previousValues: { checkin },
-    newValues: { checkedOutAt, metrics },
+    action: "set_manual_clock_out",
     reason: params.reason,
+    exceptionId: params.input.exceptionId,
+    checkinId: checkin.id,
+    values: {
+      checkedOutAt,
+      workedMinutes: metrics.workedMinutes,
+      lateMinutes: metrics.lateMinutes,
+      earlyLeaveMinutes: metrics.earlyLeaveMinutes,
+      overtimeMinutes: metrics.overtimeMinutes,
+      attendanceStatus: metrics.attendanceStatus,
+    },
   });
 
   return "Manual clock-out applied.";
@@ -445,24 +472,15 @@ async function ignoreScan(params: {
   input: ApplyAttendanceCorrectionInput;
   reason: string;
 }): Promise<string> {
-  await markExceptionResolved(params.admin, {
-    exceptionId: params.input.exceptionId,
+  return applyReviewCorrectionTransaction({
+    admin: params.admin,
     ctx: params.ctx,
-    note: params.reason,
-  });
-
-  await insertCorrectionAudit(params.admin, {
-    ctx: params.ctx,
-    actionType: "ignore_scan",
-    staffId: params.input.staffId ?? null,
-    checkinId: params.input.checkinId ?? null,
-    attendanceDate: params.input.attendanceDate ?? null,
-    previousValues: { exceptionId: params.input.exceptionId ?? null },
-    newValues: { ignored: true },
+    action: "ignore_scan",
     reason: params.reason,
+    exceptionId: params.input.exceptionId,
+    checkinId: params.input.checkinId,
+    values: { ignored: true },
   });
-
-  return "Scan marked reviewed.";
 }
 
 async function archiveTestData(params: {
@@ -553,7 +571,7 @@ export async function applyAttendanceCorrection(params: {
   const reason = params.input.reason?.trim() || "";
 
   if (params.input.actionType === "apply_launch_recovery") {
-    return { message: await applyLaunchRecovery({ admin, ctx: params.ctx, input: params.input, reason }) };
+    throw new Error("Legacy launch recovery is disabled. Use an atomic Attendance review action after confirming the raw scans.");
   }
   if (params.input.actionType === "set_manual_clock_out") {
     return { message: await setManualClockOut({ admin, ctx: params.ctx, input: params.input, reason }) };
@@ -563,6 +581,28 @@ export async function applyAttendanceCorrection(params: {
   }
   if (params.input.actionType === "ignore_scan") {
     return { message: await ignoreScan({ admin, ctx: params.ctx, input: params.input, reason }) };
+  }
+  if ([
+    "accept_recorded_attendance",
+    "void_duplicate",
+    "mark_accidental_scan",
+    "allow_branch_today",
+    "change_permanent_branch",
+  ].includes(params.input.actionType)) {
+    return {
+      message: await applyReviewCorrectionTransaction({
+        admin,
+        ctx: params.ctx,
+        action: params.input.actionType,
+        reason,
+        exceptionId: params.input.exceptionId,
+        checkinId: params.input.checkinId,
+        values: {
+          attendanceDate: params.input.attendanceDate ?? null,
+          targetBranchId: params.input.targetBranchId ?? null,
+        },
+      }),
+    };
   }
   if (params.input.actionType === "archive_test_data") {
     return { message: await archiveTestData({ admin, ctx: params.ctx, reason }) };

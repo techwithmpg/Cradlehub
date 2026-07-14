@@ -952,3 +952,37 @@ raw credentials or introducing a second device registry.
 - Branch timezone and Attendance business date are mandatory model inputs.
 - Phase 1 does not synthesize absence, forgotten clock-out, or break records;
   those require their later policy and automation phases.
+## 2026-07-14 - Canonical Attendance scan resolution and incident lifecycle
+
+- `src/lib/attendance/scan-resolution.ts` is the single typed translation from
+  scan outcomes to safe staff copy, CRM summary, ownership, retry/incident policy,
+  severity, and issue-specific actions.
+- Static device inventory is not an incident source. Only scan, persisted
+  exception, registration/support, or explicit operational events create work.
+- Reviewed acknowledges an open issue; only a verified correction, rejection,
+  test classification, or successful safe retry resolves it.
+- Staff conversation is append-only and attached to the Attendance exception,
+  while existing notification and workflow-task stores remain the two inboxes.
+
+## 2026-07-14 - Attendance records clear intent and reviews uncertainty
+
+**Status:** ACCEPTED
+
+**Decision:**
+
+- Every valid scan attempt is preserved as immutable operational evidence.
+- Timing and schedule anomalies alone do not discard attendance.
+- Exactly one open Attendance record is closed by the next valid scan, including
+  a sole stale or schedule-mismatched row; its original snapshot is retained.
+- Genuinely ambiguous scans (multiple open rows or a first scan near expected
+  closing) are captured without inventing attendance.
+- Security and identity failures remain blocked.
+- CRM corrections lock evidence, mutate official truth, resolve the linked issue,
+  and write the actor/reason/before/after audit in one transaction.
+- CRM, Staff Portal, reports, and later automations consume the same staff-day
+  operational status resolver.
+
+**Consequences:** Legacy behavior columns remain schema-compatible but no longer
+decide record-first outcomes. Effective branch authority comes from date assignment,
+schedule assignment, approved cross-branch permission, then home branch; device
+branch is last-used metadata only. Raw scan rows are never edited by correction work.

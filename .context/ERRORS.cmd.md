@@ -1045,3 +1045,36 @@
   completion RPCs executable by service role and not authenticated users.
 - **Remaining maintenance:** Reconcile migration version `20260714050554` from
   a working migration-history connection before any broad migration push.
+
+## 2026-07-14 - False Attendance no-device Recovery incidents
+
+- **Symptom:** Recovery showed roughly 60 urgent `Staff has no connected phone`
+  cards without corresponding scan attempts.
+- **Root cause:** `buildRecoveryIssues()` mapped every static device-registry row
+  through `issueForDeviceEntry`; ordinary `no_device` inventory was promoted to
+  an operational incident with high priority.
+- **Resolution:** Removed inventory-to-incident conversion. Device Recovery is
+  now sourced only from blocked scan events or persisted Attendance exceptions,
+  and repeated equivalent blocked events are grouped into one card with a count.
+
+## 2026-07-14 - Attendance resolution migration trigger mismatch
+
+- **Symptom:** First focused migration apply failed transactionally with
+  `function public.set_updated_at() does not exist`.
+- **Root cause:** The migration referenced a generic trigger helper name while
+  this schema's established helper is `public.fn_update_updated_at()`.
+- **Resolution:** Corrected the trigger to the existing helper before reapplying;
+  the failed SQL request did not partially apply its transaction.
+
+## 2026-07-14 - Fluid Attendance migration deployment intentionally deferred
+
+- **Symptom:** Local application code now calls
+  `resolve_effective_attendance_branch` and `apply_attendance_review_correction`,
+  which do not exist in production until migration `20260714143000` is applied.
+- **Cause:** The linked project still has unreconciled migration history and the
+  standing handoff explicitly forbids a blind `db push`.
+- **Impact:** Local static/tests/build verification can be completed, but the new
+  scan and correction runtime must not be deployed ahead of the migration.
+- **Recovery:** Reconcile history from a healthy authoritative connection, apply
+  the focused migration transactionally, reload PostgREST, regenerate types, and
+  verify RLS, grants, triggers, resolver order, concurrency, and rollback behavior.

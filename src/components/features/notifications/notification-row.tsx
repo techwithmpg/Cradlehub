@@ -1,11 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import {
   markNotificationReadAction,
   dismissNotificationAction,
+  respondToAttendanceIssueAction,
 } from "@/lib/notifications/queries";
 import { resolveNotificationHref } from "@/lib/notifications/notification-targets";
 
@@ -66,7 +67,9 @@ type Props = {
 };
 
 export function NotificationRow({ notification: n, onMarkRead, onDismiss }: Props) {
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
+  const [response, setResponse] = useState("");
+  const [responseMessage, setResponseMessage] = useState<string | null>(null);
   const isUnread = n.status === "unread";
   const href = resolveNotificationHref(n);
   const icon = TYPE_ICON[n.type] ?? "🔔";
@@ -86,6 +89,17 @@ export function NotificationRow({ notification: n, onMarkRead, onDismiss }: Prop
     startTransition(async () => {
       await dismissNotificationAction(n.id);
       onDismiss?.();
+    });
+  }
+
+  function handleAttendanceResponse() {
+    startTransition(async () => {
+      const result = await respondToAttendanceIssueAction({ notificationId: n.id, response });
+      setResponseMessage(result.message);
+      if (result.ok) {
+        setResponse("");
+        onDismiss?.();
+      }
     });
   }
 
@@ -216,6 +230,13 @@ export function NotificationRow({ notification: n, onMarkRead, onDismiss }: Prop
             Dismiss
           </button>
         </div>
+        {n.type === "attendance_issue_question" && n.requires_action ? (
+          <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+            <textarea aria-label="Attendance issue response" value={response} onChange={(event) => setResponse(event.target.value)} maxLength={1000} placeholder="Reply to CRM…" style={{ minHeight: 72, border: "1px solid var(--cs-border)", borderRadius: 8, padding: 8, fontSize: 12 }} />
+            <button type="button" disabled={isPending || !response.trim()} onClick={handleAttendanceResponse} style={{ justifySelf: "start", border: 0, borderRadius: 8, padding: "7px 12px", background: "var(--cs-brand)", color: "white", fontWeight: 600, cursor: "pointer" }}>{isPending ? "Sending…" : "Send response"}</button>
+            {responseMessage ? <span style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>{responseMessage}</span> : null}
+          </div>
+        ) : null}
       </div>
 
       {/* Unread dot */}

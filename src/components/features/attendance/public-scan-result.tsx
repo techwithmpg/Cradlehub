@@ -181,6 +181,7 @@ export function PublicScanResultView({
   const isClockIn = attendance?.action === "clock_in";
   const isAttendanceSuccess = result.ok && Boolean(attendance);
   const statusClass = getResultStatusClass(result);
+  const resolution = result.resolution;
 
   if (isAttendanceSuccess && attendance) {
     const title = isClockIn ? "Clocked in Successfully" : "Clocked out Successfully";
@@ -238,10 +239,24 @@ export function PublicScanResultView({
 
       <div className={styles.genericResultCopy}>
         <p className={styles.eyebrow}>{getResultEyebrow(result)}</p>
-        <h1>{result.title}</h1>
-        <p>{result.message}</p>
-        {result.detail ? <small>{result.detail}</small> : null}
+        <h1>{resolution?.title ?? result.title}</h1>
+        <p>{resolution?.staffMessage ?? result.message}</p>
+        {resolution ? (
+          <div className="mt-4 grid gap-2 text-left text-sm">
+            <strong>{resolution.attendanceChanged ? "Attendance was changed." : "No attendance change was made."}</strong>
+            {resolution.recommendedSteps.map((step) => <span key={step}>{step}</span>)}
+            {resolution.crmActionRequired ? <span>CRM has been notified.</span> : null}
+          </div>
+        ) : result.detail ? <small>{result.detail}</small> : null}
       </div>
+
+      {result.operationId ? (
+        <details className="w-full rounded-xl border border-border/60 p-3 text-left text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-semibold">Technical details</summary>
+          <div className="mt-2">Safe code: {resolution?.safeErrorCode ?? result.reasonCode ?? "unknown"}</div>
+          <div>Operation ID: {result.operationId}</div>
+        </details>
+      ) : null}
 
       {result.securityNote ? (
         <div className={styles.securityNote}>

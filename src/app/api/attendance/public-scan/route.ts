@@ -15,6 +15,7 @@ import {
   normalizeAttendanceOperationId,
 } from "@/lib/attendance/scan-errors";
 import type { PublicScanResult } from "@/lib/attendance/types";
+import { withAttendanceScanResolution } from "@/lib/attendance/scan-resolution";
 
 type PublicScanBody = {
   publicCode?: string | null;
@@ -44,6 +45,7 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     attendance: result.attendance,
     countdown: result.countdown,
     branchCorrection: result.branchCorrection,
+    resolution: result.resolution,
   };
 }
 
@@ -84,7 +86,8 @@ export async function POST(request: NextRequest) {
       ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"),
     });
     revalidatePublicScanResult(result);
-    const response = NextResponse.json(toPublicResult(result));
+    const resolvedResult = withAttendanceScanResolution(result);
+    const response = NextResponse.json(toPublicResult(resolvedResult));
     if (result.reasonCode === "unknown_device") {
       const temporaryCredential =
         request.cookies.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ?? createDeviceCredential();
@@ -113,6 +116,6 @@ export async function POST(request: NextRequest) {
       context: { publicCodeLength: publicCode.length },
     });
     const failure = attendanceScanFailureFromError({ error, operationId });
-    return NextResponse.json(toPublicResult(failure.result), { status: failure.status });
+    return NextResponse.json(toPublicResult(withAttendanceScanResolution(failure.result)), { status: failure.status });
   }
 }

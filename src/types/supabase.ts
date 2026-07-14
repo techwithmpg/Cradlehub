@@ -93,6 +93,7 @@ export type Database = {
           corrected_by: string | null
           correction_type: string
           created_at: string
+          exception_id: string | null
           id: string
           is_test: boolean
           new_values: Json
@@ -114,6 +115,7 @@ export type Database = {
           corrected_by?: string | null
           correction_type: string
           created_at?: string
+          exception_id?: string | null
           id?: string
           is_test?: boolean
           new_values?: Json
@@ -135,6 +137,7 @@ export type Database = {
           corrected_by?: string | null
           correction_type?: string
           created_at?: string
+          exception_id?: string | null
           id?: string
           is_test?: boolean
           new_values?: Json
@@ -182,6 +185,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attendance_corrections_exception_id_fkey"
+            columns: ["exception_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_exceptions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "attendance_corrections_corrected_by_fkey"
             columns: ["corrected_by"]
             isOneToOne: false
@@ -221,6 +231,7 @@ export type Database = {
       attendance_exceptions: {
         Row: {
           branch_id: string
+          category: string | null
           checkin_id: string | null
           created_at: string
           dedupe_key: string | null
@@ -235,19 +246,28 @@ export type Database = {
           metadata: Json
           occurrence_count: number
           priority: string
+          resolution_action: string | null
+          resolution_owner: string | null
+          resolution_status: string
           recommended_action: string | null
           related_checkin_ids: string[]
           resolution_note: string | null
           resolved_at: string | null
           resolved_by: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          safe_error_code: string | null
           scan_event_id: string | null
           severity: string
           staff_id: string | null
           status: string
+          staff_response_required: boolean
+          technical_context: Json
           updated_at: string
         }
         Insert: {
           branch_id: string
+          category?: string | null
           checkin_id?: string | null
           created_at?: string
           dedupe_key?: string | null
@@ -262,19 +282,28 @@ export type Database = {
           metadata?: Json
           occurrence_count?: number
           priority?: string
+          resolution_action?: string | null
+          resolution_owner?: string | null
+          resolution_status?: string
           recommended_action?: string | null
           related_checkin_ids?: string[]
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          safe_error_code?: string | null
           scan_event_id?: string | null
           severity?: string
           staff_id?: string | null
           status?: string
+          staff_response_required?: boolean
+          technical_context?: Json
           updated_at?: string
         }
         Update: {
           branch_id?: string
+          category?: string | null
           checkin_id?: string | null
           created_at?: string
           dedupe_key?: string | null
@@ -289,15 +318,23 @@ export type Database = {
           metadata?: Json
           occurrence_count?: number
           priority?: string
+          resolution_action?: string | null
+          resolution_owner?: string | null
+          resolution_status?: string
           recommended_action?: string | null
           related_checkin_ids?: string[]
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          safe_error_code?: string | null
           scan_event_id?: string | null
           severity?: string
           staff_id?: string | null
           status?: string
+          staff_response_required?: boolean
+          technical_context?: Json
           updated_at?: string
         }
         Relationships: [
@@ -2738,6 +2775,7 @@ export type Database = {
           id: string
           identity_verified_at: string | null
           is_active: boolean
+          is_cross_branch: boolean
           is_head: boolean
           merged_into_staff_id: string | null
           metadata: Json
@@ -2763,6 +2801,7 @@ export type Database = {
           id?: string
           identity_verified_at?: string | null
           is_active?: boolean
+          is_cross_branch?: boolean
           is_head?: boolean
           merged_into_staff_id?: string | null
           metadata?: Json
@@ -2788,6 +2827,7 @@ export type Database = {
           id?: string
           identity_verified_at?: string | null
           is_active?: boolean
+          is_cross_branch?: boolean
           is_head?: boolean
           merged_into_staff_id?: string | null
           metadata?: Json
@@ -3390,6 +3430,67 @@ export type Database = {
             columns: ["superseded_by_device_id"]
             isOneToOne: false
             referencedRelation: "staff_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_attendance_branch_assignments: {
+        Row: {
+          approved_by: string | null
+          assignment_date: string
+          assignment_type: string
+          branch_id: string
+          created_at: string
+          id: string
+          reason: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          assignment_date: string
+          assignment_type?: string
+          branch_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          assignment_date?: string
+          assignment_type?: string
+          branch_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -4695,6 +4796,24 @@ export type Database = {
       }
     }
     Functions: {
+      apply_attendance_review_correction: {
+        Args: {
+          p_action: string
+          p_actor_staff_id: string
+          p_branch_id: string
+          p_checkin_id?: string
+          p_exception_id?: string
+          p_is_test?: boolean
+          p_reason: string
+          p_values?: Json
+        }
+        Returns: {
+          code: string
+          correction_id: string
+          message: string
+          success: boolean
+        }[]
+      }
       can_mutate_schedule_for_branch: {
         Args: { p_branch_id: string }
         Returns: boolean
@@ -4804,6 +4923,18 @@ export type Database = {
       get_auth_branch_id: { Args: never; Returns: string }
       get_auth_role: { Args: never; Returns: string }
       get_auth_staff_id: { Args: never; Returns: string }
+      resolve_effective_attendance_branch: {
+        Args: {
+          p_attendance_date: string
+          p_qr_branch_id: string
+          p_staff_id: string
+        }
+        Returns: {
+          allowed: boolean
+          effective_branch_id: string | null
+          source: string
+        }[]
+      }
       get_available_slots: {
         Args: {
           p_branch_id: string

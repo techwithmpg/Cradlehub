@@ -233,9 +233,9 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
     today,
     scheduleLabel,
     scheduleState,
-    currentClockState: todayState.currentAttendanceState === "clocked_in" || todayState.currentAttendanceState === "available" || todayState.currentAttendanceState === "in_service"
+    currentClockState: todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
       ? "clocked_in"
-      : todayState.currentAttendanceState === "clocked_out"
+      : todayState.operationalStatus === "clocked_out"
         ? "clocked_out"
         : currentClockState,
     currentRecord,

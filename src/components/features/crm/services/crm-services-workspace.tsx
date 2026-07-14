@@ -98,6 +98,7 @@ function toStaffMember(s: StaffForServicePanel): StaffMember {
     tier:         s.tier ?? "n/a",
     is_head:      s.is_head ?? false,
     is_active:    s.is_active ?? true,
+    is_cross_branch: false,
     avatar_url:   s.avatar_url ?? null,
     avatar_path:  null,
     auth_user_id: null,

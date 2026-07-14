@@ -6815,3 +6815,34 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   `docs/attendance/PHASE_1_AUTHORITATIVE_DAILY_MODEL.md`.
 - Verification passes: 25 focused files / 112 tests, 120 full-suite files / 835
   tests, type-check, lint, production build, and diff check.
+## 2026-07-14 - ATTENDANCE-SCAN-RESOLUTION-001
+
+- Added canonical typed scan resolutions and issue-specific mobile failure copy.
+- Removed no-device roster incidents and grouped repeated blocked scan evidence.
+- Separated Reviewed from Resolved and hid unrelated device actions.
+- Added CRM Ask Staff, Staff Portal responses, and technical escalation through
+  existing notification/task infrastructure.
+- Applied and verified migration `20260714105907` with RLS and restricted grants.
+- Type-check, lint, 121 files / 848 tests, and diff check pass.
+
+## 2026-07-14 - ATTENDANCE-FLUID-OPERATIONS-001
+
+- Replaced legacy schedule-match-first behavior with fixed record-first intent:
+  a sole open row closes on the next valid scan; missing schedule, off-day, and
+  ordinary outside-window scans record and flag; multiple opens and a first
+  closing scan are captured without invented attendance.
+- Added date-effective branch authority, staff-wide single-open concurrency guard,
+  correction-to-exception linkage, atomic review correction RPC, and durable
+  device lifecycle audit in migration `20260714143000`.
+- Added the exact eight-state operational status to the shared day model and wired
+  CRM Overview and Staff Portal consumers to it.
+- Consolidated the operator surface as Attendance Review Queue, deprecated legacy
+  blocking switches in behavior/UI, and preserved raw scans through every correction.
+- Replaced twelve placeholder reports with exactly Daily Attendance, Exceptions
+  and Corrections, and Payroll Export; filters and CSV now use row-level data and
+  unresolved ambiguous minutes are not approved payable time.
+- Added the 28-scenario evidence matrix, focused intent/day/report/migration tests,
+  and implementation guide at `docs/attendance/FLUID_OPERATIONS.md`.
+- Verification passes: cold type-check, lint, full suite at 123 files / 859 tests,
+  production Next.js 16.2.4 build (109 static pages), and `git diff --check`.
+  Authenticated/live migration QA status is recorded in the task handoff.

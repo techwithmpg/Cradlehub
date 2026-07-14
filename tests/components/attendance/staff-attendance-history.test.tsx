@@ -25,7 +25,7 @@ describe("StaffAttendanceHistory", () => {
         scheduleSource: "individual", scheduleState: "shift_complete", shiftWindows: [],
         currentShiftWindow: null, nextShiftWindow: null, scheduledStart: null, scheduledEnd: null,
         attendanceRecordId: null, clockInAt: null, clockOutAt: null,
-        currentAttendanceState: "clocked_out", workedMinutes: 0, lateMinutes: 0,
+        currentAttendanceState: "clocked_out", operationalStatus: "clocked_out", workedMinutes: 0, lateMinutes: 0,
         earlyLeaveMinutes: 0, overtimeMinutes: 0, activeBookingId: null,
         activeServiceSession: null, availabilityState: "not_available",
         exceptionState: "clear", issueCodes: [], displayLabel: "Clocked Out", actionRequired: false,
