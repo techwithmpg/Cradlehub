@@ -1,5 +1,23 @@
 # HANDOFF - Next Agent Session
 
+## CRADLEHUB-CORE-SYSTEMS-BETA-READINESS-001 - 2026-07-15
+
+Core automated gates are green: type-check, 131 test files / 958 tests, lint with
+one Attendance-only warning, and a production build covering 110 routes. Linked
+REST probes can read all configured critical tables, but direct Supabase pooler
+access still times out, so migration history is not certified.
+
+An authenticated CRM/front-desk session rendered Today, Quick Booking, Schedule,
+Dispatch, Reconciliation, workspace selection, and Staff Portal at 390x844 with no
+horizontal overflow; owner and driver workspaces were denied. Public booking and
+the configured localhost:3000 Google login also rendered. Do not promote this to
+beta on that evidence alone. Reconcile migration history from a working direct DB
+path, provision dedicated QA identities for CRM/staff/driver/manager/owner, run the
+full controlled operational scenario with exact cleanup, then repeat desktop,
+tablet, iPhone, Android, realtime-disconnect, and failure-recovery matrices.
+
+---
+
 ## ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001 - 2026-07-15
 
 The scoped scanner result work is complete locally. Ordinary valid first scans

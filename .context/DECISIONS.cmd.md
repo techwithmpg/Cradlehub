@@ -1,5 +1,15 @@
 # 🏗️ DECISIONS
 
+### 2026-07-15: Core beta certification requires direct multi-role write evidence
+**Status:** ACCEPTED
+
+Green unit/build gates and an authenticated CRM read-only browser smoke are not
+enough to certify CradleHub core operations. Keep the release at NO-GO until a
+working direct database path reconciles migration history and dedicated CRM,
+staff, driver, manager, and owner QA identities complete the controlled booking,
+dispatch, payment, reconciliation, schedule, waitlist, notification, and access
+matrix without touching production records.
+
 ### DEC-001: pnpm as package manager
 **Status:** ACCEPTED — faster, disk-efficient, strict dep resolution.
 

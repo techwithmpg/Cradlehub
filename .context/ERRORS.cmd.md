@@ -1143,3 +1143,20 @@
   audited policies are branch/self scoped, but `anon`/`authenticated` retain broad
   historical table grants on some Attendance tables. Tighten grants after a role
   matrix rollback test; do not change them blindly during beta audit.
+
+## 2026-07-15 - Core beta readiness certification blockers
+
+- `pnpm db:status` cannot read linked migration history because the Supabase
+  direct pooler connection times out. REST table probes pass, but deployment
+  ordering and live/local migration parity remain uncertified.
+- The available authenticated browser identity is CRM/front desk only. Dedicated
+  owner, manager, driver, utility, ordinary staff, and transactional QA identities
+  were not available, so the required 34-step write-heavy E2E and complete role/RLS
+  matrix could not be executed safely.
+- The temporary production server on localhost:3100 logged sanitized Supabase
+  `refresh_token_not_found` errors for the reused cross-port browser session even
+  though authorized pages rendered. The configured localhost:3000 login was clean;
+  repeat stale/expired-session recovery with a purpose-built QA session before beta.
+- `pnpm lint` exits successfully with one existing warning in the Attendance-only
+  `attendance-correction-service.ts`; it is outside this audit's implementation
+  scope and is not a core-system blocker.

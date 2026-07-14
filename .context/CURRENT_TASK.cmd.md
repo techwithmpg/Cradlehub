@@ -1,4 +1,60 @@
-# Current Task - ATTENDANCE-BETA-READINESS-001
+# Current Task - CRADLEHUB-CORE-SYSTEMS-BETA-READINESS-001
+
+Status: COMPLETE — NO-GO DECISION
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Perform a complete beta-readiness audit of all essential CradleHub systems outside
+Attendance, exercise the critical business workflows through source, database,
+automated, and browser verification, fix safe scoped defects, add regression
+coverage, and return per-system plus overall readiness decisions.
+
+## Guardrails
+
+- Preserve the existing architecture, shared components, business rules, and
+  frozen UI unless a verified workflow or usability defect requires a change.
+- Do not certify authenticated roles or operational flows without direct evidence.
+- Use dedicated QA/Test Mode data for controlled writes and clean only that data.
+- Do not push migrations while linked migration history remains unreconciled.
+- Keep authorization server-enforced and multi-write operations atomic.
+
+## Work order
+
+1. Complete the mandatory context, source, schema, permissions, environment, and
+   test pre-flight.
+2. Audit systems in the requested priority order, including database, RLS,
+   realtime/cache, security, concurrency, recovery, performance, and mobile.
+3. Run focused and full automated checks plus browser verification, and perform
+   the controlled authenticated scenario only where safe QA identities exist.
+4. Fix safe beta blockers, add regression tests, and rerun affected gates.
+5. Update context records, commit and push the audit, and deliver the required
+   evidence-separated readiness report.
+
+## Completion
+
+- Verified the linked REST schema for all configured critical tables; direct
+  migration-history access remains blocked by the database pooler timeout.
+- Verified type-check, 131 files / 958 tests, lint with one Attendance-only
+  warning, and the Next.js production build with 110 routes.
+- Used an authenticated CRM session to verify mobile CRM Today, booking entry,
+  Schedule, Dispatch, Reconciliation, workspace selection, Staff Portal, and
+  denial of owner/driver workspaces without horizontal overflow at 390px.
+- Verified the public booking branch step on mobile and localhost Google sign-in
+  on the configured port. No safe owner, manager, driver, utility, or dedicated
+  transactional QA identities were available for the destructive 34-step E2E.
+- The reused cross-port session also produced sanitized missing-refresh-token
+  server errors, so expired/stale session recovery is not certified.
+- No safe core code defect was proven by the available source, database, unit,
+  build, or non-destructive browser evidence, so no speculative code change or
+  redundant regression test was added.
+- Final decision is NO-GO: migration history and the full multi-role, write-heavy
+  controlled E2E remain uncertified despite green automated and CRM smoke gates.
+
+---
+
+# Previous Task - ATTENDANCE-BETA-READINESS-001
 
 Status: COMPLETE — NO-GO DECISION
 Started: 2026-07-15

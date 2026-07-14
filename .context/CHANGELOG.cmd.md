@@ -1,5 +1,24 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-15 - Codex (CRADLEHUB-CORE-SYSTEMS-BETA-READINESS-001)
+
+- Audited the core systems outside Attendance across auth/RBAC, CRM Today,
+  bookings, schedules, dispatch, customers, staff/setup, payments,
+  reconciliation, notifications, public booking, portals, realtime, integrity,
+  security, failure handling, performance, mobile, and accessibility evidence.
+- Linked REST schema verification passed for every configured critical table;
+  direct migration-history verification timed out through the Supabase pooler.
+- Type-check, 131 files / 958 tests, lint (one Attendance-only warning), and the
+  production build with 110 routes passed.
+- Authenticated mobile CRM smoke checks passed at 390x844 for Today, booking
+  entry, Schedule, Dispatch, Reconciliation, and Staff Portal. Owner and driver
+  routes were denied to the CRM identity; public booking rendered without
+  horizontal overflow. The configured localhost:3000 Google login loaded without
+  console errors.
+- No source change was made because no safe core defect was proven. Final decision
+  is NO-GO pending migration-history reconciliation and a controlled write-heavy
+  multi-role E2E with dedicated QA identities.
+
 ## 2026-07-15 - Codex (ATTENDANCE-BETA-READINESS-001)
 
 - Confirmed the requested clean live baseline: six Attendance operational tables
