@@ -229,8 +229,8 @@ function closingScanRecoveryIntent(params: {
     requiresRecovery: true,
     shouldWriteAttendance: false,
     severity: "warning",
-    title: "Scan captured for review",
-    message: "This looks like a clock-out scan, but no earlier clock-in exists. The scan was preserved without inventing attendance.",
+    title: "Scan captured",
+    message: "The front desk will confirm today’s attendance. You may continue normally.",
   });
 }
 
@@ -567,7 +567,7 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
   }
 
   return intent({
-    type: "outside_schedule_window",
+    type: "ambiguous_scan",
     action: "clock_in",
     schedule,
     requiresRecovery: true,

@@ -57,11 +57,19 @@ type PublicScanResultViewProps = {
 };
 
 function getResultStatusClass(result: PublicScanResult): string | undefined {
+  if (
+    result.ok &&
+    result.outcome === "exception" &&
+    result.reasonCode === "likely_closing_scan_without_clock_in"
+  ) {
+    return styles.resultInfo;
+  }
   if (result.outcome === "noop" || result.severity === "info") return styles.resultInfo;
   return result.ok ? styles.resultSuccess : styles.resultBlocked;
 }
 
 function getResultEyebrow(result: PublicScanResult): string {
+  if (result.reasonCode === "likely_closing_scan_without_clock_in") return "Scan captured";
   if (result.reasonCode === "unknown_device") return "Staff sign-in";
   if (result.reasonCode === "device_restored") return "Access restored";
   if (result.outcome === "error") return "Scan interrupted";
@@ -180,14 +188,18 @@ export function PublicScanResultView({
   const attendance = result.attendance;
   const isClockIn = attendance?.action === "clock_in";
   const isAttendanceSuccess = result.ok && Boolean(attendance);
+  const isCapturedClosing =
+    result.ok &&
+    result.outcome === "exception" &&
+    result.reasonCode === "likely_closing_scan_without_clock_in" &&
+    !attendance;
   const statusClass = getResultStatusClass(result);
   const resolution = result.resolution;
 
   if (isAttendanceSuccess && attendance) {
-    const title = isClockIn ? "Clocked in Successfully" : "Clocked out Successfully";
     const cardLabel = isClockIn ? "Session started" : "Total worked today";
     const cardValue = isClockIn
-      ? formatAttendanceTime(attendance.sessionStartedAt)
+      ? formatAttendanceTime(attendance.sessionStartedAt, attendance.branchTimezone)
       : formatWorkedMinutes(attendance.workedMinutes);
 
     return (
@@ -199,10 +211,21 @@ export function PublicScanResultView({
         </div>
 
         <div className={styles.resultHeading}>
-          <p className={styles.successEyebrow}>{formatAttendanceDate(attendance.occurredAt)}</p>
-          <h1>{title}</h1>
-          <div className={styles.attendanceTime}>{formatAttendanceTime(attendance.occurredAt)}</div>
+          <p className={styles.successEyebrow}>
+            {formatAttendanceDate(attendance.occurredAt, attendance.branchTimezone)}
+          </p>
+          <h1>{result.title}</h1>
+          <div className={styles.attendanceTime}>
+            {formatAttendanceTime(attendance.occurredAt, attendance.branchTimezone)}
+          </div>
+          <p className={styles.successMessage}>{result.message}</p>
         </div>
+
+        {result.reviewLabel ? (
+          <div className={styles.reviewBadge} role="status" aria-label={result.reviewLabel}>
+            {result.reviewLabel}
+          </div>
+        ) : null}
 
         <div className={styles.identitySummary}>
           <strong>{attendance.staffName}</strong>
@@ -239,24 +262,20 @@ export function PublicScanResultView({
 
       <div className={styles.genericResultCopy}>
         <p className={styles.eyebrow}>{getResultEyebrow(result)}</p>
-        <h1>{resolution?.title ?? result.title}</h1>
-        <p>{resolution?.staffMessage ?? result.message}</p>
-        {resolution ? (
+        <h1>{isCapturedClosing ? result.title : (resolution?.title ?? result.title)}</h1>
+        <p>{isCapturedClosing ? result.message : (resolution?.staffMessage ?? result.message)}</p>
+        {isCapturedClosing && result.reviewLabel ? (
+          <div className={styles.reviewBadge} role="status" aria-label={result.reviewLabel}>
+            {result.reviewLabel}
+          </div>
+        ) : resolution ? (
           <div className="mt-4 grid gap-2 text-left text-sm">
             <strong>{resolution.attendanceChanged ? "Attendance was changed." : "No attendance change was made."}</strong>
             {resolution.recommendedSteps.map((step) => <span key={step}>{step}</span>)}
             {resolution.crmActionRequired ? <span>CRM has been notified.</span> : null}
           </div>
-        ) : result.detail ? <small>{result.detail}</small> : null}
+        ) : null}
       </div>
-
-      {result.operationId ? (
-        <details className="w-full rounded-xl border border-border/60 p-3 text-left text-xs text-muted-foreground">
-          <summary className="cursor-pointer font-semibold">Technical details</summary>
-          <div className="mt-2">Safe code: {resolution?.safeErrorCode ?? result.reasonCode ?? "unknown"}</div>
-          <div>Operation ID: {result.operationId}</div>
-        </details>
-      ) : null}
 
       {result.securityNote ? (
         <div className={styles.securityNote}>

@@ -9,6 +9,8 @@ export type AttendanceMetricInput = {
   checkedOutAt?: string | null;
   scheduledStartAt?: string | null;
   scheduledEndAt?: string | null;
+  earliestNormalClockOutAt?: string | null;
+  latestNormalClockOutAt?: string | null;
   lateGraceMinutes: number;
   earlyLeaveGraceMinutes: number;
 };
@@ -174,6 +176,12 @@ export function computeAttendanceMetrics(input: AttendanceMetricInput): Attendan
   const clockOut = new Date(end).getTime();
   const scheduledStart = input.scheduledStartAt ? new Date(input.scheduledStartAt).getTime() : NaN;
   const scheduledEnd = input.scheduledEndAt ? new Date(input.scheduledEndAt).getTime() : NaN;
+  const earliestNormalClockOut = input.earliestNormalClockOutAt
+    ? new Date(input.earliestNormalClockOutAt).getTime()
+    : NaN;
+  const latestNormalClockOut = input.latestNormalClockOutAt
+    ? new Date(input.latestNormalClockOutAt).getTime()
+    : NaN;
 
   const lateMinutes =
     Number.isFinite(scheduledStart) && clockIn > scheduledStart + input.lateGraceMinutes * 60000
@@ -181,14 +189,22 @@ export function computeAttendanceMetrics(input: AttendanceMetricInput): Attendan
       : 0;
 
   const earlyLeaveMinutes =
-    Number.isFinite(scheduledEnd) && clockOut < scheduledEnd - input.earlyLeaveGraceMinutes * 60000
-      ? Math.round((scheduledEnd - clockOut) / 60000)
-      : 0;
+    Number.isFinite(earliestNormalClockOut)
+      ? clockOut < earliestNormalClockOut
+        ? Math.round((earliestNormalClockOut - clockOut) / 60000)
+        : 0
+      : Number.isFinite(scheduledEnd) && clockOut < scheduledEnd - input.earlyLeaveGraceMinutes * 60000
+          ? Math.round((scheduledEnd - clockOut) / 60000)
+          : 0;
 
   const overtimeMinutes =
-    Number.isFinite(scheduledEnd) && clockOut > scheduledEnd
-      ? Math.round((clockOut - scheduledEnd) / 60000)
-      : 0;
+    Number.isFinite(latestNormalClockOut)
+      ? clockOut > latestNormalClockOut
+        ? Math.round((clockOut - latestNormalClockOut) / 60000)
+        : 0
+      : Number.isFinite(scheduledEnd) && clockOut > scheduledEnd
+          ? Math.round((clockOut - scheduledEnd) / 60000)
+          : 0;
 
   let attendanceStatus: AttendanceMetricResult["attendanceStatus"] = "present";
   if (lateMinutes > 0) attendanceStatus = "late";

@@ -33,7 +33,7 @@ function notificationPayload(input: CreateNotificationInput, dedupeKey: string) 
   };
 }
 
-export async function createOrUpdateNotification(input: CreateNotificationInput): Promise<void> {
+export async function createOrUpdateNotification(input: CreateNotificationInput): Promise<boolean> {
   const admin = createAdminClient();
   const dedupeKey = notificationDedupeKey(input);
   const payload = notificationPayload(input, dedupeKey);
@@ -46,17 +46,28 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
 
   if (existing.data) {
     const { error } = await admin.from("workspace_notifications").update(payload).eq("id", existing.data.id);
-    if (error) logError("notification.update_failed", { type: input.type, error });
-    return;
+    if (error) {
+      logError("notification.update_failed", { type: input.type, error });
+      return false;
+    }
+    return true;
   }
 
   const { error } = await admin.from("workspace_notifications").insert(payload);
-  if (!error) return;
+  if (!error) return true;
   if (isUniqueViolation(error)) {
-    await admin.from("workspace_notifications").update(payload).eq("dedupe_key", dedupeKey);
-    return;
+    const retry = await admin
+      .from("workspace_notifications")
+      .update(payload)
+      .eq("dedupe_key", dedupeKey);
+    if (retry.error) {
+      logError("notification.race_update_failed", { type: input.type, error: retry.error });
+      return false;
+    }
+    return true;
   }
   logError("notification.insert_failed", { type: input.type, error });
+  return false;
 }
 
 export async function markNotificationResolved(input: MarkNotificationResolvedInput): Promise<void> {

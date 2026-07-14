@@ -236,6 +236,27 @@
   font-variant-numeric: tabular-nums;
 }
 
+.successMessage {
+  margin: 13px auto 0;
+  max-width: 310px;
+  color: var(--scan-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.reviewBadge {
+  width: fit-content;
+  margin: 18px auto 0;
+  padding: 7px 11px;
+  border: 1px solid rgba(169, 120, 56, 0.28);
+  border-radius: 999px;
+  color: #76501f;
+  background: #fff4d8;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
 .identitySummary {
   margin-top: 24px;
   display: flex;

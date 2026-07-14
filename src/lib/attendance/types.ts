@@ -41,6 +41,13 @@ export type AttendanceSettings = {
   clock_out_window_after_shift_end_minutes: number;
   early_leave_threshold_minutes: number;
   overtime_threshold_minutes: number;
+  branch_operating_close_time: string;
+  crm_closing_policy_enabled: boolean;
+  crm_closing_buffer_minutes: number;
+  crm_manager_escalation_delay_minutes: number;
+  crm_hard_cutoff_delay_minutes: number;
+  closing_intervention_last_run_at: string | null;
+  closing_intervention_last_error: string | null;
   duplicate_scan_debounce_minutes: number;
   first_scan_closing_behavior:
     | "flag_for_recovery"
@@ -256,6 +263,14 @@ export type AttendanceRecord = {
   overtime_minutes: number;
   clock_in_method: string | null;
   clock_out_method: string | null;
+  attendance_expected_end_at: string | null;
+  earliest_normal_clock_out_at: string | null;
+  latest_normal_clock_out_at: string | null;
+  attendance_policy_source: "schedule" | "crm_closing";
+  attendance_policy_snapshot: Record<string, unknown>;
+  provisional_auto_closed_at: string | null;
+  clock_out_confirmation_required: boolean;
+  actual_clock_out_reconciled_at: string | null;
   source_label: string | null;
 };
 
@@ -407,6 +422,7 @@ export type PublicScanResult = {
   title: string;
   message: string;
   detail?: string;
+  reviewLabel?: string;
   securityNote?: string;
   scanEventId?: string;
   operationId?: string;
@@ -417,6 +433,7 @@ export type PublicScanResult = {
     action: "clock_in" | "clock_out";
     staffName: string;
     branchName: string;
+    branchTimezone: string;
     shiftLabel: string;
     occurredAt: string;
     sessionStartedAt: string;

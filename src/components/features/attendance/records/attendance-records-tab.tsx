@@ -62,6 +62,20 @@ function shiftLabel(record: AttendanceRecord): string {
 }
 
 function methodLabel(record: AttendanceRecord): string {
+  if (record.clock_out_method === "system_auto_close" && record.clock_out_confirmation_required) {
+    const timezone =
+      typeof record.attendance_policy_snapshot.timezone === "string"
+        ? record.attendance_policy_snapshot.timezone
+        : "Asia/Manila";
+    const clockTime = record.checked_out_at
+      ? new Intl.DateTimeFormat("en-US", {
+          timeZone: timezone,
+          hour: "numeric",
+          minute: "2-digit",
+        }).format(new Date(record.checked_out_at))
+      : "the policy time";
+    return `Auto-closed at ${clockTime} · Confirmation required`;
+  }
   return record.source_label ?? record.clock_in_method ?? record.clock_out_method ?? "QR / manual";
 }
 

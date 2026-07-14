@@ -1,4 +1,131 @@
-# Current Task - ATTENDANCE-FLUID-OPERATIONS-001
+# Current Task - ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001
+
+Status: COMPLETE LOCALLY — LIVE STAFF-CREDENTIAL DEVICE E2E PENDING
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Preserve the current secure one-scan device-registration continuation and add only
+the missing public Attendance behavior: ordinary outside-hours record-first
+clock-ins with atomic review evidence, deterministic branch-time personalized
+success copy, and a compact secondary review badge while green success remains
+primary. Genuine closing ambiguity remains capture-only and security failures
+remain blocked.
+
+## Guardrails
+
+- Do not alter CRM closing policy, Branch Attendance Rules, schedules, payroll,
+  reports, Recovery UI, scanner animation, Training Mode, branch corrections, QR
+  security, or the existing device-registration transaction/cookie model.
+- Keep the backend committed `PublicScanResult` authoritative and idempotent.
+- Reuse the existing scan transaction for raw event, official check-in, exception,
+  device timestamps, and committed result; no client-side split writes.
+- Use nickname/first-name/generic fallback, deterministic selection, and branch-
+  local time. Never use `Math.random()` for result copy.
+
+## Work order
+
+1. Trace intent resolution, secure device continuation, committed result contracts,
+   public result rendering, transaction RPC, exception mapping, and tests.
+2. Implement only confirmed gaps in intent, greeting/result copy, and review badge.
+3. Add focused regression coverage for record-first, device continuation, stable
+   greetings, captured ambiguity, backend copy, and badge mappings.
+4. Run focused/full type, lint, test, build, and rendered Browser-first checks.
+5. Update context, decision/error/handoff, project context, and roadmap honestly.
+
+## Completion
+
+- Confirmed and preserved the secure first-scan continuation: `unknown_device`
+  opens the sign-in form without leaking its technical result; valid staff sign-in
+  connects the phone, sets the existing secure credential, and continues the same
+  original scan with `nextScanRequired: false`.
+- Ordinary first scans outside both normal windows now create the real clock-in and
+  an open `ambiguous_scan` review exception through the existing authoritative scan
+  transaction. A sole open row still clocks out, closing ambiguity remains
+  capture-only, and security/identity failures remain blocked.
+- Added deterministic nickname-first, branch-time-aware greetings committed in the
+  backend result, backend-authoritative public copy, a compact amber review label,
+  and the calm captured-closing state. The green success card remains primary.
+- Staff-facing card date/time now uses the server-provided branch timezone rather
+  than the browser or a fixed Manila-only display source.
+- Verification passes: `pnpm type-check`; focused ESLint; 7 focused files / 70
+  tests; full `pnpm test --run` at 130 files / 956 tests; and the Next.js 16.2.4
+  production build with 110 static pages. Full `pnpm lint` exits 0 with one
+  unrelated existing unused-function warning in
+  `attendance-correction-service.ts`.
+- Browser verification reached the authenticated CRM Attendance QR detail and the
+  public invalid-QR blocked state with no console errors. No real staff credentials
+  were entered and no live Attendance mutation was created, so physical/valid-phone
+  credential E2E remains pending.
+
+---
+
+# Previous Task - ATTENDANCE-CRM-CLOSING-POLICY-001
+
+Status: COMPLETE LOCALLY — MIGRATION APPLY, SCHEDULER OBSERVATION, AND AUTHENTICATED QA PENDING
+Started: 2026-07-14
+Last updated: 2026-07-14
+
+## Mission
+
+Integrate branch-specific Attendance Rules into the existing Owner branch-detail
+module and connect a structured, effective-dated CRM closing policy to the current
+Attendance resolver, scan/correction path, notification/task system, audit model,
+and existing scheduler infrastructure. Preserve raw schedule history and QR evidence;
+CRM closing Attendance uses the branch physical close through close-plus-buffer,
+with idempotent reminder, escalation, provisional auto-close, and real-scan
+reconciliation.
+
+## Guardrails
+
+- Extend `attendance_settings` and existing Attendance records; do not create a
+  second settings page, Attendance engine, result table, notification system, or
+  scheduler.
+- Keep `staff_shift_checkins` official, `qr_scan_events` immutable, and
+  `attendance_exceptions` / `attendance_corrections` authoritative for review/audit.
+- Apply the special closing window only to normalized CRM/front-desk staff on a
+  resolved `closing` shift; all other categories and shift types remain schedule-based.
+- Use structured branch-local times, effective dates, historical policy snapshots,
+  owner/server-side branch authorization, additive RLS-protected migration SQL, and
+  deterministic intervention dedupe keys.
+- Do not blind-push migrations while linked migration history remains unreconciled.
+
+## Work order
+
+1. Trace the owner Branches form/actions, Attendance settings/scan/metrics/snapshots,
+   role and shift normalization, notifications/tasks, scheduler, audit, RLS, and tests.
+2. Add the focused schema, policy resolver, classification, intervention transaction,
+   and late-real-scan reconciliation with tests.
+3. Integrate the compact Attendance Rules component and secure owner mutations into
+   the existing selected-branch page.
+4. Regenerate local types, run focused/full checks, and distinguish source, database,
+   scheduler, and authenticated browser verification.
+5. Update project context, decisions, errors, changelog, roadmap, and handoff.
+
+## Completion
+
+- Added the selected-branch Attendance Rules card, effective-dated branch and
+  category rule writes/history, the structured CRM closing window, immutable
+  per-check-in policy snapshots, transactional intervention/reconciliation RPCs,
+  and the existing notification/task worker route on the existing Vercel cron.
+- Preserved raw schedules and QR evidence. A system provisional close uses
+  `system_auto_close`, leaves `clock_out_scan_event_id` null, opens the existing
+  missing-clock-out review path, and a later real QR scan reconciles the same row.
+- Local types were reconciled for the additive migration. Linked type generation
+  and database/RPC verification are intentionally deferred until pending migration
+  history is reconciled and migrations `20260714143000` and `20260714180000` are
+  applied in order.
+- Authenticated Owner visual QA remains pending because the available browser
+  session redirects the protected route to `/login`.
+- Verification passes locally: type-check; ESLint exit 0 (one pre-existing warning);
+  4 focused files / 62 tests; 127 full files / 921 tests; Next.js production build
+  with 110 static pages; and diff check. Linked DB verification intentionally fails
+  the three unapplied new tables, proving deployment is still gated.
+
+---
+
+# Previous Task - ATTENDANCE-FLUID-OPERATIONS-001
 
 Status: COMPLETE LOCALLY — MIGRATION APPLY AND AUTHENTICATED DEVICE QA PENDING
 Started: 2026-07-14

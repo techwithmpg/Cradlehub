@@ -83,6 +83,15 @@ root/
 
 ## Recent Operational Context
 
+- 2026-07-14 CRM closing Attendance policy: Owner selected-branch details now
+  include structured, effective-dated Attendance Rules and category inheritance.
+  CRM/front-desk Closing shifts snapshot a branch-close-to-buffer window (default
+  10:30–11:00 PM), remind at 11:00 PM, escalate at 11:30 PM, and provisionally
+  close at 11:00 PM when still open at midnight. Provisional closes never create
+  fake QR evidence; a later real QR scan reconciles the same record. Migration
+  `20260714180000` and its `20260714143000` prerequisite remain unapplied pending
+  migration-history reconciliation, so scheduler/live DB/authenticated QA are not
+  production-certified.
 - 2026-07-14 CRM Bookings desktop redesign: the CRM-only desktop route now uses
   a two-pane selected-date list and selected-booking command center with compact
   quick/exact filters, preserved legacy links, existing lifecycle/action/modal
@@ -587,3 +596,19 @@ pnpm ui:add [component]     # Add shadcn/ui component
 - Full suite passes at 123 files / 859 tests; type-check and lint pass. Migration
   apply and authenticated physical-device E2E remain gated by migration-history
   reconciliation.
+
+## Latest Agent Update (2026-07-15 - Attendance Scan Results and Record First)
+
+- Completed `ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001` without adding a new
+  scanner, device system, or closing policy.
+- Ordinary valid first scans outside normal windows now create Attendance and an
+  atomic review exception; likely forgotten closing scans remain captured without
+  fabricated clock-ins, while QR/device/staff security failures remain blocked.
+- The secure unregistered-phone continuation still connects the phone and completes
+  the same scan with `nextScanRequired: false`.
+- Backend-committed, deterministic nickname-first greetings use branch-local time;
+  public success remains green with an optional compact amber review label, and
+  public results no longer expose operation/security implementation details.
+- Local verification passes: type-check, focused lint, 7 files / 70 focused tests,
+  130 files / 956 full tests, and the Next.js production build. Valid-phone live E2E
+  still needs an approved staff test credential and physical/clean browser profile.

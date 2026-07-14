@@ -52,6 +52,14 @@ type CheckinRow = {
   late_minutes: number | null;
   early_leave_minutes: number | null;
   overtime_minutes: number | null;
+  attendance_expected_end_at: string | null;
+  earliest_normal_clock_out_at: string | null;
+  latest_normal_clock_out_at: string | null;
+  attendance_policy_source: "schedule" | "crm_closing";
+  attendance_policy_snapshot: Record<string, unknown> | null;
+  provisional_auto_closed_at: string | null;
+  clock_out_confirmation_required: boolean;
+  actual_clock_out_reconciled_at: string | null;
 };
 
 function formatTime(value: string): string {
@@ -120,7 +128,7 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
   const [checkinsResult, exceptionsResult, sessionsResult, schedules] = await Promise.all([
     supabase
       .from("staff_shift_checkins")
-      .select("id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes")
+      .select("id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at")
       .eq("staff_id", staff.id)
       .eq("is_test", false)
       .gte("shift_date", historyStart)
@@ -185,6 +193,14 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
     overtime_minutes: row.overtime_minutes ?? 0,
     clock_in_method: null,
     clock_out_method: null,
+    attendance_expected_end_at: row.attendance_expected_end_at,
+    earliest_normal_clock_out_at: row.earliest_normal_clock_out_at,
+    latest_normal_clock_out_at: row.latest_normal_clock_out_at,
+    attendance_policy_source: row.attendance_policy_source,
+    attendance_policy_snapshot: row.attendance_policy_snapshot ?? {},
+    provisional_auto_closed_at: row.provisional_auto_closed_at,
+    clock_out_confirmation_required: row.clock_out_confirmation_required,
+    actual_clock_out_reconciled_at: row.actual_clock_out_reconciled_at,
     source_label: null,
   }));
   const todayState = resolveAttendanceDayStaffStates({

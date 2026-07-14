@@ -39,8 +39,11 @@ export function PublicScanLoginForm({
 
       <div className={styles.loginHeading}>
         <p className={styles.eyebrow}>Staff attendance</p>
-        <h1>Sign in</h1>
-        <p>Use your staff account to continue.</p>
+        <h1>Sign in to continue</h1>
+        <p>
+          This phone is not connected yet. Sign in with your staff account to connect it and
+          continue your attendance scan.
+        </p>
       </div>
 
       <form className={styles.loginForm} onSubmit={handleSubmit}>
@@ -96,10 +99,10 @@ export function PublicScanLoginForm({
           {pending ? (
             <>
               <Loader2 size={17} className={styles.loginSpinner} aria-hidden="true" />
-              Signing in...
+              Connecting phone…
             </>
           ) : (
-            "Sign in"
+            "Connect phone and continue"
           )}
         </button>
       </form>

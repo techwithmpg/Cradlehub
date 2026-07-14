@@ -720,6 +720,24 @@ export async function updateAttendanceRules(params: {
     }
   }
 
+  const nextSettings = { ...previous, ...rules, branch_id: params.ctx.branchId };
+  const versionResult = await admin
+    .rpc("save_attendance_branch_rule_version", {
+      p_branch_id: params.ctx.branchId,
+      p_actor_staff_id: params.ctx.actorStaffId as string,
+      p_effective_from: new Date().toISOString(),
+      p_rule_values: toJson(nextSettings),
+      p_reason: reason || "Attendance rules updated from Recovery.",
+    })
+    .maybeSingle();
+  if (versionResult.error || !versionResult.data?.success) {
+    throw new Error(
+      versionResult.data?.message ??
+        versionResult.error?.message ??
+        "Attendance rule history could not be saved."
+    );
+  }
+
   const { data, error } = await admin
     .from("attendance_settings")
     .update({

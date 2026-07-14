@@ -28,6 +28,13 @@ const settings: AttendanceSettings = {
   clock_out_window_after_shift_end_minutes: 120,
   early_leave_threshold_minutes: 5,
   overtime_threshold_minutes: 15,
+  branch_operating_close_time: "22:30:00",
+  crm_closing_policy_enabled: true,
+  crm_closing_buffer_minutes: 30,
+  crm_manager_escalation_delay_minutes: 30,
+  crm_hard_cutoff_delay_minutes: 60,
+  closing_intervention_last_run_at: null,
+  closing_intervention_last_error: null,
   duplicate_scan_debounce_minutes: 3,
   first_scan_closing_behavior: "flag_for_recovery",
   missing_schedule_behavior: "flag_for_recovery",
@@ -96,6 +103,22 @@ describe("resolveAttendanceScanIntent", () => {
     );
     expect(intent.type).toBe("clock_out");
     expect(intent.action).toBe("clock_out");
+  });
+
+  it("closes the sole open record even when the scan is outside ordinary windows", () => {
+    const intent = resolveAttendanceScanIntent(
+      input({
+        scanIso: "2026-07-10T05:00:00.000Z",
+        scanTime: "13:00:00",
+        activeCheckin: {
+          checkedInAt: "2026-07-10T01:00:00.000Z",
+          scheduledStartAt: "2026-07-10T01:00:00.000Z",
+          scheduledEndAt: "2026-07-10T10:00:00.000Z",
+        },
+      })
+    );
+    expect(intent.action).toBe("clock_out");
+    expect(intent.shouldWriteAttendance).toBe(true);
   });
 
   it("keeps overnight active check-out after midnight as clock-out", () => {
@@ -215,7 +238,7 @@ describe("resolveAttendanceScanIntent", () => {
     );
     expect(intent.type).toBe("likely_closing_scan_without_clock_in");
     expect(intent.shouldWriteAttendance).toBe(false);
-    expect(intent.title).toBe("Scan captured for review");
+    expect(intent.title).toBe("Scan captured");
   });
 
   it("ignores legacy launch-only behavior for closing scans", () => {
@@ -230,13 +253,16 @@ describe("resolveAttendanceScanIntent", () => {
     );
     expect(intent.type).toBe("likely_closing_scan_without_clock_in");
     expect(intent.shouldWriteAttendance).toBe(false);
-    expect(intent.message).toContain("no earlier clock-in exists");
+    expect(intent.message).toContain("front desk will confirm");
   });
 
   it("records ordinary scans outside all windows and flags them", () => {
     const intent = resolveAttendanceScanIntent(input({ scanTime: "13:00:00" }));
-    expect(intent.type).toBe("outside_schedule_window");
+    expect(intent.type).toBe("ambiguous_scan");
+    expect(intent.action).toBe("clock_in");
     expect(intent.shouldWriteAttendance).toBe(true);
+    expect(intent.requiresRecovery).toBe(true);
+    expect(intent.severity).toBe("warning");
   });
 });
 

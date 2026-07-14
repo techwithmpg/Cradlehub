@@ -32,7 +32,12 @@ function record(overrides: Partial<AttendanceRecord> = {}): AttendanceRecord {
     scheduled_end_at: "2026-07-14T10:00:00.000Z", checked_in_at: "2026-07-14T01:00:00.000Z",
     checked_out_at: null, status: "checked_in", attendance_status: "present", exception_state: null,
     worked_minutes: 0, late_minutes: 0, early_leave_minutes: 0, overtime_minutes: 0,
-    clock_in_method: "qr", clock_out_method: null, source_label: "Attendance", ...overrides,
+    clock_in_method: "qr", clock_out_method: null,
+    attendance_expected_end_at: "2026-07-14T10:00:00.000Z",
+    earliest_normal_clock_out_at: null, latest_normal_clock_out_at: null,
+    attendance_policy_source: "schedule", attendance_policy_snapshot: {},
+    provisional_auto_closed_at: null, clock_out_confirmation_required: false,
+    actual_clock_out_reconciled_at: null, source_label: "Attendance", ...overrides,
   };
 }
 

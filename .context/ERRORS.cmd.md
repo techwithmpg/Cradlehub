@@ -1078,3 +1078,49 @@
 - **Recovery:** Reconcile history from a healthy authoritative connection, apply
   the focused migration transactionally, reload PostgREST, regenerate types, and
   verify RLS, grants, triggers, resolver order, concurrency, and rollback behavior.
+
+## 2026-07-14 - CRM closing policy deployment verification deferred
+
+- **Symptom:** The new branch rules, policy snapshot, intervention, and
+  reconciliation contracts exist locally but are absent from the linked database.
+- **Cause:** `20260714180000_attendance_crm_closing_policy.sql` builds on pending
+  `20260714143000_attendance_fluid_operations.sql`, while linked migration history
+  remains unreconciled and the project explicitly forbids a blind broad push.
+- **Impact:** Source/unit/integration/build verification can complete, but live DB
+  functions, generated-from-live types, worker execution, and end-to-end auto-close
+  cannot be certified or deployed yet.
+- **Recovery:** Reconcile history, apply both migrations in order through an
+  approved transactional path, reload PostgREST, regenerate types, verify RPC/RLS
+  and concurrency/idempotency probes, then observe the configured Vercel cron.
+- **Evidence:** `pnpm db:verify` reaches linked SQL and all prior Attendance tables,
+  then correctly fails `attendance_rule_versions`,
+  `attendance_staff_category_rules`, and `attendance_closing_interventions` as
+  absent from PostgREST. `pnpm db:status` sees 108 local migrations but the linked
+  migration-history read times out on port 5432.
+
+- **Symptom:** The in-app browser redirects Owner branch routes to `/login`.
+- **Impact:** The card has component/static verification, but protected desktop and
+  mobile visual/operator flows are not authenticated-browser certified.
+- **Recovery:** Repeat QA with an approved Owner test session; do not submit saved
+  credentials without explicit user authorization.
+
+## 2026-07-15 - Public Attendance success time ignored non-Manila branch timezone
+
+- **Symptom:** The backend greeting used the resolved branch-local time, but the
+  large date/time on the public success card always formatted in `Asia/Manila`.
+- **Impact:** A branch configured in another timezone could show a committed
+  greeting and card timestamp that disagreed.
+- **Resolution:** The committed Attendance result now carries the authoritative
+  branch timezone and the existing formatter receives it for the displayed date,
+  event time, and session-start time. A non-Manila regression test covers this.
+
+## 2026-07-15 - Valid-phone Attendance browser certification remains pending
+
+- **Symptom:** The available browser session could reach authenticated CRM
+  Attendance QR management and the public invalid-QR state, but no approved staff
+  credentials were supplied for the real phone-link/Attendance mutation.
+- **Impact:** Source, component, transaction-contract, full-suite, type, lint, and
+  build verification pass, but a physical valid-phone one-scan write is not claimed.
+- **Resolution:** With a safe staff test account, scan the active QR from a clean
+  phone profile, sign in once, and confirm one final Attendance action with no
+  second scan; also repeat invalid-login and revoked-device checks against test data.

@@ -275,12 +275,13 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           onRequestBranchCorrection={handleBranchCorrectionRequest}
           onTryAnotherAccount={handleTryAnotherAccount}
         />
-      ) : stage === "sign_in_required" && mode === "scan" ? (
+      ) : (stage === "sign_in_required" || stage === "signing_in") && mode === "scan" ? (
         <PublicScanLoginForm
           email={loginCredentials.email}
           password={loginCredentials.password}
           error={loginError}
           fieldErrors={loginFieldErrors}
+          pending={stage === "signing_in"}
           onEmailChange={(email) => setLoginCredentials((current) => ({ ...current, email }))}
           onPasswordChange={(password) => setLoginCredentials((current) => ({ ...current, password }))}
           onSubmit={handleFirstTimeSignIn}

@@ -986,3 +986,44 @@ raw credentials or introducing a second device registry.
 decide record-first outcomes. Effective branch authority comes from date assignment,
 schedule assignment, approved cross-branch permission, then home branch; device
 branch is last-used metadata only. Raw scan rows are never edited by correction work.
+
+## 2026-07-14 - CRM closing attendance follows branch operational closing policy
+
+**Status:** ACCEPTED
+
+**Decision:**
+
+- CRM/front-desk Attendance on a resolved Closing shift does not use the artificial
+  1:30 AM assigned schedule end for clock-out classification.
+- It uses the branch physical close through close-plus-buffer: before branch close
+  is early, branch close through the inclusive buffer is normal, and after the
+  buffer is overtime.
+- Forgotten clock-outs are provisionally auto-closed at the latest normal time,
+  flagged for missing-clock-out review, and never represented as a physical scan.
+- A later real physical QR scan remains authoritative and transactionally replaces
+  the provisional value on the same Attendance row while retaining the correction
+  audit trail.
+- Rules are branch-specific, effective-dated, and snapshotted on each Attendance
+  record. Other staff categories and non-Closing shifts remain schedule-based.
+
+**Consequences:** Raw `scheduled_start_at` / `scheduled_end_at` and immutable
+`qr_scan_events` remain evidence. The shared resolver, record snapshot, worker,
+reports, and reconciliation path use the same policy boundaries rather than
+recalculating historical Attendance from current settings.
+
+## 2026-07-15 - Clear outside-hours Attendance intent is recorded and flagged
+
+**Status:** ACCEPTED
+
+**Decision:** Valid timing anomalies do not discard Attendance. An ordinary valid
+first scan outside the configured windows creates the clock-in and an open review
+exception in the existing atomic scan transaction. A genuinely closing-looking
+first scan is captured for CRM review without inventing Attendance. Security and
+identity failures remain blocked.
+
+The existing unregistered-phone flow securely connects the phone and continues the
+same original scan without requiring a second QR scan. Successful staff results
+remain green, with any review reason shown as a compact secondary amber badge.
+Personalized greetings are selected deterministically on the server from stable
+scan inputs, prefer the staff nickname, use branch-local time, and are stored in the
+committed result so retries return identical copy.

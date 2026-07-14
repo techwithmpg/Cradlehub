@@ -45,7 +45,10 @@ export type NotificationType =
   | "attendance_device_registration_completed"
   | "attendance_issue_question"
   | "attendance_issue_response"
-  | "attendance_issue_resolved";
+  | "attendance_issue_resolved"
+  | "attendance_clock_out_reminder"
+  | "attendance_closing_escalation"
+  | "attendance_provisional_auto_close";
 
 export type NotificationWorkspace =
   | "owner"

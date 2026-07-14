@@ -208,6 +208,7 @@ function revalidatePublicScanResult(result: PublicScanResult): void {
 }
 
 function toPublicResult(result: PublicScanResult): PublicScanResult {
+  const resolution = result.resolution ?? withAttendanceScanResolution(result).resolution;
   return {
     ok: result.ok,
     outcome: result.outcome,
@@ -216,6 +217,7 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     title: result.title,
     message: result.message,
     detail: result.detail,
+    reviewLabel: result.reviewLabel,
     securityNote: result.securityNote,
     scanEventId: result.scanEventId,
     operationId: result.operationId,
@@ -224,6 +226,7 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     attendance: result.attendance,
     countdown: result.countdown,
     branchCorrection: result.branchCorrection,
+    resolution,
   };
 }
 

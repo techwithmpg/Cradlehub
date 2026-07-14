@@ -9,6 +9,8 @@ import { BranchEditForm } from "./branch-edit-form";
 import { BranchBookingRulesForm } from "./branch-booking-rules-form";
 import { BranchResourcesManager } from "./branch-resources-manager";
 import { BranchServicesPanel } from "./branch-services-panel";
+import { BranchAttendanceRulesCard } from "./branch-attendance-rules-card";
+import { getBranchAttendanceRulesData } from "@/lib/attendance/branch-attendance-rules";
 import type { GlobalService } from "./branch-services-panel";
 import type { Database } from "@/types/supabase";
 
@@ -68,10 +70,11 @@ export default async function BranchDetailPage({
     return (data ?? []) as GlobalService[];
   }
 
-  const [result, bookingRules, allServices] = await Promise.all([
+  const [result, bookingRules, allServices, attendanceRules] = await Promise.all([
     getBranchDetailAction(branchId),
     getBranchBookingRulesOrDefault(branchId),
     getAllActiveServices(),
+    getBranchAttendanceRulesData(branchId),
   ]);
 
   if ("error" in result || !isBranchDetailPayload(result)) {
@@ -86,7 +89,9 @@ export default async function BranchDetailPage({
     <div>
       <PageHeader title={branch.name} description={branch.address} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+      <BranchAttendanceRulesCard branchId={branch.id} data={attendanceRules} />
+
+      <div className="grid gap-6 xl:grid-cols-2">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
           <BranchEditForm branch={branch} />
           <BranchBookingRulesForm rules={bookingRules} />

@@ -78,6 +78,48 @@ function technicalRule(code: string): Rule {
   return { category: "technical", title: "Attendance could not be saved", staffMessage: "Your attempt was recorded for review. Do not keep scanning repeatedly.", crmSummary: permission ? "Attendance permission policy denied the operation." : schema ? "Attendance database contract does not match the application." : "Attendance processing failed before a change could be confirmed.", whatHappened: "The Attendance operation did not complete safely.", whyProtected: "No Attendance change was confirmed; technical details are restricted to authorized support staff.", recommendedSteps: ["Wait for CRM or technical support to confirm the result."], resolutionOwner: "technical_support", staffActionRequired: false, crmActionRequired: true, technicalSupportRequired: true, canRetry: false, retryLabel: null, incidentRequired: true, severity: "critical", suggestedActions: ["view_technical_details", "retry_safe_processing", "escalate_technical_support", "notify_staff", "mark_blocked_pending_deployment"] };
 }
 
+function successfulReviewRule(result: PublicScanResult): Rule {
+  return {
+    category: "schedule",
+    title: result.title,
+    staffMessage: result.message,
+    crmSummary: "Attendance was recorded and flagged for review.",
+    whatHappened: result.message,
+    whyProtected: "The real scan time was recorded while the timing exception was kept for CRM review.",
+    recommendedSteps: [],
+    resolutionOwner: "crm",
+    staffActionRequired: false,
+    crmActionRequired: true,
+    technicalSupportRequired: false,
+    canRetry: false,
+    retryLabel: null,
+    incidentRequired: true,
+    severity: "warning",
+    suggestedActions: ["review_scan"],
+  };
+}
+
+function capturedClosingRule(result: PublicScanResult): Rule {
+  return {
+    category: "attendance_state",
+    title: result.title,
+    staffMessage: result.message,
+    crmSummary: "A likely closing scan was captured without fabricating a clock-in.",
+    whatHappened: result.message,
+    whyProtected: "The raw scan is available for CRM to confirm against today’s attendance.",
+    recommendedSteps: [],
+    resolutionOwner: "crm",
+    staffActionRequired: false,
+    crmActionRequired: true,
+    technicalSupportRequired: false,
+    canRetry: false,
+    retryLabel: null,
+    incidentRequired: true,
+    severity: "warning",
+    suggestedActions: ["review_scan"],
+  };
+}
+
 export function classifyAttendanceScanResult(result: PublicScanResult): AttendanceScanResolution {
   const raw = result.reasonCode ?? (result.ok ? "attendance_changed" : "unknown_safe_failure");
   const safeErrorCode = aliases[raw] ?? aliases[raw.toUpperCase()] ?? raw.toLowerCase();
@@ -88,14 +130,18 @@ export function classifyAttendanceScanResult(result: PublicScanResult): Attendan
       : ["early_clock_in_review", "late_clock_out_review", "ambiguous_scan", "stale_open_attendance"].includes(safeErrorCode)
         ? rules.outside_schedule_window
         : undefined;
-  const rule = rules[safeErrorCode] ?? familyRule ?? (!result.ok ? technicalRule(raw.toUpperCase()) : {
+  const rule = result.ok && Boolean(result.attendance) && Boolean(result.reviewLabel)
+    ? successfulReviewRule(result)
+    : result.ok && safeErrorCode === "likely_closing_scan_without_clock_in"
+      ? capturedClosingRule(result)
+      : rules[safeErrorCode] ?? familyRule ?? (!result.ok ? technicalRule(raw.toUpperCase()) : {
     category: "attendance_state" as const, title: result.title, staffMessage: result.message,
     crmSummary: "Attendance operation completed.", whatHappened: result.message,
     whyProtected: "The committed Attendance result is authoritative.", recommendedSteps: [],
     resolutionOwner: "automatic" as const, staffActionRequired: false, crmActionRequired: false,
     technicalSupportRequired: false, canRetry: false, retryLabel: null, incidentRequired: false,
     severity: "info" as const, suggestedActions: [],
-  });
+      });
   return { ...rule, safeErrorCode, title: rule.title, staffMessage: rule.staffMessage,
     attendanceChanged: Boolean(result.attendance), operationId: result.operationId };
 }

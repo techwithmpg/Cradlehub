@@ -1,10 +1,51 @@
 # Attendance Operations Runbook
 
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 
 This runbook describes the current Attendance operating model after `ATTENDANCE-AUTONOMY-HARDENING-001`.
 
 Important status: Attendance is locally hardened and the main transactional scan/reset pieces are now present, but it is not production-closed until Supabase migration history is reconciled, remaining correction workflows are transactional, account-claim/challenge/reconciliation/canonical-host work is finished, and authenticated CRM/Owner plus real-phone QA are completed.
+
+## CRM Closing Attendance Policy
+
+For staff normalized to CRM/front desk (`crm`, legacy `csr` aliases, or
+`staff_type=csr`) on a resolved Closing shift, Attendance uses the structured
+branch operational close rather than the raw assigned schedule end. Defaults are:
+
+- Physical close / earliest normal clock-out: 10:30 PM.
+- Latest normal clock-out and staff reminder: 11:00 PM.
+- Manager escalation: 11:30 PM.
+- Hard cutoff: midnight.
+- Provisional clock-out value at hard cutoff: 11:00 PM.
+
+Before physical close is early; physical close through latest normal inclusive is
+normal; later real scans are overtime. Raw schedule timestamps, including legacy
+1:30 AM Closing ends, remain unchanged as scheduling evidence.
+
+The five-minute Vercel cron calls
+`/api/attendance/closing-interventions` with the existing `CRON_SECRET` convention.
+The database processor locks eligible rows and writes stable intervention stages;
+the server worker delivers through existing workspace notifications/tasks. Do not
+label the scheduler active merely because `vercel.json` contains the cron. Confirm
+`closing_intervention_last_run_at`, a clear last error, and platform cron execution.
+
+At hard cutoff, `system_auto_close` writes the latest normal time, sets confirmation
+required, leaves `clock_out_scan_event_id` null, creates the existing missing-
+clock-out exception/correction evidence, and emits manager review work. A later
+real QR scan before the safe business-day limit reconciles that same row through
+`reconcile_provisional_attendance_clock_out`; it must not create a new clock-in.
+Multiple candidates or unsafe timing preserve scan evidence and go to review.
+
+Deployment order:
+
+1. Reconcile Supabase migration history; do not blind-push.
+2. Apply `20260714143000_attendance_fluid_operations.sql`.
+3. Apply `20260714180000_attendance_crm_closing_policy.sql`.
+4. Reload PostgREST and regenerate Supabase types from the resulting live schema.
+5. Verify service-role-only mutation RPCs, authenticated branch reads, staff write
+   denial, row locks, retry dedupe, no fake QR row, and rollback behavior.
+6. Deploy the route/cron, observe a successful worker run, then run authenticated
+   Owner and physical-phone CRM QA.
 
 ## Authoritative Flow
 
@@ -265,6 +306,8 @@ Attendance migrations from this hardening sequence that must be reconciled:
 - `supabase/migrations/20260712035222_attendance_autonomy_hardening.sql`
 - `supabase/migrations/20260712044527_attendance_transactional_scan_rpc.sql`
 - `supabase/migrations/20260712045429_attendance_transactional_corrections_rpc.sql`
+- `supabase/migrations/20260714143000_attendance_fluid_operations.sql`
+- `supabase/migrations/20260714180000_attendance_crm_closing_policy.sql`
 
 Live linked-schema checks from this continuation:
 

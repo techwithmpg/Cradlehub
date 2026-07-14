@@ -20,6 +20,18 @@
 
 ## Current Delivery Notes
 
+- ✅ `ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001` completed locally on
+  2026-07-15: ordinary valid outside-hours first scans now record and flag,
+  first-closing ambiguity stays capture-only, one-scan secure phone registration
+  is preserved, and committed branch-time personalized success copy uses a
+  secondary review badge. Valid-phone physical E2E remains pending.
+- ✅ `ATTENDANCE-CRM-CLOSING-POLICY-001` completed locally on 2026-07-14:
+  Owner branch details now host the effective-dated Attendance Rules UI; CRM
+  Closing shifts use a historically snapshotted branch operational window, and
+  idempotent reminder/escalation/provisional-close plus late real-QR reconciliation
+  extend the existing Attendance/notification/review systems. Live migration,
+  observed scheduler execution, and authenticated Owner/phone QA remain gated by
+  migration-history reconciliation.
 - ✅ `CRADLE-SCHEDULE-LEFTOVER-CLEANUP-008` completed on 2026-07-13:
   leftover legacy warnings now require authoritative contracts. Dante/Boy's
   real invalid 20-hour schedule window surfaces with exact issue code/source
@@ -226,3 +238,5 @@
 | 2026-07-13 | Completed local CRADLE-ADJUST-SCHEDULE-MODAL-003 | Add reusable Adjust Schedule modal from Daily Timeline Quick Actions and selected-staff card, preserve Daily Timeline UI and individual schedule authority, add role-aware split/overnight weekly editing and focused verification | Codex |
 | 2026-07-13 | Completed CRADLE-SCHEDULE-UPDATE-INTEGRATION-REPAIR-006 | Repair live CRM schedule save failure by applying ordered-window staff_schedules RPC/constraint migration, structured save errors, stale inactive cleanup, and focused/live verification; migration-history pooler path remains blocked | Codex |
 | 2026-07-14 | Completed local ATTENDANCE-FLUID-OPERATIONS-001 | Make Attendance record-first with sole-open close semantics, effective branch authority, shared operational status, atomic audited review corrections, device lifecycle audit, and exactly three reports; migration apply/authenticated E2E pending | Codex |
+| 2026-07-14 | Completed local ATTENDANCE-CRM-CLOSING-POLICY-001 | Integrate selected-branch Attendance Rules, effective category policy, CRM Closing operational windows, idempotent interventions, provisional auto-close, and same-row real-QR reconciliation; migration/scheduler/authenticated QA pending | Codex |
+| 2026-07-15 | Completed local ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001 | Record ordinary outside-hours scans with review, preserve one-scan secure phone registration, and add committed branch-local personalized success copy with a secondary review badge | Codex |

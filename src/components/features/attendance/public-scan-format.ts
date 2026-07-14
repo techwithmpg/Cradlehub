@@ -1,6 +1,6 @@
-const ATTENDANCE_TIME_ZONE = "Asia/Manila";
+const DEFAULT_ATTENDANCE_TIME_ZONE = "Asia/Manila";
 
-export function formatAttendanceTime(value?: string): string {
+export function formatAttendanceTime(value?: string, timeZone = DEFAULT_ATTENDANCE_TIME_ZONE): string {
   if (!value) return "--:--";
 
   const date = new Date(value);
@@ -10,11 +10,11 @@ export function formatAttendanceTime(value?: string): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: ATTENDANCE_TIME_ZONE,
+    timeZone,
   }).format(date);
 }
 
-export function formatAttendanceDate(value?: string): string {
+export function formatAttendanceDate(value?: string, timeZone = DEFAULT_ATTENDANCE_TIME_ZONE): string {
   if (!value) return "Today";
 
   const date = new Date(value);
@@ -24,7 +24,7 @@ export function formatAttendanceDate(value?: string): string {
     weekday: "long",
     month: "short",
     day: "numeric",
-    timeZone: ATTENDANCE_TIME_ZONE,
+    timeZone,
   }).format(date);
 }
 

@@ -60,6 +60,13 @@ const DEFAULT_SETTINGS: Omit<AttendanceSettings, "branch_id"> = {
   clock_out_window_after_shift_end_minutes: 120,
   early_leave_threshold_minutes: 5,
   overtime_threshold_minutes: 15,
+  branch_operating_close_time: "22:30:00",
+  crm_closing_policy_enabled: true,
+  crm_closing_buffer_minutes: 30,
+  crm_manager_escalation_delay_minutes: 30,
+  crm_hard_cutoff_delay_minutes: 60,
+  closing_intervention_last_run_at: null,
+  closing_intervention_last_error: null,
   duplicate_scan_debounce_minutes: 3,
   first_scan_closing_behavior: "flag_for_recovery",
   missing_schedule_behavior: "flag_for_recovery",
@@ -253,7 +260,28 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
     });
   }
 
-  if (data) return normalizeAttendanceSettings(data, branchId);
+  if (data) {
+    const effectiveVersion = await admin
+      .from("attendance_rule_versions")
+      .select("rule_values")
+      .eq("branch_id", branchId)
+      .lte("effective_from", new Date().toISOString())
+      .order("effective_from", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (effectiveVersion.error) {
+      throw createAttendanceDataError({
+        error: effectiveVersion.error,
+        fallback: "ATTENDANCE_TRANSACTION_FAILED",
+        stage: "get_effective_attendance_rule_version",
+        details: { branchId },
+      });
+    }
+    return normalizeAttendanceSettings(
+      { ...data, ...safeJsonRecord(effectiveVersion.data?.rule_values) },
+      branchId
+    );
+  }
 
   await requireBranch(admin, branchId);
   const fallback = { branch_id: branchId, ...DEFAULT_SETTINGS };
@@ -537,7 +565,7 @@ export async function getAttendanceWorkspaceData(params: {
       fetchPage: (from, to) => admin
         .from("staff_shift_checkins")
         .select(
-          "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
+          "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
         )
         .eq("branch_id", params.branchId)
         .eq("is_test", false)
@@ -838,6 +866,14 @@ function mapRecord(row: unknown): AttendanceRecord {
     overtime_minutes?: number | null;
     clock_in_method?: string | null;
     clock_out_method?: string | null;
+    attendance_expected_end_at?: string | null;
+    earliest_normal_clock_out_at?: string | null;
+    latest_normal_clock_out_at?: string | null;
+    attendance_policy_source?: "schedule" | "crm_closing" | null;
+    attendance_policy_snapshot?: unknown;
+    provisional_auto_closed_at?: string | null;
+    clock_out_confirmation_required?: boolean | null;
+    actual_clock_out_reconciled_at?: string | null;
     staff?: Relation<{ id: string; full_name: string | null; nickname?: string | null; staff_type?: string | null; system_role?: string | null }>;
     qr_points?: Relation<{ label: string | null }>;
   };
@@ -867,6 +903,14 @@ function mapRecord(row: unknown): AttendanceRecord {
     overtime_minutes: safeNumber(record.overtime_minutes),
     clock_in_method: record.clock_in_method ?? null,
     clock_out_method: record.clock_out_method ?? null,
+    attendance_expected_end_at: record.attendance_expected_end_at ?? null,
+    earliest_normal_clock_out_at: record.earliest_normal_clock_out_at ?? null,
+    latest_normal_clock_out_at: record.latest_normal_clock_out_at ?? null,
+    attendance_policy_source: record.attendance_policy_source ?? "schedule",
+    attendance_policy_snapshot: safeJsonRecord(record.attendance_policy_snapshot),
+    provisional_auto_closed_at: record.provisional_auto_closed_at ?? null,
+    clock_out_confirmation_required: record.clock_out_confirmation_required ?? false,
+    actual_clock_out_reconciled_at: record.actual_clock_out_reconciled_at ?? null,
     source_label: first(record.qr_points)?.label ?? null,
   };
 }

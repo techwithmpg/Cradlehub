@@ -6846,3 +6846,65 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Verification passes: cold type-check, lint, full suite at 123 files / 859 tests,
   production Next.js 16.2.4 build (109 static pages), and `git diff --check`.
   Authenticated/live migration QA status is recorded in the task handoff.
+
+## 2026-07-14 - Codex (ATTENDANCE-CRM-CLOSING-POLICY-001)
+
+**Task:** Integrate branch-level Attendance Rules and the CRM closing-shift
+intervention policy into the existing Owner, Attendance, notification, audit,
+review, and scheduler architecture.
+
+**Added:**
+
+- `20260714180000_attendance_crm_closing_policy.sql` with structured branch close
+  settings, effective rule/category history, per-record snapshots, a durable
+  intervention outbox, transactional provisional auto-close, and real-QR
+  same-row reconciliation.
+- Owner selected-branch Attendance Rules UI/actions, shared category/policy
+  resolvers, the secure intervention route/worker, and focused policy, migration,
+  and component tests.
+
+**Changed:**
+
+- CRM Closing clock-out metrics now use the exact inclusive branch-close-to-buffer
+  window instead of the raw 1:30 AM schedule end.
+- Scan processing detects a provisional system close and reconciles a later real
+  QR scan without creating a second check-in; notification/task delivery uses
+  stable intervention keys.
+- Existing Recovery rule writes append to the same effective rule history, and
+  records/staff-portal types expose policy and confirmation evidence.
+
+**Verification:** `pnpm type-check` passes; ESLint exits 0 with one pre-existing
+unused-function warning; focused policy/migration/UI validation passes at 4 files /
+62 tests; the complete suite passes at 127 files / 921 tests; Next.js 16.2.4
+production build passes with 110 static pages; and `git diff --check` passes.
+Linked read-only probes confirm the prior Attendance tables but correctly report
+the three new migration tables absent. Remote migration apply was deliberately not
+attempted while migration history remains unreconciled.
+
+## 2026-07-15 - Codex (ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001)
+
+**Task:** Preserve the secure one-scan phone-registration continuation and add
+the missing record-first outside-hours result, personalized committed copy, and
+secondary review signal without redesigning Attendance.
+
+**Changed:**
+
+- Ordinary first scans outside both ordinary windows now resolve to a written
+  clock-in with an `ambiguous_scan` review exception; genuine first-closing
+  ambiguity remains capture-only and security failures remain blocked.
+- Added deterministic nickname/first-name/fallback Attendance greetings using
+  branch-local time and stable request/business-date inputs. The committed backend
+  title/message now drive the existing green success card.
+- Added backward-compatible `reviewLabel` and branch-timezone result fields,
+  compact accessible amber review badges, calm captured-closing copy, and removal
+  of public operation/security implementation details.
+- Clarified the first-phone login copy while preserving its signed continuation,
+  secure cookie, ownership/branch/revocation checks, same-scan completion, and
+  `nextScanRequired: false` contract.
+
+**Verification:** `pnpm type-check` passes; focused ESLint passes; focused
+Attendance checks pass at 7 files / 70 tests; the full suite passes at 130 files /
+956 tests; and the Next.js 16.2.4 production build passes with 110 static pages.
+Full lint exits 0 with one unrelated existing unused-function warning. Browser QA
+verified the invalid-QR blocked state and authenticated CRM QR detail with no
+console errors; a real staff credential/valid-phone mutation was not submitted.

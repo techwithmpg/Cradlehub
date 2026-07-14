@@ -31,7 +31,7 @@ function taskPayload(input: CreateWorkflowTaskInput, dedupeKey: string) {
   };
 }
 
-export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput): Promise<void> {
+export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput): Promise<boolean> {
   const admin = createAdminClient();
   const dedupeKey = taskDedupeKey(input);
   const payload = taskPayload(input, dedupeKey);
@@ -47,17 +47,25 @@ export async function createOrUpdateWorkflowTask(input: CreateWorkflowTaskInput)
       .from("workflow_tasks")
       .update(payload)
       .eq("id", existing.data.id);
-    if (error) logError("workflow_task.update_failed", { taskType: input.taskType, error });
-    return;
+    if (error) {
+      logError("workflow_task.update_failed", { taskType: input.taskType, error });
+      return false;
+    }
+    return true;
   }
 
   const { error } = await admin.from("workflow_tasks").insert(payload);
-  if (!error) return;
+  if (!error) return true;
   if (isUniqueViolation(error)) {
-    await admin.from("workflow_tasks").update(payload).eq("dedupe_key", dedupeKey);
-    return;
+    const retry = await admin.from("workflow_tasks").update(payload).eq("dedupe_key", dedupeKey);
+    if (retry.error) {
+      logError("workflow_task.race_update_failed", { taskType: input.taskType, error: retry.error });
+      return false;
+    }
+    return true;
   }
   logError("workflow_task.insert_failed", { taskType: input.taskType, error });
+  return false;
 }
 
 export async function resolveWorkflowTask(input: ResolveWorkflowTaskInput): Promise<void> {

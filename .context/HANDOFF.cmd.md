@@ -1,5 +1,60 @@
 # HANDOFF - Next Agent Session
 
+## ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001 - 2026-07-15
+
+The scoped scanner result work is complete locally. Ordinary valid first scans
+outside both configured windows are now recorded as clock-ins and atomically
+flagged for CRM review; a sole open row still closes and genuinely closing-looking
+first scans remain captured without invented Attendance. Invalid QR/device/staff
+and authorization cases retain their blocking behavior.
+
+The existing unregistered-phone flow remains one scan: the technical
+`unknown_device` result is suppressed, staff securely signs in, the phone is linked
+and its HttpOnly credential is set, and the original continuation is processed with
+`nextScanRequired: false`. Public successes render the committed deterministic,
+nickname-first branch-local greeting and optional compact review badge. Captured
+closing scans use a calm CRM-owned result and expose no operation/security details.
+
+Verification passes: type-check; focused ESLint; 7 focused files / 70 tests; full
+Vitest at 130 files / 956 tests; and Next.js 16.2.4 production build with 110 static
+pages. Full lint exits 0 with one unrelated existing warning in
+`attendance-correction-service.ts`. Browser QA reached the authenticated CRM QR
+detail and verified invalid-QR blocking with no console errors. A live valid staff
+sign-in/registered-phone scan was deliberately not submitted, so certify that path
+with a safe staff test account and phone before calling physical-device E2E done.
+
+---
+
+## ATTENDANCE-CRM-CLOSING-POLICY-001 - 2026-07-14
+
+The local implementation is complete. Owner → Branches → selected branch now
+contains a compact Attendance Rules card for structured branch closing time,
+branch defaults, category inheritance/overrides, CRM intervention previews,
+scheduler evidence, and effective change history. CRM/front-desk aliases and
+`staff_type=csr` receive the special policy only on Closing shifts. Drivers,
+utility, therapists, salon, managers, unknown categories, and other shift types
+remain schedule-based.
+
+Migration `20260714180000_attendance_crm_closing_policy.sql` depends on the still-
+local `20260714143000_attendance_fluid_operations.sql`. Reconcile linked migration
+history, apply both in order, reload PostgREST, regenerate `src/types/supabase.ts`
+from the resulting live schema, and verify RLS/grants/triggers/RPC rollback and
+concurrency. Do not deploy the app or five-minute cron route ahead of those DB
+contracts. Then observe at least one successful worker run and run authenticated
+Owner plus real-phone CRM QA through reminder, escalation, auto-close, and a late
+real QR reconciliation. The available browser reached the sign-in page with no
+console errors but had no authorized authenticated session.
+
+Static verification: type-check passes; ESLint exits 0 with one pre-existing
+unused-function warning; focused checks pass (4 files / 62 tests); the sequential
+full suite passes (127 files / 921 tests); Next.js 16.2.4 production build passes
+(110 static pages); and `git diff --check` passes. `pnpm db:verify` confirms the
+existing linked tables but fails the three newly expected tables because the
+migration is not applied; `pnpm db:status` reports 108 local migrations and times
+out reading linked history on port 5432.
+
+---
+
 ## ATTENDANCE-FLUID-OPERATIONS-001 - 2026-07-14
 
 The local record-first Attendance implementation is complete. A sole open row is

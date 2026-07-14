@@ -61,6 +61,16 @@ describe("attendance transactional scan RPC migration", () => {
     expect(migrationSql).toContain("to service_role");
   });
 
+  it("atomically owns every accepted exceptional-scan write and replay result", () => {
+    expect(migrationSql).toContain("insert into public.staff_shift_checkins");
+    expect(migrationSql).toContain("insert into public.qr_scan_events");
+    expect(migrationSql).toContain("insert into public.attendance_exceptions");
+    expect(migrationSql).toContain("set last_seen_at = v_now");
+    expect(migrationSql).toContain("last_attendance_scan_at = v_now");
+    expect(migrationSql).toContain("Committed scan result replayed.");
+    expect(migrationSql).toContain("operation_result = v_operation_result");
+  });
+
   it("defines a transactional selected-record reset correction RPC", () => {
     expect(correctionMigrationSql).toContain("create or replace function public.reset_attendance_state_transaction");
     expect(correctionMigrationSql).toContain("security invoker");

@@ -37,6 +37,7 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     title: result.title,
     message: result.message,
     detail: result.detail,
+    reviewLabel: result.reviewLabel,
     securityNote: result.securityNote,
     scanEventId: result.scanEventId,
     operationId: result.operationId,

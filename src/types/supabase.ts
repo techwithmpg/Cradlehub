@@ -228,6 +228,199 @@ export type Database = {
           },
         ]
       }
+      attendance_closing_interventions: {
+        Row: {
+          applied_at: string | null
+          attendance_business_date: string
+          branch_id: string
+          checkin_id: string
+          created_at: string
+          dedupe_key: string
+          delivery_attempts: number
+          due_at: string
+          id: string
+          last_delivery_error: string | null
+          notification_sent_at: string | null
+          policy_snapshot: Json
+          staff_id: string
+          stage: string
+          updated_at: string
+          workflow_task_sent_at: string | null
+        }
+        Insert: {
+          applied_at?: string | null
+          attendance_business_date: string
+          branch_id: string
+          checkin_id: string
+          created_at?: string
+          dedupe_key: string
+          delivery_attempts?: number
+          due_at: string
+          id?: string
+          last_delivery_error?: string | null
+          notification_sent_at?: string | null
+          policy_snapshot?: Json
+          staff_id: string
+          stage: string
+          updated_at?: string
+          workflow_task_sent_at?: string | null
+        }
+        Update: {
+          applied_at?: string | null
+          attendance_business_date?: string
+          branch_id?: string
+          checkin_id?: string
+          created_at?: string
+          dedupe_key?: string
+          delivery_attempts?: number
+          due_at?: string
+          id?: string
+          last_delivery_error?: string | null
+          notification_sent_at?: string | null
+          policy_snapshot?: Json
+          staff_id?: string
+          stage?: string
+          updated_at?: string
+          workflow_task_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_closing_interventions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_closing_interventions_checkin_id_fkey"
+            columns: ["checkin_id"]
+            isOneToOne: false
+            referencedRelation: "staff_shift_checkins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_closing_interventions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_rule_versions: {
+        Row: {
+          branch_id: string
+          changed_by: string | null
+          created_at: string
+          effective_from: string
+          id: string
+          previous_values: Json
+          reason: string
+          rule_values: Json
+        }
+        Insert: {
+          branch_id: string
+          changed_by?: string | null
+          created_at?: string
+          effective_from: string
+          id?: string
+          previous_values?: Json
+          reason: string
+          rule_values?: Json
+        }
+        Update: {
+          branch_id?: string
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          previous_values?: Json
+          reason?: string
+          rule_values?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_rule_versions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_rule_versions_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_staff_category_rules: {
+        Row: {
+          active_service_blocks_clock_out: boolean | null
+          branch_id: string
+          changed_by: string | null
+          created_at: string
+          crm_closing_policy_enabled: boolean | null
+          early_leave_threshold_minutes: number | null
+          effective_from: string
+          effective_until: string | null
+          id: string
+          late_grace_minutes: number | null
+          overtime_threshold_minutes: number | null
+          previous_values: Json
+          reason: string
+          staff_category: string
+        }
+        Insert: {
+          active_service_blocks_clock_out?: boolean | null
+          branch_id: string
+          changed_by?: string | null
+          created_at?: string
+          crm_closing_policy_enabled?: boolean | null
+          early_leave_threshold_minutes?: number | null
+          effective_from: string
+          effective_until?: string | null
+          id?: string
+          late_grace_minutes?: number | null
+          overtime_threshold_minutes?: number | null
+          previous_values?: Json
+          reason: string
+          staff_category: string
+        }
+        Update: {
+          active_service_blocks_clock_out?: boolean | null
+          branch_id?: string
+          changed_by?: string | null
+          created_at?: string
+          crm_closing_policy_enabled?: boolean | null
+          early_leave_threshold_minutes?: number | null
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          late_grace_minutes?: number | null
+          overtime_threshold_minutes?: number | null
+          previous_values?: Json
+          reason?: string
+          staff_category?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_staff_category_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_staff_category_rules_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_exceptions: {
         Row: {
           branch_id: string
@@ -401,6 +594,7 @@ export type Database = {
           active_service_blocks_clock_out: boolean
           ambiguous_scan_behavior: string
           attendance_day_boundary: string
+          branch_operating_close_time: string
           branch_id: string
           clock_in_early_grace_minutes: number
           clock_in_late_grace_minutes: number
@@ -410,6 +604,12 @@ export type Database = {
           clock_out_late_grace_minutes: number
           clock_out_window_after_shift_end_minutes: number
           clock_out_window_before_shift_end_minutes: number
+          closing_intervention_last_error: string | null
+          closing_intervention_last_run_at: string | null
+          crm_closing_buffer_minutes: number
+          crm_closing_policy_enabled: boolean
+          crm_hard_cutoff_delay_minutes: number
+          crm_manager_escalation_delay_minutes: number
           created_at: string
           duplicate_scan_debounce_minutes: number
           duplicate_scan_window_seconds: number
@@ -442,6 +642,7 @@ export type Database = {
           active_service_blocks_clock_out?: boolean
           ambiguous_scan_behavior?: string
           attendance_day_boundary?: string
+          branch_operating_close_time?: string
           branch_id: string
           clock_in_early_grace_minutes?: number
           clock_in_late_grace_minutes?: number
@@ -451,6 +652,12 @@ export type Database = {
           clock_out_late_grace_minutes?: number
           clock_out_window_after_shift_end_minutes?: number
           clock_out_window_before_shift_end_minutes?: number
+          closing_intervention_last_error?: string | null
+          closing_intervention_last_run_at?: string | null
+          crm_closing_buffer_minutes?: number
+          crm_closing_policy_enabled?: boolean
+          crm_hard_cutoff_delay_minutes?: number
+          crm_manager_escalation_delay_minutes?: number
           created_at?: string
           duplicate_scan_debounce_minutes?: number
           duplicate_scan_window_seconds?: number
@@ -483,6 +690,7 @@ export type Database = {
           active_service_blocks_clock_out?: boolean
           ambiguous_scan_behavior?: string
           attendance_day_boundary?: string
+          branch_operating_close_time?: string
           branch_id?: string
           clock_in_early_grace_minutes?: number
           clock_in_late_grace_minutes?: number
@@ -492,6 +700,12 @@ export type Database = {
           clock_out_late_grace_minutes?: number
           clock_out_window_after_shift_end_minutes?: number
           clock_out_window_before_shift_end_minutes?: number
+          closing_intervention_last_error?: string | null
+          closing_intervention_last_run_at?: string | null
+          crm_closing_buffer_minutes?: number
+          crm_closing_policy_enabled?: boolean
+          crm_hard_cutoff_delay_minutes?: number
+          crm_manager_escalation_delay_minutes?: number
           created_at?: string
           duplicate_scan_debounce_minutes?: number
           duplicate_scan_window_seconds?: number
@@ -4232,7 +4446,11 @@ export type Database = {
       }
       staff_shift_checkins: {
         Row: {
+          actual_clock_out_reconciled_at: string | null
           attendance_business_date: string | null
+          attendance_expected_end_at: string | null
+          attendance_policy_snapshot: Json
+          attendance_policy_source: string
           attendance_status: string
           branch_id: string
           branch_timezone: string
@@ -4241,15 +4459,23 @@ export type Database = {
           clock_in_method: string | null
           clock_in_scan_event_id: string | null
           clock_out_method: string | null
+          clock_out_confirmation_required: boolean
+          clock_out_reminder_at: string | null
           clock_out_scan_event_id: string | null
           created_at: string
           early_leave_minutes: number
+          earliest_normal_clock_out_at: string | null
           exception_state: string
           id: string
           is_test: boolean
           late_minutes: number
+          latest_normal_clock_out_at: string | null
+          hard_cutoff_at: string | null
+          manager_escalation_at: string | null
           notes: string | null
           overtime_minutes: number
+          provisional_auto_closed_at: string | null
+          provisional_clock_out_at: string | null
           recorded_by: string | null
           schedule_source: string | null
           schedule_source_id: string | null
@@ -4265,7 +4491,11 @@ export type Database = {
           worked_minutes: number
         }
         Insert: {
+          actual_clock_out_reconciled_at?: string | null
           attendance_business_date?: string | null
+          attendance_expected_end_at?: string | null
+          attendance_policy_snapshot?: Json
+          attendance_policy_source?: string
           attendance_status?: string
           branch_id: string
           branch_timezone?: string
@@ -4274,15 +4504,23 @@ export type Database = {
           clock_in_method?: string | null
           clock_in_scan_event_id?: string | null
           clock_out_method?: string | null
+          clock_out_confirmation_required?: boolean
+          clock_out_reminder_at?: string | null
           clock_out_scan_event_id?: string | null
           created_at?: string
           early_leave_minutes?: number
+          earliest_normal_clock_out_at?: string | null
           exception_state?: string
           id?: string
           is_test?: boolean
           late_minutes?: number
+          latest_normal_clock_out_at?: string | null
+          hard_cutoff_at?: string | null
+          manager_escalation_at?: string | null
           notes?: string | null
           overtime_minutes?: number
+          provisional_auto_closed_at?: string | null
+          provisional_clock_out_at?: string | null
           recorded_by?: string | null
           schedule_source?: string | null
           schedule_source_id?: string | null
@@ -4298,7 +4536,11 @@ export type Database = {
           worked_minutes?: number
         }
         Update: {
+          actual_clock_out_reconciled_at?: string | null
           attendance_business_date?: string | null
+          attendance_expected_end_at?: string | null
+          attendance_policy_snapshot?: Json
+          attendance_policy_source?: string
           attendance_status?: string
           branch_id?: string
           branch_timezone?: string
@@ -4307,15 +4549,23 @@ export type Database = {
           clock_in_method?: string | null
           clock_in_scan_event_id?: string | null
           clock_out_method?: string | null
+          clock_out_confirmation_required?: boolean
+          clock_out_reminder_at?: string | null
           clock_out_scan_event_id?: string | null
           created_at?: string
           early_leave_minutes?: number
+          earliest_normal_clock_out_at?: string | null
           exception_state?: string
           id?: string
           is_test?: boolean
           late_minutes?: number
+          latest_normal_clock_out_at?: string | null
+          hard_cutoff_at?: string | null
+          manager_escalation_at?: string | null
           notes?: string | null
           overtime_minutes?: number
+          provisional_auto_closed_at?: string | null
+          provisional_clock_out_at?: string | null
           recorded_by?: string | null
           schedule_source?: string | null
           schedule_source_id?: string | null
@@ -4848,6 +5098,70 @@ export type Database = {
           operation_result: Json
           recovery_issue_id: string
           scan_event_id: string
+          success: boolean
+        }[]
+      }
+      process_crm_closing_attendance_interventions: {
+        Args: { p_limit?: number; p_now?: string }
+        Returns: {
+          active_service_blocks: number
+          auto_closed_records: number
+          created_interventions: number
+          processed_open_records: number
+        }[]
+      }
+      reconcile_provisional_attendance_clock_out: {
+        Args: {
+          p_actual_clock_out_at: string
+          p_branch_id: string
+          p_checkin_id: string
+          p_device_id: string
+          p_ip_address?: string
+          p_is_test?: boolean
+          p_metadata?: Json
+          p_public_result: Json
+          p_qr_point_id: string
+          p_request_id: string
+          p_staff_id: string
+          p_user_agent?: string
+        }
+        Returns: {
+          checkin_id: string
+          code: string
+          message: string
+          operation_result: Json
+          scan_event_id: string
+          success: boolean
+        }[]
+      }
+      save_attendance_branch_rule_version: {
+        Args: {
+          p_actor_staff_id: string
+          p_branch_id: string
+          p_effective_from: string
+          p_reason: string
+          p_rule_values: Json
+        }
+        Returns: {
+          code: string
+          message: string
+          rule_version_id: string
+          success: boolean
+        }[]
+      }
+      save_attendance_category_rule: {
+        Args: {
+          p_actor_staff_id: string
+          p_branch_id: string
+          p_effective_from: string
+          p_reason: string
+          p_rule_values: Json
+          p_staff_category: string
+        }
+        Returns: {
+          category_rule_id: string
+          code: string
+          message: string
           success: boolean
         }[]
       }
