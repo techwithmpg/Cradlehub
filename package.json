@@ -14,6 +14,7 @@
     "db:doctor": "node scripts/database/db-doctor.mjs",
     "db:status": "node scripts/database/db-status.mjs",
     "db:verify": "node scripts/database/db-verify.mjs",
+    "db:verify-live": "node scripts/database/db-verify-live.mjs",
     "db:link": "node scripts/database/db-link.mjs",
     "db:push": "node scripts/database/db-push.mjs",
     "db:types": "node scripts/database/db-types.mjs",

@@ -1160,3 +1160,20 @@
 - `pnpm lint` exits successfully with one existing warning in the Attendance-only
   `attendance-correction-service.ts`; it is outside this audit's implementation
   scope and is not a core-system blocker.
+## 2026-07-15 - Live database/UI connection limitations
+
+- The session/direct pooler on port 5432 resolves but remains unreachable from
+  this environment. The transaction pooler on 6543 is reachable and passes
+  read-only SQL.
+- `supabase migration list` cannot use the transaction pooler because it triggers
+  a duplicate prepared-statement error. `db:status` therefore falls back to the
+  official linked Management API and can now read migration metadata safely.
+- Migration history is materially divergent: 107 unique local versions versus 33
+  remote, with 79 local-only and 5 remote-only. The remote-only entries are four
+  CRM operational RLS migrations and one overnight-schedule migration. Two local
+  version prefixes are duplicated (`20260521000001`, `20260522000001`). No history
+  or schema repair was attempted.
+- Only the existing CRM/front-desk browser session is available. Dedicated staff,
+  driver, manager, and owner storage states, controlled writes, cleanup, realtime,
+  and full live RLS matrices remain unverified.
+- Full lint exits zero with one existing Attendance-only unused-function warning.

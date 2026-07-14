@@ -1,5 +1,25 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-15 - Codex (LIVE-DATABASE-UI-VERIFICATION-CONNECTION-001)
+
+- Added reusable `pnpm db:verify-live` read-only live connection certification,
+  including project identity, bounded Management API SQL, REST table checks, anon
+  RLS behavior, migration metadata, and transaction-pooler SQL verification.
+- Added server-only QA helpers for read-only queries, table checks, bounded waits,
+  exact UI/database comparisons, QA run IDs, QA record identification, and
+  sanitized reports/errors, with four focused tests.
+- Updated `db:status` to read migration metadata through the Management API when
+  the linked session pooler times out. Confirmed 107 unique local versions versus
+  33 remote versions: 79 local-only and 5 remote-only.
+- Added ignored browser auth-state paths and a sanitized reuse guide under
+  `docs/qa/`. Existing secret files remain ignored and no secret was committed.
+- Regenerated live Supabase types with no diff. Authenticated CRM Today opened on
+  localhost:3000 without console errors, and its zero Today/home-service values
+  matched a safe live aggregate query for the same branch/date.
+- Verification passes: live health check; type-check; 132 files / 962 tests; lint
+  with one existing Attendance-only warning; production build with 110 routes.
+  No live data, migrations, RLS, or migration history were modified.
+
 ## 2026-07-15 - Codex (CRADLEHUB-CORE-SYSTEMS-BETA-READINESS-001)
 
 - Audited the core systems outside Attendance across auth/RBAC, CRM Today,

@@ -1,5 +1,27 @@
 # HANDOFF - Next Agent Session
 
+## LIVE-DATABASE-UI-VERIFICATION-CONNECTION-001 - 2026-07-15
+
+Run `pnpm db:verify-live` for the reusable read-only certification path. It checks
+project identity, linked Management API SQL, PostgreSQL metadata, 16 required REST
+tables, anon public/private RLS behavior, migration history, and transaction-pooler
+SQL with bounded timeouts and sanitized failures. See
+`docs/qa/LIVE_DATABASE_UI_VERIFICATION.md` before using the QA helpers.
+
+The stable paths are Management API SQL, server-side REST, and transaction-pooler
+read-only SQL on port 6543. Port 5432 remains unreachable. Do not run migration
+list over port 6543 because prepared statements conflict with transaction pooling.
+`db:status` now falls back to Management API metadata and exposes the 79 local-only
+/ 5 remote-only mismatch. Reconcile duplicate local prefixes and map migration
+effects before proposing any repair; do not modify history without approval.
+
+CRM Today on localhost:3000 matched live zero booking/home-service aggregates for
+the same branch/date. No writes occurred. Provision dedicated CRM, staff, driver,
+manager, and owner QA accounts/storage states, prepare exact-ID QA cleanup, request
+explicit live-write approval, then certify controlled writes, realtime, and RLS.
+
+---
+
 ## CRADLEHUB-CORE-SYSTEMS-BETA-READINESS-001 - 2026-07-15
 
 Core automated gates are green: type-check, 131 test files / 958 tests, lint with

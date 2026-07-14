@@ -4,6 +4,7 @@ import {
   loadLocalEnv,
   printCommandFailure,
   repoRoot,
+  runSupabase,
   runSupabaseWithPassword,
 } from "./_shared.mjs";
 
@@ -19,17 +20,29 @@ const localVersions = existsSync(migrationsDir)
 
 console.log(`Local migration count: ${localVersions.length}`);
 
-const result = runSupabaseWithPassword(["migration", "list", "--linked", "--dns-resolver", "https"], {
+let result = runSupabaseWithPassword(["migration", "list", "--linked", "--dns-resolver", "https"], {
   timeoutMs: 60000,
 });
 
+let remote;
 if (!result.ok) {
+  console.log("Linked session connection unavailable; using read-only Management API migration metadata.");
+  const fallback = runSupabase([
+    "db", "query",
+    "select version from supabase_migrations.schema_migrations order by version",
+    "--linked", "--dns-resolver", "https", "--output", "json", "--agent=no",
+  ], { timeoutMs: 30000 });
+  if (fallback.ok) remote = parseMigrationJson(fallback.stdout);
+  else result = fallback;
+}
+
+if (!result.ok && !remote) {
   printCommandFailure("supabase migration list --linked", "migration history read", result, "no");
   console.log(`Recommended recovery step: run pnpm db:doctor, confirm rotated DB password/local login, then retry pnpm db:status.`);
   process.exit(1);
 }
 
-const { remote } = parseMigrationList(result.stdout);
+if (!remote) remote = parseMigrationList(result.stdout).remote;
 const localSet = new Set(localVersions);
 const remoteSet = new Set(remote);
 const pendingLocal = localVersions.filter((version) => !remoteSet.has(version));
@@ -62,4 +75,11 @@ function parseMigrationList(output) {
     local: [...new Set(local)].sort(),
     remote: [...new Set(remote)].sort(),
   };
+}
+
+function parseMigrationJson(output) {
+  const start = output.indexOf("[");
+  const end = output.lastIndexOf("]");
+  if (start < 0 || end < start) return [];
+  return JSON.parse(output.slice(start, end + 1)).map((row) => String(row.version)).sort();
 }

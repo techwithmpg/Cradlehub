@@ -1,5 +1,15 @@
 # 🏗️ DECISIONS
 
+### 2026-07-15: Layered live verification connection
+**Status:** ACCEPTED
+
+Use linked Supabase Management API SQL as the stable read-only PostgreSQL and
+migration-metadata path, server-side Supabase REST for table/RLS health, and the
+transaction pooler on port 6543 for ordinary read-only SQL fallback. Do not use
+transaction pooling for `supabase migration list`, because its prepared statements
+are incompatible with that pool mode. Keep session/direct connection as optional,
+never weaken RLS, and require explicit approval plus QA-run IDs before live writes.
+
 ### 2026-07-15: Core beta certification requires direct multi-role write evidence
 **Status:** ACCEPTED
 

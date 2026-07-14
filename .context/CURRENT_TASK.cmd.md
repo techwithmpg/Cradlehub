@@ -1,4 +1,64 @@
-# Current Task - CRADLEHUB-CORE-SYSTEMS-BETA-READINESS-001
+# Current Task - LIVE-DATABASE-UI-VERIFICATION-CONNECTION-001
+
+Status: COMPLETE — CONDITIONAL SUCCESS
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Establish and certify a secure, reusable, read-only-by-default connection to the
+intended live Supabase project, add sanitized connection and QA verification
+tooling, reconcile repository/live migration evidence without modifying the live
+database, and match authenticated UI state to authoritative live records.
+
+## Guardrails
+
+- Never print, commit, screenshot, or expose passwords, service-role keys, tokens,
+  cookies, or private operational data.
+- Do not apply or repair migrations and do not modify live records.
+- Prefer the linked CLI and direct/pooler SQL, with server-side REST as a safe
+  read-only fallback.
+- Keep verification tooling server-only, bounded by explicit timeouts, sanitized,
+  and read-only unless a future user-approved QA run opts into writes.
+- Do not claim multi-role, realtime, or write certification without direct evidence.
+
+## Work order
+
+1. Complete mandatory project, Supabase, environment, auth, test, and browser
+   pre-flight and confirm the intended project identity without exposing secrets.
+2. Add reusable connection health-check and QA verification helpers using the
+   existing database tooling architecture.
+3. Verify linked CLI, DNS/network, pooler/direct SQL, REST/schema, migration
+   history, and generated-type parity using read-only operations.
+4. Open authenticated UI and match safe UI values to live database queries.
+5. Run all automated gates, document the reusable workflow and limitations,
+   commit, and push.
+
+## Completion
+
+- Confirmed the configured, linked, and URL-derived project identity agree without
+  printing secrets. Local secret files and browser auth-state paths are ignored.
+- Added `pnpm db:verify-live`, a server-only reusable read-only QA helper layer,
+  bounded/sanitized SQL and REST checks, anon RLS probes, transaction-pooler probe,
+  QA run identification, database waits, and UI/database comparison helpers.
+- Certified linked Management API SQL, Postgres 17.6, 64 public tables, all 16
+  required REST tables, anonymous public branch access, anonymous staff isolation,
+  migration metadata, and read-only transaction-pooler SQL on port 6543.
+- Updated `db:status` to fall back from the unavailable session connection to
+  official read-only Management API migration metadata. It now reports 107 unique
+  local versions, 33 remote versions, 79 local-only, and 5 remote-only versions.
+- Regenerated live types with no diff. Authenticated CRM Today opened at the
+  configured localhost:3000 origin with no console errors; UI counts for Today and
+  home service matched the live branch/date aggregate query at zero.
+- Added the sanitized reuse guide and four focused tests. Type-check, lint (one
+  existing Attendance-only warning), 132 files / 962 tests, and build all pass.
+- No live write, migration, history repair, RLS change, or cleanup was performed.
+  Final result is CONDITIONAL SUCCESS pending migration reconciliation, dedicated
+  multi-role sessions, approved controlled writes, and realtime certification.
+
+---
+
+# Previous Task - CRADLEHUB-CORE-SYSTEMS-BETA-READINESS-001
 
 Status: COMPLETE — NO-GO DECISION
 Started: 2026-07-15
