@@ -83,4 +83,24 @@ describe("public attendance scan route", () => {
       })
     );
   });
+
+  it("issues temporary HttpOnly registration and signed continuation cookies for an unknown phone", async () => {
+    processQrScanMock.mockResolvedValueOnce({
+      ok: false,
+      outcome: "blocked",
+      reasonCode: "unknown_device",
+      title: "Device not registered",
+      message: "Sign in to connect this phone.",
+      operationId: "scan-op-3",
+    });
+
+    const response = await POST(request({ publicCode: "qr-code", requestId: "scan-op-3" }));
+    const setCookies = response.headers.getSetCookie().join("\n");
+
+    expect(response.status).toBe(200);
+    expect(setCookies).toContain("cradle_attendance_registration=");
+    expect(setCookies).toContain("cradle_attendance_scan_intent=");
+    expect(setCookies).toContain("HttpOnly");
+    expect(setCookies).toContain("SameSite=lax");
+  });
 });

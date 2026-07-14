@@ -3,6 +3,11 @@ import { getMyProfileAction } from "../actions";
 import { StaffProfileDetailsForm } from "@/components/features/staff-portal/staff-profile-details-form";
 import { StaffProfilePhotoUploader } from "@/components/features/staff-portal/staff-profile-photo-uploader";
 import { getStaffDisplayName, getStaffNickname } from "@/lib/staff/display-name";
+import { cookies } from "next/headers";
+import { AttendancePhoneCard } from "@/components/features/staff-portal/attendance-phone-card";
+import { getOwnAttendancePhoneState } from "@/lib/attendance/device-registration";
+import { ATTENDANCE_REGISTRATION_COOKIE_NAME } from "@/lib/attendance/scan-continuation";
+import { DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
 
 function formatToken(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
@@ -29,6 +34,12 @@ export default async function StaffProfilePage() {
   const nickname = getStaffNickname(staff);
   const displayName = getStaffDisplayName(staff);
   const tierLabel = formatToken(staff.tier, "N/A");
+  const cookieStore = await cookies();
+  const phoneState = await getOwnAttendancePhoneState(
+    cookieStore.get(DEVICE_COOKIE_NAME)?.value ??
+      cookieStore.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ??
+      null
+  );
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-24 sm:px-0 sm:pb-0">
@@ -54,6 +65,8 @@ export default async function StaffProfilePage() {
           staffType={staff.staff_type}
           tierLabel={tierLabel}
         />
+
+        {phoneState ? <AttendancePhoneCard state={phoneState} /> : null}
       </div>
     </div>
   );

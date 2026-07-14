@@ -6756,3 +6756,62 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   tests, `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check`.
   Authenticated browser interaction remains blocked by the local `/login`
   redirect in the only available browser session.
+
+## 2026-07-14 - ATTENDANCE-STAFF-SELF-SERVICE-001
+
+- Repaired autonomous first-scan registration with a signed, expiring
+  continuation, stable temporary phone identity, original-operation child ids,
+  device policy/operational-staff checks, retry safety, and same-response
+  attendance completion instead of a cookie reload.
+- Added audited Staff Portal phone registration/replacement requests with CRM
+  approval/rejection, same-phone activation, 24-hour single-use authorization,
+  transactional replacement, notifications, workflow tasks, and Method 1
+  reconciliation.
+- Added the CRM Devices request-review panel, Staff Profile Attendance phone
+  card, compact portal attendance summary, and self-only read-only
+  `/staff-portal/attendance` history with staff-filtered Realtime refresh.
+- Added focused table/RLS/RPC migration
+  `20260714050554_attendance_staff_self_service.sql`, explicit Data API grants,
+  generated TypeScript contracts, and regression tests.
+- Verification passed: focused 6 files / 14 tests, full Vitest 119 files / 819
+  tests, type-check, lint, and production build. Remote migration apply/history
+  and authenticated physical-phone browser certification remain blocked by
+  pooler timeout and the available browser's `/login` boundary.
+## 2026-07-14 - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 0 baseline
+
+- Added the focused Attendance architecture map at
+  `docs/attendance/PHASE_0_BASELINE_AND_ARCHITECTURE_MAP.md`.
+- Recorded the actual routes, scan/schedule/device/recovery data paths,
+  scheduler mechanisms, tables/RPCs/RLS contracts, hard limits, timezone
+  hardcoding, and known incomplete surfaces.
+- Baseline Attendance tests pass: 24 files / 96 tests.
+- `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check` pass.
+- Phase 1 is gated because linked migration-history access still times out, so
+  deployed migrations, RPC grants, and RLS cannot be certified.
+## 2026-07-14 - Attendance device-request schema-cache repair
+
+- Confirmed the production error was caused by the absent
+  `public.staff_device_registration_requests` table, not a stale client query.
+- Applied `20260714050554_attendance_staff_self_service.sql` through the linked
+  Supabase Management API SQL path after verifying all prerequisites.
+- Reloaded PostgREST schema and verified live table visibility, RLS, three
+  scoped SELECT policies, authenticated/service-role grants, and service-role-
+  only review/completion RPC execution.
+- Added the request table to `pnpm db:verify`; its service-role REST probe passes.
+- Migration-history version reconciliation remains required because direct SQL
+  application does not register the migration version.
+## 2026-07-14 - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 1
+
+- Added the typed authoritative Attendance-day model composing canonical
+  schedules, branch-local time, check-ins, sessions, and exceptions.
+- CRM/Owner Attendance now loads the complete active branch roster into the
+  shared model; Overview no longer labels every missing record Scheduled Today
+  or truncates search/filter to 36 staff.
+- Staff Portal now consumes the same resolved daily state while retaining
+  self-only read access and history.
+- Branch timezone drives the Phase 1 Overview/header/Staff Portal timestamp
+  surfaces and device record navigation where workspace settings are present.
+- Added 16 focused daily-model scenarios and documented the contract in
+  `docs/attendance/PHASE_1_AUTHORITATIVE_DAILY_MODEL.md`.
+- Verification passes: 25 focused files / 112 tests, 120 full-suite files / 835
+  tests, type-check, lint, production build, and diff check.

@@ -34,6 +34,11 @@ import type {
   DeviceRevocationReason,
   RecoveryLinkResult,
 } from "@/lib/attendance/types";
+import {
+  reviewStaffDeviceRegistrationRequest,
+  type StaffDeviceRegistrationRejectionReason,
+  type StaffDeviceRegistrationRequest,
+} from "@/lib/attendance/device-registration";
 
 export type AttendanceActionResult =
   | { ok: false; tab?: AttendanceTab; message: string }
@@ -254,6 +259,32 @@ export async function revokeDeviceRecoveryLinkAction(input: {
       success: false,
       error: safeError(error, "Could not revoke the recovery link."),
     };
+  }
+}
+
+export async function reviewStaffDeviceRegistrationRequestAction(input: {
+  branchId: string;
+  requestId: string;
+  decision: "approved" | "rejected";
+  reviewerNote?: string | null;
+  rejectionReason?: StaffDeviceRegistrationRejectionReason | null;
+  replacementDeviceId?: string | null;
+}): Promise<DeviceActionResult<StaffDeviceRegistrationRequest>> {
+  const context = await getDeviceContext(input.branchId);
+  if (!context.success) return context;
+  try {
+    const request = await reviewStaffDeviceRegistrationRequest({
+      ctx: context.data,
+      requestId: input.requestId,
+      decision: input.decision,
+      reviewerNote: input.reviewerNote,
+      rejectionReason: input.rejectionReason,
+      replacementDeviceId: input.replacementDeviceId,
+    });
+    revalidateAttendanceSurfaces();
+    return { success: true, data: request };
+  } catch (error) {
+    return { success: false, error: safeError(error, "The phone request could not be reviewed.") };
   }
 }
 

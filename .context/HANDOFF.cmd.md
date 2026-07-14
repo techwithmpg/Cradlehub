@@ -907,3 +907,84 @@ Still open:
   focused cancel/reschedule dialogs. The only available in-app browser reached
   the running local app but redirected `/crm/bookings` to `/login` and had no
   authenticated CradleHub session or alternate browser.
+
+## Handoff - ATTENDANCE-STAFF-SELF-SERVICE-001
+
+Done:
+- Autonomous first-scan phone registration is continuation-bound, retry-safe,
+  policy-aware, and completes attendance in the same action/operation context.
+- Staff Portal phone requests, CRM review, expiring same-phone activation,
+  transactional replacements, signal dedupe/reconciliation, profile controls,
+  CRM review UI, and the self-only Staff Attendance summary/history are local.
+- Migration, explicit grants/RLS, generated types, and focused/full regression
+  coverage are included without adding a second engine or device registry.
+
+Verified:
+- Focused 6 files / 14 tests; full 119 files / 819 tests; type-check, lint, and
+  production build pass.
+
+Still open:
+- Apply and verify `20260714050554_attendance_staff_self_service.sql` after the
+  linked Postgres pooler is reachable; then regenerate live schema types and run
+  service-role RPC plus authenticated RLS probes.
+- Run the physical/signed-in Method 1 and Method 2 matrix. The only available
+  browser redirects protected routes to `/login`, so production/device
+  certification must not be claimed yet.
+## Handoff - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 0
+
+Done:
+- Mapped current Attendance routes, engine entry points, schedule resolution,
+  device paths, RPCs, Recovery, realtime, staff/CRM/report sources,
+  notifications/tasks/payroll connections, limits, and timezone hardcoding.
+- Recorded proven architectural gaps and the exact Phase 0 gate in
+  `docs/attendance/PHASE_0_BASELINE_AND_ARCHITECTURE_MAP.md`.
+- Focused baseline passes: 24 test files / 96 tests.
+- Type-check, lint, production build, and diff check pass on the current tree.
+
+Blocked:
+- Linked migration-history access times out on Postgres port 5432. Deployed
+  migrations, RLS, RPC grants, and scheduler state remain uncertified.
+- Phase 1 must not begin until this gate is cleared; do not blind-push local
+  migrations.
+
+Next pickup:
+1. Restore an approved authoritative linked SQL/migration-history path.
+2. Verify live Attendance tables, functions/signatures, grants, policies,
+   publications, extensions, and migration versions.
+3. Rerun Phase 0 checks, mark the gate complete, then begin the authoritative
+   daily Attendance model in Phase 1.
+## Handoff - Attendance device-request schema-cache repair
+
+Done:
+- Applied the focused Staff Portal device-request migration to the linked
+  project and reloaded PostgREST.
+- Verified table, RLS, policies, grants, privileged RPC restrictions, and
+  service-role REST access.
+- Added `staff_device_registration_requests` to `pnpm db:verify`.
+- Focused device/Staff Attendance tests pass: 3 files / 7 tests.
+
+Still open:
+- The SQL effects are live, but linked migration-history reads still time out;
+  reconcile version `20260714050554` before a normal broad migration push.
+- Physical same-phone staff/CRM request approval and activation QA remains
+  required for full device certification.
+## Handoff - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 1
+
+Done:
+- Added the pure authoritative Attendance-day model and connected CRM/Owner and
+  self-only Staff Portal consumers.
+- Removed CRM Overview's first-36 truncation and record-existence schedule
+  interpretation.
+- Added focused ordinary/split/overnight/override/day-off/missing/conflict/
+  later/late/presence/service/branch/timezone/review tests.
+- Documented the model in the Attendance Phase 1 and Architecture documents.
+
+Verified:
+- 25 focused Attendance files / 112 tests.
+- Full suite: 120 files / 835 tests.
+- Type-check, lint, production build, and diff check pass.
+
+Pending at this checkpoint:
+- Run authenticated CRM and Staff Portal browser QA with safe accounts.
+- Migration version `20260714050554` remains live-but-unreconciled in migration
+  history; do not run a blind broad push.

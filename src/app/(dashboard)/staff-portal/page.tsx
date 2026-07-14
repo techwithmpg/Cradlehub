@@ -10,6 +10,9 @@ import { DriverMobileHome } from "@/components/features/staff-portal/driver/driv
 import { getStaffPortalMode, isBasicStaffMode } from "@/lib/staff/get-staff-portal-mode";
 import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
 import type { RealDispatchItem, DispatchStats } from "@/lib/queries/dispatch-queries";
+import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { StaffAttendanceSummary } from "@/components/features/staff-portal/staff-attendance-summary";
+import { StaffAttendanceRealtime } from "@/components/features/staff-portal/staff-attendance-realtime";
 
 type TodayActionResult =
   | { error: string }
@@ -39,6 +42,7 @@ export default async function StaffTodayPage() {
   const isBasic = isBasicStaffMode(mode);
   const isTherapist = mode === "therapist";
   const isDriver = mode === "driver";
+  const attendanceData = await getMyAttendanceData(30);
 
   // Fetch schedule data for basic and therapist modes
   const scheduleResult = !isDriver
@@ -65,6 +69,7 @@ export default async function StaffTodayPage() {
 
   return (
     <>
+      {attendanceData ? <StaffAttendanceSummary data={attendanceData} /> : null}
       {/* ── Desktop layout ── */}
       <div className="hidden md:block">
         <ActionRequiredList limit={3} />
@@ -109,6 +114,7 @@ export default async function StaffTodayPage() {
           </>
         )}
       </div>
+      {attendanceData ? <StaffAttendanceRealtime staffId={attendanceData.staffId} /> : null}
     </>
   );
 }

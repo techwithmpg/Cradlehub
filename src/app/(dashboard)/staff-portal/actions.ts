@@ -33,6 +33,7 @@ const STAFF_PORTAL_PATHS = [
   "/staff-portal/stats",
   "/staff-portal/more",
   "/staff-portal/profile",
+  "/staff-portal/attendance",
 ] as const;
 
 const DRIVER_PORTAL_PATHS = [

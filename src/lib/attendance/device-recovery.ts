@@ -12,6 +12,7 @@ import {
   hashSecret,
 } from "@/lib/attendance/tokens";
 import type { AttendanceActionContext } from "@/lib/attendance/queries";
+import { ACTIVE_ATTENDANCE_DEVICE_LIMIT } from "@/lib/attendance/device-policy";
 import type {
   DeviceRecoveryReason,
   DeviceRevocationReason,
@@ -79,7 +80,6 @@ const REVOCATION_REASONS: readonly DeviceRevocationReason[] = [
 ];
 
 const ALLOWED_TTLS = [15, 30, 60] as const;
-const ACTIVE_DEVICE_LIMIT = 2;
 
 type Relation<T> = T | T[] | null | undefined;
 
@@ -431,7 +431,7 @@ export async function consumeDeviceRecoveryLink(params: {
     p_browser_name: hints.browserName ?? undefined,
     p_browser_version: hints.browserVersion ?? undefined,
     p_platform_name: hints.platformName ?? undefined,
-    p_active_device_limit: ACTIVE_DEVICE_LIMIT,
+    p_active_device_limit: ACTIVE_ATTENDANCE_DEVICE_LIMIT,
   });
 
   if (error) {

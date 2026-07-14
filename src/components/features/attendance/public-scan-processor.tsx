@@ -38,13 +38,6 @@ function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, durationMs));
 }
 
-function reloadForCookieBackedScan(): void {
-  const resumeUrl = new URL(window.location.href);
-  resumeUrl.searchParams.set("device", "registered");
-  resumeUrl.searchParams.set("scan", createRequestId());
-  window.location.replace(resumeUrl.toString());
-}
-
 async function processPublicQrScan(input: { publicCode: string; requestId: string }): Promise<PublicScanResult> {
   const response = await fetch("/api/attendance/public-scan", {
     method: "POST",
@@ -191,7 +184,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
         publicCode: scanPublicCode,
         email,
         password,
-        requestId: createRequestId(),
+        requestId,
       });
 
       if (!mountedRef.current) return;
@@ -225,7 +218,9 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       await wait(ATTENDANCE_STAGE_DURATION_MS);
       if (!mountedRef.current) return;
 
-      reloadForCookieBackedScan();
+      setResult(actionResult.result);
+      setBranchCorrectionState({ status: "idle", message: null });
+      setStage("result");
     } catch {
       if (!mountedRef.current) return;
       setLoginCredentials({ email, password: "" });

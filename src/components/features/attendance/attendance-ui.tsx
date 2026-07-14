@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 type AttendanceTone = "good" | "warn" | "bad" | "neutral";
 type NoticeTone = "success" | "warning" | "error" | "info";
 
-export function formatAttendanceDateTime(value: string | null | undefined): string {
+export function formatAttendanceDateTime(value: string | null | undefined, timezone = "Asia/Manila"): string {
   if (!value) return "-";
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
+    timeZone: timezone,
     month: "short",
     day: "numeric",
     hour: "numeric",

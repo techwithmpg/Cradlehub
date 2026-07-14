@@ -24,6 +24,7 @@ const criticalTables = [
   "attendance_exceptions",
   "staff_devices",
   "device_activation_tokens",
+  "staff_device_registration_requests",
 ];
 
 let failed = false;

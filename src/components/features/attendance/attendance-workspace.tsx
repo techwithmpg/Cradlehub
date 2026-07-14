@@ -199,7 +199,7 @@ export function AttendanceWorkspace({
 
   return (
     <div className="grid gap-5">
-      <AttendanceHeader branchName={workspaceData.branchName} nowMs={nowMs} onTabChange={setTab} />
+      <AttendanceHeader branchName={workspaceData.branchName} timezone={workspaceData.timezone} nowMs={nowMs} onTabChange={setTab} />
       <AttendanceTabs activeTab={selectedTab} onTabChange={setTab} />
       {notice ? (
         <WorkspaceNotice tone={notice.ok ? "success" : "error"} className="font-semibold">

@@ -9,6 +9,7 @@ import type {
   AttendanceDeviceRegistryEntry,
   PendingDeviceRecoveryLink,
 } from "@/lib/attendance/types";
+import { listStaffDeviceRegistrationRequests } from "@/lib/attendance/device-registration";
 
 type Relation<T> = T | T[] | null | undefined;
 
@@ -198,7 +199,7 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
   const admin = asAttendanceDb(createAdminClient());
   const now = new Date().toISOString();
 
-  const [branches, staffResult, tokensResult] = await Promise.all([
+  const [branches, staffResult, tokensResult, registrationRequests] = await Promise.all([
     loadBranches(params.canSwitchBranch ?? false),
     admin
       .from("staff")
@@ -215,6 +216,7 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
       .is("revoked_at", null)
       .gt("expires_at", now)
       .order("expires_at", { ascending: true }),
+    listStaffDeviceRegistrationRequests(params.branchId),
   ]);
 
   if (staffResult.error) throw new Error(staffResult.error.message);
@@ -305,6 +307,7 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
       })),
     entries,
     pendingRecoveryLinks,
+    registrationRequests,
   };
 }
 

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import {
   User, Bell, Settings, BookOpen, MapPin,
-  Clock, HelpCircle, Shield, LogOut, ChevronRight,
+  Clock, HelpCircle, Shield, LogOut, ChevronRight, ClipboardCheck,
 } from "lucide-react";
 
 async function therapistLogoutAction() {
@@ -42,6 +42,7 @@ const SECTIONS: MenuSection[] = [
   {
     title: "Work",
     items: [
+      { kind: "link", label: "My Attendance", description: "View clock history and review status", href: "/staff-portal/attendance", icon: ClipboardCheck },
       { kind: "link", label: "My Week", description: "Weekly schedule overview", href: "/staff-portal/week", icon: Clock },
       { kind: "link", label: "Dispatch & Home Service", description: "Home service assignments", href: "/staff-portal/dispatch", icon: MapPin },
       { kind: "link", label: "Service History", description: "Past completed services", href: "/staff-portal/service-progress", icon: BookOpen },

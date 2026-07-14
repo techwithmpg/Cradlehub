@@ -30,6 +30,7 @@ function PlusIcon({ className }: { className?: string }) {
 const MORE_MATCH_PATHS = [
   "/staff-portal/more",
   "/staff-portal/profile",
+  "/staff-portal/attendance",
   "/staff-portal/notifications",
   "/staff-portal/settings",
 ];

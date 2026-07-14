@@ -1,4 +1,128 @@
-# Current Task - CRM-BOOKING-ACTIONS-COMPACT-001
+# Current Task - ATTENDANCE-COMPLETE-SYSTEM-001
+
+Status: PHASE 1 COMPLETE LOCALLY — AUTHENTICATED BROWSER QA PENDING
+Started: 2026-07-14
+Last updated: 2026-07-14
+
+## Mission
+
+Complete the existing Attendance platform phase by phase without replacing its
+scan engine, schedule resolver, device registry, notification/task stores,
+Recovery audit, or payroll system.
+
+## Current phase
+
+Phase 0 evidence is recorded in
+`docs/attendance/PHASE_0_BASELINE_AND_ARCHITECTURE_MAP.md`. Phase 1's shared
+model and consumer contract are recorded in
+`docs/attendance/PHASE_1_AUTHORITATIVE_DAILY_MODEL.md`.
+
+- Focused baseline: 24 files / 96 tests passed.
+- Full repository type-check, lint, and production build passed for the current
+  worktree.
+- CRM Overview is proven to use a local incomplete interpretation and a
+  first-36 roster slice.
+- Staff Portal reads stored Attendance rows independently of a shared daily
+  model.
+- Reports, reconciliation automation, and several Recovery actions are proven
+  incomplete.
+- The previously pending staff self-service migration was applied through the
+  linked Management API SQL path after PostgREST reported the request table was
+  missing. The table, RLS, three policies, grants, RPC execution restrictions,
+  schema-cache reload, and service-role REST access are verified live.
+- `pnpm db:doctor` and `pnpm db:status` still time out reading linked migration
+  history. The SQL effects are live, but version `20260714050554` must still be
+  reconciled in migration history from a working migration connection.
+
+## Gate
+
+The focused device-request schema gate is cleared. Do not run a blind migration
+push while migration history remains unreadable; reconcile the applied version
+before a normal broad push.
+
+## Phase 1 implementation
+
+- Canonical schedule resolution remains `getResolvedStaffSchedulesForDate`.
+- `day-model.ts` composes the daily operational state for the whole CRM/Owner
+  roster and the signed-in Staff Portal member.
+- Day off, later, expected soon/now, missing, conflict, complete, available,
+  in-service, clocked-out, late-not-arrived, and review states are distinct.
+- CRM's false Scheduled Today/Not Arrived derivation and 36-staff slice are gone.
+- Focused Attendance: 25 files / 112 tests; full suite: 120 files / 835 tests.
+- Type-check, lint, and production build pass.
+- Authenticated CRM and Staff Portal browser QA remains pending.
+
+---
+
+# Previous Task - ATTENDANCE-STAFF-SELF-SERVICE-001
+
+Status: COMPLETE LOCALLY — DEPLOYMENT/DEVICE QA BLOCKED
+Started: 2026-07-14
+Last updated: 2026-07-14
+
+## Mission
+
+Verify and repair the existing autonomous first-scan Attendance phone
+registration flow, add a separate CRM-reviewed Staff Portal phone-registration
+request flow using the existing device infrastructure, and add read-only staff
+attendance summary/history surfaces without replacing the Attendance engine.
+
+## Non-negotiable policy
+
+- First-time Attendance QR registration is automatic after authenticated staff
+  validation and resumes the same scan without CRM approval.
+- Staff Portal phone registration requires CRM approval and activation on the
+  same requesting phone.
+- Both methods reuse `staff_devices`, the existing cookie/hash conventions,
+  scan idempotency, schedule/attendance logic, notifications, and work queue.
+- Staff attendance views are self-only and cannot mutate attendance.
+- No broad Attendance workspace redesign, second attendance engine, or changes
+  to booking, payroll, scheduling, recovery, or authentication behavior.
+
+## Implementation order
+
+1. Trace Method 1 from QR request through cookie-backed scan continuation.
+2. Repair and independently verify any proven Method 1 gaps.
+3. Reuse or add focused Method 2 persistence/RLS only where missing.
+4. Add Staff Portal Attendance & Phone and CRM Devices review surfaces.
+5. Add staff attendance summary/history and refresh wiring.
+6. Run focused/full verification and update the task context.
+
+## Completed behavior
+
+- First-scan registration now uses a signed ten-minute continuation bound to
+  the original QR and operation id, a stable temporary HttpOnly phone
+  credential, retry-safe registration, operational-staff/branch/device-limit
+  checks, and immediate attendance processing without a browser reload.
+- Staff Portal phone registration now creates a same-phone hash-bound request;
+  CRM can approve or reject it with the defined rejection taxonomy, approved
+  requests expire after 24 hours, activation is single-use, and replacement
+  revocation/device creation is transactional.
+- Method 1 reconciles a related pending/approved Method 2 request and preserves
+  replacement intent when the autonomous QR path succeeds first.
+- CRM Devices includes the registration-review inbox; Staff Profile includes
+  current-phone request/activation/rename/replacement controls and staff/CRM
+  notification/work-task signaling.
+- `/staff-portal/attendance` and the portal summary expose only the signed-in
+  staff member's schedule, clock state, history, calculated attendance metrics,
+  and friendly review status. The page has no attendance mutation controls and
+  its Realtime filter is scoped to that staff id.
+
+## Verification
+
+- Focused Attendance/Staff Portal tests: 6 files / 14 tests passed.
+- Full Vitest: 119 files / 819 tests passed.
+- `pnpm type-check`, `pnpm lint`, and `pnpm build` passed; the production build
+  includes `/staff-portal/attendance`.
+- Supabase CLI/link/project identity passed. Remote migration history and schema
+  application remain blocked because the linked pooler timed out repeatedly.
+- The only in-app browser session redirected authenticated Staff Portal routes
+  to `/login`; no safe signed-in staff/CRM session or physical phone was
+  available for end-to-end certification.
+
+---
+
+# Previous Task - CRM-BOOKING-ACTIONS-COMPACT-001
 
 Status: COMPLETE
 Started: 2026-07-14

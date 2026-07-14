@@ -61,6 +61,12 @@
 
 ## Attendance Architecture
 
+- Daily operational interpretation is centralized in
+  `src/lib/attendance/day-model.ts`. It composes—not replaces—the canonical
+  `getResolvedStaffSchedulesForDate(...)` output with branch-local time,
+  Attendance settings, check-ins, active service sessions, and exceptions.
+  CRM/Owner Overview and Staff Portal consume the same typed
+  `AttendanceDayStaffState`; UI components must not reimplement schedule state.
 - Public scans enter the existing QR scan engine in `src/lib/attendance/scan-engine.ts`; there is no parallel attendance engine.
 - Attendance scans resolve QR/device/staff context, branch authorization, branch-local business time, schedule intent, stable shift instance, current session state, and duplicate/idempotency context before writing interpreted Attendance records.
 - Branch-local shift identity is centralized in `src/lib/attendance/shift-instance.ts`. New clock-ins capture `shift_instance_key`, `schedule_source`, `schedule_source_id`, `branch_timezone`, `attendance_business_date`, `scheduled_start_at`, and `scheduled_end_at` so later schedule edits do not orphan legitimate open sessions.

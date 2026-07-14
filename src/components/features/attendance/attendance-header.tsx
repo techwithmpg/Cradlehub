@@ -5,15 +5,17 @@ import type { AttendanceTab } from "@/lib/attendance/types";
 
 export function AttendanceHeader({
   branchName,
+  timezone,
   nowMs,
   onTabChange,
 }: {
   branchName: string;
+  timezone: string;
   nowMs: number;
   onTabChange: (tab: AttendanceTab) => void;
 }) {
   const today = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
+    timeZone: timezone,
     weekday: "short",
     month: "short",
     day: "numeric",

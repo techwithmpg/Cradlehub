@@ -915,3 +915,40 @@ needs the established availability workflow.
 - The shared server action boundary starts with a UUID-only base booking lookup
   and must never translate database, branch, or permission failures into a
   missing-row message.
+
+## 2026-07-14 - Attendance phone registration has two coordinated trust paths
+
+**Decision:** Preserve autonomous first-scan QR registration and add Staff
+Portal CRM review as a separate request path over the same `staff_devices`,
+cookie/hash, token, notification, and workflow-task infrastructure.
+
+**Rationale:** An attendance QR scan is the operational clock event and must be
+able to register an eligible staff phone and finish that same scan. A profile
+request is proactive and can wait for branch CRM approval. A stable temporary
+HttpOnly credential binds both paths to the requesting browser without storing
+raw credentials or introducing a second device registry.
+
+**Consequences:**
+- Scan continuation is HMAC-bound to QR code and original operation id and
+  expires after ten minutes; registration and attendance use deterministic
+  child operation ids.
+- Portal approval is short-lived/single-use, completion requires the matching
+  phone hash plus authenticated staff identity, and replacements execute in one
+  database transaction.
+- Method 1 success closes the matching portal request so duplicate approvals or
+  work tasks do not remain open.
+- Staff Attendance remains read-only and self-only; it reuses persisted
+  attendance calculations and existing schedule sources rather than becoming a
+  second attendance interpreter.
+## 2026-07-14 - Authoritative Attendance day composition
+
+- `src/lib/attendance/day-model.ts` is the reusable daily Attendance state
+  composition layer for CRM/Owner, Staff Portal, and later automation/reporting.
+- It receives `ResolvedStaffSchedule` values from
+  `getResolvedStaffSchedulesForDate`; it does not query or reinterpret weekly,
+  override, or historical group schedule rows itself.
+- Historical group schedule tables remain dormant per the current scheduling
+  architecture. Phase 1 does not restore group fallback through Attendance.
+- Branch timezone and Attendance business date are mandatory model inputs.
+- Phase 1 does not synthesize absence, forgotten clock-out, or break records;
+  those require their later policy and automation phases.

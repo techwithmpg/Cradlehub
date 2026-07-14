@@ -38,7 +38,11 @@ export type NotificationType =
   | "staff_therapist_level_missing"
   | "schedule_suggestion_approved"
   | "schedule_suggestion_rejected"
-  | "schedule_block_applied";
+  | "schedule_block_applied"
+  | "attendance_device_registration_requested"
+  | "attendance_device_registration_approved"
+  | "attendance_device_registration_rejected"
+  | "attendance_device_registration_completed";
 
 export type NotificationWorkspace =
   | "owner"

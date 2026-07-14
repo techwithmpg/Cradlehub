@@ -15,7 +15,7 @@ import {
   createAttendanceScanError,
 } from "@/lib/attendance/scan-errors";
 import { createActivationToken, createPublicCode, hashSecret } from "@/lib/attendance/tokens";
-import { addDaysToYmd, getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { addDaysToYmd } from "@/lib/engine/slot-time";
 import type {
   AttendanceCorrection,
   AttendanceDevice,
@@ -28,6 +28,10 @@ import type {
   AttendanceSettings,
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
+import { resolveAttendanceDayStaffStates } from "@/lib/attendance/day-model";
+import { getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
+import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
+import { isOperationalStaff } from "@/lib/staff/operational-staff";
 
 export type AttendanceActionContext = {
   branchId: string;
@@ -461,9 +465,10 @@ export async function getAttendanceWorkspaceData(params: {
 }): Promise<AttendanceWorkspaceData> {
   const admin = asAttendanceDb(createAdminClient());
   const serverNowMs = new Date().getTime();
-  const today = getBranchBusinessDate();
-  const historyStart = addDaysToYmd(today, -90);
   const settings = await getAttendanceSettings(params.branchId);
+  const branchNow = getAttendanceBranchNow(settings, new Date(serverNowMs));
+  const today = branchNow.businessDate;
+  const historyStart = addDaysToYmd(today, -90);
 
   const [
     qrPointsResult,
@@ -531,9 +536,11 @@ export async function getAttendanceWorkspaceData(params: {
       .limit(100),
     admin
       .from("staff")
-      .select("id, full_name, staff_type")
+      .select("id, full_name, staff_type, system_role, is_active, archived_at, merged_into_staff_id, metadata")
       .eq("branch_id", params.branchId)
       .eq("is_active", true)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
       .order("full_name"),
     admin
       .from("branch_resources")
@@ -570,11 +577,50 @@ export async function getAttendanceWorkspaceData(params: {
   const scanEvents = (scanEventsResult.data ?? []).map(mapScanEvent);
   const sessions = (sessionsResult.data ?? []).map(mapSession);
   const corrections = (correctionsResult.data ?? []).map(mapCorrection);
+  const staffRows = (staffResult.data ?? []) as Array<{
+    id: string;
+    full_name: string;
+    staff_type: string | null;
+    system_role: string | null;
+    is_active: boolean;
+    archived_at: string | null;
+    merged_into_staff_id: string | null;
+    metadata: Record<string, unknown> | null;
+  }>;
+  const schedules = await getResolvedStaffSchedulesForDate({
+    supabase: admin as never,
+    branchId: params.branchId,
+    date: today,
+    staff: staffRows.map((staff) => ({
+      id: staff.id,
+      staff_type: staff.staff_type,
+      system_role: staff.system_role,
+      operational: isOperationalStaff(staff),
+    })),
+  });
+  const dailyStaffStates = resolveAttendanceDayStaffStates({
+    branchId: params.branchId,
+    businessDate: today,
+    timezone: branchNow.timezone,
+    now: new Date(serverNowMs),
+    settings,
+    staff: staffRows.map((staff) => ({
+      id: staff.id,
+      fullName: staff.full_name,
+      staffType: staff.staff_type,
+    })),
+    schedules,
+    records,
+    sessions,
+    exceptions,
+  });
   const activeSessions = sessions.filter((session) => session.booking_progress_status === "session_started").length;
 
   return {
     branchId: params.branchId,
     branchName: params.branchName,
+    businessDate: today,
+    timezone: branchNow.timezone,
     serverNowMs,
     settings,
     summary: {
@@ -593,7 +639,8 @@ export async function getAttendanceWorkspaceData(params: {
     corrections,
     scanEvents,
     sessions,
-    staffOptions: (staffResult.data ?? []).map((row: { id: string; full_name: string; staff_type?: string | null }) => ({
+    dailyStaffStates,
+    staffOptions: staffRows.map((row) => ({
       id: row.id,
       full_name: row.full_name,
       staff_type: row.staff_type ?? null,
@@ -617,6 +664,7 @@ export function revalidateAttendanceSurfaces(options?: {
   revalidatePath("/crm/bookings");
   revalidatePath("/crm/schedule");
   revalidatePath("/staff-portal");
+  revalidatePath("/staff-portal/attendance");
 }
 
 function createUnavailableQrPoint(row: unknown): AttendanceQrPoint {

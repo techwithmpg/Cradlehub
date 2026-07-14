@@ -13,6 +13,7 @@ import { RecoveryLinkDialog } from "@/components/features/attendance/devices/rec
 import { RenameDeviceDialog } from "@/components/features/attendance/devices/rename-device-dialog";
 import { RevokeDeviceDialog } from "@/components/features/attendance/devices/revoke-device-dialog";
 import { SelectedDevicePanel } from "@/components/features/attendance/devices/selected-device-panel";
+import { DeviceRegistrationRequestsPanel } from "@/components/features/attendance/devices/device-registration-requests-panel";
 import type {
   AttendanceDeviceRegistryData,
   AttendanceDeviceRegistryEntry,
@@ -187,6 +188,8 @@ export function RegisteredDevicesTab({
         </Button>
       </div>
 
+      <DeviceRegistrationRequestsPanel registry={registry} />
+
       <DeviceRegistryToolbar
         query={query}
         onQueryChange={setQuery}
@@ -224,6 +227,7 @@ export function RegisteredDevicesTab({
         <SelectedDevicePanel
           entry={selectedEntry}
           nowMs={nowMs}
+          timezone={data.timezone}
           routeBasePath={routeBasePath}
           routeBranchId={routeBranchId}
           onGenerateRecovery={setRecoveryEntry}

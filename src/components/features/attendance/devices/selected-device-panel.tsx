@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { StaffAvatar, formatAttendanceDateTime } from "@/components/features/attendance/attendance-ui";
 import type { AttendanceDeviceRegistryEntry } from "@/lib/attendance/types";
 
-function infoRows(entry: AttendanceDeviceRegistryEntry) {
+function infoRows(entry: AttendanceDeviceRegistryEntry, timezone: string) {
   const device = entry.device;
   if (!device) {
     return [
@@ -19,19 +19,19 @@ function infoRows(entry: AttendanceDeviceRegistryEntry) {
     ["Device", device.label],
     ["Browser", [device.browserName, device.browserVersion].filter(Boolean).join(" ") || null],
     ["Platform", device.platformName],
-    ["Registered", formatAttendanceDateTime(device.registeredAt)],
+    ["Registered", formatAttendanceDateTime(device.registeredAt, timezone)],
     ["Registered through", device.registrationSource?.replaceAll("_", " ") ?? null],
-    ["Last used", formatAttendanceDateTime(device.lastSeenAt)],
-    ["Last attendance scan", formatAttendanceDateTime(device.lastAttendanceScanAt)],
-    ["Last service scan", formatAttendanceDateTime(device.lastServiceScanAt)],
+    ["Last used", formatAttendanceDateTime(device.lastSeenAt, timezone)],
+    ["Last attendance scan", formatAttendanceDateTime(device.lastAttendanceScanAt, timezone)],
+    ["Last service scan", formatAttendanceDateTime(device.lastServiceScanAt, timezone)],
     ["Total successful scans", String(device.totalSuccessfulScans)],
     ["Last branch", device.registeredBranchName],
   ] as const;
 }
 
-function branchDate(nowMs: number): string {
+function branchDate(nowMs: number, timezone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
+    timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -45,6 +45,7 @@ function branchDate(nowMs: number): string {
 export function SelectedDevicePanel({
   entry,
   nowMs,
+  timezone,
   routeBasePath,
   routeBranchId,
   onGenerateRecovery,
@@ -53,6 +54,7 @@ export function SelectedDevicePanel({
 }: {
   entry: AttendanceDeviceRegistryEntry | null;
   nowMs: number;
+  timezone: string;
   routeBasePath?: string;
   routeBranchId?: string | null;
   onGenerateRecovery: (entry: AttendanceDeviceRegistryEntry) => void;
@@ -67,7 +69,7 @@ export function SelectedDevicePanel({
     );
   }
 
-  const recordsHref = `${routeBasePath ?? "/crm/attendance"}?tab=records&staffId=${entry.staffId}&date=${branchDate(nowMs)}${
+  const recordsHref = `${routeBasePath ?? "/crm/attendance"}?tab=records&staffId=${entry.staffId}&date=${branchDate(nowMs, timezone)}${
     routeBranchId ? `&branchId=${routeBranchId}` : ""
   }`;
 
@@ -88,7 +90,7 @@ export function SelectedDevicePanel({
         <section>
           <h3 className="mb-3 text-sm font-bold text-stone-950">Device Information</h3>
           <div className="divide-y divide-stone-100 rounded-lg border border-stone-200">
-            {infoRows(entry).map(([label, value]) => (
+            {infoRows(entry, timezone).map(([label, value]) => (
               value ? (
                 <div key={label} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2 text-sm">
                   <span className="text-stone-500">{label}</span>

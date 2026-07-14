@@ -11,6 +11,11 @@ import { consumeDeviceRecoveryLink } from "@/lib/attendance/device-recovery";
 import { revalidateAttendanceSurfaces } from "@/lib/attendance/queries";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
 import {
+  ATTENDANCE_REGISTRATION_COOKIE_NAME,
+  ATTENDANCE_SCAN_INTENT_COOKIE_NAME,
+  verifyAttendanceScanIntent,
+} from "@/lib/attendance/scan-continuation";
+import {
   attendanceScanFailureFromError,
   logAttendanceScanError,
   normalizeAttendanceOperationId,
@@ -67,11 +72,12 @@ export type FirstTimeAttendanceDeviceRegistrationResult =
       ok: true;
       deviceRegistered: true;
       cookieSet: true;
-      nextScanRequired: true;
+      nextScanRequired: false;
       staffDeviceId: string;
       staffName: string;
       branchName: string;
       message: string;
+      result: PublicScanResult;
     }
   | {
       ok: false;
@@ -111,6 +117,18 @@ async function setDeviceCookie(rawDeviceCredential: string): Promise<void> {
     path: "/scan",
     maxAge: 0,
   });
+}
+
+async function clearRegistrationContinuationCookies(): Promise<void> {
+  const cookieStore = await cookies();
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    maxAge: 0,
+  };
+  cookieStore.set(ATTENDANCE_REGISTRATION_COOKIE_NAME, "", { ...options, path: "/" });
+  cookieStore.set(ATTENDANCE_SCAN_INTENT_COOKIE_NAME, "", { ...options, path: "/scan" });
 }
 
 async function clearDeviceCookies(): Promise<void> {
@@ -248,7 +266,8 @@ export async function signInAndRegisterAttendanceDeviceAction(
   input: FirstTimeScanLoginInput
 ): Promise<FirstTimeAttendanceDeviceRegistrationResult> {
   const parsed = validateFirstTimeScanLogin(input);
-  const operationId = normalizeAttendanceOperationId(appendRequestStep(input.requestId, "register"));
+  const rootOperationId = normalizeAttendanceOperationId(input.requestId);
+  const operationId = normalizeAttendanceOperationId(appendRequestStep(rootOperationId, "register"));
   if (!parsed.publicCode) {
     return {
       ok: false,
@@ -270,6 +289,28 @@ export async function signInAndRegisterAttendanceDeviceAction(
       ok: false,
       error: "Check your email and password, then try again.",
       fieldErrors: parsed.fieldErrors,
+    };
+  }
+
+  const cookieStore = await cookies();
+  const continuation = verifyAttendanceScanIntent(
+    cookieStore.get(ATTENDANCE_SCAN_INTENT_COOKIE_NAME)?.value,
+    { publicCode: parsed.publicCode, operationId: rootOperationId }
+  );
+  const temporaryCredential = cookieStore.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ?? null;
+  if (!continuation.ok || !temporaryCredential) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        outcome: "blocked",
+        reasonCode: continuation.ok ? "scan_continuation_missing" : `scan_continuation_${continuation.code}`,
+        severity: "warning",
+        title: "Scan session expired",
+        message: "Scan the attendance QR again, then sign in from the page that opens.",
+        securityNote: "No phone was connected and no attendance change was recorded.",
+        operationId: rootOperationId,
+      },
     };
   }
 
@@ -299,7 +340,7 @@ export async function signInAndRegisterAttendanceDeviceAction(
     const registration = await registerDeviceForAuthenticatedScan(
       parsed.publicCode,
       user.id,
-      await getRequestContext(operationId)
+      await getRequestContext(operationId, temporaryCredential)
     );
 
     if (!registration.ok) {
@@ -315,17 +356,27 @@ export async function signInAndRegisterAttendanceDeviceAction(
     }
 
     await setDeviceCookie(registration.rawDeviceCredential);
-    revalidateAttendanceSurfaces();
+    await clearRegistrationContinuationCookies();
+
+    const attendanceOperationId = normalizeAttendanceOperationId(
+      appendRequestStep(rootOperationId, "attendance")
+    );
+    const attendanceResult = await processQrScan(
+      parsed.publicCode,
+      await getRequestContext(attendanceOperationId, registration.rawDeviceCredential)
+    );
+    revalidatePublicScanResult(attendanceResult);
 
     return {
       ok: true,
       deviceRegistered: true,
       cookieSet: true,
-      nextScanRequired: true,
+      nextScanRequired: false,
       staffDeviceId: registration.deviceId,
       staffName: registration.staffName,
       branchName: registration.branchName,
       message: "This phone is now connected for faster attendance scans.",
+      result: toPublicResult(attendanceResult),
     };
   } catch (error) {
     return {

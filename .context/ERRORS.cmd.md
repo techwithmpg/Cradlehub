@@ -993,3 +993,55 @@
 - **Prevention:** Focused server-action tests assert the base select, real UUID,
   malformed/display-ID rejection, wrong-branch/RLS/missing/database distinctions,
   update failures, and cancellation final-state guards.
+
+## 2026-07-14 - ATTENDANCE-STAFF-SELF-SERVICE-001 deployment and QA blockers
+
+- **Symptom:** `pnpm db:doctor` and `pnpm db:status` identify the correct linked
+  Supabase project but time out connecting to the remote Postgres pooler on
+  port 5432, including an unrestricted-network retry.
+- **Impact:** Migration `20260714050554_attendance_staff_self_service.sql`, its
+  RLS policies, and its review/completion RPCs are committed locally but are not
+  claimed as remotely applied or production-verified.
+- **Resolution:** Restore the approved pooler/direct SQL connection, inspect
+  migration history, apply the migration once, regenerate types from the live
+  schema, then run RPC/RLS probes before deployment.
+
+- **Symptom:** Local `/staff-portal/attendance` and `/staff-portal/profile`
+  redirect the only in-app browser session to `/login`.
+- **Impact:** Static/component/server contracts and the full production build
+  pass, but same-phone request/approval/activation and physical first-scan
+  device behavior are not browser/device-certified.
+- **Resolution:** Use safe authenticated staff and CRM test accounts plus a
+  physical/test phone after the migration is applied; certify Method 1,
+  request/approve/reject/replace, expiry, duplicate submission, cookie
+  persistence, clock-in/out, and self-only history.
+## 2026-07-14 - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 0 live-schema blocker
+
+- **Symptom:** `pnpm db:doctor` and `pnpm db:status` time out connecting to the
+  linked Supabase Postgres pooler on port 5432 while reading migration history.
+- **Impact:** The source/migration architecture and focused tests are mapped,
+  but deployed Attendance migrations, RLS policies, RPC grants, and scheduler
+  capabilities cannot be certified. Phase 1 is intentionally not started.
+- **Evidence:** Project identity, link, token, pooler configuration, and type
+  generation checks pass. `db:doctor` exits 2 at migration history;
+  `db:status` finds 105 local migrations and reports no remote schema change
+  before exiting 1 at the same read.
+- **Recovery:** Restore an approved authoritative SQL/migration-history
+  connection, inspect the live contracts, reconcile history without a blind
+  push, and rerun the Phase 0 verification commands.
+## 2026-07-14 - Missing staff device registration request table resolved
+
+- **Symptom:** Attendance rendered `Could not find the table
+  'public.staff_device_registration_requests' in the schema cache`.
+- **Root cause:** The application and generated types contained the Staff Portal
+  phone-request feature, but migration `20260714050554` had not been applied to
+  the linked database. A live prerequisite query returned `to_regclass(...) =
+  null` while all required helper functions and device columns existed.
+- **Resolution:** Applied the focused migration through `supabase db query
+  --linked`, sent `NOTIFY pgrst, 'reload schema'`, and verified SQL plus
+  service-role REST access.
+- **Security verification:** RLS enabled; three scoped SELECT policies;
+  authenticated SELECT only; anon SELECT denied; service-role CRUD; review and
+  completion RPCs executable by service role and not authenticated users.
+- **Remaining maintenance:** Reconcile migration version `20260714050554` from
+  a working migration-history connection before any broad migration push.

@@ -109,7 +109,7 @@ export const OWNER_PREFETCH: WorkspacePrefetchConfig = {
 
 export const STAFF_PORTAL_PREFETCH: WorkspacePrefetchConfig = {
   immediate: ["/staff-portal", "/staff-portal/schedule", "/staff-portal/today"],
-  idle: ["/staff-portal/week", "/staff-portal/profile", "/staff-portal/notifications"],
+  idle: ["/staff-portal/week", "/staff-portal/profile", "/staff-portal/attendance", "/staff-portal/notifications"],
   hover: ["/staff-portal/dispatch", "/staff-portal/stats"],
 };
 

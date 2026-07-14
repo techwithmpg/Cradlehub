@@ -9,6 +9,7 @@ import {
   Shield,
   LogOut,
   ChevronRight,
+  ClipboardCheck,
 } from "lucide-react";
 
 // ── Logout server action ──────────────────────────────────────────────────────
@@ -57,6 +58,13 @@ const SECTIONS: MenuSection[] = [
         description: "View and edit your profile",
         href: "/staff-portal/profile",
         icon: User,
+      },
+      {
+        kind: "link",
+        label: "My Attendance",
+        description: "View clock history and review status",
+        href: "/staff-portal/attendance",
+        icon: ClipboardCheck,
       },
       {
         kind: "link",

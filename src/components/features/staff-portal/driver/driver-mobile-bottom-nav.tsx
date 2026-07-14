@@ -42,7 +42,7 @@ export function DriverMobileBottomNav({
   const tripsHref = isStandaloneDriver ? "/driver/dispatch" : "/staff-portal/dispatch";
   const mapHref = isStandaloneDriver ? "/driver/map" : "/staff-portal/map";
   const jobsHref = isStandaloneDriver ? "/driver/jobs" : "/staff-portal/jobs";
-  const profileActive = isProfileOpen || pathname.startsWith("/staff-portal/profile");
+  const profileActive = isProfileOpen || pathname.startsWith("/staff-portal/profile") || pathname.startsWith("/staff-portal/attendance");
 
   const items: FloatingMobileNavItem[] = [
     {

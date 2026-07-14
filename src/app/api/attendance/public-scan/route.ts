@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { processQrScan } from "@/lib/attendance/scan-engine";
 import { revalidateAttendanceSurfaces } from "@/lib/attendance/queries";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
+import { createDeviceCredential } from "@/lib/attendance/tokens";
+import {
+  ATTENDANCE_REGISTRATION_COOKIE_NAME,
+  ATTENDANCE_SCAN_INTENT_COOKIE_NAME,
+  ATTENDANCE_SCAN_INTENT_TTL_SECONDS,
+  createAttendanceScanIntent,
+} from "@/lib/attendance/scan-continuation";
 import {
   attendanceScanFailureFromError,
   logAttendanceScanError,
@@ -77,7 +84,27 @@ export async function POST(request: NextRequest) {
       ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"),
     });
     revalidatePublicScanResult(result);
-    return NextResponse.json(toPublicResult(result));
+    const response = NextResponse.json(toPublicResult(result));
+    if (result.reasonCode === "unknown_device") {
+      const temporaryCredential =
+        request.cookies.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ?? createDeviceCredential();
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax" as const,
+      };
+      response.cookies.set(ATTENDANCE_REGISTRATION_COOKIE_NAME, temporaryCredential, {
+        ...cookieOptions,
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      response.cookies.set(
+        ATTENDANCE_SCAN_INTENT_COOKIE_NAME,
+        createAttendanceScanIntent({ publicCode, operationId }),
+        { ...cookieOptions, path: "/scan", maxAge: ATTENDANCE_SCAN_INTENT_TTL_SECONDS }
+      );
+    }
+    return response;
   } catch (error) {
     logAttendanceScanError({
       scope: "public-attendance-scan-route",

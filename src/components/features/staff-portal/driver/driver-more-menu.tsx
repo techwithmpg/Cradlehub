@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { User, Bell, Settings, BriefcaseBusiness, Map, Clock, HelpCircle, Shield, LogOut, ChevronRight } from "lucide-react";
+import { User, Bell, Settings, BriefcaseBusiness, Map, Clock, HelpCircle, Shield, LogOut, ChevronRight, ClipboardCheck } from "lucide-react";
 
 async function driverLogoutAction() {
   "use server";
@@ -27,6 +27,7 @@ const SECTIONS: MenuSection[] = [
   {
     title: "Work",
     items: [
+      { kind: "link", label: "My Attendance", description: "View clock history and review status", href: "/staff-portal/attendance", icon: ClipboardCheck },
       { kind: "link", label: "Jobs", description: "View all assigned jobs", href: "/staff-portal/jobs", icon: BriefcaseBusiness },
       { kind: "link", label: "Map", description: "Open route map", href: "/staff-portal/map", icon: Map },
       { kind: "link", label: "Job History", description: "Review completed jobs", href: "/staff-portal/jobs", icon: Clock },

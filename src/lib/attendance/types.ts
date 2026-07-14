@@ -199,6 +199,7 @@ export type AttendanceDeviceRegistryData = {
   }>;
   entries: AttendanceDeviceRegistryEntry[];
   pendingRecoveryLinks: PendingDeviceRecoveryLink[];
+  registrationRequests: import("@/lib/attendance/device-registration").StaffDeviceRegistrationRequest[];
 };
 
 export type RecoveryLinkResult = {
@@ -369,6 +370,8 @@ export type AttendanceSession = {
 export type AttendanceWorkspaceData = {
   branchId: string;
   branchName: string;
+  businessDate: string;
+  timezone: string;
   serverNowMs: number;
   settings: AttendanceSettings;
   summary: {
@@ -387,6 +390,7 @@ export type AttendanceWorkspaceData = {
   corrections: AttendanceCorrection[];
   scanEvents: AttendanceScanEvent[];
   sessions: AttendanceSession[];
+  dailyStaffStates: import("@/lib/attendance/day-model").AttendanceDayStaffState[];
   staffOptions: Array<{ id: string; full_name: string; staff_type: string | null }>;
   resourceOptions: Array<{ id: string; name: string; type: string | null; is_active: boolean }>;
 };

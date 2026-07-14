@@ -7,6 +7,12 @@ import { getAttendanceSettings } from "@/lib/attendance/queries";
 import { getAttendanceDeviceBranchDecision } from "@/lib/attendance/branch-validation";
 import { createDeviceCredential, hashSecret, maskId } from "@/lib/attendance/tokens";
 import {
+  ACTIVE_ATTENDANCE_DEVICE_LIMIT,
+  nextAttendanceDeviceRole,
+} from "@/lib/attendance/device-policy";
+import { isOperationalStaff } from "@/lib/staff/operational-staff";
+import { reconcileFirstScanDeviceRegistration } from "@/lib/attendance/device-registration";
+import {
   computeAttendanceMetrics,
   formatMinutesCompact,
 } from "@/lib/attendance/time";
@@ -78,6 +84,9 @@ type StaffDeviceRow = {
     staff_type: string | null;
     system_role: string | null;
     is_active: boolean;
+    archived_at: string | null;
+    merged_into_staff_id: string | null;
+    metadata: Record<string, unknown> | null;
     branches?: { name: string | null } | Array<{ name: string | null }> | null;
   } | Array<{
     branch_id: string | null;
@@ -85,6 +94,9 @@ type StaffDeviceRow = {
     staff_type: string | null;
     system_role: string | null;
     is_active: boolean;
+    archived_at: string | null;
+    merged_into_staff_id: string | null;
+    metadata: Record<string, unknown> | null;
     branches?: { name: string | null } | Array<{ name: string | null }> | null;
   }> | null;
 };
@@ -96,6 +108,9 @@ type AuthenticatedStaffRow = {
   staff_type: string | null;
   system_role: string | null;
   is_active: boolean;
+  archived_at: string | null;
+  merged_into_staff_id: string | null;
+  metadata: Record<string, unknown> | null;
   branches?: { name: string | null } | Array<{ name: string | null }> | null;
 };
 
@@ -743,7 +758,7 @@ async function resolveDevice(admin: AttendanceDb, rawCredential: string | null |
   if (!rawCredential) return null;
   const { data, error } = await admin
     .from("staff_devices")
-    .select("id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, staff_type, system_role, is_active, branches(name))")
+    .select("id, staff_id, branch_id, status, staff:staff!staff_devices_staff_id_fkey(branch_id, full_name, staff_type, system_role, is_active, archived_at, merged_into_staff_id, metadata, branches(name))")
     .eq("device_fingerprint_hash", hashSecret(rawCredential))
     .maybeSingle();
 
@@ -963,7 +978,10 @@ export async function registerDeviceForAuthenticatedScan(
 
   const existingDevice = await resolveDevice(admin, ctx.rawDeviceCredential);
   const existingDeviceStaff = first(existingDevice?.staff);
-  if (existingDevice && (existingDevice.status !== "active" || existingDeviceStaff?.is_active === false)) {
+  if (
+    existingDevice &&
+    (existingDevice.status !== "active" || !existingDeviceStaff || !isOperationalStaff(existingDeviceStaff))
+  ) {
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
       qrPointId: point.id,
@@ -1001,12 +1019,12 @@ export async function registerDeviceForAuthenticatedScan(
 
   const staffResult = await admin
     .from("staff")
-    .select("id, branch_id, full_name, staff_type, system_role, is_active, branches(name)")
+    .select("id, branch_id, full_name, staff_type, system_role, is_active, archived_at, merged_into_staff_id, metadata, branches(name)")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
   const staff = (staffResult.data as AuthenticatedStaffRow | null) ?? null;
-  if (staffResult.error || !staff || !staff.is_active) {
+  if (staffResult.error || !staff || !isOperationalStaff(staff)) {
     const eventId = await recordScanEvent(admin, {
       branchId: point.branch_id,
       qrPointId: point.id,
@@ -1022,7 +1040,7 @@ export async function registerDeviceForAuthenticatedScan(
 
     return {
       ok: false,
-      result: blocked("Account not eligible", "This account is not connected to an active staff profile. Please contact the front desk.", {
+      result: blocked("Account not eligible", "This staff account is inactive. Please contact CRM or management.", {
         outcome: staffResult.error ? "error" : "blocked",
         reasonCode: staffResult.error ? "device_registration_failed" : "account_not_eligible",
         severity: staffResult.error ? "critical" : "warning",
@@ -1054,7 +1072,7 @@ export async function registerDeviceForAuthenticatedScan(
 
       return {
         ok: false,
-        result: blocked("Phone already connected", "This phone is linked to a different staff account. Please contact the front desk.", {
+        result: blocked("Phone already connected", "This phone is already linked to another staff account. Please contact CRM or management.", {
           reasonCode: "device_staff_mismatch",
           severity: "critical",
           securityNote: "No attendance change was recorded from this sign-in.",
@@ -1121,7 +1139,7 @@ export async function registerDeviceForAuthenticatedScan(
 
       return {
         ok: false,
-        result: blocked("Wrong branch detected", "This QR belongs to a different branch than your staff profile. If your profile branch is wrong, request a correction.", {
+        result: blocked("Wrong branch detected", "This attendance QR belongs to another branch. Use your assigned branch QR or request a branch correction.", {
           reasonCode: "wrong_branch",
           severity: "critical",
           securityNote: "Your request must be approved by the front desk before scanning again.",
@@ -1164,6 +1182,11 @@ export async function registerDeviceForAuthenticatedScan(
       });
     }
 
+    await reconcileFirstScanDeviceRegistration({
+      staffId: staff.id,
+      deviceId: existingDevice.id,
+      rawCredential: ctx.rawDeviceCredential ?? "",
+    });
     return {
       ok: true,
       rawDeviceCredential: ctx.rawDeviceCredential ?? "",
@@ -1222,7 +1245,7 @@ export async function registerDeviceForAuthenticatedScan(
 
     return {
       ok: false,
-      result: blocked("Wrong branch detected", "This QR belongs to a different branch than your staff profile. If your profile branch is wrong, request a correction.", {
+      result: blocked("Wrong branch detected", "This attendance QR belongs to another branch. Use your assigned branch QR or request a branch correction.", {
         reasonCode: "wrong_branch",
         severity: "critical",
         securityNote: "Your request must be approved by the front desk before scanning again.",
@@ -1240,7 +1263,70 @@ export async function registerDeviceForAuthenticatedScan(
     };
   }
 
-  const rawDeviceCredential = createDeviceCredential();
+  const activeDevicesResult = await admin
+    .from("staff_devices")
+    .select("id, device_role")
+    .eq("staff_id", staff.id)
+    .eq("status", "active");
+  if (activeDevicesResult.error) {
+    throwAttendanceDataError({
+      error: activeDevicesResult.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "load_active_devices_for_first_scan",
+      operationId: ctx.requestId,
+    });
+  }
+  const activeDevices = (activeDevicesResult.data ?? []) as Array<{ id: string; device_role?: string | null }>;
+  const registrationFingerprint = hashSecret(ctx.rawDeviceCredential || "");
+  const relatedRequestResult = ctx.rawDeviceCredential
+    ? await admin
+        .from("staff_device_registration_requests")
+        .select("request_type, existing_device_id, replacement_device_id")
+        .eq("staff_id", staff.id)
+        .eq("device_fingerprint_hash", registrationFingerprint)
+        .in("status", ["pending", "approved"])
+        .maybeSingle()
+    : { data: null, error: null };
+  if (relatedRequestResult.error) {
+    throwAttendanceDataError({
+      error: relatedRequestResult.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "load_related_device_registration_request",
+      operationId: ctx.requestId,
+    });
+  }
+  const replacementDeviceId = relatedRequestResult.data?.replacement_device_id
+    ?? relatedRequestResult.data?.existing_device_id
+    ?? null;
+  const replacesActiveDevice = relatedRequestResult.data?.request_type === "replacement"
+    && activeDevices.some((device) => device.id === replacementDeviceId);
+  const effectiveActiveCount = activeDevices.length - (replacesActiveDevice ? 1 : 0);
+  if (effectiveActiveCount >= ACTIVE_ATTENDANCE_DEVICE_LIMIT) {
+    const eventId = await recordScanEvent(admin, {
+      branchId: point.branch_id,
+      qrPointId: point.id,
+      staffId: staff.id,
+      scanType: scanTypeForPoint(point),
+      action: "first_scan_register_device",
+      outcome: "blocked",
+      reasonCode: "device_limit_reached",
+      message: "Active attendance device limit reached.",
+      requestId: ctx.requestId,
+      userAgent: ctx.userAgent,
+      ipAddress: ctx.ipAddress,
+    });
+    return {
+      ok: false,
+      result: blocked("Device limit reached", "Your attendance device limit has been reached. Ask CRM to replace or revoke an old phone.", {
+        reasonCode: "device_limit_reached",
+        severity: "warning",
+        securityNote: "No phone was connected and no attendance change was recorded.",
+        scanEventId: eventId ?? undefined,
+      }),
+    };
+  }
+
+  const rawDeviceCredential = ctx.rawDeviceCredential || createDeviceCredential();
   const deviceHints = inferDeviceClientHints(ctx.userAgent);
   const nowIso = new Date().toISOString();
   const inserted = await admin
@@ -1251,6 +1337,9 @@ export async function registerDeviceForAuthenticatedScan(
       device_fingerprint_hash: hashSecret(rawDeviceCredential),
       device_label: deviceHints.label,
       status: "active",
+      device_role: nextAttendanceDeviceRole(
+        activeDevices.some((device) => device.device_role === "primary")
+      ),
       registration_source: "first_scan_activation",
       browser_name: deviceHints.browserName,
       browser_version: deviceHints.browserVersion,
@@ -1265,6 +1354,27 @@ export async function registerDeviceForAuthenticatedScan(
     })
     .select("id")
     .single();
+
+  if ((inserted.error as { code?: string } | null)?.code === "23505") {
+    const retryDevice = await resolveDevice(admin, rawDeviceCredential);
+    if (retryDevice?.staff_id === staff.id && retryDevice.status === "active") {
+      await reconcileFirstScanDeviceRegistration({
+        staffId: staff.id,
+        deviceId: retryDevice.id,
+        rawCredential: rawDeviceCredential,
+      });
+      return {
+        ok: true,
+        rawDeviceCredential,
+        deviceId: retryDevice.id,
+        staffId: staff.id,
+        branchId: point.branch_id,
+        staffName,
+        branchName,
+        registeredNewDevice: false,
+      };
+    }
+  }
 
   if (inserted.error || !inserted.data) {
     const eventId = await recordScanEvent(admin, {
@@ -1310,6 +1420,12 @@ export async function registerDeviceForAuthenticatedScan(
       qr_point_id: point.id,
       registration_source: "first_scan_activation",
     },
+  });
+
+  await reconcileFirstScanDeviceRegistration({
+    staffId: staff.id,
+    deviceId: inserted.data.id as string,
+    rawCredential: rawDeviceCredential,
   });
 
   return {

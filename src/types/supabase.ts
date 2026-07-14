@@ -3154,6 +3154,105 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_device_registration_requests: {
+        Row: {
+          activation_token_id: string | null
+          branch_id: string
+          browser_name: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          completed_device_id: string | null
+          created_at: string
+          device_fingerprint_hash: string
+          device_label: string | null
+          existing_device_id: string | null
+          expires_at: string | null
+          id: string
+          metadata: Json
+          platform_name: string | null
+          registration_method: string
+          rejection_reason: string | null
+          replacement_device_id: string | null
+          request_type: string
+          requested_at: string
+          reviewed_at: string | null
+          reviewed_by_staff_id: string | null
+          reviewer_note: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          activation_token_id?: string | null
+          branch_id: string
+          browser_name?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          completed_device_id?: string | null
+          created_at?: string
+          device_fingerprint_hash: string
+          device_label?: string | null
+          existing_device_id?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          platform_name?: string | null
+          registration_method?: string
+          rejection_reason?: string | null
+          replacement_device_id?: string | null
+          request_type?: string
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by_staff_id?: string | null
+          reviewer_note?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          activation_token_id?: string | null
+          branch_id?: string
+          browser_name?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          completed_device_id?: string | null
+          created_at?: string
+          device_fingerprint_hash?: string
+          device_label?: string | null
+          existing_device_id?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          platform_name?: string | null
+          registration_method?: string
+          rejection_reason?: string | null
+          replacement_device_id?: string | null
+          request_type?: string
+          requested_at?: string
+          reviewed_at?: string | null
+          reviewed_by_staff_id?: string | null
+          reviewer_note?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_device_registration_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_devices: {
         Row: {
           branch_id: string
@@ -4633,6 +4732,25 @@ export type Database = {
           success: boolean
         }[]
       }
+      complete_staff_device_registration_request: {
+        Args: {
+          p_active_device_limit?: number
+          p_browser_name?: string
+          p_browser_version?: string
+          p_device_fingerprint_hash: string
+          p_device_label?: string
+          p_platform_name?: string
+          p_request_id: string
+          p_staff_id: string
+          p_user_agent?: string
+        }
+        Returns: {
+          code: string
+          device_id: string | null
+          request_status: string
+          success: boolean
+        }[]
+      }
       complete_due_service_sessions: {
         Args: { p_limit?: number }
         Returns: {
@@ -4711,6 +4829,28 @@ export type Database = {
           staff_tier: string
           work_end: string
           work_start: string
+        }[]
+      }
+      review_staff_device_registration_request: {
+        Args: {
+          p_active_device_limit?: number
+          p_rejection_reason?: string
+          p_replacement_device_id?: string
+          p_request_id: string
+          p_review_status: string
+          p_reviewer_auth_user_id: string
+          p_reviewer_note?: string
+          p_reviewer_staff_id: string
+          p_token_expires_at?: string
+          p_token_hash?: string
+        }
+        Returns: {
+          activation_token_id: string | null
+          branch_id: string
+          expires_at: string | null
+          request_id: string
+          request_status: string
+          staff_id: string
         }[]
       }
       get_effective_price: {
