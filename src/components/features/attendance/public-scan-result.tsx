@@ -227,6 +227,12 @@ export function PublicScanResultView({
           </div>
         ) : null}
 
+        {result.isTest ? (
+          <div className={styles.trainingBadge} role="status" aria-label="Training Mode">
+            Training Mode · Not live attendance
+          </div>
+        ) : null}
+
         <div className={styles.identitySummary}>
           <strong>{attendance.staffName}</strong>
           <span>
@@ -273,6 +279,11 @@ export function PublicScanResultView({
             <strong>{resolution.attendanceChanged ? "Attendance was changed." : "No attendance change was made."}</strong>
             {resolution.recommendedSteps.map((step) => <span key={step}>{step}</span>)}
             {resolution.crmActionRequired ? <span>CRM has been notified.</span> : null}
+          </div>
+        ) : null}
+        {result.isTest ? (
+          <div className={styles.trainingBadge} role="status" aria-label="Training Mode">
+            Training Mode · Not live attendance
           </div>
         ) : null}
       </div>

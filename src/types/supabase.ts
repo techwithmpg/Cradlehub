@@ -81,6 +81,92 @@ export type Database = {
         }
         Relationships: []
       }
+      attendance_closing_interventions: {
+        Row: {
+          applied_at: string | null
+          attendance_business_date: string
+          branch_id: string
+          checkin_id: string
+          created_at: string
+          dedupe_key: string
+          delivery_attempts: number
+          due_at: string
+          id: string
+          last_delivery_error: string | null
+          notification_sent_at: string | null
+          policy_snapshot: Json
+          staff_id: string
+          stage: string
+          updated_at: string
+          workflow_task_sent_at: string | null
+        }
+        Insert: {
+          applied_at?: string | null
+          attendance_business_date: string
+          branch_id: string
+          checkin_id: string
+          created_at?: string
+          dedupe_key: string
+          delivery_attempts?: number
+          due_at: string
+          id?: string
+          last_delivery_error?: string | null
+          notification_sent_at?: string | null
+          policy_snapshot?: Json
+          staff_id: string
+          stage: string
+          updated_at?: string
+          workflow_task_sent_at?: string | null
+        }
+        Update: {
+          applied_at?: string | null
+          attendance_business_date?: string
+          branch_id?: string
+          checkin_id?: string
+          created_at?: string
+          dedupe_key?: string
+          delivery_attempts?: number
+          due_at?: string
+          id?: string
+          last_delivery_error?: string | null
+          notification_sent_at?: string | null
+          policy_snapshot?: Json
+          staff_id?: string
+          stage?: string
+          updated_at?: string
+          workflow_task_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_closing_interventions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_closing_interventions_checkin_id_fkey"
+            columns: ["checkin_id"]
+            isOneToOne: false
+            referencedRelation: "staff_shift_checkins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_closing_interventions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_closing_interventions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_corrections: {
         Row: {
           action_type: string | null
@@ -185,17 +271,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "attendance_corrections_exception_id_fkey"
-            columns: ["exception_id"]
-            isOneToOne: false
-            referencedRelation: "attendance_exceptions"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "attendance_corrections_corrected_by_fkey"
             columns: ["corrected_by"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_exception_id_fkey"
+            columns: ["exception_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_exceptions"
             referencedColumns: ["id"]
           },
           {
@@ -228,78 +314,339 @@ export type Database = {
           },
         ]
       }
-      attendance_closing_interventions: {
+      attendance_device_audit_events: {
         Row: {
-          applied_at: string | null
-          attendance_business_date: string
+          actor_staff_id: string | null
           branch_id: string
-          checkin_id: string
           created_at: string
-          dedupe_key: string
-          delivery_attempts: number
-          due_at: string
+          device_id: string
+          event_type: string
           id: string
-          last_delivery_error: string | null
-          notification_sent_at: string | null
-          policy_snapshot: Json
+          new_values: Json
+          previous_values: Json
           staff_id: string
-          stage: string
-          updated_at: string
-          workflow_task_sent_at: string | null
         }
         Insert: {
-          applied_at?: string | null
-          attendance_business_date: string
+          actor_staff_id?: string | null
           branch_id: string
-          checkin_id: string
           created_at?: string
-          dedupe_key: string
-          delivery_attempts?: number
-          due_at: string
+          device_id: string
+          event_type: string
           id?: string
-          last_delivery_error?: string | null
-          notification_sent_at?: string | null
-          policy_snapshot?: Json
+          new_values?: Json
+          previous_values?: Json
           staff_id: string
-          stage: string
-          updated_at?: string
-          workflow_task_sent_at?: string | null
         }
         Update: {
-          applied_at?: string | null
-          attendance_business_date?: string
+          actor_staff_id?: string | null
           branch_id?: string
-          checkin_id?: string
           created_at?: string
-          dedupe_key?: string
-          delivery_attempts?: number
-          due_at?: string
+          device_id?: string
+          event_type?: string
           id?: string
-          last_delivery_error?: string | null
-          notification_sent_at?: string | null
-          policy_snapshot?: Json
+          new_values?: Json
+          previous_values?: Json
           staff_id?: string
-          stage?: string
-          updated_at?: string
-          workflow_task_sent_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "attendance_closing_interventions_branch_id_fkey"
+            foreignKeyName: "attendance_device_audit_events_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_device_audit_events_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_device_audit_events_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "attendance_closing_interventions_checkin_id_fkey"
+            foreignKeyName: "attendance_device_audit_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "staff_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_device_audit_events_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_device_audit_events_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_exceptions: {
+        Row: {
+          branch_id: string
+          category: string | null
+          checkin_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          detected_at: string
+          exception_type: string
+          first_detected_at: string | null
+          id: string
+          is_test: boolean
+          last_detected_at: string | null
+          latest_scan_event_id: string | null
+          message: string
+          metadata: Json
+          occurrence_count: number
+          priority: string
+          recommended_action: string | null
+          related_checkin_ids: string[]
+          resolution_action: string | null
+          resolution_note: string | null
+          resolution_owner: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          safe_error_code: string | null
+          scan_event_id: string | null
+          severity: string
+          staff_id: string | null
+          staff_response_required: boolean
+          status: string
+          technical_context: Json
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          category?: string | null
+          checkin_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          detected_at?: string
+          exception_type: string
+          first_detected_at?: string | null
+          id?: string
+          is_test?: boolean
+          last_detected_at?: string | null
+          latest_scan_event_id?: string | null
+          message: string
+          metadata?: Json
+          occurrence_count?: number
+          priority?: string
+          recommended_action?: string | null
+          related_checkin_ids?: string[]
+          resolution_action?: string | null
+          resolution_note?: string | null
+          resolution_owner?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          safe_error_code?: string | null
+          scan_event_id?: string | null
+          severity?: string
+          staff_id?: string | null
+          staff_response_required?: boolean
+          status?: string
+          technical_context?: Json
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          category?: string | null
+          checkin_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          detected_at?: string
+          exception_type?: string
+          first_detected_at?: string | null
+          id?: string
+          is_test?: boolean
+          last_detected_at?: string | null
+          latest_scan_event_id?: string | null
+          message?: string
+          metadata?: Json
+          occurrence_count?: number
+          priority?: string
+          recommended_action?: string | null
+          related_checkin_ids?: string[]
+          resolution_action?: string | null
+          resolution_note?: string | null
+          resolution_owner?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          safe_error_code?: string | null
+          scan_event_id?: string | null
+          severity?: string
+          staff_id?: string | null
+          staff_response_required?: boolean
+          status?: string
+          technical_context?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_exceptions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_checkin_id_fkey"
             columns: ["checkin_id"]
             isOneToOne: false
             referencedRelation: "staff_shift_checkins"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "attendance_closing_interventions_staff_id_fkey"
+            foreignKeyName: "attendance_exceptions_latest_scan_event_id_fkey"
+            columns: ["latest_scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_scan_event_id_fkey"
+            columns: ["scan_event_id"]
+            isOneToOne: false
+            referencedRelation: "qr_scan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_issue_messages: {
+        Row: {
+          branch_id: string
+          created_at: string
+          exception_id: string
+          id: string
+          message: string
+          response_choices: Json
+          sender_staff_id: string | null
+          sender_workspace: string
+          staff_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          exception_id: string
+          id?: string
+          message: string
+          response_choices?: Json
+          sender_staff_id?: string | null
+          sender_workspace: string
+          staff_id: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          exception_id?: string
+          id?: string
+          message?: string
+          response_choices?: Json
+          sender_staff_id?: string | null
+          sender_workspace?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_issue_messages_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_issue_messages_exception_id_fkey"
+            columns: ["exception_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_exceptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_issue_messages_sender_staff_id_fkey"
+            columns: ["sender_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_issue_messages_sender_staff_id_fkey"
+            columns: ["sender_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_issue_messages_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_issue_messages_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
@@ -350,239 +697,12 @@ export type Database = {
             foreignKeyName: "attendance_rule_versions_changed_by_fkey"
             columns: ["changed_by"]
             isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attendance_staff_category_rules: {
-        Row: {
-          active_service_blocks_clock_out: boolean | null
-          branch_id: string
-          changed_by: string | null
-          created_at: string
-          crm_closing_policy_enabled: boolean | null
-          early_leave_threshold_minutes: number | null
-          effective_from: string
-          effective_until: string | null
-          id: string
-          late_grace_minutes: number | null
-          overtime_threshold_minutes: number | null
-          previous_values: Json
-          reason: string
-          staff_category: string
-        }
-        Insert: {
-          active_service_blocks_clock_out?: boolean | null
-          branch_id: string
-          changed_by?: string | null
-          created_at?: string
-          crm_closing_policy_enabled?: boolean | null
-          early_leave_threshold_minutes?: number | null
-          effective_from: string
-          effective_until?: string | null
-          id?: string
-          late_grace_minutes?: number | null
-          overtime_threshold_minutes?: number | null
-          previous_values?: Json
-          reason: string
-          staff_category: string
-        }
-        Update: {
-          active_service_blocks_clock_out?: boolean | null
-          branch_id?: string
-          changed_by?: string | null
-          created_at?: string
-          crm_closing_policy_enabled?: boolean | null
-          early_leave_threshold_minutes?: number | null
-          effective_from?: string
-          effective_until?: string | null
-          id?: string
-          late_grace_minutes?: number | null
-          overtime_threshold_minutes?: number | null
-          previous_values?: Json
-          reason?: string
-          staff_category?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attendance_staff_category_rules_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
+            referencedRelation: "operational_staff"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "attendance_staff_category_rules_changed_by_fkey"
+            foreignKeyName: "attendance_rule_versions_changed_by_fkey"
             columns: ["changed_by"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attendance_exceptions: {
-        Row: {
-          branch_id: string
-          category: string | null
-          checkin_id: string | null
-          created_at: string
-          dedupe_key: string | null
-          detected_at: string
-          exception_type: string
-          first_detected_at: string | null
-          id: string
-          is_test: boolean
-          last_detected_at: string | null
-          latest_scan_event_id: string | null
-          message: string
-          metadata: Json
-          occurrence_count: number
-          priority: string
-          resolution_action: string | null
-          resolution_owner: string | null
-          resolution_status: string
-          recommended_action: string | null
-          related_checkin_ids: string[]
-          resolution_note: string | null
-          resolved_at: string | null
-          resolved_by: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          safe_error_code: string | null
-          scan_event_id: string | null
-          severity: string
-          staff_id: string | null
-          status: string
-          staff_response_required: boolean
-          technical_context: Json
-          updated_at: string
-        }
-        Insert: {
-          branch_id: string
-          category?: string | null
-          checkin_id?: string | null
-          created_at?: string
-          dedupe_key?: string | null
-          detected_at?: string
-          exception_type: string
-          first_detected_at?: string | null
-          id?: string
-          is_test?: boolean
-          last_detected_at?: string | null
-          latest_scan_event_id?: string | null
-          message: string
-          metadata?: Json
-          occurrence_count?: number
-          priority?: string
-          resolution_action?: string | null
-          resolution_owner?: string | null
-          resolution_status?: string
-          recommended_action?: string | null
-          related_checkin_ids?: string[]
-          resolution_note?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          safe_error_code?: string | null
-          scan_event_id?: string | null
-          severity?: string
-          staff_id?: string | null
-          status?: string
-          staff_response_required?: boolean
-          technical_context?: Json
-          updated_at?: string
-        }
-        Update: {
-          branch_id?: string
-          category?: string | null
-          checkin_id?: string | null
-          created_at?: string
-          dedupe_key?: string | null
-          detected_at?: string
-          exception_type?: string
-          first_detected_at?: string | null
-          id?: string
-          is_test?: boolean
-          last_detected_at?: string | null
-          latest_scan_event_id?: string | null
-          message?: string
-          metadata?: Json
-          occurrence_count?: number
-          priority?: string
-          resolution_action?: string | null
-          resolution_owner?: string | null
-          resolution_status?: string
-          recommended_action?: string | null
-          related_checkin_ids?: string[]
-          resolution_note?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          safe_error_code?: string | null
-          scan_event_id?: string | null
-          severity?: string
-          staff_id?: string | null
-          status?: string
-          staff_response_required?: boolean
-          technical_context?: Json
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attendance_exceptions_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_exceptions_checkin_id_fkey"
-            columns: ["checkin_id"]
-            isOneToOne: false
-            referencedRelation: "staff_shift_checkins"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_exceptions_latest_scan_event_id_fkey"
-            columns: ["latest_scan_event_id"]
-            isOneToOne: false
-            referencedRelation: "qr_scan_events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_exceptions_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "operational_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_exceptions_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_exceptions_scan_event_id_fkey"
-            columns: ["scan_event_id"]
-            isOneToOne: false
-            referencedRelation: "qr_scan_events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_exceptions_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "operational_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_exceptions_staff_id_fkey"
-            columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
@@ -594,8 +714,8 @@ export type Database = {
           active_service_blocks_clock_out: boolean
           ambiguous_scan_behavior: string
           attendance_day_boundary: string
-          branch_operating_close_time: string
           branch_id: string
+          branch_operating_close_time: string
           clock_in_early_grace_minutes: number
           clock_in_late_grace_minutes: number
           clock_in_window_after_shift_start_minutes: number
@@ -606,11 +726,11 @@ export type Database = {
           clock_out_window_before_shift_end_minutes: number
           closing_intervention_last_error: string | null
           closing_intervention_last_run_at: string | null
+          created_at: string
           crm_closing_buffer_minutes: number
           crm_closing_policy_enabled: boolean
           crm_hard_cutoff_delay_minutes: number
           crm_manager_escalation_delay_minutes: number
-          created_at: string
           duplicate_scan_debounce_minutes: number
           duplicate_scan_window_seconds: number
           early_clock_in_allowed_minutes: number
@@ -642,8 +762,8 @@ export type Database = {
           active_service_blocks_clock_out?: boolean
           ambiguous_scan_behavior?: string
           attendance_day_boundary?: string
-          branch_operating_close_time?: string
           branch_id: string
+          branch_operating_close_time?: string
           clock_in_early_grace_minutes?: number
           clock_in_late_grace_minutes?: number
           clock_in_window_after_shift_start_minutes?: number
@@ -654,11 +774,11 @@ export type Database = {
           clock_out_window_before_shift_end_minutes?: number
           closing_intervention_last_error?: string | null
           closing_intervention_last_run_at?: string | null
+          created_at?: string
           crm_closing_buffer_minutes?: number
           crm_closing_policy_enabled?: boolean
           crm_hard_cutoff_delay_minutes?: number
           crm_manager_escalation_delay_minutes?: number
-          created_at?: string
           duplicate_scan_debounce_minutes?: number
           duplicate_scan_window_seconds?: number
           early_clock_in_allowed_minutes?: number
@@ -690,8 +810,8 @@ export type Database = {
           active_service_blocks_clock_out?: boolean
           ambiguous_scan_behavior?: string
           attendance_day_boundary?: string
-          branch_operating_close_time?: string
           branch_id?: string
+          branch_operating_close_time?: string
           clock_in_early_grace_minutes?: number
           clock_in_late_grace_minutes?: number
           clock_in_window_after_shift_start_minutes?: number
@@ -702,11 +822,11 @@ export type Database = {
           clock_out_window_before_shift_end_minutes?: number
           closing_intervention_last_error?: string | null
           closing_intervention_last_run_at?: string | null
+          created_at?: string
           crm_closing_buffer_minutes?: number
           crm_closing_policy_enabled?: boolean
           crm_hard_cutoff_delay_minutes?: number
           crm_manager_escalation_delay_minutes?: number
-          created_at?: string
           duplicate_scan_debounce_minutes?: number
           duplicate_scan_window_seconds?: number
           early_clock_in_allowed_minutes?: number
@@ -780,6 +900,79 @@ export type Database = {
           {
             foreignKeyName: "attendance_settings_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_staff_category_rules: {
+        Row: {
+          active_service_blocks_clock_out: boolean | null
+          branch_id: string
+          changed_by: string | null
+          created_at: string
+          crm_closing_policy_enabled: boolean | null
+          early_leave_threshold_minutes: number | null
+          effective_from: string
+          effective_until: string | null
+          id: string
+          late_grace_minutes: number | null
+          overtime_threshold_minutes: number | null
+          previous_values: Json
+          reason: string
+          staff_category: string
+        }
+        Insert: {
+          active_service_blocks_clock_out?: boolean | null
+          branch_id: string
+          changed_by?: string | null
+          created_at?: string
+          crm_closing_policy_enabled?: boolean | null
+          early_leave_threshold_minutes?: number | null
+          effective_from: string
+          effective_until?: string | null
+          id?: string
+          late_grace_minutes?: number | null
+          overtime_threshold_minutes?: number | null
+          previous_values?: Json
+          reason: string
+          staff_category: string
+        }
+        Update: {
+          active_service_blocks_clock_out?: boolean | null
+          branch_id?: string
+          changed_by?: string | null
+          created_at?: string
+          crm_closing_policy_enabled?: boolean | null
+          early_leave_threshold_minutes?: number | null
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          late_grace_minutes?: number | null
+          overtime_threshold_minutes?: number | null
+          previous_values?: Json
+          reason?: string
+          staff_category?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_staff_category_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_staff_category_rules_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_staff_category_rules_changed_by_fkey"
+            columns: ["changed_by"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
@@ -3149,6 +3342,81 @@ export type Database = {
           },
         ]
       }
+      staff_attendance_branch_assignments: {
+        Row: {
+          approved_by: string | null
+          assignment_date: string
+          assignment_type: string
+          branch_id: string
+          created_at: string
+          id: string
+          reason: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          assignment_date: string
+          assignment_type?: string
+          branch_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          assignment_date?: string
+          assignment_type?: string
+          branch_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_attendance_branch_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_branch_audit_logs: {
         Row: {
           change_request_id: string | null
@@ -3492,10 +3760,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "staff_device_registration_requests_staff_id_fkey"
-            columns: ["staff_id"]
+            foreignKeyName: "staff_device_registration_requests_activation_token_id_fkey"
+            columns: ["activation_token_id"]
             isOneToOne: false
-            referencedRelation: "staff"
+            referencedRelation: "device_activation_tokens"
             referencedColumns: ["id"]
           },
           {
@@ -3503,6 +3771,55 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_completed_device_id_fkey"
+            columns: ["completed_device_id"]
+            isOneToOne: false
+            referencedRelation: "staff_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_existing_device_id_fkey"
+            columns: ["existing_device_id"]
+            isOneToOne: false
+            referencedRelation: "staff_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_replacement_device_id_fkey"
+            columns: ["replacement_device_id"]
+            isOneToOne: false
+            referencedRelation: "staff_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_reviewed_by_staff_id_fkey"
+            columns: ["reviewed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_reviewed_by_staff_id_fkey"
+            columns: ["reviewed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "operational_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_device_registration_requests_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -3644,67 +3961,6 @@ export type Database = {
             columns: ["superseded_by_device_id"]
             isOneToOne: false
             referencedRelation: "staff_devices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      staff_attendance_branch_assignments: {
-        Row: {
-          approved_by: string | null
-          assignment_date: string
-          assignment_type: string
-          branch_id: string
-          created_at: string
-          id: string
-          reason: string | null
-          staff_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          approved_by?: string | null
-          assignment_date: string
-          assignment_type?: string
-          branch_id: string
-          created_at?: string
-          id?: string
-          reason?: string | null
-          staff_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          approved_by?: string | null
-          assignment_date?: string
-          assignment_type?: string
-          branch_id?: string
-          created_at?: string
-          id?: string
-          reason?: string | null
-          staff_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "staff_attendance_branch_assignments_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_attendance_branch_assignments_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "staff_attendance_branch_assignments_staff_id_fkey"
-            columns: ["staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -4458,19 +4714,19 @@ export type Database = {
           checked_out_at: string | null
           clock_in_method: string | null
           clock_in_scan_event_id: string | null
-          clock_out_method: string | null
           clock_out_confirmation_required: boolean
+          clock_out_method: string | null
           clock_out_reminder_at: string | null
           clock_out_scan_event_id: string | null
           created_at: string
-          early_leave_minutes: number
           earliest_normal_clock_out_at: string | null
+          early_leave_minutes: number
           exception_state: string
+          hard_cutoff_at: string | null
           id: string
           is_test: boolean
           late_minutes: number
           latest_normal_clock_out_at: string | null
-          hard_cutoff_at: string | null
           manager_escalation_at: string | null
           notes: string | null
           overtime_minutes: number
@@ -4503,19 +4759,19 @@ export type Database = {
           checked_out_at?: string | null
           clock_in_method?: string | null
           clock_in_scan_event_id?: string | null
-          clock_out_method?: string | null
           clock_out_confirmation_required?: boolean
+          clock_out_method?: string | null
           clock_out_reminder_at?: string | null
           clock_out_scan_event_id?: string | null
           created_at?: string
-          early_leave_minutes?: number
           earliest_normal_clock_out_at?: string | null
+          early_leave_minutes?: number
           exception_state?: string
+          hard_cutoff_at?: string | null
           id?: string
           is_test?: boolean
           late_minutes?: number
           latest_normal_clock_out_at?: string | null
-          hard_cutoff_at?: string | null
           manager_escalation_at?: string | null
           notes?: string | null
           overtime_minutes?: number
@@ -4548,19 +4804,19 @@ export type Database = {
           checked_out_at?: string | null
           clock_in_method?: string | null
           clock_in_scan_event_id?: string | null
-          clock_out_method?: string | null
           clock_out_confirmation_required?: boolean
+          clock_out_method?: string | null
           clock_out_reminder_at?: string | null
           clock_out_scan_event_id?: string | null
           created_at?: string
-          early_leave_minutes?: number
           earliest_normal_clock_out_at?: string | null
+          early_leave_minutes?: number
           exception_state?: string
+          hard_cutoff_at?: string | null
           id?: string
           is_test?: boolean
           late_minutes?: number
           latest_normal_clock_out_at?: string | null
-          hard_cutoff_at?: string | null
           manager_escalation_at?: string | null
           notes?: string | null
           overtime_minutes?: number
@@ -5101,68 +5357,12 @@ export type Database = {
           success: boolean
         }[]
       }
-      process_crm_closing_attendance_interventions: {
-        Args: { p_limit?: number; p_now?: string }
+      complete_due_service_sessions: {
+        Args: { p_limit?: number }
         Returns: {
-          active_service_blocks: number
-          auto_closed_records: number
-          created_interventions: number
-          processed_open_records: number
-        }[]
-      }
-      reconcile_provisional_attendance_clock_out: {
-        Args: {
-          p_actual_clock_out_at: string
-          p_branch_id: string
-          p_checkin_id: string
-          p_device_id: string
-          p_ip_address?: string
-          p_is_test?: boolean
-          p_metadata?: Json
-          p_public_result: Json
-          p_qr_point_id: string
-          p_request_id: string
-          p_staff_id: string
-          p_user_agent?: string
-        }
-        Returns: {
-          checkin_id: string
-          code: string
-          message: string
-          operation_result: Json
-          scan_event_id: string
-          success: boolean
-        }[]
-      }
-      save_attendance_branch_rule_version: {
-        Args: {
-          p_actor_staff_id: string
-          p_branch_id: string
-          p_effective_from: string
-          p_reason: string
-          p_rule_values: Json
-        }
-        Returns: {
-          code: string
-          message: string
-          rule_version_id: string
-          success: boolean
-        }[]
-      }
-      save_attendance_category_rule: {
-        Args: {
-          p_actor_staff_id: string
-          p_branch_id: string
-          p_effective_from: string
-          p_reason: string
-          p_rule_values: Json
-          p_staff_category: string
-        }
-        Returns: {
-          category_rule_id: string
-          code: string
-          message: string
-          success: boolean
+          booking_id: string
+          branch_id: string
+          completed_at: string
         }[]
       }
       complete_staff_device_registration_request: {
@@ -5179,17 +5379,9 @@ export type Database = {
         }
         Returns: {
           code: string
-          device_id: string | null
+          device_id: string
           request_status: string
           success: boolean
-        }[]
-      }
-      complete_due_service_sessions: {
-        Args: { p_limit?: number }
-        Returns: {
-          booking_id: string
-          branch_id: string
-          completed_at: string
         }[]
       }
       compute_booking_end_time: {
@@ -5237,18 +5429,6 @@ export type Database = {
       get_auth_branch_id: { Args: never; Returns: string }
       get_auth_role: { Args: never; Returns: string }
       get_auth_staff_id: { Args: never; Returns: string }
-      resolve_effective_attendance_branch: {
-        Args: {
-          p_attendance_date: string
-          p_qr_branch_id: string
-          p_staff_id: string
-        }
-        Returns: {
-          allowed: boolean
-          effective_branch_id: string | null
-          source: string
-        }[]
-      }
       get_available_slots: {
         Args: {
           p_branch_id: string
@@ -5276,33 +5456,44 @@ export type Database = {
           work_start: string
         }[]
       }
-      review_staff_device_registration_request: {
-        Args: {
-          p_active_device_limit?: number
-          p_rejection_reason?: string
-          p_replacement_device_id?: string
-          p_request_id: string
-          p_review_status: string
-          p_reviewer_auth_user_id: string
-          p_reviewer_note?: string
-          p_reviewer_staff_id: string
-          p_token_expires_at?: string
-          p_token_hash?: string
-        }
-        Returns: {
-          activation_token_id: string | null
-          branch_id: string
-          expires_at: string | null
-          request_id: string
-          request_status: string
-          staff_id: string
-        }[]
-      }
       get_effective_price: {
         Args: { p_branch_id: string; p_service_id: string }
         Returns: number
       }
       is_service_admin: { Args: never; Returns: boolean }
+      process_crm_closing_attendance_interventions: {
+        Args: { p_limit?: number; p_now?: string }
+        Returns: {
+          active_service_blocks: number
+          auto_closed_records: number
+          created_interventions: number
+          processed_open_records: number
+        }[]
+      }
+      reconcile_provisional_attendance_clock_out: {
+        Args: {
+          p_actual_clock_out_at: string
+          p_branch_id: string
+          p_checkin_id: string
+          p_device_id: string
+          p_ip_address?: string
+          p_is_test?: boolean
+          p_metadata?: Json
+          p_public_result: Json
+          p_qr_point_id: string
+          p_request_id: string
+          p_staff_id: string
+          p_user_agent?: string
+        }
+        Returns: {
+          checkin_id: string
+          code: string
+          message: string
+          operation_result: Json
+          scan_event_id: string
+          success: boolean
+        }[]
+      }
       record_booking_payment_change: {
         Args: {
           p_amount_paid: number
@@ -5369,6 +5560,18 @@ export type Database = {
           success: boolean
         }[]
       }
+      resolve_effective_attendance_branch: {
+        Args: {
+          p_attendance_date: string
+          p_qr_branch_id: string
+          p_staff_id: string
+        }
+        Returns: {
+          allowed: boolean
+          effective_branch_id: string
+          source: string
+        }[]
+      }
       review_staff_branch_change_request: {
         Args: {
           p_request_id: string
@@ -5384,6 +5587,59 @@ export type Database = {
           requested_branch_id: string
           reviewed_at: string
           staff_id: string
+        }[]
+      }
+      review_staff_device_registration_request: {
+        Args: {
+          p_active_device_limit?: number
+          p_rejection_reason?: string
+          p_replacement_device_id?: string
+          p_request_id: string
+          p_review_status: string
+          p_reviewer_auth_user_id: string
+          p_reviewer_note?: string
+          p_reviewer_staff_id: string
+          p_token_expires_at?: string
+          p_token_hash?: string
+        }
+        Returns: {
+          activation_token_id: string
+          branch_id: string
+          expires_at: string
+          request_id: string
+          request_status: string
+          staff_id: string
+        }[]
+      }
+      save_attendance_branch_rule_version: {
+        Args: {
+          p_actor_staff_id: string
+          p_branch_id: string
+          p_effective_from: string
+          p_reason: string
+          p_rule_values: Json
+        }
+        Returns: {
+          code: string
+          message: string
+          rule_version_id: string
+          success: boolean
+        }[]
+      }
+      save_attendance_category_rule: {
+        Args: {
+          p_actor_staff_id: string
+          p_branch_id: string
+          p_effective_from: string
+          p_reason: string
+          p_rule_values: Json
+          p_staff_category: string
+        }
+        Returns: {
+          category_rule_id: string
+          code: string
+          message: string
+          success: boolean
         }[]
       }
       schedule_explicit_time_end_min: {

@@ -377,7 +377,10 @@ async function commitAttendanceScanTransaction(
     );
   }
 
-  const publicResult = withOperationId(input.result, operationId);
+  const publicResult = {
+    ...withOperationId(input.result, operationId),
+    isTest: input.event.isTest ?? false,
+  };
   const exception = input.exception
     ? {
         internalType: input.exception.exceptionType,

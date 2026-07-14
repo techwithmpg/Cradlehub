@@ -1,5 +1,28 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-15 - Codex (ATTENDANCE-BETA-READINESS-001)
+
+- Confirmed the requested clean live baseline: six Attendance operational tables
+  at zero, six registered devices, and nine preserved QR points.
+- Audited live Attendance tables, RLS, policies, grants, indexes, functions,
+  generated types, and migration history. All audited tables have RLS; request
+  idempotency and single-open-record transaction guards are live.
+- Found and repaired a beta-blocking schema drift: live `staff.is_cross_branch`
+  was missing, so every valid public scan failed before device recognition.
+  Added/applied the focused additive migration `20260714180606`.
+- Verified a fresh unknown phone now reaches the required one-scan staff login UI
+  at 360x740 with no horizontal overflow; revoked-device and invalid-QR states
+  remain blocked. No staff credentials were available for final continuation.
+- Added a committed Training Mode result flag and visible `Training Mode · Not
+  live attendance` staff badge, plus regression coverage.
+- Regenerated live Supabase types and verified a controlled Training Mode scan
+  transaction commits once and replays the same request idempotently. Removed
+  only the exact audit-created rows; final operational counts returned to zero.
+- Final verification: type-check passes; 131 files / 958 tests pass; lint exits
+  successfully; production build passes with 110 generated pages.
+- Decision: NO-GO until migration history is reconciled and authenticated real-
+  device clock-in/out/registration, Recovery, realtime, and browser matrices pass.
+
 > APPEND ONLY. Never delete entries. Every agent adds to the bottom.
 
 ---

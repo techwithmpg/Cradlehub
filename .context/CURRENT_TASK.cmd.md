@@ -1,4 +1,57 @@
-# Current Task - ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001
+# Current Task - ATTENDANCE-BETA-READINESS-001
+
+Status: COMPLETE — NO-GO DECISION
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Perform a complete beta-readiness audit of the existing Attendance QR system:
+verify the clean database baseline and live schema/security state, exercise the
+critical device/clock-in/clock-out/idempotency/training/recovery/browser paths,
+fix safe scoped defects, add missing regression coverage, and return an honest
+GO / CONDITIONAL GO / NO-GO decision.
+
+## Guardrails
+
+- Preserve staff, devices, QR points, schedules, branches, Attendance Rules,
+  branch assignments, and authentication accounts.
+- Use Test / Training Mode and dedicated QA data for controlled writes.
+- Do not blind-push pending migrations while linked migration history is
+  unreconciled.
+- Keep security/identity failures blocked and accepted Attendance commits atomic.
+- Do not certify physical-device, authenticated, scheduler, or browser behavior
+  without direct evidence.
+
+## Work order
+
+1. Complete mandatory source/context/migration/type/test pre-flight.
+2. Confirm the stated live database baseline, schema, indexes, functions, grants,
+   RLS, migration state, generated-type parity, and safe insert capability.
+3. Audit and test device registration, scan continuation, clock-in/out,
+   outside-hours, closing policy, idempotency, schedules, wrong branch, Training
+   Mode, Recovery, reporting, security, failure handling, and performance.
+4. Fix safe beta blockers and add focused regression tests.
+5. Run focused/full tests, type-check, lint, build, and Browser-first responsive
+   verification where credentials and fixtures permit.
+6. Update context records and deliver the required readiness report/checklist.
+
+## Completion
+
+- Confirmed the requested live baseline and returned all six operational tables
+  to zero after controlled QA; devices (6) and QR points (9) remain preserved.
+- Repaired the missing live `staff.is_cross_branch` column that blocked all valid
+  public scans and verified the required fresh-phone login UI on mobile.
+- Added visible committed Training Mode result labeling and focused tests.
+- Verified atomic insert plus request-id replay, RLS/index/function contracts,
+  regenerated types, type-check, 131 files / 958 tests, lint, and build.
+- Final decision is NO-GO because migration history is unreconciled and no safe
+  staff credentials/physical active-device credential were available to certify
+  registered-device clock-in/out or one-scan credential continuation end to end.
+
+---
+
+# Previous Task - ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001
 
 Status: COMPLETE LOCALLY — LIVE STAFF-CREDENTIAL DEVICE E2E PENDING
 Started: 2026-07-15

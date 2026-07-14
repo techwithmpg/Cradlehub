@@ -423,6 +423,7 @@ export type PublicScanResult = {
   message: string;
   detail?: string;
   reviewLabel?: string;
+  isTest?: boolean;
   securityNote?: string;
   scanEventId?: string;
   operationId?: string;

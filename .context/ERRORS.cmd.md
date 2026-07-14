@@ -1124,3 +1124,22 @@
 - **Resolution:** With a safe staff test account, scan the active QR from a clean
   phone profile, sign in once, and confirm one final Attendance action with no
   second scan; also repeat invalid-login and revoked-device checks against test data.
+## 2026-07-15 - ATTENDANCE-BETA-READINESS-001 launch blockers
+
+- **Valid QR scan failed before device recognition.** Live `staff` lacked the
+  historical `is_cross_branch` column while the scan engine and deployed branch
+  resolver selected it. A focused additive repair is live and the fresh unknown-
+  device login path now works.
+- **Migration history is not trustworthy.** Live Attendance objects from the
+  July 12-15 migrations exist, but `supabase_migrations.schema_migrations` stops
+  at `20260713120237`. The focused repair was applied through linked SQL and is
+  also not history-recorded. Do not broad-push until effects and versions are
+  reconciled from a working migration-history workflow.
+- **Authenticated/physical E2E remains unavailable.** No safe staff credentials
+  or raw active-device credential were available, so registered-device clock-in,
+  credential login continuation, clock-out, Recovery correction, realtime UI,
+  and cross-browser certification remain unproven.
+- **Legacy grants are broader than necessary.** RLS blocks unauthorized rows and
+  audited policies are branch/self scoped, but `anon`/`authenticated` retain broad
+  historical table grants on some Attendance tables. Tighten grants after a role
+  matrix rollback test; do not change them blindly during beta audit.

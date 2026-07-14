@@ -1027,3 +1027,14 @@ remain green, with any review reason shown as a compact secondary amber badge.
 Personalized greetings are selected deterministically on the server from stable
 scan inputs, prefer the staff nickname, use branch-local time, and are stored in the
 committed result so retries return identical copy.
+## 2026-07-15 - Training Mode is part of the committed public result
+
+**Status:** ACCEPTED
+
+**Decision:** The authoritative Attendance transaction result carries `isTest`,
+and the public staff result renders a visible `Training Mode · Not live attendance`
+badge without replacing the primary success/review state.
+
+**Rationale:** Persisted `is_test` flags and report filtering protect data, but staff
+also need immediate certainty that a successful training scan is not live attendance.
+Committing the flag with the idempotent result keeps retry rendering stable.

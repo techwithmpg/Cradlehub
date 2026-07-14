@@ -1074,3 +1074,25 @@ Pending at this checkpoint:
 - Run authenticated CRM and Staff Portal browser QA with safe accounts.
 - Migration version `20260714050554` remains live-but-unreconciled in migration
   history; do not run a blind broad push.
+## ATTENDANCE-BETA-READINESS-001 - 2026-07-15
+
+Decision: **NO-GO**.
+
+Done:
+- Live baseline, tables, RLS, policies, grants, indexes, functions, types, and
+  migration-history state audited.
+- Missing live `staff.is_cross_branch` repaired with migration `20260714180606`;
+  fresh unknown phone now opens the required login form on mobile.
+- Training results now carry a committed `isTest` flag and visible non-live badge.
+- Atomic Training Mode insert/replay smoke passed and exact QA rows were cleaned;
+  final counts are back to zero with six devices and nine QR points preserved.
+- Type-check, 131-file/958-test suite, lint, and production build pass.
+
+Still required before staff beta:
+1. Reconcile all live July 12-15 Attendance migration effects with migration history.
+2. Use dedicated staff credentials and an active physical phone to run clock-in,
+   duplicate, clock-out, first-scan registration continuation, late/outside-hours,
+   wrong-branch, revoked-device, and overnight cases in Training Mode.
+3. Verify Recovery correction/audit, realtime CRM/Owner/Staff updates, payroll/live
+   report exclusion, and archive behavior against those controlled records.
+4. Complete Chrome, Safari/WebKit, Edge, and mobile Chrome certification.

@@ -74,6 +74,17 @@ describe("PublicScanResultView attendance success", () => {
     expect(container.querySelector("section")?.className).toContain("attendanceSuccess");
     expect(container.textContent?.toLowerCase()).not.toContain("scan again");
   });
+
+  it("shows a clear non-live indicator for a committed Training Mode result", () => {
+    const { container } = render(
+      <PublicScanResultView result={{ ...successResult, isTest: true }} />
+    );
+
+    expect(screen.getByRole("status", { name: "Training Mode" }).textContent).toBe(
+      "Training Mode · Not live attendance"
+    );
+    expect(container.querySelector("section")?.className).toContain("attendanceSuccess");
+  });
 });
 
 describe("PublicScanResultView captured closing scan", () => {

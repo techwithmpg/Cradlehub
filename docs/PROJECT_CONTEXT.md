@@ -83,6 +83,14 @@ root/
 
 ## Recent Operational Context
 
+- 2026-07-15 Attendance beta audit: the requested clean baseline was confirmed.
+  A live schema drift (`staff.is_cross_branch` missing) blocked every valid scan
+  before device recognition and was repaired additively with migration
+  `20260714180606`. Fresh unknown-phone login now renders correctly on mobile,
+  Training Mode results are visibly non-live, atomic request replay passes, and
+  types/tests/build are green. Attendance remains NO-GO because July 12-15 live
+  migration effects are not reconciled in migration history and authenticated
+  real-device clock-in/out/registration/Recovery/realtime QA is incomplete.
 - 2026-07-14 CRM closing Attendance policy: Owner selected-branch details now
   include structured, effective-dated Attendance Rules and category inheritance.
   CRM/front-desk Closing shifts snapshot a branch-close-to-buffer window (default
