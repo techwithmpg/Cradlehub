@@ -964,3 +964,13 @@
 - **Resolution:** Run the CRM manual-verification matrix in an authenticated
   test session. Static, unit, type, lint, build, and full-suite verification
   cover the implementation contracts in this task.
+
+## 2026-07-14 - CRM-BOOKINGS-DESKTOP-REDESIGN-001 browser QA limitation
+
+- **Symptom:** The in-app browser redirects local `/crm/bookings` to `/login`.
+- **Impact:** Page identity, desktop reference fidelity, and real lifecycle/modal
+  interactions could not be certified against authenticated booking data. The
+  login redirect itself produced no console warnings or errors.
+- **Resolution:** Run the documented CRM Bookings manual matrix in a safe
+  signed-in CRM session. Focused component/selector tests, full Vitest,
+  type-check, lint, and production build cover the implementation contracts.

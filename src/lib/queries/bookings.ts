@@ -49,7 +49,7 @@ const BOOKING_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
 
 const TODAY_SCHEDULE_SELECT = `
   id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata,
+  travel_buffer_mins, metadata, created_at, updated_at,
   resource_id,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
@@ -58,7 +58,7 @@ const TODAY_SCHEDULE_SELECT = `
 
 const TODAY_SCHEDULE_SELECT_CORE = `
   id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata,
+  travel_buffer_mins, metadata, created_at, updated_at,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
   customers ( id, full_name, phone )
@@ -66,7 +66,7 @@ const TODAY_SCHEDULE_SELECT_CORE = `
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
   id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata,
+  travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
   booking_progress_status,
@@ -79,7 +79,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
 
 const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   id, branch_id, booking_date, start_time, end_time, type, delivery_type, status,
-  travel_buffer_mins, metadata,
+  travel_buffer_mins, metadata, created_at, updated_at,
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
   booking_progress_status,
@@ -161,6 +161,8 @@ type TodayScheduleRow = {
   status: string;
   travel_buffer_mins: number | null;
   metadata: unknown;
+  created_at: string;
+  updated_at: string;
   resource_id: string | null;
   services: ServiceRelation;
   staff: StaffRelation;
@@ -539,25 +541,7 @@ export async function getCrmBookingsCommandCenterRows(
   branchId: string,
   date: string
 ) {
-  const [todayRows, pendingRows] = await Promise.all([
-    getTodaysSchedule(branchId, date),
-    getCrmPendingBookingQueue(branchId, date),
-  ]);
-
-  const rowsById = new Map<string, TodayScheduleRow>();
-  for (const booking of todayRows as TodayScheduleRow[]) {
-    rowsById.set(booking.id, booking);
-  }
-  for (const booking of pendingRows as TodayScheduleRow[]) {
-    rowsById.set(booking.id, booking);
-  }
-
-  return Array.from(rowsById.values()).sort((a, b) => {
-    const dateCompare = a.booking_date.localeCompare(b.booking_date);
-    return dateCompare !== 0
-      ? dateCompare
-      : a.start_time.localeCompare(b.start_time);
-  });
+  return getTodaysSchedule(branchId, date);
 }
 
 // ── Daily payment summary for a branch ───────────────────────────────────

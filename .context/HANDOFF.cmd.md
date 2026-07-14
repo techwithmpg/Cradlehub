@@ -857,3 +857,26 @@ Still open:
 - Run authenticated CRM browser QA for Today/list/details and Keep/Reassign/
   Reschedule/Mark-resolved clicks using a safe test booking. The local browser
   session redirects CRM routes to `/login`.
+
+## Handoff - CRM-BOOKINGS-DESKTOP-REDESIGN-001
+
+Done:
+- CRM desktop Bookings uses the approved two-pane layout; selected-date rows,
+  quick/exact filters, search, selection, pagination, legacy links, and the
+  fixed command-pane structure are implemented.
+- Existing lifecycle plans, mutations, operational modals, permissions,
+  assignment recommendations, payment paths, note save, countdown, and
+  auto-completion remain the action sources.
+- Mobile and manager/owner booking workspaces continue to use the prior shared
+  UI. No database migration or RLS policy changed.
+
+Verified:
+- Focused 3 files / 9 tests; full 111 files / 789 tests; type-check, lint,
+  production build, and diff check all pass.
+
+Still open:
+- Run the manual CRM Bookings matrix in a safe authenticated browser session at
+  desktop widths, including filter/search/pagination, row selection/close,
+  pending/confirmed/checked-in/in-service/completed actions, and legacy URLs.
+  The available in-app browser redirected `/crm/bookings` to `/login` and had no
+  alternate authenticated browser session.

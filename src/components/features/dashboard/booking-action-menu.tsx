@@ -34,7 +34,7 @@ const TRANSITIONS: Record<string, TransitionAction[]> = {
 
 type StatusAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 type ActionScope = "all" | "status" | "cancel";
-type TriggerVariant = "default" | "icon" | "panelSecondary" | "panelDanger";
+type TriggerVariant = "default" | "icon" | "panelSecondary" | "panelDanger" | "menuItem";
 
 type BookingActionMenuProps = {
   bookingId: string;
@@ -270,6 +270,21 @@ function getTriggerButtonStyle(
       color: "#B91C1C",
       fontSize: "0.8125rem",
       fontWeight: 600,
+    };
+  }
+
+  if (variant === "menuItem") {
+    return {
+      ...base,
+      width: "100%",
+      minHeight: 32,
+      justifyContent: "flex-start",
+      padding: "0.375rem 0.5rem",
+      border: "none",
+      backgroundColor: "transparent",
+      color: "var(--cs-text)",
+      fontSize: "0.875rem",
+      fontWeight: 500,
     };
   }
 

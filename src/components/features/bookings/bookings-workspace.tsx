@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   Activity,
   AlertCircle,
@@ -16,6 +16,13 @@ import {
   Search,
 } from "lucide-react";
 import { BookingsTable } from "./bookings-table";
+import { BookingsDesktopWorkspace } from "./bookings-desktop-workspace";
+import type {
+  BookingActionFn,
+  Branch,
+  WorkspaceBookingRow,
+  WorkspaceContext,
+} from "./booking-workspace-types";
 import { Button } from "@/components/ui/button";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
@@ -27,43 +34,9 @@ import {
 } from "@/components/features/attendance/attendance-ui";
 import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import { cn } from "@/lib/utils";
+import type { BookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 
-export type WorkspaceContext = "owner" | "manager" | "crm";
-
-type OneOrMany<T> = T | T[] | null;
-
-export type WorkspaceBookingRow = {
-  id: string;
-  branch_id?: string | null;
-  booking_date: string;
-  start_time: string;
-  end_time?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  type: string;
-  delivery_type?: string | null;
-  status: string;
-  booking_progress_status?: string | null;
-  checked_in_at?: string | null;
-  travel_started_at?: string | null;
-  arrived_at?: string | null;
-  session_started_at?: string | null;
-  session_completed_at?: string | null;
-  no_show_at?: string | null;
-  resource_id?: string | null;
-  travel_buffer_mins?: number | null;
-  metadata?: Record<string, unknown> | null;
-  payment_method: string;
-  payment_status: string;
-  payment_reference?: string | null;
-  amount_paid: number;
-  hold_expires_at?: string | null;
-  branches?: OneOrMany<{ id?: string; name: string }>;
-  services?: OneOrMany<{ id?: string; name: string; duration_minutes?: number }>;
-  staff?: OneOrMany<{ id?: string; full_name: string; nickname?: string | null; tier?: string }>;
-  customers?: OneOrMany<{ id?: string; full_name: string; phone?: string | null; email?: string | null }>;
-  branch_resources?: OneOrMany<{ id?: string; name: string; type?: string | null; capacity?: number | null }>;
-};
+export type { Branch, WorkspaceBookingRow, WorkspaceContext } from "./booking-workspace-types";
 
 export type BookingWorkspaceTab =
   | "needs-action"
@@ -71,9 +44,7 @@ export type BookingWorkspaceTab =
   | "active"
   | "completed";
 
-export type Branch = { id: string; name: string };
-
-type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
+type ActionFn = BookingActionFn;
 
 type BookingsWorkspaceProps = {
   workspaceContext: WorkspaceContext;
@@ -83,9 +54,14 @@ type BookingsWorkspaceProps = {
   date: string;
   statusFilter?: string;
   typeFilter?: string;
+  deliveryFilter?: string;
+  paymentFilter?: string;
+  assignmentFilter?: string;
   branchFilter?: string;
   search?: string;
   initialTab?: BookingWorkspaceTab;
+  initialQuickFilter?: BookingQuickFilter;
+  initialPage?: number;
   bookings: WorkspaceBookingRow[];
   waitlistRows?: WaitlistRow[];
   cashSummary?: DailyCashSummaryData | null;
@@ -314,9 +290,14 @@ export function BookingsWorkspace({
   date,
   statusFilter,
   typeFilter,
+  deliveryFilter,
+  paymentFilter,
+  assignmentFilter,
   branchFilter,
   search,
   initialTab,
+  initialQuickFilter = "all",
+  initialPage,
   bookings,
   statusAction,
   paymentAction,
@@ -324,6 +305,9 @@ export function BookingsWorkspace({
   confirmPaymentAction,
   onBookingsChanged,
 }: BookingsWorkspaceProps) {
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(
+    () => workspaceContext === "crm" ? null : false
+  );
   const basePath = `/${workspaceContext === "owner" ? "owner" : workspaceContext === "manager" ? "manager" : "crm"}/bookings`;
   const dispatchHref = basePath.replace(/\/bookings$/, "/dispatch");
   const [activeTab, setActiveTab] = useState<BookingWorkspaceTab>(
@@ -357,6 +341,18 @@ export function BookingsWorkspace({
   const hasFilters = Boolean(statusFilter || typeFilter || branchFilter || search);
   const needsActionCount = tabItems.find((tab) => tab.key === "needs-action")?.count ?? 0;
 
+  useEffect(() => {
+    if (workspaceContext !== "crm") return;
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const updateViewport = () => setIsDesktop(mediaQuery.matches);
+    const initialTimer = window.setTimeout(updateViewport, 0);
+    mediaQuery.addEventListener("change", updateViewport);
+    return () => {
+      window.clearTimeout(initialTimer);
+      mediaQuery.removeEventListener("change", updateViewport);
+    };
+  }, [workspaceContext]);
+
   function handleTabChange(nextTab: BookingWorkspaceTab) {
     setActiveTab(nextTab);
 
@@ -368,6 +364,36 @@ export function BookingsWorkspace({
     params.delete("openRoomAssignment");
     const query = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }
+
+  if (isDesktop === null) {
+    return <div className="min-h-[690px] animate-pulse rounded-xl border border-[var(--cs-border-soft)] bg-white" aria-label="Loading bookings workspace" aria-busy="true" />;
+  }
+
+  if (isDesktop) {
+    return (
+      <BookingsDesktopWorkspace
+        workspaceContext={workspaceContext}
+        viewerRole={viewerRole}
+        branches={branches}
+        date={date}
+        statusFilter={statusFilter}
+        sourceFilter={typeFilter}
+        deliveryFilter={deliveryFilter}
+        paymentFilter={paymentFilter}
+        assignmentFilter={assignmentFilter}
+        branchFilter={branchFilter}
+        search={search}
+        initialQuickFilter={initialQuickFilter}
+        initialPage={initialPage}
+        bookings={bookings}
+        statusAction={statusAction}
+        paymentAction={paymentAction}
+        initialSelectedId={initialSelectedId}
+        confirmPaymentAction={confirmPaymentAction}
+        onBookingsChanged={onBookingsChanged}
+      />
+    );
   }
 
   return (

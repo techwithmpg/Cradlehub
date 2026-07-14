@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { BedDouble, Clock3, Timer, UserRound } from "lucide-react";
+import { HybridSelectedBookingCountdown } from "./hybrid-selected-booking-countdown";
 import { cn, formatTime } from "@/lib/utils";
+import { useServiceSessionCountdown } from "@/hooks/use-service-session-countdown";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,33 +34,12 @@ export type HybridSelectedBookingCardProps = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Tick state: mountMs captured once; nowMs ticks every second. */
-type TickState = { mountMs: number; nowMs: number };
-
 function customerInitials(name: string | null | undefined): string {
   if (!name) return "CH";
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const first  = parts[0]?.[0] ?? "";
   const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
   return `${first}${second}`.toUpperCase() || "CH";
-}
-
-function fmtCountdown(secs: number): string {
-  const s  = Math.abs(Math.floor(secs));
-  const h  = Math.floor(s / 3600);
-  const m  = Math.floor((s % 3600) / 60);
-  const sc = s % 60;
-  const mm = String(m).padStart(2, "0");
-  const ss = String(sc).padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
-function fmtTimeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-PH", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -99,158 +79,26 @@ function SummaryStat({
   );
 }
 
-// ── Countdown zone (active-service mode only) ─────────────────────────────────
-
-type CountdownZoneProps = {
-  elapsedSecs: number;
-  remainingSecs: number;
-  progressPct: number;
-  durationMins: number;
-  sessionStartedAt: string;
-  staffName?: string | null;
-  resourceName?: string | null;
-};
-
-function CountdownZone({
-  elapsedSecs,
-  remainingSecs,
-  progressPct,
-  durationMins,
-  sessionStartedAt,
-  staffName,
-  resourceName,
-}: CountdownZoneProps) {
-  const isOvertime   = elapsedSecs > durationMins * 60;
-  const minutesLabel = isOvertime
-    ? "Overtime"
-    : `${Math.ceil(remainingSecs / 60)} min`;
-  const helperLabel  = isOvertime ? "Ready to complete" : "remaining";
-  const timerDisplay = isOvertime
-    ? `+${fmtCountdown(elapsedSecs - durationMins * 60)}`
-    : fmtCountdown(remainingSecs);
-  const startMs      = new Date(sessionStartedAt).getTime();
-  const startedLabel = Number.isFinite(startMs) ? fmtTimeLabel(sessionStartedAt) : null;
-
-  return (
-    <div className="border-t border-[var(--cs-success-bg)] bg-[var(--cs-success-bg)] px-4 py-3">
-      <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--cs-success-text)]">
-        IN SERVICE
-      </div>
-
-      <div className="text-center">
-        <div className="text-[11px] font-semibold text-[var(--cs-success-text)]">
-          {minutesLabel}
-        </div>
-        <div className="text-[10px] text-[var(--cs-text-muted)]">{helperLabel}</div>
-        <div className="mt-1 text-[30px] font-bold tabular-nums leading-none text-[var(--cs-success-text)]">
-          {timerDisplay}
-        </div>
-        <div className="mt-0.5 text-[11px] text-[var(--cs-text-muted)]">
-          of {durationMins} min
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div
-        className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.08)]"
-        role="progressbar"
-        aria-valuenow={Math.round(progressPct)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div
-          className="h-full rounded-full bg-[var(--cs-success)] transition-[width] duration-700 ease-linear"
-          style={{ width: `${progressPct}%` }}
-        />
-      </div>
-
-      {/* Meta row */}
-      {startedLabel ? (
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-1 text-[10px] text-[var(--cs-text-muted)]">
-          <span>Started {startedLabel}</span>
-          {staffName ? <><span>·</span><span>Staff: {staffName}</span></> : null}
-          {resourceName ? <><span>·</span><span>Room: {resourceName}</span></> : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function HybridSelectedBookingCard({
   booking,
   onAutoComplete,
 }: HybridSelectedBookingCardProps) {
-  const [tick, setTick] = useState<TickState | null>(null);
-
-  // Guard: fire onAutoComplete at most once per session.
-  // Reset when the parent provides a new key (session_started_at changed).
-  const hasAutoCompletedRef = useRef(false);
-
-  // Tick setup — setState only from callbacks to satisfy react-hooks/set-state-in-effect.
-  useEffect(() => {
-    const initId = setTimeout(() => {
-      const now = Date.now();
-      setTick({ mountMs: now, nowMs: now });
-    }, 0);
-    const tickId = setInterval(() => {
-      setTick((prev) => (prev ? { mountMs: prev.mountMs, nowMs: Date.now() } : null));
-    }, 1000);
-    return () => {
-      clearTimeout(initId);
-      clearInterval(tickId);
-    };
-  }, []);
-
-  // ── Derived state ──────────────────────────────────────────────────────────
-
-  const progress = booking.booking_progress_status ?? null;
-
-  // Active ONLY when status flag AND session_started_at are both present.
-  // This prevents showing "Complete Service" when the old statusAction only
-  // wrote status = 'in_progress' but skipped the RPC (which also sets
-  // session_started_at via update_booking_progress).
-  const isServiceActive = (
-    booking.status === "in_progress" ||
-    progress === "session_started"
-  ) && Boolean(booking.session_started_at);
-
-  const shouldShowCountdown = isServiceActive && Boolean(booking.session_started_at) && tick !== null;
-
   const durationMins = booking.service_duration ?? booking.duration_minutes ?? 60;
-  const durationSecs = durationMins * 60;
-
-  // Compute elapsed / remaining at the top level so the auto-complete
-  // effect can read them without needing a ref or additional state.
-  let elapsedSecs  = 0;
-  let remainingSecs = durationSecs;
-  let progressPct  = 0;
-
-  if (shouldShowCountdown && tick && booking.session_started_at) {
-    const startMs = new Date(booking.session_started_at).getTime();
-    if (Number.isFinite(startMs)) {
-      const rawElapsed = Math.floor((tick.nowMs - startMs) / 1000);
-      elapsedSecs   = Math.max(0, rawElapsed);
-      remainingSecs = Math.max(0, durationSecs - elapsedSecs);
-      progressPct   = Math.min(100, (elapsedSecs / durationSecs) * 100);
-    }
-  }
-
-  const isCountdownDue = shouldShowCountdown && elapsedSecs >= durationSecs;
+  const countdown = useServiceSessionCountdown({
+    status: booking.status,
+    progressStatus: booking.booking_progress_status,
+    sessionStartedAt: booking.session_started_at,
+    durationMinutes: durationMins,
+    onDue: onAutoComplete,
+  });
+  const isServiceActive = countdown.active;
+  const shouldShowCountdown = countdown.ready;
   const dateLabel = fmtDateLabel(booking.booking_date);
   const timeLabel = booking.start_time
     ? `${formatTime(booking.start_time)}${booking.end_time ? ` - ${formatTime(booking.end_time)}` : ""}`
     : "Time TBD";
-
-  // Auto-complete effect — refs read in effects (never during render).
-  useEffect(() => {
-    if (!isCountdownDue) return;
-    if (hasAutoCompletedRef.current) return;
-    if (!onAutoComplete) return;
-    hasAutoCompletedRef.current = true;
-    onAutoComplete();
-  }, [isCountdownDue, onAutoComplete]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -289,11 +137,11 @@ export function HybridSelectedBookingCard({
       </div>
 
       {shouldShowCountdown && booking.session_started_at ? (
-        <CountdownZone
-          elapsedSecs={elapsedSecs}
-          remainingSecs={remainingSecs}
-          progressPct={progressPct}
-          durationMins={durationMins}
+        <HybridSelectedBookingCountdown
+          elapsedSeconds={countdown.elapsedSeconds}
+          remainingSeconds={countdown.remainingSeconds}
+          progressPercent={countdown.progressPercent}
+          durationMinutes={durationMins}
           sessionStartedAt={booking.session_started_at}
           staffName={booking.staff_name}
           resourceName={booking.resource_name}

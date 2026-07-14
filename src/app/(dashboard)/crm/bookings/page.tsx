@@ -16,6 +16,11 @@ export default async function CrmBookingsPage({
     date?: string;
     status?: string;
     type?: string;
+    delivery?: string;
+    payment?: string;
+    assignment?: string;
+    page?: string;
+    branchId?: string;
     highlight?: string;
     search?: string;
     bookingId?: string;

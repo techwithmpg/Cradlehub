@@ -6715,3 +6715,22 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   full Vitest 108 files / 780 tests, `pnpm type-check`, `pnpm lint`, `pnpm
   build`, and public browser verification. Authenticated CRM browser QA remains
   blocked by `/login`.
+
+## 2026-07-14 - CRM-BOOKINGS-DESKTOP-REDESIGN-001
+
+- Rebuilt CRM Bookings desktop as a contained two-pane list and selected-booking
+  command center while leaving mobile and manager/owner booking surfaces intact.
+- Replaced permanent desktop workflow tabs with All bookings, Needs attention,
+  and Active now quick filters; added exact status/source/location/payment/
+  assignment filters, search, pagination, and legacy URL translation.
+- Added focused list, header, summary, lifecycle, quick-action, tab, Overview,
+  Activity, Details, service-session, and modal-stack components.
+- Reused `getSelectedBookingActionPlan()`, existing server actions/modals,
+  permission checks, staff recommendations, payment controls, follow-up copy,
+  countdown, and auto-completion behavior.
+- Activity uses selected-date booking timestamps plus existing follow-up,
+  reschedule, and staff-exception metadata; no fabricated customer statistics or
+  new audit subsystem was added.
+- No migration or RLS change. Verification passed: focused 3 files / 9 tests,
+  full Vitest 111 files / 789 tests, type-check, lint, build, and diff check.
+  Authenticated browser comparison remains blocked by the local `/login` redirect.

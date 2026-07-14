@@ -83,6 +83,12 @@ root/
 
 ## Recent Operational Context
 
+- 2026-07-14 CRM Bookings desktop redesign: the CRM-only desktop route now uses
+  a two-pane selected-date list and selected-booking command center with compact
+  quick/exact filters, preserved legacy links, existing lifecycle/action/modal
+  paths, and real timestamp/metadata Activity. Mobile and manager/owner booking
+  surfaces remain unchanged. No migration or RLS change; authenticated browser
+  certification remains blocked by the local `/login` redirect.
 - 2026-07-13 attendance scan repair: public Attendance QR failures now use
   structured safe codes plus operation IDs instead of generic Scan Interrupted.
   Internal Recovery reasons map to stable `attendance_exceptions.exception_type`
@@ -117,11 +123,11 @@ root/
 | Metric              | Value       |
 |----------------------|-------------|
 | **Phase**           | `Stabilization` |
-| **Sprint**          | `CRADLE-SCHEDULE-LEFTOVER-CLEANUP-008`  |
-| **Completion**      | `Leftover schedule warnings cleaned up; exact issue codes, explicit resource requirements, and explicit coverage requirements implemented and verified`        |
+| **Sprint**          | `CRM-BOOKINGS-DESKTOP-REDESIGN-001`  |
+| **Completion**      | `CRM desktop Bookings two-pane redesign implemented with existing lifecycle/actions preserved; static and automated checks pass`        |
 | **Last Agent**      | `Codex` |
-| **Last Updated**    | `2026-07-13` |
-| **Blockers**        | `Linked Supabase migration-history reads still need reconciliation from a working direct DB path; live cleanup/schema effects were verified through Management API SQL probes`      |
+| **Last Updated**    | `2026-07-14` |
+| **Blockers**        | `Authenticated CRM Bookings browser certification is blocked by the local /login redirect; linked Supabase migration-history reconciliation remains a separate existing blocker`      |
 
 ---
 

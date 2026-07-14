@@ -1,4 +1,42 @@
-# Current Task - ONLINE-STAFF-PREFERENCE-EXCEPTIONS-001
+# Current Task - CRM-BOOKINGS-DESKTOP-REDESIGN-001
+
+Status: COMPLETE
+Started: 2026-07-14
+Last updated: 2026-07-14
+
+## Mission
+
+Redesign only the desktop CRM Bookings workspace into the approved two-pane
+booking list and selected-booking command center while preserving the existing
+booking lifecycle, mutations, permissions, realtime behavior, assignment and
+payment logic, countdown/auto-completion path, and all existing operational
+modals.
+
+## Completed behavior
+
+- CRM desktop now uses the approved two-pane workspace with selected-date list,
+  compact quick/exact filters, search, pagination, and legacy tab translation.
+- The selected booking command pane keeps identity, status, service, summary,
+  lifecycle action, quick actions, and tabs fixed while only tab content scrolls.
+- Overview reuses existing assignment, payment, note, customer, warning, and
+  modal/action paths; Activity derives only from loaded timestamps and metadata.
+- The existing mobile workspace and shared manager/owner booking surfaces remain
+  on the prior implementation.
+- No booking lifecycle, server action, database, RLS, scheduling, payment, or
+  permission contract was replaced.
+
+## Verification
+
+- Focused booking tests: 3 files / 9 tests passed.
+- Full Vitest: 111 files / 789 tests passed.
+- `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check` passed.
+- In-app browser reached the local server with no console warnings/errors, but
+  `/crm/bookings` redirected to `/login`; authenticated visual/interaction QA
+  remains blocked until a safe signed-in CRM session is available.
+
+---
+
+# Previous Task - ONLINE-STAFF-PREFERENCE-EXCEPTIONS-001
 
 Status: COMPLETE
 Started: 2026-07-13

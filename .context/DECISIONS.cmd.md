@@ -863,3 +863,33 @@ idempotent CRM signals, so a parallel exception table/status is unnecessary.
   deterministic notification/task dedupe keys identify booking, staff, reason.
 - Keep, reassignment, and valid rescheduling resolve with actor/time/audit data;
   contacting the customer alone leaves the review open.
+
+## 2026-07-14 - CRM Bookings desktop is a composed presentation layer
+
+**Decision:** Mount the redesigned workspace only for CRM desktop and compose it
+from focused list/command-pane components while retaining the existing shared
+mobile and manager/owner booking UI.
+
+**Rationale:** The approved change is a CRM desktop information-architecture
+redesign, not a lifecycle or cross-workspace redesign. Reusing existing actions,
+modals, permission helpers, and `getSelectedBookingActionPlan()` keeps business
+behavior authoritative and avoids a second booking lifecycle.
+
+**Consequences:**
+- Desktop CRM receives the new two-pane surface at the existing route.
+- Mobile and non-CRM contexts keep their prior rendering and behavior.
+- Only tab content scrolls in the command pane; lifecycle/action areas remain
+  visible and continue calling existing mutation paths.
+
+**Decision:** Build Activity from selected-date booking timestamps and existing
+metadata already carried by the booking query.
+
+**Rationale:** Created/updated, progress, follow-up, reschedule, and resolved
+staff-exception timestamps provide honest activity without querying excessive
+history for every list row or creating a parallel audit subsystem.
+
+**Consequences:**
+- The selected-date query includes `created_at` and `updated_at` alongside its
+  existing progress timestamps and metadata.
+- Missing history renders an explicit empty state; payment/staff/room events are
+  not invented when no persisted event is loaded.

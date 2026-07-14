@@ -12,6 +12,7 @@ import { useSearchParams } from "next/navigation";
 import { BookingsWorkspace, type BookingWorkspaceTab, type WorkspaceBookingRow } from "./bookings-workspace";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
+import { resolveBookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
 
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
@@ -72,20 +73,23 @@ export function CrmBookingsView({
   confirmPaymentAction,
 }: CrmBookingsViewProps) {
   const searchParams = useSearchParams();
-  const today = new Date().toISOString().split("T")[0]!;
-  const date = searchParams.get("date") ?? today;
+  const date = searchParams.get("date") ?? initialData.date;
   const bookingId = searchParams.get("bookingId") ?? searchParams.get("highlight") ?? undefined;
-  const tab = parseTab(searchParams.get("tab"));
-  const statusFilter = searchParams.get("status") ?? undefined;
+  const rawTab = searchParams.get("tab");
+  const tab = parseTab(rawTab);
+  const resolvedQuickFilter = resolveBookingQuickFilter(rawTab);
+  const statusFilter = searchParams.get("status") ?? resolvedQuickFilter.legacyStatusFilter;
   const typeFilter = searchParams.get("type") ?? undefined;
+  const deliveryFilter = searchParams.get("delivery") ?? undefined;
+  const paymentFilter = searchParams.get("payment") ?? undefined;
+  const assignmentFilter = searchParams.get("assignment") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
+  const page = Number(searchParams.get("page") ?? "1");
 
   // Build the API URL with the current params
   const apiUrl = (() => {
     const params = new URLSearchParams({ date });
     if (bookingId) params.set("bookingId", bookingId);
-    if (tab) params.set("tab", tab);
-    if (statusFilter && !tab) params.set("status", statusFilter);
     return `/api/crm/bookings?${params.toString()}`;
   })();
 
@@ -108,8 +112,13 @@ export function CrmBookingsView({
       date={payload.date}
       statusFilter={statusFilter}
       typeFilter={typeFilter}
+      deliveryFilter={deliveryFilter}
+      paymentFilter={paymentFilter}
+      assignmentFilter={assignmentFilter}
       search={search}
       initialTab={initialTab}
+      initialQuickFilter={resolvedQuickFilter.quickFilter}
+      initialPage={Number.isFinite(page) && page > 0 ? Math.floor(page) : 1}
       bookings={payload.bookings}
       waitlistRows={payload.waitlistRows ?? []}
       cashSummary={payload.cashSummary}
