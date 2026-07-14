@@ -1,4 +1,47 @@
-# Current Task - CRM-BOOKINGS-DESKTOP-REDESIGN-001
+# Current Task - CRM-BOOKING-ACTIONS-COMPACT-001
+
+Status: COMPLETE
+Started: 2026-07-14
+Last updated: 2026-07-14
+
+## Mission
+
+Remove the large booking follow-up modal from routine CRM booking actions, fix
+the identifier/lookup defect that collapses valid action failures into `Booking
+not found`, and reduce the CRM desktop booking list to Time, Customer, and
+Status without horizontal scrolling.
+
+## Completed behavior
+
+- Confirm, Call, Message, No Answer, and Confirm Later now run directly from
+  the selected-booking command center; the desktop modal stack no longer routes
+  routine actions through Booking Follow-up.
+- Reschedule still opens the existing reschedule modal. Cancel now opens a
+  small reason-required dialog and reuses the existing status, audit,
+  notification, permission, and refresh behavior.
+- CRM action loading starts with the real `bookings.id` UUID and a base booking
+  select. Related details load separately only where required, and missing,
+  wrong-branch, RLS/permission, load, validation, final-state, and update errors
+  no longer collapse into `Booking not found`.
+- The desktop list is Time, Customer, and Status only, uses an approximately
+  43/57 split, and has no horizontal table scrolling. Search, filters,
+  pagination, selection, keyboard behavior, and refresh wiring are preserved.
+- No mobile redesign, new lifecycle/status, dependency, table, migration, or
+  RLS policy was introduced.
+
+## Verification
+
+- Focused booking tests: 6 files / 27 tests passed.
+- Full Vitest: 114 files / 807 tests passed.
+- `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check` passed.
+- In-app browser reached `http://localhost:3000/crm/bookings` but redirected to
+  `/login`; the available browser has no authenticated CradleHub session, so
+  live operator interaction QA remains blocked without altering the user's
+  running dev server or authentication state.
+
+---
+
+# Previous Task - CRM-BOOKINGS-DESKTOP-REDESIGN-001
 
 Status: COMPLETE
 Started: 2026-07-14

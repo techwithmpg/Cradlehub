@@ -893,3 +893,25 @@ history for every list row or creating a parallel audit subsystem.
   existing progress timestamps and metadata.
 - Missing history renders an explicit empty state; payment/staff/room events are
   not invented when no persisted event is loaded.
+
+## 2026-07-14 - CRM booking routine actions are direct, not modal-first
+
+**Decision:** CRM desktop confirmation, Call, Message, No Answer, and Confirm
+Later execute directly from the selected-booking command center. Reschedule
+keeps its existing specialized modal, while cancellation uses a small dialog
+containing only booking summary, required reason, and optional note.
+
+**Rationale:** The selected pane already presents the customer, service,
+schedule, assignment, payment, status, and notes. Repeating those fields in a
+large follow-up modal adds friction to routine actions and obscures the actual
+mutation. Cancellation still needs focused operator intent; rescheduling still
+needs the established availability workflow.
+
+**Consequences:**
+- Desktop routine actions no longer enter the Booking Follow-up modal stack;
+  mobile remains unchanged.
+- Existing server actions, lifecycle states, permissions, audit/event behavior,
+  notifications, revalidation, and SWR refresh remain authoritative.
+- The shared server action boundary starts with a UUID-only base booking lookup
+  and must never translate database, branch, or permission failures into a
+  missing-row message.

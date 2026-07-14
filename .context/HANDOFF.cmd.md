@@ -880,3 +880,30 @@ Still open:
   pending/confirmed/checked-in/in-service/completed actions, and legacy URLs.
   The available in-app browser redirected `/crm/bookings` to `/login` and had no
   alternate authenticated browser session.
+
+## Handoff - CRM-BOOKING-ACTIONS-COMPACT-001
+
+Done:
+- CRM desktop routine actions bypass Booking Follow-up: direct confirmation,
+  `tel:` Call, existing Message copy, direct No Answer, and direct Confirm Later.
+- Reschedule still opens `RescheduleBookingModal`; Cancel now uses a compact
+  reason-required dialog and existing cancellation status/event/notification/
+  permission/refresh behavior.
+- The shared CRM booking loader validates and queries the real booking UUID with
+  a base-only select, loads details separately, and distinguishes missing,
+  wrong-branch, RLS/permission, load, final-state, and update failures.
+- The desktop booking list is Time/Customer/Status only, has optional compact
+  issue indicators, no horizontal table scroll, and an approximately 43/57
+  list/detail split. Mobile remains unchanged.
+- No database migration or RLS policy change was required.
+
+Verified:
+- Focused booking tests: 6 files / 27 tests.
+- Full Vitest: 114 files / 807 tests.
+- `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check` pass.
+
+Still open:
+- Authenticated live operator QA for direct mutation toasts/refresh and the
+  focused cancel/reschedule dialogs. The only available in-app browser reached
+  the running local app but redirected `/crm/bookings` to `/login` and had no
+  authenticated CradleHub session or alternate browser.

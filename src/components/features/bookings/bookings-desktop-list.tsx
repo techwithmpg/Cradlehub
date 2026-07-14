@@ -63,16 +63,14 @@ export function BookingsDesktopList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto">
-        <table className="w-full min-w-[690px] table-fixed border-separate border-spacing-0">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <table className="w-full table-fixed border-separate border-spacing-0">
           <thead className="sticky top-0 z-10 bg-[var(--cs-surface-warm)]">
             <tr>
               {[
-                ["Time", "w-[16%]"],
-                ["Customer", "w-[24%]"],
-                ["Service", "w-[25%]"],
-                ["Assignment", "w-[22%]"],
-                ["Status", "w-[13%]"],
+                ["Time", "w-[23%]"],
+                ["Customer", "w-[47%]"],
+                ["Status", "w-[30%]"],
               ].map(([label, width]) => (
                 <th key={label} className={cn("border-b border-[var(--cs-border-soft)] px-3 py-3 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--cs-text-muted)]", width)}>
                   {label}

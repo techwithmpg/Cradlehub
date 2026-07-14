@@ -6734,3 +6734,25 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - No migration or RLS change. Verification passed: focused 3 files / 9 tests,
   full Vitest 111 files / 789 tests, type-check, lint, build, and diff check.
   Authenticated browser comparison remains blocked by the local `/login` redirect.
+
+## 2026-07-14 - CRM-BOOKING-ACTIONS-COMPACT-001
+
+- Removed Booking Follow-up from routine CRM desktop actions. Confirmation,
+  Call, Message, No Answer, and Confirm Later now run directly; Reschedule opens
+  the existing reschedule modal; Cancel opens a focused reason-required dialog.
+- Reworked the shared CRM booking action loader to start from the real booking
+  UUID with a base-only select, then load primitive/related detail separately.
+  Missing, wrong-branch, RLS/permission, database-load, final-state, and update
+  failures now return specific errors with safe structured action logging.
+- Cancellation keeps the existing `cancelled` state, actor/timestamp metadata,
+  booking event path, staff notification cleanup, permissions, and refresh
+  behavior while storing the selected reason and optional note.
+- Reduced the desktop booking list to Time, Customer, and Status, added compact
+  issue indicators, removed table horizontal scrolling, and changed the split
+  to approximately 43% list / 57% selected-booking pane.
+- No database migration, RLS policy, dependency, lifecycle, scheduling, payment,
+  or mobile behavior changed.
+- Verification passed: focused 6 files / 27 tests, full Vitest 114 files / 807
+  tests, `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check`.
+  Authenticated browser interaction remains blocked by the local `/login`
+  redirect in the only available browser session.

@@ -1,5 +1,4 @@
 import type { BookingActionFn, WorkspaceBookingRow } from "./booking-workspace-types";
-import type { BookingFollowupResult } from "./booking-followup-modal";
 import { SelectedBookingWarnings } from "./selected-booking-warnings";
 import { SelectedBookingStaffRow } from "./selected-booking-staff-row";
 import { SelectedBookingPaymentRow } from "./selected-booking-payment-row";
@@ -19,7 +18,6 @@ export function SelectedBookingOverview({
   onPaymentExpandedChange,
   onOpenRoom,
   onOpenReschedule,
-  onOpenFollowup,
   onChanged,
 }: {
   booking: WorkspaceBookingRow;
@@ -32,13 +30,12 @@ export function SelectedBookingOverview({
   onPaymentExpandedChange: (expanded: boolean) => void;
   onOpenRoom: () => void;
   onOpenReschedule: () => void;
-  onOpenFollowup: (result: BookingFollowupResult) => void;
   onChanged?: () => void;
 }) {
   const canEditBooking = canUpdateBooking(viewerRole) && !isBookingOperationallyClosed(booking);
   return (
     <div className="grid gap-3">
-      <SelectedBookingWarnings booking={booking} onOpenRoom={onOpenRoom} onOpenPayment={() => onPaymentExpandedChange(true)} onOpenStaff={() => onStaffExpandedChange(true)} onOpenReschedule={onOpenReschedule} onOpenFollowup={onOpenFollowup} onChanged={onChanged} />
+      <SelectedBookingWarnings booking={booking} onOpenRoom={onOpenRoom} onOpenPayment={() => onPaymentExpandedChange(true)} onOpenStaff={() => onStaffExpandedChange(true)} onOpenReschedule={onOpenReschedule} onChanged={onChanged} />
       <div className="overflow-visible rounded-xl border border-[var(--cs-border-soft)] bg-white">
         <SelectedBookingStaffRow booking={booking} canEdit={canEditBooking} expanded={staffExpanded} onExpandedChange={onStaffExpandedChange} onChanged={onChanged} />
         <SelectedBookingPaymentRow booking={booking} paymentAction={paymentAction} confirmPaymentAction={confirmPaymentAction} expanded={paymentExpanded} onExpandedChange={onPaymentExpandedChange} onChanged={onChanged} />

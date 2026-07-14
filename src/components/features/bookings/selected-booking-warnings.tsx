@@ -5,8 +5,8 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
-import type { BookingFollowupResult } from "./booking-followup-modal";
 import { resolveStaffScheduleExceptionAction } from "@/app/(dashboard)/crm/bookings/actions";
+import { firstBookingRelation } from "@/lib/bookings/booking-display";
 import { getOpenStaffScheduleException, getStaffScheduleExceptionMessage } from "@/lib/bookings/staff-schedule-exception";
 
 const reviewButtonClass = "inline-flex h-8 items-center justify-center rounded-lg px-3 text-xs font-semibold text-emerald-900 hover:bg-white";
@@ -40,7 +40,6 @@ export function SelectedBookingWarnings({
   onOpenPayment,
   onOpenStaff,
   onOpenReschedule,
-  onOpenFollowup,
   onChanged,
 }: {
   booking: WorkspaceBookingRow;
@@ -48,7 +47,6 @@ export function SelectedBookingWarnings({
   onOpenPayment: () => void;
   onOpenStaff: () => void;
   onOpenReschedule: () => void;
-  onOpenFollowup: (result: BookingFollowupResult) => void;
   onChanged?: () => void;
 }) {
   const [showStaffReview, setShowStaffReview] = useState(false);
@@ -56,6 +54,15 @@ export function SelectedBookingWarnings({
   const exception = getOpenStaffScheduleException(booking.metadata);
   const missingRoom = booking.booking_progress_status === "checked_in" && !booking.resource_id;
   const pendingPayment = ["unpaid", "pending", "pending_payment"].includes(booking.payment_status);
+
+  function callCustomer() {
+    const phone = firstBookingRelation(booking.customers)?.phone?.trim();
+    if (!phone) {
+      toast.error("No customer phone number is available.");
+      return;
+    }
+    window.location.href = `tel:${phone}`;
+  }
 
   function resolve(resolution: "kept_selected_staff" | "marked_resolved") {
     startTransition(async () => {
@@ -83,7 +90,7 @@ export function SelectedBookingWarnings({
           <button type="button" disabled={isResolving} onClick={() => resolve("marked_resolved")} className={reviewButtonClass}>Mark resolved</button>
           <button type="button" onClick={onOpenStaff} className={reviewButtonClass}>Reassign staff</button>
           <button type="button" onClick={onOpenReschedule} className={reviewButtonClass}>Adjust time</button>
-          <button type="button" onClick={() => onOpenFollowup("confirmed")} className={reviewButtonClass}>Contact customer</button>
+          <button type="button" onClick={callCustomer} className={reviewButtonClass}>Contact customer</button>
           <Link href={`/crm/schedule?staffId=${encodeURIComponent(exception.selectedStaffId)}&date=${encodeURIComponent(exception.bookingDate)}`} className={reviewButtonClass}>Open schedule</Link>
         </div>
       ) : null}

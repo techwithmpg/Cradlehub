@@ -129,7 +129,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
 
   return (
     <div className="overflow-x-auto pb-1">
-      <div className="grid min-w-[1120px] grid-cols-[minmax(620px,1.28fr)_minmax(480px,0.98fr)] items-start gap-3 bg-[var(--cs-bg)]">
+      <div className="grid min-w-[1120px] grid-cols-[minmax(440px,0.8fr)_minmax(560px,1.2fr)] items-start gap-3 bg-[var(--cs-bg)]">
         <section className="flex h-[calc(100vh-78px)] min-h-[690px] max-h-[940px] min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--cs-border-soft)] bg-white shadow-[var(--cs-shadow-sm)]">
           <header className="flex items-start justify-between gap-4 px-5 pt-5 pb-4">
             <div>
@@ -144,7 +144,7 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         </section>
 
         {selected ? (
-          <SelectedBookingCommandPane key={`${selected.id}-${firstBookingRelation(selected.staff)?.id ?? "none"}-${selected.session_started_at ?? "none"}-${selected.booking_progress_status ?? "none"}`} booking={selected} viewerRole={props.viewerRole} dispatchHref={dispatchHref} statusAction={props.statusAction} paymentAction={props.paymentAction} confirmPaymentAction={props.confirmPaymentAction} onClose={() => { setSelectedId(NO_SELECTION); replaceSelectionQuery(null); }} onOpenFollowup={(initialResult) => setModalState({ type: "followup", booking: selected, initialResult })} onOpenReschedule={() => setModalState({ type: "reschedule", booking: selected })} onOpenArrival={() => setModalState({ type: "arrival", booking: selected })} onOpenRoom={() => setModalState({ type: "room", booking: selected })} onChanged={changed} />
+          <SelectedBookingCommandPane key={`${selected.id}-${firstBookingRelation(selected.staff)?.id ?? "none"}-${selected.session_started_at ?? "none"}-${selected.booking_progress_status ?? "none"}`} booking={selected} viewerRole={props.viewerRole} dispatchHref={dispatchHref} statusAction={props.statusAction} paymentAction={props.paymentAction} confirmPaymentAction={props.confirmPaymentAction} onClose={() => { setSelectedId(NO_SELECTION); replaceSelectionQuery(null); }} onOpenReschedule={() => setModalState({ type: "reschedule", booking: selected })} onOpenArrival={() => setModalState({ type: "arrival", booking: selected })} onOpenRoom={() => setModalState({ type: "room", booking: selected })} onChanged={changed} />
         ) : (
           <aside className="sticky top-4 flex h-[calc(100vh-78px)] min-h-[690px] items-center justify-center rounded-xl border border-[var(--cs-border-soft)] bg-white p-8 text-center shadow-[var(--cs-shadow-sm)]">
             <div><p className="text-sm font-semibold text-[var(--cs-text)]">No booking selected</p><p className="mt-1 text-sm text-[var(--cs-text-muted)]">Select a booking row to open its command center.</p></div>

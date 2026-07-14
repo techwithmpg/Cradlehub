@@ -974,3 +974,22 @@
 - **Resolution:** Run the documented CRM Bookings manual matrix in a safe
   signed-in CRM session. Focused component/selector tests, full Vitest,
   type-check, lint, and production build cover the implementation contracts.
+
+## 2026-07-14 - CRM-BOOKING-ACTIONS-COMPACT-001 lookup defect
+
+- **Symptom:** A booking visible and selected in CRM Bookings could return
+  `Booking not found` when confirming, cancelling, rescheduling, or running
+  another selected-booking action.
+- **Root cause:** The UI correctly carried the real `bookings.id` UUID, but the
+  shared server loader began with a large relational embed and returned `null`
+  for both an absent row and every query/RLS/relationship error. Callers then
+  converted all of those different outcomes into `Booking not found`.
+- **Resolution:** The action boundary now validates the UUID, loads only
+  `id, branch_id, status, booking_progress_status, customer_id` first, performs
+  branch/RLS diagnostics without weakening policy, and loads additional detail
+  separately. It returns distinct safe errors/codes for missing, wrong branch,
+  permission, load, final status, and update failures and logs only action name,
+  UUID, authenticated user id, branch id, and safe code.
+- **Prevention:** Focused server-action tests assert the base select, real UUID,
+  malformed/display-ID rejection, wrong-branch/RLS/missing/database distinctions,
+  update failures, and cancellation final-state guards.

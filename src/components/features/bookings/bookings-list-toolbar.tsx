@@ -97,7 +97,7 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
         </>
       ) : null}
 
-      <div className="grid grid-cols-[minmax(185px,0.85fr)_auto_minmax(220px,1.15fr)] gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
         <label className="relative flex h-11 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3">
           <CalendarDays className="mr-2 size-4 text-[var(--cs-text-secondary)]" />
           <span className="sr-only">Selected date</span>
@@ -120,7 +120,7 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
           <ChevronDown className={`size-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
         </button>
 
-        <label className="flex h-11 min-w-0 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3">
+        <label className="col-span-2 flex h-11 min-w-0 items-center rounded-lg border border-[var(--cs-border)] bg-white px-3">
           <Search className="mr-2 size-4 shrink-0 text-[var(--cs-text-secondary)]" />
           <span className="sr-only">Search bookings</span>
           <input
@@ -134,7 +134,7 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
       </div>
 
       {showFilters ? (
-        <div className="grid grid-cols-3 gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 shadow-sm">
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 shadow-sm">
           <FilterSelect label="Status" name="status" value={props.status}>
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
@@ -177,9 +177,9 @@ export function BookingsListToolbar(props: BookingsListToolbarProps) {
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
               ))}
             </FilterSelect>
-          ) : <div />}
+          ) : null}
 
-          <div className="col-span-3 flex justify-end gap-2 border-t border-[var(--cs-border-soft)] pt-3">
+          <div className="col-span-2 flex justify-end gap-2 border-t border-[var(--cs-border-soft)] pt-3">
             <Link
               href={clearFiltersHref(props.basePath, props.date, props.quickFilter, props.preservedQuery)}
               className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-semibold text-[var(--cs-text-secondary)] hover:bg-white"
