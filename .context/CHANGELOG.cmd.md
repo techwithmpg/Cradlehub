@@ -1,5 +1,24 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-15 - Codex (ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001)
+
+- Replaced the blocked five-minute Vercel Attendance cron with four exact direct
+  SQL Supabase Cron jobs while retaining the unrelated daily agent job.
+- Added one restricted, idempotent, bounded PostgreSQL processor for reminder,
+  manager escalation, provisional auto-close, and ordered catch-up, plus three
+  partial indexes containing only open live CRM closing rows.
+- Moved notification/workflow-task delivery into the same authoritative database
+  transaction and converted the legacy processor into a compatibility wrapper.
+- Kept event-driven deadline snapshots at clock-in and added event-driven signal
+  resolution after normal clock-out; no intervention rows are pre-created.
+- Applied the isolated migration to the linked project, enabled pg_cron 1.6.4,
+  and verified two active Asia/Manila branches, UTC database time, function ACLs,
+  indexes, exactly four active jobs, three successful temporary QA cron runs, QA
+  cleanup, and zero verification intervention/signal writes.
+- Added the operations runbook and 40 focused hybrid automation contracts.
+  Focused tests (93), full tests (133 files / 1002 tests), type-check, lint,
+  linked database lint, and the Next.js production build pass.
+
 ## 2026-07-15 - Codex (LIVE-DATABASE-UI-VERIFICATION-CONNECTION-001)
 
 - Added reusable `pnpm db:verify-live` read-only live connection certification,

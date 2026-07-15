@@ -5,6 +5,25 @@
 
 ---
 
+## Latest Agent Update (2026-07-15 — Attendance hybrid closing automation)
+
+- Vercel no longer schedules Attendance every five minutes; only the unrelated
+  daily agent follow-up cron remains.
+- CRM/CSR closing deadlines remain snapshotted on the Attendance record at
+  clock-in, and normal clock-out naturally removes eligibility and resolves
+  already-issued signals.
+- Supabase pg_cron 1.6.4 now runs reminder, manager escalation, auto-close, and
+  catch-up at 15:00, 15:30, 16:00, and 16:10 UTC for the two verified
+  `Asia/Manila` active branches.
+- The single restricted database processor uses bounded `FOR UPDATE SKIP LOCKED`
+  queries and three partial indexes over only open live CRM closing records.
+- Live empty-run verification succeeded with zero intervention, notification,
+  or task writes. The isolated migration is live but remains absent from remote
+  migration history alongside the broader known 79 local-only / 5 remote-only
+  drift; do not run a blind full migration push.
+
+---
+
 ## 🏗️ Project Identity
 
 | Field              | Value                                      |

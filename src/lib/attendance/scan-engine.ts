@@ -2236,6 +2236,7 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
       deviceScanType: "attendance",
     });
 
+    await resolveClosingInterventionSignals(admin, activeCheckin.id);
     return committed.result;
   }
 

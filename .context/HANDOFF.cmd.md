@@ -1,5 +1,29 @@
 # HANDOFF - Next Agent Session
 
+## ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001 - 2026-07-15
+
+Attendance closing automation is now database-native. The isolated live
+migration added `process_due_attendance_closing_interventions` and three partial
+open-record indexes; execution is denied to `anon`/`authenticated` and allowed
+to `service_role` plus the function owner used by pg_cron. All active branches
+were verified as `Asia/Manila`, the database timezone is UTC, and pg_cron 1.6.4
+has exactly four active jobs at 15:00, 15:30, 16:00, and 16:10 UTC.
+
+The prior five-minute Vercel Attendance cron is removed. The route remains
+protected by `CRON_SECRET` and supports the four stages only as a manual fallback.
+A temporary 10-second QA cron ran three successful empty direct-SQL executions,
+was unscheduled, and created zero interventions/notifications/tasks. Do not
+recreate frequent HTTP polling. If active branch timezones diverge, disable the
+fixed jobs and redesign scheduling before re-enabling. See
+`docs/operations/ATTENDANCE_CLOSING_AUTOMATION.md`.
+
+The new migration was applied directly and intentionally was not added to remote
+migration history because the repository still has 79 local-only and 5
+remote-only versions. Reconcile that broader drift separately; do not blind-push
+all migrations.
+
+---
+
 ## LIVE-DATABASE-UI-VERIFICATION-CONNECTION-001 - 2026-07-15
 
 Run `pnpm db:verify-live` for the reusable read-only certification path. It checks

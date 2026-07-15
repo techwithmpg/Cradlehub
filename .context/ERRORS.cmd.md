@@ -1,3 +1,22 @@
+## 2026-07-15 - Vercel Hobby rejected frequent Attendance cron
+
+- **Symptom:** The production deployment for the merged `main` commit was
+  rejected because `vercel.json` scheduled
+  `/api/attendance/closing-interventions` every five minutes.
+- **Root cause:** Vercel Hobby accepts only daily cron schedules, while the
+  closing worker depended on frequent HTTP execution to create and deliver due
+  interventions.
+- **Resolution:** Removed only the frequent Attendance Vercel entry. Supabase
+  now calls one database function directly through four exact daily UTC jobs;
+  three partial indexes restrict work to due open CRM closing records. The
+  protected route remains manual-only and delegates to the same function.
+- **Production evidence:** `pg_cron` 1.6.4 is enabled, the four jobs are active,
+  a temporary direct-SQL QA cron completed three successful empty runs, the QA
+  job was removed, and the verification window produced zero intervention,
+  notification, or task writes.
+
+---
+
 ## 2026-07-13 - CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009 scan interruption root cause
 
 - **Symptom:** Real public Attendance QR scans could reach the workflow and then

@@ -6,6 +6,14 @@ const migration = readFileSync(
   resolve("supabase/migrations/20260714180000_attendance_crm_closing_policy.sql"),
   "utf8"
 );
+const hybridMigration = readFileSync(
+  resolve("supabase/migrations/20260715012424_attendance_hybrid_closing_automation.sql"),
+  "utf8"
+);
+const cronOperation = readFileSync(
+  resolve("supabase/operations/configure-attendance-closing-cron.sql"),
+  "utf8"
+);
 const vercelConfig = readFileSync(resolve("vercel.json"), "utf8");
 const route = readFileSync(
   resolve("src/app/api/attendance/closing-interventions/route.ts"),
@@ -134,9 +142,10 @@ describe("late real QR scan routing contract", () => {
 });
 
 describe("CRM closing scheduler and signal contract", () => {
-  it("configures the existing Vercel scheduler surface every five minutes", () => {
-    expect(vercelConfig).toContain('"/api/attendance/closing-interventions"');
-    expect(vercelConfig).toContain('"*/5 * * * *"');
+  it("keeps Vercel free of automatic Attendance scheduling", () => {
+    expect(vercelConfig).not.toContain('"/api/attendance/closing-interventions"');
+    expect(vercelConfig).not.toContain('"*/5 * * * *"');
+    expect(vercelConfig).toContain('"/api/agent/follow-up"');
   });
 
   it("uses the existing CRON_SECRET bearer convention", () => {
@@ -145,10 +154,12 @@ describe("CRM closing scheduler and signal contract", () => {
     expect(route).toContain("Bearer");
   });
 
-  it("uses existing notification and workflow-task stores with stable stage keys", () => {
-    expect(worker).toContain("createOrUpdateNotification");
-    expect(worker).toContain("createOrUpdateWorkflowTask");
-    expect(worker).toContain("`${row.dedupe_key}:notification`");
-    expect(worker).toContain("`${row.dedupe_key}:task`");
+  it("delegates the fallback and four direct SQL jobs to one database processor", () => {
+    expect(worker).toContain('"process_due_attendance_closing_interventions"');
+    expect(worker).not.toContain("createOrUpdateNotification");
+    expect(hybridMigration).toContain("v_intervention.dedupe_key || ':notification'");
+    expect(hybridMigration).toContain("v_intervention.dedupe_key || ':task'");
+    expect(cronOperation.match(/select cron\.schedule\(/g)).toHaveLength(4);
+    expect(cronOperation).not.toContain("http");
   });
 });

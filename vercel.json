@@ -3,10 +3,6 @@
     {
       "path": "/api/agent/follow-up",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/attendance/closing-interventions",
-      "schedule": "*/5 * * * *"
     }
   ]
 }

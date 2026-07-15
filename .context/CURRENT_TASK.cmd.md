@@ -1,4 +1,50 @@
-# Current Task - LIVE-DATABASE-UI-VERIFICATION-CONNECTION-001
+# Current Task - ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001
+
+Status: IN_PROGRESS
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Replace the Vercel Hobby-incompatible five-minute Attendance cron with the
+existing event-driven closing deadline snapshots plus four exact Supabase Cron
+safety jobs that call one bounded, idempotent PostgreSQL processor directly.
+
+## Guardrails
+
+- Preserve CRM/CSR closing classifications, stored deadline timestamps,
+  notification/workflow-task behavior, active-service protection, provisional
+  correction/exception audit, actual-scan reconciliation, and Test Mode.
+- Remove only the frequent Attendance entry from `vercel.json`; retain the
+  unrelated daily agent cron and the protected manual Attendance fallback route.
+- Query only open, live `crm_closing` records through partial due-time indexes;
+  create intervention rows only when a stage actually applies.
+- Use four direct SQL Supabase Cron jobs at verified UTC times. Do not use HTTP,
+  external schedulers, secrets in SQL, or a blind full migration push.
+
+## Verified preflight
+
+- Linked production project identity is `lsrb...olkv`; read-only health checks
+  pass against Postgres 17.6 and the transaction pooler.
+- Both active branches use `Asia/Manila`; the database timezone is UTC.
+- The existing closing columns, intervention table, snapshot trigger, and legacy
+  processor are live even though their local migration versions are absent from
+  migration history. Current drift is 79 local-only / 5 remote-only.
+- `pg_cron` and `cron.job` are not yet enabled, and no existing cron jobs can be
+  present until the extension is enabled.
+
+## Work order
+
+1. Add the restricted stage processor, partial indexes, and operation SQL.
+2. Make the manual route delegate to the database processor and remove the
+   frequent Vercel schedule.
+3. Add the 40 requested focused contracts and operations documentation.
+4. Run all gates, apply only the isolated migration and scheduler setup, verify
+   jobs/runs/security, then commit, push, and observe production deployment.
+
+---
+
+# Previous Task - LIVE-DATABASE-UI-VERIFICATION-CONNECTION-001
 
 Status: COMPLETE — CONDITIONAL SUCCESS
 Started: 2026-07-15

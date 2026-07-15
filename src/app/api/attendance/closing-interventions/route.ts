@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { runClosingAttendanceInterventions } from "@/lib/attendance/closing-interventions";
+import {
+  isClosingInterventionStage,
+  runClosingAttendanceInterventions,
+  type ClosingInterventionStage,
+} from "@/lib/attendance/closing-interventions";
 import { logError } from "@/lib/logger";
 
 function bearerToken(request: NextRequest): string | null {
@@ -18,12 +22,34 @@ function isAuthorized(request: NextRequest): boolean {
   return bearerToken(request) === secret;
 }
 
+async function requestedStage(
+  request: NextRequest
+): Promise<ClosingInterventionStage | null> {
+  let value: unknown = request.nextUrl.searchParams.get("stage") ?? "catch_up";
+  if (request.method === "POST" && !request.nextUrl.searchParams.has("stage")) {
+    const body = await request.json().catch(() => null);
+    if (body && typeof body === "object" && "stage" in body) {
+      value = body.stage;
+    }
+  }
+  return isClosingInterventionStage(value) ? value : null;
+}
+
 async function handle(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const stage = await requestedStage(request);
+  if (!stage) {
+    return NextResponse.json(
+      { ok: false, error: "Unsupported closing intervention stage." },
+      { status: 400 }
+    );
+  }
+
   try {
-    const result = await runClosingAttendanceInterventions();
+    const result = await runClosingAttendanceInterventions(stage);
     return NextResponse.json({ ok: true, result });
   } catch (error) {
     logError("attendance.closing_interventions.failed", { error });

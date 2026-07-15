@@ -5470,6 +5470,14 @@ export type Database = {
           processed_open_records: number
         }[]
       }
+      process_due_attendance_closing_interventions: {
+        Args: {
+          p_batch_size?: number
+          p_processed_at?: string
+          p_stage: string
+        }
+        Returns: Json
+      }
       reconcile_provisional_attendance_clock_out: {
         Args: {
           p_actual_clock_out_at: string

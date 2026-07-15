@@ -20,6 +20,14 @@
 
 ## Current Delivery Notes
 
+- ✅ `ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001` completed on 2026-07-15:
+  removed the Vercel Hobby-incompatible five-minute Attendance cron, deployed one
+  restricted database processor with three open-record partial indexes, enabled
+  four exact Supabase Cron jobs for the verified Asia/Manila branches, observed
+  successful empty scheduled runs with zero action writes, and retained the
+  protected manual route as fallback only. Production Vercel acceptance is the
+  final release observation after the commit reaches `main`.
+
 - ✅ `ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001` completed locally on
   2026-07-15: ordinary valid outside-hours first scans now record and flag,
   first-closing ambiguity stays capture-only, one-scan secure phone registration

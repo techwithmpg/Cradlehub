@@ -1,5 +1,18 @@
 # 🏗️ DECISIONS
 
+### 2026-07-15: Attendance closing uses event-driven records plus four exact Supabase safety jobs
+**Status:** ACCEPTED
+
+Keep branch-time closing deadlines snapshotted on each CRM/CSR closing Attendance
+record at clock-in. A normal clock-out changes the row to `checked_out`, naturally
+removes it from due queries, and resolves issued signals. Use four UTC Supabase
+Cron jobs (15:00, 15:30, 16:00, 16:10) to call the single restricted
+`process_due_attendance_closing_interventions` function directly for reminder,
+manager escalation, provisional auto-close, and ordered catch-up. Create
+intervention rows only when an action is due; never restore all-day five-minute
+HTTP polling. Fixed schedules are valid only while all active branches share
+`Asia/Manila`.
+
 ### 2026-07-15: Layered live verification connection
 **Status:** ACCEPTED
 
