@@ -47,6 +47,7 @@ export type ResourceConflict =
     };
 
 export type SpacesRulesTab = "overview" | "spaces" | "rules" | "conflicts";
+export type CrmSpacesTab = "overview" | "spaces" | "conflicts";
 
 export function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -137,7 +138,6 @@ export function computeResourceConflicts(
     }
 
     // Capacity overflow check
-    // For each booking, count how many others overlap with it
     if (resource.capacity > 1) {
       for (let i = 0; i < list.length; i++) {
         const a = list[i]!;
@@ -154,7 +154,6 @@ export function computeResourceConflicts(
           }
         }
         if (overlapCount >= resource.capacity) {
-          // Only add one capacity conflict per resource
           const alreadyAdded = conflicts.some(
             (c) =>
               c.type === "capacity_overflow" && c.resourceId === resourceId
@@ -230,8 +229,145 @@ export function computeKpiData(
   return {
     totalSpaces: resources.length,
     activeSpaces: activeResources.length,
-    activeRules: rules.id ? 1 : 0, // 1 if persisted, 0 if default
+    activeRules: rules.id ? 1 : 0,
     conflicts: conflicts.filter((c) => c.severity === "critical").length,
     missingAssignments,
   };
+}
+
+// ── CRM Operational KPI ────────────────────────────────────────────────────────
+
+export type CrmOperationalKpiData = {
+  totalSpaces: number;
+  availableToday: number;
+  occupiedNow: number;
+  conflicts: number;
+  missingAssignments: number;
+  blocked: number;
+};
+
+/**
+ * Computes operational KPIs for CRM front-desk view.
+ * - availableToday: active resources not currently in use
+ * - occupiedNow: resources with active bookings (checked_in, confirmed, in_progress)
+ * - blocked: inactive resources
+ */
+export function computeCrmOperationalKpi(
+  resources: ResourceRow[],
+  bookings: ConflictBooking[],
+  conflicts: ResourceConflict[]
+): CrmOperationalKpiData {
+  const activeResources = resources.filter((r) => r.is_active);
+  const inactiveResources = resources.filter((r) => !r.is_active);
+
+  // Get resources currently in use (have active bookings)
+  const activeBookings = bookings.filter(
+    (b) =>
+      b.status === "confirmed" ||
+      b.status === "checked_in" ||
+      b.status === "in_progress"
+  );
+
+  const occupiedResourceIds = new Set(
+    activeBookings.filter((b) => b.resource_id).map((b) => b.resource_id)
+  );
+
+  const occupiedCount = activeResources.filter((r) =>
+    occupiedResourceIds.has(r.id)
+  ).length;
+
+  const availableCount = activeResources.length - occupiedCount;
+
+  const criticalConflicts = conflicts.filter(
+    (c) => c.severity === "critical"
+  ).length;
+
+  const missingAssignments = conflicts.filter(
+    (c) => c.type === "missing_assignment"
+  ).length;
+
+  return {
+    totalSpaces: resources.length,
+    availableToday: availableCount,
+    occupiedNow: occupiedCount,
+    conflicts: criticalConflicts,
+    missingAssignments,
+    blocked: inactiveResources.length,
+  };
+}
+
+// ── Resource Status Helpers ────────────────────────────────────────────────────
+
+export type ResourceStatus =
+  | "available"
+  | "in_use"
+  | "blocked"
+  | "inactive"
+  | "needs_setup"
+  | "conflict";
+
+export function getResourceStatus(
+  resource: ResourceRow,
+  bookings: ConflictBooking[],
+  conflicts: ResourceConflict[]
+): ResourceStatus {
+  if (!resource.is_active) return "inactive";
+
+  // Check for conflicts on this resource
+  const hasConflict = conflicts.some(
+    (c) =>
+      (c.type === "overlap" || c.type === "capacity_overflow") &&
+      c.resourceId === resource.id
+  );
+  if (hasConflict) return "conflict";
+
+  // Check if resource is currently in use
+  const activeBookings = bookings.filter(
+    (b) =>
+      b.resource_id === resource.id &&
+      (b.status === "confirmed" ||
+        b.status === "checked_in" ||
+        b.status === "in_progress")
+  );
+  if (activeBookings.length > 0) return "in_use";
+
+  return "available";
+}
+
+export function getResourceStatusLabel(status: ResourceStatus): string {
+  switch (status) {
+    case "available":
+      return "Available";
+    case "in_use":
+      return "In Use";
+    case "blocked":
+      return "Blocked";
+    case "inactive":
+      return "Inactive";
+    case "needs_setup":
+      return "Needs Setup";
+    case "conflict":
+      return "Conflict";
+    default:
+      return "Unknown";
+  }
+}
+
+export function getResourceStatusColor(status: ResourceStatus): string {
+  switch (status) {
+    case "available":
+      return "#4A7C59"; // Forest green
+    case "in_use":
+      return "#B08850"; // Warm gold
+    case "blocked":
+      return "#8A8078"; // Neutral gray
+    case "inactive":
+      return "var(--cs-text-muted)";
+    case "needs_setup":
+      return "#D97706"; // Soft orange
+    case "conflict":
+      return "#DC2626"; // Red
+    default:
+      return "var(--cs-text-muted)";
+  }
 }

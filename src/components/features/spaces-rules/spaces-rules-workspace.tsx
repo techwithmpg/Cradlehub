@@ -3,19 +3,22 @@
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { SpacesRulesHeader } from "./spaces-rules-header";
-import { SpacesRulesKpiCards } from "./spaces-rules-kpi-cards";
-import { SpacesRulesTabs } from "./spaces-rules-tabs";
-import { OverviewTab } from "./overview-tab";
-import { SpacesTab } from "./spaces-tab";
+import { SpacesRulesKpiCards, CrmOperationalKpiStrip } from "./spaces-rules-kpi-cards";
+import { SpacesRulesTabs, CrmSpacesTabs } from "./spaces-rules-tabs";
+import { OverviewTab, CrmOverviewTab } from "./overview-tab";
+import { SpacesTab, CrmSpacesTab } from "./spaces-tab";
 import { BookingRulesTab } from "./booking-rules-tab";
-import { ConflictsTab } from "./conflicts-tab";
-import { SpaceDetailPanel } from "./space-detail-panel";
+import { ConflictsTab, CrmConflictsTab } from "./conflicts-tab";
+import { SpaceDetailPanel, CrmSpaceDetailPanel } from "./space-detail-panel";
+import { CrmSpacesQuickActions } from "./crm-spaces-quick-actions";
 import {
   computeResourceConflicts,
   computeKpiData,
+  computeCrmOperationalKpi,
   type ResourceRow,
   type ConflictBooking,
   type SpacesRulesTab,
+  type CrmSpacesTab as CrmTabType,
 } from "./spaces-rules-utils";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
 
@@ -48,15 +51,17 @@ export function SpacesRulesWorkspace({
   canEditRules,
   initialTab,
 }: SpacesRulesWorkspaceProps) {
-  // All contexts can view booking rules (read-only for CRM — canEditRules gate handles edit access).
-  const canViewBookingRules = true;
-  const showActiveRulesKpi = true;
+  // CRM gets a simplified operational view for spaces. The separate Booking
+  // Rules tab in Setup Center still uses the full workspace so `initialTab`
+  // remains authoritative.
+  const isCrmOperationalView =
+    workspaceContext === "crm" && initialTab !== "rules";
 
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<SpacesRulesTab>(initialTab ?? "overview");
-  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
-    null
+  const [activeTab, setActiveTab] = useState<SpacesRulesTab | CrmTabType>(
+    initialTab ?? "overview"
   );
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -97,6 +102,11 @@ export function SpacesRulesWorkspace({
     [resources, rules, conflicts]
   );
 
+  const crmKpiData = useMemo(
+    () => computeCrmOperationalKpi(resources, bookings, conflicts),
+    [resources, bookings, conflicts]
+  );
+
   const selectedResource = useMemo(() => {
     if (!selectedResourceId) return null;
     return resources.find((r) => r.id === selectedResourceId) ?? null;
@@ -107,6 +117,109 @@ export function SpacesRulesWorkspace({
       current === resourceId ? null : resourceId
     );
   }, []);
+
+  // ── CRM Layout ───────────────────────────────────────────────────────────────
+  if (isCrmOperationalView) {
+    return (
+      <div className="crm-spaces-availability">
+        {/* Compact header with branch-locked badge */}
+        <SpacesRulesHeader
+          workspaceContext="crm"
+          branchId={branchId}
+          branchName={branchName}
+          branches={branches}
+          canSwitchBranch={false}
+          onBranchChange={handleBranchChange}
+        />
+
+        {/* Operational KPI strip */}
+        <div style={{ marginTop: "1rem" }}>
+          <CrmOperationalKpiStrip data={crmKpiData} />
+        </div>
+
+        {/* CRM tabs: Overview, Spaces, Conflicts */}
+        <div style={{ marginTop: "1rem" }}>
+          <CrmSpacesTabs
+            activeTab={activeTab as CrmTabType}
+            onTabChange={setActiveTab}
+            conflictCount={conflicts.filter((c) => c.severity === "critical").length}
+          />
+        </div>
+
+        {/* Main content area */}
+        <div
+          style={{
+            marginTop: "1rem",
+            display: "grid",
+            gridTemplateColumns: "1fr 320px",
+            gap: "1rem",
+            alignItems: "start",
+          }}
+          className="crm-spaces-grid"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 }}>
+            {activeTab === "overview" && (
+              <CrmOverviewTab
+                resources={resources}
+                bookings={bookings}
+                conflicts={conflicts}
+              />
+            )}
+
+            {activeTab === "spaces" && (
+              <CrmSpacesTab
+                branchId={branchId}
+                resources={filteredResources}
+                allResources={resources}
+                bookings={bookings}
+                conflicts={conflicts}
+                canManage={canManageResources}
+                searchQuery={searchQuery}
+                typeFilter={typeFilter}
+                statusFilter={statusFilter}
+                onSearchChange={setSearchQuery}
+                onTypeFilterChange={setTypeFilter}
+                onStatusFilterChange={setStatusFilter}
+                selectedResourceId={selectedResourceId}
+                onResourceClick={handleResourceClick}
+              />
+            )}
+
+            {activeTab === "conflicts" && (
+              <CrmConflictsTab conflicts={conflicts} resources={resources} />
+            )}
+          </div>
+
+          {/* Right sidebar */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <CrmSpaceDetailPanel
+              resource={selectedResource}
+              branchName={branchName}
+              bookings={bookings}
+              conflicts={conflicts}
+              canManage={canManageResources}
+              onClose={() => setSelectedResourceId(null)}
+            />
+            <CrmSpacesQuickActions />
+          </div>
+        </div>
+
+        {/* Responsive styles */}
+        <style>{`
+          @media (max-width: 900px) {
+            .crm-spaces-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ── Owner / Manager Layout (unchanged) ───────────────────────────────────────
+  // All contexts can view booking rules (read-only for non-edit roles)
+  const canViewBookingRules = true;
+  const showActiveRulesKpi = true;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -122,7 +235,7 @@ export function SpacesRulesWorkspace({
       <SpacesRulesKpiCards data={kpiData} showActiveRules={showActiveRulesKpi} />
 
       <SpacesRulesTabs
-        activeTab={activeTab}
+        activeTab={activeTab as SpacesRulesTab}
         onTabChange={setActiveTab}
         canViewBookingRules={canViewBookingRules}
       />
@@ -165,10 +278,7 @@ export function SpacesRulesWorkspace({
           )}
 
           {activeTab === "rules" && canViewBookingRules && (
-            <BookingRulesTab
-              rules={rules}
-              canEdit={canEditRules}
-            />
+            <BookingRulesTab rules={rules} canEdit={canEditRules} />
           )}
 
           {activeTab === "conflicts" && (

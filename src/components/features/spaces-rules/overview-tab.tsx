@@ -10,7 +10,9 @@ import {
 } from "./spaces-rules-utils";
 import { buildConflictSummaryIssues } from "./spaces-readiness-utils";
 import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
-import { Clock } from "lucide-react";
+import { Clock, CheckCircle2, Users, AlertTriangle, CircleDashed } from "lucide-react";
+
+// ── Original Overview Tab (Owner/Manager) ──────────────────────────────────────
 
 export function OverviewTab({
   resources,
@@ -171,6 +173,281 @@ export function OverviewTab({
           emptyTitle="No alerts right now"
           emptyDescription="All bookings have room assignments and no overlaps detected."
         />
+      </div>
+    </div>
+  );
+}
+
+// ── CRM Overview Tab ───────────────────────────────────────────────────────────
+
+export function CrmOverviewTab({
+  resources,
+  bookings,
+  conflicts,
+}: {
+  resources: ResourceRow[];
+  bookings: ConflictBooking[];
+  conflicts: ResourceConflict[];
+}) {
+  const activeResources = resources.filter((r) => r.is_active);
+  const inventory = computeResourceInventory(resources);
+
+  // Calculate occupancy
+  const activeBookings = bookings.filter(
+    (b) =>
+      b.status === "confirmed" ||
+      b.status === "checked_in" ||
+      b.status === "in_progress"
+  );
+  const occupiedResourceIds = new Set(
+    activeBookings.filter((b) => b.resource_id).map((b) => b.resource_id)
+  );
+  const occupiedCount = activeResources.filter((r) =>
+    occupiedResourceIds.has(r.id)
+  ).length;
+  const availableCount = activeResources.length - occupiedCount;
+
+  const criticalConflicts = conflicts.filter((c) => c.severity === "critical").length;
+  const missingAssignments = conflicts.filter(
+    (c) => c.type === "missing_assignment"
+  ).length;
+
+  const alertIssues = buildConflictSummaryIssues(conflicts);
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "1rem",
+      }}
+      className="crm-overview-grid"
+    >
+      {/* Today's Resource Readiness */}
+      <div
+        className="cs-card"
+        style={{
+          padding: "1.25rem",
+          gridColumn: "span 2",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            color: "var(--cs-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            marginBottom: "1rem",
+          }}
+        >
+          Today&apos;s Resource Readiness
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "0.75rem",
+          }}
+          className="crm-readiness-grid"
+        >
+          <ReadinessCard
+            label="Available"
+            value={availableCount}
+            icon={CheckCircle2}
+            color="#4A7C59"
+            bgTint="rgba(74, 124, 89, 0.06)"
+          />
+          <ReadinessCard
+            label="Occupied"
+            value={occupiedCount}
+            icon={Users}
+            color="#B08850"
+            bgTint={occupiedCount > 0 ? "rgba(176, 136, 80, 0.06)" : undefined}
+          />
+          <ReadinessCard
+            label="Conflicts"
+            value={criticalConflicts}
+            icon={AlertTriangle}
+            color={criticalConflicts > 0 ? "#DC2626" : "var(--cs-text-muted)"}
+            bgTint={criticalConflicts > 0 ? "rgba(220, 38, 38, 0.06)" : undefined}
+          />
+          <ReadinessCard
+            label="Missing Room"
+            value={missingAssignments}
+            icon={CircleDashed}
+            color={missingAssignments > 0 ? "#D97706" : "var(--cs-text-muted)"}
+            bgTint={missingAssignments > 0 ? "rgba(217, 119, 6, 0.06)" : undefined}
+          />
+        </div>
+      </div>
+
+      {/* Resource Type Summary */}
+      <div className="cs-card" style={{ padding: "1.25rem" }}>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            color: "var(--cs-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            marginBottom: "1rem",
+          }}
+        >
+          Resource Types
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {inventory.map((item) => (
+            <div
+              key={item.type}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0.5rem 0.75rem",
+                borderRadius: 6,
+                backgroundColor: "var(--cs-surface-warm)",
+              }}
+            >
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                }}
+              >
+                <span style={{ fontSize: 14 }}>{getResourceIcon(item.type)}</span>
+                {getResourceTypeLabel(item.type)}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  color: item.active === item.total ? "#4A7C59" : "var(--cs-text-secondary)",
+                }}
+              >
+                {item.active}/{item.total}
+              </span>
+            </div>
+          ))}
+          {inventory.length === 0 && (
+            <div
+              style={{
+                padding: "1rem",
+                textAlign: "center",
+                fontSize: "0.8125rem",
+                color: "var(--cs-text-muted)",
+              }}
+            >
+              No resources configured yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Alerts Summary */}
+      <div className="cs-card" style={{ padding: "1.25rem" }}>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            color: "var(--cs-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            marginBottom: "0.75rem",
+          }}
+        >
+          Alerts
+        </div>
+        <ReadinessIssueList
+          issues={alertIssues}
+          compact
+          maxItems={3}
+          emptyTitle="All clear"
+          emptyDescription="No resource conflicts or missing assignments."
+        />
+      </div>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .crm-overview-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .crm-overview-grid > div {
+            grid-column: span 1 !important;
+          }
+          .crm-readiness-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function ReadinessCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  bgTint,
+}: {
+  label: string;
+  value: number;
+  icon: typeof CheckCircle2;
+  color: string;
+  bgTint?: string;
+}) {
+  return (
+    <div
+      style={{
+        padding: "0.875rem 1rem",
+        borderRadius: "var(--cs-r-md)",
+        border: "1px solid var(--cs-border-soft)",
+        backgroundColor: bgTint ?? "var(--cs-surface)",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 8,
+          backgroundColor: "var(--cs-surface-warm)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <Icon size={16} style={{ color }} />
+      </div>
+      <div>
+        <div
+          style={{
+            fontSize: "1.25rem",
+            fontWeight: 700,
+            color,
+            lineHeight: 1.2,
+          }}
+        >
+          {value}
+        </div>
+        <div
+          style={{
+            fontSize: "0.6875rem",
+            color: "var(--cs-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {label}
+        </div>
       </div>
     </div>
   );

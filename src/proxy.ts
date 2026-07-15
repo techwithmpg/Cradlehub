@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { updateSession, isSupabaseConfigured } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { logError } from "@/lib/logger";
@@ -24,6 +24,9 @@ const PROTECTED_PREFIXES = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const devBypass = isDevAuthBypassEnabled();
+  const isProtected = PROTECTED_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
 
   // API routes are never in the protected dashboard prefixes and manage their
   // own auth via the request-scoped Supabase client. Skip the session refresh
@@ -32,11 +35,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Allow an unconfigured local checkout to render public/dev pages, but never
+  // expose a protected production workspace when deployment secrets are missing.
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === "production" && isProtected) {
+      logError("proxy.supabase_not_configured", { pathname });
+      return NextResponse.redirect(
+        new URL("/login?error=configuration", request.url)
+      );
+    }
+    return NextResponse.next();
+  }
+
   // Always refresh the session token
   const response = await updateSession(request);
 
   // Only enforce auth on dashboard routes
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   if (!isProtected) return response;
 
   // Verify user is authenticated
