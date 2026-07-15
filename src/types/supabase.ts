@@ -913,14 +913,19 @@ export type Database = {
           changed_by: string | null
           created_at: string
           crm_closing_policy_enabled: boolean | null
+          driver_return_buffer_minutes: number | null
           early_leave_threshold_minutes: number | null
           effective_from: string
           effective_until: string | null
+          final_client_release_enabled: boolean | null
+          home_service_wrap_up_buffer_minutes: number | null
           id: string
           late_grace_minutes: number | null
           overtime_threshold_minutes: number | null
+          portal_closing_shift_enabled: boolean | null
           previous_values: Json
           reason: string
+          service_cleanup_buffer_minutes: number | null
           staff_category: string
         }
         Insert: {
@@ -929,14 +934,19 @@ export type Database = {
           changed_by?: string | null
           created_at?: string
           crm_closing_policy_enabled?: boolean | null
+          driver_return_buffer_minutes?: number | null
           early_leave_threshold_minutes?: number | null
           effective_from: string
           effective_until?: string | null
+          final_client_release_enabled?: boolean | null
+          home_service_wrap_up_buffer_minutes?: number | null
           id?: string
           late_grace_minutes?: number | null
           overtime_threshold_minutes?: number | null
+          portal_closing_shift_enabled?: boolean | null
           previous_values?: Json
           reason: string
+          service_cleanup_buffer_minutes?: number | null
           staff_category: string
         }
         Update: {
@@ -945,14 +955,19 @@ export type Database = {
           changed_by?: string | null
           created_at?: string
           crm_closing_policy_enabled?: boolean | null
+          driver_return_buffer_minutes?: number | null
           early_leave_threshold_minutes?: number | null
           effective_from?: string
           effective_until?: string | null
+          final_client_release_enabled?: boolean | null
+          home_service_wrap_up_buffer_minutes?: number | null
           id?: string
           late_grace_minutes?: number | null
           overtime_threshold_minutes?: number | null
+          portal_closing_shift_enabled?: boolean | null
           previous_values?: Json
           reason?: string
+          service_cleanup_buffer_minutes?: number | null
           staff_category?: string
         }
         Relationships: [
@@ -5324,6 +5339,14 @@ export type Database = {
         Args: { p_branch_id: string }
         Returns: boolean
       }
+      commit_attendance_portal_clock_out: {
+        Args: {
+          p_auth_user_id: string
+          p_device_fingerprint_hash: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       commit_attendance_scan_transaction: {
         Args: {
           p_action: string
@@ -5478,6 +5501,10 @@ export type Database = {
         }
         Returns: Json
       }
+      recalculate_attendance_clock_out_policy: {
+        Args: { p_calculated_at?: string; p_checkin_id: string }
+        Returns: Json
+      }
       reconcile_provisional_attendance_clock_out: {
         Args: {
           p_actual_clock_out_at: string
@@ -5567,6 +5594,10 @@ export type Database = {
           staff_id: string
           success: boolean
         }[]
+      }
+      resolve_attendance_staff_category: {
+        Args: { p_staff: Database["public"]["Tables"]["staff"]["Row"] }
+        Returns: string
       }
       resolve_effective_attendance_branch: {
         Args: {
@@ -5698,6 +5729,21 @@ export type Database = {
       upsert_customer: {
         Args: { p_email?: string; p_full_name: string; p_phone: string }
         Returns: string
+      }
+      write_attendance_portal_audit: {
+        Args: {
+          p_branch_id: string
+          p_checkin_id: string
+          p_device_id: string
+          p_is_test: boolean
+          p_message: string
+          p_outcome: string
+          p_reason_code: string
+          p_request_id: string
+          p_result: Json
+          p_staff_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {

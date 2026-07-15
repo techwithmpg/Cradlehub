@@ -1,5 +1,22 @@
 # 🏗️ DECISIONS
 
+### 2026-07-15: Expected clock-out is schedule-backed and dynamically resolved from final work completion
+**Status:** ACCEPTED
+
+Keep the resolved schedule authoritative for working status, branch, shift type,
+business date, and the no-work fallback. Resolve only the expected clock-out and
+review window from final relevant work: a service provider's own final service,
+the assigned branch's final in-spa service for CRM Closing, a therapist's final
+completed home service, or a driver's final trip, plus category-configured buffer.
+Persist the evidence and deadlines on the existing Attendance row. Recalculate
+only affected open rows on lifecycle events, reuse the same transaction/lock for
+QR and portal commits, and retain record-first/flag-second classification.
+
+Branch QR remains the default. Portal clock-out is server/device-authorized only
+for final home-service therapists, final-trip drivers, and explicitly eligible
+closing shifts; active or upcoming work blocks it. Supabase processes the stored
+deadlines as bounded safety stages, while Vercel has no frequent Attendance cron.
+
 ### 2026-07-15: Attendance closing uses event-driven records plus four exact Supabase safety jobs
 **Status:** ACCEPTED
 

@@ -29,6 +29,11 @@ export type BranchAttendanceCategoryRule = {
     overtimeThresholdMinutes: number;
     activeServiceBlocksClockOut: boolean;
     crmClosingPolicyEnabled: boolean;
+    serviceCleanupBufferMinutes?: number;
+    homeServiceWrapUpBufferMinutes?: number;
+    driverReturnBufferMinutes?: number;
+    finalClientReleaseEnabled?: boolean;
+    portalClosingShiftEnabled?: boolean;
   };
 };
 
@@ -71,6 +76,11 @@ type CategoryRuleDbRow = {
   overtime_threshold_minutes: number | null;
   active_service_blocks_clock_out: boolean | null;
   crm_closing_policy_enabled: boolean | null;
+  service_cleanup_buffer_minutes: number | null;
+  home_service_wrap_up_buffer_minutes: number | null;
+  driver_return_buffer_minutes: number | null;
+  final_client_release_enabled: boolean | null;
+  portal_closing_shift_enabled: boolean | null;
   reason: string;
   created_at: string;
   changed_by_staff?:
@@ -92,7 +102,34 @@ function emptyOverride(): AttendanceCategoryRuleValues {
     overtime_threshold_minutes: null,
     active_service_blocks_clock_out: null,
     crm_closing_policy_enabled: null,
+    service_cleanup_buffer_minutes: null,
+    home_service_wrap_up_buffer_minutes: null,
+    driver_return_buffer_minutes: null,
+    final_client_release_enabled: null,
+    portal_closing_shift_enabled: null,
   };
+}
+
+function nextAttendanceSafetyRun(now: Date): string {
+  const schedules = [
+    [15, 0],
+    [15, 30],
+    [16, 0],
+    [16, 10],
+  ] as const;
+  for (let dayOffset = 0; dayOffset <= 1; dayOffset += 1) {
+    for (const [hour, minute] of schedules) {
+      const candidate = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + dayOffset,
+        hour,
+        minute
+      ));
+      if (candidate.getTime() > now.getTime()) return candidate.toISOString();
+    }
+  }
+  return new Date(now.getTime() + 24 * 60 * 60_000).toISOString();
 }
 
 export async function getBranchAttendanceRulesData(
@@ -109,7 +146,7 @@ export async function getBranchAttendanceRulesData(
       admin
         .from("attendance_staff_category_rules")
         .select(
-          "id, staff_category, effective_from, effective_until, late_grace_minutes, early_leave_threshold_minutes, overtime_threshold_minutes, active_service_blocks_clock_out, crm_closing_policy_enabled, reason, created_at"
+          "id, staff_category, effective_from, effective_until, late_grace_minutes, early_leave_threshold_minutes, overtime_threshold_minutes, active_service_blocks_clock_out, crm_closing_policy_enabled, service_cleanup_buffer_minutes, home_service_wrap_up_buffer_minutes, driver_return_buffer_minutes, final_client_release_enabled, portal_closing_shift_enabled, reason, created_at"
         )
         .eq("branch_id", branchId)
         .lte("effective_from", nowIso)
@@ -126,7 +163,7 @@ export async function getBranchAttendanceRulesData(
       admin
         .from("attendance_staff_category_rules")
         .select(
-          "id, staff_category, effective_from, effective_until, late_grace_minutes, early_leave_threshold_minutes, overtime_threshold_minutes, active_service_blocks_clock_out, crm_closing_policy_enabled, previous_values, reason, created_at, changed_by_staff:staff!attendance_staff_category_rules_changed_by_fkey(full_name)"
+          "id, staff_category, effective_from, effective_until, late_grace_minutes, early_leave_threshold_minutes, overtime_threshold_minutes, active_service_blocks_clock_out, crm_closing_policy_enabled, service_cleanup_buffer_minutes, home_service_wrap_up_buffer_minutes, driver_return_buffer_minutes, final_client_release_enabled, portal_closing_shift_enabled, previous_values, reason, created_at, changed_by_staff:staff!attendance_staff_category_rules_changed_by_fkey(full_name)"
         )
         .eq("branch_id", branchId)
         .order("created_at", { ascending: false })
@@ -161,6 +198,11 @@ export async function getBranchAttendanceRulesData(
           overtime_threshold_minutes: row.overtime_threshold_minutes,
           active_service_blocks_clock_out: row.active_service_blocks_clock_out,
           crm_closing_policy_enabled: row.crm_closing_policy_enabled,
+          service_cleanup_buffer_minutes: row.service_cleanup_buffer_minutes,
+          home_service_wrap_up_buffer_minutes: row.home_service_wrap_up_buffer_minutes,
+          driver_return_buffer_minutes: row.driver_return_buffer_minutes,
+          final_client_release_enabled: row.final_client_release_enabled,
+          portal_closing_shift_enabled: row.portal_closing_shift_enabled,
         }
       : emptyOverride();
     return {
@@ -180,6 +222,16 @@ export async function getBranchAttendanceRulesData(
           override.active_service_blocks_clock_out ?? settings.active_service_blocks_clock_out,
         crmClosingPolicyEnabled:
           override.crm_closing_policy_enabled ?? settings.crm_closing_policy_enabled,
+        serviceCleanupBufferMinutes: override.service_cleanup_buffer_minutes ?? 15,
+        homeServiceWrapUpBufferMinutes:
+          override.home_service_wrap_up_buffer_minutes
+          ?? override.service_cleanup_buffer_minutes
+          ?? 15,
+        driverReturnBufferMinutes: override.driver_return_buffer_minutes ?? 0,
+        finalClientReleaseEnabled: override.final_client_release_enabled ?? false,
+        portalClosingShiftEnabled:
+          override.portal_closing_shift_enabled
+          ?? ["crm_front_desk", "therapists"].includes(category),
       },
     } satisfies BranchAttendanceCategoryRule;
   });
@@ -228,6 +280,11 @@ export async function getBranchAttendanceRulesData(
           overtime_threshold_minutes: row.overtime_threshold_minutes,
           active_service_blocks_clock_out: row.active_service_blocks_clock_out,
           crm_closing_policy_enabled: row.crm_closing_policy_enabled,
+          service_cleanup_buffer_minutes: row.service_cleanup_buffer_minutes,
+          home_service_wrap_up_buffer_minutes: row.home_service_wrap_up_buffer_minutes,
+          driver_return_buffer_minutes: row.driver_return_buffer_minutes,
+          final_client_release_enabled: row.final_client_release_enabled,
+          portal_closing_shift_enabled: row.portal_closing_shift_enabled,
         },
       };
     }
@@ -277,10 +334,8 @@ export async function getBranchAttendanceRulesData(
       sourceConfigured: true,
       lastRunAt: settings.closing_intervention_last_run_at,
       lastError: settings.closing_intervention_last_error,
-      recentlyObserved: Number.isFinite(lastRunMs) && now.getTime() - lastRunMs <= 15 * 60_000,
-      nextExpectedRunAt: Number.isFinite(lastRunMs)
-        ? new Date(lastRunMs + 5 * 60_000).toISOString()
-        : null,
+      recentlyObserved: Number.isFinite(lastRunMs) && now.getTime() - lastRunMs <= 26 * 60 * 60_000,
+      nextExpectedRunAt: nextAttendanceSafetyRun(now),
     },
   };
 }

@@ -1,3 +1,38 @@
+## 2026-07-15 - Smart dynamic clock-out verification notes
+
+- **Symptom:** The first isolated Training Mode resolver probe failed with an
+  operator error comparing `schedule.id` (UUID) with
+  `Attendance.schedule_source_id` (text).
+- **Root cause:** The resolver followed the semantic relationship but did not
+  account for the older text storage type on the Attendance snapshot column.
+- **Resolution:** Compare `schedule.id::text`, reapply the idempotent migration,
+  and rerun the safe probe. The first successful resolution wrote the dynamic
+  schedule-backed snapshot; an identical second resolution returned
+  `changed=false`. No live clock-out occurred.
+
+- **Symptom:** The first full Vitest run had one failure in the new static
+  migration contract after the UUID/text correction; 1,061 other tests passed.
+- **Resolution:** Updated the assertion to require the explicit `::text` cast.
+  A clean full-suite rerun is required before release.
+
+- **Database note:** The isolated migration is live, but migration history still
+  reports 81 local-only and 5 remote-only versions. Do not run a blind full
+  migration push or mark this version in history until the broader drift is
+  reconciled through the separate migration-history workstream.
+
+- **Lint note:** The final linked Supabase CLI lint could not use the direct
+  port-5432 path from this environment. The configured 6543 pooler did run the
+  linter and reported four pre-existing ambiguous-column findings in
+  `reconcile_provisional_attendance_clock_out`,
+  `review_staff_device_registration_request`,
+  `reset_attendance_state_transaction`, and
+  `commit_attendance_scan_transaction`. It reported no finding in the new smart
+  resolver, portal commit, or event-trigger functions. These older functions
+  were not changed opportunistically in this release; repair them in a focused
+  migration with regression coverage.
+
+---
+
 ## 2026-07-15 - Vercel Hobby rejected frequent Attendance cron
 
 - **Symptom:** The production deployment for the merged `main` commit was

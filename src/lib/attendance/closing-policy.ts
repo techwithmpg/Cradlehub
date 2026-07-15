@@ -29,6 +29,11 @@ export type AttendanceCategoryRuleValues = {
   overtime_threshold_minutes: number | null;
   active_service_blocks_clock_out: boolean | null;
   crm_closing_policy_enabled: boolean | null;
+  service_cleanup_buffer_minutes?: number | null;
+  home_service_wrap_up_buffer_minutes?: number | null;
+  driver_return_buffer_minutes?: number | null;
+  final_client_release_enabled?: boolean | null;
+  portal_closing_shift_enabled?: boolean | null;
 };
 
 export type ClosingPolicySettings = {
@@ -91,7 +96,7 @@ export function resolveAttendanceStaffCategory(params: {
     return "managers";
   }
   if (staffType === "therapist") return "therapists";
-  if (["nail_tech", "aesthetician", "salon_head"].includes(staffType)) return "salon";
+  if (["nail_tech", "nail_technician", "aesthetician", "salon_head", "salon"].includes(staffType)) return "salon";
   if (role === "driver" || staffType === "driver") return "drivers";
   if (role === "utility" || staffType === "utility") return "utility";
   return "other";

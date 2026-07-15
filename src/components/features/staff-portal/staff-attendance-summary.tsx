@@ -2,6 +2,16 @@ import Link from "next/link";
 import { ArrowRight, CalendarClock, CheckCircle2, Clock3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
+import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
+
+const DEFAULT_PORTAL_CLOCK_OUT = {
+  enabled: false,
+  code: "use_branch_qr",
+  label: "Use branch QR",
+  message: "Branch QR remains the normal clock-out method for this shift.",
+  expectedClockOutAt: null,
+  nextAssignmentAt: null,
+} as const;
 
 function clockLabel(state: StaffAttendanceData["currentClockState"]): string {
   if (state === "clocked_in") return "Clocked in";
@@ -33,6 +43,10 @@ export function StaffAttendanceSummary({ data }: { data: StaffAttendanceData }) 
           View history <ArrowRight className="size-4" />
         </Link>
       </div>
+      <StaffAttendanceClockOut
+        availability={data.portalClockOut ?? DEFAULT_PORTAL_CLOCK_OUT}
+        timezone={data.todayState.timezone}
+      />
     </section>
   );
 }

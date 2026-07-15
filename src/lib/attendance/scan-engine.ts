@@ -52,6 +52,7 @@ import {
   markNotificationResolved,
   resolveWorkflowTask,
 } from "@/lib/notifications/workflow-signals";
+import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
 
 export type ScanRequestContext = {
   requestId?: string | null;
@@ -160,7 +161,13 @@ type CheckinRow = {
   attendance_expected_end_at?: string | null;
   earliest_normal_clock_out_at?: string | null;
   latest_normal_clock_out_at?: string | null;
-  attendance_policy_source?: "schedule" | "crm_closing" | null;
+  attendance_policy_source?:
+    | "schedule"
+    | "crm_closing"
+    | "service_completion"
+    | "home_service"
+    | "driver_trip"
+    | null;
   attendance_policy_snapshot?: Record<string, unknown> | null;
   provisional_auto_closed_at?: string | null;
   clock_out_confirmation_required?: boolean;
@@ -1713,7 +1720,7 @@ async function reconcileProvisionalClockOut(params: {
     : publicResult;
 }
 
-async function resolveClosingInterventionSignals(
+export async function resolveClosingInterventionSignals(
   admin: AttendanceDb,
   checkinId: string
 ): Promise<void> {
@@ -2095,6 +2102,16 @@ async function processAttendanceScan(admin: AttendanceDb, point: QrPointRow, dev
 
   if (activeCheckin) {
     const nowIso = new Date().toISOString();
+    const dynamicPolicy = await recalculateAttendanceClockOutPolicy(
+      admin,
+      activeCheckin.id,
+      nowIso
+    );
+    activeCheckin.attendance_expected_end_at = dynamicPolicy.expectedClockOutAt;
+    activeCheckin.earliest_normal_clock_out_at = dynamicPolicy.earliestNormalClockOutAt;
+    activeCheckin.latest_normal_clock_out_at = dynamicPolicy.latestNormalClockOutAt;
+    activeCheckin.attendance_policy_source = dynamicPolicy.source;
+    activeCheckin.attendance_policy_snapshot = dynamicPolicy.snapshot;
     const metrics = computeAttendanceMetrics({
       checkedInAt: activeCheckin.checked_in_at,
       checkedOutAt: nowIso,

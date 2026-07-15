@@ -1,4 +1,72 @@
-# Current Task - ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001
+# Current Task - ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001
+
+Status: RELEASE_PENDING
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Extend the single existing Attendance engine with one authoritative,
+schedule-backed dynamic clock-out policy. Resolve final work from staff services,
+branch-closing services, home-service dispatches, and driver trips; keep the
+resolved schedule as the fallback; store auditable dynamic deadlines; authorize
+limited portal clock-out server-side; preserve branch QR as the default; and
+recalculate only affected open Attendance records from lifecycle events.
+
+## Guardrails
+
+- Do not redesign Attendance or introduce a parallel engine/scheduler.
+- Preserve staff scheduling permissions, record-first/flag-second QR behavior,
+  Test Mode isolation, registered-device policy, tenant/branch authorization,
+  and transactional/idempotent clock-out semantics.
+- Ordinary in-branch staff continue to use branch QR. Portal clock-out is limited
+  to final home-service therapists, eligible closing staff, and final-trip drivers.
+- Never trust staff, branch, attendance, expected-time, classification, or
+  eligibility values supplied by the browser.
+- Keep recalculation event-driven and retain Supabase's bounded deadline safety
+  processor; do not add a frequent Vercel Attendance cron.
+- Add only additive, production-safe schema/index changes after inspecting the
+  live and generated data model. Do not blind-push the known migration-history
+  drift.
+
+## Work order
+
+1. Map the existing Attendance, schedules, services, bookings, dispatch, driver,
+   recovery, correction, portal, event, schema, and scheduler contracts.
+2. Implement a pure dynamic policy resolver plus focused authoritative loaders
+   and persisted policy evidence on the existing Attendance record.
+3. Reuse the resolver from QR, portal, recovery/corrections, and closing safety
+   processing; recalculate affected open records on lifecycle changes.
+4. Add compact Staff/Driver Portal controls backed by one server-authorized,
+   device-aware, transactional clock-out endpoint/RPC.
+5. Add the focused migration/types/tests/docs, run every requested gate, apply
+   only verified safe database changes, then commit, push, and observe production.
+
+## Implementation and live verification
+
+- Added one restricted PostgreSQL resolver and one transactional portal commit
+  RPC, reused by QR and portal flows. Focused lifecycle triggers recalculate only
+  affected open Attendance rows and use the same staff advisory lock.
+- Added configurable service, home-service, and driver buffers plus final-client
+  release and closing-portal category policy fields. Generated types are updated.
+- Added Staff Portal and Driver Portal controls whose availability is derived on
+  the server; browser requests contain no trusted staff, branch, booking, policy,
+  or timestamp values.
+- Applied only migration `20260715021703_attendance_smart_dynamic_clock_out.sql`
+  to linked project `lsrb...olkv` through isolated SQL. An idempotent Training
+  Mode resolver probe passed; no live clock-out was submitted.
+- The repository still has 81 local-only and 5 remote-only migration versions.
+  The new migration is deliberately not inserted into remote migration history;
+  do not run a broad `db push` until that independent drift is reconciled.
+- Final automated gates pass: type-check; lint with one pre-existing warning;
+  134 test files / 1,062 tests; live health; additive/config/secret checks; and
+  the Next.js 16.2.4 production build with 110 routes. Commit/push and production
+  observation remain. Authenticated multi-role and physical-device E2E is not
+  claimed.
+
+---
+
+# Previous Task - ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001
 
 Status: IN_PROGRESS
 Started: 2026-07-15

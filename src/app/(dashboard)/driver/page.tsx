@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/features/dashboard/page-header";
 import { DriverTripList } from "@/components/features/driver/driver-trip-list";
 import { DriverMobileHome } from "@/components/features/driver/driver-mobile-home";
 import { getStaffAdminName } from "@/lib/staff/display-name";
+import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
+import { StaffAttendanceSummary } from "@/components/features/staff-portal/staff-attendance-summary";
 
 async function requireDriverRecord() {
   const supabase = await createClient();
@@ -59,6 +61,7 @@ function formatDate(d: Date): string {
 export default async function DriverPanelPage() {
   const me = await requireDriverRecord();
   const today = new Date().toISOString().split("T")[0]!;
+  const attendance = await getMyAttendanceData(30).catch(() => null);
 
   let trips: Awaited<ReturnType<typeof getDriverTodayTrips>> = [];
   let fetchError: string | null = null;
@@ -112,6 +115,8 @@ export default async function DriverPanelPage() {
           icon="🚗"
         />
 
+        {attendance ? <StaffAttendanceSummary data={attendance} /> : null}
+
         {fetchError ? (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             Error loading trips: {fetchError}
@@ -123,6 +128,7 @@ export default async function DriverPanelPage() {
 
       {/* ── Mobile layout (below md) ── */}
       <div className="block md:hidden">
+        {attendance ? <StaffAttendanceSummary data={attendance} /> : null}
         <DriverMobileHome driver={me} trips={normalised} />
       </div>
     </>

@@ -92,11 +92,26 @@ export function AttendanceCategoryRulesEditor({
   const [overtime, setOvertime] = useState(() =>
     toInput(selected?.override.overtime_threshold_minutes ?? null)
   );
+  const [serviceCleanup, setServiceCleanup] = useState(() =>
+    toInput(selected?.override.service_cleanup_buffer_minutes ?? null)
+  );
+  const [homeWrapUp, setHomeWrapUp] = useState(() =>
+    toInput(selected?.override.home_service_wrap_up_buffer_minutes ?? null)
+  );
+  const [driverReturn, setDriverReturn] = useState(() =>
+    toInput(selected?.override.driver_return_buffer_minutes ?? null)
+  );
   const [activeService, setActiveService] = useState<TriState>(() =>
     toTriState(selected?.override.active_service_blocks_clock_out ?? null)
   );
   const [closingPolicy, setClosingPolicy] = useState<TriState>(() =>
     toTriState(selected?.override.crm_closing_policy_enabled ?? null)
+  );
+  const [finalClientRelease, setFinalClientRelease] = useState<TriState>(() =>
+    toTriState(selected?.override.final_client_release_enabled ?? null)
+  );
+  const [portalClosingShift, setPortalClosingShift] = useState<TriState>(() =>
+    toTriState(selected?.override.portal_closing_shift_enabled ?? null)
   );
   const [effectiveDate, setEffectiveDate] = useState("");
   const [reason, setReason] = useState("Category attendance rule update");
@@ -108,8 +123,13 @@ export function AttendanceCategoryRulesEditor({
     setLateGrace(toInput(next.override.late_grace_minutes));
     setEarlyLeave(toInput(next.override.early_leave_threshold_minutes));
     setOvertime(toInput(next.override.overtime_threshold_minutes));
+    setServiceCleanup(toInput(next.override.service_cleanup_buffer_minutes ?? null));
+    setHomeWrapUp(toInput(next.override.home_service_wrap_up_buffer_minutes ?? null));
+    setDriverReturn(toInput(next.override.driver_return_buffer_minutes ?? null));
     setActiveService(toTriState(next.override.active_service_blocks_clock_out));
     setClosingPolicy(toTriState(next.override.crm_closing_policy_enabled));
+    setFinalClientRelease(toTriState(next.override.final_client_release_enabled ?? null));
+    setPortalClosingShift(toTriState(next.override.portal_closing_shift_enabled ?? null));
   }
 
   function submit() {
@@ -120,6 +140,11 @@ export function AttendanceCategoryRulesEditor({
         lateGraceMinutes: toNumber(lateGrace),
         earlyLeaveThresholdMinutes: toNumber(earlyLeave),
         overtimeThresholdMinutes: toNumber(overtime),
+        serviceCleanupBufferMinutes: toNumber(serviceCleanup),
+        homeServiceWrapUpBufferMinutes: toNumber(homeWrapUp),
+        driverReturnBufferMinutes: toNumber(driverReturn),
+        finalClientReleaseEnabled: fromTriState(finalClientRelease),
+        portalClosingShiftEnabled: fromTriState(portalClosingShift),
         activeServiceBlocksClockOut: fromTriState(activeService),
         crmClosingPolicyEnabled: fromTriState(closingPolicy),
         effectiveDate: effectiveDate || null,
@@ -159,8 +184,12 @@ export function AttendanceCategoryRulesEditor({
               <TableCell>{valueBadge(row.override.overtime_threshold_minutes, `${row.resolved.overtimeThresholdMinutes}m`)}</TableCell>
               <TableCell>
                 {row.category === "crm_front_desk" && row.resolved.crmClosingPolicyEnabled
-                  ? "Branch closing window"
-                  : "Assigned schedule"}
+                  ? `Branch final service + closing buffer`
+                  : row.category === "drivers"
+                    ? `Final trip + ${row.resolved.driverReturnBufferMinutes ?? 0}m`
+                    : ["therapists", "salon"].includes(row.category)
+                      ? `Final service + ${row.resolved.serviceCleanupBufferMinutes ?? 15}m`
+                      : "Assigned schedule"}
               </TableCell>
               <TableCell>
                 <Badge variant={hasOverride(row) ? "secondary" : "outline"}>
@@ -226,6 +255,49 @@ export function AttendanceCategoryRulesEditor({
             </div>
           ))}
 
+          {["therapists", "salon", "other"].includes(selectedCategory) ? (
+            <div className="grid gap-2">
+              <Label htmlFor="category-service-cleanup">Service cleanup buffer</Label>
+              <Input
+                id="category-service-cleanup"
+                type="number"
+                min={0}
+                max={240}
+                placeholder={`${selected.resolved.serviceCleanupBufferMinutes ?? 15} (default)`}
+                value={serviceCleanup}
+                onChange={(event) => setServiceCleanup(event.target.value)}
+              />
+            </div>
+          ) : null}
+          {selectedCategory === "therapists" ? (
+            <div className="grid gap-2">
+              <Label htmlFor="category-home-wrap">Home-service wrap-up buffer</Label>
+              <Input
+                id="category-home-wrap"
+                type="number"
+                min={0}
+                max={240}
+                placeholder={`${selected.resolved.homeServiceWrapUpBufferMinutes ?? 15} (default)`}
+                value={homeWrapUp}
+                onChange={(event) => setHomeWrapUp(event.target.value)}
+              />
+            </div>
+          ) : null}
+          {selectedCategory === "drivers" ? (
+            <div className="grid gap-2">
+              <Label htmlFor="category-driver-return">Driver return buffer</Label>
+              <Input
+                id="category-driver-return"
+                type="number"
+                min={0}
+                max={360}
+                placeholder={`${selected.resolved.driverReturnBufferMinutes ?? 0} (default)`}
+                value={driverReturn}
+                onChange={(event) => setDriverReturn(event.target.value)}
+              />
+            </div>
+          ) : null}
+
           <TriStateSelect
             id="category-active-service"
             label="Active service blocks clock-out"
@@ -238,6 +310,22 @@ export function AttendanceCategoryRulesEditor({
               label="CRM closing policy"
               value={closingPolicy}
               onChange={setClosingPolicy}
+            />
+          ) : null}
+          {["therapists", "salon"].includes(selectedCategory) ? (
+            <TriStateSelect
+              id="category-final-client-release"
+              label="Final-client early release"
+              value={finalClientRelease}
+              onChange={setFinalClientRelease}
+            />
+          ) : null}
+          {["crm_front_desk", "therapists"].includes(selectedCategory) ? (
+            <TriStateSelect
+              id="category-portal-closing"
+              label="Portal clock-out for closing shift"
+              value={portalClosingShift}
+              onChange={setPortalClosingShift}
             />
           ) : null}
           <div className="grid gap-2">

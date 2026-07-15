@@ -68,6 +68,21 @@
   CRM/Owner Overview and Staff Portal consume the same typed
   `AttendanceDayStaffState`; UI components must not reimplement schedule state.
 - Public scans enter the existing QR scan engine in `src/lib/attendance/scan-engine.ts`; there is no parallel attendance engine.
+- Expected clock-out is schedule-backed and dynamically resolved from final work
+  completion by the restricted PostgreSQL function
+  `recalculate_attendance_clock_out_policy(...)`. Therapist/salon policies use
+  the staff member's own final service, CRM Closing uses the branch's final
+  in-spa service, drivers use their own final trip, and the resolved schedule end
+  remains the fallback. Material evidence is stored in the existing policy
+  snapshot/deadline columns.
+- Booking and schedule lifecycle triggers serialize through the same per-staff
+  advisory lock as QR and portal completion, then recalculate affected open rows
+  only. Ordinary portal clock-out is denied; the server-only portal transaction
+  is limited to final home-service therapists, final-trip drivers, and eligible
+  therapist/CRM Closing shifts on registered devices.
+- CRM dynamic rows retain the `crm_closing` policy source, so the four bounded
+  Supabase Cron safety stages continue reading stored due timestamps. Vercel has
+  no frequent Attendance schedule.
 - Attendance scans resolve QR/device/staff context, branch authorization, branch-local business time, schedule intent, stable shift instance, current session state, and duplicate/idempotency context before writing interpreted Attendance records.
 - Branch-local shift identity is centralized in `src/lib/attendance/shift-instance.ts`. New clock-ins capture `shift_instance_key`, `schedule_source`, `schedule_source_id`, `branch_timezone`, `attendance_business_date`, `scheduled_start_at`, and `scheduled_end_at` so later schedule edits do not orphan legitimate open sessions.
 - Schedule-aware intent remains in `src/lib/attendance/attendance-intent-engine.ts`. Only an open row matching the resolved current shift can be used for clock-out. Stale prior-day rows and same-day conflicting rows are isolated into Recovery and the current scan continues through schedule-aware intent.

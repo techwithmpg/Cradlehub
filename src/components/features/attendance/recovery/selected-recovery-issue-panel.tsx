@@ -31,6 +31,22 @@ function renderDetailIcon(issue: RecoveryIssue) {
   return <ShieldCheck className="size-6" />;
 }
 
+function snapshotText(
+  snapshot: Record<string, unknown> | null | undefined,
+  key: string
+): string | null {
+  const value = snapshot?.[key];
+  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return null;
+}
+
+function compactEvidenceId(value: string | null): string | null {
+  if (!value) return null;
+  return value.length > 12 ? `…${value.slice(-8)}` : value;
+}
+
 export function SelectedRecoveryIssuePanel({
   issue,
   isPending,
@@ -77,6 +93,19 @@ export function SelectedRecoveryIssuePanel({
 
   const canResolveBranch =
     issue.exception ? getInternalAttendanceExceptionType(issue.exception) === "wrong_branch" && Boolean(issue.staffId) : false;
+  const policySnapshot = issue.record?.attendance_policy_snapshot ?? null;
+  const expectedEnd = snapshotText(policySnapshot, "expectedEndAt");
+  const scheduledEnd = snapshotText(policySnapshot, "resolvedScheduleEndAt")
+    ?? snapshotText(policySnapshot, "rawScheduledEndAt");
+  const source = snapshotText(policySnapshot, "kind");
+  const sourceEvidenceId = compactEvidenceId(
+    snapshotText(policySnapshot, "sourceBookingId")
+      ?? snapshotText(policySnapshot, "sourceDispatchId")
+      ?? snapshotText(policySnapshot, "sourceTripId")
+  );
+  const buffer = snapshotText(policySnapshot, "appliedBufferMinutes");
+  const method = snapshotText(policySnapshot, "clockOutMethod");
+  const blockedReason = snapshotText(policySnapshot, "portalEligibilityReason");
 
   return (
     <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
@@ -129,6 +158,38 @@ export function SelectedRecoveryIssuePanel({
             <h4 className="text-sm font-bold text-foreground">What happened</h4>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">{issue.description}</p>
           </div>
+
+          {issue.record ? (
+            <div className="grid gap-3 rounded-2xl border border-border bg-muted/20 p-4 md:grid-cols-3">
+              <InfoTile
+                label="Expected clock-out"
+                value={expectedEnd ? formatAttendanceDateTime(expectedEnd) : "Schedule fallback"}
+              />
+              <InfoTile
+                label="Schedule fallback"
+                value={scheduledEnd ? formatAttendanceDateTime(scheduledEnd) : "Not available"}
+              />
+              <InfoTile label="Dynamic source" value={source ?? "schedule"} />
+              <InfoTile label="Source evidence" value={sourceEvidenceId ?? "No qualifying assignment"} />
+              <InfoTile label="Applied buffer" value={buffer ? `${buffer} minutes` : "0 minutes"} />
+              <InfoTile label="Clock-out method" value={method ?? issue.record.clock_out_method ?? "Not completed"} />
+              {blockedReason && blockedReason !== "use_branch_qr" ? (
+                <InfoTile label="Portal result" value={blockedReason} />
+              ) : null}
+              {issue.record.provisional_auto_closed_at ? (
+                <InfoTile
+                  label="Provisional close"
+                  value={formatAttendanceDateTime(issue.record.provisional_auto_closed_at)}
+                />
+              ) : null}
+              {issue.record.actual_clock_out_reconciled_at ? (
+                <InfoTile
+                  label="Actual reconciliation"
+                  value={formatAttendanceDateTime(issue.record.actual_clock_out_reconciled_at)}
+                />
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="grid gap-4 border-t border-dashed border-border pt-4 md:grid-cols-2">
             <div>

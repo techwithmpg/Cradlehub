@@ -24,6 +24,9 @@ export type CategoryAttendanceRuleValidationInput = {
   lateGraceMinutes: number | null;
   earlyLeaveThresholdMinutes: number | null;
   overtimeThresholdMinutes: number | null;
+  serviceCleanupBufferMinutes?: number | null;
+  homeServiceWrapUpBufferMinutes?: number | null;
+  driverReturnBufferMinutes?: number | null;
   effectiveDate: string | null;
   reason: string;
 };
@@ -110,10 +113,18 @@ export function validateCategoryAttendanceRuleInput(
     input.lateGraceMinutes,
     input.earlyLeaveThresholdMinutes,
     input.overtimeThresholdMinutes,
+    input.serviceCleanupBufferMinutes,
+    input.homeServiceWrapUpBufferMinutes,
   ]) {
-    if (value !== null && !inRange(value, 0, 240)) {
+    if (value != null && !inRange(value, 0, 240)) {
       return "Category minute values must be blank or between 0 and 240.";
     }
+  }
+  if (
+    input.driverReturnBufferMinutes != null
+    && !inRange(input.driverReturnBufferMinutes, 0, 360)
+  ) {
+    return "Driver return buffer must be blank or between 0 and 360 minutes.";
   }
   if (!validEffectiveDate(input.effectiveDate) || input.reason.trim().length < 5) {
     return "Provide a valid effective date and a short change reason.";

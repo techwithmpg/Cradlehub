@@ -1,5 +1,34 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-15 - Codex (ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001)
+
+- Extended the existing Attendance engine with one restricted, schedule-backed
+  dynamic resolver. Service providers use their own final service, CRM Closing
+  uses the branch final in-spa service, home therapists use the final completed
+  home service/dispatch, drivers use the final trip, and schedule end remains
+  the no-work fallback.
+- Added configurable service cleanup, home wrap-up, driver return, final-client
+  release, and closing-portal category rules. Dynamic evidence and due windows
+  persist on the existing Attendance row; QR recalculates before classification
+  and preserves record-first/flag-second behavior.
+- Added a zero-argument Staff Portal action and compact Staff/Driver Portal UI.
+  The server resolves auth, tenant/staff identity, branch, open Attendance,
+  registered HttpOnly device, remaining assignments, policy, and clock-out
+  method. Ordinary staff remain on branch QR.
+- Added focused booking/schedule/category event triggers under the same advisory
+  lock used by QR/portal commits. The existing four Supabase safety stages still
+  use stored dynamic deadlines; `vercel.json` has no frequent Attendance cron.
+- Applied only additive migration
+  `20260715021703_attendance_smart_dynamic_clock_out.sql` to the linked project,
+  regenerated live types, and verified an idempotent Training Mode resolver
+  probe without submitting a real staff clock-out. Migration-history drift is
+  still 81 local-only / 5 remote-only, so no broad push/history repair occurred.
+- Added the operations/upgrade guide and all 59 required contracts. Final gates
+  pass: type-check; lint (one pre-existing warning); 134 files / 1,062 tests;
+  additive/secret/config checks; linked live health verification; and a Next.js
+  16.2.4 production build with 110 routes. Production Git/Vercel observation is
+  the remaining release action; authenticated physical-device E2E is not claimed.
+
 ## 2026-07-15 - Codex (ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001)
 
 - Replaced the blocked five-minute Vercel Attendance cron with four exact direct

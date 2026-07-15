@@ -1,11 +1,19 @@
 import "server-only";
 
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { addDaysToYmd } from "@/lib/attendance/time";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
 import { getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
 import { resolveAttendanceDayStaffStates, type AttendanceDayStaffState } from "@/lib/attendance/day-model";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
+import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
+import {
+  DEVICE_COOKIE_NAME,
+  LEGACY_DEVICE_COOKIE_NAME,
+  hashSecret,
+} from "@/lib/attendance/tokens";
 
 export type StaffAttendanceHistoryRecord = {
   id: string;
@@ -35,10 +43,21 @@ export type StaffAttendanceData = {
   currentRecord: StaffAttendanceHistoryRecord | null;
   todayState: AttendanceDayStaffState;
   history: StaffAttendanceHistoryRecord[];
+  portalClockOut?: StaffPortalClockOutAvailability;
+};
+
+export type StaffPortalClockOutAvailability = {
+  enabled: boolean;
+  code: string;
+  label: string;
+  message: string;
+  expectedClockOutAt: string | null;
+  nextAssignmentAt: string | null;
 };
 
 type CheckinRow = {
   id: string;
+  branch_id: string;
   shift_date: string;
   shift_type: string;
   scheduled_start_at: string | null;
@@ -55,12 +74,76 @@ type CheckinRow = {
   attendance_expected_end_at: string | null;
   earliest_normal_clock_out_at: string | null;
   latest_normal_clock_out_at: string | null;
-  attendance_policy_source: "schedule" | "crm_closing";
+  attendance_policy_source:
+    | "schedule"
+    | "crm_closing"
+    | "service_completion"
+    | "home_service"
+    | "driver_trip";
   attendance_policy_snapshot: Record<string, unknown> | null;
   provisional_auto_closed_at: string | null;
   clock_out_confirmation_required: boolean;
   actual_clock_out_reconciled_at: string | null;
 };
+
+function portalAvailabilityCopy(input: {
+  code: string;
+  eligible: boolean;
+  expectedClockOutAt: string | null;
+  nextAssignmentAt: string | null;
+}): StaffPortalClockOutAvailability {
+  const copy: Record<string, { label: string; message: string }> = {
+    final_home_service_complete: {
+      label: "Clock out",
+      message: "Your final home-service assignment is complete.",
+    },
+    final_trip_complete: {
+      label: "Clock out",
+      message: "Your final assigned trip is complete.",
+    },
+    eligible_closing_shift: {
+      label: "Clock out",
+      message: "Your closing shift is eligible for portal clock-out.",
+    },
+    active_assignment: {
+      label: "Complete assignment first",
+      message: "Complete the active service or dispatch before clocking out.",
+    },
+    upcoming_assignment: {
+      label: "Available after final service",
+      message: "Another assignment is still scheduled.",
+    },
+    closing_duties_remain: {
+      label: "Closing duties remain",
+      message: "Clock-out becomes available after the closing completion window.",
+    },
+    unregistered_device: {
+      label: "Registered device required",
+      message: "Register this device from your profile before using portal clock-out.",
+    },
+    already_clocked_out: {
+      label: "Already clocked out",
+      message: "This Attendance shift is already complete.",
+    },
+    no_open_attendance: {
+      label: "No open shift",
+      message: "Clock in with the branch QR before using Attendance actions.",
+    },
+    use_branch_qr: {
+      label: "Use branch QR",
+      message: "Branch QR remains the normal clock-out method for this shift.",
+    },
+  };
+  const selected = copy[input.code] ?? copy.use_branch_qr!;
+  return {
+    enabled: input.eligible,
+    code: input.code,
+    label: selected.label,
+    message: selected.message,
+    expectedClockOutAt: input.expectedClockOutAt,
+    nextAssignmentAt: input.nextAssignmentAt,
+  };
+}
 
 function formatTime(value: string): string {
   const [hourRaw, minute = "00"] = value.slice(0, 5).split(":");
@@ -112,7 +195,7 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
   if (!user) return null;
   const staffResult = await supabase
     .from("staff")
-    .select("id, full_name, branch_id, staff_type, system_role")
+    .select("id, full_name, nickname, branch_id, staff_type, system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .is("archived_at", null)
@@ -128,7 +211,7 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
   const [checkinsResult, exceptionsResult, sessionsResult, schedules] = await Promise.all([
     supabase
       .from("staff_shift_checkins")
-      .select("id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at")
+      .select("id, branch_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at")
       .eq("staff_id", staff.id)
       .eq("is_test", false)
       .gte("shift_date", historyStart)
@@ -163,8 +246,12 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
   if (sessionsResult.error) throw new Error(sessionsResult.error.message);
 
   const history = ((checkinsResult.data ?? []) as CheckinRow[]).map(mapCheckin);
+  const rawCheckins = (checkinsResult.data ?? []) as CheckinRow[];
   const todayRecords = history.filter((record) => record.shiftDate === today);
   const currentRecord = todayRecords.find((record) => record.status === "checked_in") ?? todayRecords[0] ?? null;
+  const currentOpenRow = rawCheckins.find(
+    (row) => row.shift_date === today && row.status === "checked_in" && !row.checked_out_at
+  ) ?? null;
   const currentClockState = currentRecord?.status === "checked_in"
     ? "clocked_in"
     : currentRecord?.checkedOutAt
@@ -243,6 +330,56 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
     ? todayState.shiftWindows.map((window) => `${formatTime(window.startTime)}–${formatTime(window.endTime)}`).join(" · ")
     : todayState.displayLabel;
 
+  let portalClockOut = portalAvailabilityCopy({
+    code: currentClockState === "clocked_out" ? "already_clocked_out" : "no_open_attendance",
+    eligible: false,
+    expectedClockOutAt: currentOpenRow?.attendance_expected_end_at ?? null,
+    nextAssignmentAt: null,
+  });
+  if (currentOpenRow) {
+    try {
+      const admin = createAdminClient();
+      const policy = await recalculateAttendanceClockOutPolicy(admin, currentOpenRow.id);
+      const cookieStore = await cookies();
+      const rawCredential =
+        cookieStore.get(DEVICE_COOKIE_NAME)?.value
+        ?? cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value
+        ?? null;
+      let registeredDevice = false;
+      if (rawCredential) {
+        const device = await admin
+          .from("staff_devices")
+          .select("id")
+          .eq("staff_id", staff.id)
+          .eq("branch_id", currentOpenRow.branch_id)
+          .eq("device_fingerprint_hash", hashSecret(rawCredential))
+          .eq("status", "active")
+          .lte("trusted_after", new Date().toISOString())
+          .is("revoked_at", null)
+          .maybeSingle();
+        registeredDevice = Boolean(device.data && !device.error);
+      }
+      const code = !registeredDevice
+        ? "unregistered_device"
+        : policy.portalEligibilityReason;
+      portalClockOut = portalAvailabilityCopy({
+        code,
+        eligible: registeredDevice && policy.portalClockOutEligible,
+        expectedClockOutAt: policy.expectedClockOutAt,
+        nextAssignmentAt: policy.nextAssignmentAt,
+      });
+    } catch {
+      // A schema rollout mismatch must leave the safe default (branch QR), not
+      // expose or enable a client-decided portal action.
+      portalClockOut = portalAvailabilityCopy({
+        code: "use_branch_qr",
+        eligible: false,
+        expectedClockOutAt: currentOpenRow.attendance_expected_end_at,
+        nextAssignmentAt: null,
+      });
+    }
+  }
+
   return {
     staffId: staff.id,
     staffName: staff.full_name,
@@ -257,5 +394,6 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
     currentRecord,
     todayState,
     history,
+    portalClockOut,
   };
 }

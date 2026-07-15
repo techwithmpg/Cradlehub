@@ -30,7 +30,7 @@ export async function getEffectiveAttendancePolicy(params: {
     params.db
       .from("attendance_staff_category_rules")
       .select(
-        "id, late_grace_minutes, early_leave_threshold_minutes, overtime_threshold_minutes, active_service_blocks_clock_out, crm_closing_policy_enabled"
+        "id, late_grace_minutes, early_leave_threshold_minutes, overtime_threshold_minutes, active_service_blocks_clock_out, crm_closing_policy_enabled, service_cleanup_buffer_minutes, home_service_wrap_up_buffer_minutes, driver_return_buffer_minutes, final_client_release_enabled, portal_closing_shift_enabled"
       )
       .eq("branch_id", params.branchId)
       .eq("staff_category", category)

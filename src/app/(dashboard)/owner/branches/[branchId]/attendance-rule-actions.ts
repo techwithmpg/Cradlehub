@@ -43,6 +43,11 @@ export type SaveAttendanceCategoryRuleInput = {
   lateGraceMinutes: number | null;
   earlyLeaveThresholdMinutes: number | null;
   overtimeThresholdMinutes: number | null;
+  serviceCleanupBufferMinutes: number | null;
+  homeServiceWrapUpBufferMinutes: number | null;
+  driverReturnBufferMinutes: number | null;
+  finalClientReleaseEnabled: boolean | null;
+  portalClosingShiftEnabled: boolean | null;
   activeServiceBlocksClockOut: boolean | null;
   crmClosingPolicyEnabled: boolean | null;
   effectiveDate: string | null;
@@ -177,6 +182,11 @@ export async function saveAttendanceCategoryRuleAction(
     overtime_threshold_minutes: input.overtimeThresholdMinutes,
     active_service_blocks_clock_out: input.activeServiceBlocksClockOut,
     crm_closing_policy_enabled: input.crmClosingPolicyEnabled,
+    service_cleanup_buffer_minutes: input.serviceCleanupBufferMinutes,
+    home_service_wrap_up_buffer_minutes: input.homeServiceWrapUpBufferMinutes,
+    driver_return_buffer_minutes: input.driverReturnBufferMinutes,
+    final_client_release_enabled: input.finalClientReleaseEnabled,
+    portal_closing_shift_enabled: input.portalClosingShiftEnabled,
   };
   try {
     const { data, error } = await createAdminClient()

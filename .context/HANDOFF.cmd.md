@@ -1,5 +1,31 @@
 # HANDOFF - Next Agent Session
 
+## ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001 - 2026-07-15
+
+The existing Attendance engine now has one schedule-backed dynamic resolver.
+Service providers use their own final service, CRM Closing uses the final valid
+in-spa service at the assigned branch, home-service therapists use their final
+completed service/dispatch, drivers use their final trip, and the schedule end
+remains the no-work fallback. Category rules provide cleanup/wrap-up/return
+buffers, final-client release, and explicit closing-portal eligibility.
+
+QR recalculates immediately before classification and keeps record-first,
+flag-second behavior. The Staff and Driver portals expose only server-derived
+eligibility; the zero-argument server action resolves auth, the HttpOnly device
+credential, staff identity, branch, open Attendance, assignments, dynamic time,
+and method before one idempotent database commit. Ordinary staff still use QR.
+
+Migration `20260715021703_attendance_smart_dynamic_clock_out.sql` is live in
+isolation on `lsrb...olkv`, generated types match, the resolver Training Mode
+probe passed, and the existing four Supabase safety jobs remain active. The
+migration is intentionally absent from remote history because drift is now 81
+local-only / 5 remote-only; never run a blind `db push`. No real staff clock-out
+was performed. Complete authenticated therapist/CRM/salon/driver/QR concurrency
+QA with dedicated identities and devices before calling physical E2E certified.
+See `docs/attendance/SMART_DYNAMIC_CLOCK_OUT.md`.
+
+---
+
 ## ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001 - 2026-07-15
 
 Attendance closing automation is now database-native. The isolated live

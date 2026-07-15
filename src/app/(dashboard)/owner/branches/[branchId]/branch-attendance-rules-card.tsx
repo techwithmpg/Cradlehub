@@ -269,7 +269,7 @@ export function BranchAttendanceRulesCard({
                 <PreviewItem label="Next expected run" value={formatDateTime(data.scheduler.nextExpectedRunAt)} />
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                Scheduler status: {schedulerLabel}. Source is configured for five-minute checks; runtime activity is shown only after an observed successful run.
+                Scheduler status: {schedulerLabel}. Supabase runs four bounded daily safety stages; normal dynamic recalculation is event-driven.
               </p>
             </div>
 

@@ -1,6 +1,8 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getMyUpcomingBookings, getMyMonthlyStats } from "@/lib/queries/bookings";
@@ -20,6 +22,13 @@ import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canManageBookings } from "@/lib/auth/crm-permissions";
 import type { Database } from "@/types/supabase";
+import type { Json } from "@/types/supabase";
+import {
+  DEVICE_COOKIE_NAME,
+  LEGACY_DEVICE_COOKIE_NAME,
+  hashSecret,
+} from "@/lib/attendance/tokens";
+import { resolveClosingInterventionSignals } from "@/lib/attendance/scan-engine";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -92,6 +101,104 @@ function revalidateStaffAndOperationalSurfaces(branchId?: string | null): void {
   revalidatePath("/crm/dispatch");
   revalidatePath("/crm/live-operations");
   revalidatePath("/crm/live-map");
+}
+
+export type PortalClockOutActionResult = {
+  ok: boolean;
+  code: string;
+  title: string;
+  message: string;
+  classification?: "early" | "normal" | "overtime";
+  checkedOutAt?: string;
+  clockOutMethod?: string;
+};
+
+function jsonRecord(value: Json | null): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * Controlled portal clock-out intent. The browser supplies no staff, branch,
+ * booking, Attendance record, eligibility, or timestamp. All of those values
+ * are resolved again by the restricted database transaction.
+ */
+export async function clockOutFromStaffPortalAction(): Promise<PortalClockOutActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return {
+      ok: false,
+      code: "unauthorized",
+      title: "Sign in required",
+      message: "Sign in again before clocking out.",
+    };
+  }
+
+  const cookieStore = await cookies();
+  const rawDeviceCredential =
+    cookieStore.get(DEVICE_COOKIE_NAME)?.value
+    ?? cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value
+    ?? null;
+  if (!rawDeviceCredential) {
+    return {
+      ok: false,
+      code: "unregistered_device",
+      title: "Registered device required",
+      message: "Use your registered Attendance device or ask CRM for help.",
+    };
+  }
+
+  const admin = createAdminClient();
+  const requestId = `portal-clock-out:${randomUUID()}`;
+  const { data, error } = await admin.rpc("commit_attendance_portal_clock_out", {
+    p_auth_user_id: user.id,
+    p_device_fingerprint_hash: hashSecret(rawDeviceCredential),
+    p_request_id: requestId,
+  });
+  if (error) {
+    logError("attendance.portal_clock_out_failed", {
+      authUserId: user.id,
+      operationId: requestId,
+      error,
+    });
+    return {
+      ok: false,
+      code: "database_error",
+      title: "Clock-out unavailable",
+      message: "Attendance could not be updated. Retry once or ask CRM for help.",
+    };
+  }
+
+  const result = jsonRecord(data);
+  const ok = result.ok === true;
+  const checkinId = typeof result.checkin_id === "string" ? result.checkin_id : null;
+  if (ok && checkinId) {
+    await resolveClosingInterventionSignals(admin, checkinId);
+  }
+  if (ok) {
+    revalidateStaffAndOperationalSurfaces(null);
+    revalidatePath("/crm/attendance");
+    revalidatePath("/owner/attendance");
+  }
+
+  const classification = result.classification === "early"
+    || result.classification === "normal"
+    || result.classification === "overtime"
+      ? result.classification
+      : undefined;
+  return {
+    ok,
+    code: typeof result.code === "string" ? result.code : ok ? "clocked_out" : "blocked",
+    title: typeof result.title === "string" ? result.title : ok ? "Clocked out" : "Clock-out unavailable",
+    message: typeof result.message === "string" ? result.message : "Attendance was not changed.",
+    classification,
+    checkedOutAt: typeof result.checked_out_at === "string" ? result.checked_out_at : undefined,
+    clockOutMethod: typeof result.clock_out_method === "string" ? result.clock_out_method : undefined,
+  };
 }
 
 function isMissingStaffProfileColumnError(message: string): boolean {

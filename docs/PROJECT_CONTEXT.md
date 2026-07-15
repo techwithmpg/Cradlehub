@@ -5,6 +5,30 @@
 
 ---
 
+## Latest Agent Update (2026-07-15 — Smart dynamic clock-out)
+
+- Expected clock-out is now schedule-backed and dynamically resolved from final
+  work completion by one restricted database resolver. Therapist/salon rows use
+  own final service, CRM Closing uses the branch final in-spa service, drivers
+  use their final assigned trip, and schedule end remains the no-work fallback.
+- Dynamic evidence is persisted in the existing expected/window/deadline and
+  policy snapshot fields. QR recalculates before classification; early and
+  overtime clock-outs remain record-first/flag-second.
+- Staff Portal clock-out is server/device-authorized only for final completed
+  home service, final trip, or an eligible therapist/CRM Closing shift. Active
+  and upcoming assignments block portal completion; ordinary staff use branch QR.
+- Relevant booking, schedule, override, and policy events recalculate affected
+  open rows only and share the QR/portal staff lock. The existing four Supabase
+  safety jobs still process stored CRM dynamic deadlines; Vercel has no frequent
+  Attendance cron.
+- Isolated migration `20260715021703_attendance_smart_dynamic_clock_out.sql` is
+  live on the linked project and generated types match live schema. A Training
+  Mode schedule-fallback probe passed and an unchanged second resolution made no
+  write. The migration is intentionally not recorded in remote migration history
+  because the broader 81 local-only / 5 remote-only drift remains unresolved.
+
+---
+
 ## Latest Agent Update (2026-07-15 — Attendance hybrid closing automation)
 
 - Vercel no longer schedules Attendance every five minutes; only the unrelated

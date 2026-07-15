@@ -76,6 +76,9 @@ function methodLabel(record: AttendanceRecord): string {
       : "the policy time";
     return `Auto-closed at ${clockTime} · Confirmation required`;
   }
+  if (record.clock_out_method === "staff_portal_home_service") return "Staff Portal · Home service";
+  if (record.clock_out_method === "staff_portal_closing_shift") return "Staff Portal · Closing shift";
+  if (record.clock_out_method === "driver_portal_final_trip") return "Driver Portal · Final trip";
   return record.source_label ?? record.clock_in_method ?? record.clock_out_method ?? "QR / manual";
 }
 

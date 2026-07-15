@@ -266,7 +266,12 @@ export type AttendanceRecord = {
   attendance_expected_end_at: string | null;
   earliest_normal_clock_out_at: string | null;
   latest_normal_clock_out_at: string | null;
-  attendance_policy_source: "schedule" | "crm_closing";
+  attendance_policy_source:
+    | "schedule"
+    | "crm_closing"
+    | "service_completion"
+    | "home_service"
+    | "driver_trip";
   attendance_policy_snapshot: Record<string, unknown>;
   provisional_auto_closed_at: string | null;
   clock_out_confirmation_required: boolean;
