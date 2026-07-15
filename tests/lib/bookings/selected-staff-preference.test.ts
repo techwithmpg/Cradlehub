@@ -56,11 +56,42 @@ describe("assessSelectedStaffPreference", () => {
     });
   });
 
+  it("treats adjacent schedule windows as continuous booking coverage", () => {
+    const schedule = resolveScheduleForStaffDay({
+      individualRows: [
+        { shift_type: "opening", start_time: "10:00", end_time: "17:00", is_active: true },
+        {
+          shift_type: "closing",
+          start_time: "17:00",
+          end_time: "01:30",
+          is_active: true,
+          ends_next_day: true,
+        },
+      ],
+    });
+
+    expect(
+      assessSelectedStaffPreference(
+        input({
+          startTime: "16:00:00",
+          endTime: "18:00:00",
+          schedule,
+        })
+      )
+    ).toEqual({ kind: "allowed", exceptionReason: null });
+  });
+
   it.each([
     ["selected_staff_not_found", { staff: null }],
     ["selected_staff_inactive", { staff: { ...input().staff!, isActive: false } }],
-    ["selected_staff_archived", { staff: { ...input().staff!, archivedAt: "2026-07-01T00:00:00.000Z" } }],
-    ["selected_staff_wrong_branch", { staff: { ...input().staff!, branchId: "00000000-0000-4000-8000-000000000099" } }],
+    [
+      "selected_staff_archived",
+      { staff: { ...input().staff!, archivedAt: "2026-07-01T00:00:00.000Z" } },
+    ],
+    [
+      "selected_staff_wrong_branch",
+      { staff: { ...input().staff!, branchId: "00000000-0000-4000-8000-000000000099" } },
+    ],
     ["selected_staff_not_qualified", { staff: { ...input().staff!, qualifiedServiceIds: [] } }],
     ["selected_staff_not_qualified", { staff: { ...input().staff!, isServiceProvider: false } }],
   ])("keeps %s as a hard blocker", (code, overrides) => {
@@ -92,24 +123,17 @@ describe("assessSelectedStaffPreference", () => {
       "selected_staff_missing_schedule",
       { schedule: resolveScheduleForStaffDay({ individualRows: [] }) },
     ],
-    [
-      "selected_staff_outside_shift",
-      { schedule: workingSchedule("12:00:00", "18:00:00") },
-    ],
+    ["selected_staff_outside_shift", { schedule: workingSchedule("12:00:00", "18:00:00") }],
     [
       "selected_staff_blocked",
       {
-        blockedPeriods: [
-          { startTime: "10:30:00", endTime: "11:30:00", reason: "training" },
-        ],
+        blockedPeriods: [{ startTime: "10:30:00", endTime: "11:30:00", reason: "training" }],
       },
     ],
     [
       "selected_staff_on_leave",
       {
-        blockedPeriods: [
-          { startTime: "09:00:00", endTime: "17:00:00", reason: "leave" },
-        ],
+        blockedPeriods: [{ startTime: "09:00:00", endTime: "17:00:00", reason: "leave" }],
       },
     ],
     [

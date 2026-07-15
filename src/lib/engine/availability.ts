@@ -17,7 +17,7 @@ import {
 } from "./slot-time";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import {
-  doesDurationFitWithinScheduleWindow,
+  doesDurationFitWithinScheduleWindows,
   resolveScheduleForStaffDay,
   type IndividualScheduleSourceRow,
 } from "@/lib/schedule/resolve-staff-schedule";
@@ -241,9 +241,8 @@ function totalBlockMinutes(
  *   3. individual staff_schedules rows        → ordered weekly windows
  *   4. no individual schedule                 → slot dropped
  *
- * Multi-window: a slot passes if it fits inside ANY one window. This correctly
- * handles opening (09:00–17:00) + closing (14:00–22:30) scenarios where a slot
- * might only fit the closing window.
+ * Multi-window: overlapping or touching windows are evaluated as unique
+ * continuous coverage, while split shifts with a real gap stay separate.
  */
 async function filterSlotsToWorkingWindows(params: {
   supabase: AdminClient;
@@ -307,13 +306,11 @@ async function filterSlotsToWorkingWindows(params: {
 
       if (!resolved.isWorking) return false;
 
-      return resolved.windows.some((window) =>
-        doesDurationFitWithinScheduleWindow({
-          slotStartTime: slot.slot_time,
-          durationMinutes: params.totalBlockMinutes,
-          window,
-        })
-      );
+      return doesDurationFitWithinScheduleWindows({
+        slotStartTime: slot.slot_time,
+        durationMinutes: params.totalBlockMinutes,
+        windows: resolved.windows,
+      });
     })
   );
 }

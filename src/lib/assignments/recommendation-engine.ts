@@ -7,7 +7,7 @@ import {
 } from "@/lib/staff/service-providers";
 import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
 import {
-  doesDurationFitWithinScheduleWindow,
+  doesDurationFitWithinScheduleWindows,
   resolveScheduleForStaffDay,
   type IndividualScheduleSourceRow,
   type ResolvedStaffSchedule,
@@ -260,13 +260,11 @@ function bookingFitsResolvedSchedule(
 ): boolean {
   if (schedule.status !== "resolved") return false;
   const durationMinutes = bookingDurationMinutes(ctx.bookingStartTime, ctx.bookingEndTime);
-  return schedule.windows.some((window) =>
-    doesDurationFitWithinScheduleWindow({
-      slotStartTime: ctx.bookingStartTime,
-      durationMinutes,
-      window,
-    })
-  );
+  return doesDurationFitWithinScheduleWindows({
+    slotStartTime: ctx.bookingStartTime,
+    durationMinutes,
+    windows: schedule.windows,
+  });
 }
 
 function hasBookingConflict(

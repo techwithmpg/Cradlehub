@@ -5,6 +5,28 @@
 
 ---
 
+## Latest Agent Update (2026-07-15 — CRM Open-Close normalization)
+
+- Adjust Schedule now offers an explicit CRM/CSR/front-desk-only repair when a
+  day has exactly one overlapping Opening and one Closing window. The draft
+  moves only the Opening end to the Closing start and still uses the existing
+  strict validation and atomic weekly replacement save.
+- Unique coverage arithmetic merges overlap and exact adjacency without double
+  counting, preserves real gaps, and supports overnight duration fit. The live
+  four-day fixture correctly shows 62h before and after repair.
+- Resolver and Attendance behavior treat the eligible adjacent pair as continuous
+  coverage while retaining Opening responsibility before handoff, Closing
+  responsibility afterward/after midnight, and the originating business date.
+- No migration, booking write, Attendance row write, enum, dependency, or Vercel
+  config change was required. Authenticated localhost QA saved and reopened the
+  live regression fixture at 10:00-17:00 plus 17:00-01:30 next day with zero
+  timeline conflicts.
+- Verification passed: 93 focused tests; 135 files / 1,075 full tests;
+  type-check; lint with one pre-existing unrelated warning; diff check; and the
+  Next.js 16.2.4 production build with 110 routes.
+
+---
+
 ## Latest Agent Update (2026-07-15 — Smart dynamic clock-out)
 
 - Expected clock-out is now schedule-backed and dynamically resolved from final

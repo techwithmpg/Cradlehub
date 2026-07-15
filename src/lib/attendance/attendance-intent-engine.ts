@@ -94,7 +94,12 @@ function toMillis(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function intervalOverlaps(firstStart: number, firstEnd: number, secondStart: number, secondEnd: number): boolean {
+function intervalOverlaps(
+  firstStart: number,
+  firstEnd: number,
+  secondStart: number,
+  secondEnd: number
+): boolean {
   return firstStart <= secondEnd && secondStart <= firstEnd;
 }
 
@@ -105,7 +110,9 @@ function normalizedShiftType(value: string | null | undefined): string | null {
 
 function isGenericShiftType(value: string | null | undefined): boolean {
   const normalized = normalizedShiftType(value);
-  return !normalized || normalized === "single" || normalized === "default" || normalized === "legacy";
+  return (
+    !normalized || normalized === "single" || normalized === "default" || normalized === "legacy"
+  );
 }
 
 function checkinFallsInsideScheduleWindow(params: {
@@ -153,17 +160,11 @@ function openCheckinMatchesSchedule(params: {
   if (checkinShiftType && scheduleShiftType && checkinShiftType === scheduleShiftType) {
     if (!isGenericShiftType(checkinShiftType)) return true;
     if (params.schedule.windows.length <= 1) return true;
-    return (
-      scheduledWindowsOverlap(params) ||
-      checkinFallsInsideScheduleWindow(params)
-    );
+    return scheduledWindowsOverlap(params) || checkinFallsInsideScheduleWindow(params);
   }
 
   if (!isGenericShiftType(checkinShiftType)) return false;
-  return (
-    scheduledWindowsOverlap(params) ||
-    checkinFallsInsideScheduleWindow(params)
-  );
+  return scheduledWindowsOverlap(params) || checkinFallsInsideScheduleWindow(params);
 }
 
 export function classifyOpenAttendanceCheckins(params: {
@@ -172,7 +173,9 @@ export function classifyOpenAttendanceCheckins(params: {
 }): OpenAttendanceClassification {
   const matching = params.openCheckins
     .filter((checkin) => openCheckinMatchesSchedule({ checkin, schedule: params.schedule }))
-    .sort((first, second) => (toMillis(second.checkedInAt) ?? 0) - (toMillis(first.checkedInAt) ?? 0));
+    .sort(
+      (first, second) => (toMillis(second.checkedInAt) ?? 0) - (toMillis(first.checkedInAt) ?? 0)
+    );
   const matchingCheckin = matching[0] ?? null;
   const extraMatching = matching.slice(1);
   const unmatched = params.openCheckins.filter((checkin) => !matching.includes(checkin));
@@ -187,7 +190,10 @@ export function classifyOpenAttendanceCheckins(params: {
   };
 }
 
-function absoluteScanMinutesForWindow(time: string, window: ResolvedStaffScheduleWindow): number | null {
+function absoluteScanMinutesForWindow(
+  time: string,
+  window: ResolvedStaffScheduleWindow
+): number | null {
   const current = timeToMinutes(time);
   const start = timeToMinutes(window.startTime);
   const end = timeToMinutes(window.endTime);
@@ -272,11 +278,35 @@ function clockInIntentForWindow(params: {
   schedule: AttendanceScheduleSelection;
 }): AttendanceScanIntentType {
   const current = timeToMinutes(params.scanTime);
-  const start = params.schedule.selectedWindow ? timeToMinutes(params.schedule.selectedWindow.startTime) : null;
+  const start = params.schedule.selectedWindow
+    ? timeToMinutes(params.schedule.selectedWindow.startTime)
+    : null;
   if (current === null || start === null) return "clock_in";
   if (current < start) return "early_clock_in";
   if (current > start + params.settings.late_grace_minutes) return "late_clock_in";
   return "clock_in";
+}
+
+function getOpenCloseAttendanceWindow(
+  schedule: ResolvedStaffSchedule
+): ResolvedStaffScheduleWindow | null {
+  if (schedule.coverageKind !== "open_close") return null;
+  const opening = schedule.windows.find((window) => window.shiftType === "opening");
+  const closing = schedule.windows.find((window) => window.shiftType === "closing");
+  if (!opening || !closing) return null;
+
+  return {
+    ...closing,
+    shiftType: "closing",
+    startTime: opening.startTime,
+    endTime: closing.endTime,
+    endsNextDay: closing.endsNextDay,
+  };
+}
+
+function getAttendanceWindows(schedule: ResolvedStaffSchedule): ResolvedStaffScheduleWindow[] {
+  const openCloseWindow = getOpenCloseAttendanceWindow(schedule);
+  return openCloseWindow ? [openCloseWindow] : schedule.windows;
 }
 
 function scheduleSelectionFromWindow(params: {
@@ -286,36 +316,45 @@ function scheduleSelectionFromWindow(params: {
   schedule: ResolvedStaffSchedule;
   window: ResolvedStaffScheduleWindow;
 }): AttendanceScheduleSelection {
+  const effectiveWindow = getOpenCloseAttendanceWindow(params.schedule) ?? params.window;
   const scanMinutes = timeToMinutes(params.scanTime);
-  const startMinutes = timeToMinutes(params.window.startTime);
-  const crossesMidnight = params.window.endsNextDay ??
-    isOvernightWindow(params.window.startTime, params.window.endTime);
+  const startMinutes = timeToMinutes(effectiveWindow.startTime);
+  const openCloseClosing =
+    params.schedule.coverageKind === "open_close"
+      ? params.schedule.windows.find((window) => window.shiftType === "closing")
+      : null;
+  const openCloseEndMinutes = openCloseClosing ? timeToMinutes(openCloseClosing.endTime) : null;
+  const crossesMidnight =
+    effectiveWindow.endsNextDay ??
+    isOvernightWindow(effectiveWindow.startTime, effectiveWindow.endTime);
   const shiftDate =
     crossesMidnight &&
     scanMinutes !== null &&
     startMinutes !== null &&
-    scanMinutes < startMinutes
+    (openCloseClosing
+      ? openCloseEndMinutes !== null && scanMinutes <= openCloseEndMinutes
+      : scanMinutes < startMinutes)
       ? addDaysToYmd(params.scanDate, -1)
       : params.scanDate;
 
   return {
     shiftDate,
-    shiftType: params.window.shiftType,
+    shiftType: effectiveWindow.shiftType,
     scheduledStartAt: branchDateTimeToIso({
       date: shiftDate,
-      time: params.window.startTime,
+      time: effectiveWindow.startTime,
       timezone: params.timezone,
     }),
     scheduledEndAt: branchDateTimeToIso({
       date: shiftDate,
-      time: params.window.endTime,
+      time: effectiveWindow.endTime,
       addDay: crossesMidnight,
       timezone: params.timezone,
     }),
     isUnscheduled: false,
     isDayOff: params.schedule.isDayOff,
     source: params.schedule.source,
-    selectedWindow: params.window,
+    selectedWindow: effectiveWindow,
     windows: params.schedule.windows,
   };
 }
@@ -343,7 +382,7 @@ export function resolveStaffAttendanceSchedule(params: {
   timezone?: string | null;
   schedule: ResolvedStaffSchedule;
 }): AttendanceScheduleSelection {
-  const windows = params.schedule.windows;
+  const windows = getAttendanceWindows(params.schedule);
   const selected =
     windows.find((window) => isTimeWithinScheduleWindows(params.scanTime, [window])) ??
     windows.find((window) => {
@@ -405,7 +444,9 @@ function isUnsupportedScheduleState(schedule: ResolvedStaffSchedule): boolean {
   );
 }
 
-export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentInput): AttendanceScanIntent {
+export function resolveAttendanceScanIntent(
+  input: ResolveAttendanceScanIntentInput
+): AttendanceScanIntent {
   const schedule = resolveStaffAttendanceSchedule({
     scanDate: input.scanDate,
     scanTime: input.scanTime,
@@ -465,7 +506,10 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
     });
   }
 
-  if (input.schedule.status === "not_operational" || input.schedule.state === "STAFF_NOT_OPERATIONAL") {
+  if (
+    input.schedule.status === "not_operational" ||
+    input.schedule.state === "STAFF_NOT_OPERATIONAL"
+  ) {
     return intent({
       type: "staff_not_operational",
       action: "recovery_required",
@@ -487,7 +531,9 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
       shouldWriteAttendance: true,
       severity: "warning",
       title: "Schedule needs review",
-      message: input.schedule.conflictReason ?? "Attendance was recorded and the conflicting schedule needs review.",
+      message:
+        input.schedule.conflictReason ??
+        "Attendance was recorded and the conflicting schedule needs review.",
     });
   }
 
@@ -517,7 +563,8 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
     });
   }
 
-  const clockOutWindow = input.schedule.windows.find((window) =>
+  const attendanceWindows = getAttendanceWindows(input.schedule);
+  const clockOutWindow = attendanceWindows.find((window) =>
     isInClockOutWindow({
       scanTime: input.scanTime,
       settings: input.settings,
@@ -536,7 +583,7 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
     });
   }
 
-  const clockInWindow = input.schedule.windows.find((window) =>
+  const clockInWindow = attendanceWindows.find((window) =>
     isInClockInWindow({
       scanTime: input.scanTime,
       settings: input.settings,
@@ -574,11 +621,14 @@ export function resolveAttendanceScanIntent(input: ResolveAttendanceScanIntentIn
     shouldWriteAttendance: true,
     severity: "warning",
     title: "Attendance recorded outside schedule",
-    message: "The scan is outside the expected schedule windows. Attendance was recorded and flagged for review.",
+    message:
+      "The scan is outside the expected schedule windows. Attendance was recorded and flagged for review.",
   });
 }
 
-export function classifyAttendanceScan(input: ResolveAttendanceScanIntentInput): AttendanceScanIntentType {
+export function classifyAttendanceScan(
+  input: ResolveAttendanceScanIntentInput
+): AttendanceScanIntentType {
   return resolveAttendanceScanIntent(input).type;
 }
 

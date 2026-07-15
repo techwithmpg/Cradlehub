@@ -30,6 +30,13 @@
 - Schedule Setup and Adjust Schedule share the ordered-window draft/editor/save
   path. Multiple active daily windows require explicit Split Shift intent and
   must not overlap.
+- Adjust Schedule has one narrow CRM/CSR/front-desk repair for exactly one
+  overlapping Opening and one Closing window: the operator may explicitly move
+  the Opening end to the Closing start before saving. Global overlap validation
+  stays strict, adjacency is valid, and union-based coverage prevents duplicate
+  hours while allowing continuous fit across the responsibility handoff. The
+  resolver and Attendance retain the separate Opening/Closing identities and the
+  Closing next-day business-date boundary.
 - Daily Timeline preserves its operations-board UI but now derives rows from
   the operational roster, then overlays resolved schedule windows, bookings,
   blocks, date overrides, resource names, and live attendance presence.

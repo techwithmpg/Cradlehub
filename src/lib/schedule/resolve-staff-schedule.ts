@@ -1,8 +1,13 @@
 import { getDayOfWeekFromYmd } from "@/lib/engine/slot-time";
 import {
   canUseScheduleShiftType,
+  isCrmFrontDeskScheduleStaff,
   type ScheduleShiftEligibilityStaff,
 } from "@/lib/schedule/shift-eligibility";
+import {
+  doesDurationFitWithinScheduleWindows as doesDurationFitWithinCoverage,
+  getScheduleWindowAbsoluteRange,
+} from "@/lib/schedule/schedule-coverage";
 import { timeToMinutes } from "@/lib/utils/time-format";
 
 export const STAFF_SCHEDULE_SHIFT_TYPES = ["single", "opening", "closing"] as const;
@@ -50,6 +55,7 @@ export type ResolvedStaffSchedule = {
   isWorking: boolean;
   isDayOff: boolean;
   windows: ResolvedStaffScheduleWindow[];
+  coverageKind?: "open_close";
   conflictCode?: ResolvedStaffScheduleConflictCode;
   conflictReason?: string;
 };
@@ -91,7 +97,10 @@ export const NON_OPERATIONAL_STAFF_SCHEDULE: ResolvedStaffSchedule = {
   windows: [],
 };
 
-const DAY_OFF_BY_SOURCE: Record<Exclude<ResolvedStaffScheduleSource, "none">, ResolvedStaffSchedule> = {
+const DAY_OFF_BY_SOURCE: Record<
+  Exclude<ResolvedStaffScheduleSource, "none">,
+  ResolvedStaffSchedule
+> = {
   override: {
     source: "override",
     status: "day_off",
@@ -123,17 +132,15 @@ export function normalizeScheduleShiftType(
 function isKnownScheduleShiftType(
   shiftType: string | null | undefined
 ): shiftType is StaffScheduleShiftType {
-  return (
-    shiftType === "single" ||
-    shiftType === "opening" ||
-    shiftType === "closing"
-  );
+  return shiftType === "single" || shiftType === "opening" || shiftType === "closing";
 }
 
-function hasTimeRange<T extends {
-  start_time: string | null;
-  end_time: string | null;
-}>(row: T): row is T & { start_time: string; end_time: string } {
+function hasTimeRange<
+  T extends {
+    start_time: string | null;
+    end_time: string | null;
+  },
+>(row: T): row is T & { start_time: string; end_time: string } {
   return Boolean(row.start_time && row.end_time && row.start_time !== row.end_time);
 }
 
@@ -141,8 +148,10 @@ function sameTimeRange(
   a: { start_time: string; end_time: string },
   b: { start_time: string; end_time: string }
 ): boolean {
-  return a.start_time.slice(0, 5) === b.start_time.slice(0, 5) &&
-    a.end_time.slice(0, 5) === b.end_time.slice(0, 5);
+  return (
+    a.start_time.slice(0, 5) === b.start_time.slice(0, 5) &&
+    a.end_time.slice(0, 5) === b.end_time.slice(0, 5)
+  );
 }
 
 function toWindow(row: {
@@ -164,9 +173,7 @@ function toWindow(row: {
   return window;
 }
 
-function sortWindows(
-  windows: ResolvedStaffScheduleWindow[]
-): ResolvedStaffScheduleWindow[] {
+function sortWindows(windows: ResolvedStaffScheduleWindow[]): ResolvedStaffScheduleWindow[] {
   return [...windows].sort((a, b) => {
     if (a.windowOrder != null || b.windowOrder != null) {
       return (a.windowOrder ?? 999) - (b.windowOrder ?? 999);
@@ -194,9 +201,30 @@ function absoluteWindowRange(window: ResolvedStaffScheduleWindow): {
   };
 }
 
+function isAdjacentOpenCloseCoverage(windows: ResolvedStaffScheduleWindow[]): boolean {
+  if (windows.length !== 2) return false;
+  const opening = windows.find((window) => window.shiftType === "opening");
+  const closing = windows.find((window) => window.shiftType === "closing");
+  if (!opening || !closing) return false;
+
+  const openingRange = getScheduleWindowAbsoluteRange(opening);
+  const closingRange = getScheduleWindowAbsoluteRange(closing);
+  return Boolean(
+    openingRange &&
+    closingRange &&
+    openingRange.start < closingRange.start &&
+    openingRange.end === closingRange.start &&
+    closingRange.end > openingRange.end
+  );
+}
+
 function getWindowConflict(
   windows: ResolvedStaffScheduleWindow[]
-): { code: ResolvedStaffScheduleConflictCode; reason: string; state: ResolvedStaffScheduleState } | null {
+): {
+  code: ResolvedStaffScheduleConflictCode;
+  reason: string;
+  state: ResolvedStaffScheduleState;
+} | null {
   const sorted = sortWindows(windows);
 
   for (const window of sorted) {
@@ -252,7 +280,11 @@ function getWindowConflict(
 function getEligibilityConflict(params: {
   staff?: ScheduleShiftEligibilityStaff;
   windows: ResolvedStaffScheduleWindow[];
-}): { code: ResolvedStaffScheduleConflictCode; reason: string; state: ResolvedStaffScheduleState } | null {
+}): {
+  code: ResolvedStaffScheduleConflictCode;
+  reason: string;
+  state: ResolvedStaffScheduleState;
+} | null {
   if (!params.staff) return null;
 
   const invalidWindow = params.windows.find(
@@ -288,11 +320,12 @@ function conflictSchedule(params: {
 
 function workingSchedule(
   source: Exclude<ResolvedStaffScheduleSource, "none">,
-  windows: ResolvedStaffScheduleWindow[]
+  windows: ResolvedStaffScheduleWindow[],
+  coverageKind?: ResolvedStaffSchedule["coverageKind"]
 ): ResolvedStaffSchedule {
   const sortedWindows = sortWindows(windows);
   const hasOvernight = sortedWindows.some((window) => window.endsNextDay === true);
-  return {
+  const schedule: ResolvedStaffSchedule = {
     source,
     status: "resolved",
     state:
@@ -305,6 +338,8 @@ function workingSchedule(
     isDayOff: false,
     windows: sortedWindows,
   };
+  if (coverageKind) schedule.coverageKind = coverageKind;
+  return schedule;
 }
 
 function getLegacyOverrideSourceRows(params: {
@@ -315,9 +350,7 @@ function getLegacyOverrideSourceRows(params: {
   end_time: string;
 }> {
   return params.individualRows.filter(
-    (
-      row
-    ): row is IndividualScheduleSourceRow & { start_time: string; end_time: string } =>
+    (row): row is IndividualScheduleSourceRow & { start_time: string; end_time: string } =>
       row.is_active === true && hasTimeRange(row)
   );
 }
@@ -341,11 +374,7 @@ function resolveOverrideShiftType(params: {
   }
 
   const knownTypes = Array.from(
-    new Set(
-      sourceRows
-        .map((row) => row.shift_type)
-        .filter(isKnownScheduleShiftType)
-    )
+    new Set(sourceRows.map((row) => row.shift_type).filter(isKnownScheduleShiftType))
   );
 
   return knownTypes.length === 1 ? knownTypes[0]! : "single";
@@ -421,9 +450,7 @@ export function resolveScheduleForStaffDay(params: {
     const invalidActiveRows = activeRows.filter((row) => !hasTimeRange(row));
     const windows = activeRows
       .filter(
-        (
-          row
-        ): row is IndividualScheduleSourceRow & { start_time: string; end_time: string } =>
+        (row): row is IndividualScheduleSourceRow & { start_time: string; end_time: string } =>
           hasTimeRange(row)
       )
       .map(toWindow);
@@ -461,7 +488,13 @@ export function resolveScheduleForStaffDay(params: {
     }
 
     if (windows.length > 0) {
-      return workingSchedule("individual", windows);
+      const coverageKind =
+        params.staff &&
+        isCrmFrontDeskScheduleStaff(params.staff) &&
+        isAdjacentOpenCloseCoverage(windows)
+          ? "open_close"
+          : undefined;
+      return workingSchedule("individual", windows, coverageKind);
     }
 
     return DAY_OFF_BY_SOURCE.individual;
@@ -539,4 +572,12 @@ export function doesDurationFitWithinScheduleWindow(params: {
 
   const slotEnd = slotStart + params.durationMinutes;
   return slotStart >= workStart && slotEnd <= workEnd;
+}
+
+export function doesDurationFitWithinScheduleWindows(params: {
+  slotStartTime: string;
+  durationMinutes: number;
+  windows: ResolvedStaffScheduleWindow[];
+}): boolean {
+  return doesDurationFitWithinCoverage(params);
 }

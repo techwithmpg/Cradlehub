@@ -1,5 +1,21 @@
 # 🏗️ DECISIONS
 
+### 2026-07-15: CRM Open-Close repair produces adjacent responsibility windows over continuous unique coverage
+**Status:** ACCEPTED
+
+When an eligible CRM/CSR/front-desk staff member has exactly one overlapping
+Opening and one Closing window on a day, Adjust Schedule may offer an explicit
+repair that ends Opening at the Closing start. The repair must preserve the
+Closing values/next-day boundary and both responsibility labels, remain unsaved
+until operator confirmation, and pass the same strict global overlap validator
+and transactional weekly replacement RPC as any other edit.
+
+Coverage arithmetic merges overlaps and exact-boundary adjacency so minutes are
+never double-counted and duration checks may cross the handoff. A real gap stays
+a split shift. Attendance interprets the eligible adjacent pair from the Opening
+start through the Closing end while retaining Closing responsibility after the
+handoff. No special database shift enum or overlap exception is introduced.
+
 ### 2026-07-15: Expected clock-out is schedule-backed and dynamically resolved from final work completion
 **Status:** ACCEPTED
 

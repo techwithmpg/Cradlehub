@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dayOfWeekFromDateString,
   doesDurationFitWithinScheduleWindow,
+  doesDurationFitWithinScheduleWindows,
   getScheduleWindowSpan,
   isTimeWithinScheduleWindows,
   resolveScheduleForStaffDay,
@@ -50,7 +51,12 @@ describe("resolveScheduleForStaffDay", () => {
 
   it("preserves explicit opening shift type on timed overrides", () => {
     const resolved = resolveScheduleForStaffDay({
-      override: { is_day_off: false, shift_type: "opening", start_time: "11:00", end_time: "16:00" },
+      override: {
+        is_day_off: false,
+        shift_type: "opening",
+        start_time: "11:00",
+        end_time: "16:00",
+      },
       individualRows: [
         {
           shift_type: "opening",
@@ -69,7 +75,12 @@ describe("resolveScheduleForStaffDay", () => {
 
   it("preserves explicit closing shift type on timed overrides", () => {
     const resolved = resolveScheduleForStaffDay({
-      override: { is_day_off: false, shift_type: "closing", start_time: "15:00", end_time: "21:00" },
+      override: {
+        is_day_off: false,
+        shift_type: "closing",
+        start_time: "15:00",
+        end_time: "21:00",
+      },
       individualRows: [
         {
           shift_type: "closing",
@@ -197,6 +208,66 @@ describe("resolveScheduleForStaffDay", () => {
     ]);
   });
 
+  it("recognizes adjacent CRM Opening and Closing windows as continuous Open-Close coverage", () => {
+    const resolved = resolveScheduleForStaffDay({
+      staff: { staff_type: "csr", system_role: "crm" },
+      individualRows: [
+        {
+          id: "opening-row",
+          shift_type: "opening",
+          start_time: "10:00",
+          end_time: "17:00",
+          is_active: true,
+          window_order: 1,
+          ends_next_day: false,
+        },
+        {
+          id: "closing-row",
+          shift_type: "closing",
+          start_time: "17:00",
+          end_time: "01:30",
+          is_active: true,
+          window_order: 2,
+          ends_next_day: true,
+        },
+      ],
+    });
+
+    expect(resolved).toMatchObject({
+      status: "resolved",
+      state: "VALID_SPLIT_SHIFT",
+      coverageKind: "open_close",
+      isWorking: true,
+    });
+    expect(resolved.windows.map((window) => window.shiftType)).toEqual(["opening", "closing"]);
+    expect(
+      doesDurationFitWithinScheduleWindows({
+        slotStartTime: "16:00",
+        durationMinutes: 120,
+        windows: resolved.windows,
+      })
+    ).toBe(true);
+  });
+
+  it("does not classify adjacent therapist windows as CRM Open-Close coverage", () => {
+    const resolved = resolveScheduleForStaffDay({
+      staff: { staff_type: "therapist", system_role: "staff" },
+      individualRows: [
+        { shift_type: "opening", start_time: "10:00", end_time: "17:00", is_active: true },
+        {
+          shift_type: "closing",
+          start_time: "17:00",
+          end_time: "01:30",
+          is_active: true,
+          ends_next_day: true,
+        },
+      ],
+    });
+
+    expect(resolved.status).toBe("resolved");
+    expect(resolved.coverageKind).toBeUndefined();
+  });
+
   it("treats malformed timed overrides as conflicts instead of falling through", () => {
     const resolved = resolveScheduleForStaffDay({
       override: { is_day_off: false, shift_type: "single", start_time: null, end_time: null },
@@ -271,7 +342,6 @@ describe("resolveScheduleForStaffDay", () => {
       windows: [],
     });
   });
-
 });
 
 describe("schedule date and time helpers", () => {

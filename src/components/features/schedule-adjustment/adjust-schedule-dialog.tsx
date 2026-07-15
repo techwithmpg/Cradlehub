@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { AdminDialog, ConfirmUnsavedChangesDialog } from "@/components/shared/overlays";
 import { updateCrmStaffWeeklyWindowScheduleAction } from "@/lib/actions/crm-schedule-availability";
+import { isCrmFrontDeskScheduleStaff } from "@/lib/schedule/shift-eligibility";
 import { cn } from "@/lib/utils";
 import { AdjustScheduleHeader } from "./adjust-schedule-header";
 import { AdjustScheduleNavigation } from "./adjust-schedule-navigation";
@@ -11,6 +12,7 @@ import { AdjustScheduleStaffCard } from "./adjust-schedule-staff-card";
 import { ApprovedExceptionsPanel } from "./approved-exceptions-panel";
 import { DateRangeAdjustmentEditor } from "./date-range-adjustment-editor";
 import { EffectiveSchedulePreview } from "./effective-schedule-preview";
+import { OpenCloseNormalizationAlert } from "./open-close-normalization-alert";
 import { ScheduleImpactSummary } from "./schedule-impact-summary";
 import { ScheduleStatusCard } from "./schedule-status-card";
 import { ScheduleValidationFooter } from "./schedule-validation-footer";
@@ -21,14 +23,17 @@ import type {
   AdjustScheduleDraft,
   AdjustScheduleMode,
   AdjustScheduleStaffItem,
+  OpenCloseNormalizationCandidate,
   ScheduleValidationIssue,
 } from "./adjust-schedule-types";
 import {
   cloneDraft,
   createDraftFromScheduleItem,
   getAllowedShiftKinds,
+  getOpenCloseNormalizationCandidates,
   getWeeklyDurationMinutes,
   hasBlockingIssues,
+  normalizeOpenCloseCoverage,
   serializeDraftForSave,
   validateAdjustScheduleDraft,
 } from "./adjust-schedule-utils";
@@ -104,7 +109,9 @@ function getStatusLabel(params: {
 }): string {
   if (params.issues.some((issue) => issue.level === "error")) return "Schedule Needs Review";
   if (params.initialDate) {
-    const override = params.item.overrides.find((candidate) => candidate.override_date === params.initialDate);
+    const override = params.item.overrides.find(
+      (candidate) => candidate.override_date === params.initialDate
+    );
     if (override?.is_day_off) return "Day Off Today";
     if (override) return "Date Override Active";
     const weekday = new Date(`${params.initialDate}T00:00:00`).getDay();
@@ -165,15 +172,35 @@ function AdjustScheduleDialogContent({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [impactAcknowledged, setImpactAcknowledged] = useState(false);
+  const [completedOpenCloseRepairs, setCompletedOpenCloseRepairs] = useState<
+    OpenCloseNormalizationCandidate[]
+  >([]);
   const [isSaving, startSaving] = useTransition();
 
   const allowedShiftKinds = useMemo(
     () => (item ? getAllowedShiftKinds(item.staff) : ["regular" as const]),
     [item]
   );
+  const openCloseNormalizationEligible = useMemo(
+    () => isCrmFrontDeskScheduleStaff(item.staff),
+    [item.staff]
+  );
+  const openCloseCandidates = useMemo(
+    () =>
+      getOpenCloseNormalizationCandidates({
+        draft,
+        eligible: openCloseNormalizationEligible,
+      }),
+    [draft, openCloseNormalizationEligible]
+  );
   const issues = useMemo(
-    () => validateAdjustScheduleDraft({ draft, allowedShiftKinds }),
-    [allowedShiftKinds, draft]
+    () =>
+      validateAdjustScheduleDraft({
+        draft,
+        allowedShiftKinds,
+        openCloseNormalizationEligible,
+      }),
+    [allowedShiftKinds, draft, openCloseNormalizationEligible]
   );
   const weeklyDirty = stringifyDraft(draft) !== stringifyDraft(baselineDraft);
   const dirty = weeklyDirty || dateDirty || blockDirty;
@@ -199,7 +226,22 @@ function AdjustScheduleDialogContent({
     setDraft(cloneDraft(baselineDraft));
     setSaveError(null);
     setImpactAcknowledged(false);
+    setCompletedOpenCloseRepairs([]);
   }, [baselineDraft]);
+
+  const fixOpenCloseCoverage = useCallback(() => {
+    if (openCloseCandidates.length === 0) return;
+    setDraft((current) =>
+      normalizeOpenCloseCoverage({
+        draft: current,
+        candidates: openCloseCandidates,
+      })
+    );
+    setCompletedOpenCloseRepairs(openCloseCandidates);
+    setImpactAcknowledged(false);
+    setSaveError(null);
+    toast.success("Opening and Closing coverage was corrected in the unsaved draft.");
+  }, [openCloseCandidates]);
 
   const reviewIssues = useCallback(() => {
     const firstIssue = issues.find((issue) => issue.level === "error") ?? issues[0];
@@ -273,17 +315,26 @@ function AdjustScheduleDialogContent({
                   </div>
                 ) : null}
                 {mode === "weekly" ? (
-                  <WeeklyScheduleEditor
-                    draft={draft}
-                    allowedShiftKinds={allowedShiftKinds}
-                    issues={issues}
-                    onDraftChange={(nextDraft) => {
-                      setImpactAcknowledged(false);
-                      setDraft(nextDraft);
-                    }}
-                    onResetDraft={resetDraft}
-                    onReviewIssues={reviewIssues}
-                  />
+                  <>
+                    <OpenCloseNormalizationAlert
+                      candidates={openCloseCandidates}
+                      completedRepairs={completedOpenCloseRepairs}
+                      onFixAutomatically={fixOpenCloseCoverage}
+                      onReviewManually={reviewIssues}
+                    />
+                    <WeeklyScheduleEditor
+                      draft={draft}
+                      allowedShiftKinds={allowedShiftKinds}
+                      issues={issues}
+                      onDraftChange={(nextDraft) => {
+                        setImpactAcknowledged(false);
+                        setCompletedOpenCloseRepairs([]);
+                        setDraft(nextDraft);
+                      }}
+                      onResetDraft={resetDraft}
+                      onReviewIssues={reviewIssues}
+                    />
+                  </>
                 ) : mode === "date" ? (
                   <DateRangeAdjustmentEditor
                     item={item}
@@ -312,7 +363,10 @@ function AdjustScheduleDialogContent({
                   dirty={weeklyDirty}
                   onClearUnsavedChanges={resetDraft}
                 />
-                <EffectiveSchedulePreview draft={draft} effectiveLabel={getEffectiveLabel(initialDate)} />
+                <EffectiveSchedulePreview
+                  draft={draft}
+                  effectiveLabel={getEffectiveLabel(initialDate)}
+                />
                 <ScheduleImpactSummary dirty={dirty} issues={issues} />
               </aside>
             </div>
@@ -326,8 +380,8 @@ function AdjustScheduleDialogContent({
             >
               <span className="font-bold">Tips</span>
               <p className="mt-1">
-                Use split windows for multiple time blocks. Day Off is deliberate; Not Configured keeps the weekday out
-                of weekly availability until CRM defines it.
+                Use split windows for multiple time blocks. Day Off is deliberate; Not Configured
+                keeps the weekday out of weekly availability until CRM defines it.
               </p>
             </div>
           </div>
@@ -352,6 +406,7 @@ function AdjustScheduleDialogContent({
           setDateDirty(false);
           setBlockDirty(false);
           setImpactAcknowledged(false);
+          setCompletedOpenCloseRepairs([]);
           onOpenChange(false);
         }}
         title="Discard schedule changes?"

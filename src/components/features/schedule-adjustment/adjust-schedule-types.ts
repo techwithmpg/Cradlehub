@@ -38,9 +38,21 @@ export type AdjustScheduleTarget = {
 
 export type ScheduleValidationIssue = {
   id: string;
+  code?: "open_close_overlap" | "overlap";
   level: "error" | "warning" | "info";
   message: string;
   dayOfWeek?: number;
+};
+
+export type OpenCloseNormalizationCandidate = {
+  dayOfWeek: number;
+  openingWindowId: string;
+  closingWindowId: string;
+  openingStartTime: string;
+  previousOpeningEndTime: string;
+  closingStartTime: string;
+  closingEndTime: string;
+  closingEndsNextDay: boolean;
 };
 
 export type AdjustScheduleStaffItem = StaffScheduleItem;

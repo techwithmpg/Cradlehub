@@ -1,5 +1,25 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-15 - Codex (CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001)
+
+- Added a targeted Adjust Schedule repair for eligible CRM/CSR/front-desk staff
+  with one overlapping Opening and one Closing window. The explicit automatic
+  fix moves only the Opening end to the Closing start and preserves both labels,
+  the Closing time, its next-day boundary, and ordered weekly persistence.
+- Weekly totals and duration-fit checks now use unique merged coverage. The live
+  Wed-Sat 10:00-19:30 plus 17:00-01:30 fixture displays 62h before repair and
+  remains 62h after becoming adjacent; exact handoffs are continuous and real
+  split-shift gaps remain unavailable.
+- Resolver and Attendance integration preserve Opening responsibility before
+  17:00, Closing responsibility after handoff/after midnight, and the intended
+  business date without weakening global overlap validation.
+- No migration or booking mutation was needed. Authenticated localhost QA saved
+  and reopened Nikki Jumiller's repaired schedule successfully; the refreshed
+  timeline showed continuous 10:00-01:30 coverage and zero conflicts.
+- Verification passed: 93 focused tests, 135 files / 1,075 full tests,
+  type-check, lint with one pre-existing warning, diff check, and the Next.js
+  16.2.4 production build with 110 routes.
+
 ## 2026-07-15 - Codex (ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001)
 
 - Extended the existing Attendance engine with one restricted, schedule-backed

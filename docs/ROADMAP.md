@@ -20,6 +20,15 @@
 
 ## Current Delivery Notes
 
+- ✅ `CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001` completed on 2026-07-15:
+  eligible CRM/CSR/front-desk Open-Close overlaps now have an explicit targeted
+  Adjust Schedule repair; weekly totals use unique coverage, exact handoffs are
+  continuous for availability and Attendance, strict global overlap rejection
+  remains in place, and no migration or booking mutation was introduced.
+  Authenticated localhost QA persisted and reopened the live Wed-Sat fixture at
+  62h with zero timeline conflicts; all automated gates and the production build
+  pass.
+
 - ✅ `ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001` completed and production-accepted
   on 2026-07-15: one schedule-backed resolver now derives dynamic
   expected clock-out from final service, branch-closing service, home service,

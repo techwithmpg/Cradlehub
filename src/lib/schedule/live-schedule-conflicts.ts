@@ -4,7 +4,7 @@ import type {
   DailyScheduleStaffRow,
 } from "@/lib/queries/schedule";
 import { getDatabaseShiftLabel } from "@/lib/schedule/schedule-domain";
-import { doesDurationFitWithinScheduleWindow } from "@/lib/schedule/resolve-staff-schedule";
+import { doesDurationFitWithinScheduleWindows } from "@/lib/schedule/resolve-staff-schedule";
 import { formatScheduleTime } from "@/lib/utils/schedule-timeline";
 import type {
   BookingConflictContext,
@@ -352,13 +352,11 @@ function missingRoomSeverity(booking: DailyScheduleBooking): LiveScheduleConflic
 }
 
 function bookingFitsSchedule(row: DailyScheduleStaffRow, booking: DailyScheduleBooking): boolean {
-  return row.schedule_windows.some((window) =>
-    doesDurationFitWithinScheduleWindow({
-      slotStartTime: booking.start_time,
-      durationMinutes: durationMinutes(booking),
-      window,
-    })
-  );
+  return doesDurationFitWithinScheduleWindows({
+    slotStartTime: booking.start_time,
+    durationMinutes: durationMinutes(booking),
+    windows: row.schedule_windows,
+  });
 }
 
 function buildBookingContext(rows: DailyScheduleStaffRow[]): BookingConflictContext[] {

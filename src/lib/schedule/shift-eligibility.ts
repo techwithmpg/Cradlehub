@@ -11,10 +11,12 @@ export function isCrmScheduleRole(systemRole: string | null | undefined): boolea
   return canonicalizeSystemRole(systemRole) === "crm";
 }
 
-export function canUseOpeningClosingShift(
-  staff: ScheduleShiftEligibilityStaff
-): boolean {
-  return staff.staff_type === "therapist" || isCrmScheduleRole(staff.system_role);
+export function isCrmFrontDeskScheduleStaff(staff: ScheduleShiftEligibilityStaff): boolean {
+  return staff.staff_type?.trim().toLowerCase() === "csr" || isCrmScheduleRole(staff.system_role);
+}
+
+export function canUseOpeningClosingShift(staff: ScheduleShiftEligibilityStaff): boolean {
+  return staff.staff_type === "therapist" || isCrmFrontDeskScheduleStaff(staff);
 }
 
 export function canUseScheduleShiftType(

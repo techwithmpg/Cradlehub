@@ -1,5 +1,30 @@
 # HANDOFF - Next Agent Session
 
+## CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001 - 2026-07-15
+
+Adjust Schedule now recognizes only the narrow eligible CRM/CSR/front-desk case
+of exactly one Opening and one Closing window whose coverage overlaps. `Fix
+automatically` changes the Opening end to the Closing start in the unsaved draft;
+Save Adjustment still uses the existing strict server validation and atomic
+`replace_staff_weekly_schedule` path. Do not broaden this exception to therapist,
+salon, driver, utility, managerial, third-window, or multi-pair schedules.
+
+Shared unique-coverage helpers merge overlap/touching windows, keep real gaps,
+and support overnight fit. The resolver flags an eligible adjacent pair as
+continuous Open-Close coverage, and Attendance uses the Opening start plus the
+Closing end/identity so handoff and next-day scans retain the intended business
+date. No database migration was added.
+
+Authenticated localhost QA normalized Nikki Jumiller's Wed-Sat schedule and
+persisted it live: each day is now Opening 10:00-17:00 and Closing 17:00-01:30
+next day, the weekly total is 62h, and Daily Timeline reports zero conflicts and
+continuous 10:00-01:30 coverage. The staff record had zero same-day bookings
+before/after; a positive next-day booking fixture was not created. All automated
+gates and the production build pass; lint retains the unrelated existing warning
+in `attendance-correction-service.ts`.
+
+---
+
 ## ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001 - 2026-07-15
 
 The existing Attendance engine now has one schedule-backed dynamic resolver.

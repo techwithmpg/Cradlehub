@@ -95,7 +95,11 @@ describe("staff schedule write helpers", () => {
     expect(
       result.rows
         .filter((row) => row.day_of_week === 1 && row.is_active)
-        .map((row) => ({ shiftType: row.shift_type, windowOrder: row.window_order, endsNextDay: row.ends_next_day }))
+        .map((row) => ({
+          shiftType: row.shift_type,
+          windowOrder: row.window_order,
+          endsNextDay: row.ends_next_day,
+        }))
     ).toEqual([
       { shiftType: "opening", windowOrder: 1, endsNextDay: false },
       { shiftType: "closing", windowOrder: 2, endsNextDay: false },
@@ -112,8 +116,20 @@ describe("staff schedule write helpers", () => {
               dayOfWeek,
               mode: "working" as const,
               windows: [
-                { shiftType: "opening" as const, startTime: "06:00", endTime: "14:00", endsNextDay: false, order: 1 },
-                { shiftType: "single" as const, startTime: "16:00", endTime: "20:00", endsNextDay: false, order: 2 },
+                {
+                  shiftType: "opening" as const,
+                  startTime: "06:00",
+                  endTime: "14:00",
+                  endsNextDay: false,
+                  order: 1,
+                },
+                {
+                  shiftType: "single" as const,
+                  startTime: "16:00",
+                  endTime: "20:00",
+                  endsNextDay: false,
+                  order: 2,
+                },
               ],
             }
           : { dayOfWeek, mode: "unconfigured" as const, windows: [] }
@@ -137,13 +153,16 @@ describe("staff schedule write helpers", () => {
           ? {
               dayOfWeek,
               mode: "working" as const,
-              windows: Array.from({ length: MAX_STAFF_SCHEDULE_WINDOWS_PER_DAY + 1 }, (_, index) => ({
-                shiftType: "single" as const,
-                startTime: "09:00",
-                endTime: "10:00",
-                endsNextDay: false,
-                order: index + 1,
-              })),
+              windows: Array.from(
+                { length: MAX_STAFF_SCHEDULE_WINDOWS_PER_DAY + 1 },
+                (_, index) => ({
+                  shiftType: "single" as const,
+                  startTime: "09:00",
+                  endTime: "10:00",
+                  endsNextDay: false,
+                  order: index + 1,
+                })
+              ),
             }
           : { dayOfWeek, mode: "unconfigured" as const, windows: [] }
       ),
@@ -185,7 +204,13 @@ describe("staff schedule write helpers", () => {
             dayOfWeek,
             mode: "working" as const,
             windows: [
-              { shiftType: "closing" as const, startTime: "17:00", endTime: "01:30", endsNextDay: false, order: 1 },
+              {
+                shiftType: "closing" as const,
+                startTime: "17:00",
+                endTime: "01:30",
+                endsNextDay: false,
+                order: 1,
+              },
             ],
           }
         : { dayOfWeek, mode: "unconfigured" as const, windows: [] }
@@ -214,6 +239,56 @@ describe("staff schedule write helpers", () => {
     expect(valid.ok).toBe(true);
   });
 
+  it("persists adjacent CRM Open-Close responsibility windows", () => {
+    const result = buildStaffWeeklyWindowScheduleRows({
+      staffId: "staff-1",
+      staff: { staff_type: "csr", system_role: "crm" },
+      days: Array.from({ length: 7 }, (_, dayOfWeek) =>
+        dayOfWeek === 3
+          ? {
+              dayOfWeek,
+              mode: "working" as const,
+              windows: [
+                {
+                  shiftType: "opening" as const,
+                  startTime: "10:00",
+                  endTime: "17:00",
+                  endsNextDay: false,
+                  order: 1,
+                },
+                {
+                  shiftType: "closing" as const,
+                  startTime: "17:00",
+                  endTime: "01:30",
+                  endsNextDay: true,
+                  order: 2,
+                },
+              ],
+            }
+          : { dayOfWeek, mode: "unconfigured" as const, windows: [] }
+      ),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        day_of_week: 3,
+        shift_type: "opening",
+        start_time: "10:00",
+        end_time: "17:00",
+        ends_next_day: false,
+      }),
+      expect.objectContaining({
+        day_of_week: 3,
+        shift_type: "closing",
+        start_time: "17:00",
+        end_time: "01:30",
+        ends_next_day: true,
+      }),
+    ]);
+  });
+
   it("rejects ineligible opening or closing windows and overlapping windows", () => {
     const ineligible = buildStaffWeeklyWindowScheduleRows({
       staffId: "staff-1",
@@ -223,7 +298,15 @@ describe("staff schedule write helpers", () => {
           ? {
               dayOfWeek,
               mode: "working" as const,
-              windows: [{ shiftType: "opening" as const, startTime: "09:00", endTime: "18:00", endsNextDay: false, order: 1 }],
+              windows: [
+                {
+                  shiftType: "opening" as const,
+                  startTime: "09:00",
+                  endTime: "18:00",
+                  endsNextDay: false,
+                  order: 1,
+                },
+              ],
             }
           : { dayOfWeek, mode: "unconfigured" as const, windows: [] }
       ),
@@ -242,8 +325,20 @@ describe("staff schedule write helpers", () => {
               dayOfWeek,
               mode: "working" as const,
               windows: [
-                { shiftType: "single" as const, startTime: "09:00", endTime: "13:00", endsNextDay: false, order: 1 },
-                { shiftType: "closing" as const, startTime: "12:00", endTime: "18:00", endsNextDay: false, order: 2 },
+                {
+                  shiftType: "single" as const,
+                  startTime: "09:00",
+                  endTime: "13:00",
+                  endsNextDay: false,
+                  order: 1,
+                },
+                {
+                  shiftType: "closing" as const,
+                  startTime: "12:00",
+                  endTime: "18:00",
+                  endsNextDay: false,
+                  order: 2,
+                },
               ],
             }
           : { dayOfWeek, mode: "unconfigured" as const, windows: [] }

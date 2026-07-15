@@ -3,6 +3,7 @@ import {
   classifyOpenAttendanceCheckins,
   resolveAttendanceDayForShift,
   resolveAttendanceScanIntent,
+  resolveStaffAttendanceSchedule,
   type ResolveAttendanceScanIntentInput,
 } from "@/lib/attendance/attendance-intent-engine";
 import type { AttendanceSettings } from "@/lib/attendance/types";
@@ -64,7 +65,9 @@ const normalSchedule: ResolvedStaffSchedule = {
   windows: [{ shiftType: "single", startTime: "09:00:00", endTime: "18:00:00" }],
 };
 
-function input(overrides: Partial<ResolveAttendanceScanIntentInput> = {}): ResolveAttendanceScanIntentInput {
+function input(
+  overrides: Partial<ResolveAttendanceScanIntentInput> = {}
+): ResolveAttendanceScanIntentInput {
   return {
     scanIso: "2026-07-10T01:05:00.000Z",
     scanDate: "2026-07-10",
@@ -144,11 +147,13 @@ describe("resolveAttendanceScanIntent", () => {
       })
     );
     expect(intent.type).toBe("overtime_clock_out");
-    expect(resolveAttendanceDayForShift({
-      scanDate: "2026-07-11",
-      scanTime: "01:20:00",
-      window: overnightSchedule.windows[0]!,
-    })).toBe("2026-07-10");
+    expect(
+      resolveAttendanceDayForShift({
+        scanDate: "2026-07-11",
+        scanTime: "01:20:00",
+        window: overnightSchedule.windows[0]!,
+      })
+    ).toBe("2026-07-10");
   });
 
   it("classifies duplicate scans without writing attendance", () => {
@@ -319,7 +324,9 @@ describe("classifyOpenAttendanceCheckins", () => {
         { shiftType: "closing", startTime: "15:00:00", endTime: "21:00:00" },
       ],
     };
-    const intent = resolveAttendanceScanIntent(input({ schedule: splitSchedule, scanTime: "20:45:00" }));
+    const intent = resolveAttendanceScanIntent(
+      input({ schedule: splitSchedule, scanTime: "20:45:00" })
+    );
     const classification = classifyOpenAttendanceCheckins({
       schedule: intent.schedule,
       openCheckins: [
@@ -349,7 +356,9 @@ describe("classifyOpenAttendanceCheckins", () => {
         { shiftType: "closing", startTime: "15:00:00", endTime: "21:00:00" },
       ],
     };
-    const intent = resolveAttendanceScanIntent(input({ schedule: splitSchedule, scanTime: "20:45:00" }));
+    const intent = resolveAttendanceScanIntent(
+      input({ schedule: splitSchedule, scanTime: "20:45:00" })
+    );
     const classification = classifyOpenAttendanceCheckins({
       schedule: intent.schedule,
       openCheckins: [
@@ -365,6 +374,72 @@ describe("classifyOpenAttendanceCheckins", () => {
     });
 
     expect(classification.matchingCheckin).toBeNull();
-    expect(classification.conflictingCheckins.map((checkin) => checkin.id)).toEqual(["opening-still-open"]);
+    expect(classification.conflictingCheckins.map((checkin) => checkin.id)).toEqual([
+      "opening-still-open",
+    ]);
+  });
+});
+
+describe("CRM Open-Close attendance schedule", () => {
+  const openCloseSchedule: ResolvedStaffSchedule = {
+    source: "individual",
+    status: "resolved",
+    state: "VALID_SPLIT_SHIFT",
+    coverageKind: "open_close",
+    isWorking: true,
+    isDayOff: false,
+    windows: [
+      {
+        id: "opening-row",
+        windowOrder: 1,
+        shiftType: "opening",
+        startTime: "10:00:00",
+        endTime: "17:00:00",
+        endsNextDay: false,
+      },
+      {
+        id: "closing-row",
+        windowOrder: 2,
+        shiftType: "closing",
+        startTime: "17:00:00",
+        endTime: "01:30:00",
+        endsNextDay: true,
+      },
+    ],
+  };
+
+  it("uses one closing-policy Attendance span from Opening start to overnight Closing end", () => {
+    const atOpening = resolveStaffAttendanceSchedule({
+      scanDate: "2026-07-10",
+      scanTime: "10:05:00",
+      timezone: "Asia/Manila",
+      schedule: openCloseSchedule,
+    });
+    const afterHandoff = resolveStaffAttendanceSchedule({
+      scanDate: "2026-07-10",
+      scanTime: "18:00:00",
+      timezone: "Asia/Manila",
+      schedule: openCloseSchedule,
+    });
+    const afterMidnight = resolveStaffAttendanceSchedule({
+      scanDate: "2026-07-11",
+      scanTime: "00:30:00",
+      timezone: "Asia/Manila",
+      schedule: openCloseSchedule,
+    });
+
+    for (const selection of [atOpening, afterHandoff, afterMidnight]) {
+      expect(selection.shiftType).toBe("closing");
+      expect(selection.shiftDate).toBe("2026-07-10");
+      expect(selection.scheduledStartAt).toBe("2026-07-10T02:00:00.000Z");
+      expect(selection.scheduledEndAt).toBe("2026-07-10T17:30:00.000Z");
+      expect(selection.selectedWindow).toMatchObject({
+        id: "closing-row",
+        shiftType: "closing",
+        startTime: "10:00:00",
+        endTime: "01:30:00",
+        endsNextDay: true,
+      });
+    }
   });
 });

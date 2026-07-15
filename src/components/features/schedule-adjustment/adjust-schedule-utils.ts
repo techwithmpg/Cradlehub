@@ -4,11 +4,16 @@ import {
   getScheduleShiftLabel,
   uiShiftToDatabase,
 } from "@/lib/schedule/schedule-domain";
+import {
+  getScheduleWindowAbsoluteRange,
+  getUniqueScheduleCoverageMinutes,
+} from "@/lib/schedule/schedule-coverage";
 import { MAX_STAFF_SCHEDULE_WINDOWS_PER_DAY } from "@/lib/schedule/staff-schedule-write";
 import { formatTime12h, timeToMinutes } from "@/lib/utils/time-format";
 import type {
   AdjustScheduleDraft,
   AdjustScheduleStaffItem,
+  OpenCloseNormalizationCandidate,
   ScheduleShiftKind,
   ScheduleValidationIssue,
   ScheduleWindowDraft,
@@ -69,8 +74,8 @@ export function createDraftFromScheduleItem(params: {
       .filter((schedule) => schedule.is_active)
       .sort(
         (a, b) =>
-          (a.window_order ?? Number.MAX_SAFE_INTEGER) - (b.window_order ?? Number.MAX_SAFE_INTEGER) ||
-          a.start_time.localeCompare(b.start_time)
+          (a.window_order ?? Number.MAX_SAFE_INTEGER) -
+            (b.window_order ?? Number.MAX_SAFE_INTEGER) || a.start_time.localeCompare(b.start_time)
       );
 
     if (rows.length === 0) {
@@ -131,10 +136,7 @@ export function getWindowDurationMinutes(window: ScheduleWindowDraft): number | 
 export function getWeeklyDurationMinutes(draft: AdjustScheduleDraft): number {
   return draft.days.reduce((total, day) => {
     if (day.mode !== "working") return total;
-    return (
-      total +
-      day.windows.reduce((dayTotal, window) => dayTotal + (getWindowDurationMinutes(window) ?? 0), 0)
-    );
+    return total + getUniqueScheduleCoverageMinutes(day.windows);
   }, 0);
 }
 
@@ -149,12 +151,91 @@ export function formatWindowTime(window: ScheduleWindowDraft): string {
   return `${formatTime12h(window.startTime)} - ${formatTime12h(window.endTime)}${suffix}`;
 }
 
+function getOpenCloseCandidate(
+  day: WeeklyScheduleDayDraft
+): OpenCloseNormalizationCandidate | null {
+  if (day.mode !== "working" || day.windows.length !== 2) return null;
+
+  const opening = day.windows.find((window) => window.shiftKind === "opening");
+  const closing = day.windows.find((window) => window.shiftKind === "closing");
+  if (!opening || !closing) return null;
+
+  const openingRange = getScheduleWindowAbsoluteRange(opening);
+  const closingRange = getScheduleWindowAbsoluteRange(closing);
+  if (!openingRange || !closingRange) return null;
+  if (openingRange.end - openingRange.start > 16 * 60) return null;
+  if (closingRange.end - closingRange.start > 16 * 60) return null;
+
+  const compatible =
+    openingRange.start < closingRange.start &&
+    closingRange.start < openingRange.end &&
+    closingRange.end > openingRange.end;
+  if (!compatible) return null;
+
+  return {
+    dayOfWeek: day.dayOfWeek,
+    openingWindowId: opening.id,
+    closingWindowId: closing.id,
+    openingStartTime: opening.startTime,
+    previousOpeningEndTime: opening.endTime,
+    closingStartTime: closing.startTime,
+    closingEndTime: closing.endTime,
+    closingEndsNextDay: closing.endsNextDay,
+  };
+}
+
+export function getOpenCloseNormalizationCandidates(params: {
+  draft: AdjustScheduleDraft;
+  eligible: boolean;
+}): OpenCloseNormalizationCandidate[] {
+  if (!params.eligible) return [];
+  return params.draft.days
+    .map(getOpenCloseCandidate)
+    .filter((candidate): candidate is OpenCloseNormalizationCandidate => candidate !== null);
+}
+
+export function normalizeOpenCloseCoverage(params: {
+  draft: AdjustScheduleDraft;
+  candidates: OpenCloseNormalizationCandidate[];
+}): AdjustScheduleDraft {
+  const candidateByDay = new Map(
+    params.candidates.map((candidate) => [candidate.dayOfWeek, candidate])
+  );
+
+  return {
+    ...params.draft,
+    days: params.draft.days.map((day) => {
+      const candidate = candidateByDay.get(day.dayOfWeek);
+      if (!candidate) return day;
+      return {
+        ...day,
+        windows: day.windows.map((window) =>
+          window.id === candidate.openingWindowId
+            ? {
+                ...window,
+                endTime: candidate.closingStartTime,
+                endsNextDay: false,
+              }
+            : window
+        ),
+      };
+    }),
+  };
+}
+
 export function validateAdjustScheduleDraft(params: {
   draft: AdjustScheduleDraft;
   allowedShiftKinds: ScheduleShiftKind[];
+  openCloseNormalizationEligible?: boolean;
 }): ScheduleValidationIssue[] {
   const issues: ScheduleValidationIssue[] = [];
   const allowed = new Set(params.allowedShiftKinds);
+  const compatibleByDay = new Map(
+    getOpenCloseNormalizationCandidates({
+      draft: params.draft,
+      eligible: params.openCloseNormalizationEligible === true,
+    }).map((candidate) => [candidate.dayOfWeek, candidate])
+  );
 
   for (const day of params.draft.days) {
     if (day.mode === "working" && day.windows.length === 0) {
@@ -182,7 +263,8 @@ export function validateAdjustScheduleDraft(params: {
       });
     }
 
-    const ranges: Array<{ start: number; end: number; order: number }> = [];
+    const compatible = compatibleByDay.get(day.dayOfWeek);
+    const ranges: Array<{ start: number; end: number; order: number; windowId: string }> = [];
     for (const [index, window] of day.windows.entries()) {
       if (!allowed.has(window.shiftKind)) {
         issues.push({
@@ -227,15 +309,23 @@ export function validateAdjustScheduleDraft(params: {
 
       for (const range of ranges) {
         if (range.start < absoluteEnd && start < range.end) {
+          const isCompatibleOpenClose = Boolean(
+            compatible &&
+            new Set([compatible.openingWindowId, compatible.closingWindowId]).has(window.id) &&
+            new Set([compatible.openingWindowId, compatible.closingWindowId]).has(range.windowId)
+          );
           issues.push({
             id: `overlap-${day.dayOfWeek}-${window.id}`,
+            code: isCompatibleOpenClose ? "open_close_overlap" : "overlap",
             level: "error",
             dayOfWeek: day.dayOfWeek,
-            message: `Window ${index + 1} overlaps Window ${range.order} on ${getDayLabel(day.dayOfWeek)}.`,
+            message: isCompatibleOpenClose
+              ? `${getDayLabel(day.dayOfWeek)} has overlapping Opening and Closing coverage. Fix automatically to use the Closing start as the responsibility handoff.`
+              : `Window ${index + 1} overlaps Window ${range.order} on ${getDayLabel(day.dayOfWeek)}.`,
           });
         }
       }
-      ranges.push({ start, end: absoluteEnd, order: index + 1 });
+      ranges.push({ start, end: absoluteEnd, order: index + 1, windowId: window.id });
     }
   }
 
@@ -243,7 +333,8 @@ export function validateAdjustScheduleDraft(params: {
     issues.push({
       id: "no-schedule",
       level: "info",
-      message: "No weekly schedule is configured yet. This staff member will not be available for booking from weekly rules.",
+      message:
+        "No weekly schedule is configured yet. This staff member will not be available for booking from weekly rules.",
     });
   }
 

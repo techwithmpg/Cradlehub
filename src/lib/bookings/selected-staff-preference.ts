@@ -1,7 +1,7 @@
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import type { StaffScheduleExceptionReasonCode } from "@/lib/bookings/staff-schedule-exception";
 import {
-  doesDurationFitWithinScheduleWindow,
+  doesDurationFitWithinScheduleWindows,
   type ResolvedStaffSchedule,
 } from "@/lib/schedule/resolve-staff-schedule";
 import { rangesOverlap, timeToMinutes } from "@/lib/engine/slot-time";
@@ -177,13 +177,11 @@ export function assessSelectedStaffPreference(
   }
 
   const durationMinutes = selectedRange.end - selectedRange.start;
-  const fitsSchedule = input.schedule.windows.some((window) =>
-    doesDurationFitWithinScheduleWindow({
-      slotStartTime: input.startTime,
-      durationMinutes,
-      window,
-    })
-  );
+  const fitsSchedule = doesDurationFitWithinScheduleWindows({
+    slotStartTime: input.startTime,
+    durationMinutes,
+    windows: input.schedule.windows,
+  });
 
   return {
     kind: "allowed",

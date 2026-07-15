@@ -1,4 +1,73 @@
-# Current Task - ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001
+# Current Task - CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001
+
+Status: COMPLETE
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Add a targeted Adjust Schedule repair for eligible CRM/front-desk staff whose
+same-day Opening and Closing responsibility windows overlap. The repair must
+normalize the Opening end to the Closing start, preserve the Closing overnight
+boundary and both responsibility labels, keep global overlap validation strict,
+and calculate preview/weekly totals from unique covered minutes.
+
+## Guardrails
+
+- Do not persist overlapping windows or weaken general overlap validation.
+- Restrict the repair to current CRM/CSR/front-desk role and staff-type policy;
+  do not silently expand therapist, salon, utility, driver, or managerial rules.
+- Preserve split shifts with gaps, exact-boundary adjacency, overnight business
+  dates, the existing weekly replacement transaction, bookings, Attendance
+  records, and dynamic Attendance clock-out policy.
+- Prefer local editor validation/normalization and pure coverage utilities; add
+  no migration, new shift enum, subscription, job, dependency, or Vercel cron
+  unless the current source proves one is required.
+
+## Work order
+
+1. Trace Adjust Schedule, shared weekly editor/draft, validation, preview,
+   hours, save action, resolver, availability, Attendance, permissions,
+   overnight handling, and focused tests.
+2. Add a pure compatible Open-Close classifier/normalizer and union-based unique
+   coverage calculation.
+3. Surface an explicit Fix automatically action that updates the unsaved draft,
+   reruns validation, and refreshes preview/totals.
+4. Add focused regressions across eligible/ineligible overlaps, adjacency,
+   overnight, totals, persistence payloads, availability, and Attendance.
+5. Run focused tests plus type-check, lint, full test, and production build;
+   update context docs with exact evidence and any remaining manual-QA limits.
+
+## Implementation and verification
+
+- Added an eligible CRM/CSR/front-desk-only Open-Close classifier and explicit
+  `Fix automatically` action in Adjust Schedule. It changes only the Opening
+  end to the Closing start, keeps both shift labels and the Closing overnight
+  boundary, and requires the existing Save Adjustment transaction to persist.
+- Added shared union-based coverage arithmetic. Overlapping and touching windows
+  count unique minutes once and support continuous fit across an exact handoff;
+  real split-shift gaps remain unavailable. Four 10:00-01:30 workdays calculate
+  as 62h before and after normalization.
+- The resolver marks only eligible adjacent CRM Open-Close days as continuous
+  coverage. Booking/availability/conflict consumers use that coverage, while
+  Attendance keeps the Opening start and Closing end/responsibility across the
+  handoff and next-day business-date boundary.
+- No schema, migration, enum, booking record, Attendance record, Vercel config,
+  dependency, or dynamic clock-out policy changed. Existing strict database and
+  server overlap rejection remains authoritative; adjacency remains valid.
+- Verification passed: 93 focused tests; 135 files / 1,075 full tests;
+  type-check; lint with the one pre-existing unrelated unused-function warning;
+  `git diff --check`; and the Next.js 16.2.4 production build with 110 routes.
+- Authenticated localhost QA used Nikki Jumiller's exact Wed-Sat regression
+  fixture: warning and 62h appeared before repair, the repaired preview showed
+  10:00-17:00 plus 17:00-01:30 next day, Save succeeded, the timeline refreshed
+  to continuous 10:00-01:30 coverage with zero conflicts, and reopening showed
+  the persisted valid 62h schedule. The selected staff had zero same-day
+  bookings before and after; no positive next-day booking fixture was created.
+
+---
+
+# Previous Task - ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001
 
 Status: COMPLETE
 Started: 2026-07-15
