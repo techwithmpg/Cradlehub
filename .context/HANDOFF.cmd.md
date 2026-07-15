@@ -24,6 +24,12 @@ was performed. Complete authenticated therapist/CRM/salon/driver/QR concurrency
 QA with dedicated identities and devices before calling physical E2E certified.
 See `docs/attendance/SMART_DYNAMIC_CLOCK_OUT.md`.
 
+Release commit `5b0ce6cb` is on `origin/main`. Its Vercel production deployment
+reached READY with no build error, the public `www` domain returned 200, and an
+unauthenticated Staff Portal request safely rendered sign-in. The observed
+runtime error cluster is the unrelated existing Anthropic credit-balance failure
+in `/api/agent/coach`; no Attendance runtime error was observed.
+
 ---
 
 ## ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001 - 2026-07-15

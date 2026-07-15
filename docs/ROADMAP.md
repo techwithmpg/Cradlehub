@@ -20,15 +20,15 @@
 
 ## Current Delivery Notes
 
-- 🟡 `ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001` implemented and in final release
-  verification on 2026-07-15: one schedule-backed resolver now derives dynamic
+- ✅ `ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001` completed and production-accepted
+  on 2026-07-15: one schedule-backed resolver now derives dynamic
   expected clock-out from final service, branch-closing service, home service,
   or driver trip; branch QR remains default, limited portal clock-out is fully
   server/device authorized, event triggers target affected open rows, and stored
   deadlines remain compatible with the four Supabase safety stages. The isolated
-  migration is live and a Training Mode resolver probe passed. Full clean gates,
-  `main` deployment observation, and authenticated physical-device/multi-role E2E
-  remain before this note can be marked complete.
+  migration is live, a Training Mode resolver probe passed, all automated gates
+  are green, and commit `5b0ce6cb` reached READY on Vercel production. Dedicated
+  authenticated physical-device/multi-role E2E remains follow-up evidence.
 
 - ✅ `ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001` completed on 2026-07-15:
   removed the Vercel Hobby-incompatible five-minute Attendance cron, deployed one

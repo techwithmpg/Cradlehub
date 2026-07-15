@@ -26,8 +26,9 @@
 - Added the operations/upgrade guide and all 59 required contracts. Final gates
   pass: type-check; lint (one pre-existing warning); 134 files / 1,062 tests;
   additive/secret/config checks; linked live health verification; and a Next.js
-  16.2.4 production build with 110 routes. Production Git/Vercel observation is
-  the remaining release action; authenticated physical-device E2E is not claimed.
+  16.2.4 production build with 110 routes. Commit `5b0ce6cb` deployed READY on
+  Vercel production; the public domain returned 200 and Staff Portal safely
+  resolved to sign-in. Authenticated physical-device E2E is not claimed.
 
 ## 2026-07-15 - Codex (ATTENDANCE-HYBRID-CLOSING-AUTOMATION-001)
 

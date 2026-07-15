@@ -1,6 +1,6 @@
 # Current Task - ATTENDANCE-SMART-DYNAMIC-CLOCK-OUT-001
 
-Status: RELEASE_PENDING
+Status: COMPLETE
 Started: 2026-07-15
 Last updated: 2026-07-15
 
@@ -60,9 +60,11 @@ recalculate only affected open Attendance records from lifecycle events.
   do not run a broad `db push` until that independent drift is reconciled.
 - Final automated gates pass: type-check; lint with one pre-existing warning;
   134 test files / 1,062 tests; live health; additive/config/secret checks; and
-  the Next.js 16.2.4 production build with 110 routes. Commit/push and production
-  observation remain. Authenticated multi-role and physical-device E2E is not
-  claimed.
+  the Next.js 16.2.4 production build with 110 routes.
+- Commit `5b0ce6cb` is on `origin/main` and Vercel production deployment
+  `dpl_4g7CsMzV42FVTUG8yXQcfWGy6m3k` reached READY. The public `www` domain
+  returned 200 and unauthenticated `/staff-portal` safely rendered sign-in.
+  Authenticated multi-role and physical-device E2E is not claimed.
 
 ---
 

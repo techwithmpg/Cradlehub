@@ -26,6 +26,10 @@
   Mode schedule-fallback probe passed and an unchanged second resolution made no
   write. The migration is intentionally not recorded in remote migration history
   because the broader 81 local-only / 5 remote-only drift remains unresolved.
+- Release commit `5b0ce6cb` is on `origin/main`; its Vercel production deployment
+  reached READY with no build error. The public `www` domain returned 200 and
+  unauthenticated Staff Portal safely rendered sign-in. Authenticated role/device
+  E2E remains follow-up evidence, not a claimed result of this task.
 
 ---
 
