@@ -118,8 +118,12 @@ type CrmAvailabilityResponse = {
   available: boolean;
   message?: string | null;
   warning?: string | null;
+  reasonCode?: string | null;
   slots?: SlotRow[];
+  availableStaffIds?: string[];
 };
+
+type TherapistAvailabilityStatus = "idle" | "loading" | "ready" | "empty" | "error";
 
 type HomeServiceDistanceQuote = {
   distanceKm: number;
@@ -211,7 +215,7 @@ function serviceAvailableForMode(
 
 function staffCanPerformServices(member: QuickBookingStaffOption, serviceIds: string[]): boolean {
   if (serviceIds.length === 0) return true;
-  return member.serviceIds.length === 0 || serviceIds.every((id) => member.serviceIds.includes(id));
+  return serviceIds.every((id) => member.serviceIds.includes(id));
 }
 
 function formatAttendanceTime(iso: string | null): string {
@@ -237,6 +241,39 @@ function mapServerErrorToFields(message: string): FieldErrors {
   }
   if (normalized.includes("payment")) return { paymentMethod: message };
   return {};
+}
+
+async function requestCrmAvailability(params: {
+  branchId: string;
+  serviceIds: string[];
+  date: string;
+  time: string;
+  staffId?: string;
+  bookingMode: QuickBookingMode;
+  deliveryType: "in_spa" | "home_service";
+  signal?: AbortSignal;
+}): Promise<CrmAvailabilityResponse> {
+  const response = await fetch("/api/booking/crm-availability", {
+    method: "POST",
+    credentials: "same-origin",
+    signal: params.signal,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      branchId: params.branchId,
+      serviceIds: params.serviceIds,
+      date: params.date,
+      time: normalizeTime(params.time),
+      staffId: params.staffId || undefined,
+      bookingMode: params.bookingMode,
+      deliveryType: params.deliveryType,
+    }),
+  });
+  const data = (await response.json()) as CrmAvailabilityResponse & { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error ?? "Unable to check CRM availability.");
+  }
+
+  return data;
 }
 
 export function QuickBookingForm({
@@ -307,6 +344,10 @@ export function QuickBookingForm({
     | null
   >(null);
   const [loadingAttendanceHint, setLoadingAttendanceHint] = useState(false);
+  const [availableStaffIds, setAvailableStaffIds] = useState<string[]>([]);
+  const [therapistAvailabilityStatus, setTherapistAvailabilityStatus] =
+    useState<TherapistAvailabilityStatus>("idle");
+  const [therapistAvailabilityMessage, setTherapistAvailabilityMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState("");
   const [loadingNextSlot, setLoadingNextSlot] = useState(false);
@@ -340,10 +381,22 @@ export function QuickBookingForm({
       : `${selectedServiceCount} service${selectedServiceCount === 1 ? "" : "s"} · ${formatServiceDuration(totalDurationMinutes)} · ${formatCurrency(totalPrice)}`;
   const selectedStaff = staff.find((member) => member.id === staffId) ?? null;
   const selectedResource = resources.find((resource) => resource.id === resourceId) ?? null;
-  const eligibleStaff = useMemo(
+  const serviceCapableStaff = useMemo(
     () => staff.filter((member) => staffCanPerformServices(member, selectedServiceIds)),
     [selectedServiceIds, staff]
   );
+  const availableStaffIdSet = useMemo(
+    () => new Set(availableStaffIds),
+    [availableStaffIds]
+  );
+  const availableTherapists = useMemo(
+    () => serviceCapableStaff.filter((member) => availableStaffIdSet.has(member.id)),
+    [availableStaffIdSet, serviceCapableStaff]
+  );
+  const therapistPrerequisitesReady =
+    selectedServiceIds.length > 0 && Boolean(date) && Boolean(time);
+  const eligibleAttendanceHint =
+    attendanceHint && availableStaffIdSet.has(attendanceHint.staffId) ? attendanceHint : null;
   const slotIsAllowedByRules = (slotTime: string, candidateMode: QuickBookingMode): boolean => {
     if (candidateMode === "home_service" && !bookingRules.homeServiceEnabled) return false;
 
@@ -426,6 +479,85 @@ export function QuickBookingForm({
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const id = window.setTimeout(() => {
+      if (!therapistPrerequisitesReady) {
+        setAvailableStaffIds([]);
+        setTherapistAvailabilityStatus("idle");
+        setTherapistAvailabilityMessage("");
+        return;
+      }
+
+      setAvailableStaffIds([]);
+      setTherapistAvailabilityStatus("loading");
+      setTherapistAvailabilityMessage("");
+
+      requestCrmAvailability({
+        branchId,
+        serviceIds: selectedServiceIds,
+        date,
+        time,
+        bookingMode: mode,
+        deliveryType: isHomeService ? "home_service" : "in_spa",
+        signal: controller.signal,
+      })
+        .then((result) => {
+          if (controller.signal.aborted) return;
+          const nextAvailableStaffIds = Array.from(new Set(result.availableStaffIds ?? []));
+          setAvailableStaffIds(nextAvailableStaffIds);
+          setTherapistAvailabilityStatus(
+            nextAvailableStaffIds.length > 0 ? "ready" : "empty"
+          );
+          setTherapistAvailabilityMessage(
+            nextAvailableStaffIds.length > 0
+              ? ""
+              : result.message ?? NO_SCHEDULED_THERAPIST_MESSAGE
+          );
+
+          if (nextAvailableStaffIds.length > 0) {
+            setFieldErrors((current) => ({ ...current, time: undefined }));
+            setFormError("");
+          }
+
+          if (staffId && !nextAvailableStaffIds.includes(staffId)) {
+            const unavailableStaff = staff.find((member) => member.id === staffId);
+            setStaffId("");
+            if (unavailableStaff) {
+              toast.info("Therapist selection cleared", {
+                description: `${unavailableStaff.nickname || unavailableStaff.name} is not available for the selected services, date, and time.`,
+              });
+            }
+          }
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setAvailableStaffIds([]);
+          setTherapistAvailabilityStatus("error");
+          setTherapistAvailabilityMessage(
+            error instanceof Error
+              ? error.message
+              : "Therapist availability could not be checked."
+          );
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(id);
+      controller.abort();
+    };
+  }, [
+    branchId,
+    date,
+    isHomeService,
+    mode,
+    selectedServiceIds,
+    staff,
+    staffId,
+    therapistPrerequisitesReady,
+    time,
+  ]);
+
   // Fetch attendance queue hint when date or services change.
   // State updates only happen inside async callbacks to avoid synchronous
   // setState in the effect body.
@@ -433,6 +565,11 @@ export function QuickBookingForm({
     const controller = new AbortController();
     const id = window.setTimeout(() => {
       if (!branchId || !date || controller.signal.aborted) return;
+      if (mode !== "walkin" || date !== todayYmd()) {
+        setAttendanceHint(null);
+        setLoadingAttendanceHint(false);
+        return;
+      }
       setLoadingAttendanceHint(true);
       getAttendanceQueueSuggestionAction({
         branchId,
@@ -454,7 +591,7 @@ export function QuickBookingForm({
       window.clearTimeout(id);
       controller.abort();
     };
-  }, [branchId, date, selectedServiceIds]);
+  }, [branchId, date, mode, selectedServiceIds]);
 
   useEffect(() => {
     const query = customerQuery.trim();
@@ -676,7 +813,11 @@ export function QuickBookingForm({
       const maxDaysToSearch = Math.min(14, Math.max(1, bookingRules.maxAdvanceBookingDays + 1));
       for (let offset = 0; offset < maxDaysToSearch; offset += 1) {
         const candidateDate = addDaysYmd(date, offset);
-        const data = await fetchCrmAvailability(candidateDate, time || "00:00");
+        const data = await fetchCrmAvailability(
+          candidateDate,
+          time || "00:00",
+          staffId || null
+        );
         const nextSlot = (data.slots ?? []).find(
           (slot) =>
             slot.available &&
@@ -704,32 +845,22 @@ export function QuickBookingForm({
 
   async function fetchCrmAvailability(
     availabilityDate: string,
-    availabilityTime: string
+    availabilityTime: string,
+    candidateStaffId: string | null
   ): Promise<CrmAvailabilityResponse> {
     if (selectedServiceIds.length === 0 || !availabilityDate || !availabilityTime) {
       return { available: false, message: NO_SCHEDULED_THERAPIST_MESSAGE, slots: [] };
     }
 
-    const response = await fetch("/api/booking/crm-availability", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        branchId,
-        serviceIds: selectedServiceIds,
-        date: availabilityDate,
-        time: normalizeTime(availabilityTime),
-        staffId: staffId || undefined,
-        bookingMode: mode,
-        deliveryType: isHomeService ? "home_service" : "in_spa",
-      }),
+    return requestCrmAvailability({
+      branchId,
+      serviceIds: selectedServiceIds,
+      date: availabilityDate,
+      time: availabilityTime,
+      staffId: candidateStaffId || undefined,
+      bookingMode: mode,
+      deliveryType: isHomeService ? "home_service" : "in_spa",
     });
-    const data = (await response.json()) as CrmAvailabilityResponse & { error?: string };
-    if (!response.ok) {
-      throw new Error(data.error ?? "Unable to check CRM availability.");
-    }
-
-    return data;
   }
 
   async function submit() {
@@ -743,7 +874,7 @@ export function QuickBookingForm({
     setSlotChecking(true);
     let availability: CrmAvailabilityResponse;
     try {
-      availability = await fetchCrmAvailability(date, time);
+      availability = await fetchCrmAvailability(date, time, staffId || null);
     } catch {
       setSlotChecking(false);
       const message = "Unable to check CRM availability. Choose another time or try again.";
@@ -1106,38 +1237,88 @@ export function QuickBookingForm({
                     <select
                       value={staffId}
                       onChange={(event) => setStaffId(event.target.value)}
-                      disabled={isSaving}
+                      disabled={
+                        isSaving ||
+                        !therapistPrerequisitesReady ||
+                        therapistAvailabilityStatus === "loading" ||
+                        therapistAvailabilityStatus === "empty" ||
+                        therapistAvailabilityStatus === "error"
+                      }
                       className={selectClassName(false)}
                     >
-                      <option value="">First available therapist</option>
-                      {eligibleStaff.map((member) => (
+                      <option value="">
+                        {!therapistPrerequisitesReady
+                          ? "Choose services, date and time first"
+                          : therapistAvailabilityStatus === "loading"
+                            ? "Checking therapist schedules…"
+                            : therapistAvailabilityStatus === "empty"
+                              ? "No therapist available at this time"
+                              : therapistAvailabilityStatus === "error"
+                                ? "Availability check failed"
+                                : "First available therapist"}
+                      </option>
+                      {availableTherapists.map((member) => (
                         <option key={member.id} value={member.id}>
-                          {member.nickname || member.name}
+                          {member.nickname
+                            ? `${member.nickname} — ${member.name}`
+                            : member.name}
                         </option>
                       ))}
                     </select>
-                    {loadingAttendanceHint ? (
+                    {therapistAvailabilityStatus === "loading" ? (
                       <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
                         <Loader2 size={12} className="animate-spin" />
-                        Checking attendance queue…
+                        Checking therapist schedules…
                       </p>
-                    ) : attendanceHint ? (
+                    ) : therapistAvailabilityStatus === "ready" ? (
                       <p className="mt-1.5 text-xs text-[var(--cs-sand-dark)]">
-                        Suggested from attendance queue:{" "}
-                        <span className="font-semibold">{attendanceHint.nickname || attendanceHint.fullName}</span>
-                        {" · Queue #"}{attendanceHint.queuePosition}
-                        {attendanceHint.checkedInAt
-                          ? ` · Clocked in ${formatAttendanceTime(attendanceHint.checkedInAt)}`
-                          : null}
-                        {staffId && staffId !== attendanceHint.staffId ? (
-                          <span className="ml-1 text-[var(--cs-text-muted)]">(override)</span>
-                        ) : null}
+                        {availableTherapists.length} therapist
+                        {availableTherapists.length === 1 ? "" : "s"} available at {time}.
+                        Only scheduled staff who can perform all selected services are shown.
+                      </p>
+                    ) : therapistAvailabilityStatus === "empty" ? (
+                      <p className="mt-1.5 text-xs text-[var(--cs-danger-text)]">
+                        {therapistAvailabilityMessage || NO_SCHEDULED_THERAPIST_MESSAGE}
+                      </p>
+                    ) : therapistAvailabilityStatus === "error" ? (
+                      <p className="mt-1.5 text-xs text-[var(--cs-danger-text)]">
+                        {therapistAvailabilityMessage ||
+                          "Therapist availability could not be checked."}
                       </p>
                     ) : (
                       <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
-                        No checked-in staff for this date yet.
+                        Choose services, date and time to see available therapists.
                       </p>
                     )}
+
+                    {mode === "walkin" && date === todayYmd() ? (
+                      loadingAttendanceHint ? (
+                        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                          <Loader2 size={12} className="animate-spin" />
+                          Checking attendance queue…
+                        </p>
+                      ) : eligibleAttendanceHint ? (
+                        <p className="mt-1.5 text-xs text-[var(--cs-sand-dark)]">
+                          Suggested from attendance queue:{" "}
+                          <span className="font-semibold">
+                            {eligibleAttendanceHint.nickname || eligibleAttendanceHint.fullName}
+                          </span>
+                          {" · Queue #"}{eligibleAttendanceHint.queuePosition}
+                          {eligibleAttendanceHint.checkedInAt
+                            ? ` · Clocked in ${formatAttendanceTime(
+                                eligibleAttendanceHint.checkedInAt
+                              )}`
+                            : null}
+                          {staffId && staffId !== eligibleAttendanceHint.staffId ? (
+                            <span className="ml-1 text-[var(--cs-text-muted)]">(override)</span>
+                          ) : null}
+                        </p>
+                      ) : therapistAvailabilityStatus === "ready" ? (
+                        <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
+                          No therapist has clocked in yet, but scheduled staff are available.
+                        </p>
+                      ) : null
+                    ) : null}
                   </div>
 
                   {!isHomeService ? (

@@ -247,6 +247,9 @@ export async function POST(request: NextRequest) {
       .map((staff) => staff.id)
   );
   const hasServiceCapability = capableStaffIds.size > 0;
+  const selectedScopeHasServiceCapability = parsed.data.staffId
+    ? capableStaffIds.has(parsed.data.staffId)
+    : hasServiceCapability;
 
   const normalizedTime = timePrefix(parsed.data.time);
   const slotsAtTime = slots.filter((slot) => slot.slot_time.startsWith(normalizedTime));
@@ -280,22 +283,24 @@ export async function POST(request: NextRequest) {
 
   const reasonCode: CrmAvailabilityReasonCode | null = available
     ? null
-    : !hasServiceCapability
+    : !selectedScopeHasServiceCapability
       ? "missing_service_capability"
       : outsideHoursReason
         ? outsideHoursReason
-        : slotsAtTime.length === 0
+        : scopedSlotsAtTime.length === 0
           ? "no_schedule_for_time"
           : "blocked_by_booking";
   const message = available
     ? null
     : reasonCode === "missing_service_capability"
       ? CRM_AVAILABILITY_MESSAGES.noServiceCapability
-      : reasonCode === "no_schedule_for_time" ||
-          reasonCode === "outside_home_service_hours" ||
-          reasonCode === "outside_in_spa_hours"
-        ? CRM_AVAILABILITY_MESSAGES.noSchedule
-        : CRM_AVAILABILITY_MESSAGES.noScheduledTherapist;
+      : reasonCode === "outside_home_service_hours"
+        ? CRM_AVAILABILITY_MESSAGES.outsideHomeServiceHours
+        : reasonCode === "outside_in_spa_hours"
+          ? CRM_AVAILABILITY_MESSAGES.outsideInSpaHours
+          : reasonCode === "no_schedule_for_time"
+            ? CRM_AVAILABILITY_MESSAGES.noSchedule
+            : CRM_AVAILABILITY_MESSAGES.noScheduledTherapist;
 
   const canSeeDebug =
     process.env.NODE_ENV !== "production" ||
@@ -354,7 +359,9 @@ export async function POST(request: NextRequest) {
     warning,
     reasonCode,
     slots,
-    availableStaffIds: availableSlotsAtTime.map((slot) => slot.staff_id),
+    availableStaffIds: Array.from(
+      new Set(availableSlotsAtTime.map((slot) => slot.staff_id))
+    ),
     rejectedTherapists,
   });
 }

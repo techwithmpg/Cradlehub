@@ -30,6 +30,7 @@ type ServiceRelation =
 
 type BranchServiceRow = {
   custom_price?: number | string | null;
+  custom_duration_minutes?: number | null;
   available_in_spa?: boolean;
   available_home_service?: boolean;
   services?: ServiceRelation;
@@ -42,6 +43,8 @@ type StaffRow = {
   is_active: boolean | null;
   staff_type: string | null;
   system_role: string | null;
+  archived_at: string | null;
+  merged_into_staff_id: string | null;
   staff_services: { service_id: string }[] | null;
 };
 
@@ -81,9 +84,11 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
     getBranchServices(branchId, { publicOnly: false }),
     admin
       .from("staff")
-      .select("id, full_name, nickname, is_active, staff_type, system_role, staff_services(service_id)")
+      .select("id, full_name, nickname, is_active, staff_type, system_role, archived_at, merged_into_staff_id, staff_services(service_id)")
       .eq("branch_id", branchId)
       .eq("is_active", true)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null)
       .order("full_name", { ascending: true }),
     admin
       .from("branch_resources")
@@ -102,7 +107,7 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
         id: service.id,
         name: service.name,
         price: Number(row.custom_price ?? service.price ?? 0),
-        durationMinutes: Number(service.duration_minutes ?? 0),
+        durationMinutes: Number(row.custom_duration_minutes ?? service.duration_minutes ?? 0),
         availableInSpa: row.available_in_spa ?? true,
         availableHomeService: row.available_home_service ?? false,
       };

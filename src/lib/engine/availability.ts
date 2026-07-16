@@ -90,9 +90,12 @@ export const NO_CHECKED_IN_STAFF_WARNING =
 export const CRM_AVAILABILITY_MESSAGES = {
   noServiceCapability:
     "No therapist is assigned to this service yet. Check Staff Management \u2192 Service Assignments.",
-  noSchedule: "No schedule is configured for this branch/time.",
+  noSchedule: "No therapist is scheduled for the selected date and time.",
+  outsideInSpaHours: "The selected time is outside this branch's in-spa booking hours.",
+  outsideHomeServiceHours:
+    "Home Service is disabled or the selected time is outside Home Service hours for this branch.",
   noScheduledTherapist:
-    "No scheduled therapist is available at this time. Try another time or check staff schedules.",
+    "All qualified therapists are already booked or unavailable at this time.",
   noClockInWarning: NO_CHECKED_IN_STAFF_WARNING,
 } as const;
 

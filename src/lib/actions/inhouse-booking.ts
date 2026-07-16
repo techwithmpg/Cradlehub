@@ -142,6 +142,19 @@ export async function createInhouseBookingMultiAction(
     };
   }
 
+  if (
+    !isDevAuthBypassEnabled() &&
+    staff &&
+    staffRole !== "owner" &&
+    staff.branch_id !== resolvedBranchId
+  ) {
+    return {
+      ok: false,
+      code: "CRM_BRANCH_FORBIDDEN",
+      message: "You can only create bookings for your assigned branch.",
+    };
+  }
+
   // Home service requires address details
   if (deliveryType === "home_service") {
     if (!d.homeServiceAddress?.trim() && !d.homeServiceFormattedAddress?.trim()) {
@@ -245,13 +258,39 @@ export async function createInhouseBookingMultiAction(
     let resolvedResourceId = d.resourceId ?? null;
 
     // ── Calculate total combined duration for resource check ────────────────
-    const { data: svcsCombined } = await admin
-      .from("services")
-      .select("duration_minutes, buffer_before, buffer_after")
-      .in("id", d.serviceIds);
+    const [combinedServicesResult, combinedOverridesResult] = await Promise.all([
+      admin
+        .from("services")
+        .select("id, duration_minutes, buffer_before, buffer_after")
+        .in("id", d.serviceIds),
+      admin
+        .from("branch_services")
+        .select("service_id, custom_duration_minutes")
+        .eq("branch_id", resolvedBranchId)
+        .eq("is_active", true)
+        .in("service_id", d.serviceIds),
+    ]);
 
-    const totalMinutesCombined = (svcsCombined ?? []).reduce(
-      (sum, s) => sum + s.duration_minutes + s.buffer_before + s.buffer_after,
+    if (combinedServicesResult.error || combinedOverridesResult.error) {
+      return {
+        ok: false,
+        code: "SERVICE_TIMING_ERROR",
+        message: "Could not calculate the service duration. Please refresh and try again.",
+      };
+    }
+
+    const combinedDurationByServiceId = new Map(
+      (combinedOverridesResult.data ?? []).map((row) => [
+        row.service_id,
+        row.custom_duration_minutes,
+      ])
+    );
+    const totalMinutesCombined = (combinedServicesResult.data ?? []).reduce(
+      (sum, service) =>
+        sum +
+        Number(combinedDurationByServiceId.get(service.id) ?? service.duration_minutes) +
+        Number(service.buffer_before) +
+        Number(service.buffer_after),
       0
     );
     const combinedEndTime = computeEndTimeLocal(startTime, totalMinutesCombined);
@@ -285,6 +324,25 @@ export async function createInhouseBookingMultiAction(
             message: "No room is available at the selected time.",
           };
         }
+      }
+    }
+
+    // Verify a manually selected room belongs to this branch and is active.
+    if (d.resourceId) {
+      const { data: selectedResource, error: selectedResourceError } = await admin
+        .from("branch_resources")
+        .select("id")
+        .eq("id", d.resourceId)
+        .eq("branch_id", resolvedBranchId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (selectedResourceError || !selectedResource) {
+        return {
+          ok: false,
+          code: "RESOURCE_INVALID",
+          message: "The selected room does not belong to this branch or is inactive.",
+        };
       }
     }
 
@@ -373,7 +431,7 @@ export async function createInhouseBookingMultiAction(
 
     const { data: branchOverrides, error: branchOverridesError } = await admin
       .from("branch_services")
-      .select("service_id, custom_price, available_in_spa, available_home_service")
+      .select("service_id, custom_price, custom_duration_minutes, available_in_spa, available_home_service")
       .eq("branch_id", resolvedBranchId)
       .in("service_id", d.serviceIds)
       .eq("is_active", true);
@@ -391,6 +449,14 @@ export async function createInhouseBookingMultiAction(
     const overrideByServiceId = new Map(
       (branchOverrides ?? []).map((row) => [row.service_id, row])
     );
+
+    if (overrideByServiceId.size !== new Set(d.serviceIds).size) {
+      return {
+        ok: false,
+        code: "SERVICE_NOT_CONFIGURED_FOR_BRANCH",
+        message: "One or more selected services are not configured for this branch.",
+      };
+    }
 
     // Verify each service is eligible for the booking type
     const needsInSpa = deliveryType !== "home_service";
@@ -525,8 +591,11 @@ export async function createInhouseBookingMultiAction(
         };
       }
 
+      const effectiveDurationMinutes = Number(
+        overrideByServiceId.get(service.id)?.custom_duration_minutes ?? service.duration_minutes
+      );
       const totalMinutes =
-        Number(service.duration_minutes) +
+        effectiveDurationMinutes +
         Number(service.buffer_before) +
         Number(service.buffer_after);
       const endTime = computeEndTimeLocal(currentStart, totalMinutes);
@@ -557,7 +626,7 @@ export async function createInhouseBookingMultiAction(
             ? Number(overridePrice)
             : Number(service.price)) + travelFeeForThisRow,
         service_name:          service.name,
-        duration_minutes:      Number(service.duration_minutes),
+        duration_minutes:      effectiveDurationMinutes,
         customer_notes:        d.notes ?? null,
         crm_booking_mode:      crmBookingMode,
         source:                "crm_quick_booking",
@@ -606,6 +675,7 @@ export async function createInhouseBookingMultiAction(
           payment_status:    paymentReceived ? "paid" : "pending",
           payment_reference: d.paymentReference ?? null,
           amount_paid:       amountPaid,
+          session_duration_minutes_snapshot: effectiveDurationMinutes,
           hold_expires_at:   null,
           travel_buffer_mins:
             deliveryType === "home_service"
@@ -624,6 +694,20 @@ export async function createInhouseBookingMultiAction(
             .update({ status: "cancelled" })
             .in("id", insertedIds);
         }
+
+        const bookingErrorMessage = bookingError?.message ?? "";
+        if (
+          bookingError?.code === "23P01" ||
+          bookingErrorMessage.includes("BOOKING_STAFF_TIME_CONFLICT") ||
+          bookingErrorMessage.includes("BOOKING_RESOURCE_TIME_CONFLICT")
+        ) {
+          return {
+            ok: false,
+            code: "SLOT_UNAVAILABLE",
+            message: "That therapist or room was just booked. Please choose another available option.",
+          };
+        }
+
         console.error("[CRM_BOOKING] insert failed", {
           ...logContext,
           serviceId,
