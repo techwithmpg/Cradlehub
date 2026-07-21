@@ -6,12 +6,18 @@ import { ScheduleEmptyState } from "../workspace/schedule-empty-state";
 import { Loader2, Settings } from "lucide-react";
 import { ScheduleSetupWorkspace } from "@/components/features/staff-schedule/schedule-setup-workspace";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
+import {
+  unwrapWorkspaceSWRKey,
+  useWorkspaceSWRKey,
+  type WorkspaceScopedSWRKey,
+} from "@/components/features/dashboard/workspace-swr-cache";
 
 type SetupData = {
   items: StaffScheduleItem[];
 };
 
-async function fetcher(url: string): Promise<SetupData> {
+async function fetcher(key: WorkspaceScopedSWRKey<string>): Promise<SetupData> {
+  const url = unwrapWorkspaceSWRKey(key);
   const res = await fetch(url, { credentials: "same-origin" });
   if (!res.ok) throw new Error(`Schedule setup fetch failed: ${res.status}`);
   return res.json();
@@ -24,8 +30,11 @@ export function ScheduleSetupTab({
   branchId: string;
   onScheduleChanged?: () => void | Promise<void>;
 }) {
+  const setupKey = useWorkspaceSWRKey(
+    `/api/crm/staff-schedule/overview?branchId=${branchId}`
+  );
   const { data, isLoading, mutate } = useSWR<SetupData>(
-    `/api/crm/staff-schedule/overview?branchId=${branchId}`,
+    setupKey,
     fetcher,
     { revalidateOnFocus: true, dedupingInterval: 30_000 }
   );

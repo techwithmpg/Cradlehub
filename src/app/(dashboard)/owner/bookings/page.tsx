@@ -2,13 +2,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getAllBranches } from "@/lib/queries/branches";
-import { BookingsWorkspace } from "@/components/features/bookings/bookings-workspace";
+import { OwnerBookingsView } from "@/components/features/bookings/owner-bookings-view";
 import {
   getOwnerWorkspaceBookingsAction,
-  ownerUpdateBookingStatusAction,
-  ownerUpdateBookingPaymentAction,
 } from "./actions";
 import type { WorkspaceBookingRow } from "@/components/features/bookings/bookings-workspace";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 async function requireOwnerContext() {
   const supabase = await createClient();
@@ -50,19 +49,16 @@ export default async function OwnerBookingsPage({
   const bookings: WorkspaceBookingRow[] = "error" in bookingsResult ? [] : (bookingsResult.bookings as WorkspaceBookingRow[]);
 
   return (
-    <BookingsWorkspace
-      workspaceContext="owner"
-      viewerRole="owner"
-      branches={branchesResult}
-      date={date}
-      statusFilter={params.status}
-      typeFilter={params.type}
-      branchFilter={params.branch}
-      search={params.search}
-      bookings={bookings}
-      cashSummary={null}
-      statusAction={ownerUpdateBookingStatusAction}
-      paymentAction={ownerUpdateBookingPaymentAction}
-    />
+    <RetainedWorkspaceModule moduleId="owner-bookings">
+      <OwnerBookingsView
+        initialBookings={bookings}
+        initialDate={date}
+        initialBranch={params.branch}
+        initialStatus={params.status}
+        initialType={params.type}
+        initialSearch={params.search}
+        branches={branchesResult}
+      />
+    </RetainedWorkspaceModule>
   );
 }

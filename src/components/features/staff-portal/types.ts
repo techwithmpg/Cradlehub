@@ -30,6 +30,8 @@ export type StaffPortalBooking = {
   travel_started_at: string | null;
   arrived_at: string | null;
   session_started_at: string | null;
+  session_due_at: string | null;
+  session_duration_minutes_snapshot: number | null;
   completed_at: string | null;
   session_completed_at: string | null;
   checked_in_at: string | null;

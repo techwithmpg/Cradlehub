@@ -54,6 +54,7 @@ function isPreciseHomeServiceLocation(input: {
 
 // ── Public online booking ──────────────────────────────────────────────────
 export const createOnlineBookingSchema = z.object({
+  website:          z.string().max(0, "Unable to submit this request").optional(),
   branchId:         uuid,
   serviceId:        uuid,
   staffId:          uuid.optional(),          // undefined = "any therapist"
@@ -66,7 +67,7 @@ export const createOnlineBookingSchema = z.object({
   phone,
   email:            z.string().email("Invalid email").optional().or(z.literal("")),
   notes:            z.string().max(500).optional(),
-});
+}).strict();
 export type CreateOnlineBookingInput = z.infer<typeof createOnlineBookingSchema>;
 
 // ── Manager walk-in / home service at front desk ───────────────────────────
@@ -146,7 +147,7 @@ export const createInhouseBookingMultiSchema = z.object({
       path: ["paymentMethod"],
     });
   }
-});
+}).strict();
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 
 // ── Manager edit any booking field ────────────────────────────────────────
@@ -200,6 +201,7 @@ export type HomeServiceAddressInput = z.infer<typeof homeServiceAddressSchema>;
 
 // ── Multi-service public online booking ───────────────────────────────────────
 export const createOnlineBookingMultiSchema = z.object({
+  website:          z.string().max(0, "Unable to submit this request").optional(),
   branchId:         uuid,
   serviceIds:       z.array(uuid).min(1, "Select at least one service").max(5, "Maximum 5 services per booking"),
   staffId:          uuid.optional(),
@@ -228,7 +230,7 @@ export const createOnlineBookingMultiSchema = z.object({
   homeServiceFormattedAddress: z.string().max(500).optional(),
   homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
   homeServiceMapUrl:           z.string().url().max(1000).optional(),
-}).superRefine((data, ctx) => {
+}).strict().superRefine((data, ctx) => {
   const deliveryType =
     data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
 

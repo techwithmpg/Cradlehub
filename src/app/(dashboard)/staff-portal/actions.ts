@@ -425,7 +425,7 @@ export async function getMyServiceProgressAction(date: string): Promise<ServiceP
     id, booking_date, start_time, end_time, type, status,
     booking_progress_status, home_service_tracking_status,
     travel_buffer_mins, metadata,
-    travel_started_at, arrived_at, session_started_at, completed_at,
+    travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
     session_completed_at, checked_in_at, no_show_at,
     resource_id,
     services  ( id, name, duration_minutes ),
@@ -435,7 +435,7 @@ export async function getMyServiceProgressAction(date: string): Promise<ServiceP
     id, booking_date, start_time, end_time, type, status,
     booking_progress_status, home_service_tracking_status,
     travel_buffer_mins, metadata,
-    travel_started_at, arrived_at, session_started_at, completed_at,
+    travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
     session_completed_at, checked_in_at, no_show_at,
     services  ( id, name, duration_minutes ),
     customers ( id, full_name )
@@ -639,7 +639,7 @@ export async function getMyTodayAction(date: string) {
       id, booking_date, start_time, end_time, type, status,
       booking_progress_status, home_service_tracking_status,
       travel_buffer_mins, metadata,
-      travel_started_at, arrived_at, session_started_at, completed_at,
+      travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
       session_completed_at, checked_in_at, no_show_at,
       resource_id,
       services  ( id, name, duration_minutes ),
@@ -649,7 +649,7 @@ export async function getMyTodayAction(date: string) {
       id, booking_date, start_time, end_time, type, status,
       booking_progress_status, home_service_tracking_status,
       travel_buffer_mins, metadata,
-      travel_started_at, arrived_at, session_started_at, completed_at,
+      travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
       session_completed_at, checked_in_at, no_show_at,
       services  ( id, name, duration_minutes ),
       customers ( id, full_name )
@@ -826,11 +826,49 @@ export async function updateBookingProgressAction({
     };
   }
 
-  // ── Execute via RPC (SECURITY DEFINER) ──
-  const { error: rpcError } = await supabase.rpc("update_booking_progress", {
-    p_booking_id: bookingId,
-    p_next_status: nextStatus,
-  });
+  // Session start/complete return their server timestamp in the same RPC,
+  // avoiding the old read-after-write timestamp query.
+  let rpcError: { message: string } | null = null;
+  let timestamp = new Date().toISOString();
+  let requiresTimestampRead = true;
+
+  if (nextStatus === "session_started") {
+    const result = await supabase.rpc("start_booking_service_session", {
+      p_booking_id: bookingId,
+      p_source: "staff_portal",
+      p_actor_staff_id: me.id,
+    });
+    rpcError = result.error;
+    const payload =
+      result.data && typeof result.data === "object" && !Array.isArray(result.data)
+        ? (result.data as Record<string, unknown>)
+        : null;
+    if (typeof payload?.started_at === "string") {
+      timestamp = payload.started_at;
+    }
+    requiresTimestampRead = false;
+  } else if (nextStatus === "completed") {
+    const result = await supabase.rpc("complete_booking_service_session", {
+      p_booking_id: bookingId,
+      p_completion_source: "staff_manual",
+      p_actor_staff_id: me.id,
+    });
+    rpcError = result.error;
+    const payload =
+      result.data && typeof result.data === "object" && !Array.isArray(result.data)
+        ? (result.data as Record<string, unknown>)
+        : null;
+    if (typeof payload?.completed_at === "string") {
+      timestamp = payload.completed_at;
+    }
+    requiresTimestampRead = false;
+  } else {
+    const result = await supabase.rpc("update_booking_progress", {
+      p_booking_id: bookingId,
+      p_next_status: nextStatus,
+    });
+    rpcError = result.error;
+  }
 
   if (rpcError) {
     logError("staff_progress.update_failed", {
@@ -848,23 +886,18 @@ export async function updateBookingProgressAction({
     };
   }
 
-  // ── Fetch updated timestamp ──
-  const timestampField = getTimestampFieldForProgressStatus(nextStatus) ?? "updated_at";
-  const { data: updated, error: tsError } = await supabase
-    .from("bookings")
-    .select(timestampField)
-    .eq("id", bookingId)
-    .single();
+  if (requiresTimestampRead) {
+    const timestampField =
+      getTimestampFieldForProgressStatus(nextStatus) ?? "updated_at";
+    const { data: updated } = await supabase
+      .from("bookings")
+      .select(timestampField)
+      .eq("id", bookingId)
+      .single();
 
-  const timestamp = (updated?.[timestampField as keyof typeof updated] as string | null) ?? new Date().toISOString();
-
-  if (tsError) {
-    return {
-      ok: true,
-      bookingId,
-      status: nextStatus,
-      timestamp,
-    };
+    timestamp =
+      (updated?.[timestampField as keyof typeof updated] as string | null) ??
+      timestamp;
   }
 
   logBusinessEvent("staff_progress.updated", {
@@ -893,68 +926,13 @@ export async function updateBookingProgressAction({
 export async function autoCompleteDueSessionAction(
   bookingId: string
 ): Promise<BookingProgressResult> {
-  const supabase = await createClient();
-  const me = await getMyStaffRecord();
-  if (!me) {
-    return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in." };
-  }
-
-  const { data: booking, error: fetchError } = await supabase
-    .from("bookings")
-    .select("id, staff_id, branch_id, delivery_type, status, booking_progress_status, session_started_at, service_id, services(duration_minutes)")
-    .eq("id", bookingId)
-    .single();
-
-  if (fetchError || !booking) {
-    return { ok: false, code: "NOT_FOUND", message: "Booking not found." };
-  }
-
-  // Permission: assigned staff, or manager/owner
-  const isAssignedStaff = booking.staff_id === me.id;
-  const canManageOperationalProgress = canManageBookings(me.system_role);
-  if (!isAssignedStaff && !canManageOperationalProgress) {
-    return { ok: false, code: "PERMISSION_DENIED", message: "Only assigned staff or managers may auto-complete." };
-  }
-
-  // Must be in session
-  if (booking.booking_progress_status !== "session_started") {
-    if (booking.booking_progress_status === "completed") {
-      return { ok: true, bookingId, status: "completed", timestamp: new Date().toISOString() };
-    }
-    return { ok: false, code: "INVALID_TRANSITION", message: "Session is not currently in progress." };
-  }
-
-  if (!booking.session_started_at) {
-    return { ok: false, code: "INVALID_TRANSITION", message: "Session start time is missing." };
-  }
-
-  // Server-side time validation: service duration must have elapsed
-  type ServiceRow = { duration_minutes?: number | null };
-  const serviceRow = Array.isArray(booking.services)
-    ? (booking.services[0] as ServiceRow | undefined)
-    : (booking.services as ServiceRow | null);
-  const durationMinutes = serviceRow?.duration_minutes ?? 60;
-  const startMs  = new Date(booking.session_started_at).getTime();
-  const endMs    = startMs + durationMinutes * 60 * 1000;
-
-  if (Date.now() < endMs) {
-    return { ok: false, code: "INVALID_TRANSITION", message: "Service duration has not elapsed yet." };
-  }
-
-  const { error: rpcError } = await supabase.rpc("update_booking_progress", {
-    p_booking_id: bookingId,
-    p_next_status: "completed",
-  });
-
-  if (rpcError) {
-    logError("staff_progress.auto_complete_failed", { bookingId, actorId: me.id, error: rpcError });
-    return { ok: false, code: "DATABASE_ERROR", message: rpcError.message };
-  }
-
-  logBusinessEvent("staff_progress.auto_completed", { bookingId, branchId: booking.branch_id, actorId: me.id });
-  revalidateStaffAndOperationalSurfaces(booking.branch_id);
-
-  return { ok: true, bookingId, status: "completed", timestamp: new Date().toISOString() };
+  void bookingId;
+  return {
+    ok: false,
+    code: "INVALID_TRANSITION",
+    message:
+      "Sessions are never completed automatically. Use Complete Service when the customer is actually finished.",
+  };
 }
 
 function getInvalidTransitionMessage(
@@ -1077,7 +1055,7 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
       status, booking_progress_status,
       driver_id, staff_id,
       metadata,
-      travel_started_at, arrived_at, session_started_at, completed_at,
+      travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
       services ( name ),
       customers ( full_name )
     `)
@@ -1194,7 +1172,7 @@ export async function getMyDriverJobByIdAction(bookingId: string): Promise<Drive
       status, booking_progress_status,
       driver_id, staff_id,
       metadata,
-      travel_started_at, arrived_at, session_started_at, completed_at,
+      travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
       services ( name, duration_minutes ),
       customers ( full_name )
     `)

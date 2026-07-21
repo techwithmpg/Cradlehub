@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Car,
@@ -377,11 +376,12 @@ function EmptyState() {
 
 export function DispatchFlowTab({
   data,
+  onChanged,
 }: {
   data: DispatchData;
   role: string;
+  onChanged: () => void;
 }) {
-  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(data.items[0]?.id ?? null);
   const [modalItem, setModalItem] = useState<RealDispatchItem | null>(null);
 
@@ -491,7 +491,7 @@ export function DispatchFlowTab({
         onOpenChange={(open) => {
           if (!open) setModalItem(null);
         }}
-        onChanged={() => router.refresh()}
+        onChanged={onChanged}
       />
     </>
   );

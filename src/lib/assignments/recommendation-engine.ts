@@ -5,7 +5,7 @@ import {
   staffTypeCanPerformService,
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
-import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
+import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
 import {
   doesDurationFitWithinScheduleWindows,
   resolveScheduleForStaffDay,
@@ -150,8 +150,8 @@ const SCORE = {
   insideShift: 15,
   shiftAlignment: 10,
   lessWorkload: 10,
-  // MVP_CHECKIN_PAUSED: penalty is 0 while check-in is paused; restore to -50 when re-enabled.
-  notCheckedIn: MVP_CHECKIN_PAUSED ? 0 : -50,
+  // Enforcement remains neutral until the deployment launch gate is enabled.
+  notCheckedIn: isAttendanceEnforcementEnabled() ? -50 : 0,
   activeConflict: -50,
   blockedTime: -30,
   dayOff: -30,

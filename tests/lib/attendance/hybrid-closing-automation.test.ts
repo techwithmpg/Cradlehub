@@ -125,7 +125,7 @@ describe("Attendance hybrid closing automation — normal clock-out", () => {
   });
 
   it("11. clock-out at reminder time resolves signals after the atomic commit", () => {
-    const commitIndex = scanEngine.indexOf("const committed = await commitAttendanceScanTransaction", 70_000);
+    const commitIndex = scanEngine.indexOf("const committed = await commit(admin", 70_000);
     const resolveIndex = scanEngine.indexOf(
       "await resolveClosingInterventionSignals(admin, activeCheckin.id)",
       commitIndex

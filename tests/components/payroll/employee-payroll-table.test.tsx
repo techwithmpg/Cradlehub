@@ -15,12 +15,10 @@ import type {
 
 const refreshMock = vi.fn();
 const markPaidMock = vi.fn(async (staffId: string) => {
-  void staffId;
-  return { ok: true as const, data: undefined };
+  return { ok: true as const, data: { staffId, status: "paid" as const } };
 });
 const markUnpaidMock = vi.fn(async (staffId: string) => {
-  void staffId;
-  return { ok: true as const, data: undefined };
+  return { ok: true as const, data: { staffId, status: "unpaid" as const } };
 });
 
 vi.mock("next/navigation", () => ({
@@ -65,13 +63,14 @@ function staff(
   };
 }
 
-function renderTable(staffRows: PayrollDashboardStaffRow[]) {
+function renderTable(staffRows: PayrollDashboardStaffRow[], onStatusChanged = vi.fn()) {
   return render(
     <EmployeePayrollTable
       staffRows={staffRows}
       branches={branches}
       allowStatusEditing
       onSetupPay={vi.fn()}
+      onStatusChanged={onStatusChanged}
     />
   );
 }
@@ -156,7 +155,8 @@ describe("EmployeePayrollTable state behavior", () => {
   });
 
   it("preserves active branch and status filter after marking a staff member paid", async () => {
-    renderTable(mixedRows());
+    const onStatusChanged = vi.fn();
+    renderTable(mixedRows(), onStatusChanged);
 
     const smTab = screen.getByRole("tab", { name: "SM Branch, 2 staff" });
     fireEvent.click(smTab);
@@ -168,7 +168,8 @@ describe("EmployeePayrollTable state behavior", () => {
     await waitFor(() => expect(markPaidMock).toHaveBeenCalledWith("sm-1"));
     expect(smTab.getAttribute("aria-selected")).toBe("true");
     expect((screen.getByLabelText("Filter payroll status") as HTMLSelectElement).value).toBe("unpaid");
-    expect(refreshMock).toHaveBeenCalled();
+    expect(onStatusChanged).toHaveBeenCalledWith("sm-1", "paid");
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("renders the same paginated dataset for the desktop table and mobile cards", () => {

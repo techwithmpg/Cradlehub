@@ -17,7 +17,7 @@ import {
   getCrmStaffServiceId,
 } from "@/components/features/crm/staff/service-row-adapter";
 import { canReviewStaffOnboarding } from "@/lib/permissions";
-import { getBranchCorrectionInboxForActor } from "@/lib/staff/branch-correction";
+import { getBranchAssignmentIssuesForActor } from "@/lib/staff/branch-assignment-resolver";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
@@ -186,7 +186,7 @@ export default async function CrmStaffPage({
     );
   }
 
-  const branchCorrectionRequests = await getBranchCorrectionInboxForActor({
+  const branchCorrectionRequests = await getBranchAssignmentIssuesForActor({
     systemRole: ctx.me.system_role,
     branchId: ctx.me.branch_id,
   });

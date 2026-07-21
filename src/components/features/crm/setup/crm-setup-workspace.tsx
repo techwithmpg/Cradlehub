@@ -18,7 +18,8 @@
  * URL sync. No full page reload. Deep links preserved via initialTab prop.
  */
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import { CrmServicesWorkspace } from "@/components/features/crm/services/crm-services-workspace";
 import { SpacesRulesWorkspace } from "@/components/features/spaces-rules/spaces-rules-workspace";
@@ -74,16 +75,31 @@ export function CrmSetupWorkspace({
   servicesData,
   spacesData,
 }: CrmSetupWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<SetupTab>(initialTab);
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab: SetupTab = rawTab === "health"
+    ? "health"
+    : ["services", "customization", "assignments"].includes(rawTab ?? "")
+      ? "services"
+      : ["providers", "staff", "capabilities"].includes(rawTab ?? "")
+        ? "providers"
+        : ["spaces", "spaces-rules", "overview"].includes(rawTab ?? "")
+          ? "spaces"
+          : ["booking_rules", "rules"].includes(rawTab ?? "")
+            ? "booking_rules"
+            : rawTab === "staff_readiness"
+              ? "staff_readiness"
+              : ["public_readiness", "readiness", "issues", "public"].includes(rawTab ?? "")
+                ? "public_readiness"
+                : initialTab;
   const activeTabIndex = TABS.findIndex((tab) => tab.key === activeTab);
 
   const handleTabChange = useCallback((next: string) => {
     const tab = next as SetupTab;
-    setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", tab);
-      window.history.replaceState(null, "", url.toString());
+      window.history.pushState(null, "", url.toString());
     }
   }, []);
 
@@ -138,37 +154,19 @@ export function CrmSetupWorkspace({
       </div>
 
       <AttendanceTabPanel id="setup-panel-health" labelledBy="setup-tab-health" active={activeTab === "health"}>
-        {activeTab === "health" ? healthSlot : null}
+        {healthSlot}
       </AttendanceTabPanel>
 
       <AttendanceTabPanel id="setup-panel-services" labelledBy="setup-tab-services" active={activeTab === "services"}>
-        {activeTab === "services" ? (
-          <CrmServicesWorkspace
-            key="services"
-            {...servicesData}
-            initialTab="services"
-          />
-        ) : null}
+        <CrmServicesWorkspace {...servicesData} initialTab="services" />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel id="setup-panel-providers" labelledBy="setup-tab-providers" active={activeTab === "providers"}>
-        {activeTab === "providers" ? (
-          <CrmServicesWorkspace
-            key="providers"
-            {...servicesData}
-            initialTab="providers"
-          />
-        ) : null}
+        <CrmServicesWorkspace {...servicesData} initialTab="providers" />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel id="setup-panel-spaces" labelledBy="setup-tab-spaces" active={activeTab === "spaces"}>
-        {activeTab === "spaces" ? (
-          <SpacesRulesWorkspace
-            key="spaces"
-            {...spacesData}
-            initialTab="spaces"
-          />
-        ) : null}
+        <SpacesRulesWorkspace {...spacesData} initialTab="spaces" />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel
@@ -176,13 +174,7 @@ export function CrmSetupWorkspace({
         labelledBy="setup-tab-booking_rules"
         active={activeTab === "booking_rules"}
       >
-        {activeTab === "booking_rules" ? (
-          <SpacesRulesWorkspace
-            key="booking_rules"
-            {...spacesData}
-            initialTab="rules"
-          />
-        ) : null}
+        <SpacesRulesWorkspace {...spacesData} initialTab="rules" />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel
@@ -190,7 +182,7 @@ export function CrmSetupWorkspace({
         labelledBy="setup-tab-staff_readiness"
         active={activeTab === "staff_readiness"}
       >
-        {activeTab === "staff_readiness" ? <CrmStaffReadinessPanel data={health} /> : null}
+        <CrmStaffReadinessPanel data={health} />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel
@@ -198,13 +190,7 @@ export function CrmSetupWorkspace({
         labelledBy="setup-tab-public_readiness"
         active={activeTab === "public_readiness"}
       >
-        {activeTab === "public_readiness" ? (
-          <CrmServicesWorkspace
-            key="public_readiness"
-            {...servicesData}
-            initialTab="readiness_issues"
-          />
-        ) : null}
+        <CrmServicesWorkspace {...servicesData} initialTab="readiness_issues" />
       </AttendanceTabPanel>
     </div>
   );

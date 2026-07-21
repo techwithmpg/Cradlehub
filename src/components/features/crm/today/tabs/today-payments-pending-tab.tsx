@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { CrmPanel } from "../crm-panel";
 import { CrmEmptyState } from "../crm-empty-state";
 import { CrmPaymentListItem } from "../crm-payment-list-item";
@@ -14,6 +15,7 @@ export function TodayPaymentsPendingTab({
   queueData: BookingListItemData[];
   paymentSummary: CrmTodayPayment | null;
 }) {
+  const router = useRouter();
   const pending = queueData.filter(
     (b) =>
       b.payment_status !== "paid" &&
@@ -101,7 +103,7 @@ export function TodayPaymentsPendingTab({
                   start_time: b.start_time,
                 }}
                 onReview={() => {
-                  window.location.href = `/crm/bookings?bookingId=${b.id}`;
+                  router.push(`/crm/bookings?bookingId=${b.id}`);
                 }}
               />
             ))}

@@ -81,3 +81,8 @@ docs/service-images/generated-batches/
 
 # maintenance backups
 /maintenance-backups/
+
+# local agent recovery and database archive artifacts
+/.codex-backups/
+/.fix-backups/
+/supabase.zip

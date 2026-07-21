@@ -314,7 +314,10 @@ export function PublicScanResultView({
 
       {!result.ok && result.reasonCode === "wrong_branch" && result.branchCorrection ? (
         <BranchCorrectionCard
-          details={result.branchCorrection}
+          details={{
+            ...result.branchCorrection,
+            scanEventId: result.branchCorrection.scanEventId ?? result.scanEventId,
+          }}
           state={branchCorrectionState}
           onRequest={onRequestBranchCorrection}
           onTryAnotherAccount={onTryAnotherAccount}

@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sparkles, Send, Loader2, Bot, User, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -93,6 +95,7 @@ function ActionButton({
   sessionId: string | undefined;
   onResult: (msg: AgentMessage) => void;
 }) {
+  const router = useRouter();
   const [executing, setExecuting] = React.useState(false);
   const isTool = action.action && TOOL_ACTIONS.has(action.action);
 
@@ -105,7 +108,7 @@ function ActionButton({
         asChild
         className="h-auto rounded-full px-2 py-0.5 text-[10px]"
       >
-        <a href={action.href}>{action.label}</a>
+        <Link href={action.href}>{action.label}</Link>
       </Button>
     );
   }
@@ -143,7 +146,12 @@ function ActionButton({
       };
 
       if (result.ok && result.data?.href && typeof result.data.href === "string") {
-        window.location.href = result.data.href;
+        const target = new URL(result.data.href, window.location.origin);
+        if (target.origin === window.location.origin) {
+          router.push(`${target.pathname}${target.search}${target.hash}`);
+        } else {
+          window.open(target.href, "_self");
+        }
         return;
       }
 

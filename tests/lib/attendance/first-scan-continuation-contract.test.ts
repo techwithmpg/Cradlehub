@@ -37,4 +37,14 @@ describe("first attendance scan continuation contract", () => {
     expect(scanEngine).toContain('reasonCode: "revoked_device"');
     expect(actions).toContain("nextScanRequired: false");
   });
+
+  it("registers an authenticated new phone before canonical wrong-branch capture", () => {
+    expect(scanEngine).not.toContain("if (staff.branch_id !== point.branch_id)");
+    expect(scanEngine).toContain('registration_source: "first_scan_activation"');
+    expect(actions.indexOf("await setDeviceCookie(registration.rawDeviceCredential)")).toBeLessThan(
+      actions.indexOf("const attendanceResult = await processQrScan(")
+    );
+    expect(scanEngine).toContain("deviceId: device.id");
+    expect(scanEngine).toContain('reasonCode: "wrong_branch"');
+  });
 });

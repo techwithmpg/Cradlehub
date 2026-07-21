@@ -64,6 +64,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           />
         </div>
         <main
+          data-testid="workspace-main"
           className="p-0 md:p-5"
           style={{
             flex:       1,

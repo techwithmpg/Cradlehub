@@ -1,15 +1,12 @@
 "use client";
 
-import { useCallback, useTransition, useState } from "react";
+import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, MapPin, X } from "lucide-react";
 import { formatTime } from "@/lib/utils";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { BookingProgressActions } from "./booking-progress-actions";
 import { ServiceSessionCountdown } from "./service-session-countdown";
-import { autoCompleteDueSessionAction } from "@/app/(dashboard)/staff-portal/actions";
-import { PremiumActionOverlay } from "@/components/shared/motion/premium-action-overlay";
-import { PremiumSuccessToast } from "@/components/shared/motion/premium-success-toast";
 import type { StaffPortalBooking } from "./types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -67,7 +64,6 @@ function BookingHeader({ booking }: { booking: StaffPortalBooking }) {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
-type AutoCompleteFeedback = "idle" | "completing" | "done" | "error";
 
 type ServiceProgressModalProps = {
   booking: StaffPortalBooking;
@@ -77,9 +73,6 @@ type ServiceProgressModalProps = {
 
 export function ServiceProgressModal({ booking, open, onOpenChange }: ServiceProgressModalProps) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
-  const [autoFeedback, setAutoFeedback] = useState<AutoCompleteFeedback>("idle");
-
   const service  = firstRelation(booking.services);
 
   const handleProgressUpdated = useCallback(() => {
@@ -87,46 +80,9 @@ export function ServiceProgressModal({ booking, open, onOpenChange }: ServicePro
     onOpenChange(false);
   }, [router, onOpenChange]);
 
-  const handleSessionDue = useCallback(() => {
-    if (autoFeedback !== "idle") return;
-    setAutoFeedback("completing");
-    startTransition(async () => {
-      const result = await autoCompleteDueSessionAction(booking.id);
-      if (result.ok) {
-        setAutoFeedback("done");
-        setTimeout(() => {
-          router.refresh();
-          onOpenChange(false);
-          setAutoFeedback("idle");
-        }, 1800);
-      } else {
-        setAutoFeedback("error");
-        setTimeout(() => setAutoFeedback("idle"), 4000);
-      }
-    });
-  }, [autoFeedback, booking.id, router, onOpenChange, startTransition]);
 
   return (
-    <>
-      <PremiumActionOverlay
-        open={autoFeedback === "completing"}
-        title="Completing session…"
-        description="Finalising the service record."
-      />
-      <PremiumSuccessToast
-        open={autoFeedback === "done"}
-        title="Session completed"
-        description="The service record has been finalised."
-        variant="success"
-      />
-      <PremiumSuccessToast
-        open={autoFeedback === "error"}
-        title="Auto-complete failed"
-        description="Please complete the session manually."
-        variant="error"
-      />
-
-      <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="bottom"
           showCloseButton={false}
@@ -165,9 +121,12 @@ export function ServiceProgressModal({ booking, open, onOpenChange }: ServicePro
                 status={booking.status}
                 progressStatus={booking.booking_progress_status}
                 sessionStartedAt={booking.session_started_at}
-                durationMinutes={service?.duration_minutes}
+                sessionDueAt={booking.session_due_at}
+                durationMinutes={
+                  booking.session_duration_minutes_snapshot ??
+                  service?.duration_minutes
+                }
                 isHomeService={booking.delivery_type === "home_service"}
-                onDue={handleSessionDue}
                 className="mb-4"
               />
             ) : null}
@@ -180,6 +139,5 @@ export function ServiceProgressModal({ booking, open, onOpenChange }: ServicePro
           </div>
         </SheetContent>
       </Sheet>
-    </>
   );
 }

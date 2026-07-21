@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import type { FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { Save, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { saveMonthlyPayAction } from "@/lib/actions/payroll-dashboard-actions";
@@ -23,10 +22,9 @@ export function MonthlyPaySetupCard({
 }: {
   staffRows: PayrollDashboardStaffRow[];
   initialStaffId?: string | null;
-  onSaved?: () => void;
+  onSaved?: (result: { staffId: string; amount: number }) => void;
   framed?: boolean;
 }) {
-  const router = useRouter();
   const staffOptions = useMemo(
     () => [...staffRows].sort((a, b) => a.display_name.localeCompare(b.display_name)),
     [staffRows]
@@ -67,8 +65,7 @@ export function MonthlyPaySetupCard({
       }
 
       setMessage("Monthly pay saved.");
-      router.refresh();
-      onSaved?.();
+      onSaved?.(result.data);
     });
   }
 

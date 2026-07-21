@@ -1,4 +1,335 @@
-# Current Task - CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001
+# Current Task - NOTIFICATIONS-001
+
+Task ID: NOTIFICATIONS-001
+Description: Add immediate Realtime booking toasts and opt-in browser push notifications using the existing workspace notification system.
+Status: CONDITIONAL PASS — IMPLEMENTED; MIGRATION/APPLICATION AND PRODUCTION DEVICE QA PENDING
+Started: 2026-07-22
+Last updated: 2026-07-22
+
+## Guardrails
+
+- Keep `public.workspace_notifications` as the only normal notification history.
+- Preserve its role/branch/recipient RLS, action routing, deduplication, bell pages, and booking transaction behavior.
+- Browser permission is requested only from an explicit user action; the VAPID private key remains server-only.
+- Push, toast, or sound failure must never roll back a booking.
+- Manager workspace is excluded from product/UI changes, and no production migration will be applied automatically.
+- Preserve the existing dirty worktree and unrelated user changes.
+
+## Pre-flight
+
+- Read the supplied task brief, required repository context (using canonical `docs/` fallbacks for the missing root planning files), local Next.js 16.2.4 PWA guidance, and current Supabase Realtime/RLS guidance and changelog.
+- Inspected the existing notification bell, chime, queries, central store, target routing, dashboard shell, public/in-house booking paths, RLS migration, and booking assignment call sites.
+- Created `.codex-backups/NOTIFICATIONS-001-preflight.patch` before task edits.
+- Baseline: `main` at `a2f62ad4`; the worktree already contains extensive unrelated tracked and untracked changes.
+
+## Work order
+
+1. Replace minute polling with RLS-scoped Realtime reconciliation and coordinated toast/bell/chime delivery.
+2. Add own-row push subscriptions and notification preferences, service worker, authenticated APIs, and explicit settings UI.
+3. Add best-effort server Web Push dispatch over persisted workspace notifications with branch/role/staff/driver targeting and failure deactivation.
+4. Audit booking event coverage, add focused contracts, document operations, and run the required type/lint/test/build/diff gates without applying production migration.
+
+## Result
+
+- Replaced the notification bell's minute polling with authenticated,
+  RLS-authorized Supabase Realtime INSERT/UPDATE reconciliation. Fresh events
+  update the bell immediately and are claimed once across visible tabs for toast
+  and optional chime; periodic reconciliation is five minutes plus
+  visibility/reconnect recovery.
+- Added opt-in Web Push subscription state, Owner booking preferences,
+  same-origin authenticated APIs, server-only VAPID validation, safe
+  service-worker routing, endpoint-health handling, and exact branch/role/staff
+  targeting. `workspace_notifications` remains the sole notification history.
+- Dispatch runs only after a winning durable insert, never for a dedupe update,
+  and catches provider/configuration failures outside booking success.
+- Pending bookings notify CRM only. Assigned Staff/Driver signals begin after
+  payment confirmation and paid booking changes target the exact affected
+  assignees.
+- Added the operations/deployment/QA runbook and focused coverage for Realtime,
+  toast/chime dedupe, settings, RLS migration contracts, service-worker safety,
+  targeting, push failure isolation, and durable-insert dedupe.
+- Validation passed: type-check; lint with one unrelated pre-existing Attendance
+  warning; 161 test files / 1,180 tests; Next.js 16.2.4 production build with 113
+  generated static pages; and task diff checks. Local Supabase DB lint could not
+  connect because no local database runs on port 54322; migration contract tests
+  and generated TypeScript usage pass.
+- `20260721174547_browser_push_notifications.sql` remains unapplied. Configure
+  VAPID secrets, apply the reviewed migration through the approved production
+  workflow, and complete real browser/device QA before production certification.
+
+---
+
+# Previous Current Task - CRM-RETENTION-001
+
+Task ID: CRM-RETENTION-001
+Description: Retain recently visited CRM and Owner modules, preserve workspace state, pause hidden module effects, and refresh cached data quietly when users return.
+Status: CONDITIONAL PASS — IMPLEMENTED; CRM BROWSER PASSED, OWNER/PERFORMANCE-PANEL QA PENDING
+Started: 2026-07-21
+Last updated: 2026-07-22
+
+## Guardrails
+
+- The paused Manager workspace is excluded and must remain unchanged.
+- Do not apply production migrations, cron configuration, migration repairs, or destructive SQL automatically.
+- Preserve existing role, branch, booking, schedule, payment, dispatch, Attendance audit, and public booking behavior except for the confirmed launch defects.
+- The existing dirty worktree and unrelated branch-assignment/session work must be preserved.
+
+## Pre-flight
+
+- Read all required context files and the canonical `docs/ROADMAP.md` /
+  `docs/PROJECT_CONTEXT.md` fallbacks (the requested root copies do not exist).
+- Read the local Next.js 16.2.4 Cache Components, Activity navigation,
+  stale-times, and App Router navigation guides plus the Supabase task guidance.
+- Inspected package/lock/config versions, dashboard/CRM/Owner layouts, shell,
+  prefetcher, SWR modules, booking events, Realtime hooks, and every requested
+  CRM/Owner rollout route.
+- Created `.codex-backups/CRM-RETENTION-001-preflight.patch`.
+- Baseline: `main` at `a2f62ad4`; type-check passed; lint passed with one
+  existing unrelated warning; 150 files / 1,137 tests passed. The prior
+  CRM-PERF-002 production build was green before this continuation.
+
+## Result
+
+- Selected one manual identity-scoped LRU registry using React 19.2.4 Activity;
+  Next Cache Components remains disabled.
+- CRM retains Work Queue, Bookings, Schedule, Attendance, and Customers (limit
+  four). Owner Overview, Reports, and Bookings are available under the `all`
+  rollout (limit three). Default rollout is CRM-first; `off` is rollback.
+- Hidden frames are Activity-hidden plus `hidden` / `aria-hidden` / `inert`;
+  effect cleanup pauses existing polling, timers, and Realtime. Dirty/stale SWR
+  modules reconcile once on activation while keeping current data.
+- Cache and component state are scoped by user, role, and branch and stay
+  in-memory only. SWR keys are scope-prefixed and purged on workspace teardown.
+  LRU, draft protection, scroll restoration, cache reset,
+  fresh/dirty refresh counts, and effect lifecycle have focused automated tests.
+- Dispatch and Owner Schedule remain deliberately outside full DOM retention.
+- Authenticated CRM QA passed retained and evicted returns, URL state,
+  Back/Forward, accessibility hiding, and the four-frame LRU. The account lacks
+  Owner access; exact heap/network/CLS/long-task evidence remains pending.
+- Final gates pass: type-check, production build, 152 files / 1,152 tests, and
+  lint with one pre-existing unrelated warning.
+
+---
+
+# Previous Current Task - CRM-PERF-002
+
+Task ID: CRM-PERF-002
+Description: Remove disruptive CRM and Owner workspace reloads and migrate operational interactions to retained client state, localized loading, optimistic mutations, and background cache reconciliation.
+Status: IDLE — IMPLEMENTATION COMPLETE, OWNER BROWSER QA PENDING
+Started: 2026-07-21
+Last updated: 2026-07-21
+
+## Result
+
+- Conditional pass. Active CRM/Owner ordinary mutations have zero `router.refresh()` calls, all 22 CRM/Owner route loaders are removed, internal document navigation is eliminated, and retained SWR/canonical mutation patterns cover Reports, Bookings, Attendance, Dispatch, Schedule, Services, Staff, Marketing, Attendance Rules, and Payroll.
+- Type checking, production build, diff check, focused tests, and the 145-file / 1,117-test complete suite pass. Lint has zero errors and two existing unrelated warnings.
+- Authenticated CRM browser QA verified persistent shell navigation, Schedule Back/Forward, retained Setup selection, and zero browser console errors.
+- Remaining release evidence: repeat the requested Owner Reports and Marketing/Attendance Rule click-through in an authenticated Owner session, plus the exact CRM Work Queue → Bookings → Work Queue sequence. See `docs/performance/crm-perf-002-report.md`.
+
+---
+
+# Previous Active Task - STAFF-BRANCH-ASSIGNMENT-INTEGRITY-RESOLVER-001
+
+Status: IN PROGRESS
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Replace the replay-based Attendance branch-correction flow with one authoritative
+Branch Assignment Integrity Resolver. It must diagnose cross-module staff branch
+inconsistencies, require authorized explicit decisions for material changes,
+preserve historical records, and never create, modify, or replay Attendance.
+
+## Guardrails
+
+- Attendance detects a wrong branch and opens or reuses an assignment issue; it
+  must not repair profile, schedule, service, transfer, or access data.
+- The resolver transaction owns current/future branch assignment integrity only.
+  It returns an assignment decision and a next action, never an Attendance result.
+- Keep the existing replay resolver temporarily for other callers, marked
+  deprecated; new UI and server actions must use the assignment-only resolver.
+- All branch mutations require server-side role, tenant, staff, and active-branch
+  verification, reason capture, row locks, audit records, and atomic rollback.
+- Preserve historical Attendance, bookings, schedules, payroll, and audit data.
+  Never silently move future bookings or grant unrestricted multi-branch access.
+
+## Work order
+
+1. Audit the existing Branch Corrections flow, Attendance mismatch detection,
+   relevant assignment data, permissions, migrations, generated types, and tests.
+2. Add the assignment issue model, diagnostic summary, root-cause classification,
+   assignment-only resolver transaction, and safe idempotency contract.
+3. Move Staff Management to Branch Assignment Issues and call the new server
+   action; retain wrong-scan confirmation and explicit repair/review paths.
+4. Ensure the next ordinary scan evaluates current primary branch plus effective
+   temporary access without resuming a captured failed scan.
+5. Add focused contracts, documentation, context records, and verification.
+
+---
+
+# Previous Task - ATTENDANCE-BRANCH-RESOLUTION-TRANSACTION-FIX-003
+
+Status: COMPLETE — CONDITIONAL SUCCESS
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Capture the exact live failure behind the generic Branch Correction retry
+message, compare the application payload with the live resolver and its internal
+Attendance RPCs, and repair the smallest proven contract defect without weakening
+authorization, idempotency, or atomic rollback.
+
+## Guardrails
+
+- Treat the confirmed outer RPC as present; inspect its live body, ACL, owner,
+  search path, referenced schema, constraints, internal calls, and result contract
+  before replacing anything.
+- Reproduce only with Test Mode or dedicated rollback-only QA data. The observed
+  real pending request and source scan are read-only diagnostic evidence unless
+  the user separately authorizes a real Attendance mutation.
+- Preserve service-only execution, server-derived actor/branch identity, row and
+  advisory locking, deterministic replay, historical snapshots, and one-transaction
+  rollback across authorization/transfer, scan continuation, and final resolution.
+- Map known business failures to actionable staff-safe messages while keeping raw
+  SQLSTATE, tokens, device credentials, keys, and private data server-side.
+- Create a new additive migration only after the exact live defect is proven; do
+  not edit applied migrations, reset schema, weaken RLS, or blind-push the drifted
+  migration backlog.
+
+## Work order
+
+1. Trace UI → server action → source-scan reconstruction → `p_scan_commit` → live
+   branch resolver → internal Attendance commit and capture the real failure stage.
+2. Inspect live function metadata/body/grants, tables/columns, constraints/indexes,
+   pending request/source identity, actor/staff/branch/authorization/open Attendance,
+   internal RPC signatures, return contract, and migration history.
+3. Implement only the proven migration/application/error-mapping repair, preserving
+   atomicity and safe retry behavior.
+4. Verify temporary shift/day, permanent transfer, rollback, replay/concurrency,
+   Test Mode, and zero-residue cleanup with dedicated data.
+5. Run focused/full type, lint, test, and build gates; regenerate live types when
+   schema changes; update the context, roadmap, and handoff with exact evidence.
+
+## Implementation and verification
+
+- Captured the exact live resolver failure as PostgreSQL `42702`
+  (`ambiguous_column`). Both final `attendance_exceptions` updates used an
+  unqualified `scan_event_id`, which conflicted with the resolver's `RETURNS
+  TABLE` output parameter. The valid-device QA statement aborted completely.
+- Applied and recorded additive migration
+  `20260715113001_attendance_branch_resolution_transaction_fix.sql`. It guards
+  the expected live function body, qualifies only the two exception updates,
+  retains `SECURITY INVOKER`, `search_path=public, extensions`, the exact
+  signature/result contract, and service-role-only execution, then refreshes
+  the PostgREST schema cache.
+- The supplied real request remains pending and untouched. Its source event is a
+  first-login wrong-branch event with no device ID, so it cannot be resumed
+  safely. Future authenticated first scans now register the verified phone
+  before canonical wrong-branch capture; existing incomplete requests receive
+  an explicit “ask the staff member to scan again” result.
+- Rollback-only live QA passed temporary shift, business-day, permanent transfer,
+  controlled missing-device failure, forced inner-commit rollback, and a second
+  manager replay. Continuation events and Attendance rows were linked, replay
+  created no duplicate authorization or Attendance, historical branch snapshots
+  remained correct, and post-QA residue was zero across all synthetic tables.
+- Live metadata after the patch: one exact 11-argument overload; volatile and
+  parallel-unsafe; invoker security; safe explicit search path; service role can
+  execute; `anon` and `authenticated` cannot. All referenced tables, 72 columns,
+  foreign keys, checks, indexes, uniqueness guards, and internal Attendance RPC
+  signatures were inspected against the linked project.
+- Verification passes: regenerated live Supabase types; 4 focused files / 31
+  tests; full 138 files / 1,103 tests; type-check; lint with one pre-existing
+  unrelated warning; diff check; Next.js 16.2.4 production build with 110 pages;
+  and `pnpm db:verify-live`.
+- Final certification is conditional only because the application changes are
+  not deployed from this uncommitted worktree and no authenticated production
+  browser/device resolution was submitted. The live database transaction itself
+  is repaired and verified with dedicated rollback-only data.
+
+---
+
+# Previous Task - ATTENDANCE-BRANCH-CORRECTION-RESOLUTION-001
+
+Status: COMPLETE
+Started: 2026-07-15
+Last updated: 2026-07-15
+
+## Mission
+
+Replace the ambiguous wrong-branch Attendance approval with an explicit,
+auditable resolution workflow for temporary shift/day access, permanent branch
+transfer, and rejection. Approved resolutions must resume the original pending
+scan through the authoritative Attendance engine, preserve historical branch
+records, and prevent duplicate decisions or Attendance actions.
+
+## Guardrails
+
+- Extend the current Branch Corrections request, audit, scan, notification, and
+  Staff Management patterns; do not redesign Staff Management or duplicate QR
+  clock-in/clock-out logic in the UI action.
+- Trust only server-derived tenant, actor, staff, source/target branch, scan, and
+  Attendance state. Ordinary staff cannot resolve their own request.
+- Keep temporary authorization branch-specific, bounded, revocable, overnight
+  safe, and linked to the source request/scan; permanent transfer changes only
+  current profile authority and never rewrites historical records or bookings.
+- Use one short transactional resolution path with row/advisory locking,
+  deterministic replay, strict grants/RLS, and current cache/realtime patterns.
+- Use dedicated Test Mode or QA data for write verification. Do not perform live
+  Attendance QA against real staff unless separately approved.
+
+## Work order
+
+1. Trace the existing Branch Corrections UI/actions/RPCs, wrong-branch scan
+   creation payload, scan transaction, audit model, RBAC, notifications, and
+   affected branch/schedule/booking/availability consumers.
+2. Inspect local and linked schema/migration state; design the smallest additive
+   authorization/decision/scan-continuation contract and impact summary.
+3. Implement the compact Resolve Branch dialog, safe reject flow, server action,
+   transactional persistence, authoritative scan continuation, and refreshes.
+4. Add focused UI/service/migration/RBAC/idempotency/clock-in/clock-out/Test Mode
+   regressions and the branch-correction operations document.
+5. Run focused and full verification, apply only an approved safe migration when
+   available, regenerate types, perform dedicated QA where possible, and update
+   project context with exact evidence and remaining limitations.
+
+## Implementation and verification
+
+- Replaced generic approval with explicit shift access, business-day access,
+  permanent transfer, and rejection decisions. The dialog shows validity,
+  permanent-impact review, required reasons, Test Mode restrictions, reviewer,
+  and the final Attendance result.
+- Added one locked, service-role-only database resolver that validates actor and
+  branch authority, prevents self/conflicting decisions, writes authorization or
+  transfer audit, and resumes the stored source scan through the authoritative
+  Attendance commit engine in the same transaction. Replay is deterministic and
+  continuation failure rolls back the whole decision.
+- Extended existing request, date-effective assignment, Attendance, source-event,
+  audit, notification, and task patterns. Historical home/actual branches remain
+  snapshotted; permanent transfer does not rewrite bookings, schedules, services,
+  payroll, devices, or prior Attendance.
+- The focused migration is live and version `20260715113000` is recorded. Exact
+  columns, indexes, RLS state, SELECT-only browser policies/grants, restricted
+  function ACLs, and a safe not-found call were verified. The broader historical
+  migration backlog remains out of scope; do not blind-push it.
+- Synthetic rollback QA covered Test Mode shift/day, future-day denial, permanent
+  transfer, rejection, same-decision replay, closed-shift revocation, source/result
+  linkage, a forced inner-commit failure with complete side-effect rollback, and
+  zero residual QA rows. One real pending request was observed only in aggregate
+  and was not opened or mutated.
+- Verification passes: type-check; lint with one pre-existing unrelated warning;
+  focused 5 files / 23 tests; full 136 files / 1,086 tests; Next.js 16.2.4 build
+  with 110 generated pages; generated live Supabase types; and diff checking.
+- Arbitrary date ranges are intentionally deferred. The persisted validity model
+  supports a later additive range UI, but this release exposes only shift and
+  target-branch business-day authorization.
+- Operations and release details are in
+  `docs/attendance/BRANCH_CORRECTION_RESOLUTION.md`.
+
+---
+
+# Previous Task - CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001
 
 Status: COMPLETE
 Started: 2026-07-15

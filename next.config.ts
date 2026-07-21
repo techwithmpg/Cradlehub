@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/sw.js",
+        source: "/:serviceWorker(sw|cradlehub-push-sw).js",
         headers: [
           {
             key: "Content-Type",
@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "no-cache, no-store, must-revalidate",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: "default-src 'self'; script-src 'self'; connect-src 'self'",
           },
         ],
       },

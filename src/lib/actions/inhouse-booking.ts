@@ -30,6 +30,7 @@ import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
 
 type CreateInhouseBookingResult =
   | { ok: true; bookingId: string; warning?: string }
@@ -183,8 +184,6 @@ export async function createInhouseBookingMultiAction(
     operatorRole: staff?.system_role ?? "dev-bypass",
   };
 
-  console.log("[CRM_BOOKING] start", logContext);
-
   try {
     const rulesCheck = await validateBookingAgainstBranchRules({
       branchId: resolvedBranchId,
@@ -201,8 +200,33 @@ export async function createInhouseBookingMultiAction(
       };
     }
 
+    const consultationClient = createAdminClient();
+    const { data: consultationServices, error: consultationError } = await consultationClient
+      .from("services")
+      .select("name, metadata, service_categories(name)")
+      .in("id", d.serviceIds);
+    if (consultationError) throw consultationError;
+    const requiresManualArrangement = (consultationServices ?? []).some((service) => {
+      const categoryValue = service.service_categories;
+      const category = Array.isArray(categoryValue) ? categoryValue[0] : categoryValue;
+      return isConsultationOnlyService({
+        name: service.name,
+        categoryName: category?.name ?? null,
+        metadata: service.metadata,
+      });
+    });
+    if (requiresManualArrangement && !d.staffId) {
+      return {
+        ok: false,
+        code: "MANUAL_ARRANGEMENT_REQUIRED",
+        message: "Select a coordinating provider and confirm the full participant and staffing arrangement manually.",
+      };
+    }
+
     let resolvedStaffId: string;
-    let availabilityWarning: string | undefined;
+    let availabilityWarning: string | undefined = requiresManualArrangement
+      ? "Manual arrangement required: the selected provider is only the coordinator; confirm every participant, provider, room, and time before finalizing."
+      : undefined;
     const preferCheckedInStaff =
       crmBookingMode === "walkin" &&
       deliveryType !== "home_service" &&
@@ -220,7 +244,6 @@ export async function createInhouseBookingMultiAction(
         });
         resolvedStaffId = assignment.staffId;
         availabilityWarning = assignment.warning;
-        console.log("[CRM_BOOKING] auto-assigned staff", { ...logContext, resolvedStaffId });
       } catch (assignErr) {
         console.error("[CRM_BOOKING] auto-assign failed", { ...logContext, assignErr });
         throw assignErr;

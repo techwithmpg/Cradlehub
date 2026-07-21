@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Clock3, Save, ShieldCheck } from "lucide-react";
 
@@ -100,7 +99,7 @@ export function BranchAttendanceRulesCard({
   branchId: string;
   data: BranchAttendanceRulesData;
 }) {
-  const router = useRouter();
+  const [workspaceData, setWorkspaceData] = useState(data);
   const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState("closing");
   const [timezone, setTimezone] = useState(data.settings.timezone);
@@ -152,14 +151,14 @@ export function BranchAttendanceRulesCard({
         return;
       }
       toast.success(result.message);
-      router.refresh();
+      setWorkspaceData(result.data);
     });
   }
 
   const preview = useMemo(() => {
     try {
       return deriveAttendanceClosingTimeline({
-        businessDate: data.previewBusinessDate,
+        businessDate: workspaceData.previewBusinessDate,
         timezone,
         branchCloseTime: branchClose,
         normalBufferMinutes: normalBuffer,
@@ -171,13 +170,13 @@ export function BranchAttendanceRulesCard({
     }
   }, [
     branchClose,
-    data.previewBusinessDate,
+    workspaceData.previewBusinessDate,
     escalationDelay,
     hardCutoffDelay,
     normalBuffer,
     timezone,
   ]);
-  const schedulerLabel = data.scheduler.recentlyObserved
+  const schedulerLabel = workspaceData.scheduler.recentlyObserved
     ? "Recently running"
     : "Configured in source · deployment unverified";
 
@@ -189,7 +188,7 @@ export function BranchAttendanceRulesCard({
           Branch timing, effective-dated category overrides, and the CRM closing-shift intervention policy.
         </CardDescription>
         <CardAction>
-          <Badge variant={data.scheduler.recentlyObserved ? "secondary" : "outline"}>
+          <Badge variant={workspaceData.scheduler.recentlyObserved ? "secondary" : "outline"}>
             {schedulerLabel}
           </Badge>
         </CardAction>
@@ -247,11 +246,11 @@ export function BranchAttendanceRulesCard({
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <PreviewItem label="Earliest normal" value={formatPolicyTime(preview?.earliestNormalClockOutAt ?? data.closingPreview.earliestNormalClockOutAt, timezone)} />
-                <PreviewItem label="Latest normal / reminder" value={formatPolicyTime(preview?.reminderAt ?? data.closingPreview.reminderAt, timezone)} />
-                <PreviewItem label="Manager escalation" value={formatPolicyTime(preview?.managerEscalationAt ?? data.closingPreview.managerEscalationAt, timezone)} />
-                <PreviewItem label="Hard cutoff" value={formatPolicyTime(preview?.hardCutoffAt ?? data.closingPreview.hardCutoffAt, timezone)} />
-                <PreviewItem label="Provisional close time" value={formatPolicyTime(preview?.provisionalClockOutAt ?? data.closingPreview.provisionalClockOutAt, timezone)} />
+                <PreviewItem label="Earliest normal" value={formatPolicyTime(preview?.earliestNormalClockOutAt ?? workspaceData.closingPreview.earliestNormalClockOutAt, timezone)} />
+                <PreviewItem label="Latest normal / reminder" value={formatPolicyTime(preview?.reminderAt ?? workspaceData.closingPreview.reminderAt, timezone)} />
+                <PreviewItem label="Manager escalation" value={formatPolicyTime(preview?.managerEscalationAt ?? workspaceData.closingPreview.managerEscalationAt, timezone)} />
+                <PreviewItem label="Hard cutoff" value={formatPolicyTime(preview?.hardCutoffAt ?? workspaceData.closingPreview.hardCutoffAt, timezone)} />
+                <PreviewItem label="Provisional close time" value={formatPolicyTime(preview?.provisionalClockOutAt ?? workspaceData.closingPreview.provisionalClockOutAt, timezone)} />
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
                 CRM staff should scan out normally. If the shift remains open after the hard cutoff, CradleHub provisionally closes it at the latest normal closing time and sends it for confirmation.
@@ -265,8 +264,8 @@ export function BranchAttendanceRulesCard({
                 <PreviewItem label="Reminder" value="CRM staff at latest normal clock-out" />
                 <PreviewItem label="Escalation recipients" value="CRM Head or branch manager" />
                 <PreviewItem label="Hard-cutoff behavior" value="Provisional close + missing clock-out review" />
-                <PreviewItem label="Last successful run" value={formatDateTime(data.scheduler.lastRunAt)} />
-                <PreviewItem label="Next expected run" value={formatDateTime(data.scheduler.nextExpectedRunAt)} />
+                <PreviewItem label="Last successful run" value={formatDateTime(workspaceData.scheduler.lastRunAt)} />
+                <PreviewItem label="Next expected run" value={formatDateTime(workspaceData.scheduler.nextExpectedRunAt)} />
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
                 Scheduler status: {schedulerLabel}. Supabase runs four bounded daily safety stages; normal dynamic recalculation is event-driven.
@@ -283,19 +282,23 @@ export function BranchAttendanceRulesCard({
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-              <span>{data.affectedClosingScheduleRows} active CRM closing schedule rows may use this policy.</span>
-              <span>Last worker run: {formatDateTime(data.scheduler.lastRunAt)}</span>
+              <span>{workspaceData.affectedClosingScheduleRows} active CRM closing schedule rows may use this policy.</span>
+              <span>Last worker run: {formatDateTime(workspaceData.scheduler.lastRunAt)}</span>
             </div>
-            {data.scheduler.lastError ? (
+            {workspaceData.scheduler.lastError ? (
               <Alert variant="destructive">
                 <AlertTitle>Last worker error</AlertTitle>
-                <AlertDescription>{data.scheduler.lastError}</AlertDescription>
+                <AlertDescription>{workspaceData.scheduler.lastError}</AlertDescription>
               </Alert>
             ) : null}
           </TabsContent>
 
           <TabsContent value="categories" className="mt-4">
-            <AttendanceCategoryRulesEditor branchId={branchId} categories={data.categories} />
+            <AttendanceCategoryRulesEditor
+              branchId={branchId}
+              categories={workspaceData.categories}
+              onSaved={setWorkspaceData}
+            />
           </TabsContent>
 
           <TabsContent value="history" className="mt-4">
@@ -311,12 +314,12 @@ export function BranchAttendanceRulesCard({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.history.length === 0 ? (
+                {workspaceData.history.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-muted-foreground">No rule changes have been recorded yet.</TableCell>
                   </TableRow>
                 ) : (
-                  data.history.map((item) => (
+                  workspaceData.history.map((item) => (
                     <TableRow key={`${item.scope}:${item.id}`}>
                       <TableCell>
                         <div className="font-medium">

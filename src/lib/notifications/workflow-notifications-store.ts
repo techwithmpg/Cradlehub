@@ -8,6 +8,7 @@ import {
 } from "./workflow-dedupe";
 import { logError } from "@/lib/logger";
 import type { Json } from "@/types/supabase";
+import { deliverWorkspaceNotificationPush } from "./push/delivery";
 
 function notificationPayload(input: CreateNotificationInput, dedupeKey: string) {
   return {
@@ -53,8 +54,18 @@ export async function createOrUpdateNotification(input: CreateNotificationInput)
     return true;
   }
 
-  const { error } = await admin.from("workspace_notifications").insert(payload);
-  if (!error) return true;
+  const { data: inserted, error } = await admin
+    .from("workspace_notifications")
+    .insert(payload)
+    .select("*")
+    .single();
+  if (!error && inserted) {
+    // Delivery happens only for the process that won the insert. Dedupe updates
+    // do not resend the same durable notification ID. The dispatcher catches
+    // every endpoint/configuration failure so persistence and bookings succeed.
+    await deliverWorkspaceNotificationPush(inserted);
+    return true;
+  }
   if (isUniqueViolation(error)) {
     const retry = await admin
       .from("workspace_notifications")

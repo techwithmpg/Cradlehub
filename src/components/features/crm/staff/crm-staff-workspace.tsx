@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
 import type { StaffMember } from "@/components/features/staff/staff-management-utils";
 import type {
@@ -8,7 +9,10 @@ import type {
 } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import type { Database } from "@/types/supabase";
-import type { BranchCorrectionInboxItem } from "@/lib/staff/branch-correction-types";
+import type {
+  BranchAssignmentIssue,
+  BranchAssignmentResolutionResult,
+} from "@/lib/staff/branch-correction-types";
 import { replaceStaffServiceAssignmentRows } from "@/lib/staff/service-assignment-state";
 import { CrmStaffApplicationsTab } from "./crm-staff-applications-tab";
 import { CrmStaffManagementTab } from "./crm-staff-management-tab";
@@ -51,17 +55,46 @@ type CrmStaffWorkspaceProps = {
   providerAssignments: ServiceAssignmentRow[];
   providerAssignmentsError: string | null;
   onboardingRequests: OnboardingRequest[];
-  branchCorrectionRequests: BranchCorrectionInboxItem[];
+  branchCorrectionRequests: BranchAssignmentIssue[];
   reviewerSystemRole: string;
   reviewerBranchId: string | null;
   canReviewOnboarding: boolean;
 };
 
 export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<StaffTab>(props.initialTab);
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab = rawTab && isStaffTab(rawTab) ? rawTab : props.initialTab;
   const [assignmentOverrides, setAssignmentOverrides] = useState<
     Record<string, string[]>
   >({});
+  const [workspaceAllStaff, setWorkspaceAllStaff] = useState(props.allStaff);
+  const [workspacePendingStaff, setWorkspacePendingStaff] = useState(props.pendingStaff);
+  const [workspaceBranchCorrectionRequests, setWorkspaceBranchCorrectionRequests] = useState(
+    props.branchCorrectionRequests
+  );
+
+  const handleStaffChanged = useCallback((patch: Partial<StaffMember> & { id: string }) => {
+    const applyPatch = (staff: StaffMember[]) => staff.map(
+      (member) => member.id === patch.id ? { ...member, ...patch } : member
+    );
+    setWorkspaceAllStaff(applyPatch);
+    setWorkspacePendingStaff(applyPatch);
+  }, []);
+
+  const handleBranchIssueResolved = useCallback((result: Extract<BranchAssignmentResolutionResult, { ok: true }>) => {
+    setWorkspaceBranchCorrectionRequests((current) => current.map((issue) =>
+      issue.id === result.issueId
+        ? {
+            ...issue,
+            status: result.issueStatus,
+            resolutionType: result.resolutionType,
+            nextAction: result.nextAction,
+            decidedAt: new Date().toISOString(),
+          }
+        : issue
+    ));
+  }, []);
 
   const providerAssignments = useMemo(
     () =>
@@ -83,6 +116,10 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
     []
   );
 
+  const pendingBranchCorrectionCount = workspaceBranchCorrectionRequests.filter(
+    (request) => request.status === "open" || request.status === "requires_review"
+  ).length;
+
   const tabs = useMemo<{ key: StaffTab; label: string; count?: number }[]>(
     () => [
       {
@@ -93,22 +130,22 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
       {
         key: "branch-corrections",
         label: "Branch Corrections",
-        count: props.branchCorrectionRequests.length,
+        count: pendingBranchCorrectionCount,
       },
-      { key: "management", label: "Staff Management", count: props.allStaff.length },
+      { key: "management", label: "Staff Management", count: workspaceAllStaff.length },
       {
         key: "assignments",
         label: "Service Assignments",
         count: providerAssignments.length,
       },
-      { key: "status", label: "Status", count: props.pendingStaff.length },
+      { key: "status", label: "Status", count: workspacePendingStaff.length },
     ],
     [
-      props.allStaff.length,
+      workspaceAllStaff.length,
       props.canReviewOnboarding,
-      props.branchCorrectionRequests.length,
+      pendingBranchCorrectionCount,
       props.onboardingRequests.length,
-      props.pendingStaff.length,
+      workspacePendingStaff.length,
       providerAssignments.length,
     ]
   );
@@ -116,12 +153,10 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
   const handleTabChange = useCallback((nextTab: string) => {
     if (!isStaffTab(nextTab)) return;
 
-    setActiveTab(nextTab);
-
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", TAB_URL_PARAM[nextTab]);
-      window.history.replaceState(null, "", url.toString());
+      window.history.pushState(null, "", url.toString());
     }
   }, []);
 
@@ -207,7 +242,10 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         labelledBy="staff-tab-branch-corrections"
         active={activeTab === "branch-corrections"}
       >
-        <CrmStaffBranchCorrectionsTab requests={props.branchCorrectionRequests} />
+        <CrmStaffBranchCorrectionsTab
+          requests={workspaceBranchCorrectionRequests}
+          onResolved={handleBranchIssueResolved}
+        />
       </AttendanceTabPanel>
 
       <AttendanceTabPanel
@@ -216,14 +254,15 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         active={activeTab === "management"}
       >
         <CrmStaffManagementTab
-          allStaff={props.allStaff}
-          pendingStaff={props.pendingStaff}
+          allStaff={workspaceAllStaff}
+          pendingStaff={workspacePendingStaff}
           branches={props.branches}
           activeServices={props.activeServices}
           providerAssignments={providerAssignments}
           providerAssignmentsError={props.providerAssignmentsError}
           reviewerSystemRole={props.reviewerSystemRole}
           onStaffServicesSaved={handleStaffServicesSaved}
+          onStaffChanged={handleStaffChanged}
         />
       </AttendanceTabPanel>
 
@@ -248,8 +287,8 @@ export function CrmStaffWorkspace(props: CrmStaffWorkspaceProps) {
         active={activeTab === "status"}
       >
         <CrmStaffStatusTab
-          allStaff={props.allStaff}
-          pendingStaff={props.pendingStaff}
+          allStaff={workspaceAllStaff}
+          pendingStaff={workspacePendingStaff}
         />
       </AttendanceTabPanel>
     </div>

@@ -21,6 +21,7 @@ export function ServiceCustomizationTab({
   services,
   staff,
   assignments,
+  onServicePatch,
 }: {
   branchId: string;
   branchName: string;
@@ -28,6 +29,7 @@ export function ServiceCustomizationTab({
   activeServices: ActiveBranchService[];
   staff: StaffForServicePanel[];
   assignments: ServiceAssignmentRow[];
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
 }) {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -105,6 +107,7 @@ export function ServiceCustomizationTab({
           rows={filteredRows}
           selectedRow={selectedRow}
           onSelect={handleSelect}
+          onServicePatch={onServicePatch}
         />
       </main>
 
@@ -114,6 +117,7 @@ export function ServiceCustomizationTab({
           branchName={branchName}
           row={selectedRow}
           onClose={() => setSelectedServiceId(null)}
+          onServicePatch={onServicePatch}
         />
       </aside>
     </div>

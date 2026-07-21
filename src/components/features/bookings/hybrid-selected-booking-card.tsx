@@ -20,6 +20,8 @@ export type HybridBookingViewModel = {
   status: string;
   booking_progress_status?: string | null;
   session_started_at?: string | null;
+  session_due_at?: string | null;
+  session_duration_minutes_snapshot?: number | null;
   session_completed_at?: string | null;
   service_duration?: number | null;
   duration_minutes?: number | null;
@@ -28,8 +30,6 @@ export type HybridBookingViewModel = {
 
 export type HybridSelectedBookingCardProps = {
   booking: HybridBookingViewModel;
-  /** Called once when the service countdown reaches zero (server must re-validate). */
-  onAutoComplete?: () => void;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -83,15 +83,18 @@ function SummaryStat({
 
 export function HybridSelectedBookingCard({
   booking,
-  onAutoComplete,
 }: HybridSelectedBookingCardProps) {
-  const durationMins = booking.service_duration ?? booking.duration_minutes ?? 60;
+  const durationMins =
+    booking.session_duration_minutes_snapshot ??
+    booking.service_duration ??
+    booking.duration_minutes ??
+    60;
   const countdown = useServiceSessionCountdown({
     status: booking.status,
     progressStatus: booking.booking_progress_status,
     sessionStartedAt: booking.session_started_at,
+    sessionDueAt: booking.session_due_at,
     durationMinutes: durationMins,
-    onDue: onAutoComplete,
   });
   const isServiceActive = countdown.active;
   const shouldShowCountdown = countdown.ready;

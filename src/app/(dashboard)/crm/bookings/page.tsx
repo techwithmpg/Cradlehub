@@ -8,6 +8,7 @@ import { confirmBookingPaymentAction } from "./actions";
 import { getWaitlistAction } from "@/app/(dashboard)/crm/waitlist/actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 export default async function CrmBookingsPage({
   searchParams,
@@ -65,10 +66,12 @@ export default async function CrmBookingsPage({
   };
 
   return (
-    <CrmBookingsView
-      initialData={initialData}
-      paymentAction={updateBookingPaymentAction}
-      confirmPaymentAction={confirmBookingPaymentAction}
-    />
+    <RetainedWorkspaceModule moduleId="crm-bookings">
+      <CrmBookingsView
+        initialData={initialData}
+        paymentAction={updateBookingPaymentAction}
+        confirmPaymentAction={confirmBookingPaymentAction}
+      />
+    </RetainedWorkspaceModule>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, MoreHorizontal } from "lucide-react";
 import { updateBookingStatusAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { canCancelBooking, canChangeBookingStatus } from "@/lib/permissions";
 import { useNetworkStatus } from "@/hooks/use-network-status";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 
 type BookingTransitionStatus = "confirmed" | "in_progress" | "completed" | "cancelled" | "no_show";
 
@@ -63,7 +63,6 @@ export function BookingActionMenu({
   fullWidth = false,
   emptyBehavior = "hide",
 }: BookingActionMenuProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -107,7 +106,7 @@ export function BookingActionMenu({
         return;
       }
       onUpdate?.();
-      router.refresh();
+      notifyBookingsChanged();
     });
   }
 

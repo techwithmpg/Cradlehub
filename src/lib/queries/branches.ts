@@ -60,6 +60,7 @@ const branchServicesManagementSelect = `
     is_active,
     duration_minutes,
     price,
+    metadata,
     buffer_before,
     buffer_after,
     service_categories ( id, name, display_order )
@@ -88,6 +89,7 @@ const branchServicesPublicModernSelect = `
     is_active,
     duration_minutes,
     price,
+    metadata,
     buffer_before,
     buffer_after,
     service_categories ( id, name, display_order )
@@ -110,6 +112,7 @@ const branchServicesLegacySelect = `
     is_active,
     duration_minutes,
     price,
+    metadata,
     buffer_before,
     buffer_after,
     service_categories ( id, name, display_order )
@@ -141,6 +144,7 @@ const branchServicesCoreSelect = `
     is_active,
     duration_minutes,
     price,
+    metadata,
     buffer_before,
     buffer_after,
     service_categories ( id, name, display_order )
@@ -160,6 +164,7 @@ const branchServicesMinimalSelect = `
     is_active,
     duration_minutes,
     price,
+    metadata,
     buffer_before,
     buffer_after,
     service_categories ( id, name, display_order )

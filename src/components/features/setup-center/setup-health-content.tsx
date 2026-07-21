@@ -5,6 +5,7 @@ import { SetupStatusCard } from "./setup-status-card";
 import { SetupActionRow } from "./setup-action-row";
 import { SetupShortcutCard } from "./setup-shortcut-card";
 import { SetupSectionTitle } from "./setup-section-title";
+import { getAttendanceLaunchStatus } from "@/lib/attendance/launch-status";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,34 @@ const TIPS = [
 export function SetupHealthContent({ data }: { data: CrmSetupHealthData }) {
   const progress = computeProgress(data);
   const statusCards = buildStatusCards(data);
+  const attendance = getAttendanceLaunchStatus();
+  const attendanceCards: StatusCardData[] = [
+    {
+      icon: "📱",
+      label: "Attendance Scanning",
+      value: attendance.scanningEnabled ? "Enabled" : "Disabled",
+      sub: attendance.scanningEnabled ? "QR scans can be recorded" : "QR scanning is turned off",
+      status: attendance.scanningEnabled ? "ready" : "error",
+    },
+    {
+      icon: "🛡️",
+      label: "Attendance Enforcement",
+      value: attendance.enforcementEnabled ? "Enabled" : "Paused",
+      sub: attendance.enforcementEnabled
+        ? "Presence affects availability"
+        : "Schedule-based availability remains active",
+      status: attendance.enforcementEnabled ? "ready" : "warning",
+    },
+    {
+      icon: "⏱️",
+      label: "Closing Automation",
+      value: attendance.closingAutomationVerified ? "Verified" : "Unverified",
+      sub: attendance.closingAutomationVerified
+        ? "Four-job cron attestation recorded"
+        : "Run the production cron verifier before enforcement",
+      status: attendance.closingAutomationVerified ? "ready" : "error",
+    },
+  ];
 
   const criticalIssues = data.issues.filter((i) => i.severity === "error");
   const warningIssues = data.issues.filter((i) => i.severity === "warning");
@@ -248,6 +277,15 @@ export function SetupHealthContent({ data }: { data: CrmSetupHealthData }) {
         <SetupSectionTitle>Setup Area Status</SetupSectionTitle>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {statusCards.map((card) => (
+            <SetupStatusCard key={card.label} {...card} />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <SetupSectionTitle>Attendance Launch Status</SetupSectionTitle>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {attendanceCards.map((card) => (
             <SetupStatusCard key={card.label} {...card} />
           ))}
         </div>

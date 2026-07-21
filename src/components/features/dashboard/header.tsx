@@ -46,7 +46,7 @@ export function Header({ role, fullName, displayName, avatarUrl, readiness, work
   const settingsDestination = settingsHref(role);
 
   return (
-    <header style={{
+    <header data-testid="workspace-header" style={{
       height:          52,
       backgroundColor: "var(--cs-surface)",
       borderBottom:    "1px solid var(--cs-border-soft)",

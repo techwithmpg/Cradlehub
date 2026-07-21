@@ -6,10 +6,12 @@ import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-acc
 import { getWorkspaceSwitchDestination, hasWorkspaceAccess } from "@/lib/auth/workspace-access";
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
-import { isWorkspaceEnabled } from "@/lib/agents/config";
+import { getAgentCoachAvailability } from "@/lib/agents/config";
 import { AgentCoachProvider } from "@/components/agent/agent-context-provider";
 import { CoachBubble } from "@/components/agent/coach-bubble";
 import { InlineTip } from "@/components/agent/inline-tip";
+import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retained-workspace-provider";
+import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
 
 export default async function OwnerLayout({ children }: { children: ReactNode }) {
   const access = await getCurrentUserWorkspaceAccess();
@@ -22,8 +24,24 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
 
   const ctx = await getLayoutStaffContext();
   const me = ctx?.me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
-  const coachEnabled = isWorkspaceEnabled("owner");
-  const canShowCoach = coachEnabled && ctx?.user.id && me?.branch_id;
+  const coachAvailability = getAgentCoachAvailability({
+    workspace: "owner",
+    role: me?.system_role,
+  });
+  const canShowCoach = coachAvailability.available && ctx?.user.id && me?.branch_id;
+  const retainedChildren = ctx?.user.id && me?.system_role ? (
+    <RetainedWorkspaceProvider
+      workspace="owner"
+      userId={ctx.user.id}
+      role={me.system_role}
+      branchId={me.branch_id ?? "all-branches"}
+      enabled={isRetainedWorkspaceEnabled("owner")}
+    >
+      {children}
+    </RetainedWorkspaceProvider>
+  ) : (
+    children
+  );
 
   return (
     <>
@@ -36,12 +54,12 @@ export default async function OwnerLayout({ children }: { children: ReactNode })
           branchName={Array.isArray(me.branches) ? me.branches[0]?.name ?? "Your Branch" : (me.branches as { name: string } | null)?.name ?? "Your Branch"}
           userId={ctx.user.id}
         >
-          {children}
+          {retainedChildren}
           <CoachBubble />
           <InlineTip />
         </AgentCoachProvider>
       ) : (
-        children
+        retainedChildren
       )}
     </>
   );

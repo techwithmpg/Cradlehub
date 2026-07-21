@@ -184,21 +184,10 @@ const MANAGER_SAFE_ROLES = new Set([
 
 // ── Update staff profile (owner or manager) ───────────────────────────────
 export async function updateStaffAction(rawInput: unknown) {
-  if (process.env.NODE_ENV === "development") {
-    const raw = rawInput as Record<string, unknown>;
-    console.debug("[staff.update] request", {
-      hasStaffId: Boolean(raw?.staffId),
-      hasSystemRole: Boolean(raw?.systemRole),
-      hasBranchId: Boolean(raw?.branchId),
-    });
-  }
   const parsed = updateStaffSchema.safeParse(rawInput);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const field = issue?.path?.join(".") ?? "unknown";
-    if (process.env.NODE_ENV === "development") {
-      console.debug("[staff.update] validation failed", { field, message: issue?.message });
-    }
     return { success: false, error: `Validation failed on field "${field}": ${issue?.message}` };
   }
 
@@ -253,7 +242,7 @@ export async function updateStaffAction(rawInput: unknown) {
     .from("staff")
     .update(updatePayload)
     .eq("id", staffId)
-    .select("id");
+    .select("id, full_name, nickname, phone, tier, system_role, staff_type, is_head, branch_id, is_active, updated_at");
 
   // Backward compatibility: if staff_type/is_head columns don't exist yet
   if (updateResult.error && isMissingStaffOrgColumnsError(updateResult.error.message)) {
@@ -266,7 +255,7 @@ export async function updateStaffAction(rawInput: unknown) {
       .from("staff")
       .update(legacyPayload)
       .eq("id", staffId)
-      .select("id");
+      .select("id, full_name, nickname, phone, tier, system_role, branch_id, is_active, updated_at");
   }
 
   if (updateResult.error) return { success: false, error: updateResult.error.message };
@@ -291,7 +280,7 @@ export async function updateStaffAction(rawInput: unknown) {
   revalidatePath("/manager/staff");
   revalidatePath(`/manager/staff/${staffId}`);
   revalidatePath("/crm/staff");
-  return { success: true };
+  return { success: true, staff: updateResult.data[0]! };
 }
 
 // ── Toggle staff active/inactive (CRM-accessible) ────────────────────────
@@ -331,7 +320,7 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
     .from("staff")
     .update({ is_active: isActive })
     .eq("id", staffId)
-    .select("id");
+    .select("id, is_active, updated_at");
 
   if (updateResult.error) return { success: false, error: updateResult.error.message } as const;
 
@@ -343,7 +332,7 @@ export async function toggleStaffActiveAction(rawInput: unknown) {
   revalidatePath("/manager/staff");
   revalidatePath("/crm/staff");
   revalidatePath("/crm/schedule");
-  return { success: true } as const;
+  return { success: true, staff: updateResult.data[0]! } as const;
 }
 
 // ── Invite-link onboarding: staff claims a pre-created record ─────────────

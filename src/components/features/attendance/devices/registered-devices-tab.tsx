@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { revokeDeviceRecoveryLinkAction } from "@/app/(dashboard)/crm/attendance/actions";
@@ -56,6 +57,7 @@ export function RegisteredDevicesTab({
   routeBasePath?: string;
   routeBranchId?: string | null;
 }) {
+  const router = useRouter();
   const [registry, setRegistry] = useState<AttendanceDeviceRegistryData>(data.deviceRegistry);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | AttendanceDeviceStatus>("all");
@@ -93,7 +95,7 @@ export function RegisteredDevicesTab({
 
   function changeBranch(branchId: string) {
     if (branchId === registry.branchId) return;
-    window.location.href = `${routeBasePath ?? "/owner/attendance"}?tab=devices&branchId=${branchId}`;
+    router.push(`${routeBasePath ?? "/owner/attendance"}?tab=devices&branchId=${branchId}`);
   }
 
   function upsertPendingLink(link: PendingDeviceRecoveryLink) {

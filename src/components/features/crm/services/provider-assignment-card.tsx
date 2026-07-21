@@ -11,7 +11,6 @@
  */
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import type { ServiceRow } from "./types";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
 import { SERVICE_STAFF_TYPES, STAFF_TYPE_LABELS } from "@/constants/staff-roles";
@@ -251,13 +250,13 @@ function StatusMessage({ type, text }: { type: "success" | "error"; text: string
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ProviderAssignmentCard({
-  row,
+  row: initialRow,
   branchId,
 }: {
   row: ServiceRow;
   branchId: string;
 }) {
-  const router = useRouter();
+  const [row, setRow] = useState(initialRow);
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState<{
     type: "success" | "error";
@@ -266,14 +265,15 @@ export function ProviderAssignmentCard({
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const noProviderIssue = buildNoProviderIssue(row);
 
-  function runAction(action: () => Promise<{ ok: boolean; message: string }>) {
+  function runAction(
+    action: () => ReturnType<typeof assignProviderToServiceAction>,
+    reconcile: (assigned: boolean, staffId: string) => void
+  ) {
     setStatus(null);
     startTransition(async () => {
       const result = await action();
       setStatus({ type: result.ok ? "success" : "error", text: result.message });
-      if (result.ok) {
-        router.refresh();
-      }
+      if (result.ok) reconcile(result.assigned, result.assignment.staff_id);
     });
   }
 
@@ -288,6 +288,17 @@ export function ProviderAssignmentCard({
       });
       if (res.ok) setSelectedStaffId("");
       return res;
+    }, (assigned, staffId) => {
+      if (!assigned) return;
+      setRow((current) => {
+        const member = current.assignableProviders.find((provider) => provider.id === staffId);
+        if (!member) return current;
+        return {
+          ...current,
+          assignedProviders: [...current.assignedProviders.filter((provider) => provider.id !== staffId), member],
+          assignableProviders: current.assignableProviders.filter((provider) => provider.id !== staffId),
+        };
+      });
     });
   }
 
@@ -298,7 +309,18 @@ export function ProviderAssignmentCard({
         serviceId: row.serviceId,
         staffId,
       })
-    );
+    , (assigned, savedStaffId) => {
+      if (assigned) return;
+      setRow((current) => {
+        const member = current.assignedProviders.find((provider) => provider.id === savedStaffId);
+        if (!member) return current;
+        return {
+          ...current,
+          assignedProviders: current.assignedProviders.filter((provider) => provider.id !== savedStaffId),
+          assignableProviders: [...current.assignableProviders.filter((provider) => provider.id !== savedStaffId), member],
+        };
+      });
+    });
   }
 
   const rowBg = row.isCritical

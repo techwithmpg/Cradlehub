@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 
@@ -26,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { BranchAttendanceCategoryRule } from "@/lib/attendance/branch-attendance-rules";
+import type { BranchAttendanceRulesData } from "@/lib/attendance/branch-attendance-rules";
 import type { AttendanceStaffCategory } from "@/lib/attendance/closing-policy";
 import { saveAttendanceCategoryRuleAction } from "./attendance-rule-actions";
 
@@ -70,11 +70,12 @@ function hasOverride(rule: BranchAttendanceCategoryRule): boolean {
 export function AttendanceCategoryRulesEditor({
   branchId,
   categories,
+  onSaved,
 }: {
   branchId: string;
   categories: BranchAttendanceCategoryRule[];
+  onSaved: (data: BranchAttendanceRulesData) => void;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const categoryItems = useMemo(
     () => categories.map((row) => ({ label: row.label, value: row.category })),
@@ -155,7 +156,7 @@ export function AttendanceCategoryRulesEditor({
         return;
       }
       toast.success(result.message);
-      router.refresh();
+      onSaved(result.data);
     });
   }
 

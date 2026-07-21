@@ -8,6 +8,7 @@ import {
   updatePublicSiteAsset,
   updatePublicSiteSection,
 } from "@/lib/queries/public-site";
+import type { PublicSiteAssetRow, PublicSiteSectionRow } from "@/lib/queries/public-site";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -32,6 +33,9 @@ export type MarketingActionState = {
   success?: boolean;
   error?: string;
   message?: string;
+  section?: PublicSiteSectionRow;
+  asset?: PublicSiteAssetRow;
+  disabledAssetId?: string;
 };
 
 function text(formData: FormData, name: string): string {
@@ -92,7 +96,7 @@ export async function saveMarketingSectionAction(
     return { success: false, error: result.error };
   }
 
-  return { success: true, message: "Section saved." };
+  return { success: true, message: "Section saved.", section: result.section };
 }
 
 export async function createMarketingAssetAction(
@@ -116,7 +120,7 @@ export async function createMarketingAssetAction(
     return { success: false, error: result.error };
   }
 
-  return { success: true, message: "Asset added." };
+  return { success: true, message: "Asset added.", asset: result.asset };
 }
 
 export async function updateMarketingAssetAction(
@@ -141,7 +145,7 @@ export async function updateMarketingAssetAction(
     return { success: false, error: result.error };
   }
 
-  return { success: true, message: "Asset saved." };
+  return { success: true, message: "Asset saved.", asset: result.asset };
 }
 
 export async function disableMarketingAssetAction(
@@ -150,13 +154,12 @@ export async function disableMarketingAssetAction(
 ): Promise<MarketingActionState> {
   void prevState;
   if (!(await requireOwner())) return { success: false, error: "Unauthorized" };
-  const result = await disablePublicSiteAsset({
-    id: text(formData, "id"),
-  });
+  const id = text(formData, "id");
+  const result = await disablePublicSiteAsset({ id });
 
   if (!result.success) {
     return { success: false, error: result.error };
   }
 
-  return { success: true, message: "Asset disabled." };
+  return { success: true, message: "Asset disabled.", disabledAssetId: id };
 }

@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import {
   Bell,
   CalendarDays,
@@ -82,13 +81,14 @@ export function PayrollSettingsDialog({
   initialSection,
   settings,
   onOpenChange,
+  onSaved,
 }: {
   open: boolean;
   initialSection: PayrollSettingsSection;
   settings: PayrollSettings;
   onOpenChange: (open: boolean) => void;
+  onSaved: (settings: PayrollSettings) => void;
 }) {
-  const router = useRouter();
   const [activeSection, setActiveSection] = useState<PayrollSettingsSection>(initialSection);
   const [draft, setDraft] = useState<PayrollSettings>(settings);
   const [dirty, setDirty] = useState(false);
@@ -125,7 +125,7 @@ export function PayrollSettingsDialog({
         return;
       }
       setDirty(false);
-      router.refresh();
+      onSaved(result.data);
       onOpenChange(false);
     });
   }

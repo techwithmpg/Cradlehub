@@ -5,7 +5,6 @@ import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkspaceBookingRow } from "./booking-workspace-types";
 import { crmCompleteServiceAction } from "@/app/(dashboard)/crm/bookings/actions";
-import { autoCompleteDueSessionAction } from "@/app/(dashboard)/staff-portal/actions";
 import {
   getBookingDurationMinutes,
   getBookingRoomLabel,
@@ -35,21 +34,13 @@ export function SelectedBookingServiceSession({
   const [isCompleting, startTransition] = useTransition();
   const duration = getBookingDurationMinutes(booking) || 60;
 
-  function handleAutoComplete() {
-    startTransition(async () => {
-      const result = await autoCompleteDueSessionAction(booking.id);
-      if (result.ok) toast.success("Service auto-completed.");
-      else if (result.code !== "ALREADY_COMPLETED") toast.error(result.message ?? "Auto-complete failed.");
-      onChanged?.();
-    });
-  }
 
   const countdown = useServiceSessionCountdown({
     status: booking.status,
     progressStatus: booking.booking_progress_status,
     sessionStartedAt: booking.session_started_at,
+    sessionDueAt: booking.session_due_at,
     durationMinutes: duration,
-    onDue: handleAutoComplete,
   });
 
   function handleComplete() {
@@ -74,11 +65,11 @@ export function SelectedBookingServiceSession({
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.1em] text-emerald-800">In service</p>
           <p className="mt-1 text-xs text-emerald-900/75">
-            {startLabel ? `Started ${startLabel}` : "Service started"} · {countdown.overtime ? "Ready to complete" : `${minutesRemaining} min remaining`}
+            {startLabel ? `Started ${startLabel}` : "Service started"} · {countdown.overtime ? "Overtime — complete when the customer is finished" : `${minutesRemaining} min remaining`}
           </p>
         </div>
         <span className="text-2xl font-bold tabular-nums text-emerald-900">
-          {countdown.ready ? countdownLabel(countdown.overtime ? countdown.elapsedSeconds - duration * 60 : countdown.remainingSeconds) : "--:--"}
+          {countdown.ready ? countdownLabel(countdown.overtime ? countdown.overtimeSeconds : countdown.remainingSeconds) : "--:--"}
         </span>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-emerald-900/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(countdown.progressPercent)}>

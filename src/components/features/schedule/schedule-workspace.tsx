@@ -2,7 +2,13 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { Maximize2, Minimize2 } from "lucide-react";
+import {
+  unwrapWorkspaceSWRKey,
+  useWorkspaceSWRKey,
+  type WorkspaceScopedSWRKey,
+} from "@/components/features/dashboard/workspace-swr-cache";
 import { ScheduleToolbar } from "./schedule-toolbar";
 import { ScheduleKpiCards } from "./schedule-kpi-cards";
 import { ScheduleBoardPanel } from "./schedule-board-panel";
@@ -20,6 +26,7 @@ import type { DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import { getRequiredResourceType } from "@/lib/schedule/live-schedule-conflicts";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
 import type { Database } from "@/types/supabase";
+import { refreshScheduleWorkspaceAction } from "@/lib/actions/schedule-data-actions";
 
 type ResourceRow = Database["public"]["Tables"]["branch_resources"]["Row"];
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -116,10 +123,10 @@ export function ScheduleWorkspace({
   branchName,
   date,
   branches,
-  staffRows,
+  staffRows: initialStaffRows,
   availabilityItems = [],
-  branchResources,
-  stats,
+  branchResources: initialBranchResources,
+  stats: initialStats,
   viewBookingsHref,
   statusAction,
   paymentAction,
@@ -128,6 +135,38 @@ export function ScheduleWorkspace({
   rightRailExtras,
 }: ScheduleWorkspaceProps) {
   const router = useRouter();
+  const scheduleKey = useWorkspaceSWRKey(
+    ["schedule-workspace", branchId, date] as const
+  );
+  const { data: scheduleData, mutate: refreshSchedule } = useSWR(
+    scheduleKey,
+    async (
+      scopedKey: WorkspaceScopedSWRKey<
+        readonly ["schedule-workspace", string, string]
+      >
+    ) => {
+      const [, nextBranchId, nextDate] = unwrapWorkspaceSWRKey(scopedKey);
+      const result = await refreshScheduleWorkspaceAction({
+        branchId: nextBranchId,
+        date: nextDate,
+      });
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    {
+      fallbackData: {
+        staffRows: initialStaffRows,
+        stats: initialStats,
+        branchResources: initialBranchResources,
+      },
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      revalidateOnMount: false,
+    }
+  );
+  const staffRows = scheduleData?.staffRows ?? initialStaffRows;
+  const stats = scheduleData?.stats ?? initialStats;
+  const branchResources = scheduleData?.branchResources ?? initialBranchResources;
   const [staffSearch, setStaffSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -290,10 +329,10 @@ export function ScheduleWorkspace({
       });
       window.setTimeout(() => setAdjustmentToast(null), 3500);
       if ((feedback.variant ?? "success") === "success") {
-        router.refresh();
+        void refreshSchedule();
       }
     },
-    [router]
+    [refreshSchedule]
   );
 
   const handleAvailabilitySaved = useCallback(
@@ -304,9 +343,9 @@ export function ScheduleWorkspace({
         variant: "success",
       });
       window.setTimeout(() => setAdjustmentToast(null), 3500);
-      router.refresh();
+      void refreshSchedule();
     },
-    [router]
+    [refreshSchedule]
   );
 
   const workspaceContent = (

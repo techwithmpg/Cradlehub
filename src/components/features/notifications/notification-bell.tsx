@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   Popover,
@@ -12,11 +14,18 @@ import { cn } from "@/lib/utils";
 import {
   getRecentNotificationsAction,
   getUnreadCountAction,
+  dismissNotificationAction,
 } from "@/lib/notifications/queries";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { NotificationBellDropdown } from "./notification-bell-dropdown";
 import { BookingNotificationSound } from "./booking-notification-sound";
 import { canonicalizeSystemRole } from "@/constants/staff";
+import { getNotificationDisplay } from "./notification-display";
+import { dispatchBookingNotificationSound } from "./notification-sound-preference";
+import {
+  broadcastNotificationReconciliation,
+  useWorkspaceNotificationRealtime,
+} from "./use-workspace-notification-realtime";
 
 // Roles that handle booking payments and should hear actionable-booking sounds.
 const SOUND_ROLES = new Set(["crm", "manager", "owner"]);
@@ -30,11 +39,36 @@ const WORKSPACE_HREF: Record<string, string> = {
   utility: "/utility",
 };
 
+const BOOKING_NOTIFICATION_TYPES = new Set([
+  "booking_created",
+  "booking_assigned",
+  "home_service_assigned",
+  "booking_cancelled",
+  "booking_rescheduled",
+  "booking_reassigned",
+  "booking_status_changed",
+  "customer_arrived",
+  "payment_pending",
+  "payment_overdue",
+  "home_service_dispatch_conflict",
+  "home_service_location_review",
+  "staff_schedule_exception",
+]);
+
+function isBookingNotification(notification: WorkspaceNotification) {
+  return (
+    notification.entity_type === "booking" ||
+    BOOKING_NOTIFICATION_TYPES.has(notification.type)
+  );
+}
+
 export function NotificationBell({ role }: { role: string }) {
+  const router = useRouter();
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<WorkspaceNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const knownIdsRef = useRef(new Set<string>());
 
   const canonicalRole = canonicalizeSystemRole(role);
   const href = WORKSPACE_HREF[canonicalRole] ?? "/owner/notifications";
@@ -46,6 +80,7 @@ export function NotificationBell({ role }: { role: string }) {
         getRecentNotificationsAction(20),
         getUnreadCountAction(),
       ]);
+      knownIdsRef.current = new Set(notifications.map((notification) => notification.id));
       setItems(notifications);
       setCount(unreadCount);
     } catch {
@@ -55,44 +90,83 @@ export function NotificationBell({ role }: { role: string }) {
     }
   }, []);
 
-  // Initial badge count
+  // Establish the initial unread baseline without presenting old rows as alerts.
   useEffect(() => {
-    getUnreadCountAction().then(setCount).catch(() => {});
-  }, []);
+    const timeoutId = window.setTimeout(() => {
+      void refreshNotifications();
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [refreshNotifications]);
 
-  // Refresh badge count periodically when closed; pause while the tab is hidden.
-  useEffect(() => {
-    if (open) return;
-
-    const poll = () => {
-      getUnreadCountAction().then(setCount).catch(() => {});
-    };
-    let id: ReturnType<typeof setInterval> | undefined;
-    const start = () => {
-      id = setInterval(poll, 60_000);
-    };
-    const stop = () => {
-      if (id !== undefined) {
-        clearInterval(id);
-        id = undefined;
-      }
-    };
-    const handleVisibility = () => {
-      if (document.hidden) {
-        stop();
+  const handleRealtimeInsert = useCallback(
+    (
+      notification: WorkspaceNotification,
+      { present }: { present: boolean }
+    ) => {
+      if (!present) {
+        const alreadyKnown = knownIdsRef.current.has(notification.id);
+        knownIdsRef.current.add(notification.id);
+        setItems((current) => [
+          notification,
+          ...current.filter((item) => item.id !== notification.id),
+        ].slice(0, 20));
+        if (!alreadyKnown && notification.status === "unread") {
+          setCount((current) => current + 1);
+        }
         return;
       }
-      poll();
-      start();
-    };
 
-    start();
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [open]);
+      const display = getNotificationDisplay(notification);
+      const description = [notification.body?.trim() || display.detail, display.meta]
+        .filter(Boolean)
+        .join(" · ");
+      toast(notification.title || display.title, {
+        description,
+        duration:
+          notification.priority === "critical"
+            ? 15_000
+            : notification.priority === "high"
+              ? 10_000
+              : 7_000,
+        action: {
+          label: display.actionLabel,
+          onClick: () => router.push(display.href),
+        },
+        cancel: {
+          label: "Dismiss",
+          onClick: () => {
+            void dismissNotificationAction(notification.id).finally(() => {
+              broadcastNotificationReconciliation();
+              void refreshNotifications();
+            });
+          },
+        },
+      });
+
+      if (isBookingNotification(notification)) {
+        dispatchBookingNotificationSound(notification.id);
+      }
+    },
+    [refreshNotifications, router]
+  );
+
+  const handleRealtimeUpdate = useCallback(
+    (notification: WorkspaceNotification) => {
+      setItems((current) =>
+        current.map((item) =>
+          item.id === notification.id ? notification : item
+        )
+      );
+      void getUnreadCountAction().then(setCount).catch(() => {});
+    },
+    []
+  );
+
+  useWorkspaceNotificationRealtime({
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+    onReconcile: refreshNotifications,
+  });
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -122,6 +196,7 @@ export function NotificationBell({ role }: { role: string }) {
     if (target?.status === "unread") {
       setCount((current) => Math.max(0, current - 1));
     }
+    broadcastNotificationReconciliation();
   }, [items]);
 
   const markAllRead = useCallback(() => {
@@ -131,6 +206,7 @@ export function NotificationBell({ role }: { role: string }) {
       )
     );
     setCount(0);
+    broadcastNotificationReconciliation();
   }, []);
 
   return (
@@ -180,6 +256,7 @@ export function NotificationBell({ role }: { role: string }) {
             onMarkRead={markRead}
             onDismiss={remove}
             onMarkAllRead={markAllRead}
+            role={canonicalRole}
           />
         </PopoverContent>
       </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -20,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { CustomizationRow } from "./customization-rows";
 import type { DeliveryMode } from "./service-customization-tab";
+import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 import {
   updateBranchServiceDeliveryModeAction,
   updateBranchServiceVisibilityAction,
@@ -30,11 +30,13 @@ export function SelectedServiceEditorRail({
   branchName,
   row,
   onClose,
+  onServicePatch,
 }: {
   branchId: string;
   branchName: string;
   row: CustomizationRow | null;
   onClose: () => void;
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
 }) {
   if (!row) {
     return (
@@ -48,13 +50,14 @@ export function SelectedServiceEditorRail({
     <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
       <RailHeader row={row} onClose={onClose} />
       <div className="space-y-5 p-5">
-        <DeliveryModeSection branchId={branchId} row={row} />
+        <DeliveryModeSection branchId={branchId} row={row} onServicePatch={onServicePatch} />
         <HomeServiceToggleSection
           key={`${row.branchServiceId}:${String(row.isHomeService)}`}
           branchId={branchId}
           row={row}
+          onServicePatch={onServicePatch}
         />
-        <PublicVisibilitySection branchId={branchId} row={row} />
+        <PublicVisibilitySection branchId={branchId} row={row} onServicePatch={onServicePatch} />
         <ReadinessChecklist row={row} />
         <QuickActions row={row} />
       </div>
@@ -127,18 +130,35 @@ function RailHeader({ row, onClose }: { row: CustomizationRow; onClose: () => vo
 
 // ── Delivery Mode ─────────────────────────────────────────────────────────────
 
-function DeliveryModeSection({ branchId, row }: { branchId: string; row: CustomizationRow }) {
+function DeliveryModeSection({
+  branchId,
+  row,
+  onServicePatch,
+}: {
+  branchId: string;
+  row: CustomizationRow;
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [localMode, setLocalMode] = useState<DeliveryMode>(row.deliveryMode);
 
   const handleChange = (mode: DeliveryMode) => {
+    const previousMode = localMode;
     setLocalMode(mode);
     startTransition(async () => {
       const res = await updateBranchServiceDeliveryModeAction(branchId, row.serviceId, mode);
-      if (!res.success) {
-        console.error("[delivery mode] update failed", res.error);
-        setLocalMode(row.deliveryMode);
+      if (!res.success || !res.branchService) {
+        setLocalMode(previousMode);
+        toast.error("Delivery mode not saved", { description: res.error });
+        return;
       }
+      const saved = res.branchService;
+      onServicePatch(row.serviceId, {
+        is_active: saved.is_active,
+        available_in_spa: saved.available_in_spa,
+        available_home_service: saved.available_home_service,
+      });
+      toast.success("Delivery mode updated.");
     });
   };
 
@@ -203,8 +223,15 @@ function DeliveryModeSection({ branchId, row }: { branchId: string; row: Customi
 
 // ── Home Service Toggle ───────────────────────────────────────────────────────
 
-function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: CustomizationRow }) {
-  const router = useRouter();
+function HomeServiceToggleSection({
+  branchId,
+  row,
+  onServicePatch,
+}: {
+  branchId: string;
+  row: CustomizationRow;
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [localValue, setLocalValue] = useState(row.isHomeService);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -228,12 +255,14 @@ function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: Cu
       }
       // Sync to what DB actually saved, then reload server data
       setLocalValue(res.savedAvailableHomeService);
+      onServicePatch(row.serviceId, {
+        available_home_service: res.branchService.available_home_service,
+      });
       toast.success("Home Service updated", {
         description: `${row.name} is ${
           res.savedAvailableHomeService ? "available" : "not available"
         } for Home Service.`,
       });
-      router.refresh();
     });
   };
 
@@ -282,8 +311,15 @@ function HomeServiceToggleSection({ branchId, row }: { branchId: string; row: Cu
 
 // ── Public Visibility ─────────────────────────────────────────────────────────
 
-function PublicVisibilitySection({ branchId, row }: { branchId: string; row: CustomizationRow }) {
-  const router = useRouter();
+function PublicVisibilitySection({
+  branchId,
+  row,
+  onServicePatch,
+}: {
+  branchId: string;
+  row: CustomizationRow;
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [localPublic, setLocalPublic] = useState(row.visibility === "public" && row.isActive);
   const [saveErrorVis, setSaveErrorVis] = useState<string | null>(null);
@@ -295,12 +331,13 @@ function PublicVisibilitySection({ branchId, row }: { branchId: string; row: Cus
     const nextVisibility: "public" | "internal" = checked ? "public" : "internal";
     startTransition(async () => {
       const res = await updateBranchServiceVisibilityAction(branchId, row.serviceId, nextVisibility);
-      if (!res.success) {
+      if (!res.success || !res.branchService) {
         setSaveErrorVis(res.error ?? "Visibility update failed");
         setLocalPublic(!checked);
       } else {
         setSaveErrorVis(null);
-        router.refresh();
+        setLocalPublic(res.branchService.visibility === "public");
+        onServicePatch(row.serviceId, { visibility: res.branchService.visibility });
       }
     });
   };

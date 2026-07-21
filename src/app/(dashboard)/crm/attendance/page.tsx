@@ -10,6 +10,7 @@ import {
   oneAttendanceParam,
   type AttendanceSearchParams,
 } from "@/lib/attendance/record-filters";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 export default async function CrmAttendancePage({
   searchParams,
@@ -39,26 +40,28 @@ export default async function CrmAttendancePage({
     : null;
 
   return (
-    <section>
-      {error || !data ? (
-        <Alert variant="destructive">
-          <AlertTitle>Could not load attendance</AlertTitle>
-          <AlertDescription>{error ?? "Unknown error."}</AlertDescription>
-        </Alert>
-      ) : (
-        <AttendanceWorkspace
-          data={data}
-          activeTab={activeTab}
-          initialNowMs={data.serverNowMs}
-          initialRecordFilters={recordFilterResult?.filters}
-          flash={{
-            status: oneAttendanceParam(params.status),
-            message: oneAttendanceParam(params.message) ?? recordFilterResult?.warning,
-            activationUrl: oneAttendanceParam(params.activationUrl),
-            expiresAt: oneAttendanceParam(params.expiresAt),
-          }}
-        />
-      )}
-    </section>
+    <RetainedWorkspaceModule moduleId="crm-attendance">
+      <section>
+        {error || !data ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not load attendance</AlertTitle>
+            <AlertDescription>{error ?? "Unknown error."}</AlertDescription>
+          </Alert>
+        ) : (
+          <AttendanceWorkspace
+            data={data}
+            activeTab={activeTab}
+            initialNowMs={data.serverNowMs}
+            initialRecordFilters={recordFilterResult?.filters}
+            flash={{
+              status: oneAttendanceParam(params.status),
+              message: oneAttendanceParam(params.message) ?? recordFilterResult?.warning,
+              activationUrl: oneAttendanceParam(params.activationUrl),
+              expiresAt: oneAttendanceParam(params.expiresAt),
+            }}
+          />
+        )}
+      </section>
+    </RetainedWorkspaceModule>
   );
 }

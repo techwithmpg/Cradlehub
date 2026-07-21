@@ -15,6 +15,20 @@
 - `src/proxy.ts` — auth guard + role-based workspace routing (Next.js 16 Proxy)
 - `supabase/migrations/` — database schema history
 
+## Retained CRM and Owner modules
+
+- The dashboard server layout remains the permanent shell. CRM and Owner server
+  layouts mount an identity-scoped client registry without moving authorization
+  or Supabase server queries across the trust boundary.
+- React Activity preserves a bounded set of module instances and cleans hidden
+  Effects. CRM keeps four recent modules; Owner keeps three. SWR keys are
+  user/role/branch-prefixed and remain in memory after visual eviction, then are
+  purged when the authenticated workspace boundary unmounts.
+- Canonical App Router URLs remain the navigation model. Stable filters/tabs/date
+  state stay in the URL; local selection and scroll stay with the retained module.
+- Full design, security, lifecycle, stale-time, and rollback details:
+  `docs/performance/CRM-RETENTION-001-ARCHITECTURE.md`.
+
 ## Scheduling Architecture
 
 - Runtime scheduling is individual-first. The canonical runtime sources are
@@ -67,6 +81,17 @@
   migrations until `pnpm db:status` can read linked migration history cleanly.
 
 ## Attendance Architecture
+
+- Wrong-branch QR scans are captured before review. Branch Corrections then
+  records one explicit temporary shift/day authorization, permanent current
+  branch transfer, or rejection. The locked service transaction resumes approved
+  scans through the existing Attendance engine and preserves source evidence,
+  historical home/actual branch snapshots, deterministic replay, and rollback
+  semantics. Browser roles cannot call the resolver or write the authorization
+  ledger directly. Authenticated first-scan phones are registered before branch
+  evaluation so a wrong-branch source retains verified device identity; device
+  branch metadata never grants effective Attendance branch authority. See
+  `docs/attendance/BRANCH_CORRECTION_RESOLUTION.md`.
 
 - Daily operational interpretation is centralized in
   `src/lib/attendance/day-model.ts`. It composes—not replaces—the canonical

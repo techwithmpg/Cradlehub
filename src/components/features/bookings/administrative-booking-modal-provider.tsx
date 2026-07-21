@@ -11,8 +11,8 @@ import {
   type ReactNode,
 } from "react";
 import { CalendarPlus, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
   AdminDialog,
   AdminOverlayBody,
@@ -99,7 +99,6 @@ export function AdministrativeBookingModalProvider({
   staff,
   resources,
 }: AdministrativeBookingModalProviderProps) {
-  const router = useRouter();
   const [request, setRequest] = useState<AdministrativeBookingModalRequest | null>(null);
   const [modalKey, setModalKey] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -192,9 +191,9 @@ export function AdministrativeBookingModalProvider({
         size="xl"
         placement="center"
         ariaLabel="New booking"
-        className="h-[100dvh] max-h-[100dvh] rounded-none border-0 bg-[var(--cs-surface)] sm:h-auto sm:max-h-[min(92vh,900px)] sm:rounded-2xl sm:border sm:max-w-[900px]"
+        className="h-[100dvh] max-h-[100dvh] rounded-none border-0 bg-[var(--cs-surface)] sm:h-[min(94dvh,900px)] sm:max-h-[min(94dvh,900px)] sm:w-[min(1180px,calc(100vw-32px))] sm:max-w-[min(1180px,calc(100vw-32px))] sm:rounded-2xl sm:border"
       >
-        <AdminOverlayBody padded={false} className="bg-[var(--cs-bg)]">
+        <AdminOverlayBody padded={false} className="overflow-hidden bg-[var(--cs-bg)]">
           {loadingCustomer ? (
             <div className="flex min-h-[360px] items-center justify-center gap-2 text-sm font-semibold text-[var(--cs-text-muted)]">
               <Loader2 className="size-4 animate-spin" />
@@ -222,7 +221,7 @@ export function AdministrativeBookingModalProvider({
               onCancel={requestClose}
               onSuccess={(result) => {
                 closeBookingModal();
-                router.refresh();
+                notifyBookingsChanged();
                 toast.success("Booking created", {
                   description: result.isHomeService
                     ? "Home service surfaces will refresh shortly."
@@ -256,15 +255,14 @@ export function AdministrativeBookingModalProvider({
 export function useAdministrativeBookingModal() {
   const context = useContext(AdministrativeBookingModalContext);
   if (!context) {
-    throw new Error("useAdministrativeBookingModal must be used inside AdministrativeBookingModalProvider.");
+    throw new Error(
+      "useAdministrativeBookingModal must be used inside AdministrativeBookingModalProvider."
+    );
   }
   return context;
 }
 
-type OpenAdministrativeBookingButtonProps = Omit<
-  ButtonProps,
-  "type" | "onClick"
-> &
+type OpenAdministrativeBookingButtonProps = Omit<ButtonProps, "type" | "onClick"> &
   AdministrativeBookingModalRequest & {
     label?: string;
     showIcon?: boolean;
@@ -297,7 +295,17 @@ export function OpenAdministrativeBookingButton({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
-        openBookingModal({ mode, customerId, branchId, serviceId, staffId, date, time, name, phone });
+        openBookingModal({
+          mode,
+          customerId,
+          branchId,
+          serviceId,
+          staffId,
+          date,
+          time,
+          name,
+          phone,
+        });
       }}
       {...buttonProps}
     >

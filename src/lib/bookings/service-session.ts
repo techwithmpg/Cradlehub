@@ -36,6 +36,7 @@ export type ServiceTimerInput = {
   progressStatus?: string | null;
   checkedInAt?: string | null;
   sessionStartedAt?: string | null;
+  sessionDueAt?: string | null;
   durationMinutes?: number | null;
   resourceId?: string | null;
   isHomeService?: boolean;
@@ -71,7 +72,16 @@ export function computeServiceTimerState(
   nowMs: number,
   mountMs: number,
 ): ServiceTimerState | null {
-  const { status, progressStatus, checkedInAt, sessionStartedAt, durationMinutes, resourceId, isHomeService } = input;
+  const {
+    status,
+    progressStatus,
+    checkedInAt,
+    sessionStartedAt,
+    sessionDueAt,
+    durationMinutes,
+    resourceId,
+    isHomeService,
+  } = input;
 
   if (isHomeService || !status) return null;
 
@@ -89,20 +99,33 @@ export function computeServiceTimerState(
     const startMs = toMs(sessionStartedAt);
     if (startMs === null) return null;
 
-    const dSecs   = (durationMinutes ?? 60) * 60;
-    const endMs   = startMs + dSecs * 1000;
-    const graceMs = endMs + SERVICE_GRACE_SECS * 1000;
-    const elapsed = Math.floor((nowMs - startMs) / 1000);
+    const fallbackDurationSecs = (durationMinutes ?? 60) * 60;
+    const dueMs =
+      toMs(sessionDueAt) ??
+      startMs + fallbackDurationSecs * 1000;
+    const totalSecs = Math.max(1, Math.floor((dueMs - startMs) / 1000));
+    const elapsed = Math.max(0, Math.floor((nowMs - startMs) / 1000));
 
-    if (nowMs <= endMs) {
-      return { phase: "running",  displaySecs: Math.ceil((endMs - nowMs) / 1000),   progressPct: clamp((elapsed / dSecs) * 100),                 elapsedSecs: elapsed, totalSecs: dSecs,              isDue: false };
+    if (nowMs < dueMs) {
+      return {
+        phase: "running",
+        displaySecs: Math.ceil((dueMs - nowMs) / 1000),
+        progressPct: clamp((elapsed / totalSecs) * 100),
+        elapsedSecs: elapsed,
+        totalSecs,
+        isDue: false,
+      };
     }
-    if (nowMs <= graceMs) {
-      const ge = Math.floor((nowMs - endMs) / 1000);
-      return { phase: "grace",    displaySecs: Math.ceil((graceMs - nowMs) / 1000), progressPct: clamp((ge / SERVICE_GRACE_SECS) * 100),          elapsedSecs: ge,      totalSecs: SERVICE_GRACE_SECS, isDue: true  };
-    }
-    const ot = Math.floor((nowMs - graceMs) / 1000);
-    return   { phase: "overtime", displaySecs: ot,                                  progressPct: 100,                                             elapsedSecs: ot,      totalSecs: SERVICE_GRACE_SECS, isDue: true  };
+
+    const overtimeSecs = Math.floor((nowMs - dueMs) / 1000);
+    return {
+      phase: "overtime",
+      displaySecs: overtimeSecs,
+      progressPct: 100,
+      elapsedSecs: elapsed,
+      totalSecs,
+      isDue: true,
+    };
   }
 
   // Start buffer — checked_in with room assigned

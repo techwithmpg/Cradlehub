@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getUnreadBookingNotificationIdsAction } from "@/lib/notifications/queries";
+import {
+  BOOKING_NOTIFICATION_EVENT,
+  isNotificationSoundEnabled,
+} from "./notification-sound-preference";
 
-const PLAYED_KEY    = "cradlehub_sound_played_ids";
-const ENABLED_KEY   = "cradlehub_notification_sound_enabled";
-const POLL_INTERVAL = 60_000;
+const PLAYED_KEY = "cradlehub_sound_session_ids";
 
 function readPlayedIds(): Set<string> {
   try {
-    const raw = localStorage.getItem(PLAYED_KEY);
+    const raw = sessionStorage.getItem(PLAYED_KEY);
     return new Set(raw ? (JSON.parse(raw) as string[]) : []);
   } catch {
     return new Set();
@@ -18,18 +19,8 @@ function readPlayedIds(): Set<string> {
 
 function writePlayedIds(ids: Set<string>): void {
   try {
-    // Keep last 200 to prevent unbounded localStorage growth.
-    localStorage.setItem(PLAYED_KEY, JSON.stringify([...ids].slice(-200)));
+    sessionStorage.setItem(PLAYED_KEY, JSON.stringify([...ids].slice(-200)));
   } catch {}
-}
-
-function isEnabled(): boolean {
-  try {
-    const v = localStorage.getItem(ENABLED_KEY);
-    return v === null || v === "true"; // default on
-  } catch {
-    return true;
-  }
 }
 
 // Soft two-tone chime (A5 → C6) at low volume, ~0.5s total.
@@ -81,42 +72,32 @@ export function BookingNotificationSound() {
     };
   }, []);
 
-  // On mount: silently mark all currently-unread booking IDs as "already seen"
-  // so we never chime for notifications that existed before this session.
+  // Realtime dispatches this event only for a fresh, visible booking alert.
+  // Existing unread rows are never replayed on mount.
   useEffect(() => {
-    getUnreadBookingNotificationIdsAction().then((ids) => {
-      if (ids.length === 0) return;
-      const played = readPlayedIds();
-      ids.forEach((id) => played.add(id));
-      writePlayedIds(played);
-    }).catch(() => {});
-  }, []);
+    const handleBookingNotification = (event: Event) => {
+      const notificationId = (event as CustomEvent<{ notificationId?: unknown }>).detail
+        ?.notificationId;
+      if (typeof notificationId !== "string") return;
 
-  // Poll every 60s for IDs not yet played; chime once if any are new.
-  // Polling pauses while the tab is hidden to avoid unnecessary backend reads.
-  useEffect(() => {
-    const poll = async () => {
-      if (!isEnabled()) return;
-      try {
-        const ids    = await getUnreadBookingNotificationIdsAction();
-        const played = readPlayedIds();
-        const newIds = ids.filter((id) => !played.has(id));
-        if (newIds.length === 0) return;
-        if (readyRef.current && ctxRef.current) {
-          playChime(ctxRef.current);
-          newIds.forEach((id) => played.add(id));
-          writePlayedIds(played);
-        }
-        // If AudioContext not yet unlocked, leave IDs unmarked so we retry next poll.
-      } catch {}
+      const played = readPlayedIds();
+      if (played.has(notificationId)) return;
+      played.add(notificationId);
+      writePlayedIds(played);
+
+      if (
+        isNotificationSoundEnabled() &&
+        readyRef.current &&
+        ctxRef.current?.state === "running"
+      ) {
+        playChime(ctxRef.current);
+      }
     };
-    let timer: ReturnType<typeof setInterval> | undefined;
-    const start = () => { timer = setInterval(poll, POLL_INTERVAL); };
-    const stop  = () => { if (timer !== undefined) { clearInterval(timer); timer = undefined; } };
-    const handleVisibility = () => { if (document.hidden) { stop(); } else { poll(); start(); } };
-    start();
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => { stop(); document.removeEventListener("visibilitychange", handleVisibility); };
+
+    window.addEventListener(BOOKING_NOTIFICATION_EVENT, handleBookingNotification);
+    return () => {
+      window.removeEventListener(BOOKING_NOTIFICATION_EVENT, handleBookingNotification);
+    };
   }, []);
 
   return null;

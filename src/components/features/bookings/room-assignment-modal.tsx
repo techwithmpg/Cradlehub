@@ -20,6 +20,11 @@ import {
 } from "@/app/(dashboard)/crm/bookings/actions";
 import { formatTime } from "@/lib/utils";
 import type { WorkspaceBookingRow } from "./bookings-workspace";
+import {
+  unwrapWorkspaceSWRKey,
+  useWorkspaceSWRKey,
+  type WorkspaceScopedSWRKey,
+} from "@/components/features/dashboard/workspace-swr-cache";
 
 type RoomAssignmentModalProps = {
   open: boolean;
@@ -28,7 +33,12 @@ type RoomAssignmentModalProps = {
   onAssigned: () => void;
 };
 
-async function fetchOptions([, bookingId]: [string, string]): Promise<RoomAssignmentOptionsResult> {
+type RoomOptionsKey = readonly [string, string];
+
+async function fetchOptions(
+  scopedKey: WorkspaceScopedSWRKey<RoomOptionsKey>
+): Promise<RoomAssignmentOptionsResult> {
+  const [, bookingId] = unwrapWorkspaceSWRKey(scopedKey);
   return getRoomAssignmentOptionsAction({ bookingId });
 }
 
@@ -51,8 +61,11 @@ export function RoomAssignmentModal({
   const [isPending, startTransition] = useTransition();
 
   const bookingId = booking?.id ?? "";
+  const roomOptionsKey = useWorkspaceSWRKey(
+    ["room-assignment-options", bookingId] as const
+  );
   const { data, isLoading, mutate } = useSWR(
-    open && bookingId ? ["room-assignment-options", bookingId] : null,
+    open && bookingId ? roomOptionsKey : null,
     fetchOptions,
     { revalidateOnFocus: false }
   );

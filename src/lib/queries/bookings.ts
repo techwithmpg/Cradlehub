@@ -70,7 +70,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS = `
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
   booking_progress_status,
-  checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
+  checked_in_at, travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, session_completed_at, no_show_at,
   resource_id,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
@@ -83,7 +83,7 @@ const TODAY_SCHEDULE_SELECT_WITH_PAYMENTS_NO_RESOURCE = `
   payment_method, payment_status, payment_reference, amount_paid,
   hold_expires_at,
   booking_progress_status,
-  checked_in_at, travel_started_at, arrived_at, session_started_at, session_completed_at, no_show_at,
+  checked_in_at, travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, session_completed_at, no_show_at,
   services  ( id, name, duration_minutes, metadata ),
   staff!staff_id ( id, full_name, nickname, tier ),
   customers ( id, full_name, phone )
@@ -112,6 +112,8 @@ type MaybeProgressFields = {
   travel_started_at?: unknown;
   arrived_at?: unknown;
   session_started_at?: unknown;
+  session_due_at?: unknown;
+  session_duration_minutes_snapshot?: unknown;
   session_completed_at?: unknown;
   no_show_at?: unknown;
 };

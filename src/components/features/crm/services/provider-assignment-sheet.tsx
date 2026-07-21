@@ -16,7 +16,6 @@
  */
 
 import { useState, useTransition, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import {
   AdminDialog,
   AdminOverlayHeader,
@@ -30,6 +29,7 @@ import {
   removeProviderFromServiceAction,
 } from "@/app/(dashboard)/crm/services/actions";
 import type { ServiceTableRow } from "./types";
+import type { ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import type { StaffForServicePanel } from "@/lib/queries/crm-services";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 
@@ -356,23 +356,24 @@ export function ProviderAssignmentSheet({
   branchId,
   open,
   onClose,
+  onAssignmentChange,
 }: {
   row: ServiceTableRow;
   branchId: string;
   open: boolean;
   onClose: () => void;
+  onAssignmentChange: (assignment: ServiceAssignmentRow, assigned: boolean) => void;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [providerSearch, setProviderSearch] = useState("");
 
-  function runAction(action: () => Promise<{ ok: boolean; message: string }>) {
+  function runAction(action: () => ReturnType<typeof assignProviderToServiceAction>) {
     setStatus(null);
     startTransition(async () => {
       const result = await action();
       setStatus({ type: result.ok ? "success" : "error", text: result.message });
-      if (result.ok) router.refresh();
+      if (result.ok) onAssignmentChange(result.assignment, result.assigned);
     });
   }
 

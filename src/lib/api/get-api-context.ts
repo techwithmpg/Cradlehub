@@ -16,6 +16,7 @@ import {
 
 export type ApiUserContext = {
   userId: string;
+  staffId: string | null;
   branchId: string;
   branchName: string;
   role: string;
@@ -44,6 +45,7 @@ export async function getApiContext(): Promise<ApiUserContext | null> {
     if (superAdmin) {
       return {
         userId: user.id,
+        staffId: null,
         branchId: superAdmin.branch_id,
         branchName: superAdmin.branches?.name ?? "Your Branch",
         role: "owner",
@@ -52,7 +54,7 @@ export async function getApiContext(): Promise<ApiUserContext | null> {
 
     const { data: me } = await supabase
       .from("staff")
-      .select("branch_id, branches(name), system_role")
+      .select("id, branch_id, branches(name), system_role")
       .eq("auth_user_id", user.id)
       .eq("is_active", true)
       .maybeSingle();
@@ -62,6 +64,7 @@ export async function getApiContext(): Promise<ApiUserContext | null> {
       const mock = getDevBypassLayoutStaff();
       return {
         userId: user.id,
+        staffId: null,
         branchId: mock.branch_id,
         branchName: (mock.branches as { name: string }).name,
         role: canonicalizeSystemRole(mock.system_role),
@@ -72,6 +75,7 @@ export async function getApiContext(): Promise<ApiUserContext | null> {
 
     return {
       userId: user.id,
+      staffId: me.id,
       branchId: me.branch_id as string,
       branchName:
         (me.branches as { name: string } | null)?.name ?? "Your Branch",

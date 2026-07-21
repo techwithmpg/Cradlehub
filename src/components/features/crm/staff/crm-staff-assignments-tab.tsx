@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Search, Settings2, Sparkles, UserCheck, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -34,7 +33,6 @@ export function CrmStaffAssignmentsTab({
   providerAssignmentsError,
   onStaffServicesSaved,
 }: Props) {
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [editingStaff, setEditingStaff] = useState<StaffForServicePanel | null>(null);
   const [servicesDraft, setServicesDraft] = useState<string[]>([]);
@@ -132,13 +130,12 @@ export function CrmStaffAssignmentsTab({
           onStaffServicesSaved(editingStaff.id, result.serviceIds);
           setServicesDraft(result.serviceIds);
           setEditingStaff(null);
-          router.refresh();
         } else {
           toast.error(result.message ?? "Could not update service capabilities.");
         }
       });
     },
-    [editingStaff, onStaffServicesSaved, router]
+    [editingStaff, onStaffServicesSaved]
   );
 
   if (providerAssignmentsError) {

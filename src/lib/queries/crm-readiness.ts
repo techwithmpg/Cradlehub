@@ -31,7 +31,7 @@ import { type SetupIssue } from "./crm-setup";
 import { getCrmTodaySnapshotCached, getCrmSetupHealthCached } from "./workspace-cached";
 import type { CrmAvailabilitySummary } from "./crm-availability";
 import type { DispatchStats } from "./dispatch-queries";
-import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
+import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getDailySchedule, type DailyScheduleStaffRow } from "@/lib/queries/schedule";
 import {
@@ -530,7 +530,7 @@ async function getAssignedDriverNotCheckedInIssue(
   today: string
 ): Promise<ReadinessIssue | null> {
   // Check-in is paused for MVP — this check would create constant false positives.
-  if (MVP_CHECKIN_PAUSED) return null;
+  if (!isAttendanceEnforcementEnabled()) return null;
 
   const supabase = await createClient();
 

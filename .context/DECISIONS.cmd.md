@@ -1,5 +1,67 @@
 # 🏗️ DECISIONS
 
+### 2026-07-22: Browser push is a best-effort channel over the existing durable notification
+**Status:** ACCEPTED
+
+`public.workspace_notifications` remains the sole history, RLS boundary, unread
+state, and dedupe authority. Visible clients reconcile that table over Supabase
+Realtime. Browser Push is attempted only after the central store wins a new
+durable insert; updating an open dedupe match does not send again. Delivery
+subscription rows and Owner delivery preferences are operational state, not a
+parallel feed.
+
+Push delivery revalidates current role, branch, and exact Staff/Driver recipient,
+uses server-only VAPID credentials, and catches all provider failures outside the
+booking transaction. Permission is requested only from an explicit settings
+button. This keeps in-app history functional if push is disabled or unavailable
+and preserves booking success under delivery failure.
+
+### 2026-07-21: Active workspaces reconcile scoped client data instead of refreshing the RSC tree
+**Status:** ACCEPTED
+
+Server Components still authenticate and provide initial data. Mounted client workspaces use that data as SWR fallback or retained canonical state, optimistically patch the smallest safe entity, reconcile the typed server-action result, and revalidate only the affected cache when needed. Server path/tag invalidation remains for public or other authenticated consumers; it does not force the active workspace to disappear.
+
+### 2026-07-21: Navigable subviews use URL history and visited operational panels remain mounted
+**Status:** ACCEPTED
+
+Explicit tab/preset changes that users expect Back/Forward to restore create history entries. Setup, Services, Staff, Attendance, Reports, and Schedule derive shareable state from search parameters. Operational panels that own selection, filters, or unsaved state remain mounted after first visit and are hidden when inactive. Temporary popovers, hover, and pending state remain local.
+
+### 2026-07-21: Authenticated route segments do not own full-work-area loading UI
+**Status:** ACCEPTED
+
+The persistent dashboard shell and existing content remain visible during normal module navigation and cache reconciliation. CRM/Owner route-level loaders are removed; first-load feedback belongs to the smallest heavy panel, dynamic map/chart/table, modal, or command surface that actually waits. Root loading is non-visual for authenticated routes, while public routes retain their own boundary.
+
+### 2026-07-15: Verified first-scan device identity precedes wrong-branch capture
+**Status:** ACCEPTED
+
+**Decision:** After authenticated first-scan login, create or reuse the verified
+staff device before the canonical scan engine evaluates branch authorization.
+The device's branch value is last-used metadata only; effective Attendance branch
+authority still comes from the staff profile or a bounded correction assignment.
+
+**Consequences:** Future wrong-branch source events keep the device identity
+required for secure transactional continuation. Existing events with no device
+remain non-resumable and require a new scan; the system must not invent or attach
+another device. This does not change the resolver signature or grant browser
+roles direct execution.
+
+### 2026-07-15: Wrong-branch scans require an explicit resolution
+**Status:** ACCEPTED
+
+**Decision:** Wrong-branch Attendance scans are resolved explicitly as temporary branch access, permanent branch transfer or rejection.
+
+The captured source scan is preserved and an approved decision resumes it through
+the authoritative Attendance engine inside the resolution transaction. Temporary
+authority is target-branch and time bounded; permanent transfer changes current
+profile authority without rewriting history or adjacent operational records;
+rejection creates no Attendance. Generic approval and staff self-resolution are
+not supported.
+
+**Consequences:** Shift and business-day access are supported now. Arbitrary
+multi-day ranges remain deferred until overlap, revocation, and operator UX are
+designed and verified. Same-decision retries replay the committed result, while a
+conflicting later decision is rejected.
+
 ### 2026-07-15: CRM Open-Close repair produces adjacent responsibility windows over continuous unique coverage
 **Status:** ACCEPTED
 
@@ -1104,3 +1166,34 @@ badge without replacing the primary success/review state.
 **Rationale:** Persisted `is_test` flags and report filtering protect data, but staff
 also need immediate certainty that a successful training scan is not live attendance.
 Committing the flag with the idempotent result keeps retry rendering stable.
+# RELEASE-READINESS-001-RESUME decisions — 2026-07-21
+
+- Consultation-only services reuse `services.metadata.requires_consultation`, with conservative category/name fallback for the existing couples, besties, and Spa Party catalogue. Public automatic booking rejects these services; CRM manual booking remains available. No grouped-booking schema was introduced.
+- Public abuse protection uses strict Zod schemas, honeypots, byte limits, normalized identity plus database-backed cooldown queries, generic errors, and structured logs. A distributed rate-limiter adapter remains required; process-local throttling was deliberately not represented as production-safe.
+- Attendance stale recovery remains the bounded atomic RPC in `20260721190000_attendance_stale_recovery_transaction.sql`; it is not automatically applied.
+- Migration history is inspect-and-compare only. Applied or uncertain duplicate versions are not renamed; repair requires exported live history, backup, and explicit operator action.
+- Cleanup candidates are classified by runtime, tests, documentation, external-route, migration, and asset evidence. Uncertain or intentionally dormant code is retained. No new dependency was added.
+
+# CRM-RETENTION-001 decisions — 2026-07-22
+
+- Installed Next.js 16.2.4 supports navigation Activity only through the global
+  Cache Components rendering model. That option was rejected because it changes
+  dynamic/uncached Server Component behavior and was not proven safe across the
+  current cookie-authenticated Supabase routes, `force-dynamic` routes,
+  Suspense boundaries, permissions, and public pages.
+- Selected one manual retained-module registry using stable React 19.2.4
+  Activity. It preserves component/DOM state while hidden Effects are cleaned,
+  without moving trusted server authorization into the client.
+- Cache identity is authenticated user + role + branch + workspace + module.
+  Participating SWR keys use that prefix in the stable global cache, which is
+  explicitly purged when the authenticated workspace unmounts. Evicted modules
+  keep an unmounted element/URL/scroll descriptor but no DOM or active Effects.
+- CRM limit is four and Owner limit is three. Dirty/unsaved entries are protected
+  from eviction; safety may temporarily exceed a limit only when every inactive
+  candidate is protected.
+- Default rollout is `NEXT_PUBLIC_RETAINED_WORKSPACES=crm`; `all` enables
+  Owner and `off` restores ordinary routing without a code rollback.
+- Dispatch and Owner Schedule are not fully retained. CRM Schedule is bounded
+  and Activity-paused; Owner Reports retains data but not active hidden Effects.
+- Manager activation, permissions, RLS, business rules, release-readiness logic,
+  and the existing booking event bus remain unchanged.

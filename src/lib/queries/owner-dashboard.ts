@@ -3,7 +3,7 @@ import {
   getWorkspaceSwitchDestination,
   hasWorkspaceAccess,
 } from "@/lib/auth/workspace-access";
-import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
+import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
 import { BRANCH_TIMEZONE } from "@/lib/engine/slot-time";
 import {
   addDaysToYmd,
@@ -484,11 +484,12 @@ function buildStaffSnapshotLoad(params: {
   checkins: DashboardLoad<OwnerDashboardCheckin[]>;
   today: string;
 }): DashboardLoad<OwnerDashboardStaffSnapshot> {
+  const checkinPaused = !isAttendanceEnforcementEnabled();
   if (params.staff.status === "error") return errorLoad(params.staff.message);
-  if (MVP_CHECKIN_PAUSED && params.schedules.status === "error") {
+  if (checkinPaused && params.schedules.status === "error") {
     return errorLoad(params.schedules.message);
   }
-  if (!MVP_CHECKIN_PAUSED && params.checkins.status === "error") {
+  if (!checkinPaused && params.checkins.status === "error") {
     return errorLoad(params.checkins.message);
   }
 
@@ -498,7 +499,7 @@ function buildStaffSnapshotLoad(params: {
       schedules: params.schedules.status === "ready" ? params.schedules.data : [],
       checkins: params.checkins.status === "ready" ? params.checkins.data : [],
       today: params.today,
-      checkinPaused: MVP_CHECKIN_PAUSED,
+      checkinPaused,
     })
   );
 }

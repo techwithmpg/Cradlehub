@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TimeSlotGrid } from "./time-slot-grid";
 import { createWalkinBookingAction } from "@/app/(dashboard)/manager/walkin/actions";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 
 type BranchService = {
   id: string;
@@ -173,8 +174,8 @@ export function WalkinForm() {
         setError(result.error ?? "Booking failed");
         return;
       }
+      notifyBookingsChanged();
       router.push("/manager");
-      router.refresh();
     });
   }
 

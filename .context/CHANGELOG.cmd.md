@@ -1,5 +1,107 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-22 - Codex (NOTIFICATIONS-001)
+
+**Realtime:** Replaced minute notification polling with authenticated Supabase
+Realtime reconciliation over existing `workspace_notifications`. Fresh rows
+update the bell immediately, one visible tab claims each toast/chime, and
+five-minute plus visibility/reconnect reconciliation covers missed events.
+
+**Browser push:** Added opt-in own-row subscriptions, authenticated same-origin
+APIs, server-only VAPID configuration, a bounded safe service worker, exact
+role/branch/staff targeting, endpoint health/deactivation, Owner booking delivery
+preferences, and explicit enable/test/disable settings. No automatic permission
+request or second notification history was introduced.
+
+**Booking coverage:** Pending online bookings alert CRM only. Staff and Driver
+assignment delivery begins after payment confirmation; paid reassignment,
+reschedule, and cancellation target the exact affected recipients. Push is
+best-effort after durable persistence and cannot fail a booking.
+
+**Evidence:** Type-check, Next production build, 161 files / 1,180 tests, lint
+with one unrelated existing Attendance warning, and task diff checks pass. The
+additive migration is intentionally unapplied; production VAPID setup and
+browser/device QA remain. See `docs/operations/BROWSER_PUSH_NOTIFICATIONS.md`.
+
+## 2026-07-22 - Codex (CRM-RETENTION-001)
+
+**Changed:** Added an authenticated user/role/branch-scoped retained workspace
+host using React Activity, canonical Next links/history, predictive reveal,
+scroll restoration, a bounded LRU (CRM 4, Owner 3), identity-prefixed SWR keys,
+and an unmounted restoration ledger that survives visual instance eviction.
+
+**Rollout:** CRM Work Queue, Bookings, Schedule, Attendance, and Customers are
+enabled by the CRM-first default. Owner Overview, Reports, and Bookings are
+available with the `all` flag. `off` is the immediate rollback. Dispatch and
+Owner Schedule are deliberately excluded from full retained DOM.
+
+**Lifecycle:** Hidden frames are inert and inaccessible, and Activity cleans
+their Effects so existing polling/timers/Realtime stop. Dirty/stale SWR modules
+reconcile once on activation while current content remains. Existing booking
+events mark related modules dirty; no route refresh or second data event bus was
+added. Unsaved booking-note drafts block eviction and show a sidebar marker.
+
+**Evidence:** Authenticated CRM QA passed same/evicted returns, canonical query
+state, Back/Forward, inert hidden frames, four-frame LRU, and zero bootstrap
+skeleton on cached remount. Type-check, build, 152 files / 1,152 tests, and lint
+with one pre-existing warning pass. Owner and exact browser performance-panel
+evidence remain pending; see `docs/performance/CRM-RETENTION-001-REPORT.md`.
+
+## 2026-07-21 - Codex (CRM-PERF-002)
+
+**Changed:** Migrated the active CRM and Owner workspaces to a persistent interaction architecture. Removed all 22 CRM/Owner route-level loading boundaries, made root authenticated loading non-visual, added stable shell markers and non-shifting link pending feedback, eliminated five internal document navigations, and de-duplicated workspace route prefetching.
+
+**Retained data:** Owner Reports, Owner Bookings, Attendance, Dispatch, and Owner/Manager Schedule now retain server fallback data in SWR and reconcile only their scoped cache. CRM Schedule, Setup, Services, and Staff use history-backed subviews and preserve mounted state. Report charts stay visible while validating; Attendance/Dispatch realtime no longer refreshes the route tree.
+
+**Mutations:** Services, provider assignments, staff edits/status/capabilities/branch issues, bookings/payments/dispatch, Owner Marketing, Attendance Rules, and Payroll reconcile optimistic or canonical action results locally. Repository `router.refresh()` calls fell from 74 to 26; active CRM/Owner routine mutation calls are zero. The remaining calls are auth/out-of-scope or seven inert legacy Availability calls.
+
+**Verification:** Type check, production build (110 routes), diff check, focused interaction tests, and the complete 145-file / 1,117-test suite pass. Lint has no errors and two unrelated existing warnings. Authenticated CRM browser QA confirmed shell persistence, Schedule Back/Forward, retained Setup selection, and no console errors. Authenticated Owner browser QA remains release evidence; details are in `docs/performance/crm-perf-002-report.md`.
+
+## 2026-07-15 - Codex (ATTENDANCE-BRANCH-RESOLUTION-TRANSACTION-FIX-003)
+
+**Fixed:** Captured live SQLSTATE `42702` in
+`resolve_staff_branch_correction_transaction(...)`: its two final
+`attendance_exceptions` predicates referenced the resolver output parameter
+`scan_event_id` ambiguously. Additive migration `20260715113001` qualifies those
+table columns without changing the function signature, return contract, invoker
+security, locks, atomicity, or service-only ACL.
+
+**First-login repair:** Authenticated new phones are registered before canonical
+wrong-branch evaluation, so future correction source events retain a verified
+device ID without granting branch authority. Existing incomplete source events
+return an explicit safe rescan instruction; the supplied real request remains
+pending and untouched.
+
+**Verification:** Linked rollback-only QA passed shift/day/permanent resolution,
+second-manager replay, controlled missing-device handling, and forced rollback,
+with zero synthetic residue. Types, 138 files / 1,103 tests, type-check, build,
+live schema verification, and diff checks pass; lint has no errors and one
+pre-existing warning. Authenticated production browser/device QA remains the
+only conditional release evidence.
+
+## 2026-07-15 - Codex (ATTENDANCE-BRANCH-CORRECTION-RESOLUTION-001)
+
+**Changed:** Replaced ambiguous Branch Corrections approval with explicit
+temporary shift/day access, permanent branch transfer, or scan rejection. An
+approved request now resumes its stored wrong-branch scan through the existing
+Attendance classification/commit engine; staff do not scan twice.
+
+**Database:** Added bounded branch authorization, decision/continuation/result
+links, historical home/actual branch snapshots, locks, replay protection,
+service-role-only resolution, and read-only browser exposure in migration
+`20260715113000_attendance_branch_correction_resolution.sql`. The isolated
+migration is live and its exact version is recorded.
+
+**Operations:** Permanent transfer changes current staff authority only and
+creates audit plus targeted review work; rejection creates no Attendance.
+Arbitrary date ranges remain deliberately deferred. See
+`docs/attendance/BRANCH_CORRECTION_RESOLUTION.md`.
+
+**Verification:** type-check and build pass; lint exits zero with one existing
+warning; focused 5 files / 23 tests and full 136 files / 1,086 tests pass.
+Rollback-only synthetic database QA left zero QA rows and did not touch real
+staff Attendance.
+
 ## 2026-07-15 - Codex (CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001)
 
 - Added a targeted Adjust Schedule repair for eligible CRM/CSR/front-desk staff
@@ -7078,3 +7180,21 @@ Attendance checks pass at 7 files / 70 tests; the full suite passes at 130 files
 Full lint exits 0 with one unrelated existing unused-function warning. Browser QA
 verified the invalid-QR blocked state and authenticated CRM QR detail with no
 console errors; a real staff credential/valid-phone mutation was not submitted.
+
+### 2026-07-16 — PowerShell automation
+
+**Task:** BRANCH-ASSIGNMENT-PATTERN-001 — Cut Branch Corrections over to the authoritative branch-assignment resolver.
+**Files Changed:** CRM Staff page/actions/workspace, branch assignment UI, Attendance scan engine, and Supabase migrations.
+**Notes:** Branch resolution no longer replays the original Attendance scan. Successful decisions return rescan_required and staff scan again normally.
+**Build Status:** Pending automated checks in this script.
+
+---
+# 2026-07-21 — RELEASE-READINESS-001-RESUME
+
+Verified the partial Attendance status, stale-recovery, device-branch, enforcement, AI Coach, and navigation work with 60 focused tests. Added read-only Attendance cron verification, operator runbook, migration-history audit/inspection/runbook, operational checklist, and read-only database preflight.
+
+Made couples, besties, Spa Party, and other multi-person services consultation/manual only by reusing service consultation metadata with conservative catalogue fallback. Public booking context identifies the mode, manipulated booking actions are rejected before assignment, the catalogue contact CTA remains, and CRM manual booking stays available.
+
+Hardened public booking and waitlist input with honeypots, strict schemas, byte limits, durable cooldown duplicate checks, safe errors, and structured logs. Added release-hardening contracts. Hid the unfinished Owner image-upload placeholder and performed conservative cleanup without deleting dormant Manager, Availability, AI Coach, grouped-booking, migration, recovery, or operational assets.
+
+Validation: TypeScript and production build pass; 150 files / 1,137 tests pass; lint has zero errors and one pre-existing dormant Attendance warning; diff check passes. Linked database lint remains blocked by pooler timeout, and production/browser/device/cron/pilot evidence remains operator work.

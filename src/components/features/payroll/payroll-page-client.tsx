@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarClock, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,11 +28,40 @@ interface PayrollPageClientProps {
 }
 
 export function PayrollPageClient({ dashboard }: PayrollPageClientProps) {
+  const [staffRows, setStaffRows] = useState(dashboard.staffRows);
+  const [settings, setSettings] = useState(dashboard.settings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<PayrollSettingsSection>("general");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [paySetupOpen, setPaySetupOpen] = useState(false);
   const [paySetupStaffId, setPaySetupStaffId] = useState<string | null>(null);
+  const summary = useMemo(() => {
+    const included = staffRows.filter((staff) => staff.has_monthly_pay);
+    const paidStaff = included.filter((staff) => staff.status === "paid").length;
+    const totalIncludedStaff = included.length;
+    return {
+      ...dashboard.summary,
+      totalMonthlyPayroll: included.reduce((sum, staff) => sum + staff.monthly_pay, 0),
+      paidStaff,
+      unpaidStaff: totalIncludedStaff - paidStaff,
+      totalIncludedStaff,
+      payrollProgress: totalIncludedStaff > 0 ? Math.round((paidStaff / totalIncludedStaff) * 100) : 0,
+    };
+  }, [dashboard.summary, staffRows]);
+
+  function handlePaySaved(result: { staffId: string; amount: number }) {
+    setStaffRows((current) => current.map((staff) =>
+      staff.id === result.staffId
+        ? { ...staff, monthly_pay: result.amount, has_monthly_pay: true, status: staff.status === "missing_salary" ? "unpaid" : staff.status }
+        : staff
+    ));
+  }
+
+  function handleStatusChanged(staffId: string, status: "paid" | "unpaid") {
+    setStaffRows((current) => current.map((staff) =>
+      staff.id === staffId ? { ...staff, status } : staff
+    ));
+  }
 
   function openSettings(section: PayrollSettingsSection) {
     setSettingsSection(section);
@@ -52,7 +81,7 @@ export function PayrollPageClient({ dashboard }: PayrollPageClientProps) {
       />
 
       <PayrollSummaryGrid
-        summary={dashboard.summary}
+        summary={summary}
         onChangePayday={() => openSettings("payroll-schedule")}
       />
 
@@ -95,19 +124,21 @@ export function PayrollPageClient({ dashboard }: PayrollPageClientProps) {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_clamp(300px,24vw,360px)] xl:items-start">
         <EmployeePayrollTable
-          staffRows={dashboard.staffRows}
+          staffRows={staffRows}
           branches={dashboard.branches}
           allowStatusEditing={dashboard.settings.allowStatusEditing}
           onSetupPay={openPaySetup}
+          onStatusChanged={handleStatusChanged}
         />
 
         <aside className="hidden space-y-4 xl:block" aria-label="Payroll setup and progress">
           <MonthlyPaySetupCard
             key={paySetupStaffId ?? "desktop-pay-setup"}
-            staffRows={dashboard.staffRows}
+            staffRows={staffRows}
             initialStaffId={paySetupStaffId}
+            onSaved={handlePaySaved}
           />
-          <PaymentProgressCard summary={dashboard.summary} />
+          <PaymentProgressCard summary={summary} />
         </aside>
       </div>
 
@@ -115,8 +146,9 @@ export function PayrollPageClient({ dashboard }: PayrollPageClientProps) {
         <PayrollSettingsDialog
           open={settingsOpen}
           initialSection={settingsSection}
-          settings={dashboard.settings}
+          settings={settings}
           onOpenChange={setSettingsOpen}
+          onSaved={setSettings}
         />
       ) : null}
 
@@ -142,9 +174,12 @@ export function PayrollPageClient({ dashboard }: PayrollPageClientProps) {
           <div className="max-h-[70svh] overflow-y-auto p-4">
             <MonthlyPaySetupCard
               key={paySetupStaffId ?? "mobile-pay-setup"}
-              staffRows={dashboard.staffRows}
+              staffRows={staffRows}
               initialStaffId={paySetupStaffId}
-              onSaved={() => setPaySetupOpen(false)}
+              onSaved={(result) => {
+                handlePaySaved(result);
+                setPaySetupOpen(false);
+              }}
               framed={false}
             />
           </div>

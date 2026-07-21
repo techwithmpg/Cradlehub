@@ -1,93 +1,75 @@
-/**
- * @vitest-environment jsdom
- */
+// @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CrmStaffBranchCorrectionsTab } from "@/components/features/crm/staff/crm-staff-branch-corrections-tab";
-import { reviewBranchCorrectionRequestAction } from "@/app/(dashboard)/crm/staff/actions";
-import type { BranchCorrectionInboxItem } from "@/lib/staff/branch-correction-types";
+import type { BranchAssignmentIssue } from "@/lib/staff/branch-correction-types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
-vi.mock("sonner", () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
 vi.mock("@/app/(dashboard)/crm/staff/actions", () => ({
-  reviewBranchCorrectionRequestAction: vi.fn(),
+  resolveBranchAssignmentIssueAction: vi.fn(),
 }));
 
-const request: BranchCorrectionInboxItem = {
-  id: "request-1",
+const openIssue: BranchAssignmentIssue = {
+  id: "issue-1",
   staffId: "staff-1",
-  staffName: "Maria Santos",
-  staffNickname: "Mia",
-  staffPhone: "+63 999 123 4567",
+  staffName: "Melrose Barot Sioco",
+  staffNickname: null,
   staffType: "therapist",
   staffSystemRole: "staff",
   staffIsActive: true,
-  currentBranchId: "branch-sm",
-  currentBranchName: "Cradle Wellness Living SM",
-  requestedBranchId: "branch-main",
-  requestedBranchName: "Cradle Wellness Main Spa",
-  qrPointLabel: "Main Spa Attendance QR",
-  qrPublicCode: "MAIN-QR",
+  source: "attendance_scan",
+  status: "open",
+  profileBranchId: "branch-sm",
+  profileBranchName: "Cradle Wellness Living SM",
+  affectedBranchId: "branch-main",
+  affectedBranchName: "Cradle Wellness living Main Spa",
   scanEventId: "scan-1",
-  requestSource: "qr_wrong_branch",
+  rootCauses: ["wrong_qr_scan_only"],
+  scheduleBranches: [],
+  bookingBranches: [],
+  activeTemporaryPermissionCount: 0,
+  openAttendanceCount: 0,
+  recommendedResolution: "confirm_wrong_qr_scan",
+  repairsRequiringReview: [],
+  nextAction: "rescan_required",
   reason: null,
-  status: "pending",
-  createdAt: "2026-07-09T08:00:00.000Z",
-  reviewedAt: null,
-  reviewerNote: null,
+  createdAt: "2026-07-16T03:45:38.150Z",
+  decidedAt: null,
+  resolutionType: null,
+  isTest: false,
 };
 
-afterEach(() => {
-  cleanup();
-  vi.restoreAllMocks();
-});
+afterEach(cleanup);
 
 describe("CrmStaffBranchCorrectionsTab", () => {
-  it("shows pending correction details and approves through the review action", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.mocked(reviewBranchCorrectionRequestAction).mockResolvedValue({
-      ok: true,
-      requestId: request.id,
-      status: "approved",
-      message: "Branch correction approved.",
-    });
+  it("renders an open authoritative branch assignment issue", () => {
+    render(<CrmStaffBranchCorrectionsTab requests={[openIssue]} />);
 
-    render(<CrmStaffBranchCorrectionsTab requests={[request]} />);
-
-    expect(screen.getByText("Maria Santos")).toBeTruthy();
+    expect(screen.getByText("Melrose Barot Sioco")).toBeTruthy();
     expect(screen.getByText("Cradle Wellness Living SM")).toBeTruthy();
-    expect(screen.getByText("Cradle Wellness Main Spa")).toBeTruthy();
-
-    fireEvent.click(screen.getByText("View scan details"));
-    expect(screen.getByText("Main Spa Attendance QR")).toBeTruthy();
-    expect(screen.getByText("MAIN-QR")).toBeTruthy();
-    expect(screen.getByText("scan-1")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: /Approve/i }));
-
-    await waitFor(() => {
-      expect(reviewBranchCorrectionRequestAction).toHaveBeenCalledWith({
-        requestId: request.id,
-        status: "approved",
-        reviewerNote: undefined,
-      });
-    });
+    expect(screen.getByText("Cradle Wellness living Main Spa")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /resolve branch/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /wrong qr only/i })).toBeTruthy();
   });
 
-  it("renders an empty branch correction inbox", () => {
-    render(<CrmStaffBranchCorrectionsTab requests={[]} />);
+  it("does not offer resolution buttons for a resolved issue", () => {
+    const resolvedIssue: BranchAssignmentIssue = {
+      ...openIssue,
+      status: "resolved",
+      resolutionType: "correct_permanent_primary_branch",
+      decidedAt: "2026-07-16T05:07:37.897Z",
+      reason: "Permanent transfer approved.",
+    };
 
-    expect(screen.getByText("No pending branch correction requests.")).toBeTruthy();
+    render(<CrmStaffBranchCorrectionsTab requests={[resolvedIssue]} />);
+
+    expect(screen.getByText("Melrose Barot Sioco")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /resolve branch/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /wrong qr only/i })).toBeNull();
   });
 });

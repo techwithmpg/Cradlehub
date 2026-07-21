@@ -29,6 +29,8 @@ export type BookingWizardService = {
   availableHomeService?: boolean;
   imageUrl?: string | null;
   imageAlt?: string | null;
+  bookingMode?: "automatic" | "consultation";
+  consultationMessage?: string | null;
 };
 
 type ServiceCategoryGroup = {
@@ -153,6 +155,11 @@ function MobileServiceCard({
           <p className="min-w-0 line-clamp-2 text-[12px] font-semibold leading-tight text-[#F6EBD6]">
             {service.name}
           </p>
+          {service.bookingMode === "consultation" ? (
+            <p className="mt-1 text-left text-[10px] font-semibold text-[#D4B57A]">
+              Manual arrangement required
+            </p>
+          ) : null}
           <div className="mt-1 flex min-w-0 items-center justify-between gap-1">
             <span className="truncate text-[11px] text-[#F6EBD6]/68">
               {durationLabel}
@@ -201,6 +208,12 @@ function ServiceImageCard({
       />
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
+
+      {service.bookingMode === "consultation" ? (
+        <span className="absolute left-2 top-2 rounded-full bg-[#031B16]/85 px-2 py-1 text-[10px] font-semibold text-[#D4B57A]">
+          Manual arrangement required
+        </span>
+      ) : null}
 
       {/* Selection indicator */}
       <div

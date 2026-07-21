@@ -1,3 +1,103 @@
+## 2026-07-22 - NOTIFICATIONS-001 validation notes
+
+- The initial `web-push` install encountered a Windows package-store `EPERM`
+  rename after package/lock changes were written. Re-running with the repository's
+  pnpm 11 runtime completed the dependency state; install, type-check, test, and
+  production build now pass.
+- Initial notification UI lint found React 19 effect-state errors in two async
+  initializers. Both loads now begin from scheduled effect callbacks; lint exits
+  successfully with only the pre-existing unused Attendance helper warning.
+- `pnpm exec supabase db lint --local` could not connect to
+  `127.0.0.1:54322` because no local Supabase database is running. No database was
+  started or reset and no remote migration was applied. The migration's RLS,
+  grants, indexes, publication, and no-second-history invariants have focused
+  tests, and the hand-maintained generated TypeScript additions compile.
+
+## 2026-07-21 - CRM-PERF-002 verification and deferred evidence
+
+- The first production build shared `.next` with an already-running user dev server and stalled without a compiler diagnostic until the command wrapper timed out. Resolution: run the same Next 16.2.4 build with a temporary isolated `distDir`; compilation, TypeScript, page collection, and all 110 route generations passed. The temporary config hook, generated output, and `tsconfig` additions were removed.
+- The first navigation contract run used the wrong sidebar fixture path. It was corrected to `components/features/dashboard/sidebar.tsx`; the contract and full suite pass.
+- A new Owner Reports test initially used a deliberately simplified marker object that did not satisfy the report row type. The fixture was changed to the canonical `{ name, revenue, count }` shape; type checking passes.
+- `apply_patch` could not delete the two very large legacy Availability component files. They remain unreachable behind the `/crm/availability` redirect and have no active repository imports. Their seven raw refresh calls are documented as inert technical debt, not active fallbacks.
+- Authenticated browser access was CRM/front-desk only. Owner Reports and Owner Marketing/Attendance Rule live click-through could not be performed in that session; automated retained-data/canonical-action evidence passes, but Owner browser certification remains pending.
+- Lint exits zero with two existing unrelated warnings: unused `applyLaunchRecovery` and unused `AdminClient`.
+
+## 2026-07-15 - FIX-003 first-login wrong-branch requests cannot resume without a device
+
+- **User-visible symptom:** Resolving request
+  `fc714d92-7644-4d66-98b3-af93b267a247` showed “The branch resolution did not
+  complete. The request is still pending and can be retried.”
+- **Source evidence:** Its linked scan
+  `474ee58d-2f80-45f2-8dde-4f3d835af5b6` is a valid matching, non-Test-Mode
+  `wrong_branch` event with action `first_scan_register_device`, but
+  `qr_scan_events.device_id` is null. The staff/current/destination branch and QR
+  identities match and are active; there is no open Attendance, active temporary
+  authorization, active staff device, or nearby device registration to recover.
+- **Exact failing operation:**
+  `resumeAttendanceScanFromStoredSource(...)` rejects the source identity at the
+  required-device check before `p_scan_commit` is built and before
+  `resolve_staff_branch_correction_transaction(...)` is called. Its thrown
+  `ATTENDANCE_TRANSACTION_FAILED` is caught without preserving the stage, so the
+  branch service falls through to the generic `REVIEW_FAILED` message.
+- **SQLSTATE/Supabase code:** Not applicable. No database RPC was invoked, no RPC
+  row was returned, and therefore no PostgreSQL or PostgREST error exists for this
+  attempt. Supabase API/Postgres log retrieval was also unavailable to this agent
+  identity, but this pre-RPC path emits no resolver error log in the current code.
+- **Why the source is incomplete:** During authenticated first-scan login, the
+  no-existing-device wrong-branch branch returns before inserting the verified
+  phone. The later correction request can link the event but cannot invent the
+  missing device identity safely.
+- **Atomicity evidence:** The live request remains pending, profile branch is
+  unchanged, and no temporary authorization or Attendance row exists.
+- **Resolution:** Authenticated first-scan login now registers the verified phone
+  before canonical wrong-branch evaluation. This does not grant target-branch
+  authority. Existing incomplete requests return a specific safe “ask the staff
+  member to scan again” result. The supplied request remains pending and no
+  arbitrary device was attached.
+
+### Exact live RPC failure captured with a valid-device QA request
+
+- **SQLSTATE:** `42702` (`ambiguous_column`).
+- **Failed stage:** The authoritative Attendance commit inserted its continuation
+  work, then the outer resolver reached the final `attendance_exceptions` update.
+  PostgreSQL rejected unqualified `scan_event_id` because it can mean either the
+  function's `RETURNS TABLE` output parameter or
+  `attendance_exceptions.scan_event_id`.
+- **Failing expression:**
+  `scan_event_id = v_source_event.id or latest_scan_event_id = v_source_event.id`.
+  The rejection path contains the same unsafe unqualified expression.
+- **Root cause classification:** Live/local function-body defect, not missing RPC,
+  permission, schema drift, JSON mismatch, source identity, internal RPC signature,
+  or uniqueness conflict. The live body matches the original local migration.
+- **Atomicity observed:** PostgreSQL aborted the full resolver statement. The QA
+  transaction persisted no authorization, profile transfer, continuation event,
+  Attendance row, exception resolution, or request decision.
+- **Resolution:** Applied and recorded guarded additive migration
+  `20260715113001_attendance_branch_resolution_transaction_fix.sql`. It qualifies
+  both `attendance_exceptions` updates with `exception_row`, preserves invoker
+  security, `search_path=public, extensions`, service-only ACL, locks, result
+  contract, and all existing behavior, then refreshes PostgREST.
+- **Live verification:** Shift, business-day, permanent, controlled missing-device,
+  forced rollback, and same-decision second-manager replay scenarios passed in a
+  rollback transaction. Duplicate authorization/Attendance assertions passed and
+  post-QA counts were zero across synthetic auth, branch, staff, QR, device, scan,
+  request, assignment, and Attendance rows.
+
+## 2026-07-15 - Wrong-branch approval did not continue Attendance
+
+- **Symptom:** The former Branch Corrections Approve action permanently changed
+  `staff.branch_id` but left the captured scan unfinished and instructed staff to
+  scan again. Approval intent and temporary scope were ambiguous.
+- **Resolution:** Generic approval is disabled. A locked transaction now records
+  temporary shift/day access, permanent transfer, or rejection and continues the
+  stored scan through the canonical Attendance engine atomically.
+- **Safety evidence:** Replay and uniqueness guards prevent duplicate Attendance;
+  rejection creates no Attendance; synthetic QA used rollback-only records and
+  left zero residue.
+- **Remaining limitation:** Arbitrary date-range authorization is deliberately
+  deferred. Broader migration-history drift remains unrelated; the exact focused
+  version is recorded, but a blind full migration push is still unsafe.
+
 ## 2026-07-15 - Smart dynamic clock-out verification notes
 
 - **Symptom:** The first isolated Training Mode resolver probe failed with an
@@ -1231,3 +1331,52 @@
   driver, manager, and owner storage states, controlled writes, cleanup, realtime,
   and full live RLS matrices remain unverified.
 - Full lint exits zero with one existing Attendance-only unused-function warning.
+
+### ERR-BRANCH-REPLAY-001: Branch decision depended on stale Attendance replay
+
+**Date:** 2026-07-16
+**Agent:** PowerShell automation
+**Severity:** HIGH
+**Status:** FIXED
+
+**Symptom:** Reusing Branch Corrections for another staff member returned “The original Attendance scan can no longer be resumed safely.”
+**Root Cause:** The CRM UI still called the deprecated replay-based resolver and read the legacy request table.
+**Fix / Workaround:** CRM now reads staff_branch_assignment_issues and calls resolve_staff_branch_assignment_issue. The old scan is never replayed; staff scan again after resolution.
+**Prevention:** Keep Branch assignment and Attendance mutations transactionally independent.
+
+---
+# RELEASE-READINESS-001-RESUME validation notes — 2026-07-21
+
+- Running lint, the full suite, and the production build concurrently caused seven UI tests to exceed the five-second timeout while 1,130 passed. A serial rerun passed all 150 files / 1,137 tests; this was resource contention, not a behavior failure.
+- Linked `supabase db lint --linked --fail-on error` timed out through the configured pooler on port 5432 both inside and outside the sandbox. Database lint remains unverified; no database state changed.
+- `pnpm install --frozen-lockfile` declined to proceed without a TTY because it wanted to remove the current modules directory. It was not forced, preserving the user's installed workspace.
+- Direct opening of the Supabase changelog markdown endpoint was rejected by the web safety layer; the official breaking-change index was searched instead. Relevant cron guidance was incorporated.
+## 2026-07-21 - CRM-RETENTION-001 verification notes
+
+- The first retained-provider test exposed an update loop because a freshly
+  allocated module descriptor was a layout-effect dependency. The descriptor is
+  now memoized by workspace/path/search; the regression test passes.
+- React's purity lint rejected render-time clocks/ref synchronization. Activation
+  timestamps and scroll reads now occur in events/layout Effects, staleness is
+  evaluated from activation versus last-refresh timestamps, and refs synchronize
+  after commit. No lint suppression was added.
+- The first full suite after prefetch changes failed because the restored Owner
+  route allow-list fixture omitted the existing `/owner/attendance` route. The
+  fixture was updated; no route or permission was added.
+- The first live retained host cached the App Router layout outlet. That outlet is
+  mutable, so a hidden Work Queue frame later rendered Schedule. Retained pages
+  now register their concrete page subtree; the layout outlet is never cached.
+- A nested custom SWR provider failed when a streamed retained Bookings subtree
+  outlived the provider's initialized global state. Participating SWR keys are now
+  user/role/branch-prefixed in SWR's stable cache, and workspace teardown purges
+  that cache. The authenticated Bookings route then mounted without error.
+- Bare sidebar URLs initially discarded retained query-backed filters/tabs. The
+  registry now reopens the last canonical query state and keeps an unmounted
+  element/URL/scroll descriptor after LRU eviction. Browser QA verified an
+  evicted Work Queue remount with `filter=exceptions` and no bootstrap skeleton.
+- Dev Fast Refresh briefly preserved a pre-restoration reducer state and logged a
+  missing-restoration error. A clean reload after compilation had no new console
+  error; focused tests and the production build use fresh state and pass.
+- Authenticated CRM QA is complete. The available identity has Front Desk and
+  Staff Portal access but no Owner access, so Owner and exact heap/network/CLS/
+  long-task evidence remain pending rather than fabricated.

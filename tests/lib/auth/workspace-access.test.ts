@@ -13,6 +13,7 @@ import { OWNER_PREFETCH } from "../../../src/components/features/workspace/works
 
 const OWNER_ROUTE_PREFIXES = new Set([
   "/owner",
+  "/owner/attendance",
   "/owner/bookings",
   "/owner/branches",
   "/owner/dispatch",

@@ -188,7 +188,7 @@ export async function updatePayrollSettingsAction(
 export async function saveMonthlyPayAction(input: {
   staffId: string;
   amount: number;
-}): Promise<ActionResult<void>> {
+}): Promise<ActionResult<{ staffId: string; amount: number }>> {
   const ctx = await requireOwner();
   if ("error" in ctx) return { ok: false, error: ctx.error };
 
@@ -261,10 +261,10 @@ export async function saveMonthlyPayAction(input: {
   }
 
   revalidatePath("/owner/payroll");
-  return { ok: true, data: undefined };
+  return { ok: true, data: { staffId: input.staffId, amount } };
 }
 
-export async function markStaffPayrollPaidAction(staffId: string): Promise<ActionResult<void>> {
+export async function markStaffPayrollPaidAction(staffId: string): Promise<ActionResult<{ staffId: string; status: "paid" }>> {
   const ctx = await requireOwner();
   if ("error" in ctx) return { ok: false, error: ctx.error };
 
@@ -329,10 +329,10 @@ export async function markStaffPayrollPaidAction(staffId: string): Promise<Actio
   }
 
   revalidatePath("/owner/payroll");
-  return { ok: true, data: undefined };
+  return { ok: true, data: { staffId, status: "paid" } };
 }
 
-export async function markStaffPayrollUnpaidAction(staffId: string): Promise<ActionResult<void>> {
+export async function markStaffPayrollUnpaidAction(staffId: string): Promise<ActionResult<{ staffId: string; status: "unpaid" }>> {
   const ctx = await requireOwner();
   if ("error" in ctx) return { ok: false, error: ctx.error };
 
@@ -353,7 +353,7 @@ export async function markStaffPayrollUnpaidAction(staffId: string): Promise<Act
     .maybeSingle();
 
   if (existingError) return { ok: false, error: existingError.message };
-  if (!existing) return { ok: true, data: undefined };
+  if (!existing) return { ok: true, data: { staffId, status: "unpaid" } };
 
   const { error } = await ctx.supabase
     .from("payroll_items")
@@ -368,5 +368,5 @@ export async function markStaffPayrollUnpaidAction(staffId: string): Promise<Act
 
   if (error) return { ok: false, error: error.message };
   revalidatePath("/owner/payroll");
-  return { ok: true, data: undefined };
+  return { ok: true, data: { staffId, status: "unpaid" } };
 }

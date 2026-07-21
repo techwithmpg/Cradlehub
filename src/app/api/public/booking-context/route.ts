@@ -7,7 +7,8 @@ import { resolveServiceImage } from "@/lib/service-images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
-import type { Database } from "@/types/supabase";
+import type { Database, Json } from "@/types/supabase";
+import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
 
 // Force this route to always run dynamically — prevents any edge/CDN caching
 // that would serve stale service data after a CRM home-service toggle.
@@ -27,6 +28,7 @@ type ServiceRow = Pick<
   | "duration_minutes"
   | "price"
 > & {
+  metadata?: Json | null;
   image_url?: string | null;
   image_alt?: string | null;
   service_categories?: CategoryRelation;
@@ -155,6 +157,11 @@ export async function GET(request: NextRequest) {
       const service = firstService(record.services);
       if (!service?.is_active) return null;
       const category = firstCategory(service.service_categories);
+      const consultationOnly = isConsultationOnlyService({
+        name: service.name,
+        categoryName: category?.name,
+        metadata: service.metadata,
+      });
       const serviceImage = resolveServiceImage({
         id: service.id,
         name: service.name,
@@ -176,6 +183,10 @@ export async function GET(request: NextRequest) {
         availableHomeService: record.available_home_service ?? false,
         imageUrl: serviceImage.imageUrl,
         imageAlt: serviceImage.imageAlt,
+        bookingMode: consultationOnly ? "consultation" : "automatic",
+        consultationMessage: consultationOnly
+          ? "Contact us to arrange participants, timing, and therapists."
+          : null,
       };
     })
     .filter((service): service is NonNullable<typeof service> => service !== null)

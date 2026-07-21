@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   Car,
@@ -489,7 +488,6 @@ export function HomeServiceDispatchModal({
   onOpenChange,
   onChanged,
 }: HomeServiceDispatchModalProps) {
-  const router = useRouter();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -509,7 +507,6 @@ export function HomeServiceDispatchModal({
 
   function refreshAll() {
     onChanged();
-    router.refresh();
   }
 
   function handleDriverAssign(driverId: string) {

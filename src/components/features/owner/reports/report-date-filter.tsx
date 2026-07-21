@@ -1,9 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
 import { Calendar, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
 
 const PRESETS = [
   { label: "Today", value: "today" },
@@ -12,26 +10,21 @@ const PRESETS = [
   { label: "This Month", value: "thisMonth" },
 ];
 
-export function ReportDateFilter() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const currentPreset = searchParams.get("preset") || "last7";
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handlePresetChange = (preset: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("preset", preset);
-    // Reset custom dates if preset is selected
-    params.delete("from");
-    params.delete("to");
-    router.push(`/owner/reports?${params.toString()}`);
-  };
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    router.refresh();
-    setTimeout(() => setIsRefreshing(false), 1000);
-  };
+export function ReportDateFilter({
+  currentPreset,
+  from,
+  to,
+  isRefreshing,
+  onPresetChange,
+  onRefresh,
+}: {
+  currentPreset: string;
+  from: string;
+  to: string;
+  isRefreshing: boolean;
+  onPresetChange: (preset: string) => void;
+  onRefresh: () => void;
+}) {
 
   return (
     <div
@@ -50,7 +43,7 @@ export function ReportDateFilter() {
           return (
             <button
               key={preset.value}
-              onClick={() => handlePresetChange(preset.value)}
+              onClick={() => onPresetChange(preset.value)}
               style={{
                 padding: "0.5rem 1rem",
                 borderRadius: "var(--cs-r-pill)",
@@ -86,16 +79,14 @@ export function ReportDateFilter() {
         >
           <Calendar size={14} />
           <span>
-            {searchParams.get("from") && searchParams.get("to")
-              ? `${searchParams.get("from")} - ${searchParams.get("to")}`
-              : "Auto-range based on preset"}
+            {from === to ? from : `${from} - ${to}`}
           </span>
         </div>
 
         <Button
           variant="outline"
           size="sm"
-          onClick={handleRefresh}
+          onClick={onRefresh}
           disabled={isRefreshing}
           className="gap-2"
           style={{ height: 36, borderRadius: "var(--cs-r-md)" }}

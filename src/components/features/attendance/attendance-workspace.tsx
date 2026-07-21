@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { toast } from "sonner";
+import {
+  unwrapWorkspaceSWRKey,
+  useWorkspaceSWRKey,
+  type WorkspaceScopedSWRKey,
+} from "@/components/features/dashboard/workspace-swr-cache";
 import { AttendanceHeader } from "@/components/features/attendance/attendance-header";
 import { AttendanceTabs } from "@/components/features/attendance/attendance-tabs";
 import {
@@ -18,7 +23,10 @@ import { AttendanceRecoveryTab } from "@/components/features/attendance/recovery
 import { AttendanceReportsTab } from "@/components/features/attendance/reports/attendance-reports-tab";
 import { ServiceSessionsTab } from "@/components/features/attendance/sessions/service-sessions-tab";
 import { createClient } from "@/lib/supabase/client";
-import type { AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
+import {
+  refreshAttendanceWorkspaceAction,
+  type AttendanceActionResult,
+} from "@/app/(dashboard)/crm/attendance/actions";
 import { attendanceTabHref, attendanceTabId, attendanceTabPanelId } from "@/lib/attendance/tabs";
 import type {
   AttendanceQrPoint,
@@ -27,6 +35,7 @@ import type {
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
 import type { QrPrintFormat } from "@/lib/attendance/qr-print-layout";
+import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
 
 type AttendanceWorkspaceProps = {
   data: AttendanceWorkspaceData;
@@ -56,7 +65,30 @@ export function AttendanceWorkspace({
   routeBranchId,
   flash,
 }: AttendanceWorkspaceProps) {
-  const router = useRouter();
+  const attendanceKey = useWorkspaceSWRKey(
+    ["attendance-workspace", data.branchId] as const
+  );
+  const { data: refreshedData, mutate: refreshAttendance } = useSWR(
+    attendanceKey,
+    async (
+      scopedKey: WorkspaceScopedSWRKey<readonly ["attendance-workspace", string]>
+    ) => {
+      const [, cacheBranchId] = unwrapWorkspaceSWRKey(scopedKey);
+      const result = await refreshAttendanceWorkspaceAction(routeBranchId ?? cacheBranchId);
+      if (!result.ok) throw new Error(result.error);
+      return result.data;
+    },
+    {
+      fallbackData: data,
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      revalidateOnMount: false,
+    }
+  );
+  const serverData = refreshedData ?? data;
+  const refreshRetainedAttendance = useWorkspaceReactivationRefresh(async () => {
+    await refreshAttendance();
+  });
   const [localPatch, setLocalPatch] = useState<WorkspacePatch | null>(null);
   const [selectedTab, setSelectedTab] = useState<AttendanceTab>(activeTab);
   const [nowMs, setNowMs] = useState(() => initialNowMs);
@@ -67,18 +99,17 @@ export function AttendanceWorkspace({
     flash?.message ? { ok: flash.status === "ok", message: flash.message } : null
   );
 
-  // Merge server-rendered data with local optimistic patches. This keeps the UI
-  // in sync when router.refresh() or realtime updates push new props, while
-  // preserving local mutations (QR generation, device revocation, etc.).
+  // Merge scoped server data with local optimistic patches while preserving
+  // the active tab, filters, selections, and scroll position.
   const workspaceData = useMemo<AttendanceWorkspaceData>(() => {
-    if (!localPatch) return data;
+    if (!localPatch) return serverData;
     return {
-      ...data,
+      ...serverData,
       ...(localPatch.qrPoints && { qrPoints: localPatch.qrPoints }),
       ...(localPatch.devices && { devices: localPatch.devices }),
       ...(localPatch.exceptions && { exceptions: localPatch.exceptions }),
     };
-  }, [data, localPatch]);
+  }, [localPatch, serverData]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
@@ -101,7 +132,7 @@ export function AttendanceWorkspace({
     function scheduleRefresh() {
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = setTimeout(() => {
-        router.refresh();
+        void refreshRetainedAttendance().catch(() => undefined);
       }, 500);
     }
 
@@ -128,7 +159,7 @@ export function AttendanceWorkspace({
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
       void supabase.removeChannel(channel);
     };
-  }, [router, workspaceData.branchId]);
+  }, [refreshRetainedAttendance, workspaceData.branchId]);
 
   function setTab(nextTab: AttendanceTab) {
     setSelectedTab(nextTab);
@@ -144,7 +175,7 @@ export function AttendanceWorkspace({
 
   function upsertQrPoints(points: AttendanceQrPoint[]) {
     setLocalPatch((current) => {
-      const base = current?.qrPoints ?? data.qrPoints;
+      const base = current?.qrPoints ?? serverData.qrPoints;
       const byId = new Map(base.map((point) => [point.id, point]));
       for (const point of points) byId.set(point.id, point);
       return { ...current, qrPoints: Array.from(byId.values()) };
@@ -169,7 +200,7 @@ export function AttendanceWorkspace({
     if (result.kind === "device_revoked") {
       setLocalPatch((current) => ({
         ...current,
-        devices: (current?.devices ?? data.devices).map((device) =>
+        devices: (current?.devices ?? serverData.devices).map((device) =>
           device.id === result.deviceId ? { ...device, status: "revoked" as const } : device
         ),
       }));
@@ -177,7 +208,7 @@ export function AttendanceWorkspace({
     if (result.kind === "exception_resolved") {
       setLocalPatch((current) => ({
         ...current,
-        exceptions: (current?.exceptions ?? data.exceptions).map((exception) =>
+        exceptions: (current?.exceptions ?? serverData.exceptions).map((exception) =>
           exception.id === result.exceptionId
             ? { ...exception, status: "resolved", resolved_at: new Date().toISOString() }
             : exception
@@ -187,13 +218,13 @@ export function AttendanceWorkspace({
     if (result.kind === "qr_deactivated") {
       setLocalPatch((current) => ({
         ...current,
-        qrPoints: (current?.qrPoints ?? data.qrPoints).map((point) =>
+        qrPoints: (current?.qrPoints ?? serverData.qrPoints).map((point) =>
           point.id === result.qrPointId ? { ...point, is_active: false } : point
         ),
       }));
     }
     if (result.kind === "attendance_correction" || result.kind === "attendance_rules") {
-      router.refresh();
+      void refreshRetainedAttendance().catch(() => undefined);
     }
   }
 

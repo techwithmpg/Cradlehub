@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getApiContext } from "@/lib/api/get-api-context";
 import { logError } from "@/lib/logger";
-import { isAgentCoachEnabled, isWorkspaceEnabled } from "@/lib/agents/config";
+import { getAgentCoachAvailability } from "@/lib/agents/config";
 import { executeAgentTool, isSupportedTool } from "@/lib/agents/tools";
 import { logAgentInteraction } from "@/lib/agents/audit";
 import type { AgentSessionContext } from "@/lib/agents/types";
 
 export async function POST(req: NextRequest) {
-  if (!isAgentCoachEnabled()) {
-    return NextResponse.json({ error: "Agent coach is not configured" }, { status: 503 });
-  }
-
   const ctx = await getApiContext();
   if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,8 +26,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unsupported or missing tool" }, { status: 400 });
   }
 
-  if (!context || !isWorkspaceEnabled(context.workspace)) {
+  if (!context) {
     return NextResponse.json({ error: "Unsupported or disabled workspace" }, { status: 400 });
+  }
+
+  const availability = getAgentCoachAvailability({
+    workspace: context.workspace,
+    role: ctx.role,
+  });
+  if (!availability.available) {
+    return NextResponse.json({ error: "Coach is unavailable" }, { status: 404 });
   }
 
   // Enforce the user can only act within their own branch.

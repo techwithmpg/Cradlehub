@@ -78,7 +78,6 @@ const STAFF_NAV_ITEMS: NavItem[] = [
   { label: "Today", href: "/staff-portal", icon: "LayoutDashboard" },
   { label: "My Schedule", href: "/staff-portal/schedule", icon: "CalendarDays" },
   { label: "My Attendance", href: "/staff-portal/attendance", icon: "ClipboardCheck" },
-  { label: "My Attendance", href: "/staff-portal/attendance", icon: "ClipboardCheck" },
   { label: "My Week", href: "/staff-portal/week", icon: "CalendarDays" },
   { label: "Dispatch", href: "/staff-portal/dispatch", icon: "Truck" },
   { label: "My Stats", href: "/staff-portal/stats", icon: "TrendingUp" },

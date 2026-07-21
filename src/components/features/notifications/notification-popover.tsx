@@ -13,6 +13,7 @@ import { CrmEmptyState } from "@/components/features/crm/premium/crm-empty-state
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { markAllNotificationsReadAction } from "@/lib/notifications/queries";
 import { NotificationPopoverRow } from "./notification-popover-row";
+import { NotificationSettingsDialog } from "./notification-settings-dialog";
 
 type Props = {
   items: WorkspaceNotification[];
@@ -22,7 +23,10 @@ type Props = {
   onMarkRead: (id: string) => void;
   onDismiss: (id: string) => void;
   onMarkAllRead: () => void;
+  role: string;
 };
+
+const SETTINGS_ROLES = new Set(["owner", "crm", "staff", "driver", "utility"]);
 
 function sortNewestFirst(items: WorkspaceNotification[]): WorkspaceNotification[] {
   return [...items].sort(
@@ -62,6 +66,7 @@ export function NotificationPopover({
   onMarkRead,
   onDismiss,
   onMarkAllRead,
+  role,
 }: Props) {
   const [markingAll, setMarkingAll] = useState(false);
   const orderedItems = sortNewestFirst(items);
@@ -141,6 +146,11 @@ export function NotificationPopover({
       </ScrollArea>
 
       <footer className="shrink-0 border-t border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-3">
+        {SETTINGS_ROLES.has(role) ? (
+          <div className="mb-2">
+            <NotificationSettingsDialog role={role} />
+          </div>
+        ) : null}
         <Link
           href={roleHref}
           className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text-secondary)] transition hover:border-[var(--cs-sand)] hover:bg-[var(--cs-sand-mist)] hover:text-[var(--cs-sand-dark)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]/30"

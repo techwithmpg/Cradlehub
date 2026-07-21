@@ -28,7 +28,12 @@ import { canManageCrmSetup } from "@/lib/auth/crm-permissions";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ActionResult =
-  | { ok: true; message: string }
+  | {
+      ok: true;
+      message: string;
+      assignment: { staff_id: string; service_id: string };
+      assigned: boolean;
+    }
   | { ok: false; message: string };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -327,7 +332,12 @@ export async function assignProviderToServiceAction(
     .maybeSingle();
 
   if (existing) {
-    return { ok: true, message: "This provider is already assigned to the service." };
+    return {
+      ok: true,
+      message: "This provider is already assigned to the service.",
+      assignment: { staff_id: staffId, service_id: serviceId },
+      assigned: true,
+    };
   }
 
   // Insert the assignment
@@ -354,7 +364,12 @@ export async function assignProviderToServiceAction(
   revalidatePath("/manager/services");
   invalidateCrmWorkspace(branchId);
 
-  return { ok: true, message: "Provider assigned successfully." };
+  return {
+    ok: true,
+    message: "Provider assigned successfully.",
+    assignment: { staff_id: staffId, service_id: serviceId },
+    assigned: true,
+  };
 }
 
 export async function updateBranchServiceHomeServiceAvailabilityAction(
@@ -561,5 +576,10 @@ export async function removeProviderFromServiceAction(
   revalidatePath("/manager/services");
   invalidateCrmWorkspace(branchId);
 
-  return { ok: true, message: "Provider removed." };
+  return {
+    ok: true,
+    message: "Provider removed.",
+    assignment: { staff_id: staffId, service_id: serviceId },
+    assigned: false,
+  };
 }

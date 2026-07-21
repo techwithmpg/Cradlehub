@@ -84,6 +84,7 @@ type SetupOptions = {
   baseError?: unknown;
   details?: Record<string, unknown> | null;
   diagnostic?: Record<string, unknown> | null;
+  paymentStatus?: string;
   updateError?: unknown;
 };
 
@@ -104,6 +105,7 @@ function setup(options: SetupOptions = {}) {
         delivery_type: "in_spa",
         staff_id: STAFF_ID,
         driver_id: null,
+        payment_status: options.paymentStatus ?? "paid",
         status: "pending",
         booking_progress_status: "not_started",
         checked_in_at: null,
@@ -325,6 +327,18 @@ describe("CRM direct follow-up and cancellation actions", () => {
       recipientStaffId: STAFF_ID,
       type: "booking_cancelled",
     }));
+  });
+
+  it("does not alert assigned staff when an unpaid booking is cancelled", async () => {
+    setup({ paymentStatus: "pending" });
+
+    await expect(recordBookingFollowupAction({
+      bookingId: BOOKING_ID,
+      result: "cancel",
+      cancellationReason: "scheduling_conflict",
+    })).resolves.toEqual({ success: true });
+
+    expect(mocks.createNotification).not.toHaveBeenCalled();
   });
 
   it("returns update failures without misreporting the booking as missing", async () => {

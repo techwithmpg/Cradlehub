@@ -246,11 +246,15 @@ export function CrmTherapistAssignmentTab({
   services,
   staff,
   assignments,
+  onServicePatch,
+  onAssignmentChange,
 }: {
   branchId: string;
   services: ActiveBranchService[];
   staff: StaffForServicePanel[];
   assignments: ServiceAssignmentRow[];
+  onServicePatch: (serviceId: string, patch: Partial<ActiveBranchService>) => void;
+  onAssignmentChange: (assignment: ServiceAssignmentRow, assigned: boolean) => void;
 }) {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -527,6 +531,8 @@ export function CrmTherapistAssignmentTab({
                       key={row.branchServiceId}
                       row={row}
                       branchId={branchId}
+                      onServicePatch={onServicePatch}
+                      onAssignmentChange={onAssignmentChange}
                     />
                   ))}
                 </tbody>

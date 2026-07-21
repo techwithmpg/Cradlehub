@@ -15,6 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { getAttendanceQueueSuggestionAction } from "@/lib/actions/attendance-queue";
 import {
@@ -333,17 +334,20 @@ export function QuickBookingForm({
   const [homeServiceDistanceQuote, setHomeServiceDistanceQuote] =
     useState<HomeServiceDistanceQuote | null>(null);
   const [paymentReceived, setPaymentReceived] = useState(initialMode === "walkin");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "gcash" | "maya" | "card" | "other" | "">(
-    initialMode === "walkin" ? "cash" : ""
-  );
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cash" | "gcash" | "maya" | "card" | "other" | ""
+  >(initialMode === "walkin" ? "cash" : "");
   const [staffId, setStaffId] = useState(initialStaffId);
   const [resourceId, setResourceId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
-  const [attendanceHint, setAttendanceHint] = useState<
-    | { staffId: string; fullName: string; nickname: string | null; queuePosition: number; checkedInAt: string | null }
-    | null
-  >(null);
-  const [loadingAttendanceHint, setLoadingAttendanceHint] = useState(false);
+  const [attendanceHint, setAttendanceHint] = useState<{
+    staffId: string;
+    fullName: string;
+    nickname: string | null;
+    queuePosition: number;
+    checkedInAt: string | null;
+  } | null>(null);
+  const [, setLoadingAttendanceHint] = useState(false);
   const [availableStaffIds, setAvailableStaffIds] = useState<string[]>([]);
   const [therapistAvailabilityStatus, setTherapistAvailabilityStatus] =
     useState<TherapistAvailabilityStatus>("idle");
@@ -385,10 +389,7 @@ export function QuickBookingForm({
     () => staff.filter((member) => staffCanPerformServices(member, selectedServiceIds)),
     [selectedServiceIds, staff]
   );
-  const availableStaffIdSet = useMemo(
-    () => new Set(availableStaffIds),
-    [availableStaffIds]
-  );
+  const availableStaffIdSet = useMemo(() => new Set(availableStaffIds), [availableStaffIds]);
   const availableTherapists = useMemo(
     () => serviceCapableStaff.filter((member) => availableStaffIdSet.has(member.id)),
     [availableStaffIdSet, serviceCapableStaff]
@@ -407,9 +408,7 @@ export function QuickBookingForm({
         : bookingRules.inSpaStartTime
     );
     const endMinutes = timeToMinutes(
-      candidateMode === "home_service"
-        ? bookingRules.homeServiceEndTime
-        : bookingRules.inSpaEndTime
+      candidateMode === "home_service" ? bookingRules.homeServiceEndTime : bookingRules.inSpaEndTime
     );
 
     return (
@@ -506,13 +505,11 @@ export function QuickBookingForm({
           if (controller.signal.aborted) return;
           const nextAvailableStaffIds = Array.from(new Set(result.availableStaffIds ?? []));
           setAvailableStaffIds(nextAvailableStaffIds);
-          setTherapistAvailabilityStatus(
-            nextAvailableStaffIds.length > 0 ? "ready" : "empty"
-          );
+          setTherapistAvailabilityStatus(nextAvailableStaffIds.length > 0 ? "ready" : "empty");
           setTherapistAvailabilityMessage(
             nextAvailableStaffIds.length > 0
               ? ""
-              : result.message ?? NO_SCHEDULED_THERAPIST_MESSAGE
+              : (result.message ?? NO_SCHEDULED_THERAPIST_MESSAGE)
           );
 
           if (nextAvailableStaffIds.length > 0) {
@@ -535,9 +532,7 @@ export function QuickBookingForm({
           setAvailableStaffIds([]);
           setTherapistAvailabilityStatus("error");
           setTherapistAvailabilityMessage(
-            error instanceof Error
-              ? error.message
-              : "Therapist availability could not be checked."
+            error instanceof Error ? error.message : "Therapist availability could not be checked."
           );
         });
     }, 250);
@@ -654,9 +649,7 @@ export function QuickBookingForm({
         }),
       })
         .then(async (response) => {
-          const data = (await response.json()) as
-            | HomeServiceDistanceQuote
-            | { error?: string };
+          const data = (await response.json()) as HomeServiceDistanceQuote | { error?: string };
           if (!response.ok) {
             throw new Error(
               "error" in data && data.error
@@ -672,9 +665,7 @@ export function QuickBookingForm({
           setHomeServiceDistanceQuote(null);
           setHomeServiceDistanceStatus("error");
           setHomeServiceDistanceError(
-            error instanceof Error
-              ? error.message
-              : "Could not calculate home-service distance."
+            error instanceof Error ? error.message : "Could not calculate home-service distance."
           );
         });
     }, 0);
@@ -704,7 +695,12 @@ export function QuickBookingForm({
     } else {
       setServiceModeNotice("");
     }
-    if (staffId && !staff.some((member) => member.id === staffId && staffCanPerformServices(member, validServiceIds))) {
+    if (
+      staffId &&
+      !staff.some(
+        (member) => member.id === staffId && staffCanPerformServices(member, validServiceIds)
+      )
+    ) {
       setStaffId("");
     }
     if (nextMode === "walkin") {
@@ -725,7 +721,12 @@ export function QuickBookingForm({
     setSelectedServiceIds(nextServiceIds);
     setServiceModeNotice("");
     setFieldErrors((current) => ({ ...current, service: undefined }));
-    if (staffId && !staff.some((member) => member.id === staffId && staffCanPerformServices(member, nextServiceIds))) {
+    if (
+      staffId &&
+      !staff.some(
+        (member) => member.id === staffId && staffCanPerformServices(member, nextServiceIds)
+      )
+    ) {
       setStaffId("");
     }
   }
@@ -737,7 +738,12 @@ export function QuickBookingForm({
     setPhone(customer.phone);
     setEmail(customer.email ?? "");
     setCustomerResults([]);
-    setFieldErrors((current) => ({ ...current, customer: undefined, fullName: undefined, phone: undefined }));
+    setFieldErrors((current) => ({
+      ...current,
+      customer: undefined,
+      fullName: undefined,
+      phone: undefined,
+    }));
   }
 
   function clearSelectedCustomer() {
@@ -813,11 +819,7 @@ export function QuickBookingForm({
       const maxDaysToSearch = Math.min(14, Math.max(1, bookingRules.maxAdvanceBookingDays + 1));
       for (let offset = 0; offset < maxDaysToSearch; offset += 1) {
         const candidateDate = addDaysYmd(date, offset);
-        const data = await fetchCrmAvailability(
-          candidateDate,
-          time || "00:00",
-          staffId || null
-        );
+        const data = await fetchCrmAvailability(candidateDate, time || "00:00", staffId || null);
         const nextSlot = (data.slots ?? []).find(
           (slot) =>
             slot.available &&
@@ -921,9 +923,7 @@ export function QuickBookingForm({
         homeServiceLat: isHomeService ? homeServicePlace?.lat : undefined,
         homeServiceLng: isHomeService ? homeServicePlace?.lng : undefined,
         homeServicePlaceId: isHomeService ? homeServicePlace?.placeId : undefined,
-        homeServiceFormattedAddress: isHomeService
-          ? homeServicePlace?.formattedAddress
-          : undefined,
+        homeServiceFormattedAddress: isHomeService ? homeServicePlace?.formattedAddress : undefined,
         homeServiceAddressComponents: isHomeService
           ? homeServicePlace?.addressComponents
           : undefined,
@@ -948,6 +948,7 @@ export function QuickBookingForm({
         customerId: selectedCustomer?.id,
         isHomeService,
       });
+      notifyBookingsChanged();
       if (successBehavior === "redirect") {
         const params = new URLSearchParams({
           date,
@@ -955,7 +956,6 @@ export function QuickBookingForm({
         });
         router.push(`/crm/bookings?${params.toString()}`);
       }
-      router.refresh();
     } catch {
       const message = "Could not save booking. Please try again.";
       setFormError(message);
@@ -966,380 +966,405 @@ export function QuickBookingForm({
   }
 
   return (
-    <div className="crm-fade-up -m-2 bg-[var(--cs-bg)] p-2 sm:-m-4 sm:p-4">
-      <section className="space-y-5 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="font-display text-2xl font-semibold leading-tight text-[var(--cs-text)] sm:text-3xl">
-              Quick Booking
-            </h1>
-            <p className="mt-1 text-sm leading-6 text-[var(--cs-text-secondary)]">
-              {branchName}
-            </p>
-          </div>
-        </div>
+    <div className="crm-fade-up h-full min-h-0 bg-[var(--cs-bg)]">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--cs-surface)]">
+        <header className="shrink-0 border-b border-[var(--cs-border-soft)] px-4 py-3 sm:px-5">
+          <h1 className="font-display text-2xl font-semibold leading-tight text-[var(--cs-text)]">
+            Quick Booking
+          </h1>
+          <p className="mt-0.5 text-sm text-[var(--cs-text-secondary)]">{branchName}</p>
+        </header>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-5">
-            <div>
-              <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {MODES.map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => changeMode(item.value)}
-                    disabled={isSaving}
-                    className={cn(
-                      "min-h-20 rounded-xl border p-3 text-left transition-colors",
-                      mode === item.value
-                        ? "border-[var(--cs-sand)] bg-[var(--cs-sand-mist)] text-[var(--cs-text)]"
-                        : "border-[var(--cs-border)] bg-[var(--cs-surface-warm)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-border-strong)]"
-                    )}
-                    aria-pressed={mode === item.value}
-                  >
-                    <span className="block text-sm font-semibold text-[var(--cs-text)]">
-                      {item.label}
-                    </span>
-                    <span className="mt-1 block text-xs leading-4 text-[var(--cs-text-muted)]">
-                      {item.description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
+          <div className="min-h-0 px-4 py-3 sm:px-5 lg:overflow-y-auto">
+            <div className="grid gap-3">
+              <div>
+                <FieldLabel icon={<Sparkles size={15} />} label="Booking mode" />
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {MODES.map((item) => {
+                    const ModeIcon =
+                      item.value === "walkin"
+                        ? User
+                        : item.value === "phone"
+                          ? CreditCard
+                          : item.value === "home_service"
+                            ? Home
+                            : CalendarDays;
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <FieldLabel icon={<User size={15} />} label="Customer" />
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
-                  <input
-                    id={`${formId}-customer`}
-                    type="search"
-                    value={customerQuery}
-                    onChange={(event) => {
-                      const nextQuery = event.target.value;
-                      setCustomerQuery(nextQuery);
-                      if (selectedCustomer) setSelectedCustomer(null);
-                      if (nextQuery.trim().length < 2) {
-                        setCustomerResults([]);
-                        setSearchingCustomers(false);
-                      }
-                    }}
-                    disabled={isSaving}
-                    placeholder="Search name or phone"
-                    className={inputClassName(Boolean(fieldErrors.customer))}
-                  />
-                  {searchingCustomers ? (
-                    <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--cs-text-muted)]" />
-                  ) : null}
-                </div>
-                <FieldError message={fieldErrors.customer} />
-
-                {selectedCustomer ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2 text-sm">
-                    <span className="font-medium text-[var(--cs-text)]">{selectedCustomer.fullName}</span>
-                    <span className="text-[var(--cs-text-muted)]">{selectedCustomer.phone}</span>
-                    <button
-                      type="button"
-                      onClick={clearSelectedCustomer}
-                      disabled={isSaving}
-                      className="ml-auto text-xs font-semibold text-[var(--cs-sand-dark)]"
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : customerResults.length > 0 ? (
-                  <div className="mt-2 overflow-hidden rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]">
-                    {customerResults.map((customer) => (
+                    return (
                       <button
-                        key={customer.id}
+                        key={item.value}
                         type="button"
-                        onClick={() => selectCustomer(customer)}
-                        className="flex w-full items-center justify-between gap-3 border-b border-[var(--cs-border-soft)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--cs-surface-warm)]"
+                        onClick={() => changeMode(item.value)}
+                        disabled={isSaving}
+                        className={cn(
+                          "flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                          mode === item.value
+                            ? "border-[var(--cs-sand-dark)] bg-[var(--cs-sand-mist)] text-[var(--cs-text)] shadow-[var(--cs-shadow-xs)]"
+                            : "border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)] hover:border-[var(--cs-border-strong)]"
+                        )}
+                        aria-pressed={mode === item.value}
                       >
-                        <span>
-                          <span className="block text-sm font-medium text-[var(--cs-text)]">
-                            {customer.fullName}
+                        <ModeIcon size={17} className="shrink-0 text-[var(--cs-sand-dark)]" />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
+                            {item.label}
                           </span>
-                          <span className="block text-xs text-[var(--cs-text-muted)]">
-                            {customer.phone}
+                          <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
+                            {item.value === "walkin"
+                              ? "Now · In branch"
+                              : item.value === "phone"
+                                ? "Call or message"
+                                : item.value === "home_service"
+                                  ? "We go to customer"
+                                  : "Scheduled in-spa"}
                           </span>
-                        </span>
-                        <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
-                          Select
                         </span>
                       </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div>
-                <FieldLabel label="Customer name" />
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  disabled={isSaving}
-                  placeholder="Customer name"
-                  className={inputClassName(Boolean(fieldErrors.fullName))}
-                />
-                <FieldError message={fieldErrors.fullName} />
-              </div>
-
-              <div>
-                <FieldLabel label="Phone" />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  disabled={isSaving}
-                  placeholder="Phone number"
-                  className={inputClassName(Boolean(fieldErrors.phone))}
-                />
-                <FieldError message={fieldErrors.phone} />
-              </div>
-
-              <div className="md:col-span-2">
-                <QuickBookingServiceSelector
-                  services={eligibleServices}
-                  selectedServiceIds={selectedServiceIds}
-                  onChange={handleServiceSelectionChange}
-                  isHomeService={isHomeService}
-                  disabled={isSaving}
-                  error={fieldErrors.service}
-                />
-                {serviceModeNotice ? (
-                  <p className="mt-2 rounded-xl border border-[var(--cs-warning-bg)] bg-[var(--cs-warning-bg)] px-3 py-2 text-xs font-medium text-[var(--cs-warning-text)]">
-                    {serviceModeNotice}
-                  </p>
-                ) : null}
-              </div>
-
-              <div>
-                <FieldLabel icon={<CalendarDays size={15} />} label="Date" />
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                  disabled={isSaving}
-                  className={inputClassName(Boolean(fieldErrors.date))}
-                />
-                <FieldError message={fieldErrors.date} />
-              </div>
-
-              <div>
-                <FieldLabel icon={<Clock size={15} />} label="Time" />
-                <div className="flex gap-2">
-                  <input
-                    type="time"
-                    value={time}
-                    onChange={(event) => setTime(event.target.value)}
-                    disabled={isSaving}
-                    className={cn(inputClassName(Boolean(fieldErrors.time)), "min-w-0 flex-1")}
-                  />
-                  <button
-                    type="button"
-                    onClick={chooseNextAvailable}
-                    disabled={isSaving || loadingNextSlot}
-                    className="cs-btn cs-btn-secondary h-10 shrink-0 rounded-xl px-3 text-xs"
-                  >
-                    {loadingNextSlot ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
-                    Next
-                  </button>
+                    );
+                  })}
                 </div>
-                <FieldError message={fieldErrors.time} />
               </div>
 
-              {isHomeService ? (
-                <>
-                  <div className="md:col-span-2">
-                    <FieldLabel icon={<Home size={15} />} label="Service address" />
-                    <PlacesAutocomplete
-                      value={homeServiceAddress}
-                      onChange={setHomeServiceAddress}
-                      onPlaceSelect={handleHomeServicePlaceSelect}
-                      onStatusChange={setPlacesStatus}
-                      placeholder="Search customer address"
-                      theme="default"
-                    />
-                    <FieldError message={fieldErrors.homeServiceAddress} />
-                    {placesStatus === "loading" ? (
-                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
-                        <Loader2 size={12} className="animate-spin" />
-                        Loading address search…
-                      </p>
-                    ) : null}
-                    {placesStatus === "missing_key" ? (
-                      <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
-                        Google address search is not configured. Configure the browser Maps key to
-                        select a service address.
-                      </p>
-                    ) : null}
-                    {placesStatus === "failed" || placesStatus === "place_missing_coordinates" ? (
-                      <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
-                        Address search could not get coordinates. Please select another result.
-                      </p>
-                    ) : null}
-                    {homeServiceAddress && !homeServicePlace ? (
-                      <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
-                        {CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Access note / special direction" optional />
-                    <textarea
-                      value={homeServiceAccessNote}
-                      onChange={(event) => setHomeServiceAccessNote(event.target.value)}
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <FieldLabel icon={<User size={15} />} label="Customer" />
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+                    <input
+                      id={`${formId}-customer`}
+                      type="search"
+                      value={customerQuery}
+                      onChange={(event) => {
+                        const nextQuery = event.target.value;
+                        setCustomerQuery(nextQuery);
+                        if (selectedCustomer) setSelectedCustomer(null);
+                        if (nextQuery.trim().length < 2) {
+                          setCustomerResults([]);
+                          setSearchingCustomers(false);
+                        }
+                      }}
                       disabled={isSaving}
-                      rows={2}
-                      placeholder="Example: blue gate, 2nd floor, near Puregold"
-                      className={cn(inputClassName(false), "h-auto resize-none py-2")}
+                      placeholder="Search name or phone number"
+                      className={cn(inputClassName(Boolean(fieldErrors.customer)), "pl-9")}
                     />
+                    {searchingCustomers ? (
+                      <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-[var(--cs-text-muted)]" />
+                    ) : null}
                   </div>
-                </>
-              ) : null}
+                  <FieldError message={fieldErrors.customer} />
 
-              <div className="md:col-span-2">
-                <FieldLabel label="Notes" optional />
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  disabled={isSaving}
-                  rows={3}
-                  placeholder="Booking notes"
-                  className={cn(inputClassName(false), "h-auto resize-none py-2")}
-                />
+                  {selectedCustomer ? (
+                    <div className="mt-2 flex items-center gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-xs font-semibold text-[var(--cs-sand-dark)]">
+                        {selectedCustomer.fullName.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-[var(--cs-text)]">
+                          {selectedCustomer.fullName}
+                        </span>
+                        <span className="block truncate text-xs text-[var(--cs-text-muted)]">
+                          {selectedCustomer.phone}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={clearSelectedCustomer}
+                        disabled={isSaving}
+                        className="cs-btn cs-btn-secondary h-8 rounded-lg px-3 text-xs"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : customerResults.length > 0 ? (
+                    <div className="absolute z-40 mt-2 max-h-40 w-[calc(100%-2rem)] overflow-y-auto rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-1 shadow-xl sm:w-[calc(100%-2.5rem)]">
+                      {customerResults.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => selectCustomer(customer)}
+                          className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--cs-surface-warm)]"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium text-[var(--cs-text)]">
+                              {customer.fullName}
+                            </span>
+                            <span className="block truncate text-xs text-[var(--cs-text-muted)]">
+                              {customer.phone}
+                            </span>
+                          </span>
+                          <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
+                            Select
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                {!selectedCustomer ? (
+                  <>
+                    <div>
+                      <FieldLabel label="Customer name" />
+                      <input
+                        type="text"
+                        value={fullName}
+                        onChange={(event) => setFullName(event.target.value)}
+                        disabled={isSaving}
+                        placeholder="Customer name"
+                        className={inputClassName(Boolean(fieldErrors.fullName))}
+                      />
+                      <FieldError message={fieldErrors.fullName} />
+                    </div>
+                    <div>
+                      <FieldLabel label="Phone" />
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(event) => setPhone(event.target.value)}
+                        disabled={isSaving}
+                        placeholder="Phone number"
+                        className={inputClassName(Boolean(fieldErrors.phone))}
+                      />
+                      <FieldError message={fieldErrors.phone} />
+                    </div>
+                  </>
+                ) : null}
+
+                <div className="md:col-span-2">
+                  <QuickBookingServiceSelector
+                    services={eligibleServices}
+                    selectedServiceIds={selectedServiceIds}
+                    onChange={handleServiceSelectionChange}
+                    isHomeService={isHomeService}
+                    disabled={isSaving}
+                    error={fieldErrors.service}
+                  />
+                  {serviceModeNotice ? (
+                    <p className="mt-1.5 rounded-lg bg-[var(--cs-warning-bg)] px-3 py-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                      {serviceModeNotice}
+                    </p>
+                  ) : null}
+                </div>
               </div>
-            </div>
 
-            <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)]">
-              <button
-                type="button"
-                onClick={() => setMoreOpen((current) => !current)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-[var(--cs-text)]"
-                aria-expanded={moreOpen}
+              <div
+                className={cn("grid gap-3", isHomeService ? "md:grid-cols-3" : "md:grid-cols-4")}
               >
-                <span>More Options</span>
-                <ChevronDown
-                  size={16}
-                  className={cn("transition-transform", moreOpen ? "rotate-180" : "")}
-                />
-              </button>
+                <div>
+                  <FieldLabel icon={<CalendarDays size={15} />} label="Date" />
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(event) => setDate(event.target.value)}
+                    disabled={isSaving}
+                    className={inputClassName(Boolean(fieldErrors.date))}
+                  />
+                  <FieldError message={fieldErrors.date} />
+                </div>
 
-              {moreOpen ? (
-                <div className="grid gap-4 border-t border-[var(--cs-border-soft)] p-4 md:grid-cols-2">
+                <div>
+                  <FieldLabel icon={<Clock size={15} />} label="Time" />
+                  <div className="flex gap-1.5">
+                    <input
+                      type="time"
+                      value={time}
+                      onChange={(event) => setTime(event.target.value)}
+                      disabled={isSaving}
+                      className={cn(inputClassName(Boolean(fieldErrors.time)), "min-w-0 flex-1")}
+                    />
+                    <button
+                      type="button"
+                      onClick={chooseNextAvailable}
+                      disabled={isSaving || loadingNextSlot}
+                      className="cs-btn cs-btn-secondary h-10 shrink-0 rounded-xl px-2.5 text-xs"
+                      aria-label="Choose next available time"
+                    >
+                      {loadingNextSlot ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Clock size={14} />
+                      )}
+                    </button>
+                  </div>
+                  <FieldError message={fieldErrors.time} />
+                </div>
+
+                <div>
+                  <FieldLabel icon={<User size={15} />} label="Therapist" optional />
+                  <select
+                    value={staffId}
+                    onChange={(event) => setStaffId(event.target.value)}
+                    disabled={
+                      isSaving ||
+                      !therapistPrerequisitesReady ||
+                      therapistAvailabilityStatus === "loading" ||
+                      therapistAvailabilityStatus === "empty" ||
+                      therapistAvailabilityStatus === "error"
+                    }
+                    className={selectClassName(false)}
+                  >
+                    <option value="">
+                      {!therapistPrerequisitesReady
+                        ? "Select services and time"
+                        : therapistAvailabilityStatus === "loading"
+                          ? "Checking schedules…"
+                          : therapistAvailabilityStatus === "empty"
+                            ? "No therapist available"
+                            : therapistAvailabilityStatus === "error"
+                              ? "Availability failed"
+                              : "First available"}
+                    </option>
+                    {availableTherapists.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.nickname ? `${member.nickname} — ${member.name}` : member.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {!isHomeService ? (
                   <div>
-                    <FieldLabel icon={<User size={15} />} label="Therapist" optional />
+                    <FieldLabel icon={<MapPin size={15} />} label="Room" optional />
                     <select
-                      value={staffId}
-                      onChange={(event) => setStaffId(event.target.value)}
-                      disabled={
-                        isSaving ||
-                        !therapistPrerequisitesReady ||
-                        therapistAvailabilityStatus === "loading" ||
-                        therapistAvailabilityStatus === "empty" ||
-                        therapistAvailabilityStatus === "error"
-                      }
+                      value={resourceId}
+                      onChange={(event) => setResourceId(event.target.value)}
+                      disabled={isSaving}
                       className={selectClassName(false)}
                     >
-                      <option value="">
-                        {!therapistPrerequisitesReady
-                          ? "Choose services, date and time first"
-                          : therapistAvailabilityStatus === "loading"
-                            ? "Checking therapist schedules…"
-                            : therapistAvailabilityStatus === "empty"
-                              ? "No therapist available at this time"
-                              : therapistAvailabilityStatus === "error"
-                                ? "Availability check failed"
-                                : "First available therapist"}
-                      </option>
-                      {availableTherapists.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.nickname
-                            ? `${member.nickname} — ${member.name}`
-                            : member.name}
+                      <option value="">First available</option>
+                      {resources.map((resource) => (
+                        <option key={resource.id} value={resource.id}>
+                          {resource.name}
                         </option>
                       ))}
                     </select>
-                    {therapistAvailabilityStatus === "loading" ? (
-                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
-                        <Loader2 size={12} className="animate-spin" />
-                        Checking therapist schedules…
-                      </p>
-                    ) : therapistAvailabilityStatus === "ready" ? (
-                      <p className="mt-1.5 text-xs text-[var(--cs-sand-dark)]">
-                        {availableTherapists.length} therapist
-                        {availableTherapists.length === 1 ? "" : "s"} available at {time}.
-                        Only scheduled staff who can perform all selected services are shown.
-                      </p>
-                    ) : therapistAvailabilityStatus === "empty" ? (
-                      <p className="mt-1.5 text-xs text-[var(--cs-danger-text)]">
-                        {therapistAvailabilityMessage || NO_SCHEDULED_THERAPIST_MESSAGE}
-                      </p>
-                    ) : therapistAvailabilityStatus === "error" ? (
-                      <p className="mt-1.5 text-xs text-[var(--cs-danger-text)]">
-                        {therapistAvailabilityMessage ||
-                          "Therapist availability could not be checked."}
-                      </p>
-                    ) : (
-                      <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
-                        Choose services, date and time to see available therapists.
-                      </p>
-                    )}
+                  </div>
+                ) : null}
+              </div>
 
-                    {mode === "walkin" && date === todayYmd() ? (
-                      loadingAttendanceHint ? (
-                        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
-                          <Loader2 size={12} className="animate-spin" />
-                          Checking attendance queue…
-                        </p>
-                      ) : eligibleAttendanceHint ? (
-                        <p className="mt-1.5 text-xs text-[var(--cs-sand-dark)]">
-                          Suggested from attendance queue:{" "}
-                          <span className="font-semibold">
-                            {eligibleAttendanceHint.nickname || eligibleAttendanceHint.fullName}
-                          </span>
-                          {" · Queue #"}{eligibleAttendanceHint.queuePosition}
-                          {eligibleAttendanceHint.checkedInAt
-                            ? ` · Clocked in ${formatAttendanceTime(
-                                eligibleAttendanceHint.checkedInAt
-                              )}`
-                            : null}
-                          {staffId && staffId !== eligibleAttendanceHint.staffId ? (
-                            <span className="ml-1 text-[var(--cs-text-muted)]">(override)</span>
-                          ) : null}
-                        </p>
-                      ) : therapistAvailabilityStatus === "ready" ? (
-                        <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
-                          No therapist has clocked in yet, but scheduled staff are available.
-                        </p>
-                      ) : null
+              {therapistAvailabilityStatus === "loading" ? (
+                <p className="-mt-1 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                  <Loader2 size={12} className="animate-spin" /> Checking therapist schedules…
+                </p>
+              ) : therapistAvailabilityStatus === "empty" ||
+                therapistAvailabilityStatus === "error" ? (
+                <p className="-mt-1 text-xs font-medium text-[var(--cs-danger-text)]">
+                  {therapistAvailabilityMessage || NO_SCHEDULED_THERAPIST_MESSAGE}
+                </p>
+              ) : mode === "walkin" && eligibleAttendanceHint ? (
+                <p className="-mt-1 text-xs text-[var(--cs-sand-dark)]">
+                  Attendance suggestion:{" "}
+                  {eligibleAttendanceHint.nickname || eligibleAttendanceHint.fullName}
+                  {eligibleAttendanceHint.checkedInAt
+                    ? ` · Clocked in ${formatAttendanceTime(eligibleAttendanceHint.checkedInAt)}`
+                    : ""}
+                </p>
+              ) : null}
+
+              {isHomeService ? (
+                <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <FieldLabel icon={<Home size={15} />} label="Home-service logistics" />
+                    {homeServiceDistanceQuote ? (
+                      <span className="text-xs font-semibold text-[var(--cs-sand-dark)]">
+                        {formatDistanceKm(homeServiceDistanceQuote.distanceKm)} ·{" "}
+                        {formatCurrency(homeServiceDistanceQuote.travelFee)} travel
+                      </span>
                     ) : null}
                   </div>
-
-                  {!isHomeService ? (
-                    <div>
-                      <FieldLabel icon={<MapPin size={15} />} label="Room" optional />
-                      <select
-                        value={resourceId}
-                        onChange={(event) => setResourceId(event.target.value)}
-                        disabled={isSaving}
-                        className={selectClassName(false)}
-                      >
-                        <option value="">First available room</option>
-                        {resources.map((resource) => (
-                          <option key={resource.id} value={resource.id}>
-                            {resource.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <PlacesAutocomplete
+                    value={homeServiceAddress}
+                    onChange={setHomeServiceAddress}
+                    onPlaceSelect={handleHomeServicePlaceSelect}
+                    onStatusChange={setPlacesStatus}
+                    placeholder="Search complete customer address"
+                    theme="default"
+                  />
+                  <FieldError message={fieldErrors.homeServiceAddress} />
+                  {placesStatus === "loading" || homeServiceDistanceStatus === "loading" ? (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--cs-text-muted)]">
+                      <Loader2 size={12} className="animate-spin" /> Calculating location and travel
+                      fee…
+                    </p>
+                  ) : placesStatus === "missing_key" ? (
+                    <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
+                      Google address search is not configured.
+                    </p>
+                  ) : placesStatus === "failed" || placesStatus === "place_missing_coordinates" ? (
+                    <p className="mt-1.5 text-xs font-medium text-[var(--cs-error-text)]">
+                      Address coordinates could not be loaded. Select another result.
+                    </p>
+                  ) : homeServiceDistanceStatus === "error" ? (
+                    <p className="mt-1.5 text-xs font-medium text-[var(--cs-warning-text)]">
+                      {homeServiceDistanceError || "Distance could not be calculated."}
+                    </p>
+                  ) : homeServiceAddress && !homeServicePlace ? (
+                    <p className="mt-1.5 text-xs text-[var(--cs-text-muted)]">
+                      {CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE}
+                    </p>
                   ) : null}
+                </div>
+              ) : null}
 
+              <div className="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+                  <label className="flex h-10 items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)]">
+                    <input
+                      type="checkbox"
+                      checked={paymentReceived}
+                      onChange={(event) => {
+                        setPaymentReceived(event.target.checked);
+                        if (!event.target.checked) setPaymentMethod("");
+                        if (event.target.checked) setPaymentMethod((current) => current || "cash");
+                      }}
+                      disabled={isSaving}
+                      className="size-4 accent-[var(--cs-sand-dark)]"
+                    />
+                    Payment received now
+                  </label>
+
+                  {paymentReceived ? (
+                    <select
+                      value={paymentMethod}
+                      onChange={(event) =>
+                        setPaymentMethod(event.target.value as typeof paymentMethod)
+                      }
+                      disabled={isSaving}
+                      className={selectClassName(Boolean(fieldErrors.paymentMethod))}
+                      aria-label="Payment method"
+                    >
+                      <option value="">Payment method</option>
+                      <option value="cash">Cash</option>
+                      <option value="gcash">GCash</option>
+                      <option value="maya">Maya</option>
+                      <option value="card">Card</option>
+                      <option value="other">Other</option>
+                    </select>
+                  ) : (
+                    <div className="flex h-10 items-center rounded-xl border border-dashed border-[var(--cs-border)] px-3 text-xs text-[var(--cs-text-muted)]">
+                      Payment pending
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((current) => !current)}
+                  className="cs-btn cs-btn-secondary h-10 rounded-xl px-3 text-xs"
+                  aria-expanded={moreOpen}
+                >
+                  Optional details
+                  <ChevronDown
+                    size={14}
+                    className={cn("transition-transform", moreOpen ? "rotate-180" : "")}
+                  />
+                </button>
+              </div>
+              <FieldError message={fieldErrors.paymentMethod} />
+
+              {moreOpen ? (
+                <div className="grid gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 md:grid-cols-2">
                   <div>
                     <FieldLabel label="Email" optional />
                     <input
@@ -1351,159 +1376,163 @@ export function QuickBookingForm({
                       className={inputClassName(false)}
                     />
                   </div>
-
                   <div>
-                    <FieldLabel icon={<CreditCard size={15} />} label="Payment" optional />
-                    <label className="flex h-10 items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm text-[var(--cs-text)]">
-                      <input
-                        type="checkbox"
-                        checked={paymentReceived}
-                        onChange={(event) => {
-                          setPaymentReceived(event.target.checked);
-                          if (!event.target.checked) setPaymentMethod("");
-                          if (event.target.checked) setPaymentMethod((current) => current || "cash");
-                        }}
-                        disabled={isSaving}
-                        className="size-4 accent-[var(--cs-sand-dark)]"
-                      />
-                      Payment received now
-                    </label>
+                    <FieldLabel
+                      label={isHomeService ? "Access note / direction" : "Booking notes"}
+                      optional
+                    />
+                    <input
+                      type="text"
+                      value={isHomeService ? homeServiceAccessNote : notes}
+                      onChange={(event) =>
+                        isHomeService
+                          ? setHomeServiceAccessNote(event.target.value)
+                          : setNotes(event.target.value)
+                      }
+                      disabled={isSaving}
+                      placeholder={
+                        isHomeService
+                          ? "Gate, floor, landmark or access details"
+                          : "Optional booking note"
+                      }
+                      className={inputClassName(false)}
+                    />
                   </div>
-
-                  {paymentReceived ? (
-                    <div>
-                      <FieldLabel label="Payment method" />
-                      <select
-                        value={paymentMethod}
-                        onChange={(event) =>
-                          setPaymentMethod(event.target.value as typeof paymentMethod)
-                        }
+                  {isHomeService ? (
+                    <div className="md:col-span-2">
+                      <FieldLabel label="Internal booking note" optional />
+                      <input
+                        type="text"
+                        value={notes}
+                        onChange={(event) => setNotes(event.target.value)}
                         disabled={isSaving}
-                        className={selectClassName(Boolean(fieldErrors.paymentMethod))}
-                      >
-                        <option value="">Select payment method</option>
-                        <option value="cash">Cash</option>
-                        <option value="gcash">GCash</option>
-                        <option value="maya">Maya</option>
-                        <option value="card">Card</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <FieldError message={fieldErrors.paymentMethod} />
+                        placeholder="Optional internal note"
+                        className={inputClassName(false)}
+                      />
                     </div>
                   ) : null}
                 </div>
               ) : null}
-            </div>
 
-            {formError ? (
-              <WorkspaceNotice tone="error">
-                {formError}
-              </WorkspaceNotice>
-            ) : null}
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  if (onCancel) onCancel();
-                  else router.push("/crm/bookings");
-                }}
-                disabled={isSaving}
-                className="cs-btn cs-btn-secondary h-11 rounded-xl px-4"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={isSaving || slotChecking}
-                className="cs-btn h-11 rounded-xl bg-[var(--cs-crm-text)] px-5 text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)] hover:bg-[var(--cs-success-text)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSaving || slotChecking ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                {isSaving ? "Saving..." : slotChecking ? "Checking..." : "Save Booking"}
-              </button>
+              {formError ? <WorkspaceNotice tone="error">{formError}</WorkspaceNotice> : null}
             </div>
           </div>
 
-          <aside className="space-y-3 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4">
-            <div>
-              <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">
-                Summary
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[var(--cs-text)]">
-                {MODES.find((item) => item.value === mode)?.label}
+          <aside className="min-h-0 border-t border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4 lg:border-l lg:border-t-0 lg:overflow-y-auto">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
+              Summary
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              {isHomeService ? <Home size={18} /> : <CalendarDays size={18} />}
+              <div>
+                <p className="text-base font-semibold text-[var(--cs-text)]">
+                  {MODES.find((item) => item.value === mode)?.label} booking
+                </p>
+                <p className="text-xs text-[var(--cs-text-muted)]">
+                  {date || "Choose date"} · {time || "Choose time"}
+                </p>
               </div>
             </div>
-            <SummaryRow label="Customer" value={fullName || "Not selected"} />
-            <SummaryServices services={selectedServices} />
-            <SummaryRow label="Service total" value={serviceSummaryLabel} />
-            <SummaryRow label="When" value={`${date || "No date"} ${time || ""}`.trim()} />
-            <SummaryRow
-              label="Therapist"
-              value={selectedStaff ? selectedStaff.nickname || selectedStaff.name : "First available"}
-            />
-            {!isHomeService ? (
+
+            <div className="mt-3 space-y-3">
+              <SummaryRow label="Customer" value={fullName || "Not selected"} />
+              <SummaryServices services={selectedServices} />
+              <SummaryRow label="Service total" value={serviceSummaryLabel} />
               <SummaryRow
-                label="Room"
-                value={selectedResource ? selectedResource.name : "First available"}
+                label="Therapist"
+                value={
+                  selectedStaff ? selectedStaff.nickname || selectedStaff.name : "First available"
+                }
               />
-            ) : null}
-            {isHomeService ? (
-              <>
+              {!isHomeService ? (
                 <SummaryRow
-                  label="Service address"
-                  value={homeServicePlace?.formattedAddress || homeServiceAddress || "Required"}
+                  label="Room"
+                  value={selectedResource ? selectedResource.name : "First available"}
                 />
-                <SummaryRow
-                  label="Service subtotal"
-                  value={selectedServices.length > 0 ? formatCurrency(totalPrice) : "Select services"}
-                />
-                {homeServiceDistanceStatus === "loading" ? (
-                  <SummaryRow label="Distance from branch" value="Calculating…" />
-                ) : homeServiceDistanceQuote ? (
-                  <>
-                    <SummaryRow
-                      label="Distance from branch"
-                      value={formatDistanceKm(homeServiceDistanceQuote.distanceKm)}
-                    />
-                    <SummaryRow
-                      label="Free distance allowance"
-                      value={formatDistanceKm(homeServiceDistanceQuote.freeKm)}
-                    />
-                    <SummaryRow
-                      label="Additional charged km"
-                      value={`${homeServiceDistanceQuote.extraKm} km`}
-                    />
-                    <SummaryRow
-                      label="Travel fee"
-                      value={formatCurrency(homeServiceDistanceQuote.travelFee)}
-                    />
-                    <SummaryRow
-                      label="Total"
-                      value={formatCurrency(totalPrice + homeServiceDistanceQuote.travelFee)}
-                    />
-                    {homeServiceDistanceQuote.warning ? (
-                      <SummaryNote tone="warning" text={homeServiceDistanceQuote.warning} />
-                    ) : null}
-                  </>
-                ) : homeServiceAddress && !homeServicePlace ? (
-                  <SummaryNote text={CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE} />
-                ) : homeServiceDistanceStatus === "error" ? (
-                  <SummaryNote
-                    tone="warning"
-                    text={homeServiceDistanceError || "Distance could not be calculated."}
+              ) : (
+                <>
+                  <SummaryRow
+                    label="Destination"
+                    value={homeServicePlace?.formattedAddress || homeServiceAddress || "Required"}
                   />
-                ) : (
-                  <SummaryNote text="Select customer location to calculate home service fee." />
-                )}
-              </>
-            ) : null}
-            <SummaryRow
-              label="Payment"
-              value={paymentReceived ? `Paid by ${paymentMethod || "method pending"}` : "Pending"}
-            />
+                  {homeServiceDistanceQuote ? (
+                    <>
+                      <SummaryRow
+                        label="Travel time / distance"
+                        value={formatDistanceKm(homeServiceDistanceQuote.distanceKm)}
+                      />
+                      <SummaryRow
+                        label="Travel fee"
+                        value={formatCurrency(homeServiceDistanceQuote.travelFee)}
+                      />
+                      <SummaryRow
+                        label="Total"
+                        value={formatCurrency(totalPrice + homeServiceDistanceQuote.travelFee)}
+                      />
+                    </>
+                  ) : (
+                    <SummaryNote text="Select the destination to calculate the travel fee." />
+                  )}
+                  <SummaryRow label="Driver" value="Assigned during dispatch preparation" />
+                </>
+              )}
+              <SummaryRow
+                label="Payment"
+                value={paymentReceived ? `Paid by ${paymentMethod || "method pending"}` : "Pending"}
+              />
+              {notes ? <SummaryRow label="Notes" value={notes} /> : null}
+            </div>
           </aside>
         </div>
+
+        <footer className="flex shrink-0 flex-col gap-2 border-t border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-[var(--cs-text-secondary)]">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--cs-success-bg)] font-bold text-[var(--cs-success-text)]">
+              ✓
+            </span>
+            <span className="truncate">
+              {slotChecking
+                ? "Checking availability…"
+                : isHomeService
+                  ? "Home-service details will feed Dispatch after saving."
+                  : "Availability and room conflicts are checked before saving."}
+            </span>
+          </div>
+          <div className="flex shrink-0 justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (onCancel) onCancel();
+                else router.push("/crm/bookings");
+              }}
+              disabled={isSaving}
+              className="cs-btn cs-btn-secondary h-10 rounded-xl px-4"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={isSaving || slotChecking}
+              className="cs-btn h-10 rounded-xl bg-[var(--cs-crm-text)] px-5 text-[var(--cs-text-inverse)] shadow-[var(--cs-shadow-sm)] hover:bg-[var(--cs-success-text)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving || slotChecking ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Sparkles size={16} />
+              )}
+              {isSaving
+                ? "Saving…"
+                : slotChecking
+                  ? "Checking…"
+                  : isHomeService
+                    ? "Create Home Service"
+                    : mode === "walkin"
+                      ? "Save Walk-in"
+                      : "Schedule Booking"}
+            </button>
+          </div>
+        </footer>
       </section>
     </div>
   );
@@ -1519,7 +1548,7 @@ function FieldLabel({
   optional?: boolean;
 }) {
   return (
-    <label className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-[var(--cs-text)]">
+    <label className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-[var(--cs-text)]">
       {icon ? <span className="text-[var(--cs-sand-dark)]">{icon}</span> : null}
       {label}
       {optional ? (
@@ -1536,7 +1565,7 @@ function FieldError({ message }: { message?: string }) {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-t border-[var(--cs-border-soft)] pt-3">
+    <div className="border-t border-[var(--cs-border-soft)] pt-2">
       <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">{label}</div>
       <div className="mt-1 text-sm font-medium text-[var(--cs-text)]">{value}</div>
     </div>
@@ -1545,10 +1574,10 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 
 function SummaryServices({ services }: { services: QuickBookingServiceOption[] }) {
   return (
-    <div className="border-t border-[var(--cs-border-soft)] pt-3">
+    <div className="border-t border-[var(--cs-border-soft)] pt-2">
       <div className="text-xs font-semibold uppercase text-[var(--cs-text-muted)]">Services</div>
       {services.length > 0 ? (
-        <ol className="mt-2 space-y-2">
+        <ol className="mt-1.5 space-y-1.5">
           {services.map((service, index) => (
             <li key={service.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 text-sm">
               <span className="font-semibold text-[var(--cs-sand-dark)]">{index + 1}.</span>
@@ -1568,13 +1597,7 @@ function SummaryServices({ services }: { services: QuickBookingServiceOption[] }
   );
 }
 
-function SummaryNote({
-  text,
-  tone = "muted",
-}: {
-  text: string;
-  tone?: "muted" | "warning";
-}) {
+function SummaryNote({ text, tone = "muted" }: { text: string; tone?: "muted" | "warning" }) {
   return (
     <div
       className={cn(

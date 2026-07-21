@@ -19,6 +19,67 @@ import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { updateBookingPaymentSchema } from "@/lib/validations/booking";
 import { getCrossbranchCashSummary } from "@/lib/queries/analytics";
 
+export type OwnerReportsRequest = {
+  preset?: string;
+  from?: string;
+  to?: string;
+};
+
+export type OwnerReportsData = {
+  preset: string;
+  from: string;
+  to: string;
+  dateRangeLabel: string;
+  generatedAt: string;
+  revenueData: Awaited<ReturnType<typeof getRevenueByBranch>>;
+  staffData: Awaited<ReturnType<typeof getBookingsPerTherapist>>;
+  trendData: Awaited<ReturnType<typeof getBookingTrend>>;
+  cashSummary: Awaited<ReturnType<typeof getCrossbranchCashSummary>>;
+};
+
+export type OwnerReportsResult =
+  | { success: true; data: OwnerReportsData }
+  | { success: false; error: string };
+
+const REPORT_PRESETS = new Set(["today", "last7", "last30", "thisMonth"]);
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function reportRange(request: OwnerReportsRequest) {
+  const preset = REPORT_PRESETS.has(request.preset ?? "") ? request.preset! : "last7";
+  if (request.from && request.to && ISO_DATE.test(request.from) && ISO_DATE.test(request.to)) {
+    return { preset, from: request.from, to: request.to };
+  }
+
+  const now = new Date();
+  const to = now.toISOString().split("T")[0]!;
+  const start = new Date(now);
+  if (preset === "last7") start.setDate(start.getDate() - 7);
+  else if (preset === "last30") start.setDate(start.getDate() - 30);
+  else if (preset === "thisMonth") start.setDate(1);
+  const from = preset === "today" ? to : start.toISOString().split("T")[0]!;
+  return { preset, from, to };
+}
+
+function reportDateRangeLabel(from: string, to: string) {
+  if (from === to) {
+    return new Date(`${from}T00:00:00`).toLocaleDateString("en-PH", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  }
+  const start = new Date(`${from}T00:00:00`).toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+  });
+  const end = new Date(`${to}T00:00:00`).toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${start} – ${end}`;
+}
+
 // ── Auth: owner only ──────────────────────────────────────────────────────
 async function requireOwner() {
   const supabase = await createClient();
@@ -148,6 +209,50 @@ export async function getCashSummaryAction(fromDate: string, toDate: string, bra
   const ctx = await requireOwner();
   if (!ctx) return { error: "Unauthorized" };
   return getCrossbranchCashSummary(fromDate, toDate, branchId);
+}
+
+// ── Reports workspace: one auth check and one retained-data payload ─────────
+export async function getOwnerReportsDataAction(
+  request: OwnerReportsRequest
+): Promise<OwnerReportsResult> {
+  const ctx = await requireOwner();
+  if (!ctx) return { success: false, error: "Unauthorized" };
+
+  const { preset, from, to } = reportRange(request);
+  const trendDays = preset === "today"
+    ? 0
+    : preset === "last30"
+      ? 30
+      : preset === "thisMonth"
+        ? Math.max(0, new Date().getDate() - 1)
+        : 7;
+
+  try {
+    const [revenueData, staffData, trendData, cashSummary] = await Promise.all([
+      getRevenueByBranch(from, to),
+      getBookingsPerTherapist(from, to),
+      getBookingTrend(trendDays),
+      getCrossbranchCashSummary(from, to),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        preset,
+        from,
+        to,
+        dateRangeLabel: reportDateRangeLabel(from, to),
+        generatedAt: new Date().toISOString(),
+        revenueData,
+        staffData,
+        trendData,
+        cashSummary,
+      },
+    };
+  } catch (error) {
+    console.error("[owner/reports] analytics load failed", error);
+    return { success: false, error: "Unable to load report data. Please try again." };
+  }
 }
 
 // ── Payment-aware booking list for the new shared workspace ──────────────

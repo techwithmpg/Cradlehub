@@ -127,6 +127,8 @@ type BookingContextService = {
   availableHomeService?: boolean;
   imageUrl?: string | null;
   imageAlt?: string | null;
+  bookingMode?: "automatic" | "consultation";
+  consultationMessage?: string | null;
 };
 
 type BookingContextStaff = {
@@ -612,8 +614,9 @@ export function BookingWizard({
     fetch(`/api/public/booking-context?branchId=${selectedBranch.id}&mode=${mode}`)
       .then((r) => r.json())
       .then((data) => {
-        const svcs = (data.services ?? []).map(
-          (s: BookingContextService) => ({
+        const svcs = ((data.services ?? []) as BookingContextService[])
+          .filter((service) => mode === "inhouse" || service.bookingMode !== "consultation")
+          .map((s) => ({
             id: s.serviceId ?? s.id ?? "",
             name: s.name,
             description: s.description,
@@ -626,8 +629,9 @@ export function BookingWizard({
             availableHomeService: s.availableHomeService ?? false,
             imageUrl: s.imageUrl ?? null,
             imageAlt: s.imageAlt ?? null,
-          })
-        );
+            bookingMode: s.bookingMode ?? "automatic",
+            consultationMessage: s.consultationMessage ?? null,
+          }));
         setServices(svcs);
         // Build a provider lookup from booking-context response for public staff filtering.
         const staffList = (data.staff ?? []) as BookingContextStaff[];
@@ -840,6 +844,7 @@ export function BookingWizard({
         : {};
 
     const payload = {
+      website: "",
       branchId: selectedBranch.id,
       serviceIds: selectedServices.map((s) => s.id),
       staffId: selectedStaffForBooking !== "auto" ? selectedStaffForBooking : undefined,

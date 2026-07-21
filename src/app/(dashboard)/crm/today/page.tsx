@@ -21,6 +21,7 @@ import {
   getRecentAttendanceScanFeed,
 } from "@/lib/attendance/recent-scans";
 import { getOpenStaffScheduleException } from "@/lib/bookings/staff-schedule-exception";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -210,30 +211,32 @@ export default async function CrmTodayPage() {
   });
 
   return (
-    <CrmOperationalPageShell
-      title="Work Queue"
-      description="One prioritized list for confirmations, follow-up, exceptions, and home-service work."
-      context={`${branchName} · ${dateLabel} · ${roleLabel}`}
-    >
-      <CrmTodayShell
-        branchName={branchName}
-        dateLabel={dateLabel}
-        roleLabel={roleLabel}
-        queueData={queueData}
-        snapshot={snapshot}
-        actionNotifications={actionNotifications}
-        attendanceScanFeed={attendanceScanFeed}
-        attendanceScanDate={today}
-        readinessIssues={readinessIssues}
-        readinessStatus={readinessStatus}
-        viewerRole={role}
-        paymentAction={updateBookingPaymentAction}
-        statusAction={updateWorkQueueBookingStatusAction}
-        assignDriverAction={assignBookingDriverAction}
-        availableDrivers={availableDrivers}
-        getTrackingLinkAction={getOrCreateCustomerTrackingLinkAction}
-        showHeader={false}
-      />
-    </CrmOperationalPageShell>
+    <RetainedWorkspaceModule moduleId="crm-work-queue">
+      <CrmOperationalPageShell
+        title="Work Queue"
+        description="One prioritized list for confirmations, follow-up, exceptions, and home-service work."
+        context={`${branchName} · ${dateLabel} · ${roleLabel}`}
+      >
+        <CrmTodayShell
+          branchName={branchName}
+          dateLabel={dateLabel}
+          roleLabel={roleLabel}
+          queueData={queueData}
+          snapshot={snapshot}
+          actionNotifications={actionNotifications}
+          attendanceScanFeed={attendanceScanFeed}
+          attendanceScanDate={today}
+          readinessIssues={readinessIssues}
+          readinessStatus={readinessStatus}
+          viewerRole={role}
+          paymentAction={updateBookingPaymentAction}
+          statusAction={updateWorkQueueBookingStatusAction}
+          assignDriverAction={assignBookingDriverAction}
+          availableDrivers={availableDrivers}
+          getTrackingLinkAction={getOrCreateCustomerTrackingLinkAction}
+          showHeader={false}
+        />
+      </CrmOperationalPageShell>
+    </RetainedWorkspaceModule>
   );
 }

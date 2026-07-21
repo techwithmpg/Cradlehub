@@ -48,7 +48,13 @@ export type NotificationType =
   | "attendance_issue_resolved"
   | "attendance_clock_out_reminder"
   | "attendance_closing_escalation"
-  | "attendance_provisional_auto_close";
+  | "attendance_provisional_auto_close"
+  | "branch_correction_resolved"
+  | "branch_correction_rejected"
+  | "branch_correction_decided"
+  | "branch_assignment_issue_resolved"
+  | "branch_assignment_issue_review_required"
+  | "staff_branch_transfer_completed";
 
 export type NotificationWorkspace =
   | "owner"

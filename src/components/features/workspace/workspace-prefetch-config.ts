@@ -26,22 +26,16 @@ export type WorkspacePrefetchConfig = {
 // ── CRM ───────────────────────────────────────────────────────────────────────
 
 export const CRM_PREFETCH: WorkspacePrefetchConfig = {
-  // mirrors the primary daily CRM sidebar items only. System Management stays
-  // deliberate: no automatic mount/idle prefetch.
-  immediate: [
-    "/crm",
-    "/crm/today",
-    "/crm/bookings",
-    "/crm/schedule",
+  // The current route owns the foreground network queue. Warm only the three
+  // highest-frequency retained modules after idle; everything else waits for
+  // hover/focus or explicit navigation.
+  immediate: [],
+  idle: ["/crm/today", "/crm/bookings", "/crm/schedule"],
+  hover: [
     "/crm/attendance",
     "/crm/customers",
     "/crm/dispatch",
-  ],
-  idle: [],
-  // hidden and secondary routes stay live, but wait for explicit navigation.
-  hover: [
     "/crm/live-operations",
-    "/crm/schedule",
     "/crm/setup",
     "/crm/staff",
     "/crm/staff-applications",
@@ -85,23 +79,19 @@ export const MANAGER_PREFETCH: WorkspacePrefetchConfig = {
 // ── Owner ─────────────────────────────────────────────────────────────────────
 
 export const OWNER_PREFETCH: WorkspacePrefetchConfig = {
-  immediate: [
-    "/owner",
-    "/owner/bookings",
+  immediate: [],
+  idle: ["/owner", "/owner/reports", "/owner/bookings"],
+  hover: [
+    "/owner/schedule",
+    "/owner/attendance",
+    "/owner/marketing",
+    "/owner/payroll",
     "/owner/branches",
     "/owner/staff",
     "/owner/services",
-  ],
-  idle: [
-    "/owner/schedule",
     "/owner/spaces-rules",
     "/owner/dispatch",
     "/owner/notifications",
-  ],
-  hover: [
-    "/owner/reports",
-    "/owner/marketing",
-    "/owner/payroll",
   ],
 };
 

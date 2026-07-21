@@ -7,6 +7,8 @@ import {
   type WorkspacePrefetchConfig,
 } from "./workspace-prefetch-config";
 
+const prefetchedRoutes = new Set<string>();
+
 // ── Connection sniffing ───────────────────────────────────────────────────────
 
 /**
@@ -54,8 +56,10 @@ function resolveWorkspaceKey(pathname: string): string | null {
 
 function prefetchRoutes(router: ReturnType<typeof useRouter>, routes: string[]) {
   for (const route of routes) {
+    if (prefetchedRoutes.has(route)) continue;
     try {
       router.prefetch(route);
+      prefetchedRoutes.add(route);
     } catch {
       // Swallow — prefetch is best-effort.
     }
@@ -98,6 +102,8 @@ export function WorkspaceRoutePrefetcher({
 }: WorkspaceRoutePrefetcherProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const workspaceKey = explicitConfig ? null : resolveWorkspaceKey(pathname);
+  const config = explicitConfig ?? (workspaceKey ? WORKSPACE_PREFETCH_CONFIGS[workspaceKey] : null);
 
   const doPrefetch = useCallback(
     (routes: string[]) => {
@@ -111,23 +117,21 @@ export function WorkspaceRoutePrefetcher({
     if (typeof window === "undefined") return;
     if (isDataSaverEnabled()) return;
 
-    const workspaceKey = resolveWorkspaceKey(pathname);
-    const cfg = explicitConfig ?? (workspaceKey ? WORKSPACE_PREFETCH_CONFIGS[workspaceKey] : null);
-    if (!cfg) return;
+    if (!config) return;
 
     const slow = isSlowConnection();
 
     // Immediate batch — slight delay so current page data wins the network queue.
     const immediateTimer = window.setTimeout(() => {
-      doPrefetch(cfg.immediate);
+      doPrefetch(config.immediate);
     }, 250);
 
     // Idle batch — only on decent connections and when not eager.
     let idleTimer: number | undefined;
     let idleCallbackId: number | undefined;
 
-    if (cfg.idle.length > 0 && !slow) {
-      const runIdle = () => doPrefetch(cfg.idle);
+    if (config.idle.length > 0 && !slow) {
+      const runIdle = () => doPrefetch(config.idle);
 
       if (eagerIdle) {
         idleTimer = window.setTimeout(runIdle, 1200);
@@ -143,7 +147,7 @@ export function WorkspaceRoutePrefetcher({
       if (idleTimer !== undefined) window.clearTimeout(idleTimer);
       if (idleCallbackId !== undefined) window.cancelIdleCallback(idleCallbackId);
     };
-  }, [doPrefetch, eagerIdle, explicitConfig, pathname]);
+  }, [config, doPrefetch, eagerIdle]);
 
   return null;
 }

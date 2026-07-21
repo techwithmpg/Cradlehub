@@ -8,6 +8,7 @@ import { logError } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
+import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 
 const uuid = z.guid("Invalid ID");
 
@@ -67,7 +68,7 @@ export async function assignBookingDriverAction(rawInput: unknown): Promise<{
   // Fetch booking to validate delivery type and branch
   const { data: booking, error: bookingErr } = await ctx.supabase
     .from("bookings")
-    .select("id, branch_id, delivery_type, type")
+    .select("id, branch_id, delivery_type, type, driver_id, payment_status, booking_date, start_time")
     .eq("id", bookingId)
     .single();
 
@@ -102,7 +103,7 @@ export async function assignBookingDriverAction(rawInput: unknown): Promise<{
     if (!driver.is_active)
       return { success: false, error: "Selected driver is not active" };
 
-    if (!isOwner && driver.branch_id !== booking.branch_id)
+    if (driver.branch_id !== booking.branch_id)
       return {
         success: false,
         error: "Driver must belong to the same branch as the booking",
@@ -126,6 +127,48 @@ export async function assignBookingDriverAction(rawInput: unknown): Promise<{
     .eq("id", bookingId);
 
   if (updateErr) return { success: false, error: updateErr.message };
+
+  if (booking.driver_id !== driverId && booking.payment_status === "paid") {
+    await resolveNotificationsForEntity(
+      "booking",
+      booking.id,
+      "driver",
+      "home_service_assigned"
+    );
+
+    if (booking.driver_id) {
+      await createNotification({
+        branchId: booking.branch_id,
+        targetWorkspace: "driver",
+        recipientStaffId: booking.driver_id,
+        type: "booking_reassigned",
+        title: "Home Service trip reassigned",
+        body: `The trip on ${booking.booking_date} at ${booking.start_time} is no longer assigned to you.`,
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: `/driver/jobs/${booking.id}`,
+        priority: "normal",
+        dedupeKey: `booking:${booking.id}:driver_reassigned_from:${booking.driver_id}`,
+      });
+    }
+
+    if (driverId) {
+      await createNotification({
+        branchId: booking.branch_id,
+        targetWorkspace: "driver",
+        recipientStaffId: driverId,
+        type: "home_service_assigned",
+        title: "Home Service trip assigned",
+        body: `A confirmed trip is assigned to you on ${booking.booking_date} at ${booking.start_time}.`,
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: `/driver/jobs/${booking.id}`,
+        priority: "high",
+        requiresAction: true,
+        dedupeKey: `booking:${booking.id}:driver_assignment:${driverId}`,
+      });
+    }
+  }
 
   revalidatePath("/manager/control");
   revalidatePath("/crm/control");

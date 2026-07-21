@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDailySchedule, type DailyScheduleStaffRow } from "./schedule";
 import { getStaffByBranch } from "./staff";
 import { isServiceStaffType } from "@/constants/staff-roles";
-import { MVP_CHECKIN_PAUSED } from "@/lib/config/mvp-flags";
+import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
 import { CRM_PENDING_BOOKING_STATUSES } from "@/lib/bookings/crm-booking-status";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { BRANCH_TIMEZONE, getBranchClockTime } from "@/lib/engine/slot-time";
@@ -108,6 +108,7 @@ export async function getCrmAvailabilitySnapshot(params: {
   date: string;
   now?: Date;
 }): Promise<CrmAvailabilitySnapshot> {
+  const attendanceEnforcementPaused = !isAttendanceEnforcementEnabled();
   const now = params.now ?? new Date();
   const nowTime = getBranchClockTime(now, BRANCH_TIMEZONE);
   const supabase = await createClient();
@@ -177,7 +178,7 @@ export async function getCrmAvailabilitySnapshot(params: {
     }
 
     // ── Presence status (check-in truth) ────────────────────────────────────
-    // When MVP_CHECKIN_PAUSED: all scheduled staff are treated as present.
+    // While enforcement is paused, all scheduled staff are treated as present.
     // Actual check-in data is preserved in checkedInAt/Out/checkInId for future use.
     let presenceStatus: PresenceStatus;
     if (scheduleStatus === "off_today") {
@@ -186,7 +187,7 @@ export async function getCrmAvailabilitySnapshot(params: {
       presenceStatus = "conflict";
     } else if (scheduleStatus === "no_schedule") {
       presenceStatus = "no_schedule";
-    } else if (MVP_CHECKIN_PAUSED) {
+    } else if (attendanceEnforcementPaused) {
       presenceStatus = "checked_in";
     } else if (!checkin) {
       presenceStatus = "not_checked_in";

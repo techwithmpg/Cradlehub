@@ -1,8 +1,8 @@
 "use client";
 
-import Link            from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useCallback }    from "react";
+import { useState, useCallback, useEffect }    from "react";
 import {
   LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
   UserPlus, ClipboardList, Heart, Sun, BarChart2, ClockAlert,
@@ -20,6 +20,14 @@ import {
 } from "./nav-config";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { getStaffAdminName, getStaffDisplayName } from "@/lib/staff/display-name";
+import {
+  WORKSPACE_RETENTION_STATE_EVENT,
+  type WorkspaceRetentionStateDetail,
+} from "@/components/features/dashboard/workspace-navigation-events";
+import {
+  resolveWorkspaceModule,
+  type RetainedWorkspace,
+} from "@/components/features/dashboard/workspace-retention-policy";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
   LayoutDashboard, CalendarDays, CalendarClock, Building2, Users, Sparkles,
@@ -89,6 +97,7 @@ type NavLinkProps = {
   onNav?:   () => void;
   prefetchOnHover?: boolean;
   variant?: "primary" | "system";
+  hasUnsavedChanges?: boolean;
 };
 
 function hrefPath(href: string): string {
@@ -131,6 +140,7 @@ function NavLink({
   onNav,
   prefetchOnHover = true,
   variant = "primary",
+  hasUnsavedChanges = false,
 }: NavLinkProps) {
   const Icon          = ICON_MAP[item.icon];
   const router        = useRouter();
@@ -152,6 +162,7 @@ function NavLink({
       prefetch={prefetchOnHover ? undefined : false}
       onClick={onNav}
       onMouseEnter={handleMouseEnter}
+      onFocus={handleMouseEnter}
       style={{
         display:         "flex",
         alignItems:      "center",
@@ -185,10 +196,39 @@ function NavLink({
       )}
       {Icon && <Icon size={isSystem ? 14 : 15} strokeWidth={isActive ? 2.25 : 1.75} />}
       <span style={{ flex: 1 }}>{item.label}</span>
-      {isActive && !isSystem && (
-        <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--cs-sidebar-muted)", flexShrink: 0 }} />
-      )}
+      {hasUnsavedChanges ? (
+        <span
+          aria-label="Unsaved changes"
+          title="Unsaved changes"
+          className="size-1.5 shrink-0 rounded-full bg-[var(--cs-sand)]"
+        />
+      ) : null}
+      <NavPendingIndicator isActive={isActive} isSystem={isSystem} />
     </Link>
+  );
+}
+
+function NavPendingIndicator({ isActive, isSystem }: { isActive: boolean; isSystem: boolean }) {
+  const { pending } = useLinkStatus();
+
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 12,
+        height: 12,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+    >
+      {pending ? (
+        <span className="size-1.5 animate-pulse rounded-full bg-current" />
+      ) : isActive && !isSystem ? (
+        <ChevronRight size={12} strokeWidth={2} style={{ color: "var(--cs-sidebar-muted)" }} />
+      ) : null}
+    </span>
   );
 }
 
@@ -204,9 +244,10 @@ type SidebarContentProps = SidebarProps & {
   pathname: string;
   search:   string;
   onNav?:   () => void;
+  unsavedModuleIds: ReadonlySet<string>;
 };
 
-function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathname, search, onNav }: SidebarContentProps) {
+function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathname, search, onNav, unsavedModuleIds }: SidebarContentProps) {
   const [systemOpen, setSystemOpen] = useState(false);
   const roleWorkspaceKey = resolveWorkspaceKeyFromRole(role);
   const pathWorkspaceKey = resolveWorkspaceKeyFromPath(pathname);
@@ -221,9 +262,20 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
   if (!nav) return null;
   const systemItems = nav.systemItems ?? [];
   const hasActiveSystemItem = systemItems.some((item) => isNavActive(item, pathname, search));
+  const hasUnsavedChanges = (item: NavItem) => {
+    const [itemPath = item.href, itemSearch = ""] = item.href.split("?");
+    const workspace: RetainedWorkspace | null = itemPath.startsWith("/crm")
+      ? "crm"
+      : itemPath.startsWith("/owner")
+        ? "owner"
+        : null;
+    if (!workspace) return false;
+    const descriptor = resolveWorkspaceModule(workspace, itemPath, itemSearch);
+    return descriptor ? unsavedModuleIds.has(descriptor.moduleId) : false;
+  };
 
   return (
-    <aside style={{
+    <aside data-testid="workspace-sidebar" style={{
       width:           248,
       height:          "100vh",
       backgroundColor: "var(--cs-sidebar)",
@@ -335,12 +387,12 @@ function SidebarContent({ role, fullName, nickname, avatarUrl, branchName, pathn
                   {group.label}
                 </div>
                 {group.items.map((item: NavItem) => (
-                  <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} />
+                  <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} hasUnsavedChanges={hasUnsavedChanges(item)} />
                 ))}
               </div>
             ))
           : (nav.items ?? []).map((item: NavItem) => (
-              <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} />
+              <NavLink key={item.href} item={item} pathname={pathname} search={search} accent={meta.accent} onNav={onNav} hasUnsavedChanges={hasUnsavedChanges(item)} />
             ))
         }
       </nav>
@@ -454,6 +506,17 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
   const searchParams    = useSearchParams();
   const search          = searchParams.toString();
   const [open, setOpen] = useState(false);
+  const [unsavedModuleIds, setUnsavedModuleIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+  useEffect(() => {
+    const updateUnsavedState = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceRetentionStateDetail>).detail;
+      setUnsavedModuleIds(new Set(detail?.unsavedModuleIds ?? []));
+    };
+    window.addEventListener(WORKSPACE_RETENTION_STATE_EVENT, updateUnsavedState);
+    return () => window.removeEventListener(WORKSPACE_RETENTION_STATE_EVENT, updateUnsavedState);
+  }, []);
   // /manager routes now redirect to /crm (MVP soft-pause), but keep the check
   // for safety in case a direct navigation somehow reaches this component.
   const isManagerRoute     = pathname.startsWith("/manager");
@@ -472,6 +535,7 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
           branchName={branchName}
           pathname={pathname}
           search={search}
+          unsavedModuleIds={unsavedModuleIds}
         />
       </div>
 
@@ -533,6 +597,7 @@ export function Sidebar({ role, fullName, nickname, avatarUrl, branchName }: Sid
               branchName={branchName}
               pathname={pathname}
               search={search}
+              unsavedModuleIds={unsavedModuleIds}
               onNav={() => setOpen(false)}
             />
           </div>

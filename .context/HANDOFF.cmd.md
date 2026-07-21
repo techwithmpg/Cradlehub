@@ -1,5 +1,140 @@
 # HANDOFF - Next Agent Session
 
+## NOTIFICATIONS-001 - 2026-07-22
+
+The four-phase implementation is complete in code. CRM/Owner/Staff/Driver/
+Utility bells use authenticated, RLS-scoped Realtime reconciliation; fresh
+events are claimed once across visible tabs for toast and optional sound. Opt-in
+Web Push uses the existing durable notification ID, own-row subscriptions,
+same-origin APIs, server-only VAPID, safe service-worker paths, exact recipient
+targeting, Owner preferences, and endpoint deactivation. Manager notification
+settings were not exposed.
+
+Pending online bookings notify CRM only. Assigned therapists and drivers are
+notified after payment is confirmed, and later paid booking events address the
+exact affected assignees. Push dispatch is best effort after persistence and a
+dedupe update never resends it.
+
+Automated gates pass: type-check; lint with one unrelated existing Attendance
+warning; 161 test files / 1,180 tests; and Next 16.2.4 production build (113
+static generations). Local DB lint was unavailable because no Supabase local
+database is listening on port 54322; static migration contracts pass.
+
+Do not claim production certification yet. The migration
+`20260721174547_browser_push_notifications.sql` has not been applied and the VAPID
+environment is not configured by this task. Follow
+`docs/operations/BROWSER_PUSH_NOTIFICATIONS.md`: review/apply the migration via
+the approved workflow, set the three VAPID values, deploy over HTTPS, and execute
+the cross-browser/device, cross-tab, branch isolation, pending-payment, exact
+assignee, Owner preference, disable, and provider-failure QA matrix.
+
+---
+
+## CRM-RETENTION-001 - 2026-07-22
+
+The manual retained-workspace registry is implemented. CRM-first is the safe
+default (`NEXT_PUBLIC_RETAINED_WORKSPACES=crm`); `all` enables Owner and
+`off` is rollback. CRM retains Work Queue, Bookings, Schedule, Attendance, and
+Customers with a four-entry LRU. Owner retains Overview, Reports, and Bookings
+with a three-entry LRU. Identity-prefixed SWR data survives visual eviction while
+scope changes/logout purge the shared in-memory cache. Evicted modules keep only
+an unmounted element/URL/scroll descriptor, so their DOM and Effects are released
+but cached content can remount immediately.
+
+React Activity preserves state and cleans hidden Effects. The frame also uses
+`hidden`, `aria-hidden`, and `inert`. Existing Booking/Schedule/Attendance/
+Reports mutators reconcile dirty or stale data once on reactivation; booking
+invalidation reuses the existing event. Scroll, URL history, draft eviction
+protection, predictive sidebar/Back reveal, and rollback are covered.
+
+Do not enable Next Cache Components for this work; its dynamic/authenticated
+rendering migration was explicitly rejected. Do not add Dispatch to full
+retention or Owner Schedule until authenticated browser heap/network evidence
+exists. Manager remains unchanged.
+
+Authenticated CRM QA passed retained returns, canonical filter/tab restoration,
+Back/Forward, inert hidden frames, four-entry LRU eviction, and immediate cached
+remount of an evicted Work Queue with no bootstrap skeleton. Full gates pass:
+type-check, build, 152 files / 1,152 tests, and lint with one pre-existing warning.
+
+Pending release evidence: use an Owner-authorized account for Overview → Reports
+→ Bookings, and capture exact Network/Realtime counts, heap after 3 and 10
+modules/LRU, DOM-node identity, CLS, and long tasks. The available account has
+Front Desk and Staff Portal access only.
+
+See `docs/performance/CRM-RETENTION-001-ARCHITECTURE.md` and
+`docs/performance/CRM-RETENTION-001-REPORT.md`.
+
+---
+
+## CRM-PERF-002 - 2026-07-21
+
+The interaction/data-cache migration is implemented. Active CRM/Owner routes and shared workspaces contain no ordinary `router.refresh()` calls; 22 route loaders and five internal document navigations are removed. Owner Reports, Owner Bookings, Attendance, Dispatch, and Schedule use retained SWR data. Services, Staff, Marketing, Attendance Rules, Payroll, bookings, and dispatch reconcile local/canonical results without rebuilding the workspace. Schedule subviews create history entries and remain mounted after first visit.
+
+All automated gates pass: TypeScript, production build with 110 routes, diff check, focused interaction suites, and the complete 145-file / 1,117-test run. Lint has no errors and two existing warnings. Browser QA in the CRM session verified persistent sidebar/main navigation, Schedule Back/Forward restoration, retained Setup staff selection, and zero console errors.
+
+Release evidence still needed: sign in as Owner and run Reports preset → Back plus one Marketing or Attendance Rule save; then run the exact CRM Work Queue → Bookings → Work Queue sequence. No code change is expected unless that QA exposes a regression. Optionally capture Network/CLS evidence. Do not report the seven raw refresh calls in `crm-availability-client.tsx`/`board.tsx` as active: the route redirects and those files have no active imports. Delete them only after confirming no external/custom consumer relies on them.
+
+See `docs/performance/crm-perf-002-audit.md` and `docs/performance/crm-perf-002-report.md`. The unrelated pre-existing staff branch-assignment/Attendance worktree changes were preserved; no commit or deployment was made.
+
+---
+
+## ATTENDANCE-BRANCH-RESOLUTION-TRANSACTION-FIX-003 - 2026-07-15
+
+The linked resolver is repaired by recorded migration `20260715113001`. The
+production failure was PostgreSQL `42702`: unqualified `scan_event_id` in the
+two final `attendance_exceptions` updates collided with the function's output
+parameter. The patch changes only those update references, preserves one exact
+11-argument invoker function, `search_path=public, extensions`, locks, replay,
+return columns, and service-role-only execution, and refreshes PostgREST.
+
+Rollback-only live QA passed temporary shift, business day, permanent transfer,
+forced continuation rollback, missing-device controlled failure, and a second
+manager replay; all synthetic residue counts are zero. The supplied real request
+`fc714d92-7644-4d66-98b3-af93b267a247` is still pending and was never mutated.
+Its source event has no device ID and cannot be repaired by attaching an
+unrelated phone. Ask that staff member to scan again after the application change
+is deployed.
+
+New authenticated first-scan devices are now registered before canonical
+wrong-branch evaluation. Device branch is last-used metadata, not branch
+authorization, so this preserves security while ensuring future source events
+can be resumed. All local gates pass (138 files / 1,103 tests and a 110-page
+build); no commit or deployment was made. Complete authenticated production
+browser/device QA after deploying, and do not blind-push the unrelated 81-local /
+5-remote migration backlog.
+
+---
+
+## ATTENDANCE-BRANCH-CORRECTION-RESOLUTION-001 - 2026-07-15
+
+Branch Corrections now has one explicit decision surface: temporary target-branch
+access for the original shift or business day, permanent current-profile
+transfer, or rejection. Generic approval is disabled. Successful resolutions
+continue the captured source scan through the canonical Attendance engine and
+return its committed clock-in/clock-out result without a second staff scan.
+
+The live isolated migration is `20260715113000`. It extends the existing request,
+assignment, and Attendance records; writes are restricted to the locked service
+transaction, while browser roles remain SELECT-only. Same-decision replay is
+idempotent, conflicting decisions fail, shift access revokes on close, day access
+cannot cross its target-branch Attendance boundary, and Test Mode cannot perform
+a permanent transfer.
+
+Permanent transfer intentionally does not rewrite bookings, schedules, service
+support, payroll, devices, or historical Attendance. Those are summarized before
+confirmation and create targeted follow-up work when review is needed. Arbitrary
+date ranges are deferred; add them only by extending the persisted validity model
+and testing overlap/revocation semantics.
+
+All automated gates pass (136 files / 1,086 tests; Next.js 16.2.4 build at 110
+pages). Synthetic shift/day/permanent/reject QA ran only in rollback transactions
+and left zero rows. Do not use the one observed real pending correction as QA.
+Broader migration drift still exists, so do not run a blind full database push.
+See `docs/attendance/BRANCH_CORRECTION_RESOLUTION.md`.
+
+---
+
 ## CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001 - 2026-07-15
 
 Adjust Schedule now recognizes only the narrow eligible CRM/CSR/front-desk case
@@ -1217,3 +1352,22 @@ Still required before staff beta:
 3. Verify Recovery correction/audit, realtime CRM/Owner/Staff updates, payroll/live
    report exclusion, and archive behavior against those controlled records.
 4. Complete Chrome, Safari/WebKit, Edge, and mobile Chrome certification.
+
+## BRANCH-ASSIGNMENT-PATTERN-001 Handoff (2026-07-16 13:54)
+
+- CRM Branch Corrections now uses the authoritative assignment issue model.
+- Permanent and temporary decisions return success independently of the original scan/device.
+- Every approved resolution requiring Attendance instructs the staff member to scan again.
+- Legacy pending requests are migrated and closed by migration 20260716090000.
+- Verify Supabase migrations were pushed and production was redeployed.
+# RELEASE-READINESS-001-RESUME handoff — 2026-07-21
+
+Code and operational assets are complete with a CONDITIONAL GO for controlled staff use. Before production activation, an operator must apply and verify `20260721190000_attendance_stale_recovery_transaction.sql`, run the migration-history comparison, install/verify the four Attendance cron jobs, set `ATTENDANCE_ENFORCEMENT_ENABLED` deliberately, and run the read-only operational preflight.
+
+Production-only checks still pending: authenticated Owner Reports Back plus Marketing/Attendance Rule save; exact CRM Work Queue → Bookings → Work Queue; physical Attendance device/branch/replacement/overnight matrix; production cron executions; linked database lint; RLS probes; payment/Close Day/Home Service/Driver lifecycle; domains/redirects; backup restore evidence; and the one-day pilot.
+
+Public forms have honeypot, validation, payload, duplicate, and safe-error controls. Durable distributed rate limiting is deferred infrastructure and must be supplied before open high-volume promotion. Multi-person packages are consultation/manual only; grouped simultaneous booking remains deferred. The Owner image-upload placeholder is hidden from training. Legacy Availability and dormant recovery code remain because deletion evidence was insufficient.
+
+Required server configuration includes the existing Supabase/site/maps values, explicit `ATTENDANCE_ENFORCEMENT_ENABLED`, and AI provider/feature/role configuration when Coach is intended. Provider-key presence stays server-only.
+
+Manager activation remains deferred. Browser QA could not be fabricated without authenticated credentials. See `docs/OPERATIONAL_READINESS_CHECKLIST.md`, the two operations runbooks, and `docs/REPOSITORY_CLEANUP_REPORT.md`.

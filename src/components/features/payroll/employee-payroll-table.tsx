@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,13 +43,14 @@ export function EmployeePayrollTable({
   branches,
   allowStatusEditing,
   onSetupPay,
+  onStatusChanged,
 }: {
   staffRows: PayrollDashboardStaffRow[];
   branches: PayrollDashboardBranch[];
   allowStatusEditing: boolean;
   onSetupPay: (staffId: string) => void;
+  onStatusChanged: (staffId: string, status: "paid" | "unpaid") => void;
 }) {
-  const router = useRouter();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<PayrollStaffStatusFilter>("all");
   const [selectedBranchTab, setSelectedBranchTab] = useState(ALL_PAYROLL_STAFF_TAB);
@@ -89,7 +89,7 @@ export function EmployeePayrollTable({
         setError(result.error);
         return;
       }
-      router.refresh();
+      onStatusChanged(result.data.staffId, result.data.status);
     });
   }
 
@@ -104,7 +104,7 @@ export function EmployeePayrollTable({
         return;
       }
       setSelectedRow(null);
-      router.refresh();
+      onStatusChanged(result.data.staffId, result.data.status);
     });
   }
 

@@ -31,6 +31,31 @@ import {
   type StaffScheduleExceptionReasonCode,
 } from "@/lib/bookings/staff-schedule-exception";
 import { createStaffScheduleExceptionSignals } from "@/lib/bookings/staff-schedule-exception-signals";
+import {
+  CONSULTATION_ONLY_CUSTOMER_MESSAGE,
+  isConsultationOnlyService,
+} from "@/lib/bookings/consultation-only-service";
+
+async function containsConsultationOnlyService(
+  supabase: ReturnType<typeof createAdminClient>,
+  serviceIds: string[]
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("services")
+    .select("name, metadata, service_categories(name)")
+    .in("id", serviceIds);
+  if (error || !data || data.length !== new Set(serviceIds).size) return true;
+
+  return data.some((service) => {
+    const categoryValue = service.service_categories;
+    const category = Array.isArray(categoryValue) ? categoryValue[0] : categoryValue;
+    return isConsultationOnlyService({
+      name: service.name,
+      categoryName: category?.name ?? null,
+      metadata: service.metadata,
+    });
+  });
+}
 
 export type CreateOnlineBookingResult =
   | {
@@ -39,6 +64,45 @@ export type CreateOnlineBookingResult =
       staffPreferenceNeedsConfirmation?: boolean;
     }
   | { ok: false; code: string; message: string };
+
+const PUBLIC_BOOKING_COOLDOWN_MS = 5 * 60 * 1000;
+const MAX_PUBLIC_BOOKING_PAYLOAD_BYTES = 12_000;
+
+function normalizePhone(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function payloadIsOversized(input: unknown): boolean {
+  return new TextEncoder().encode(JSON.stringify(input)).length > MAX_PUBLIC_BOOKING_PAYLOAD_BYTES;
+}
+
+async function hasRecentDuplicateBooking(params: {
+  supabase: ReturnType<typeof createAdminClient>;
+  branchId: string;
+  serviceIds: string[];
+  phone: string;
+  email?: string;
+}): Promise<boolean> {
+  const normalizedPhone = normalizePhone(params.phone);
+  let customerQuery = params.supabase
+    .from("customers")
+    .select("id")
+    .in("phone", [params.phone, normalizedPhone]);
+  if (params.email) customerQuery = customerQuery.or(`email.eq.${params.email.toLowerCase()}`);
+  const { data: customers, error: customerError } = await customerQuery;
+  if (customerError || !customers?.length) return false;
+
+  const { data, error } = await params.supabase
+    .from("bookings")
+    .select("id")
+    .eq("branch_id", params.branchId)
+    .in("service_id", params.serviceIds)
+    .in("customer_id", customers.map((customer) => customer.id))
+    .gte("created_at", new Date(Date.now() - PUBLIC_BOOKING_COOLDOWN_MS).toISOString())
+    .limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
 
 function logBookingError(context: Record<string, unknown>, error: unknown) {
   logError("booking.online.failed", { action: "booking.online.create", ...context, error });
@@ -62,6 +126,9 @@ function toAddressComponentsJson(
 export async function createOnlineBookingAction(
   input: CreateOnlineBookingInput
 ): Promise<CreateOnlineBookingResult> {
+  if (payloadIsOversized(input)) {
+    return { ok: false, code: "PAYLOAD_TOO_LARGE", message: "Please shorten your request and try again." };
+  }
   const parsed = createOnlineBookingSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -107,6 +174,28 @@ export async function createOnlineBookingAction(
     }
 
     const supabase = createAdminClient();
+
+    if (await containsConsultationOnlyService(supabase, [d.serviceId])) {
+      return {
+        ok: false,
+        code: "CONSULTATION_REQUIRED",
+        message: CONSULTATION_ONLY_CUSTOMER_MESSAGE,
+      };
+    }
+
+    if (await hasRecentDuplicateBooking({
+      supabase,
+      branchId: d.branchId,
+      serviceIds: [d.serviceId],
+      phone: d.phone,
+      email: d.email || undefined,
+    })) {
+      return {
+        ok: false,
+        code: "DUPLICATE_REQUEST",
+        message: "We already received this booking request. Please wait a few minutes before trying again.",
+      };
+    }
 
     // Verify service eligibility for this booking type
     const { data: eligRow } = await supabase
@@ -241,18 +330,31 @@ export async function createOnlineBookingAction(
     // Notifications are best-effort; do not fail the booking if they error.
     // Online booking is pending — notify CRM only; staff gets notified after payment is confirmed.
     try {
+      const { data: notificationService } = await supabase
+        .from("services")
+        .select("name")
+        .eq("id", d.serviceId)
+        .maybeSingle();
+      const serviceName = notificationService?.name ?? "Service";
       await createNotification({
         branchId: d.branchId,
         targetWorkspace: "crm",
         type: "payment_pending",
-        title: `Payment confirmation needed — ${d.fullName}`,
-        body: `${d.fullName} booked a service on ${d.date} at ${d.startTime}. Confirm payment before notifying the assigned therapist.`,
+        title: `New online booking — ${d.fullName}`,
+        body: `${serviceName} · ${d.date} at ${d.startTime}. Payment confirmation is required before the assigned therapist is notified.`,
         entityType: "booking",
         entityId: booking.id,
         actionHref: `/crm/bookings?bookingId=${booking.id}`,
         priority: "high",
         requiresAction: true,
         dedupeKey: `booking:${booking.id}:payment_pending`,
+        metadata: {
+          customer_name: d.fullName,
+          service_name: serviceName,
+          booking_date: d.date,
+          start_time: d.startTime,
+          delivery_type: deliveryType,
+        },
       });
     } catch (notifyErr) {
       logBookingError(logContext, notifyErr instanceof Error ? notifyErr : new Error(String(notifyErr)));
@@ -292,6 +394,9 @@ export async function createOnlineBookingAction(
 export async function createOnlineBookingMultiAction(
   input: CreateOnlineBookingMultiInput
 ): Promise<CreateOnlineBookingResult> {
+  if (payloadIsOversized(input)) {
+    return { ok: false, code: "PAYLOAD_TOO_LARGE", message: "Please shorten your request and try again." };
+  }
   const parsed = createOnlineBookingMultiSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -346,6 +451,28 @@ export async function createOnlineBookingMultiAction(
     }
 
     const supabase = createAdminClient();
+
+    if (await containsConsultationOnlyService(supabase, d.serviceIds)) {
+      return {
+        ok: false,
+        code: "CONSULTATION_REQUIRED",
+        message: CONSULTATION_ONLY_CUSTOMER_MESSAGE,
+      };
+    }
+
+    if (await hasRecentDuplicateBooking({
+      supabase,
+      branchId: d.branchId,
+      serviceIds: d.serviceIds,
+      phone: d.phone,
+      email: d.email || undefined,
+    })) {
+      return {
+        ok: false,
+        code: "DUPLICATE_REQUEST",
+        message: "We already received this booking request. Please wait a few minutes before trying again.",
+      };
+    }
 
     // Verify each service is eligible for this booking type
     const { data: eligibilityRows } = await supabase
@@ -623,20 +750,36 @@ export async function createOnlineBookingMultiAction(
     }
 
     const isHSMulti = deliveryType === "home_service";
+    const { data: notificationServices } = await supabase
+      .from("services")
+      .select("id, name")
+      .in("id", d.serviceIds);
+    const serviceNames = (notificationServices ?? [])
+      .map((service) => service.name)
+      .filter(Boolean)
+      .join(", ") || (d.serviceIds.length > 1 ? "Multiple services" : "Service");
     // Online booking is pending — notify CRM only; staff gets notified after payment is confirmed.
     const notificationJobs: Promise<void>[] = [
       createNotification({
         branchId: d.branchId,
         targetWorkspace: "crm",
         type: "payment_pending",
-        title: `Payment confirmation needed — ${d.fullName}`,
-        body: `${d.fullName} booked ${isHSMulti ? "a Home Service" : "a service"} on ${d.date} at ${d.startTime}. Confirm payment before notifying the assigned therapist.`,
+        title: `New online booking — ${d.fullName}`,
+        body: `${serviceNames}${isHSMulti ? " · Home Service" : ""} · ${d.date} at ${d.startTime}. Payment confirmation is required before the assigned therapist is notified.`,
         entityType: "booking",
         entityId: insertedIds[0],
         actionHref: `/crm/bookings?bookingId=${insertedIds[0]}`,
         priority: "high",
         requiresAction: true,
         dedupeKey: `booking:${insertedIds[0]}:payment_pending`,
+        metadata: {
+          customer_name: d.fullName,
+          service_name: serviceNames,
+          booking_date: d.date,
+          start_time: d.startTime,
+          delivery_type: deliveryType,
+          group_booking_ids: insertedIds,
+        },
       }),
     ];
 

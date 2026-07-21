@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -10,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import type { CustomizationRow } from "./customization-rows";
 import type { DeliveryMode } from "./service-customization-tab";
 import { updateBranchServiceHomeServiceAvailabilityAction } from "@/app/(dashboard)/crm/services/actions";
+import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
 
 const PAGE_SIZES = [10, 25, 50];
 
@@ -18,11 +18,13 @@ export function ServiceCustomizationTable({
   rows,
   selectedRow,
   onSelect,
+  onServicePatch,
 }: {
   branchId: string;
   rows: CustomizationRow[];
   selectedRow: CustomizationRow | null;
   onSelect: (row: CustomizationRow | null) => void;
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -63,6 +65,7 @@ export function ServiceCustomizationTable({
                 row={row}
                 isSelected={selectedRow?.branchServiceId === row.branchServiceId}
                 onSelect={() => onSelect(row)}
+                onServicePatch={onServicePatch}
               />
             ))}
           </tbody>
@@ -118,11 +121,13 @@ function TableRow({
   row,
   isSelected,
   onSelect,
+  onServicePatch,
 }: {
   branchId: string;
   row: CustomizationRow;
   isSelected: boolean;
   onSelect: () => void;
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
 }) {
   return (
     <tr
@@ -154,6 +159,7 @@ function TableRow({
           key={`${row.branchServiceId}:${String(row.isHomeService)}`}
           branchId={branchId}
           row={row}
+          onServicePatch={onServicePatch}
         />
       </td>
       <td className="px-4 py-3 align-middle">
@@ -177,8 +183,15 @@ function TableRow({
   );
 }
 
-function HomeServiceToggle({ branchId, row }: { branchId: string; row: CustomizationRow }) {
-  const router = useRouter();
+function HomeServiceToggle({
+  branchId,
+  row,
+  onServicePatch,
+}: {
+  branchId: string;
+  row: CustomizationRow;
+  onServicePatch: (serviceId: string, patch: Partial<ServiceLite>) => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [localValue, setLocalValue] = useState(row.isHomeService);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -202,13 +215,14 @@ function HomeServiceToggle({ branchId, row }: { branchId: string; row: Customiza
       }
       // Sync local state to what DB actually saved
       setLocalValue(res.savedAvailableHomeService);
+      onServicePatch(row.serviceId, {
+        available_home_service: res.branchService.available_home_service,
+      });
       toast.success("Home Service updated", {
         description: `${row.name} is ${
           res.savedAvailableHomeService ? "available" : "not available"
         } for Home Service.`,
       });
-      // Refresh server data so page re-renders with accurate state
-      router.refresh();
     });
   };
 
@@ -231,6 +245,7 @@ function HomeServiceToggle({ branchId, row }: { branchId: string; row: Customiza
       }
     >
       <Switch
+        aria-label={`Home Service for ${row.name}`}
         checked={localValue}
         onCheckedChange={handleToggle}
         disabled={isPending}

@@ -41,7 +41,6 @@ export function CustomerCreateForm() {
       setNotes("");
       setFeedback("Customer created");
       router.push(`/crm/${result.customerId}`);
-      router.refresh();
     });
   }
 

@@ -6,6 +6,7 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { branchDateTimeToIsoInTimezone } from "@/lib/attendance/shift-instance";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
+import { getBranchAttendanceRulesData } from "@/lib/attendance/branch-attendance-rules";
 import {
   ATTENDANCE_STAFF_CATEGORIES,
   type AttendanceStaffCategory,
@@ -106,7 +107,10 @@ async function branchExists(branchId: string): Promise<boolean> {
 
 export async function saveBranchAttendanceRulesAction(
   input: SaveBranchAttendanceRulesInput
-): Promise<{ success: true; message: string } | { success: false; error: string }> {
+): Promise<
+  | { success: true; message: string; data: Awaited<ReturnType<typeof getBranchAttendanceRulesData>> }
+  | { success: false; error: string }
+> {
   const owner = await requireOwnerContext();
   if (!owner) return { success: false, error: "Unauthorized" };
   if (!input.branchId || !(await branchExists(input.branchId))) {
@@ -155,7 +159,11 @@ export async function saveBranchAttendanceRulesAction(
       ruleVersionId: data.rule_version_id,
       effectiveDate: input.effectiveDate,
     });
-    return { success: true, message: "Attendance rules saved." };
+    return {
+      success: true,
+      message: "Attendance rules saved.",
+      data: await getBranchAttendanceRulesData(input.branchId),
+    };
   } catch (error) {
     logError("attendance.branch_rules.save_failed", { branchId: input.branchId, error });
     return { success: false, error: "Attendance rules could not be saved." };
@@ -164,7 +172,10 @@ export async function saveBranchAttendanceRulesAction(
 
 export async function saveAttendanceCategoryRuleAction(
   input: SaveAttendanceCategoryRuleInput
-): Promise<{ success: true; message: string } | { success: false; error: string }> {
+): Promise<
+  | { success: true; message: string; data: Awaited<ReturnType<typeof getBranchAttendanceRulesData>> }
+  | { success: false; error: string }
+> {
   const owner = await requireOwnerContext();
   if (!owner) return { success: false, error: "Unauthorized" };
   if (!input.branchId || !(await branchExists(input.branchId))) {
@@ -215,7 +226,11 @@ export async function saveAttendanceCategoryRuleAction(
       categoryRuleId: data.category_rule_id,
       effectiveDate: input.effectiveDate,
     });
-    return { success: true, message: "Category override saved." };
+    return {
+      success: true,
+      message: "Category override saved.",
+      data: await getBranchAttendanceRulesData(input.branchId),
+    };
   } catch (error) {
     logError("attendance.category_rule.save_failed", {
       branchId: input.branchId,

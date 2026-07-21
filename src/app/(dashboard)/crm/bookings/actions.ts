@@ -140,6 +140,7 @@ type CrmBookingActionRow = {
   type: string | null;
   delivery_type: string | null;
   status: string;
+  payment_status: string | null;
   booking_progress_status: string | null;
   checked_in_at?: string | null;
   session_started_at?: string | null;
@@ -505,7 +506,7 @@ async function loadCrmBookingForAction(
   const { data: details, error: detailError } = await admin
     .from("bookings")
     .select(
-      "id, branch_id, customer_id, service_id, booking_date, start_time, end_time, type, delivery_type, staff_id, driver_id, status, booking_progress_status, checked_in_at, session_started_at, resource_id, metadata"
+      "id, branch_id, customer_id, service_id, booking_date, start_time, end_time, type, delivery_type, staff_id, driver_id, status, payment_status, booking_progress_status, checked_in_at, session_started_at, resource_id, metadata"
     )
     .eq("id", bookingId)
     .eq("branch_id", baseBooking.branch_id)
@@ -760,7 +761,7 @@ export async function recordBookingFollowupAction(rawInput: unknown): Promise<{ 
     });
   }
 
-  if (isCancellation && booking.staff_id) {
+  if (isCancellation && booking.staff_id && booking.payment_status === "paid") {
     const sameDay = booking.booking_date === new Date().toISOString().split("T")[0];
     await createNotification({
       branchId: booking.branch_id,
@@ -777,6 +778,24 @@ export async function recordBookingFollowupAction(rawInput: unknown): Promise<{ 
     });
     await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
+  }
+
+  if (isCancellation && booking.driver_id && booking.payment_status === "paid") {
+    await createNotification({
+      branchId: booking.branch_id,
+      targetWorkspace: "driver",
+      recipientStaffId: booking.driver_id,
+      type: "booking_cancelled",
+      title: "Assigned trip cancelled",
+      body: `The Home Service trip on ${booking.booking_date} at ${booking.start_time} has been cancelled.`,
+      entityType: "booking",
+      entityId: booking.id,
+      actionHref: `/driver/jobs/${booking.id}`,
+      priority: "high",
+      requiresAction: true,
+      dedupeKey: `booking:${booking.id}:driver_cancelled`,
+    });
+    await resolveNotificationsForEntity("booking", booking.id, "driver", "home_service_assigned");
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
@@ -935,7 +954,7 @@ export async function rescheduleBookingAction(rawInput: unknown): Promise<{ succ
     toStatus: booking.status,
   });
 
-  if (booking.staff_id) {
+  if (booking.staff_id && booking.payment_status === "paid") {
     await createNotification({
       branchId: booking.branch_id,
       targetWorkspace: "staff",
@@ -948,6 +967,23 @@ export async function rescheduleBookingAction(rawInput: unknown): Promise<{ succ
       actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: booking.id }),
       priority: "high",
       requiresAction: true,
+    });
+  }
+
+  if (booking.driver_id && booking.payment_status === "paid") {
+    await createNotification({
+      branchId: booking.branch_id,
+      targetWorkspace: "driver",
+      recipientStaffId: booking.driver_id,
+      type: "booking_rescheduled",
+      title: "Assigned trip time changed",
+      body: `Your Home Service trip has moved to ${nextDate} at ${shortTime(nextStartTime)}.`,
+      entityType: "booking",
+      entityId: booking.id,
+      actionHref: `/driver/jobs/${booking.id}`,
+      priority: "high",
+      requiresAction: true,
+      dedupeKey: `booking:${booking.id}:driver_rescheduled:${nextDate}:${shortTime(nextStartTime)}`,
     });
   }
 
@@ -1249,6 +1285,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     status: string;
     hold_expires_at: string | null;
     staff_id: string | null;
+    driver_id: string | null;
     customer_id: string | null;
     booking_date: string;
     start_time: string;
@@ -1266,7 +1303,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
   const { data: fullBooking, error: fetchErr } = await supabase
     .from("bookings")
     .select(
-      "id, branch_id, status, hold_expires_at, staff_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+      "id, branch_id, status, hold_expires_at, staff_id, driver_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -1278,7 +1315,7 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
     const { data: fallback } = await supabase
       .from("bookings")
       .select(
-        "id, branch_id, status, staff_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
+        "id, branch_id, status, staff_id, driver_id, customer_id, booking_date, start_time, end_time, delivery_type, type, payment_method, payment_status, amount_paid, payment_reference"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -1401,6 +1438,26 @@ export async function confirmBookingPaymentAction(rawInput: unknown): Promise<{ 
       priority:       isHS ? "high" : "normal",
       requiresAction: isHS,
       dedupeKey:      `booking:${bookingId}:staff_assignment_confirmed`,
+    });
+  }
+
+  if (
+    booking.driver_id &&
+    (booking.delivery_type === "home_service" || booking.type === "home_service")
+  ) {
+    await createNotification({
+      branchId: booking.branch_id,
+      targetWorkspace: "driver",
+      recipientStaffId: booking.driver_id,
+      type: "home_service_assigned",
+      title: "Home Service trip assigned",
+      body: `A confirmed Home Service trip is assigned to you on ${booking.booking_date} at ${booking.start_time}.`,
+      entityType: "booking",
+      entityId: bookingId,
+      actionHref: `/driver/jobs/${bookingId}`,
+      priority: "high",
+      requiresAction: true,
+      dedupeKey: `booking:${bookingId}:driver_assignment_confirmed`,
     });
   }
 
@@ -1537,10 +1594,29 @@ export async function assignBookingTherapistAction(
   });
 
   // Notify newly assigned therapist
-  if (parsed.data.staffId !== previousStaffId) {
+  if (
+    parsed.data.staffId !== previousStaffId &&
+    booking.payment_status === "paid"
+  ) {
     const isHS = updated.delivery_type === "home_service" || updated.type === "home_service";
     await resolveNotificationsForEntity("booking", booking.id, "staff", "booking_assigned");
     await resolveNotificationsForEntity("booking", booking.id, "staff", "home_service_assigned");
+    if (previousStaffId) {
+      await createNotification({
+        branchId: updated.branch_id,
+        targetWorkspace: "staff",
+        recipientStaffId: previousStaffId,
+        type: "booking_reassigned",
+        title: "Booking reassigned",
+        body: `The booking on ${updated.booking_date} at ${updated.start_time} is no longer assigned to you.`,
+        entityType: "booking",
+        entityId: booking.id,
+        actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: booking.id }),
+        priority: "normal",
+        requiresAction: false,
+        dedupeKey: `booking:${booking.id}:staff_reassigned_from:${previousStaffId}`,
+      });
+    }
     await createNotification({
       branchId: updated.branch_id,
       targetWorkspace: "staff",
@@ -1806,28 +1882,19 @@ export async function crmStartServiceAction(
     return { success: true };
   }
 
-  // Use a direct update instead of the RPC so this works regardless of whether
-  // the direct-start migration (20260603000001) has been applied to the DB.
-  // All three fields are written atomically in one UPDATE statement.
-  const now = new Date().toISOString();
   const admin = createAdminClient();
-  const { data: updatedRows, error } = await admin
-    .from("bookings")
-    .update({
-      status:                   "in_progress",
-      booking_progress_status:  "session_started",
-      session_started_at:       now,
-    })
-    .eq("id", parsed.data.bookingId)
-    .eq("branch_id", booking.branch_id)
-    .select("id");
+  const { error } = await admin.rpc("start_booking_service_session", {
+    p_booking_id: parsed.data.bookingId,
+    p_source: "crm",
+    p_actor_staff_id: ctx.me.id,
+  });
 
   if (error) {
-    logError("crm.start_service_failed", { bookingId: parsed.data.bookingId, error });
+    logError("crm.start_service_failed", {
+      bookingId: parsed.data.bookingId,
+      error,
+    });
     return { success: false, error: error.message };
-  }
-  if (!updatedRows || updatedRows.length === 0) {
-    return { success: false, error: "Booking could not be started. You may not have permission." };
   }
 
   revalidateServiceSurfaces(booking.branch_id);
@@ -1864,26 +1931,19 @@ export async function crmCompleteServiceAction(
     return { success: false, error: "This booking is already closed." };
   }
 
-  // Direct update — reliable regardless of booking_progress_status current value.
-  const now = new Date().toISOString();
   const admin = createAdminClient();
-  const { data: updatedRows, error } = await admin
-    .from("bookings")
-    .update({
-      status:                   "completed",
-      booking_progress_status:  "completed",
-      session_completed_at:     now,
-    })
-    .eq("id", parsed.data.bookingId)
-    .eq("branch_id", booking.branch_id)
-    .select("id");
+  const { error } = await admin.rpc("complete_booking_service_session", {
+    p_booking_id: parsed.data.bookingId,
+    p_completion_source: "crm_manual",
+    p_actor_staff_id: ctx.me.id,
+  });
 
   if (error) {
-    logError("crm.complete_service_failed", { bookingId: parsed.data.bookingId, error });
+    logError("crm.complete_service_failed", {
+      bookingId: parsed.data.bookingId,
+      error,
+    });
     return { success: false, error: error.message };
-  }
-  if (!updatedRows || updatedRows.length === 0) {
-    return { success: false, error: "Booking could not be completed. You may not have permission." };
   }
 
   revalidateServiceSurfaces(booking.branch_id);

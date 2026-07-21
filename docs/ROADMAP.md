@@ -20,6 +20,42 @@
 
 ## Current Delivery Notes
 
+- 🟡 `NOTIFICATIONS-001` is implementation-complete with automated gates passing
+  on 2026-07-22: CRM/Owner/Staff/Driver/Utility bells now reconcile
+  RLS-authorized `workspace_notifications` over Supabase Realtime, with
+  cross-tab-once toast/chime delivery and an opt-in Web Push channel. Owner
+  delivery preferences and exact paid Staff/Driver booking assignment events are
+  included. Type-check, build, 161 files / 1,180 tests, lint (one pre-existing
+  Attendance warning), and diff checks pass. The additive migration is not
+  applied and VAPID-backed production browser/device QA remains deployment
+  evidence; see `docs/operations/BROWSER_PUSH_NOTIFICATIONS.md`.
+
+- 🟡 `CRM-RETENTION-001` reached CRM-certified conditional pass on 2026-07-22:
+  React Activity now retains a user/role/branch-scoped CRM LRU (4) and optional
+  Owner LRU (3), pauses hidden Effects, preserves scroll/state/SWR data, protects
+  drafts, and reconciles dirty/stale modules quietly. CRM-first is the default
+  rollout and `off` is rollback. Authenticated CRM retained/evicted returns,
+  canonical state, Back/Forward, inert hiding, and the four-frame LRU pass.
+  Owner plus exact heap/network/DOM-identity/CLS/long-task certification remains.
+
+- 🟡 `CRM-PERF-002` reached implementation-complete conditional pass on 2026-07-21: all 22 CRM/Owner route loaders and active routine route refreshes are removed; retained SWR/canonical reconciliation now covers reports, bookings, attendance, dispatch, schedule, services, staff, marketing, attendance rules, and payroll; URL history restores workspace subviews. All automated gates and CRM browser history/state QA pass. Authenticated Owner Reports plus Marketing/Attendance Rule browser certification and the exact Work Queue → Bookings sequence remain release evidence.
+
+- ✅ `ATTENDANCE-BRANCH-RESOLUTION-TRANSACTION-FIX-003` completed with
+  conditional production certification on 2026-07-15: live SQLSTATE `42702` was
+  traced to ambiguous exception-table columns, guarded migration `20260715113001`
+  was applied and recorded, and linked rollback-only shift/day/permanent/replay/
+  failure QA passed with zero residue. The transaction and live database are
+  repaired; deploy the uncommitted app changes and complete authenticated
+  browser/device QA before calling the full production path certified.
+
+- ✅ `ATTENDANCE-BRANCH-CORRECTION-RESOLUTION-001` completed on 2026-07-15:
+  Branch Corrections now uses explicit shift/day access, permanent transfer, or
+  rejection; approved requests atomically resume the stored scan through the
+  canonical Attendance engine, preserve historical branch truth, and replay
+  without duplicate decisions or Attendance. The focused live migration, strict
+  browser-write denial, generated types, synthetic rollback QA, full suite, and
+  production build pass. Arbitrary date ranges remain deliberately deferred.
+
 - ✅ `CRM-OPEN-CLOSE-SCHEDULE-NORMALIZATION-001` completed on 2026-07-15:
   eligible CRM/CSR/front-desk Open-Close overlaps now have an explicit targeted
   Adjust Schedule repair; weekly totals use unique coverage, exact handoffs are
@@ -267,3 +303,18 @@
 | 2026-07-14 | Completed local ATTENDANCE-FLUID-OPERATIONS-001 | Make Attendance record-first with sole-open close semantics, effective branch authority, shared operational status, atomic audited review corrections, device lifecycle audit, and exactly three reports; migration apply/authenticated E2E pending | Codex |
 | 2026-07-14 | Completed local ATTENDANCE-CRM-CLOSING-POLICY-001 | Integrate selected-branch Attendance Rules, effective category policy, CRM Closing operational windows, idempotent interventions, provisional auto-close, and same-row real-QR reconciliation; migration/scheduler/authenticated QA pending | Codex |
 | 2026-07-15 | Completed local ATTENDANCE-SCAN-RESULTS-AND-RECORD-FIRST-001 | Record ordinary outside-hours scans with review, preserve one-scan secure phone registration, and add committed branch-local personalized success copy with a secondary review badge | Codex |
+## RELEASE-READINESS-001 — Complete (conditional production verification)
+
+- [x] Attendance launch defects and recovery assets
+- [x] Consultation-only multi-person booking enforcement
+- [x] Public booking/waitlist baseline abuse protection
+- [x] Migration and operational verification assets
+- [x] Full automated/type/lint/build validation
+- [ ] Production migration, cron, database lint, authenticated browser/device, and controlled-pilot evidence
+
+## REPO-CLEANUP-001 — Complete (conservative)
+
+- [x] Evidence-based candidate audit and cleanup report
+- [x] Confirmed unused type/debug noise removed; unfinished Owner placeholder hidden
+- [x] Dormant/uncertain code and historical/operational assets retained
+- [x] Dependencies reviewed; none safely removable

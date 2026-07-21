@@ -379,13 +379,16 @@ export async function updateBranchServiceVisibilityAction(
   if (!auth) return { success: false, error: "Unauthorized" };
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("branch_services")
     .update({ visibility })
     .eq("branch_id", branchId)
-    .eq("service_id", serviceId);
+    .eq("service_id", serviceId)
+    .select("id, branch_id, service_id, visibility")
+    .maybeSingle();
 
   if (error) return { success: false, error: error.message };
+  if (!updated) return { success: false, error: "Branch service not found." };
 
   const { revalidatePath } = await import("next/cache");
   // Visibility change affects the public booking wizard's service list.
@@ -394,7 +397,7 @@ export async function updateBranchServiceVisibilityAction(
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   logBusinessEvent("branch_service.visibility_updated", { branchId, serviceId, visibility });
-  return { success: true };
+  return { success: true, branchService: updated };
 }
 
 // ── Update per-branch service delivery mode ───────────────────────────────
@@ -421,13 +424,16 @@ export async function updateBranchServiceDeliveryModeAction(
           available_home_service: mode === "home_service" || mode === "both",
         };
 
-  const { error } = await createAdminClient()
+  const { data: updated, error } = await createAdminClient()
     .from("branch_services")
     .update(updates)
     .eq("branch_id", branchId)
-    .eq("service_id", serviceId);
+    .eq("service_id", serviceId)
+    .select("id, branch_id, service_id, is_active, available_in_spa, available_home_service")
+    .maybeSingle();
 
   if (error) return { success: false, error: error.message };
+  if (!updated) return { success: false, error: "Branch service not found." };
 
   const { revalidatePath } = await import("next/cache");
   invalidateTag(cacheTags.branchServices(branchId));
@@ -439,7 +445,7 @@ export async function updateBranchServiceDeliveryModeAction(
   revalidatePath("/crm/services");
   revalidatePath("/crm/setup");
   logBusinessEvent("branch_service.delivery_mode_updated", { branchId, serviceId, mode });
-  return { success: true };
+  return { success: true, branchService: updated };
 }
 
 // ── Manager: get own branch booking rules ────────────────────────────────

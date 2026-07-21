@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { BookingsListToolbar } from "./bookings-list-toolbar";
 import { BookingsQuickFilters } from "./bookings-quick-filters";
 import { BookingsDesktopList } from "./bookings-desktop-list";
@@ -61,7 +61,6 @@ type DesktopWorkspaceProps = {
 };
 
 export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [quickFilter, setQuickFilter] = useState(props.initialQuickFilter);
   const visibleBookings = useMemo(() => {
@@ -115,7 +114,6 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
 
   function changed() {
     props.onBookingsChanged?.();
-    router.refresh();
   }
 
   function handleArrived() {

@@ -13,10 +13,10 @@
  */
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { ServiceTableRow } from "./types";
-import type { StaffForServicePanel } from "@/lib/queries/crm-services";
+import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
+import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import { ProviderAssignmentSheet } from "./provider-assignment-sheet";
 import { updateBranchServiceVisibilityAction } from "@/app/(dashboard)/owner/branches/actions";
 import { getStaffAdminName } from "@/lib/staff/display-name";
@@ -122,11 +122,14 @@ function DeliveryBadge({ inSpa, home }: { inSpa: boolean; home: boolean }) {
 export function ServiceAssignmentTableRow({
   row,
   branchId,
+  onServicePatch,
+  onAssignmentChange,
 }: {
   row: ServiceTableRow;
   branchId: string;
+  onServicePatch: (serviceId: string, patch: Partial<ActiveBranchService>) => void;
+  onAssignmentChange: (assignment: ServiceAssignmentRow, assigned: boolean) => void;
 }) {
-  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [visibilityPending, startVisibilityTransition] = useTransition();
   const [localVisibility, setLocalVisibility] = useState<string>(row.visibility);
@@ -139,11 +142,13 @@ export function ServiceAssignmentTableRow({
     setLocalVisibility(next);
     startVisibilityTransition(async () => {
       try {
-        await updateBranchServiceVisibilityAction(branchId, row.serviceId, next);
+        const result = await updateBranchServiceVisibilityAction(branchId, row.serviceId, next);
+        if (!result.success || !result.branchService) throw new Error(result.error ?? "Visibility update failed.");
+        setLocalVisibility(result.branchService.visibility);
+        onServicePatch(row.serviceId, { visibility: result.branchService.visibility });
         toast.success("Visibility updated", {
           description: `${row.name} is now ${next === "public" ? "public" : "internal"}.`,
         });
-        router.refresh();
       } catch {
         setLocalVisibility(previous);
         toast.error("Visibility not saved", {
@@ -400,6 +405,7 @@ export function ServiceAssignmentTableRow({
         branchId={branchId}
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
+        onAssignmentChange={onAssignmentChange}
       />
     </>
   );

@@ -8,11 +8,19 @@
  */
 
 import useSWR from "swr";
+import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { BookingsWorkspace, type BookingWorkspaceTab, type WorkspaceBookingRow } from "./bookings-workspace";
 import type { DailyCashSummaryData } from "@/components/features/dashboard/daily-cash-summary";
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { resolveBookingQuickFilter } from "@/lib/bookings/bookings-workspace-filters";
+import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
+import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
+import {
+  unwrapWorkspaceSWRKey,
+  useWorkspaceSWRKey,
+  type WorkspaceScopedSWRKey,
+} from "@/components/features/dashboard/workspace-swr-cache";
 
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
@@ -32,7 +40,8 @@ type CrmBookingsViewProps = {
   confirmPaymentAction?: ActionFn;
 };
 
-async function fetcher(url: string): Promise<BookingsApiPayload> {
+async function fetcher(key: WorkspaceScopedSWRKey<string>): Promise<BookingsApiPayload> {
+  const url = unwrapWorkspaceSWRKey(key);
   const res = await fetch(url, { credentials: "same-origin" });
   if (!res.ok) throw new Error(`Bookings fetch failed: ${res.status}`);
   return res.json() as Promise<BookingsApiPayload>;
@@ -92,17 +101,28 @@ export function CrmBookingsView({
     if (bookingId) params.set("bookingId", bookingId);
     return `/api/crm/bookings?${params.toString()}`;
   })();
+  const swrKey = useWorkspaceSWRKey(apiUrl);
 
-  const { data, mutate } = useSWR<BookingsApiPayload>(apiUrl, fetcher, {
+  const { data, mutate } = useSWR<BookingsApiPayload>(swrKey, fetcher, {
     fallbackData: initialData,
     keepPreviousData: true,
     dedupingInterval: 30_000,
-    revalidateOnFocus: true,
+    revalidateOnMount: false,
+    revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
 
   const payload = data ?? initialData;
   const initialTab = tab ?? tabFromStatus(statusFilter);
+  const refreshBookings = useWorkspaceReactivationRefresh(async () => {
+    await mutate();
+  });
+
+  useEffect(() => {
+    const refresh = () => { void refreshBookings().catch(() => undefined); };
+    window.addEventListener(BOOKINGS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, refresh);
+  }, [refreshBookings]);
 
   return (
     <BookingsWorkspace
@@ -126,7 +146,7 @@ export function CrmBookingsView({
       initialSelectedId={bookingId}
       confirmPaymentAction={confirmPaymentAction}
       onBookingsChanged={() => {
-        void mutate();
+        void refreshBookings().catch(() => undefined);
       }}
     />
   );

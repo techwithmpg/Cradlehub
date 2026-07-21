@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { getApiContext } from "@/lib/api/get-api-context";
 import { logError } from "@/lib/logger";
-import { isAgentCoachEnabled, isWorkspaceEnabled } from "@/lib/agents/config";
+import { getAgentCoachAvailability } from "@/lib/agents/config";
 import {
   buildSystemPrompt,
   getProactiveGreeting,
@@ -35,10 +35,6 @@ const coachResponseSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  if (!isAgentCoachEnabled()) {
-    return NextResponse.json({ error: "Agent coach is not configured" }, { status: 503 });
-  }
-
   const ctx = await getApiContext();
   if (!ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -61,8 +57,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!isWorkspaceEnabled(workspace)) {
-    return NextResponse.json({ error: "Workspace not enabled for coach" }, { status: 403 });
+  const availability = getAgentCoachAvailability({ workspace, role: ctx.role });
+  if (!availability.available) {
+    return NextResponse.json({ error: "Coach is unavailable" }, { status: 404 });
+  }
+
+  if (context.branchId !== ctx.branchId || context.userId !== ctx.userId) {
+    return NextResponse.json({ error: "Context mismatch" }, { status: 403 });
   }
 
   const sessionId = context.sessionId ?? buildSessionId(context);

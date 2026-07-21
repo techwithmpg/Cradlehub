@@ -8,6 +8,7 @@ import {
   createAttendanceScanFeedFallback,
   getRecentAttendanceScanFeed,
 } from "@/lib/attendance/recent-scans";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,11 @@ export default async function OwnerOverviewPage() {
     })
   );
 
-  return <OwnerDashboard data={data} attendanceScanFeed={attendanceScanFeed} />;
+  return (
+    <RetainedWorkspaceModule moduleId="owner-overview">
+      <OwnerDashboard data={data} attendanceScanFeed={attendanceScanFeed} />
+    </RetainedWorkspaceModule>
+  );
 }
 
 async function loadOwnerOverviewDashboardData() {

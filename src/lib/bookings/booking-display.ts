@@ -76,6 +76,13 @@ export function getBookingRoomLabel(booking: WorkspaceBookingRow): string {
 }
 
 export function getBookingDurationMinutes(booking: WorkspaceBookingRow): number {
+  if (
+    booking.session_duration_minutes_snapshot &&
+    booking.session_duration_minutes_snapshot > 0
+  ) {
+    return booking.session_duration_minutes_snapshot;
+  }
+
   const service = firstBookingRelation(booking.services);
   if (service?.duration_minutes && service.duration_minutes > 0) {
     return service.duration_minutes;

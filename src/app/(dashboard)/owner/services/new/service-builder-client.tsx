@@ -10,7 +10,7 @@ import {
   createServiceAction,
   createServiceCategoryAction,
 } from "@/app/(dashboard)/owner/services/actions";
-import { ArrowLeft, ImageIcon, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2 } from "lucide-react";
 
 type Category = {
   id: string;
@@ -504,29 +504,6 @@ export function ServiceBuilderClient({ categories: initialCategories }: Props) {
                   }}
                 />
               </button>
-            </div>
-          </div>
-
-          {/* Section 5: Image */}
-          <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>5. Service Image</div>
-            <div
-              style={{
-                padding: "1.5rem",
-                borderRadius: "var(--cs-r-md)",
-                backgroundColor: "var(--cs-bg)",
-                border: "1px dashed var(--cs-border)",
-                textAlign: "center",
-                color: "var(--cs-text-muted)",
-              }}
-            >
-              <ImageIcon className="h-8 w-8 mx-auto mb-2" style={{ opacity: 0.5 }} />
-              <div style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: 4 }}>
-                Image upload coming soon
-              </div>
-              <div style={{ fontSize: "0.75rem" }}>
-                Service images will be matched automatically by name for now.
-              </div>
             </div>
           </div>
 

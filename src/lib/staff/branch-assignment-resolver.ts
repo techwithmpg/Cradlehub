@@ -17,8 +17,6 @@ import type {
   BranchAssignmentRootCause,
 } from "./branch-correction-types";
 
-type AdminClient = ReturnType<typeof createAdminClient>;
-
 type BranchRelation =
   | { name: string | null }
   | Array<{ name: string | null }>

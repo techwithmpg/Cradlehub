@@ -45,7 +45,6 @@ import {
   assignBookingTherapistAction,
   resolveStaffScheduleExceptionAction,
 } from "@/app/(dashboard)/crm/bookings/actions";
-import { autoCompleteDueSessionAction } from "@/app/(dashboard)/staff-portal/actions";
 import { isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
 import {
   getSelectedBookingActionPlan,
@@ -311,7 +310,6 @@ function PrimaryRowAction({
       }
       toast.success("Service started.");
       onBookingsChanged?.();
-      router.refresh();
     });
   }
 
@@ -404,7 +402,6 @@ export function BookingsTable({
   confirmPaymentAction,
   onBookingsChanged,
 }: BookingsTableProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const filtered = search
     ? bookings.filter((booking) => {
@@ -480,7 +477,6 @@ export function BookingsTable({
 
   function handleBookingsChanged() {
     onBookingsChanged?.();
-    router.refresh();
   }
 
   function handleArrivedSuccess() {
@@ -880,11 +876,10 @@ function BookingDetailsPanel({
   onOpenRoomAssignment: (booking: WorkspaceBookingRow) => void;
   onBookingsChanged?: () => void;
 }) {
-  const router = useRouter();
   const [isCompleting, startCompleteTransition] = useTransition();
 
   // Optimistic override — set immediately after Start Service success so the
-  // countdown appears before router.refresh() completes and the updated server
+  // countdown appears before the scoped bookings cache returns the updated
   // data flows back into the panel.  When the parent's key changes (because
   // `selected.session_started_at` is now set from the server), this component
   // remounts and the override resets to null automatically.
@@ -942,7 +937,6 @@ function BookingDetailsPanel({
 
   function afterServiceMutation() {
     onBookingsChanged?.();
-    router.refresh();
   }
 
   function handleCompleteService() {
@@ -957,18 +951,6 @@ function BookingDetailsPanel({
     });
   }
 
-  // Called by HybridSelectedBookingCard when the countdown expires.
-  function handleAutoComplete() {
-    startCompleteTransition(async () => {
-      const result = await autoCompleteDueSessionAction(booking.id);
-      if (result.ok) {
-        toast.success("Service auto-completed.");
-      } else if (result.code !== "ALREADY_COMPLETED") {
-        toast.error(result.message ?? "Auto-complete failed.");
-      }
-      afterServiceMutation();
-    });
-  }
 
   // Intercepts 'in_progress' from CrmNextActionsPanel so its Start Service
   // button also sets all three session fields (not just status).
@@ -1007,11 +989,13 @@ function BookingDetailsPanel({
           status:                  effectiveStatus,
           booking_progress_status: effectiveProgressStatus,
           session_started_at:      effectiveSessionStartedAt,
+          session_due_at:          booking.session_due_at,
+          session_duration_minutes_snapshot:
+            booking.session_duration_minutes_snapshot,
           session_completed_at:    booking.session_completed_at,
           service_duration:        durationMinutes,
           type:                    booking.type,
         }}
-        onAutoComplete={isServiceActive ? handleAutoComplete : undefined}
       />
 
       <div className="mt-4 space-y-3">
@@ -1050,6 +1034,7 @@ function BookingDetailsPanel({
             state={recommendationState}
             expanded={showRecommendations}
             onExpandedChange={setShowRecommendations}
+            onBookingsChanged={onBookingsChanged}
           />
         ) : null}
 
@@ -1065,7 +1050,11 @@ function BookingDetailsPanel({
 
         {showPaymentReview && isCrmPendingBookingStatus(booking.status) ? (
           <div className="rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3">
-            <PaymentConfirmationPanel booking={booking} confirmPaymentAction={confirmPaymentAction} />
+            <PaymentConfirmationPanel
+              booking={booking}
+              confirmPaymentAction={confirmPaymentAction}
+              onBookingsChanged={onBookingsChanged}
+            />
           </div>
         ) : null}
 
@@ -1076,7 +1065,6 @@ function BookingDetailsPanel({
           onSaved={(nextNote) => {
             setNoteOverride(nextNote);
             onBookingsChanged?.();
-            router.refresh();
           }}
         />
 
@@ -1153,7 +1141,6 @@ function StaffScheduleExceptionPanel({
   onReschedule: () => void;
   onContact: () => void;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function resolve(
@@ -1174,7 +1161,6 @@ function StaffScheduleExceptionPanel({
           : "Staff review resolved."
       );
       onKeepOrResolve?.();
-      router.refresh();
     });
   }
 
@@ -1274,11 +1260,13 @@ function RecommendationSummaryPanel({
   state,
   expanded,
   onExpandedChange,
+  onBookingsChanged,
 }: {
   booking: WorkspaceBookingRow;
   state: ReturnType<typeof getSelectedBookingRecommendationState>;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  onBookingsChanged?: () => void;
 }) {
   const label = [
     state.needsTherapist ? "therapist" : null,
@@ -1305,7 +1293,7 @@ function RecommendationSummaryPanel({
       </div>
       {expanded ? (
         <div className="mt-3 border-t border-[var(--cs-border-soft)] pt-3">
-          <BookingRecommendationSection booking={booking} />
+          <BookingRecommendationSection booking={booking} onBookingsChanged={onBookingsChanged} />
         </div>
       ) : null}
     </CompactPanel>
@@ -1697,10 +1685,11 @@ function formatDateTimeLabel(value: string | null | undefined): string | null {
 
 function BookingRecommendationSection({
   booking,
+  onBookingsChanged,
 }: {
   booking: WorkspaceBookingRow;
+  onBookingsChanged?: () => void;
 }) {
-  const router = useRouter();
   const isHomeService = Boolean(
     booking.type === "home_service" ||
     (booking.metadata && (booking.metadata.delivery_type === "home_service" || booking.metadata.type === "home_service"))
@@ -1727,11 +1716,15 @@ function BookingRecommendationSection({
             return;
           }
           toast.success("Therapist assigned.");
-          router.refresh();
+          onBookingsChanged?.();
         }}
         onAssignDriver={async (driverId) => {
-          await assignBookingDriverAction({ bookingId: booking.id, driverId });
-          router.refresh();
+          const result = await assignBookingDriverAction({ bookingId: booking.id, driverId });
+          if (!result.success) {
+            toast.error(result.error ?? "Could not assign driver.");
+            return;
+          }
+          onBookingsChanged?.();
         }}
         currentTherapistId={staff?.id ?? null}
         currentDriverId={null}
@@ -1780,7 +1773,6 @@ export function CrmNextActionsPanel({
 
   function afterMutation() {
     onBookingsChanged?.();
-    router.refresh();
   }
 
   function handleStatus(status: "in_progress" | "completed") {
@@ -1982,11 +1974,12 @@ const CONFIRM_PAYMENT_METHODS = [
 function PaymentConfirmationPanel({
   booking,
   confirmPaymentAction,
+  onBookingsChanged,
 }: {
   booking: WorkspaceBookingRow;
   confirmPaymentAction?: ActionFn;
+  onBookingsChanged?: () => void;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [paymentReference, setPaymentReference] = useState("");
@@ -2017,7 +2010,7 @@ function PaymentConfirmationPanel({
       });
       if (result.success) {
         setFeedback({ ok: true, message: "Payment confirmed. Booking is now active." });
-        router.refresh();
+        onBookingsChanged?.();
       } else {
         setFeedback({ ok: false, message: result.error ?? "Failed to confirm payment." });
       }

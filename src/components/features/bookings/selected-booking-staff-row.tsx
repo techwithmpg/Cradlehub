@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +25,6 @@ export function SelectedBookingStaffRow({
   onExpandedChange?: (expanded: boolean) => void;
   onChanged?: () => void;
 }) {
-  const router = useRouter();
   const [localExpanded, setLocalExpanded] = useState(false);
   const isExpanded = expanded ?? localExpanded;
   const setExpanded = onExpandedChange ?? setLocalExpanded;
@@ -52,12 +50,14 @@ export function SelectedBookingStaffRow({
             }
             toast.success("Therapist assigned.");
             onChanged?.();
-            router.refresh();
           }}
           onAssignDriver={async (driverId) => {
-            await assignBookingDriverAction({ bookingId: booking.id, driverId });
+            const result = await assignBookingDriverAction({ bookingId: booking.id, driverId });
+            if (!result.success) {
+              toast.error(result.error ?? "Could not assign driver.");
+              return;
+            }
             onChanged?.();
-            router.refresh();
           }}
           currentTherapistId={staff?.id ?? null}
           currentDriverId={null}

@@ -16,7 +16,9 @@ import { AdministrativeBookingModalProvider } from "@/components/features/bookin
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 import { getQuickBookingContext } from "@/lib/queries/quick-booking-options";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
-import { isWorkspaceEnabled } from "@/lib/agents/config";
+import { getAgentCoachAvailability } from "@/lib/agents/config";
+import { RetainedWorkspaceProvider } from "@/components/features/dashboard/retained-workspace-provider";
+import { isRetainedWorkspaceEnabled } from "@/lib/config/mvp-flags";
 
 export default async function CrmLayout({
   children,
@@ -25,11 +27,27 @@ export default async function CrmLayout({
 }) {
   const ctx = await getLayoutStaffContext();
   const me = ctx?.me ?? (isDevAuthBypassEnabled() ? getDevBypassLayoutStaff() : null);
-  const coachEnabled = isWorkspaceEnabled("crm");
-  const canShowCoach = coachEnabled && ctx?.user.id && me?.branch_id;
+  const coachAvailability = getAgentCoachAvailability({
+    workspace: "crm",
+    role: me?.system_role,
+  });
+  const canShowCoach = coachAvailability.available && ctx?.user.id && me?.branch_id;
   const branchId = me?.branch_id ?? null;
   const branchName = (me?.branches as { name: string } | null)?.name ?? "Your Branch";
   const bookingContext = branchId ? await getQuickBookingContext(branchId) : null;
+  const retainedChildren = branchId && ctx?.user.id && me?.system_role ? (
+    <RetainedWorkspaceProvider
+      workspace="crm"
+      userId={ctx.user.id}
+      role={me.system_role}
+      branchId={branchId}
+      enabled={isRetainedWorkspaceEnabled("crm")}
+    >
+      {children}
+    </RetainedWorkspaceProvider>
+  ) : (
+    children
+  );
   const workspaceContent = branchId && bookingContext ? (
     <AdministrativeBookingModalProvider
       branchId={branchId}
@@ -39,10 +57,10 @@ export default async function CrmLayout({
       staff={bookingContext.staff}
       resources={bookingContext.resources}
     >
-      {children}
+      {retainedChildren}
     </AdministrativeBookingModalProvider>
   ) : (
-    children
+    retainedChildren
   );
 
   return (

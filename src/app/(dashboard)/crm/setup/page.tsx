@@ -233,7 +233,6 @@ export default async function CrmSetupPage({
           services:           rawServices,
           allServices:        [],   // unused by CrmServicesWorkspace currently
           loadError:          servicesResult.status === "rejected" ? "Could not load services." : null,
-          activeServices,
           providerStaff,
           providerAssignments,
           reviewerSystemRole: role,

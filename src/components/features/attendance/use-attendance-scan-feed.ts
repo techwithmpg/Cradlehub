@@ -7,10 +7,18 @@ import type {
   AttendanceScanFeedData,
   AttendanceScanFeedWorkspace,
 } from "@/lib/attendance/types";
+import {
+  unwrapWorkspaceSWRKey,
+  useWorkspaceSWRKey,
+  type WorkspaceScopedSWRKey,
+} from "@/components/features/dashboard/workspace-swr-cache";
 
 const REFRESH_ERROR = "Attendance activity could not be refreshed.";
 
-async function fetchAttendanceFeed(url: string): Promise<AttendanceScanFeedData> {
+async function fetchAttendanceFeed(
+  key: WorkspaceScopedSWRKey<string>
+): Promise<AttendanceScanFeedData> {
+  const url = unwrapWorkspaceSWRKey(key);
   const response = await fetch(url, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(REFRESH_ERROR);
   return (await response.json()) as AttendanceScanFeedData;
@@ -53,8 +61,9 @@ export function useAttendanceScanFeed({
     () => buildFeedKey({ workspace, selectedDate, branchId, maxItems }),
     [branchId, maxItems, selectedDate, workspace]
   );
+  const swrKey = useWorkspaceSWRKey(feedKey);
   const { data, error, isValidating, mutate } = useSWR(
-    feedKey,
+    swrKey,
     fetchAttendanceFeed,
     {
       fallbackData: initialFeed,

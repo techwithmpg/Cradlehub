@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import {
   createMarketingAssetAction,
   disableMarketingAssetAction,
@@ -107,14 +106,44 @@ function itemsText(section: PublicSiteSectionRow | undefined, fallback: SectionD
   return "";
 }
 
-function RefreshOnSuccess({ state }: { state: MarketingActionState }) {
-  const router = useRouter();
-
+function ApplySectionResult({
+  state,
+  onSaved,
+}: {
+  state: MarketingActionState;
+  onSaved: (section: PublicSiteSectionRow) => void;
+}) {
   useEffect(() => {
-    if (state.success) {
-      router.refresh();
-    }
-  }, [router, state.success]);
+    if (state.section) onSaved(state.section);
+  }, [onSaved, state.section]);
+
+  return null;
+}
+
+function ApplyAssetResult({
+  state,
+  onSaved,
+}: {
+  state: MarketingActionState;
+  onSaved: (asset: PublicSiteAssetRow) => void;
+}) {
+  useEffect(() => {
+    if (state.asset) onSaved(state.asset);
+  }, [onSaved, state.asset]);
+
+  return null;
+}
+
+function ApplyDisabledAssetResult({
+  state,
+  onDisabled,
+}: {
+  state: MarketingActionState;
+  onDisabled: (assetId: string) => void;
+}) {
+  useEffect(() => {
+    if (state.disabledAssetId) onDisabled(state.disabledAssetId);
+  }, [onDisabled, state.disabledAssetId]);
 
   return null;
 }
@@ -125,9 +154,30 @@ export function MarketingStudio({
   galleryAssets,
 }: MarketingStudioProps) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>("hero");
+  const [workspaceSections, setWorkspaceSections] = useState(sections);
+  const [workspaceAssets, setWorkspaceAssets] = useState(galleryAssets);
+  const saveSection = useCallback((saved: PublicSiteSectionRow) => {
+    setWorkspaceSections((current) => {
+      const remaining = current.filter((section) => section.section_key !== saved.section_key);
+      return [...remaining, saved].sort((a, b) => a.sort_order - b.sort_order);
+    });
+  }, []);
+  const saveAsset = useCallback((saved: PublicSiteAssetRow) => {
+    setWorkspaceAssets((current) => {
+      const remaining = current.filter((asset) => asset.id !== saved.id);
+      return [...remaining, saved].sort((a, b) => a.sort_order - b.sort_order);
+    });
+  }, []);
+  const disableAsset = useCallback((assetId: string) => {
+    setWorkspaceAssets((current) =>
+      current.map((asset) =>
+        asset.id === assetId ? { ...asset, is_enabled: false } : asset
+      )
+    );
+  }, []);
   const sectionsByKey = useMemo(
-    () => new Map(sections.map((section) => [section.section_key, section])),
-    [sections]
+    () => new Map(workspaceSections.map((section) => [section.section_key, section])),
+    [workspaceSections]
   );
 
   const activeSection = sectionDefaults.find(
@@ -169,12 +219,17 @@ export function MarketingStudio({
       </div>
 
       {activeTab === "gallery" ? (
-        <GalleryManager assets={galleryAssets} />
+        <GalleryManager
+          assets={workspaceAssets}
+          onSaved={saveAsset}
+          onDisabled={disableAsset}
+        />
       ) : activeSection ? (
         <SectionEditor
-          key={activeSection.sectionKey}
+          key={`${activeSection.sectionKey}:${sectionsByKey.get(activeSection.sectionKey)?.updated_at ?? "default"}`}
           fallback={activeSection}
           section={sectionsByKey.get(activeSection.sectionKey)}
+          onSaved={saveSection}
         />
       ) : null}
     </div>
@@ -184,9 +239,11 @@ export function MarketingStudio({
 function SectionEditor({
   fallback,
   section,
+  onSaved,
 }: {
   fallback: SectionDefault;
   section?: PublicSiteSectionRow;
+  onSaved: (section: PublicSiteSectionRow) => void;
 }) {
   const [state, formAction, pending] = useActionState(
     saveMarketingSectionAction,
@@ -223,7 +280,7 @@ function SectionEditor({
           gap: "0.875rem",
         }}
       >
-        <RefreshOnSuccess state={state} />
+        <ApplySectionResult state={state} onSaved={onSaved} />
         <input type="hidden" name="sectionKey" value={fallback.sectionKey} />
         <input type="hidden" name="sortOrder" value={section?.sort_order ?? fallback.sortOrder} />
 
@@ -365,7 +422,15 @@ function SectionEditor({
   );
 }
 
-function GalleryManager({ assets }: { assets: PublicSiteAssetRow[] }) {
+function GalleryManager({
+  assets,
+  onSaved,
+  onDisabled,
+}: {
+  assets: PublicSiteAssetRow[];
+  onSaved: (asset: PublicSiteAssetRow) => void;
+  onDisabled: (assetId: string) => void;
+}) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       <div
@@ -395,7 +460,7 @@ function GalleryManager({ assets }: { assets: PublicSiteAssetRow[] }) {
         >
           Upload support is not configured yet. Add a local public path or safe image URL.
         </p>
-        <AssetCreateForm />
+        <AssetCreateForm onSaved={onSaved} />
       </div>
 
       <div
@@ -421,14 +486,21 @@ function GalleryManager({ assets }: { assets: PublicSiteAssetRow[] }) {
             No managed gallery assets yet. The public homepage will use local fallback gallery cards.
           </div>
         ) : (
-          assets.map((asset) => <AssetEditor key={asset.id} asset={asset} />)
+          assets.map((asset) => (
+            <AssetEditor
+              key={`${asset.id}:${asset.updated_at}:${asset.is_enabled}`}
+              asset={asset}
+              onSaved={onSaved}
+              onDisabled={onDisabled}
+            />
+          ))
         )}
       </div>
     </div>
   );
 }
 
-function AssetCreateForm() {
+function AssetCreateForm({ onSaved }: { onSaved: (asset: PublicSiteAssetRow) => void }) {
   const [state, formAction, pending] = useActionState(
     createMarketingAssetAction,
     {}
@@ -436,7 +508,7 @@ function AssetCreateForm() {
 
   return (
     <form action={formAction} style={{ display: "grid", gap: "0.875rem" }}>
-      <RefreshOnSuccess state={state} />
+      <ApplyAssetResult state={state} onSaved={onSaved} />
       <ActionNotice state={state} />
       <input type="hidden" name="sectionKey" value="gallery" />
       <div
@@ -474,7 +546,15 @@ function AssetCreateForm() {
   );
 }
 
-function AssetEditor({ asset }: { asset: PublicSiteAssetRow }) {
+function AssetEditor({
+  asset,
+  onSaved,
+  onDisabled,
+}: {
+  asset: PublicSiteAssetRow;
+  onSaved: (asset: PublicSiteAssetRow) => void;
+  onDisabled: (assetId: string) => void;
+}) {
   const [updateState, updateAction, updatePending] = useActionState(
     updateMarketingAssetAction,
     {}
@@ -503,7 +583,7 @@ function AssetEditor({ asset }: { asset: PublicSiteAssetRow }) {
       )}
       <div style={{ padding: "1rem" }}>
         <form action={updateAction} style={{ display: "grid", gap: "0.75rem" }}>
-          <RefreshOnSuccess state={updateState} />
+          <ApplyAssetResult state={updateState} onSaved={onSaved} />
           <ActionNotice state={updateState} />
           <input type="hidden" name="id" value={asset.id} />
           <input type="hidden" name="sectionKey" value={asset.section_key ?? "gallery"} />
@@ -534,7 +614,7 @@ function AssetEditor({ asset }: { asset: PublicSiteAssetRow }) {
         </form>
 
         <form action={disableAction} style={{ marginTop: "0.5rem" }}>
-          <RefreshOnSuccess state={disableState} />
+          <ApplyDisabledAssetResult state={disableState} onDisabled={onDisabled} />
           <input type="hidden" name="id" value={asset.id} />
           <button
             type="submit"

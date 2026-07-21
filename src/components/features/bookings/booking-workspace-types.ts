@@ -18,6 +18,8 @@ export type WorkspaceBookingRow = {
   travel_started_at?: string | null;
   arrived_at?: string | null;
   session_started_at?: string | null;
+  session_due_at?: string | null;
+  session_duration_minutes_snapshot?: number | null;
   session_completed_at?: string | null;
   no_show_at?: string | null;
   resource_id?: string | null;

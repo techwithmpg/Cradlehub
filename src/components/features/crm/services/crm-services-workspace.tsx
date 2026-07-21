@@ -18,7 +18,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type {
@@ -67,7 +67,6 @@ export interface CrmServicesWorkspaceProps {
   services: ServiceLite[];
   allServices: GlobalService[];
   loadError: string | null;
-  activeServices: ActiveBranchService[];
   providerStaff: StaffForServicePanel[];
   providerAssignments: ServiceAssignmentRow[];
   /** System role of the logged-in CRM/CSR user — passed to the edit modal. */
@@ -127,15 +126,55 @@ export function CrmServicesWorkspace({
   branchName,
   loadError,
   services,
-  activeServices,
   providerStaff,
   providerAssignments,
   reviewerSystemRole,
   initialTab = "services",
 }: CrmServicesWorkspaceProps) {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab: TabId = rawTab === "customization"
+    ? "customization"
+    : ["providers", "staff", "capabilities"].includes(rawTab ?? "")
+      ? "providers"
+      : ["issues", "readiness_issues", "readiness", "public_readiness", "public"].includes(rawTab ?? "")
+        ? "readiness_issues"
+        : ["services", "assignments"].includes(rawTab ?? "")
+          ? "services"
+          : initialTab;
   const [editingStaff, setEditingStaff] = useState<StaffForServicePanel | null>(null);
+  const [workspaceServices, setWorkspaceServices] = useState<ServiceLite[]>(services);
+  const [workspaceAssignments, setWorkspaceAssignments] = useState<ServiceAssignmentRow[]>(providerAssignments);
+  const [workspaceProviderStaff, setWorkspaceProviderStaff] = useState(providerStaff);
+
+  const workspaceActiveServices = useMemo(
+    () => workspaceServices.filter(
+      (service): service is ActiveBranchService => service.is_active && service.services !== null
+    ),
+    [workspaceServices]
+  );
+
+  const handleServicePatch = useCallback(
+    (serviceId: string, patch: Partial<ServiceLite>) => {
+      setWorkspaceServices((current) => current.map((service) => {
+        const currentServiceId = service.service_id ?? service.services?.id ?? service.id;
+        return currentServiceId === serviceId ? { ...service, ...patch } : service;
+      }));
+    },
+    []
+  );
+
+  const handleAssignmentChange = useCallback(
+    (assignment: ServiceAssignmentRow, assigned: boolean) => {
+      setWorkspaceAssignments((current) => {
+        const without = current.filter(
+          (row) => row.staff_id !== assignment.staff_id || row.service_id !== assignment.service_id
+        );
+        return assigned ? [...without, assignment] : without;
+      });
+    },
+    []
+  );
 
   /**
    * Switch active tab instantly (no full page reload) and update the URL
@@ -146,18 +185,17 @@ export function CrmServicesWorkspace({
    */
   const handleTabChange = useCallback((nextTab: string) => {
     const tab = nextTab as TabId;
-    setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", TAB_URL_PARAM[tab]);
-      window.history.replaceState(null, "", url.toString());
+      window.history.pushState(null, "", url.toString());
     }
   }, []);
 
   // Service rows for the modal (same adapter used by CrmStaffManagementTab)
   const serviceRows = useMemo(
-    () => toCrmStaffServiceRows(activeServices),
-    [activeServices]
+    () => toCrmStaffServiceRows(workspaceActiveServices),
+    [workspaceActiveServices]
   );
 
   // Single branch entry — CRM users cannot change branches (the modal hides
@@ -171,22 +209,37 @@ export function CrmServicesWorkspace({
   const editingStaffServiceIds = useMemo(
     () =>
       editingStaff
-        ? providerAssignments
+        ? workspaceAssignments
             .filter((a) => a.staff_id === editingStaff.id)
             .map((a) => a.service_id)
         : [],
-    [editingStaff, providerAssignments]
+    [editingStaff, workspaceAssignments]
   );
 
   const handleEditProfile = useCallback((member: StaffForServicePanel) => {
     setEditingStaff(member);
   }, []);
 
-  const handleEditSuccess = useCallback(() => {
+  const handleEditSuccess = useCallback((updatedStaff: Partial<StaffMember> & { id: string }) => {
+    setWorkspaceProviderStaff((current) => current.map((member) =>
+      member.id === updatedStaff.id
+        ? {
+            ...member,
+            full_name: updatedStaff.full_name ?? member.full_name,
+            nickname: updatedStaff.nickname ?? member.nickname,
+            phone: updatedStaff.phone ?? member.phone,
+            tier: updatedStaff.tier ?? member.tier,
+            system_role: updatedStaff.system_role ?? member.system_role,
+            staff_type: updatedStaff.staff_type ?? member.staff_type,
+            is_head: updatedStaff.is_head ?? member.is_head,
+            branch_id: updatedStaff.branch_id ?? member.branch_id,
+            is_active: updatedStaff.is_active ?? member.is_active,
+          }
+        : member
+    ));
     toast.success("Staff profile updated.");
     setEditingStaff(null);
-    router.refresh();
-  }, [router]);
+  }, []);
 
   return (
     <div>
@@ -212,9 +265,11 @@ export function CrmServicesWorkspace({
         ) : (
           <CrmTherapistAssignmentTab
             branchId={branchId}
-            services={activeServices}
-            staff={providerStaff}
-            assignments={providerAssignments}
+            services={workspaceActiveServices}
+            staff={workspaceProviderStaff}
+            assignments={workspaceAssignments}
+            onServicePatch={handleServicePatch}
+            onAssignmentChange={handleAssignmentChange}
           />
         )
       )}
@@ -232,10 +287,11 @@ export function CrmServicesWorkspace({
           <ServiceCustomizationTab
             branchId={branchId}
             branchName={branchName}
-            services={services}
-            activeServices={activeServices}
-            staff={providerStaff}
-            assignments={providerAssignments}
+            services={workspaceServices}
+            activeServices={workspaceActiveServices}
+            staff={workspaceProviderStaff}
+            assignments={workspaceAssignments}
+            onServicePatch={handleServicePatch}
           />
         )
       )}
@@ -252,9 +308,9 @@ export function CrmServicesWorkspace({
         ) : (
           <CrmStaffCapabilitiesTab
             branchId={branchId}
-            services={activeServices}
-            staff={providerStaff}
-            assignments={providerAssignments}
+            services={workspaceActiveServices}
+            staff={workspaceProviderStaff}
+            assignments={workspaceAssignments}
             onEditProfile={handleEditProfile}
           />
         )
@@ -271,9 +327,9 @@ export function CrmServicesWorkspace({
           </Alert>
         ) : (
           <CrmServiceReadinessTab
-            services={activeServices}
-            staff={providerStaff}
-            assignments={providerAssignments}
+            services={workspaceActiveServices}
+            staff={workspaceProviderStaff}
+            assignments={workspaceAssignments}
           />
         )
       )}

@@ -12,6 +12,7 @@ import type { CustomerListItem } from "@/components/features/crm/customers/lib/c
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import type { KpiData } from "@/components/features/crm/customers/customer-kpi-row";
 import { isThisMonth, isToday, isThisWeek, daysSinceDate } from "@/components/features/crm/customers/lib/customer-segments";
+import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 
 const VALID_TABS: CustomerTab[] = ["all", "repeat", "lapsed", "followup"];
 
@@ -97,16 +98,18 @@ export default async function CrmCustomersPage({
   }
 
   return (
-    <CustomersWorkspace
-      tab={tab}
-      allCustomers={allCustomers}
-      repeatCustomers={repeatCustomers}
-      lapsedCustomers={lapsedCustomers}
-      waitlistRows={waitlistRows}
-      kpiData={kpiData}
-      page={page}
-      totalPages={totalPages}
-      search={search}
-    />
+    <RetainedWorkspaceModule moduleId="crm-customers">
+      <CustomersWorkspace
+        tab={tab}
+        allCustomers={allCustomers}
+        repeatCustomers={repeatCustomers}
+        lapsedCustomers={lapsedCustomers}
+        waitlistRows={waitlistRows}
+        kpiData={kpiData}
+        page={page}
+        totalPages={totalPages}
+        search={search}
+      />
+    </RetainedWorkspaceModule>
   );
 }

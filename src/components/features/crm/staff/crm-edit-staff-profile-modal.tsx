@@ -47,7 +47,7 @@ type Props = {
   serviceAssignmentsError?: string | null;
   reviewerSystemRole: string;
   onEditServices: () => void;
-  onSuccess: () => void;
+  onSuccess: (staff: Partial<StaffMember> & { id: string }) => void;
 };
 
 const BRANCH_EDIT_ROLES = new Set([
@@ -253,7 +253,15 @@ function ModalContent({
           return;
         }
 
-        onSuccess();
+        if (!result.staff) {
+          setFeedback({
+            type: "error",
+            message: "Staff profile was saved but the updated record could not be read.",
+          });
+          return;
+        }
+
+        onSuccess(result.staff);
       });
     },
     [

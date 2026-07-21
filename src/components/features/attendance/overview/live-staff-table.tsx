@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Clock3, Search, UserRound } from "lucide-react";
 import {
   StaffAvatar,
@@ -85,12 +86,8 @@ function rowShellClass(row: AttendanceDayStaffState): string {
   return "border-border bg-white";
 }
 
-function openStaffRecords(staffId: string, businessDate: string) {
-  const params = new URLSearchParams({ tab: "records", staffId, date: businessDate });
-  window.location.href = `/crm/attendance?${params.toString()}`;
-}
-
 export function LiveStaffTable({ data }: { data: AttendanceWorkspaceData; nowMs: number }) {
+  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<StaffFilter>("all");
   const [search, setSearch] = useState("");
 
@@ -172,7 +169,7 @@ export function LiveStaffTable({ data }: { data: AttendanceWorkspaceData; nowMs:
               <div className="min-w-0 text-sm"><div className="truncate font-semibold text-foreground">{shiftLabel(row)}</div><div className="truncate text-xs text-muted-foreground" title={rowSubtitle(row)}>{rowSubtitle(row)}</div></div>
               <div className="text-sm">{row.clockInAt ? <><div className="text-[0.68rem] font-semibold leading-none text-muted-foreground">Worked</div><div className="mt-1 font-bold">{formatMinutesCompact(row.workedMinutes)}</div></> : <span className="text-muted-foreground">—</span>}</div>
               <div><StatusPill value={humanizeAttendanceValue(row.operationalStatus)} tone={stateTone(row)} /></div>
-              <button type="button" className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-stone-100 hover:text-foreground" aria-label={`Open attendance records for ${row.staffName}`} onClick={() => openStaffRecords(row.staffId, row.businessDate)}><ArrowRight className="size-4" /></button>
+              <button type="button" className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-stone-100 hover:text-foreground" aria-label={`Open attendance records for ${row.staffName}`} onClick={() => { const params = new URLSearchParams({ tab: "records", staffId: row.staffId, date: row.businessDate }); router.push(`/crm/attendance?${params.toString()}`); }}><ArrowRight className="size-4" /></button>
             </div>
           ))}
           {filteredRows.length === 0 ? <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No staff match this view.</div> : null}

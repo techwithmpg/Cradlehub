@@ -8,6 +8,7 @@ import {
   ensureBranchAttendanceQrPoint,
   ensureRoomQrPoints,
   getAttendanceActionContext,
+  getAttendanceWorkspaceData,
   resolveAttendanceException,
   reviewAttendanceException,
   revalidateAttendanceSurfaces,
@@ -59,6 +60,33 @@ export type AttendanceActionResult =
   | { ok: true; kind: "qr_deactivated"; tab: "qr"; message: string; qrPointId: string };
 
 type AttendanceContext = NonNullable<Awaited<ReturnType<typeof getAttendanceActionContext>>>;
+
+export async function refreshAttendanceWorkspaceAction(
+  branchId?: string | null
+): Promise<
+  | { ok: true; data: Awaited<ReturnType<typeof getAttendanceWorkspaceData>> }
+  | { ok: false; error: string }
+> {
+  const ctx = await getAttendanceActionContext({ branchId });
+  if (!ctx) return { ok: false, error: "Attendance access is no longer available." };
+
+  try {
+    return {
+      ok: true,
+      data: await getAttendanceWorkspaceData({
+        branchId: ctx.branchId,
+        branchName: ctx.branchName,
+        origin: await getOrigin(),
+        canSwitchBranch: ctx.canSwitchBranch,
+      }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Attendance data could not be refreshed.",
+    };
+  }
+}
 
 async function getContextOrResult(
   tab?: AttendanceTab,

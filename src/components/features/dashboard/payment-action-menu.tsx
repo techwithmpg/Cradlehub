@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/actions";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/validations/booking";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 
 const QUICK_METHODS: PaymentMethod[] = ["cash", "gcash", "maya", "card"];
 
@@ -41,7 +41,6 @@ export function PaymentActionMenu({
   fullWidth = false,
 }: Props) {
   const callPaymentAction = paymentAction ?? updateBookingPaymentAction;
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [view, setView] = useState<ViewState>("idle");
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -76,7 +75,7 @@ export function PaymentActionMenu({
       }
       toast.success("Payment confirmed.");
       onUpdate?.();
-      router.refresh();
+      notifyBookingsChanged();
     });
   }
 
@@ -103,7 +102,7 @@ export function PaymentActionMenu({
       toast.success("Marked as unpaid.");
       setReason("");
       onUpdate?.();
-      router.refresh();
+      notifyBookingsChanged();
     });
   }
 
@@ -137,7 +136,7 @@ export function PaymentActionMenu({
       toast.success("Payment updated.");
       setReason("");
       onUpdate?.();
-      router.refresh();
+      notifyBookingsChanged();
     });
   }
 

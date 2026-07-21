@@ -6,6 +6,42 @@ import {
 } from "@/lib/attendance/time";
 
 describe("attendance time helpers", () => {
+  it("keeps an on-time open clock-in present without early-leave metrics", () => {
+    const result = computeAttendanceMetrics({
+      checkedInAt: "2026-07-02T01:00:00.000Z",
+      scheduledStartAt: "2026-07-02T01:00:00.000Z",
+      scheduledEndAt: "2026-07-02T09:00:00.000Z",
+      lateGraceMinutes: 5,
+      earlyLeaveGraceMinutes: 5,
+    });
+
+    expect(result).toEqual({
+      workedMinutes: 0,
+      lateMinutes: 0,
+      earlyLeaveMinutes: 0,
+      overtimeMinutes: 0,
+      attendanceStatus: "present",
+      exceptionState: "none",
+    });
+  });
+
+  it("keeps a late open clock-in late without inventing a clock-out", () => {
+    const result = computeAttendanceMetrics({
+      checkedInAt: "2026-07-02T01:20:00.000Z",
+      scheduledStartAt: "2026-07-02T01:00:00.000Z",
+      scheduledEndAt: "2026-07-02T09:00:00.000Z",
+      lateGraceMinutes: 5,
+      earlyLeaveGraceMinutes: 5,
+    });
+
+    expect(result.workedMinutes).toBe(0);
+    expect(result.lateMinutes).toBe(20);
+    expect(result.earlyLeaveMinutes).toBe(0);
+    expect(result.overtimeMinutes).toBe(0);
+    expect(result.attendanceStatus).toBe("late");
+    expect(result.exceptionState).toBe("open");
+  });
+
   it("computes late minutes beyond grace", () => {
     const result = computeAttendanceMetrics({
       checkedInAt: "2026-07-02T01:20:00.000Z",

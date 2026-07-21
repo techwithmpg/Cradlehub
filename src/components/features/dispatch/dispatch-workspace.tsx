@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import {
   CalendarDays,
   ListChecks,  Route,
   Settings2,} from "lucide-react";
 import { AttendanceTabPanel, ContextChip } from "@/components/features/attendance/attendance-ui";
 import type { DispatchData } from "@/lib/queries/dispatch-queries";
+import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
+import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { DispatchFlowTab } from "./dispatch-flow-tab";
 import { DispatchLiveMapTab } from "./dispatch-live-map-tab";
 import { DispatchTravelProgressTab } from "./dispatch-travel-progress-tab";
@@ -68,11 +71,31 @@ function DispatchMetric({
 
 export function HomeServiceDispatchWorkspace({
   role,
-  data,
+  data: initialData,
   showHeader = true,
 }: HomeServiceDispatchWorkspaceProps) {
+  const { data = initialData, mutate } = useSWR(
+    ["dispatch-workspace", initialData.today],
+    async () => {
+      const result = await refreshDispatchDataAction(initialData.today);
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    {
+      fallbackData: initialData,
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      revalidateOnMount: false,
+    }
+  );
   const [activeTab, setActiveTab] = useState<TabId>("flow");
   const activeTabIndex = TABS.findIndex((tab) => tab.id === activeTab);
+
+  useEffect(() => {
+    const revalidate = () => void mutate();
+    window.addEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
+    return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
+  }, [mutate]);
 
   function handleTabKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const lastIndex = TABS.length - 1;
@@ -215,7 +238,9 @@ export function HomeServiceDispatchWorkspace({
         labelledBy="dispatch-tab-flow"
         active={activeTab === "flow"}
       >
-        {activeTab === "flow" ? <DispatchFlowTab data={data} role={role} /> : null}
+        {activeTab === "flow" ? (
+          <DispatchFlowTab data={data} role={role} onChanged={() => void mutate()} />
+        ) : null}
       </AttendanceTabPanel>
       <AttendanceTabPanel
         id="dispatch-panel-map"

@@ -170,10 +170,11 @@ export function minutesBetween(startIso: string | null | undefined, endIso: stri
 }
 
 export function computeAttendanceMetrics(input: AttendanceMetricInput): AttendanceMetricResult {
-  const end = input.checkedOutAt ?? new Date().toISOString();
-  const workedMinutes = minutesBetween(input.checkedInAt, end);
+  const hasClockOut = Boolean(input.checkedOutAt);
+  const end = input.checkedOutAt ?? null;
+  const workedMinutes = hasClockOut ? minutesBetween(input.checkedInAt, end) : 0;
   const clockIn = new Date(input.checkedInAt).getTime();
-  const clockOut = new Date(end).getTime();
+  const clockOut = end ? new Date(end).getTime() : NaN;
   const scheduledStart = input.scheduledStartAt ? new Date(input.scheduledStartAt).getTime() : NaN;
   const scheduledEnd = input.scheduledEndAt ? new Date(input.scheduledEndAt).getTime() : NaN;
   const earliestNormalClockOut = input.earliestNormalClockOutAt
@@ -188,8 +189,9 @@ export function computeAttendanceMetrics(input: AttendanceMetricInput): Attendan
       ? Math.round((clockIn - scheduledStart) / 60000)
       : 0;
 
-  const earlyLeaveMinutes =
-    Number.isFinite(earliestNormalClockOut)
+  const earlyLeaveMinutes = !hasClockOut
+    ? 0
+    : Number.isFinite(earliestNormalClockOut)
       ? clockOut < earliestNormalClockOut
         ? Math.round((earliestNormalClockOut - clockOut) / 60000)
         : 0
@@ -197,8 +199,9 @@ export function computeAttendanceMetrics(input: AttendanceMetricInput): Attendan
           ? Math.round((scheduledEnd - clockOut) / 60000)
           : 0;
 
-  const overtimeMinutes =
-    Number.isFinite(latestNormalClockOut)
+  const overtimeMinutes = !hasClockOut
+    ? 0
+    : Number.isFinite(latestNormalClockOut)
       ? clockOut > latestNormalClockOut
         ? Math.round((clockOut - latestNormalClockOut) / 60000)
         : 0

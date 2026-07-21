@@ -34,6 +34,7 @@ import type { SchedulingRules } from "@/lib/scheduling/types";
 import type { Database } from "@/types/supabase";
 import type { ReadinessResult } from "@/types/readiness";
 import type { StaffScheduleItem } from "@/components/features/staff-schedule/staff-schedule-types";
+import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
 
 const TAB_PARAM = "tab";
 const DEFAULT_TAB: ScheduleTabKey = "daily";
@@ -74,6 +75,9 @@ export function ScheduleWorkspaceShell({
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = getTabFromSearchParams(searchParams);
+  const [mountedTabs, setMountedTabs] = useState<Set<ScheduleTabKey>>(
+    () => new Set([activeTab])
+  );
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
@@ -116,9 +120,12 @@ export function ScheduleWorkspaceShell({
         ? "The live schedule could not be refreshed."
         : null;
 
-  const handleScheduleChanged = useCallback(async () => {
+  const refreshRetainedSchedule = useWorkspaceReactivationRefresh(async () => {
     await refreshDailySchedule();
-  }, [refreshDailySchedule]);
+  });
+  const handleScheduleChanged = useCallback(async () => {
+    await refreshRetainedSchedule();
+  }, [refreshRetainedSchedule]);
 
   useScheduleRealtime({
     branchId,
@@ -130,15 +137,22 @@ export function ScheduleWorkspaceShell({
 
   const setTab = useCallback(
     (tab: ScheduleTabKey) => {
+      setMountedTabs((current) => {
+        if (current.has(tab)) return current;
+        const next = new Set(current);
+        next.add(tab);
+        return next;
+      });
       const params = new URLSearchParams(searchParams.toString());
       if (tab === DEFAULT_TAB) {
         params.delete(TAB_PARAM);
       } else {
         params.set(TAB_PARAM, tab);
       }
-      router.replace(`?${params.toString()}`, { scroll: false });
+      const query = params.toString();
+      window.history.pushState(null, "", query ? `?${query}` : window.location.pathname);
     },
-    [router, searchParams]
+    [searchParams]
   );
 
   const handleDateChange = useCallback(
@@ -150,10 +164,10 @@ export function ScheduleWorkspaceShell({
     [router, searchParams]
   );
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "daily":
-        return (
+  const renderTabContent = () => (
+    <>
+      {mountedTabs.has("daily") ? (
+        <div hidden={activeTab !== "daily"} aria-hidden={activeTab !== "daily"}>
           <DailyTimelineTab
             branchId={branchId}
             branchName={branchName}
@@ -172,13 +186,15 @@ export function ScheduleWorkspaceShell({
             onRetryLiveData={handleScheduleChanged}
             onScheduleChanged={handleScheduleChanged}
           />
-        );
-      case "setup":
-        return <ScheduleSetupTab branchId={branchId} onScheduleChanged={handleScheduleChanged} />;
-      default:
-        return null;
-    }
-  };
+        </div>
+      ) : null}
+      {mountedTabs.has("setup") ? (
+        <div hidden={activeTab !== "setup"} aria-hidden={activeTab !== "setup"}>
+          <ScheduleSetupTab branchId={branchId} onScheduleChanged={handleScheduleChanged} />
+        </div>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="px-3 py-3 md:px-0 md:py-0" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
