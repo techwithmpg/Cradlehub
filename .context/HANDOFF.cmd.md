@@ -22,8 +22,12 @@ remote-only versions, including known manually present schema effects. Reconcile
 that history through an approved direct database workflow before any `db push`.
 No application deployment or database migration was performed in this task.
 
-The repository was fetched at 0 ahead / 0 behind from `origin/main` before
-staging. Exact commit and non-force push results are appended after Git succeeds.
+The repository was fetched twice and remained 0 behind. Commits `9ce90656`
+(Attendance workspace and audit), `32ed2add` (CRM booking availability), and
+`bd1d03ad` (release/migration hardening) were pushed without force to
+`origin/main` at `https://github.com/techwithmpg/Cradlehub.git`. The only later
+commit is this release-context finalization; it contains no runtime or database
+change.
 
 ---
 

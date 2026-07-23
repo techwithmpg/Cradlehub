@@ -35,6 +35,13 @@ audits, and the Next 16.2.4 production build (113 static generations) pass.
 Authenticated localhost browser smoke passed public booking, CRM Work Queue,
 Quick Booking modes, and Attendance Today/Review/Setup with zero console errors.
 
+**Git release:** After two successful `git fetch --prune origin` checks, local
+`main` was zero commits behind. Commits `9ce90656` (Attendance), `32ed2add` (CRM
+booking availability), and `bd1d03ad` (repository/migration readiness) were
+pushed without force to `origin/main` at
+`https://github.com/techwithmpg/Cradlehub.git`. No app or database deployment was
+performed.
+
 ## 2026-07-22 - Codex (ATTENDANCE-PRODUCTION-AUDIT-20260722)
 
 **Diagnosed:** Recovered the omitted target as the 55-profile live Main Spa
