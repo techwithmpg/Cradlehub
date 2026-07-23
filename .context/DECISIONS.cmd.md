@@ -1,5 +1,44 @@
 # 🏗️ DECISIONS
 
+### 2026-07-23: Source release readiness is independent from migration deployment readiness
+**Status:** ACCEPTED
+
+The repository may be committed and pushed when source gates, secret/path/size
+audits, and remote divergence are clean even while linked Supabase migration
+history remains blocked. No `db push`, migration repair, history insertion, reset,
+or schema write is permitted until the 92-local-only / 5-remote-only drift is
+reconciled through an approved direct database workflow.
+
+Three duplicate local version prefixes were renamed because read-only linked
+history showed none was recorded under those versions and live catalog evidence
+identified their independent effects. This repairs source ordering only; it does
+not claim or change remote history.
+
+### 2026-07-23: Clean installs use Node 24 and incremental formatting
+**Status:** ACCEPTED
+
+Node 24.14.0 with pnpm 10.33.2 is the repository runtime contract. Node 25 is
+excluded after a reproducible Supabase CLI postinstall exit 13. Formatting is
+enforced for supported code/config files changed since baseline commit
+`b4192d81`; legacy append-only context, historical documentation, SQL, generated
+artifacts, and vendored skill content are not mass-rewritten by the release gate.
+
+### 2026-07-22: Today status uses current evidence; Review remains the canonical open queue
+**Status:** ACCEPTED
+
+Today staff state may use only actionable exceptions linked to a check-in or scan
+from the selected business day, or unlinked evidence detected inside that exact
+timezone boundary. Stored legacy buckets such as `manual` must be interpreted
+through their internal metadata subtype. Timing conditions remain metrics, not
+repair incidents. The Review workspace continues to show the all-time open,
+actionable, deduplicated queue, but its historical items cannot override Today.
+
+Scheduled staff with no clock-in remain Late from start plus grace through the
+business-day boundary, including after the schedule window ends. CRM adjacent
+Opening/Closing schedules use one shared Attendance coverage window from Opening
+start to Closing end in both scan intent and daily presentation. Monitoring lists
+only operational staff; test/non-schedulable metadata never deletes history.
+
 ### 2026-07-22: Browser push is a best-effort channel over the existing durable notification
 **Status:** ACCEPTED
 

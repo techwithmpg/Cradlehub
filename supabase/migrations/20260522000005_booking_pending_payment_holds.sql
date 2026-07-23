@@ -1,6 +1,12 @@
 -- =============================================================================
 -- CradleHub — Pending Payment Holds for Public Online Bookings
 -- =============================================================================
+-- Version reconciled on 2026-07-23: the original 20260522000001 prefix
+-- collided with the earlier online-booking hold foundation. Production has
+-- effects from both files but no history row for either version. This fuller,
+-- idempotent follow-up now runs after the existing May 22 fixes and before the
+-- later May 25/July availability definitions that remain authoritative.
+--
 -- Adds the minimal schema and availability wiring needed for Phase 4:
 --   - public online bookings can be pending_payment instead of confirmed/final
 --   - pending payment rows carry a temporary hold_expires_at timestamp

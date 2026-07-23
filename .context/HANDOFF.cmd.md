@@ -1,5 +1,61 @@
 # HANDOFF - Next Agent Session
 
+## PRODUCTION-READINESS-REPAIR-20260723 - 2026-07-23
+
+The source release is validated. Preserve the completed Attendance CRM
+Today/Review/History/Setup workspace, current-day production status fixes,
+auditable correction flow, exact CRM booking time, scheduled-provider roster,
+tests, diagnostics, and retained historical context. Do not restore the removed
+Playwright logs/snapshots, smoke logs, DOM dump, backup archives, or disabled
+legacy launch-recovery helper.
+
+Use Node 24.14.0 and pnpm 10.33.2. Two removed-tree `pnpm install
+--frozen-lockfile` runs pass. Final gates pass at 176 test files / 1,253 tests,
+TypeScript, zero-warning ESLint, 96 incremental formatted code/config files, and
+Next 16.2.4 build with 113 static generations. Authenticated browser smoke passed
+public booking, CRM Work Queue/Quick Booking, and Attendance Today/Review/Setup
+with no console errors or live form submissions.
+
+Do not deploy the database from this handoff. The 122 local migration files now
+have valid unique names, but linked history still has 92 local-only and 5
+remote-only versions, including known manually present schema effects. Reconcile
+that history through an approved direct database workflow before any `db push`.
+No application deployment or database migration was performed in this task.
+
+The repository was fetched at 0 ahead / 0 behind from `origin/main` before
+staging. Exact commit and non-force push results are appended after Git succeeds.
+
+---
+
+## ATTENDANCE-PRODUCTION-AUDIT-20260722 - 2026-07-22
+
+The audit is complete. The omitted prompt table was recovered as the live 55-row
+Main Spa roster. Production evidence is 7 July 22 Attendance rows, 15 business-day
+scan events, 81 raw open exceptions, and zero corrections. Do not invent missing
+scans or reopen Renalyn Tiangson's completed row from her later captured attempt.
+
+Local code fixes current-day exception scoping, legacy metadata subtypes,
+post-shift lateness, shared CRM open/close coverage, and operational staff
+filtering. Authenticated local QA against production data shows 54 staff, 2
+Working, 30 Not in yet, 2 Needs review, 3 Checked out, and Review 36. Full tests,
+type-check, targeted lint, and production build pass. Code was not deployed.
+
+The only live mutation was exact staff ID
+`c336a150-015d-467d-a400-b90cd8b21d76` (`Codex QA Work Queue`): its original row
+is in `public.schedule_repair_backups` under reason
+`attendance_20260722_confirmed_qa_profile_before_metadata_repair`, and it is now
+test/non-schedulable. The isolated SQL was applied after a forced-rollback dry
+run; broad migration push remains unsafe because of substantial drift. The local
+migration is idempotent; reconcile migration history before deployment.
+
+Human decisions remain for malcom's ambiguous scan, Renalyn's 19:08 attempt, the
+unknown-phone incident, all candidate duplicate identities, and whether `Grovy
+Crypto`/`Owner Full Name` are legitimate. See the complete staff-by-staff report,
+diagnostic, backup evidence, and rollback in
+`docs/attendance/ATTENDANCE-PRODUCTION-AUDIT-20260722.md`.
+
+---
+
 ## NOTIFICATIONS-001 - 2026-07-22
 
 The four-phase implementation is complete in code. CRM/Owner/Staff/Driver/
@@ -1371,3 +1427,28 @@ Public forms have honeypot, validation, payload, duplicate, and safe-error contr
 Required server configuration includes the existing Supabase/site/maps values, explicit `ATTENDANCE_ENFORCEMENT_ENABLED`, and AI provider/feature/role configuration when Coach is intended. Provider-key presence stays server-only.
 
 Manager activation remains deferred. Browser QA could not be fabricated without authenticated credentials. See `docs/OPERATIONAL_READINESS_CHECKLIST.md`, the two operations runbooks, and `docs/REPOSITORY_CLEANUP_REPORT.md`.
+
+## CRM-BOOKING-STAFF-TIME-001 — 2026-07-22
+
+- Conflict-resolved v5 preserves consultation/manual-arrangement booking safeguards.
+- Checked-in providers are recommended first.
+- Qualified scheduled providers remain visible and selectable without check-in.
+- Genuine schedule conflicts remain disabled.
+- Walk-in time uses canonical Asia/Manila HH:mm:ss.
+- The stale Attendance branch-action label test was aligned with the simplified UI wording.
+- Repository-local fix backups were moved outside the source tree.
+- No database migration was required.
+- Manual CRM browser QA remains required.
+
+## CRM-SCHEDULED-PROVIDER-ROSTER-001 v2 — 2026-07-22
+
+- All qualified providers scheduled for the selected day appear in CRM in-spa booking.
+- Checked-in providers are recommended first.
+- Scheduled providers who are not checked in or have checked out remain selectable with a warning.
+- Existing bookings block only overlapping requested service windows.
+- A provider booked earlier remains selectable after the earlier service ends.
+- Busy providers remain visible and show the next available time.
+- Drivers and utility staff remain excluded.
+- CRM Home Service strict service-assignment behavior remains unchanged.
+- TypeScript nullability and narrowed-delivery-type errors were corrected.
+- No Supabase migration was created.

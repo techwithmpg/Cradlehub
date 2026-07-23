@@ -5,6 +5,24 @@
 
 ---
 
+## Latest Agent Update (2026-07-23 — PRODUCTION-READINESS-REPAIR-20260723)
+
+- Source release gates are green under the pinned Node 24.14.0 / pnpm 10.33.2
+  runtime: clean frozen install, 176 files / 1,253 tests, TypeScript,
+  zero-warning ESLint, incremental Prettier, and Next 16.2.4 build with 113
+  static generations.
+- Authenticated localhost smoke passed public booking, CRM Work Queue/Quick
+  Booking modes, and Attendance Today/Review/Setup without console errors or
+  live submissions. The optimized production server also starts normally.
+- Generated browser/smoke/DOM evidence is removed and ignored. Release files
+  contain no provider secret, JWT, private key, database password, or active
+  service-role value. Thirteen intentional media paths map to seven Git blobs;
+  the largest is 16.13 MiB and none requires Git LFS.
+- Three duplicate local migration prefixes were renamed after linked read-only
+  history/catalog verification. All 122 local names are now valid and unique,
+  but 92 local-only and 5 remote-only versions still block database deployment.
+  No migration, history repair, application deploy, or schema write occurred.
+
 ## Latest Agent Update (2026-07-22 — NOTIFICATIONS-001)
 
 - `workspace_notifications` remains the only durable notification history.

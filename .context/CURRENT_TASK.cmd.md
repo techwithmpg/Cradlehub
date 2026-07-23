@@ -1,4 +1,148 @@
-# Current Task - NOTIFICATIONS-001
+# Current Task - PRODUCTION-READINESS-REPAIR-20260723
+
+Task ID: PRODUCTION-READINESS-REPAIR-20260723
+Description: Diagnose and repair every genuine source-release blocker, validate
+the repository from a frozen dependency install through production build and
+available smoke tests, audit secrets/large files/Supabase migration history,
+then review, commit, and safely push the intended changes without deploying the
+application or applying database migrations.
+Status: VALIDATED - SOURCE COMMITS AND PUSH PENDING
+Started: 2026-07-23
+Last updated: 2026-07-23
+
+## Guardrails
+
+- Preserve all intentional Attendance, CRM booking, notification, and retained-
+  workspace work already present in the dirty worktree.
+- Keep source/Git readiness separate from database-deployment readiness; use
+  read-only Supabase inspection and do not reset, push, or repair migrations.
+- Do not stage or push secrets, generated output, local state, backups, browser
+  profiles, test output, database dumps, or files over GitHub's hard limit.
+- Do not rename duplicate migration versions without verified production history.
+- Do not force-push or deploy the application.
+
+## Work order
+
+1. Capture Git/remote/divergence state and review the previous readiness reports.
+2. Classify top-level items, possible secrets, large tracked files, install
+   failure, migration duplicates, and all existing changes before editing.
+3. Repair only evidence-backed blockers and preserve recent functional work.
+4. Run frozen install, focused/full tests, type-check, lint, format, build, diff,
+   secret, migration, path, size, and available browser smoke validation.
+5. Update repository context, review every final change, fetch/reconcile remote,
+   create clean commit(s), and push without force if every Git stop condition is
+   cleared. Database deployment may remain explicitly blocked.
+
+## Validated outcome
+
+- Clean frozen installs pass with Node 24.14.0 and pnpm 10.33.2; Node 25 is
+  excluded because it reproducibly terminates the Supabase postinstall with exit
+  13 after the binary download.
+- Full automated gates pass: 176 test files / 1,253 tests, TypeScript,
+  zero-warning ESLint, 96 incremental formatted code/config files, and Next
+  16.2.4 production build with 113 static generations.
+- Authenticated browser smoke passed `/book`, `/crm/today`,
+  `/crm/bookings/new`, and Attendance Today/Review/Setup transitions without
+  console errors or tab-update loops. No form was submitted and no live record
+  was changed.
+- Secret, placeholder, path, case, symlink, conflict-marker, large-file, and
+  tracked-artifact audits pass. Intentional media remains below 17 MiB per path.
+- Local migration filenames are unique and valid after three evidence-backed
+  renames. Linked history still reports 92 local-only and 5 remote-only versions;
+  therefore source/Git release is ready but database deployment remains blocked.
+- `origin/main` was fetched and confirmed at 0 ahead / 0 behind before staging.
+  Commit and non-force push details will be recorded after they succeed.
+
+---
+
+# Previous Current Task - ATTENDANCE-PRODUCTION-AUDIT-20260722
+
+Task ID: ATTENDANCE-PRODUCTION-AUDIT-20260722
+Description: Investigate production Attendance statuses for the Main Spa on the
+2026-07-22 Asia/Manila business date, repair only authoritative and auditable
+data/logic defects, and report all cases requiring human confirmation.
+Status: COMPLETE — CODE VERIFIED; ONE TARGETED LIVE METADATA REPAIR APPLIED
+Started: 2026-07-22
+Last updated: 2026-07-22
+
+## Guardrails
+
+- Production Supabase is live and receiving scans; confirm project identity and
+  remain read-only until exact targets, backups, evidence, and rollback are ready.
+- Do not fabricate Attendance, merge profiles from names, broadly delete data,
+  rewrite history silently, affect payroll-finalized rows, or change the scan UI.
+- Use Asia/Manila business-day boundaries and the canonical Attendance engine.
+- Apply only idempotent, target-bounded, audited repairs supported by saved scans,
+  approved corrections/assignments, or another authoritative system event.
+- Stop for approval before destructive, identity-merging, payroll-finalized, or
+  out-of-target production changes.
+
+## Outcome
+
+- The missing prompt table was recovered from the authenticated CRM as the 55-row
+  active Main Spa roster. Exact read-only diagnostics found 7 Attendance records,
+  15 scans, 81 raw open exceptions, and no July 22 corrections.
+- Fixed historical-exception leakage into Today, legacy manual timing subtype
+  handling, post-shift no-show classification, shared open/close coverage, and
+  operational staff filtering. Correct local live-data render: 54 staff, 2
+  Working, 30 Not in yet, 2 Needs review, 3 Checked out, Review count 36.
+- Backed up and marked only `Codex QA Work Queue` test/non-schedulable in live
+  production. No Attendance, scan, identity, schedule, booking, device, payroll,
+  or exception row was rewritten. Ambiguous scans and duplicate identities remain
+  human decisions.
+- Full evidence and rollback are in
+  `docs/attendance/ATTENDANCE-PRODUCTION-AUDIT-20260722.md`.
+
+## Work order
+
+1. Read mandated repository context and current Supabase/Postgres guidance.
+2. Confirm the linked production project without printing secrets; snapshot the
+   dirty worktree and Attendance-related rows before any possible mutation.
+3. Trace QR → device → branch/schedule → Attendance → exception → CRM status and
+   the canonical Review count in schema, migrations, types, actions, and queries.
+4. Create a read-only Manila-bounded diagnostic SQL/report and classify duplicate,
+   demo, no-scan, schedule, branch, state-machine, and exception/count cases.
+5. Prepare idempotent backup/repair SQL and source/test patches only for defects
+   proven by authoritative evidence; request approval at any stop condition.
+6. Run focused Attendance tests, type-check, lint, build, and record exact before/
+   after counts, backups, remaining human actions, validation, and rollback.
+
+---
+
+# Previous Current Task - ATTENDANCE-UX-001
+
+Task ID: ATTENDANCE-UX-001
+Description: Restructure the CRM Attendance workspace into Today, Fix a Scan, and Tools & History while retaining all existing Attendance functions.
+Status: IN_PROGRESS
+Started: 2026-07-22
+Last updated: 2026-07-22
+
+## Guardrails
+
+- Preserve the Attendance scan engine, recovery/correction paths, QR exports,
+  phone/device lifecycle, reports, permissions, RLS, Realtime, audit history,
+  cron automation, and Manager workspace.
+- Reuse the existing seven Attendance functional areas behind three plain-language
+  primary areas; do not duplicate queries, actions, or subscriptions.
+- Preserve old `?tab=` deep links while adding canonical URL-backed `view` and
+  `tool` state with browser Back/Forward support.
+- Keep the existing CRM shell and retained-workspace performance architecture.
+- Make no database/schema/RLS changes for this presentation-only task.
+
+## Work order
+
+1. Complete required context, Next.js, Attendance architecture, and baseline review.
+2. Add the three-area URL model and task-focused shell without changing engines.
+3. Build Today, Fix a Scan, Tools & History, and the responsive staff drawer from
+   existing Attendance data/actions.
+4. Add focused navigation, presentation, filtering, preservation, and accessibility
+   tests; document the redesign and QA matrix.
+5. Run focused and full type/lint/test/build/diff gates, perform authenticated
+   browser QA when available, and record exact remaining risks.
+
+---
+
+# Previous Current Task - NOTIFICATIONS-001
 
 Task ID: NOTIFICATIONS-001
 Description: Add immediate Realtime booking toasts and opt-in browser push notifications using the existing workspace notification system.

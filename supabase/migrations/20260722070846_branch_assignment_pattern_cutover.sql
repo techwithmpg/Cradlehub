@@ -1,3 +1,7 @@
+-- Version reconciled on 2026-07-23: this file was committed on July 22 with a
+-- prefix already used by the live CRM booking-integrity guard. Remote inspection
+-- confirms this cutover is not applied and neither duplicate version is recorded.
+--
 -- Cut CRM Branch Corrections over to the authoritative branch-assignment issue model.
 -- Branch decisions are independent from Attendance replay. Every successful
 -- resolution requires a fresh QR scan when next_action = 'rescan_required'.

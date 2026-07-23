@@ -1,5 +1,6 @@
 allowBuilds:
   supabase: true
 ignoredBuiltDependencies:
+  - msw
   - sharp
   - unrs-resolver

@@ -1,3 +1,30 @@
+## 2026-07-23 - Production readiness blockers and resolution
+
+- **Frozen install exit 13:** The system Node 25.2.0 run downloaded and verified
+  the Supabase CLI, then Node terminated on an unsettled top-level await. The
+  same lockfile passed twice from a removed `node_modules` tree under Node
+  24.14.0 / pnpm 10.33.2. Runtime metadata and `.node-version` now prevent the
+  unsupported Node 25 path.
+- **Legacy formatting false gate:** `prettier --check .` reported 1,297 historical
+  documentation, context, SQL, and vendored files and would have created an
+  unsafe mass rewrite. The gate now deterministically checks 96 supported
+  code/config files changed since the current release baseline; write and check
+  modes both pass.
+- **Tracked generated evidence:** Historical browser snapshots/logs included a
+  public Supabase anon JWT-shaped value. It was not an authenticated or service
+  credential, but the generated files, smoke logs, and DOM dump were removed and
+  ignored. Final provider-secret/JWT/private-key scans are empty.
+- **Lint warning:** The disabled Attendance launch-recovery path and its orphaned
+  exception loader were removed. Full ESLint now exits with zero warnings.
+- **Supabase history:** Local Docker is not running, direct linked migration list
+  is unavailable, and the read-only Management API reports 92 local-only and 5
+  remote-only versions. This is understood drift, not permission to repair it;
+  database deployment remains blocked.
+- **Production browser reload:** The optimized production server started, but the
+  in-app browser rejected its final reload under URL safety policy. No bypass was
+  attempted. Equivalent authenticated development smoke passed, and production
+  compile, route generation, and server startup independently passed.
+
 ## 2026-07-22 - NOTIFICATIONS-001 validation notes
 
 - The initial `web-push` install encountered a Windows package-store `EPERM`
@@ -1380,3 +1407,19 @@
 - Authenticated CRM QA is complete. The available identity has Front Desk and
   Staff Portal access but no Owner access, so Owner and exact heap/network/CLS/
   long-task evidence remain pending rather than fabricated.
+## 2026-07-22 - ATTENDANCE-PRODUCTION-AUDIT-20260722 validation notes
+
+- The supplied request omitted the promised staff table. The authenticated CRM
+  Attendance page supplied a reliable 55-row active Main Spa target roster; this
+  recovery and its exact limitation are recorded in the diagnostic/report.
+- Supabase MCP access was authenticated to a different account and could not read
+  project `lsrbwqhvzjfpiabeolkv`. The repository's linked CLI verification path
+  confirmed the project, PostgreSQL 17.6, REST/RLS posture, and read-only SQL.
+- The live `resolve_effective_attendance_branch` function takes `FOR SHARE`, so it
+  cannot run inside an explicitly read-only transaction. The diagnostic mirrors
+  the same precedence with lock-free SELECTs; application runtime behavior was
+  not changed.
+- Pre-existing migration drift is substantial (preflight 118 local / 35 remote,
+  88 local-only / 5 remote-only). No broad push was attempted. The one guarded
+  repair was dry-run under forced rollback, then applied as isolated idempotent
+  SQL and verified; deployment must later reconcile version history.

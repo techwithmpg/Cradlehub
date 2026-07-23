@@ -1,5 +1,66 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-23 - Codex (PRODUCTION-READINESS-REPAIR-20260723)
+
+**Source release:** Preserved and completed the pending Attendance operational
+workspace, production-audit repairs, exact CRM booking-time/provider roster,
+focused database diagnostics, tests, and documentation. Removed the disabled
+legacy Attendance recovery implementation and the remaining unused exception
+loader instead of retaining warning-suppressed dead mutation paths.
+
+**Repository blockers:** Pinned the supported clean-install runtime to Node
+24.14.0 and pnpm 10.33.2 after reproducing Node 25's Supabase postinstall exit
+13. Removed tracked browser snapshots/console logs, smoke logs, and a DOM dump;
+ignored generated output, local artifacts, backups, and reports. Replaced the
+unbounded legacy Prettier gate with a deterministic post-baseline code/config
+gate and explicitly classified optional dependency build scripts.
+
+**Migration audit:** Verified 122 nonempty, validly named, case-distinct local
+migrations. Renamed three locally duplicated version prefixes only after linked
+read-only evidence proved that none of those three versions is recorded remotely
+and identified the applied/unapplied effects. No migration, history repair,
+schema write, or application deployment was performed. The broad 92-local-only /
+5-remote-only history mismatch remains an explicit database-deployment block.
+
+**Security and size audit:** No provider secret, private key, JWT, authenticated
+cookie, database password, or service-role credential remains in release files.
+The only database URLs/service-role assignments are documented placeholders.
+Thirteen tracked paths at or above 10 MiB resolve to seven intentional media
+blobs; the largest is 16.13 MiB and no file approaches GitHub's 100 MiB limit.
+
+**Validation:** Two clean frozen installs passed under Node 24/pnpm 10. Full
+Vitest passed twice at 176 files / 1,253 tests; TypeScript, zero-warning ESLint,
+96-file incremental Prettier check, diff integrity, migration/path/secret/size
+audits, and the Next 16.2.4 production build (113 static generations) pass.
+Authenticated localhost browser smoke passed public booking, CRM Work Queue,
+Quick Booking modes, and Attendance Today/Review/Setup with zero console errors.
+
+## 2026-07-22 - Codex (ATTENDANCE-PRODUCTION-AUDIT-20260722)
+
+**Diagnosed:** Recovered the omitted target as the 55-profile live Main Spa
+Attendance roster and traced staff, branch authority, override/weekly schedules,
+Manila business boundaries, open/close coverage, scans, saved Attendance,
+exceptions, corrections, bookings, devices, and CRM projection. The exact live
+baseline was 7 records, 15 scans, 81 raw open exceptions, and zero corrections.
+
+**Fixed:** Today now uses current-business-day actionable exception evidence,
+recognizes legacy exception subtypes stored in metadata, keeps scheduled no-shows
+Late after shift end, shares opening-start/closing-end coverage with the scan
+engine, and excludes non-operational profiles. The authenticated local render
+against live data is 54 staff: 2 Working, 30 Not in yet, 2 Needs review, and 3
+Checked out; canonical Review is 36.
+
+**Production repair:** The exact `Codex QA Work Queue` row was fully backed up,
+then marked test/non-schedulable through an idempotent guarded migration applied
+in isolation. No Attendance/scan/identity/history row changed. Duplicate profiles,
+malcom's ambiguous scan, Renalyn Tiangson's later scan, unknown phones, and
+demo-looking identities remain human decisions.
+
+**Evidence:** 176 test files / 1,253 tests, TypeScript, touched-file lint, Next
+16.2.4 production build, read-only SQL, rollback dry run, live backup verification,
+and authenticated UI QA pass. See
+`docs/attendance/ATTENDANCE-PRODUCTION-AUDIT-20260722.md`.
+
 ## 2026-07-22 - Codex (NOTIFICATIONS-001)
 
 **Realtime:** Replaced minute notification polling with authenticated Supabase
@@ -7198,3 +7259,21 @@ Made couples, besties, Spa Party, and other multi-person services consultation/m
 Hardened public booking and waitlist input with honeypots, strict schemas, byte limits, durable cooldown duplicate checks, safe errors, and structured logs. Added release-hardening contracts. Hid the unfinished Owner image-upload placeholder and performed conservative cleanup without deleting dormant Manager, Availability, AI Coach, grouped-booking, migration, recovery, or operational assets.
 
 Validation: TypeScript and production build pass; 150 files / 1,137 tests pass; lint has zero errors and one pre-existing dormant Attendance warning; diff check passes. Linked database lint remains blocked by pooler timeout, and production/browser/device/cron/pilot evidence remains operator work.
+
+### 2026-07-22 — PowerShell implementation
+
+**Task:** CRM-BOOKING-STAFF-TIME-001 — scheduled provider visibility and canonical walk-in time.
+**Files Changed:** CRM availability, Quick Booking, in-house booking action, provider capability helper, canonical booking-time utility, focused tests, and the stale Attendance label contract.
+**Notes:** Checked-in providers are recommended first. Qualified scheduled providers remain selectable without check-in. Consultation-only manual-arrangement safeguards were preserved. No database migration was created.
+**Build Status:** Passed focused tests, TypeScript, changed-file lint, full tests and build. Full repository lint disposition is recorded by the v5 installer.
+
+---
+
+### 2026-07-22 — Scheduled provider roster v2
+
+**Task:** CRM-SCHEDULED-PROVIDER-ROSTER-001
+**Result:** CRM in-spa and Walk-in booking show every qualified provider scheduled for the selected day. Attendance affects recommendation order only. A provider is disabled only when the complete requested service window conflicts with another booking, a schedule adjustment, branch hours or shift coverage.
+**Fix:** Replaced nullable map/filter typing with a typed flatMap roster and removed impossible Home Service comparisons from the already narrowed in-spa manual-selection branch.
+**Database:** No migration required.
+
+---

@@ -20,6 +20,15 @@
 
 ## Current Delivery Notes
 
+- 🟡 `PRODUCTION-READINESS-REPAIR-20260723` is source-release ready: the pinned
+  clean-install toolchain, full 1,253-test suite, TypeScript, zero-warning lint,
+  incremental formatting, optimized build, authenticated critical-path smoke,
+  secrets/path/size audits, and Git divergence check pass. Tracked generated
+  artifacts and three duplicate local migration prefixes were repaired without
+  deploying the app or database. Source commit/push is the remaining Git action;
+  database deployment stays 🔴 blocked by 92-local-only / 5-remote-only linked
+  migration-history drift.
+
 - 🟡 `NOTIFICATIONS-001` is implementation-complete with automated gates passing
   on 2026-07-22: CRM/Owner/Staff/Driver/Utility bells now reconcile
   RLS-authorized `workspace_notifications` over Supabase Realtime, with

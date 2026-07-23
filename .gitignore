@@ -86,3 +86,21 @@ docs/service-images/generated-batches/
 /.codex-backups/
 /.fix-backups/
 /supabase.zip
+
+# Local build, test, browser, and agent artifacts
+/test-results/
+/playwright-report/
+/.playwright-mcp/
+/deliverables/
+/.turbo/
+/.cache/
+/.agent-backups/
+/.patch-backups/
+/.rollback-backups/
+/workqueue-dom-initial.json
+*.log
+*.bak
+*.backup
+*.orig
+*.rej
+*.old
