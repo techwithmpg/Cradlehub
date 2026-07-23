@@ -101,7 +101,7 @@ No app source code, migrations, RLS policies, booking logic, notification logic,
 - `supabase/migrations/20260512000001_workspace_notifications.sql`
 - `supabase/migrations/20260517000001_booking_payment_logs.sql`
 - `supabase/migrations/20260519000001_workflow_signal_foundation.sql`
-- `supabase/migrations/20260521000001_add_staff_nickname.sql`
+- `supabase/migrations/20260521000003_add_staff_nickname.sql`
 
 ## Current Public Booking Flow
 
@@ -327,7 +327,7 @@ Do not implement this copy in Phase 1. The implementation should happen in Phase
 | Staff display helper | `src/lib/staff/display-name.ts` | `nickname` -> `full_name` | Yes | No | Extend later to `nickname` -> `public_display_name` -> `first_name` -> `full_name` after schema supports those fields. |
 | Therapist selection cards | `src/components/public/booking-wizard.tsx` `StepTherapist` | `staff.staff_name` | Yes via lookup | Tier not rendered; provider type badge is rendered | Do not show full legal name as secondary in public mode. |
 | Therapist sorting | `staffAtSlot` in `booking-wizard.tsx` | Sorts by `staff_tier`, then display name | Yes | Tier not rendered | Internal sorting can remain, but no tier label should be public. |
-| Staff schema | `supabase/migrations/20260429000001_core_tables.sql`, `src/types/supabase.ts`, `20260521000001_add_staff_nickname.sql` | `full_name`, `nickname`, `tier`, `system_role`, `staff_type` | `nickname` exists in newer migration/types | No public_display_name or first_name field found | Future fallback requires schema support for `public_display_name` and/or `first_name`, or a derived first-name parser if approved. |
+| Staff schema | `supabase/migrations/20260429000001_core_tables.sql`, `src/types/supabase.ts`, `20260521000003_add_staff_nickname.sql` | `full_name`, `nickname`, `tier`, `system_role`, `staff_type` | `nickname` exists in newer migration/types | No public_display_name or first_name field found | Future fallback requires schema support for `public_display_name` and/or `first_name`, or a derived first-name parser if approved. |
 
 Current public display rule in code is effectively `nickname` -> `full_name`. The requested future rule `nickname` -> `public_display_name` -> `first_name` -> `full_name` is not fully supported by current schema because `public_display_name` and `first_name` were not found.
 

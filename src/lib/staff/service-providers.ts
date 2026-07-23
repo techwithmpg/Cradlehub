@@ -33,9 +33,15 @@ export function canActAsBookingServiceProvider(
 ): boolean {
   if (member.is_active === false) return false;
 
-  if (member.system_role && HARD_EXCLUDED_SYSTEM_ROLES.has(member.system_role)) {
+  const canonicalRole = member.system_role ? canonicalizeSystemRole(member.system_role) : "";
+  if (HARD_EXCLUDED_SYSTEM_ROLES.has(canonicalRole)) {
     return false;
   }
+
+  // Explicit staff_services capability is authoritative. This keeps qualified
+  // scheduled providers visible even when legacy staff_type data is incomplete
+  // or inconsistent, while driver/utility roles remain hard excluded.
+  if (hasMatchingServiceCapability) return true;
 
   const staffType = member.staff_type?.trim();
   if (staffType) {
@@ -44,7 +50,7 @@ export function canActAsBookingServiceProvider(
 
   if (isNonServiceSystemRole(member.system_role)) return false;
 
-  return hasMatchingServiceCapability;
+  return false;
 }
 
 function includesAny(value: string, needles: string[]) {
@@ -57,9 +63,7 @@ export function staffTypeCanPerformService(
 ): boolean {
   if (!isServiceStaffType(staffType)) return false;
 
-  const serviceText = `${service?.name ?? ""} ${service?.categoryName ?? ""}`
-    .toLowerCase()
-    .trim();
+  const serviceText = `${service?.name ?? ""} ${service?.categoryName ?? ""}`.toLowerCase().trim();
 
   if (!serviceText) return true;
 

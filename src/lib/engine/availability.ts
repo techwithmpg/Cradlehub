@@ -94,8 +94,7 @@ export const CRM_AVAILABILITY_MESSAGES = {
   outsideInSpaHours: "The selected time is outside this branch's in-spa booking hours.",
   outsideHomeServiceHours:
     "Home Service is disabled or the selected time is outside Home Service hours for this branch.",
-  noScheduledTherapist:
-    "All qualified therapists are already booked or unavailable at this time.",
+  noScheduledTherapist: "All qualified therapists are already booked or unavailable at this time.",
   noClockInWarning: NO_CHECKED_IN_STAFF_WARNING,
 } as const;
 
@@ -173,9 +172,7 @@ async function getServiceTimings(
 
   const { data: services, error } = await supabase
     .from("services")
-    .select(
-      "id, name, duration_minutes, buffer_before, buffer_after, service_categories ( name )"
-    )
+    .select("id, name, duration_minutes, buffer_before, buffer_after, service_categories ( name )")
     .in("id", serviceIds);
 
   if (error) throw new Error(`Failed to fetch service timings: ${error.message}`);
@@ -189,10 +186,12 @@ async function getServiceTimings(
 
   if (!overrides.error) {
     customDurations = new Map(
-      ((overrides.data ?? []) as unknown as Array<{
-        service_id: string;
-        custom_duration_minutes?: number | null;
-      }>)
+      (
+        (overrides.data ?? []) as unknown as Array<{
+          service_id: string;
+          custom_duration_minutes?: number | null;
+        }>
+      )
         .filter((row) => typeof row.custom_duration_minutes === "number")
         .map((row) => [row.service_id, row.custom_duration_minutes as number])
     );
@@ -201,21 +200,22 @@ async function getServiceTimings(
   }
 
   return new Map(
-    ((services ?? []) as Array<{
-      id: string;
-      name: string;
-      duration_minutes: number;
-      buffer_before: number;
-      buffer_after: number;
-      service_categories?: CategoryRelation;
-    }>).map((service) => [
+    (
+      (services ?? []) as Array<{
+        id: string;
+        name: string;
+        duration_minutes: number;
+        buffer_before: number;
+        buffer_after: number;
+        service_categories?: CategoryRelation;
+      }>
+    ).map((service) => [
       service.id,
       {
         id: service.id,
         name: service.name,
         categoryName: firstCategoryName(service.service_categories),
-        durationMinutes:
-          customDurations.get(service.id) ?? service.duration_minutes,
+        durationMinutes: customDurations.get(service.id) ?? service.duration_minutes,
         bufferBefore: service.buffer_before,
         bufferAfter: service.buffer_after,
       },
@@ -263,7 +263,9 @@ async function filterSlotsToWorkingWindows(params: {
   const [schedulesResult, overridesResult] = await Promise.all([
     params.supabase
       .from("staff_schedules")
-      .select("id, staff_id, shift_type, start_time, end_time, is_active, window_order, ends_next_day")
+      .select(
+        "id, staff_id, shift_type, start_time, end_time, is_active, window_order, ends_next_day"
+      )
       .in("staff_id", staffIds)
       .eq("day_of_week", dayOfWeek),
     params.supabase
@@ -322,7 +324,9 @@ async function getActiveStaffProviderRows(branchId: string): Promise<StaffProvid
   const supabase = createAdminClient();
   const primary = await supabase
     .from("staff")
-    .select("id, branch_id, is_active, staff_type, system_role, archived_at, merged_into_staff_id, metadata")
+    .select(
+      "id, branch_id, is_active, staff_type, system_role, archived_at, merged_into_staff_id, metadata"
+    )
     .eq("branch_id", branchId)
     .eq("is_active", true)
     .is("archived_at", null)
@@ -398,6 +402,7 @@ async function filterSlotsForQualifiedProviders(params: {
   slots: AvailabilitySlot[];
   serviceTimings: Map<string, ServiceTiming>;
   requireExplicitServiceAssignment?: boolean;
+  allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<AvailabilitySlot[]> {
   if (params.slots.length === 0 || params.serviceIds.length === 0) return params.slots;
 
@@ -427,13 +432,13 @@ async function filterSlotsForQualifiedProviders(params: {
         : true;
     }
   );
-  const { staffIdsByService, serviceIdsByStaff } = serviceCapabilitySets(
-    scopedCapabilityRows
-  );
+  const { staffIdsByService, serviceIdsByStaff } = serviceCapabilitySets(scopedCapabilityRows);
   const constrainedServiceIds = new Set(
     params.serviceIds.filter((serviceId) => {
       const mappedStaffIds = staffIdsByService.get(serviceId);
-      return !!mappedStaffIds && Array.from(mappedStaffIds).some((staffId) => slotStaffIds.has(staffId));
+      return (
+        !!mappedStaffIds && Array.from(mappedStaffIds).some((staffId) => slotStaffIds.has(staffId))
+      );
     })
   );
 
@@ -451,9 +456,15 @@ async function filterSlotsForQualifiedProviders(params: {
     }
 
     if (params.requireExplicitServiceAssignment) {
-      return params.serviceIds.every((serviceId) =>
-        staffServiceIds.has(serviceId)
-      );
+      return params.serviceIds.every((serviceId) => staffServiceIds.has(serviceId));
+    }
+
+    if (params.allowStaffTypeFallbackAlongsideAssignments) {
+      return params.serviceIds.every((serviceId) => {
+        if (staffServiceIds.has(serviceId)) return true;
+        const service = params.serviceTimings.get(serviceId);
+        return staff.staff_type ? staffTypeCanPerformService(staff.staff_type, service) : false;
+      });
     }
 
     return params.serviceIds.every((serviceId) => {
@@ -477,25 +488,24 @@ async function filterSlotsForQualifiedProviders(params: {
  * excludes drivers, utility, CSR, admin, and manager-only staff.
  */
 export async function getAvailableSlots(params: {
-  branchId:  string;
+  branchId: string;
   serviceId: string;
-  staffId?:  string;
-  date:      string;
+  staffId?: string;
+  date: string;
   requireStaffServiceAssignment?: boolean;
+  allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<AvailabilitySlot[]> {
   const today = getBranchBusinessDate();
   if (params.date < today) return [];
 
   const supabase = createAdminClient();
-  const serviceTimings = await getServiceTimings(supabase, params.branchId, [
-    params.serviceId,
-  ]);
+  const serviceTimings = await getServiceTimings(supabase, params.branchId, [params.serviceId]);
   const blockMinutes = totalBlockMinutes([params.serviceId], serviceTimings);
 
   const rpcArgs = {
-    p_branch_id:  params.branchId,
+    p_branch_id: params.branchId,
     p_service_id: params.serviceId,
-    p_date:       params.date,
+    p_date: params.date,
   };
 
   let slots: AvailabilitySlot[];
@@ -524,18 +534,19 @@ export async function getAvailableSlots(params: {
 
   slots = await filterSlotsToWorkingWindows({
     supabase,
-    date:              params.date,
+    date: params.date,
     slots,
     totalBlockMinutes: blockMinutes,
-    branchId:          params.branchId,
+    branchId: params.branchId,
   });
 
   slots = await filterSlotsForQualifiedProviders({
-    branchId:     params.branchId,
-    serviceIds:   [params.serviceId],
+    branchId: params.branchId,
+    serviceIds: [params.serviceId],
     slots,
     serviceTimings,
     requireExplicitServiceAssignment: params.requireStaffServiceAssignment,
+    allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
 
   return filterPastSlotsForDate({
@@ -554,23 +565,21 @@ export async function getAvailableSlots(params: {
  * Returns the assigned staff_id, or throws SlotUnavailableError if none available.
  */
 export async function assignTherapistBySeniority(params: {
-  branchId:  string;
+  branchId: string;
   serviceId: string;
-  date:      string;
+  date: string;
   startTime: string;
 }): Promise<string> {
   const slots = await getAvailableSlots({
-    branchId:  params.branchId,
+    branchId: params.branchId,
     serviceId: params.serviceId,
-    date:      params.date,
+    date: params.date,
     // No staffId — returns all staff
   });
 
   // Filter to the requested time that is still available
   const candidates = slots.filter(
-    (s) =>
-      s.available &&
-      s.slot_time.startsWith(params.startTime.substring(0, 5)) // compare HH:MM
+    (s) => s.available && s.slot_time.startsWith(params.startTime.substring(0, 5)) // compare HH:MM
   );
 
   if (candidates.length === 0) throw new SlotUnavailableError();
@@ -578,8 +587,7 @@ export async function assignTherapistBySeniority(params: {
   // Sort by seniority then name
   const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
   candidates.sort((a, b) => {
-    const tierDiff =
-      (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+    const tierDiff = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
     if (tierDiff !== 0) return tierDiff;
     return a.staff_name.localeCompare(b.staff_name);
   });
@@ -593,10 +601,11 @@ export async function assignTherapistBySeniority(params: {
  * (staff, slot_time) pairs with the full combined window free are marked available.
  */
 export async function getAvailableSlotsMulti(params: {
-  branchId:   string;
+  branchId: string;
   serviceIds: string[];
-  date:       string;
+  date: string;
   requireStaffServiceAssignment?: boolean;
+  allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<AvailabilitySlot[]> {
   const { branchId, serviceIds, date } = params;
 
@@ -607,6 +616,7 @@ export async function getAvailableSlotsMulti(params: {
       serviceId: serviceIds[0]!,
       date,
       requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+      allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
     });
   }
 
@@ -623,6 +633,7 @@ export async function getAvailableSlotsMulti(params: {
     serviceId: serviceIds[0]!,
     date,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+    allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
   if (baseSlots.length === 0) return [];
 
@@ -642,7 +653,7 @@ export async function getAvailableSlotsMulti(params: {
     if (!bookingsByStaff.has(b.staff_id)) bookingsByStaff.set(b.staff_id, []);
     bookingsByStaff.get(b.staff_id)!.push({
       start: timeToMinutes(b.start_time),
-      end:   timeToMinutes(b.end_time),
+      end: timeToMinutes(b.end_time),
     });
   }
 
@@ -650,7 +661,7 @@ export async function getAvailableSlotsMulti(params: {
     if (!slot.available) return slot;
 
     const slotStart = timeToMinutes(slot.slot_time);
-    const slotEnd   = slotStart + totalMinutes;
+    const slotEnd = slotStart + totalMinutes;
 
     const staffBookings = bookingsByStaff.get(slot.staff_id) ?? [];
     const hasConflict = staffBookings.some((b) =>
@@ -663,7 +674,7 @@ export async function getAvailableSlotsMulti(params: {
   const workingSlots = await filterSlotsToWorkingWindows({
     supabase,
     date,
-    slots:             combinedSlots,
+    slots: combinedSlots,
     totalBlockMinutes: totalMinutes,
     branchId,
   });
@@ -674,6 +685,7 @@ export async function getAvailableSlotsMulti(params: {
     slots: workingSlots,
     serviceTimings,
     requireExplicitServiceAssignment: params.requireStaffServiceAssignment,
+    allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
 
   // Belt-and-suspenders: ensure same-day past slots are never returned even if
@@ -720,34 +732,34 @@ async function getActiveCheckinQueue(params: {
  * Finds available therapists for the combined duration and assigns by tier priority.
  */
 export async function assignTherapistBySeniorityMulti(params: {
-  branchId:   string;
+  branchId: string;
   serviceIds: string[];
-  date:       string;
-  startTime:  string;
+  date: string;
+  startTime: string;
 }): Promise<string> {
   const assignment = await assignTherapistBySeniorityMultiDetailed(params);
   return assignment.staffId;
 }
 
 export async function assignTherapistBySeniorityMultiDetailed(params: {
-  branchId:        string;
-  serviceIds:      string[];
-  date:            string;
-  startTime:       string;
+  branchId: string;
+  serviceIds: string[];
+  date: string;
+  startTime: string;
   preferCheckedIn?: boolean;
   requireStaffServiceAssignment?: boolean;
+  allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<{ staffId: string; warning?: string }> {
   const slots = await getAvailableSlotsMulti({
-    branchId:   params.branchId,
+    branchId: params.branchId,
     serviceIds: params.serviceIds,
-    date:       params.date,
+    date: params.date,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+    allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
 
   const candidates = slots.filter(
-    (s) =>
-      s.available &&
-      s.slot_time.startsWith(params.startTime.substring(0, 5))
+    (s) => s.available && s.slot_time.startsWith(params.startTime.substring(0, 5))
   );
 
   if (candidates.length === 0) throw new SlotUnavailableError();
@@ -773,8 +785,7 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
       if (bQueuePosition !== undefined) return 1;
     }
 
-    const tierDiff =
-      (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
+    const tierDiff = (TIER_ORDER[a.staff_tier] ?? 9) - (TIER_ORDER[b.staff_tier] ?? 9);
     if (tierDiff !== 0) return tierDiff;
     return a.staff_name.localeCompare(b.staff_name);
   });
@@ -782,30 +793,28 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
   return {
     staffId: candidates[0]!.staff_id,
     warning:
-      params.preferCheckedIn && checkedInQueue.size === 0
-        ? NO_CHECKED_IN_STAFF_WARNING
-    : undefined,
+      params.preferCheckedIn && checkedInQueue.size === 0 ? NO_CHECKED_IN_STAFF_WARNING : undefined,
   };
 }
 
 export async function getScheduledAvailabilityFallbackWarning(params: {
-  branchId:   string;
+  branchId: string;
   serviceIds: string[];
-  date:       string;
-  startTime:  string;
+  date: string;
+  startTime: string;
   requireStaffServiceAssignment?: boolean;
+  allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<string | undefined> {
   const slots = await getAvailableSlotsMulti({
-    branchId:   params.branchId,
+    branchId: params.branchId,
     serviceIds: params.serviceIds,
-    date:       params.date,
+    date: params.date,
     requireStaffServiceAssignment: params.requireStaffServiceAssignment,
+    allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
 
   const candidates = slots.filter(
-    (s) =>
-      s.available &&
-      s.slot_time.startsWith(params.startTime.substring(0, 5))
+    (s) => s.available && s.slot_time.startsWith(params.startTime.substring(0, 5))
   );
 
   if (candidates.length === 0) return undefined;
@@ -824,23 +833,21 @@ export async function getScheduledAvailabilityFallbackWarning(params: {
  * Throws SlotUnavailableError if taken (race condition protection).
  */
 export async function assertSlotAvailable(params: {
-  branchId:  string;
+  branchId: string;
   serviceId: string;
-  staffId:   string;
-  date:      string;
+  staffId: string;
+  date: string;
   startTime: string;
 }): Promise<void> {
   const slots = await getAvailableSlots({
-    branchId:  params.branchId,
+    branchId: params.branchId,
     serviceId: params.serviceId,
-    staffId:   params.staffId,
-    date:      params.date,
+    staffId: params.staffId,
+    date: params.date,
   });
 
   const slot = slots.find(
-    (s) =>
-      s.staff_id === params.staffId &&
-      s.slot_time.startsWith(params.startTime.substring(0, 5))
+    (s) => s.staff_id === params.staffId && s.slot_time.startsWith(params.startTime.substring(0, 5))
   );
 
   if (!slot?.available) throw new SlotUnavailableError();

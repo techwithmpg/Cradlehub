@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
+import { getBranchWalkInDefaults, parseBookingTime } from "@/lib/bookings/booking-clock-time";
 import { createInhouseBookingMultiAction } from "@/lib/actions/inhouse-booking";
 import { getAttendanceQueueSuggestionAction } from "@/lib/actions/attendance-queue";
 import {
@@ -115,6 +116,25 @@ type SlotRow = {
   available: boolean;
 };
 
+type CrmProviderAvailability = {
+  staffId: string;
+  fullName: string;
+  nickname: string | null;
+  checkedIn: boolean;
+  checkedOut: boolean;
+  scheduledForDay: boolean;
+  scheduledAtTime: boolean;
+  availableAtTime: boolean;
+  selectable: boolean;
+  recommended: boolean;
+  scheduleStartTime: string | null;
+  scheduleEndTime: string | null;
+  nextAvailableAt: string | null;
+  reasonCode: string;
+  statusLabel: string;
+  warning: string | null;
+};
+
 type CrmAvailabilityResponse = {
   available: boolean;
   message?: string | null;
@@ -122,6 +142,7 @@ type CrmAvailabilityResponse = {
   reasonCode?: string | null;
   slots?: SlotRow[];
   availableStaffIds?: string[];
+  providers?: CrmProviderAvailability[];
 };
 
 type TherapistAvailabilityStatus = "idle" | "loading" | "ready" | "empty" | "error";
@@ -168,23 +189,17 @@ const NO_SCHEDULED_THERAPIST_MESSAGE =
   "No scheduled therapist is available at this time. Try another time or check staff schedules.";
 
 function todayYmd(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
-    now.getDate()
-  ).padStart(2, "0")}`;
+  return getBranchWalkInDefaults().date;
 }
 
 function nextQuarterTime(): string {
-  const now = new Date();
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  const rounded = Math.min(23 * 60 + 45, Math.ceil(minutes / 15) * 15);
-  const hh = Math.floor(rounded / 60);
-  const mm = rounded % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  return getBranchWalkInDefaults().time.slice(0, 5);
 }
 
 function normalizeTime(time: string): string {
-  return time.length === 5 ? `${time}:00` : time;
+  const parsed = parseBookingTime(time);
+  if (!parsed.ok) throw new Error(parsed.error);
+  return parsed.value.canonicalTime;
 }
 
 function addDaysYmd(value: string, days: number): string {
@@ -212,11 +227,6 @@ function serviceAvailableForMode(
   mode: QuickBookingMode
 ): boolean {
   return mode === "home_service" ? service.availableHomeService : service.availableInSpa;
-}
-
-function staffCanPerformServices(member: QuickBookingStaffOption, serviceIds: string[]): boolean {
-  if (serviceIds.length === 0) return true;
-  return serviceIds.every((id) => member.serviceIds.includes(id));
 }
 
 function formatAttendanceTime(iso: string | null): string {
@@ -349,6 +359,7 @@ export function QuickBookingForm({
   } | null>(null);
   const [, setLoadingAttendanceHint] = useState(false);
   const [availableStaffIds, setAvailableStaffIds] = useState<string[]>([]);
+  const [providerAvailability, setProviderAvailability] = useState<CrmProviderAvailability[]>([]);
   const [therapistAvailabilityStatus, setTherapistAvailabilityStatus] =
     useState<TherapistAvailabilityStatus>("idle");
   const [therapistAvailabilityMessage, setTherapistAvailabilityMessage] = useState("");
@@ -385,15 +396,25 @@ export function QuickBookingForm({
       : `${selectedServiceCount} service${selectedServiceCount === 1 ? "" : "s"} · ${formatServiceDuration(totalDurationMinutes)} · ${formatCurrency(totalPrice)}`;
   const selectedStaff = staff.find((member) => member.id === staffId) ?? null;
   const selectedResource = resources.find((resource) => resource.id === resourceId) ?? null;
-  const serviceCapableStaff = useMemo(
-    () => staff.filter((member) => staffCanPerformServices(member, selectedServiceIds)),
-    [selectedServiceIds, staff]
-  );
+  const providerCandidates = useMemo(() => staff, [staff]);
   const availableStaffIdSet = useMemo(() => new Set(availableStaffIds), [availableStaffIds]);
-  const availableTherapists = useMemo(
-    () => serviceCapableStaff.filter((member) => availableStaffIdSet.has(member.id)),
-    [availableStaffIdSet, serviceCapableStaff]
+  const providerById = useMemo(
+    () => new Map(providerAvailability.map((provider) => [provider.staffId, provider])),
+    [providerAvailability]
   );
+  const recommendedProviders = useMemo(
+    () => providerAvailability.filter((provider) => provider.selectable && provider.recommended),
+    [providerAvailability]
+  );
+  const scheduledProviders = useMemo(
+    () => providerAvailability.filter((provider) => provider.selectable && !provider.recommended),
+    [providerAvailability]
+  );
+  const unavailableProviders = useMemo(
+    () => providerAvailability.filter((provider) => !provider.selectable),
+    [providerAvailability]
+  );
+  const selectedProviderAvailability = staffId ? (providerById.get(staffId) ?? null) : null;
   const therapistPrerequisitesReady =
     selectedServiceIds.length > 0 && Boolean(date) && Boolean(time);
   const eligibleAttendanceHint =
@@ -483,12 +504,14 @@ export function QuickBookingForm({
     const id = window.setTimeout(() => {
       if (!therapistPrerequisitesReady) {
         setAvailableStaffIds([]);
+        setProviderAvailability([]);
         setTherapistAvailabilityStatus("idle");
         setTherapistAvailabilityMessage("");
         return;
       }
 
       setAvailableStaffIds([]);
+      setProviderAvailability([]);
       setTherapistAvailabilityStatus("loading");
       setTherapistAvailabilityMessage("");
 
@@ -504,12 +527,36 @@ export function QuickBookingForm({
         .then((result) => {
           if (controller.signal.aborted) return;
           const nextAvailableStaffIds = Array.from(new Set(result.availableStaffIds ?? []));
+          const nextProviders =
+            result.providers ??
+            providerCandidates.map((member) => ({
+              staffId: member.id,
+              fullName: member.name,
+              nickname: member.nickname ?? null,
+              checkedIn: false,
+              checkedOut: false,
+              scheduledForDay: nextAvailableStaffIds.includes(member.id),
+              scheduledAtTime: nextAvailableStaffIds.includes(member.id),
+              availableAtTime: nextAvailableStaffIds.includes(member.id),
+              selectable: nextAvailableStaffIds.includes(member.id),
+              recommended: false,
+              scheduleStartTime: null,
+              scheduleEndTime: null,
+              nextAvailableAt: null,
+              reasonCode: nextAvailableStaffIds.includes(member.id)
+                ? "scheduled_available_not_checked_in"
+                : "not_scheduled_at_time",
+              statusLabel: nextAvailableStaffIds.includes(member.id)
+                ? "Scheduled · Available"
+                : "Not available at this time",
+              warning: null,
+            }));
+          const selectableProviders = nextProviders.filter((provider) => provider.selectable);
           setAvailableStaffIds(nextAvailableStaffIds);
-          setTherapistAvailabilityStatus(nextAvailableStaffIds.length > 0 ? "ready" : "empty");
+          setProviderAvailability(nextProviders);
+          setTherapistAvailabilityStatus(selectableProviders.length > 0 ? "ready" : "empty");
           setTherapistAvailabilityMessage(
-            nextAvailableStaffIds.length > 0
-              ? ""
-              : (result.message ?? NO_SCHEDULED_THERAPIST_MESSAGE)
+            selectableProviders.length > 0 ? "" : (result.message ?? NO_SCHEDULED_THERAPIST_MESSAGE)
           );
 
           if (nextAvailableStaffIds.length > 0) {
@@ -517,19 +564,25 @@ export function QuickBookingForm({
             setFormError("");
           }
 
-          if (staffId && !nextAvailableStaffIds.includes(staffId)) {
-            const unavailableStaff = staff.find((member) => member.id === staffId);
-            setStaffId("");
-            if (unavailableStaff) {
-              toast.info("Therapist selection cleared", {
-                description: `${unavailableStaff.nickname || unavailableStaff.name} is not available for the selected services, date, and time.`,
-              });
+          if (staffId) {
+            const selectedProvider = nextProviders.find((provider) => provider.staffId === staffId);
+            if (!selectedProvider?.selectable) {
+              const unavailableStaff = staff.find((member) => member.id === staffId);
+              setStaffId("");
+              if (unavailableStaff) {
+                toast.info("Therapist selection cleared", {
+                  description:
+                    selectedProvider?.statusLabel ??
+                    `${unavailableStaff.nickname || unavailableStaff.name} is not available for the selected services, date, and time.`,
+                });
+              }
             }
           }
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
           setAvailableStaffIds([]);
+          setProviderAvailability([]);
           setTherapistAvailabilityStatus("error");
           setTherapistAvailabilityMessage(
             error instanceof Error ? error.message : "Therapist availability could not be checked."
@@ -547,6 +600,7 @@ export function QuickBookingForm({
     isHomeService,
     mode,
     selectedServiceIds,
+    providerCandidates,
     staff,
     staffId,
     therapistPrerequisitesReady,
@@ -695,14 +749,6 @@ export function QuickBookingForm({
     } else {
       setServiceModeNotice("");
     }
-    if (
-      staffId &&
-      !staff.some(
-        (member) => member.id === staffId && staffCanPerformServices(member, validServiceIds)
-      )
-    ) {
-      setStaffId("");
-    }
     if (nextMode === "walkin") {
       setDate(todayYmd());
       setTime(nextQuarterTime());
@@ -721,14 +767,6 @@ export function QuickBookingForm({
     setSelectedServiceIds(nextServiceIds);
     setServiceModeNotice("");
     setFieldErrors((current) => ({ ...current, service: undefined }));
-    if (
-      staffId &&
-      !staff.some(
-        (member) => member.id === staffId && staffCanPerformServices(member, nextServiceIds)
-      )
-    ) {
-      setStaffId("");
-    }
   }
 
   function selectCustomer(customer: QuickBookingCustomerOption) {
@@ -1198,9 +1236,7 @@ export function QuickBookingForm({
                     disabled={
                       isSaving ||
                       !therapistPrerequisitesReady ||
-                      therapistAvailabilityStatus === "loading" ||
-                      therapistAvailabilityStatus === "empty" ||
-                      therapistAvailabilityStatus === "error"
+                      therapistAvailabilityStatus === "loading"
                     }
                     className={selectClassName(false)}
                   >
@@ -1210,17 +1246,56 @@ export function QuickBookingForm({
                         : therapistAvailabilityStatus === "loading"
                           ? "Checking schedules…"
                           : therapistAvailabilityStatus === "empty"
-                            ? "No therapist available"
+                            ? "No scheduled provider fits this time"
                             : therapistAvailabilityStatus === "error"
                               ? "Availability failed"
                               : "First available"}
                     </option>
-                    {availableTherapists.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.nickname ? `${member.nickname} — ${member.name}` : member.name}
-                      </option>
-                    ))}
+                    {recommendedProviders.length > 0 ? (
+                      <optgroup label="Recommended — checked in">
+                        {recommendedProviders.map((provider) => (
+                          <option key={provider.staffId} value={provider.staffId}>
+                            {provider.nickname
+                              ? `${provider.nickname} — ${provider.fullName}`
+                              : provider.fullName}{" "}
+                            · {provider.statusLabel}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {scheduledProviders.length > 0 ? (
+                      <optgroup label="Scheduled today">
+                        {scheduledProviders.map((provider) => (
+                          <option key={provider.staffId} value={provider.staffId}>
+                            {provider.nickname
+                              ? `${provider.nickname} — ${provider.fullName}`
+                              : provider.fullName}{" "}
+                            · {provider.statusLabel}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {unavailableProviders.length > 0 ? (
+                      <optgroup label="Unavailable">
+                        {unavailableProviders.map((provider) => (
+                          <option key={provider.staffId} value={provider.staffId} disabled>
+                            {provider.nickname
+                              ? `${provider.nickname} — ${provider.fullName}`
+                              : provider.fullName}{" "}
+                            · {provider.statusLabel}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
                   </select>
+                  {therapistPrerequisitesReady &&
+                  therapistAvailabilityStatus !== "loading" &&
+                  therapistAvailabilityStatus !== "error" ? (
+                    <p className="mt-1 text-[11px] leading-4 text-[var(--cs-text-muted)]">
+                      All qualified staff scheduled for this day are shown. Checked-in staff are
+                      recommended first; attendance does not hide a scheduled provider.
+                    </p>
+                  ) : null}
                 </div>
 
                 {!isHomeService ? (
@@ -1252,6 +1327,10 @@ export function QuickBookingForm({
                 <p className="-mt-1 text-xs font-medium text-[var(--cs-danger-text)]">
                   {therapistAvailabilityMessage || NO_SCHEDULED_THERAPIST_MESSAGE}
                 </p>
+              ) : selectedProviderAvailability?.warning ? (
+                <p className="-mt-1 text-xs font-medium text-[var(--cs-sand-dark)]">
+                  {selectedProviderAvailability.warning}
+                </p>
               ) : mode === "walkin" && eligibleAttendanceHint ? (
                 <p className="-mt-1 text-xs text-[var(--cs-sand-dark)]">
                   Attendance suggestion:{" "}
@@ -1259,6 +1338,13 @@ export function QuickBookingForm({
                   {eligibleAttendanceHint.checkedInAt
                     ? ` · Clocked in ${formatAttendanceTime(eligibleAttendanceHint.checkedInAt)}`
                     : ""}
+                  . Checked-in providers are recommended first; all qualified scheduled providers
+                  remain selectable.
+                </p>
+              ) : mode === "walkin" && therapistAvailabilityStatus === "ready" ? (
+                <p className="-mt-1 text-xs text-[var(--cs-text-muted)]">
+                  Checked-in providers are recommended first. All qualified scheduled providers
+                  remain selectable.
                 </p>
               ) : null}
 
