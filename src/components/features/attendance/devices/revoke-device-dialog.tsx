@@ -52,7 +52,7 @@ export function RevokeDeviceDialog({
         return;
       }
       onRevoked(entry.device!.id, reason);
-      toast.success("Device revoked.");
+      toast.success("Phone disconnected.");
       onOpenChange(false);
     });
   }
@@ -61,23 +61,34 @@ export function RevokeDeviceDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Revoke device?</AlertDialogTitle>
-        <AlertDialogDescription>
-          Future scans from {entry?.device?.label ?? "this device"} will be blocked. Attendance history stays preserved.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-        <label htmlFor="attendance-device-revoke-reason" className="text-xs font-bold uppercase text-stone-500">
+          <AlertDialogTitle>Disconnect phone?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Future scans from {entry?.device?.label ?? "this device"} will be blocked. Attendance
+            history stays preserved.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <label
+          htmlFor="attendance-device-revoke-reason"
+          className="text-xs font-bold uppercase text-stone-500"
+        >
           Revocation reason
         </label>
-        <select id="attendance-device-revoke-reason" value={reason} onChange={(event) => setReason(event.target.value as DeviceRevocationReason)} className="h-9 rounded-lg border border-stone-200 px-3 text-sm">
+        <select
+          id="attendance-device-revoke-reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value as DeviceRevocationReason)}
+          className="h-9 rounded-lg border border-stone-200 px-3 text-sm"
+        >
           {REASONS.map((item) => (
-            <option key={item.value} value={item.value}>{item.label}</option>
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
           ))}
         </select>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction variant="destructive" disabled={isPending} onClick={revoke}>
-            {isPending ? "Revoking..." : "Revoke device"}
+            {isPending ? "Disconnecting..." : "Disconnect phone"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

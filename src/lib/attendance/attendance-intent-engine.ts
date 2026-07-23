@@ -1,5 +1,9 @@
 import { addDaysToYmd, branchDateTimeToIso, isOvernightWindow } from "@/lib/attendance/time";
 import {
+  getAttendanceScheduleWindows,
+  getOpenCloseAttendanceWindow,
+} from "@/lib/attendance/attendance-schedule-windows";
+import {
   isTimeWithinScheduleWindows,
   type ResolvedStaffSchedule,
   type ResolvedStaffScheduleWindow,
@@ -287,28 +291,6 @@ function clockInIntentForWindow(params: {
   return "clock_in";
 }
 
-function getOpenCloseAttendanceWindow(
-  schedule: ResolvedStaffSchedule
-): ResolvedStaffScheduleWindow | null {
-  if (schedule.coverageKind !== "open_close") return null;
-  const opening = schedule.windows.find((window) => window.shiftType === "opening");
-  const closing = schedule.windows.find((window) => window.shiftType === "closing");
-  if (!opening || !closing) return null;
-
-  return {
-    ...closing,
-    shiftType: "closing",
-    startTime: opening.startTime,
-    endTime: closing.endTime,
-    endsNextDay: closing.endsNextDay,
-  };
-}
-
-function getAttendanceWindows(schedule: ResolvedStaffSchedule): ResolvedStaffScheduleWindow[] {
-  const openCloseWindow = getOpenCloseAttendanceWindow(schedule);
-  return openCloseWindow ? [openCloseWindow] : schedule.windows;
-}
-
 function scheduleSelectionFromWindow(params: {
   scanDate: string;
   scanTime: string;
@@ -382,7 +364,7 @@ export function resolveStaffAttendanceSchedule(params: {
   timezone?: string | null;
   schedule: ResolvedStaffSchedule;
 }): AttendanceScheduleSelection {
-  const windows = getAttendanceWindows(params.schedule);
+  const windows = getAttendanceScheduleWindows(params.schedule);
   const selected =
     windows.find((window) => isTimeWithinScheduleWindows(params.scanTime, [window])) ??
     windows.find((window) => {
@@ -563,7 +545,7 @@ export function resolveAttendanceScanIntent(
     });
   }
 
-  const attendanceWindows = getAttendanceWindows(input.schedule);
+  const attendanceWindows = getAttendanceScheduleWindows(input.schedule);
   const clockOutWindow = attendanceWindows.find((window) =>
     isInClockOutWindow({
       scanTime: input.scanTime,

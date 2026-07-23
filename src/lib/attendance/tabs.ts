@@ -2,11 +2,11 @@ import type { AttendanceTab } from "@/lib/attendance/types";
 
 export const ATTENDANCE_TAB_VALUES: AttendanceTab[] = [
   "overview",
+  "exceptions",
   "records",
   "sessions",
   "qr",
   "devices",
-  "exceptions",
   "reports",
 ];
 

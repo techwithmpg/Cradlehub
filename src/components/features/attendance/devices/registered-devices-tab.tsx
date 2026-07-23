@@ -23,6 +23,7 @@ import type {
   DeviceRevocationReason,
   PendingDeviceRecoveryLink,
 } from "@/lib/attendance/types";
+import { attendanceWorkspaceHref } from "@/lib/attendance/workspace-navigation";
 
 function entryMatchesQuery(entry: AttendanceDeviceRegistryEntry, query: string): boolean {
   if (!query) return true;
@@ -33,7 +34,10 @@ function entryMatchesQuery(entry: AttendanceDeviceRegistryEntry, query: string):
     device?.label,
     device?.browserName,
     device?.platformName,
-  ].filter(Boolean).join(" ").toLowerCase();
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
   return haystack.includes(query);
 }
 
@@ -51,18 +55,24 @@ export function RegisteredDevicesTab({
   nowMs,
   routeBasePath,
   routeBranchId,
+  initialStaffId,
 }: {
   data: AttendanceWorkspaceData;
   nowMs: number;
   routeBasePath?: string;
   routeBranchId?: string | null;
+  initialStaffId?: string | null;
 }) {
   const router = useRouter();
   const [registry, setRegistry] = useState<AttendanceDeviceRegistryData>(data.deviceRegistry);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | AttendanceDeviceStatus>("all");
   const [staffType, setStaffType] = useState("all");
-  const [selectedRowId, setSelectedRowId] = useState(registry.entries[0]?.rowId ?? null);
+  const [selectedRowId, setSelectedRowId] = useState(
+    registry.entries.find((entry) => entry.staffId === initialStaffId)?.rowId ??
+      registry.entries[0]?.rowId ??
+      null
+  );
   const [recoveryEntry, setRecoveryEntry] = useState<AttendanceDeviceRegistryEntry | null>(null);
   const [renameEntry, setRenameEntry] = useState<AttendanceDeviceRegistryEntry | null>(null);
   const [revokeEntry, setRevokeEntry] = useState<AttendanceDeviceRegistryEntry | null>(null);
@@ -74,11 +84,12 @@ export function RegisteredDevicesTab({
     [registry.entries]
   );
   const filteredEntries = useMemo(
-    () => registry.entries.filter((entry) => {
-      const matchesStatus = status === "all" || entry.status === status;
-      const matchesType = staffType === "all" || entry.staffType === staffType;
-      return matchesStatus && matchesType && entryMatchesQuery(entry, normalizedQuery);
-    }),
+    () =>
+      registry.entries.filter((entry) => {
+        const matchesStatus = status === "all" || entry.status === status;
+        const matchesType = staffType === "all" || entry.staffType === staffType;
+        return matchesStatus && matchesType && entryMatchesQuery(entry, normalizedQuery);
+      }),
     [normalizedQuery, registry.entries, staffType, status]
   );
   const selectedEntry =
@@ -95,7 +106,12 @@ export function RegisteredDevicesTab({
 
   function changeBranch(branchId: string) {
     if (branchId === registry.branchId) return;
-    router.push(`${routeBasePath ?? "/owner/attendance"}?tab=devices&branchId=${branchId}`);
+    router.push(
+      attendanceWorkspaceHref(
+        { view: "tools", tool: "phones" },
+        { basePath: routeBasePath ?? "/owner/attendance", branchId }
+      )
+    );
   }
 
   function upsertPendingLink(link: PendingDeviceRecoveryLink) {
@@ -130,7 +146,9 @@ export function RegisteredDevicesTab({
   function handleRenamed(deviceId: string, label: string) {
     setRegistry((current) => ({
       ...current,
-      activeDevices: current.activeDevices.map((device) => device.id === deviceId ? { ...device, label } : device),
+      activeDevices: current.activeDevices.map((device) =>
+        device.id === deviceId ? { ...device, label } : device
+      ),
       entries: current.entries.map((entry) => updateEntryDevice(entry, deviceId, { label })),
     }));
   }
@@ -139,13 +157,15 @@ export function RegisteredDevicesTab({
     setRegistry((current) => ({
       ...current,
       activeDevices: current.activeDevices.filter((device) => device.id !== deviceId),
-      entries: current.entries.map((entry) =>
-        updateEntryDevice(entry, deviceId, {
-          isActive: false,
-          revokedAt: new Date().toISOString(),
-          revocationReason: reason,
-        })
-      ).map((entry) => entry.device?.id === deviceId ? { ...entry, status: "revoked" } : entry),
+      entries: current.entries
+        .map((entry) =>
+          updateEntryDevice(entry, deviceId, {
+            isActive: false,
+            revokedAt: new Date().toISOString(),
+            revocationReason: reason,
+          })
+        )
+        .map((entry) => (entry.device?.id === deviceId ? { ...entry, status: "revoked" } : entry)),
     }));
   }
 
@@ -164,7 +184,11 @@ export function RegisteredDevicesTab({
         pendingRecoveryLinks: current.pendingRecoveryLinks.filter((item) => item.id !== link.id),
         entries: current.entries.map((entry) =>
           entry.pendingRecovery?.id === link.id
-            ? { ...entry, pendingRecovery: null, status: entry.device ? (entry.device.isActive ? "active" : "revoked") : "no_device" }
+            ? {
+                ...entry,
+                pendingRecovery: null,
+                status: entry.device ? (entry.device.isActive ? "active" : "revoked") : "no_device",
+              }
             : entry
         ),
       }));
@@ -181,12 +205,14 @@ export function RegisteredDevicesTab({
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Device Registry and Recovery Center</h2>
-          <p className="text-sm text-muted-foreground">Manage trusted staff devices and one-time recovery links.</p>
+          <h2 className="text-xl font-bold text-foreground">Staff Phones</h2>
+          <p className="text-sm text-muted-foreground">
+            Connect, replace, disconnect and review staff phones.
+          </p>
         </div>
         <Button type="button" onClick={() => setRecoveryEntry(selectedEntry)}>
           <Plus data-icon="inline-start" />
-          Generate recovery link
+          Connect replacement phone
         </Button>
       </div>
 
@@ -210,7 +236,10 @@ export function RegisteredDevicesTab({
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
         <div className="grid gap-4">
           {filteredEntries.length === 0 ? (
-            <EmptyState title="No devices match these filters." detail="Clear filters to return to the full registry." />
+            <EmptyState
+              title="No devices match these filters."
+              detail="Clear filters to return to the full registry."
+            />
           ) : (
             <DeviceRegistryTable
               entries={filteredEntries}
@@ -272,7 +301,11 @@ export function RegisteredDevicesTab({
           onRevoked={handleRevoked}
         />
       ) : null}
-      {isPending ? <span className="sr-only" aria-live="polite">Updating recovery links</span> : null}
+      {isPending ? (
+        <span className="sr-only" aria-live="polite">
+          Updating recovery links
+        </span>
+      ) : null}
     </div>
   );
 }

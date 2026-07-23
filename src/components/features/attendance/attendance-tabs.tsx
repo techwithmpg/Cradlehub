@@ -14,19 +14,21 @@ import { cn } from "@/lib/utils";
 
 const TAB_ICONS: Record<AttendanceTab, ComponentType<{ className?: string }>> = {
   overview: LayoutDashboard,
+  exceptions: Wrench,
   records: ClipboardList,
   sessions: Timer,
   qr: QrCode,
   devices: Smartphone,
-  exceptions: Wrench,
   reports: ChartNoAxesCombined,
 };
 
 export function AttendanceTabs({
   activeTab,
+  reviewCount,
   onTabChange,
 }: {
   activeTab: AttendanceTab;
+  reviewCount: number;
   onTabChange: (tab: AttendanceTab) => void;
 }) {
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -56,12 +58,14 @@ export function AttendanceTabs({
     <div
       role="tablist"
       aria-label="Attendance sections"
-      className="flex gap-1 overflow-x-auto border-b border-border pb-0"
+      className="flex min-w-0 gap-1 overflow-x-auto px-3 sm:px-4"
       onKeyDown={handleKeyDown}
     >
       {ATTENDANCE_TABS.map((tab) => {
         const active = tab.key === activeTab;
         const Icon = TAB_ICONS[tab.key];
+        const badge = tab.key === "exceptions" ? reviewCount : 0;
+
         return (
           <button
             key={tab.key}
@@ -73,14 +77,20 @@ export function AttendanceTabs({
             tabIndex={active ? 0 : -1}
             onClick={() => onTabChange(tab.key)}
             className={cn(
-              "inline-flex h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "inline-flex h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
               active
-                ? "border-emerald-800 text-emerald-900"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "border-[var(--cs-crm-accent)] text-[var(--cs-crm-text)]"
+                : "border-transparent text-[var(--cs-text-secondary)] hover:text-[var(--cs-text)]"
             )}
           >
-            <Icon className="size-4" />
+            <Icon className="size-4" aria-hidden="true" />
             {tab.label}
+            {badge > 0 ? (
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--cs-error-bg)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--cs-error-text)]">
+                {badge > 99 ? "99+" : badge}
+              </span>
+            ) : null}
           </button>
         );
       })}

@@ -9,11 +9,11 @@ export type AttendanceTab =
 
 export const ATTENDANCE_TABS: Array<{ key: AttendanceTab; label: string }> = [
   { key: "overview", label: "Overview" },
+  { key: "exceptions", label: "Review Queue" },
   { key: "records", label: "Records" },
   { key: "sessions", label: "Sessions" },
   { key: "qr", label: "QR Codes" },
   { key: "devices", label: "Devices" },
-  { key: "exceptions", label: "Review Queue" },
   { key: "reports", label: "Reports" },
 ];
 
@@ -323,6 +323,7 @@ export type AttendanceCorrection = {
 
 export type AttendanceScanEvent = {
   id: string;
+  staff_id?: string | null;
   scan_type: QrScanType;
   action: string;
   outcome: QrScanOutcome;

@@ -1,33 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import {
-  unwrapWorkspaceSWRKey,
-  useWorkspaceSWRKey,
-  type WorkspaceScopedSWRKey,
-} from "@/components/features/dashboard/workspace-swr-cache";
 import { AttendanceHeader } from "@/components/features/attendance/attendance-header";
+import { AttendanceTabContent } from "@/components/features/attendance/attendance-tab-content";
 import { AttendanceTabs } from "@/components/features/attendance/attendance-tabs";
-import {
-  AttendanceTabPanel,
-  EmptyState,
-  WorkspaceNotice,
-} from "@/components/features/attendance/attendance-ui";
-import { RegisteredDevicesTab } from "@/components/features/attendance/devices/registered-devices-tab";
-import { AttendanceOverview } from "@/components/features/attendance/overview/attendance-overview";
-import { QrCodesTab } from "@/components/features/attendance/qr-codes/qr-codes-tab";
-import { AttendanceRecordsTab } from "@/components/features/attendance/records/attendance-records-tab";
-import { AttendanceRecoveryTab } from "@/components/features/attendance/recovery/attendance-recovery-tab";
-import { AttendanceReportsTab } from "@/components/features/attendance/reports/attendance-reports-tab";
-import { ServiceSessionsTab } from "@/components/features/attendance/sessions/service-sessions-tab";
-import { createClient } from "@/lib/supabase/client";
+import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
+import { useAttendanceWorkspaceRealtime } from "@/components/features/attendance/use-attendance-workspace-realtime";
 import {
   refreshAttendanceWorkspaceAction,
   type AttendanceActionResult,
 } from "@/app/(dashboard)/crm/attendance/actions";
-import { attendanceTabHref, attendanceTabId, attendanceTabPanelId } from "@/lib/attendance/tabs";
+import { attendanceTabHref, isAttendanceTab } from "@/lib/attendance/tabs";
 import type {
   AttendanceQrPoint,
   AttendanceRecordFilters,
@@ -35,11 +20,11 @@ import type {
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
 import type { QrPrintFormat } from "@/lib/attendance/qr-print-layout";
-import { useWorkspaceReactivationRefresh } from "@/components/features/dashboard/use-workspace-visibility";
 
 type AttendanceWorkspaceProps = {
   data: AttendanceWorkspaceData;
-  activeTab: AttendanceTab;
+  activeTab?: AttendanceTab;
+  initialNavigation?: unknown;
   initialNowMs: number;
   initialRecordFilters?: AttendanceRecordFilters;
   routeBasePath?: string;
@@ -52,29 +37,31 @@ type AttendanceWorkspaceProps = {
   };
 };
 
-type WorkspacePatch = Partial<
-  Pick<AttendanceWorkspaceData, "qrPoints" | "devices" | "exceptions">
->;
+type WorkspacePatch = Partial<Pick<AttendanceWorkspaceData, "qrPoints" | "devices" | "exceptions">>;
 
-export function AttendanceWorkspace({
-  data,
-  activeTab,
-  initialNowMs,
-  initialRecordFilters,
-  routeBasePath,
-  routeBranchId,
-  flash,
-}: AttendanceWorkspaceProps) {
-  const attendanceKey = useWorkspaceSWRKey(
-    ["attendance-workspace", data.branchId] as const
-  );
-  const { data: refreshedData, mutate: refreshAttendance } = useSWR(
-    attendanceKey,
-    async (
-      scopedKey: WorkspaceScopedSWRKey<readonly ["attendance-workspace", string]>
-    ) => {
-      const [, cacheBranchId] = unwrapWorkspaceSWRKey(scopedKey);
-      const result = await refreshAttendanceWorkspaceAction(routeBranchId ?? cacheBranchId);
+export function AttendanceWorkspace(props: AttendanceWorkspaceProps) {
+  const { data, activeTab, initialNavigation, initialNowMs, routeBasePath, routeBranchId, flash } =
+    props;
+  const initialNavigationTab = (() => {
+    if (typeof initialNavigation === "string" && isAttendanceTab(initialNavigation)) {
+      return initialNavigation;
+    }
+    if (!initialNavigation || typeof initialNavigation !== "object") return null;
+
+    const navigationRecord = initialNavigation as Record<string, unknown>;
+    const candidate =
+      navigationRecord.activeTab ?? navigationRecord.tab ?? navigationRecord.selectedTab;
+    return typeof candidate === "string" && isAttendanceTab(candidate) ? candidate : null;
+  })();
+  const initialActiveTab: AttendanceTab = activeTab ?? initialNavigationTab ?? "overview";
+  const {
+    data: refreshedData,
+    mutate: refreshAttendance,
+    isValidating,
+  } = useSWR(
+    ["attendance-workspace", data.branchId],
+    async () => {
+      const result = await refreshAttendanceWorkspaceAction(routeBranchId ?? data.branchId);
       if (!result.ok) throw new Error(result.error);
       return result.data;
     },
@@ -86,21 +73,18 @@ export function AttendanceWorkspace({
     }
   );
   const serverData = refreshedData ?? data;
-  const refreshRetainedAttendance = useWorkspaceReactivationRefresh(async () => {
-    await refreshAttendance();
-  });
   const [localPatch, setLocalPatch] = useState<WorkspacePatch | null>(null);
-  const [selectedTab, setSelectedTab] = useState<AttendanceTab>(activeTab);
-  const [nowMs, setNowMs] = useState(() => initialNowMs);
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedTab, setSelectedTab] = useState<AttendanceTab>(initialActiveTab);
+  const [mountedTabs, setMountedTabs] = useState<Set<AttendanceTab>>(
+    () => new Set<AttendanceTab>([initialActiveTab])
+  );
+  const [nowMs, setNowMs] = useState(initialNowMs);
   const [selectedFormat, setSelectedFormat] = useState<QrPrintFormat>("a4");
-  const [selectedQrId, setSelectedQrId] = useState<string | null>(() => data.qrPoints[0]?.id ?? null);
-  const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(() =>
+  const [selectedQrId, setSelectedQrId] = useState<string | null>(data.qrPoints[0]?.id ?? null);
+  const [notice, setNotice] = useState<{ ok: boolean; message: string } | null>(
     flash?.message ? { ok: flash.status === "ok", message: flash.message } : null
   );
 
-  // Merge scoped server data with local optimistic patches while preserving
-  // the active tab, filters, selections, and scroll position.
   const workspaceData = useMemo<AttendanceWorkspaceData>(() => {
     if (!localPatch) return serverData;
     return {
@@ -110,73 +94,64 @@ export function AttendanceWorkspace({
       ...(localPatch.exceptions && { exceptions: localPatch.exceptions }),
     };
   }, [localPatch, serverData]);
+  const reviewCount = useMemo(
+    () => workspaceData.exceptions.filter((exception) => exception.status === "open").length,
+    [workspaceData.exceptions]
+  );
+  const activeQrId = useMemo(() => {
+    if (selectedQrId && workspaceData.qrPoints.some((point) => point.id === selectedQrId)) {
+      return selectedQrId;
+    }
+    return (
+      workspaceData.qrPoints.find((point) => point.is_active)?.id ??
+      workspaceData.qrPoints[0]?.id ??
+      null
+    );
+  }, [selectedQrId, workspaceData.qrPoints]);
+
+  const refreshFromServer = useCallback(() => {
+    setLocalPatch(null);
+    void refreshAttendance().catch((error: unknown) => {
+      setNotice({
+        ok: false,
+        message: error instanceof Error ? error.message : "Attendance could not be refreshed.",
+      });
+    });
+  }, [refreshAttendance]);
+  useAttendanceWorkspaceRealtime({
+    branchId: workspaceData.branchId,
+    onRefresh: refreshFromServer,
+  });
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  const activeQrId = useMemo(() => {
-    if (selectedQrId && workspaceData.qrPoints.some((point) => point.id === selectedQrId)) return selectedQrId;
-    return workspaceData.qrPoints.find((point) => point.is_active)?.id ?? workspaceData.qrPoints[0]?.id ?? null;
-  }, [selectedQrId, workspaceData.qrPoints]);
-
-  useEffect(() => {
-    const branchId = workspaceData.branchId;
-    if (!branchId) return;
-
-    const supabase = createClient();
-    const channel = supabase.channel(`attendance-workspace-${branchId}`);
-    const filter = `branch_id=eq.${branchId}`;
-
-    function scheduleRefresh() {
-      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = setTimeout(() => {
-        void refreshRetainedAttendance().catch(() => undefined);
-      }, 500);
-    }
-
-    const tables = [
-      "staff_shift_checkins",
-      "qr_scan_events",
-      "attendance_exceptions",
-      "attendance_corrections",
-      "staff_devices",
-      "bookings",
-    ] as const;
-
-    for (const table of tables) {
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table, filter },
-        scheduleRefresh
-      );
-    }
-
-    channel.subscribe();
-
-    return () => {
-      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-      void supabase.removeChannel(channel);
-    };
-  }, [refreshRetainedAttendance, workspaceData.branchId]);
-
   function setTab(nextTab: AttendanceTab) {
+    setMountedTabs((current) => (current.has(nextTab) ? current : new Set(current).add(nextTab)));
     setSelectedTab(nextTab);
     window.history.replaceState(
       null,
       "",
-      attendanceTabHref(nextTab, {
-        basePath: routeBasePath,
-        branchId: routeBranchId,
-      })
+      attendanceTabHref(nextTab, { basePath: routeBasePath, branchId: routeBranchId })
     );
+  }
+
+  async function handleManualRefresh() {
+    try {
+      setLocalPatch(null);
+      await refreshAttendance();
+      toast.success("Attendance refreshed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Attendance could not be refreshed.");
+    }
   }
 
   function upsertQrPoints(points: AttendanceQrPoint[]) {
     setLocalPatch((current) => {
-      const base = current?.qrPoints ?? serverData.qrPoints;
-      const byId = new Map(base.map((point) => [point.id, point]));
+      const byId = new Map(
+        (current?.qrPoints ?? serverData.qrPoints).map((point) => [point.id, point])
+      );
       for (const point of points) byId.set(point.id, point);
       return { ...current, qrPoints: Array.from(byId.values()) };
     });
@@ -187,25 +162,22 @@ export function AttendanceWorkspace({
     if (result.ok) toast.success(result.message);
     else toast.error(result.message);
     if (!result.ok) return;
-
     setTab(result.tab);
+
     if (result.kind === "attendance_qr") {
       upsertQrPoints([result.qrPoint]);
       setSelectedQrId(result.qrPoint.id);
-    }
-    if (result.kind === "room_qrs") {
+    } else if (result.kind === "room_qrs") {
       upsertQrPoints(result.qrPoints);
       if (result.qrPoints[0]) setSelectedQrId(result.qrPoints[0].id);
-    }
-    if (result.kind === "device_revoked") {
+    } else if (result.kind === "device_revoked") {
       setLocalPatch((current) => ({
         ...current,
         devices: (current?.devices ?? serverData.devices).map((device) =>
           device.id === result.deviceId ? { ...device, status: "revoked" as const } : device
         ),
       }));
-    }
-    if (result.kind === "exception_resolved") {
+    } else if (result.kind === "exception_resolved") {
       setLocalPatch((current) => ({
         ...current,
         exceptions: (current?.exceptions ?? serverData.exceptions).map((exception) =>
@@ -214,100 +186,56 @@ export function AttendanceWorkspace({
             : exception
         ),
       }));
-    }
-    if (result.kind === "qr_deactivated") {
+    } else if (result.kind === "qr_deactivated") {
       setLocalPatch((current) => ({
         ...current,
         qrPoints: (current?.qrPoints ?? serverData.qrPoints).map((point) =>
           point.id === result.qrPointId ? { ...point, is_active: false } : point
         ),
       }));
-    }
-    if (result.kind === "attendance_correction" || result.kind === "attendance_rules") {
-      void refreshRetainedAttendance().catch(() => undefined);
+    } else if (result.kind === "attendance_correction" || result.kind === "attendance_rules") {
+      refreshFromServer();
     }
   }
 
   return (
-    <div className="grid gap-5">
-      <AttendanceHeader branchName={workspaceData.branchName} timezone={workspaceData.timezone} nowMs={nowMs} onTabChange={setTab} />
-      <AttendanceTabs activeTab={selectedTab} onTabChange={setTab} />
-      {notice ? (
-        <WorkspaceNotice tone={notice.ok ? "success" : "error"} className="font-semibold">
-          {notice.message}
-        </WorkspaceNotice>
-      ) : null}
-
-      <AttendanceTabPanel
-        id={attendanceTabPanelId("overview")}
-        labelledBy={attendanceTabId("overview")}
-        active={selectedTab === "overview"}
-      >
-        <AttendanceOverview data={workspaceData} nowMs={nowMs} onTabChange={setTab} />
-      </AttendanceTabPanel>
-      <AttendanceTabPanel
-        id={attendanceTabPanelId("records")}
-        labelledBy={attendanceTabId("records")}
-        active={selectedTab === "records"}
-      >
-        <AttendanceRecordsTab data={workspaceData} initialFilters={initialRecordFilters} onTabChange={setTab} />
-      </AttendanceTabPanel>
-      <AttendanceTabPanel
-        id={attendanceTabPanelId("sessions")}
-        labelledBy={attendanceTabId("sessions")}
-        active={selectedTab === "sessions"}
-      >
-        <ServiceSessionsTab
-          data={workspaceData}
-          nowMs={nowMs}
-          onActionResult={handleActionResult}
-          onTabChange={setTab}
-        />
-      </AttendanceTabPanel>
-      <AttendanceTabPanel
-        id={attendanceTabPanelId("qr")}
-        labelledBy={attendanceTabId("qr")}
-        active={selectedTab === "qr"}
-      >
-        <QrCodesTab
-          data={workspaceData}
-          nowMs={nowMs}
-          selectedQrId={activeQrId}
-          selectedFormat={selectedFormat}
-          onSelectedQrChange={setSelectedQrId}
-          onFormatChange={setSelectedFormat}
-          onActionResult={handleActionResult}
-        />
-      </AttendanceTabPanel>
-      <AttendanceTabPanel
-        id={attendanceTabPanelId("devices")}
-        labelledBy={attendanceTabId("devices")}
-        active={selectedTab === "devices"}
-      >
-        <RegisteredDevicesTab
-          data={workspaceData}
-          nowMs={nowMs}
-          routeBasePath={routeBasePath}
-          routeBranchId={routeBranchId}
-        />
-      </AttendanceTabPanel>
-      <AttendanceTabPanel
-        id={attendanceTabPanelId("exceptions")}
-        labelledBy={attendanceTabId("exceptions")}
-        active={selectedTab === "exceptions"}
-      >
-        <AttendanceRecoveryTab data={workspaceData} onActionResult={handleActionResult} onTabChange={setTab} />
-      </AttendanceTabPanel>
-      <AttendanceTabPanel
-        id={attendanceTabPanelId("reports")}
-        labelledBy={attendanceTabId("reports")}
-        active={selectedTab === "reports"}
-      >
-        <AttendanceReportsTab data={workspaceData} />
-      </AttendanceTabPanel>
-      {workspaceData.staffOptions.length === 0 ? (
-        <EmptyState title="No active staff loaded." detail="Attendance needs active branch staff before live status can be useful." />
-      ) : null}
+    <div className="grid gap-4">
+      <AttendanceHeader
+        branchName={workspaceData.branchName}
+        timezone={workspaceData.timezone}
+        nowMs={nowMs}
+        reviewCount={reviewCount}
+        refreshing={isValidating}
+        onRefresh={() => void handleManualRefresh()}
+        onTabChange={setTab}
+      />
+      <section className="overflow-hidden rounded-[var(--cs-r-lg)] border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
+        <div className="border-b border-[var(--cs-border-soft)]">
+          <AttendanceTabs activeTab={selectedTab} reviewCount={reviewCount} onTabChange={setTab} />
+        </div>
+        <div className="grid gap-4 p-3 sm:p-4 lg:p-5">
+          {notice ? (
+            <WorkspaceNotice tone={notice.ok ? "success" : "error"} className="font-semibold">
+              {notice.message}
+            </WorkspaceNotice>
+          ) : null}
+          <AttendanceTabContent
+            data={workspaceData}
+            selectedTab={selectedTab}
+            mountedTabs={mountedTabs}
+            nowMs={nowMs}
+            initialRecordFilters={props.initialRecordFilters}
+            activeQrId={activeQrId}
+            selectedFormat={selectedFormat}
+            routeBasePath={routeBasePath}
+            routeBranchId={routeBranchId}
+            onTabChange={setTab}
+            onSelectedQrChange={setSelectedQrId}
+            onFormatChange={setSelectedFormat}
+            onActionResult={handleActionResult}
+          />
+        </div>
+      </section>
     </div>
   );
 }

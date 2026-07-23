@@ -6,7 +6,10 @@ import { cn } from "@/lib/utils";
 type AttendanceTone = "good" | "warn" | "bad" | "neutral";
 type NoticeTone = "success" | "warning" | "error" | "info";
 
-export function formatAttendanceDateTime(value: string | null | undefined, timezone = "Asia/Manila"): string {
+export function formatAttendanceDateTime(
+  value: string | null | undefined,
+  timezone = "Asia/Manila"
+): string {
   if (!value) return "-";
   return new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
@@ -31,12 +34,14 @@ export function humanizeAttendanceValue(value: string): string {
 }
 
 export function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "CH";
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "CH"
+  );
 }
 
 export function Panel({
@@ -53,7 +58,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn("cs-card grid gap-3 rounded-lg p-4", className)}>
+    <section className={cn("cs-card grid gap-3 p-4", className)}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="m-0 text-[0.98rem] font-bold text-foreground">{title}</h2>
@@ -173,7 +178,9 @@ export function WorkspaceSection({
   className?: string;
 }) {
   return (
-    <section className={cn("overflow-hidden rounded-lg border border-border bg-card shadow-sm", className)}>
+    <section
+      className={cn("overflow-hidden rounded-lg border border-border bg-card shadow-sm", className)}
+    >
       <WorkspaceSectionHeader
         title={title}
         description={description}
@@ -239,7 +246,9 @@ export function ToolbarShell({
       )}
     >
       <div className={cn("grid min-w-0 flex-1 gap-3", fieldsClassName)}>{children}</div>
-      {actions ? <div className="flex flex-wrap items-center gap-2 2xl:justify-end">{actions}</div> : null}
+      {actions ? (
+        <div className="flex flex-wrap items-center gap-2 2xl:justify-end">{actions}</div>
+      ) : null}
     </div>
   );
 }
@@ -269,7 +278,7 @@ export function ToolbarSelect({
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          className="h-10 w-full min-w-0 appearance-none rounded-lg border border-border bg-background px-3 pr-9 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
+          className="h-10 w-full min-w-0 appearance-none rounded-lg border border-border bg-background px-3 pr-9 text-sm font-semibold text-foreground shadow-sm outline-none transition focus:border-[var(--cs-crm-accent)] disabled:cursor-not-allowed disabled:opacity-70"
         >
           {children}
         </select>
@@ -338,9 +347,21 @@ export function AttendanceTabPanel({
 export function StatusPill({ value, tone }: { value: string; tone?: AttendanceTone }) {
   const inferredTone =
     tone ??
-    (["success", "active", "checked_in", "available", "in_service", "present", "resolved", "completed", "session_started"].includes(value)
+    ([
+      "success",
+      "active",
+      "checked_in",
+      "available",
+      "in_service",
+      "present",
+      "resolved",
+      "completed",
+      "session_started",
+    ].includes(value)
       ? "good"
-      : ["open", "late", "early_leave", "overtime", "blocked", "warning", "ending_soon"].includes(value)
+      : ["open", "late", "early_leave", "overtime", "blocked", "warning", "ending_soon"].includes(
+            value
+          )
         ? "warn"
         : ["revoked", "error", "overdue", "conflict", "rejected"].includes(value)
           ? "bad"
@@ -350,10 +371,10 @@ export function StatusPill({ value, tone }: { value: string; tone?: AttendanceTo
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize",
-        inferredTone === "good" && "bg-emerald-100 text-emerald-800",
-        inferredTone === "warn" && "bg-amber-100 text-amber-800",
-        inferredTone === "bad" && "bg-red-100 text-red-700",
-        inferredTone === "neutral" && "bg-slate-100 text-muted-foreground"
+        inferredTone === "good" && "bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]",
+        inferredTone === "warn" && "bg-[var(--cs-warning-bg)] text-[var(--cs-warning-text)]",
+        inferredTone === "bad" && "bg-[var(--cs-error-bg)] text-[var(--cs-error-text)]",
+        inferredTone === "neutral" && "bg-[var(--cs-neutral-bg)] text-[var(--cs-neutral-text)]"
       )}
     >
       {humanizeAttendanceValue(value)}
@@ -363,19 +384,31 @@ export function StatusPill({ value, tone }: { value: string; tone?: AttendanceTo
 
 export function StaffAvatar({ name }: { name: string }) {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-900 text-xs font-bold text-white">
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--cs-crm-accent)] text-xs font-bold text-white">
       {getInitials(name)}
     </span>
   );
 }
 
-export function RemainingProgress({ remainingMinutes, totalMinutes }: { remainingMinutes: number; totalMinutes: number }) {
-  const percent = totalMinutes > 0 ? Math.max(0, Math.min(100, (remainingMinutes / totalMinutes) * 100)) : 0;
+export function RemainingProgress({
+  remainingMinutes,
+  totalMinutes,
+}: {
+  remainingMinutes: number;
+  totalMinutes: number;
+}) {
+  const percent =
+    totalMinutes > 0 ? Math.max(0, Math.min(100, (remainingMinutes / totalMinutes) * 100)) : 0;
   return (
     <div className="grid min-w-24 gap-1">
-      <span className="text-xs font-semibold">{formatMinutesCompact(Math.max(0, remainingMinutes))}</span>
-      <span className="h-1.5 overflow-hidden rounded-full bg-emerald-950/10">
-        <span className="block h-full rounded-full bg-emerald-700" style={{ width: `${percent}%` }} />
+      <span className="text-xs font-semibold">
+        {formatMinutesCompact(Math.max(0, remainingMinutes))}
+      </span>
+      <span className="h-1.5 overflow-hidden rounded-full bg-[var(--cs-neutral-bg)]">
+        <span
+          className="block h-full rounded-full bg-[var(--cs-crm-accent)]"
+          style={{ width: `${percent}%` }}
+        />
       </span>
     </div>
   );

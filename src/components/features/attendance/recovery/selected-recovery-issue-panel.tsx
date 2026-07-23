@@ -91,17 +91,20 @@ export function SelectedRecoveryIssuePanel({
     );
   }
 
-  const canResolveBranch =
-    issue.exception ? getInternalAttendanceExceptionType(issue.exception) === "wrong_branch" && Boolean(issue.staffId) : false;
+  const canResolveBranch = issue.exception
+    ? getInternalAttendanceExceptionType(issue.exception) === "wrong_branch" &&
+      Boolean(issue.staffId)
+    : false;
   const policySnapshot = issue.record?.attendance_policy_snapshot ?? null;
   const expectedEnd = snapshotText(policySnapshot, "expectedEndAt");
-  const scheduledEnd = snapshotText(policySnapshot, "resolvedScheduleEndAt")
-    ?? snapshotText(policySnapshot, "rawScheduledEndAt");
+  const scheduledEnd =
+    snapshotText(policySnapshot, "resolvedScheduleEndAt") ??
+    snapshotText(policySnapshot, "rawScheduledEndAt");
   const source = snapshotText(policySnapshot, "kind");
   const sourceEvidenceId = compactEvidenceId(
-    snapshotText(policySnapshot, "sourceBookingId")
-      ?? snapshotText(policySnapshot, "sourceDispatchId")
-      ?? snapshotText(policySnapshot, "sourceTripId")
+    snapshotText(policySnapshot, "sourceBookingId") ??
+      snapshotText(policySnapshot, "sourceDispatchId") ??
+      snapshotText(policySnapshot, "sourceTripId")
   );
   const buffer = snapshotText(policySnapshot, "appliedBufferMinutes");
   const method = snapshotText(policySnapshot, "clockOutMethod");
@@ -150,7 +153,11 @@ export function SelectedRecoveryIssuePanel({
             <InfoTile label="Device Info" value={issue.deviceInfo ?? "Not available"} />
             <InfoTile
               label="Scan Count"
-              value={issue.scanCount === null ? "—" : `${issue.scanCount} scan${issue.scanCount === 1 ? "" : "s"}`}
+              value={
+                issue.scanCount === null
+                  ? "—"
+                  : `${issue.scanCount} scan${issue.scanCount === 1 ? "" : "s"}`
+              }
             />
           </div>
 
@@ -170,9 +177,15 @@ export function SelectedRecoveryIssuePanel({
                 value={scheduledEnd ? formatAttendanceDateTime(scheduledEnd) : "Not available"}
               />
               <InfoTile label="Dynamic source" value={source ?? "schedule"} />
-              <InfoTile label="Source evidence" value={sourceEvidenceId ?? "No qualifying assignment"} />
+              <InfoTile
+                label="Source evidence"
+                value={sourceEvidenceId ?? "No qualifying assignment"}
+              />
               <InfoTile label="Applied buffer" value={buffer ? `${buffer} minutes` : "0 minutes"} />
-              <InfoTile label="Clock-out method" value={method ?? issue.record.clock_out_method ?? "Not completed"} />
+              <InfoTile
+                label="Clock-out method"
+                value={method ?? issue.record.clock_out_method ?? "Not completed"}
+              />
               {blockedReason && blockedReason !== "use_branch_qr" ? (
                 <InfoTile label="Portal result" value={blockedReason} />
               ) : null}
@@ -240,18 +253,21 @@ export function SelectedRecoveryIssuePanel({
             )}
           </div>
 
-          {issue.category === "device_access" ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-amber-800" />
-              <div>
-                <div className="font-bold text-foreground">About Device Recovery</div>
-                <p className="mt-1 text-sm leading-6 text-amber-900">
-                  Recovery links reconnect a phone securely to the staff member profile.
-                  The current device remains active until the new device confirms, unless CRM revokes it.
-                </p>
+          {issue.category === "device_access" ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 size-5 shrink-0 text-amber-800" />
+                <div>
+                  <div className="font-bold text-foreground">About Device Recovery</div>
+                  <p className="mt-1 text-sm leading-6 text-amber-900">
+                    Recovery links reconnect a phone securely to the staff member profile. The
+                    current device remains active until the new device confirms, unless CRM revokes
+                    it.
+                  </p>
+                </div>
               </div>
             </div>
-          </div> : null}
+          ) : null}
         </div>
 
         <aside className="grid content-start gap-4 rounded-3xl border border-border bg-card p-4">
@@ -260,17 +276,22 @@ export function SelectedRecoveryIssuePanel({
           {issue.category === "device_access" ? (
             <Button type="button" onClick={onOpenDevices}>
               <Link2 className="mr-2 size-4" />
-              Generate Recovery Link
+              Connect Replacement Phone
             </Button>
           ) : null}
 
           {canResolveBranch ? (
             <>
               <Button type="button" disabled={isPending} onClick={() => onAllowBranchToday(issue)}>
-                Allow This Branch Today
+                Approve Temporary Assignment
               </Button>
-              <Button type="button" variant="outline" disabled={isPending} onClick={() => onCorrectPermanentBranch(issue)}>
-                Correct Permanent Branch
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => onCorrectPermanentBranch(issue)}
+              >
+                Transfer Permanently
               </Button>
             </>
           ) : null}
@@ -285,30 +306,51 @@ export function SelectedRecoveryIssuePanel({
           {issue.category === "device_access" ? (
             <Button type="button" variant="outline" onClick={onOpenDevices}>
               <Smartphone className="mr-2 size-4" />
-              Open Devices Tab
+              Open Staff Phones
             </Button>
           ) : null}
 
           {issue.staffId ? (
-            <Button type="button" variant="outline" disabled={isPending} onClick={() => onAskStaff(issue)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => onAskStaff(issue)}
+            >
               <MessageSquareText className="mr-2 size-4" />
               Ask Staff for Information
             </Button>
           ) : null}
 
-          {issue.exception?.exception_type.toLowerCase().includes("attendance_") || issue.exception?.severity === "critical" ? (
-            <Button type="button" variant="outline" disabled={isPending} onClick={() => onEscalateTechnical(issue)}>
+          {issue.exception?.exception_type.toLowerCase().includes("attendance_") ||
+          issue.exception?.severity === "critical" ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => onEscalateTechnical(issue)}
+            >
               <ShieldCheck className="mr-2 size-4" />
               Escalate to Technical Support
             </Button>
           ) : null}
 
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => onMarkReviewed(issue)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => onMarkReviewed(issue)}
+          >
             <CheckCircle2 className="mr-2 size-4" />
             Mark as Reviewed
           </Button>
 
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => onIgnoreAsTest(issue)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => onIgnoreAsTest(issue)}
+          >
             <ShieldCheck className="mr-2 size-4" />
             Ignore as Test Scan
           </Button>
@@ -340,7 +382,6 @@ export function SelectedRecoveryIssuePanel({
                 className="min-h-20 rounded-xl border border-border bg-card p-3 text-sm font-normal outline-none focus:border-primary"
               />
             </label>
-
           </div>
         </aside>
       </div>
@@ -351,9 +392,7 @@ export function SelectedRecoveryIssuePanel({
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-muted/30 p-3">
-      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-2 text-sm font-bold text-foreground">{value}</div>
     </div>
   );

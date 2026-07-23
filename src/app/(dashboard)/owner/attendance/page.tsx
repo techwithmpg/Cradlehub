@@ -17,16 +17,12 @@ export default async function OwnerAttendancePage({
   searchParams: Promise<AttendanceSearchParams>;
 }) {
   const params = await searchParams;
-  const branchResult = await loadOwnerAttendanceBranch(
-    oneAttendanceParam(params.branchId)
-  );
+  const branchResult = await loadOwnerAttendanceBranch(oneAttendanceParam(params.branchId));
   const activeTab = parseAttendanceTab(params.tab);
   const headerStore = await headers();
 
   let data = null;
-  let error: string | null = branchResult.branch
-    ? null
-    : "No active branch is available.";
+  let error: string | null = branchResult.branch ? null : "No active branch is available.";
 
   try {
     if (branchResult.branch) {
@@ -54,6 +50,7 @@ export default async function OwnerAttendancePage({
         </Alert>
       ) : (
         <AttendanceWorkspace
+          key={activeTab}
           data={data}
           activeTab={activeTab}
           initialNowMs={data.serverNowMs}
@@ -63,9 +60,7 @@ export default async function OwnerAttendancePage({
           flash={{
             status: oneAttendanceParam(params.status),
             message:
-              oneAttendanceParam(params.message) ??
-              branchResult.warning ??
-              filterResult?.warning,
+              oneAttendanceParam(params.message) ?? branchResult.warning ?? filterResult?.warning,
             activationUrl: oneAttendanceParam(params.activationUrl),
             expiresAt: oneAttendanceParam(params.expiresAt),
           }}

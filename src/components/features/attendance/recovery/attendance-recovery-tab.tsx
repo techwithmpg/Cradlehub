@@ -36,7 +36,7 @@ const RECOVERY_VIEWS: Array<{
   key: RecoveryView;
   label: string;
 }> = [
-  { key: "today", label: "Review Queue" },
+  { key: "today", label: "Scan Problems" },
   { key: "device_recovery", label: "Device Recovery" },
   { key: "staff_day_repair", label: "Staff Day Repair" },
   { key: "rules_safety", label: "Rules & Safety" },
@@ -47,10 +47,12 @@ export function AttendanceRecoveryTab({
   data,
   onActionResult,
   onTabChange,
+  focusStaffId,
 }: {
   data: AttendanceWorkspaceData;
   onActionResult: (result: AttendanceActionResult) => void;
   onTabChange: (tab: AttendanceTab) => void;
+  focusStaffId?: string | null;
 }) {
   const [view, setView] = useState<RecoveryView>("today");
   const [activeCategory, setActiveCategory] = useState<RecoveryIssueCategory | "all">("all");
@@ -88,7 +90,10 @@ export function AttendanceRecoveryTab({
   }, [activeCategory, allIssues, view]);
 
   const selectedIssue =
-    visibleIssues.find((issue) => issue.id === selectedIssueId) ?? visibleIssues[0] ?? null;
+    visibleIssues.find((issue) => issue.id === selectedIssueId) ??
+    (focusStaffId ? visibleIssues.find((issue) => issue.staffId === focusStaffId) : null) ??
+    visibleIssues[0] ??
+    null;
 
   function markLocalReviewed(issue: RecoveryIssue) {
     onActionResult({
@@ -120,46 +125,59 @@ export function AttendanceRecoveryTab({
     }
 
     startTransition(async () => {
-      onActionResult(await applyAttendanceCorrectionAction({
-        branchId: data.branchId,
-        actionType: "ignore_scan",
-        exceptionId: issue.exception!.id,
-        checkinId: issue.exception!.checkin_id,
-        staffId: issue.exception!.staff_id,
-        reason: `Marked as an accidental or test scan. ${notes || reason}`,
-      }));
+      onActionResult(
+        await applyAttendanceCorrectionAction({
+          branchId: data.branchId,
+          actionType: "ignore_scan",
+          exceptionId: issue.exception!.id,
+          checkinId: issue.exception!.checkin_id,
+          staffId: issue.exception!.staff_id,
+          reason: `Marked as an accidental or test scan. ${notes || reason}`,
+        })
+      );
     });
   }
 
   function resolveBranchAssignment(issue: RecoveryIssue, permanent: boolean) {
     if (!issue.exception || !issue.staffId) return;
-    const scannedBranchId = typeof issue.exception.metadata.scanned_branch_id === "string"
-      ? issue.exception.metadata.scanned_branch_id
-      : data.branchId;
+    const scannedBranchId =
+      typeof issue.exception.metadata.scanned_branch_id === "string"
+        ? issue.exception.metadata.scanned_branch_id
+        : data.branchId;
     startTransition(async () => {
-      onActionResult(await applyAttendanceCorrectionAction({
-        branchId: data.branchId,
-        targetBranchId: scannedBranchId,
-        actionType: permanent ? "change_permanent_branch" : "allow_branch_today",
-        exceptionId: issue.exception!.id,
-        staffId: issue.staffId,
-        attendanceDate: data.businessDate,
-        reason: `${reason}${notes ? ` ${notes}` : ""}`,
-      }));
+      onActionResult(
+        await applyAttendanceCorrectionAction({
+          branchId: data.branchId,
+          targetBranchId: scannedBranchId,
+          actionType: permanent ? "change_permanent_branch" : "allow_branch_today",
+          exceptionId: issue.exception!.id,
+          staffId: issue.staffId,
+          attendanceDate: data.businessDate,
+          reason: `${reason}${notes ? ` ${notes}` : ""}`,
+        })
+      );
     });
   }
 
   function askStaff(issue: RecoveryIssue) {
     if (!issue.exception || !issue.staffId) return;
-    startTransition(async () => onActionResult(await askStaffAboutAttendanceIssueAction({
-      exceptionId: issue.exception!.id,
-      message: notes.trim() || "Please tell CRM what happened when you attempted this Attendance scan.",
-    })));
+    startTransition(async () =>
+      onActionResult(
+        await askStaffAboutAttendanceIssueAction({
+          exceptionId: issue.exception!.id,
+          message:
+            notes.trim() ||
+            "Please tell CRM what happened when you attempted this Attendance scan.",
+        })
+      )
+    );
   }
 
   function escalateTechnical(issue: RecoveryIssue) {
     if (!issue.exception) return;
-    startTransition(async () => onActionResult(await escalateAttendanceIssueAction(issue.exception!.id)));
+    startTransition(async () =>
+      onActionResult(await escalateAttendanceIssueAction(issue.exception!.id))
+    );
   }
 
   function applyManualClockOut(record: AttendanceRecord, repairReason: string) {
@@ -175,7 +193,11 @@ export function AttendanceRecoveryTab({
     });
   }
 
-  function resetAttendanceState(record: AttendanceRecord, repairReason: string, confirmVoid: boolean) {
+  function resetAttendanceState(
+    record: AttendanceRecord,
+    repairReason: string,
+    confirmVoid: boolean
+  ) {
     startTransition(async () => {
       onActionResult(
         await applyAttendanceCorrectionAction({
@@ -225,8 +247,8 @@ export function AttendanceRecoveryTab({
 
   return (
     <WorkspaceSection
-      title="Attendance Review Queue"
-      description="One queue for uncertain scans, attendance corrections, device recovery, and audit history."
+      title="Fix Scan Problems"
+      description="Review uncertain scans, correct Attendance safely, reconnect phones and keep an audit trail."
       context={
         <>
           <ContextChip
@@ -241,7 +263,7 @@ export function AttendanceRecoveryTab({
             className="min-h-10"
             icon={<CalendarDays className="size-4" />}
           >
-            Review Queue
+            Fix a Scan
           </ContextChip>
         </>
       }

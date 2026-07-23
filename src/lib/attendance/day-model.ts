@@ -1,4 +1,9 @@
 import { branchDateTimeToIsoInTimezone } from "@/lib/attendance/shift-instance";
+import {
+  effectiveAttendanceExceptionType,
+  isActionableAttendanceException,
+} from "@/lib/attendance/attendance-exception-actionability";
+import { getAttendanceScheduleWindows } from "@/lib/attendance/attendance-schedule-windows";
 import type {
   AttendanceException,
   AttendanceRecord,
@@ -33,11 +38,7 @@ export type AttendanceDayCurrentState =
   | "absent"
   | "needs_review";
 
-export type AttendanceAvailabilityState =
-  | "not_available"
-  | "available"
-  | "in_service"
-  | "on_break";
+export type AttendanceAvailabilityState = "not_available" | "available" | "in_service" | "on_break";
 
 export type AttendanceOperationalStatus =
   | "not_expected"
@@ -87,6 +88,7 @@ export type AttendanceDayStaffState = {
   activeServiceSession: AttendanceSession | null;
   availabilityState: AttendanceAvailabilityState;
   exceptionState: "clear" | "open";
+  currentExceptionIds: string[];
   issueCodes: string[];
   displayLabel: string;
   actionRequired: boolean;
@@ -208,15 +210,17 @@ export function resolveAttendanceDayStaffStates(params: {
   );
 
   return params.staff.map((staff) => {
-    const schedule = params.schedules.get(staff.id) ?? {
-      source: "none",
-      status: "missing",
-      state: "NO_SCHEDULE_CONFIGURED",
-      isWorking: false,
-      isDayOff: false,
-      windows: [],
-    } satisfies ResolvedStaffSchedule;
-    const shiftWindows = schedule.windows
+    const schedule =
+      params.schedules.get(staff.id) ??
+      ({
+        source: "none",
+        status: "missing",
+        state: "NO_SCHEDULE_CONFIGURED",
+        isWorking: false,
+        isDayOff: false,
+        windows: [],
+      } satisfies ResolvedStaffSchedule);
+    const shiftWindows = getAttendanceScheduleWindows(schedule)
       .map((window, index) =>
         windowToDayWindow({
           window,
@@ -237,6 +241,8 @@ export function resolveAttendanceDayStaffStates(params: {
       }) ?? null;
     const nextShiftWindow =
       shiftWindows.find((window) => new Date(window.scheduledStartAt).getTime() > nowMs) ?? null;
+    const startedShiftWindow =
+      shiftWindows.find((window) => new Date(window.scheduledStartAt).getTime() <= nowMs) ?? null;
 
     let scheduleState: AttendanceDayScheduleState;
     if (schedule.status === "not_operational") scheduleState = "not_scheduled";
@@ -245,7 +251,10 @@ export function resolveAttendanceDayStaffStates(params: {
     else if (schedule.status === "conflict") scheduleState = "schedule_conflict";
     else if (currentShiftWindow) scheduleState = "expected_now";
     else if (nextShiftWindow) {
-      const minutesUntilStart = minuteDifference(params.now.toISOString(), nextShiftWindow.scheduledStartAt);
+      const minutesUntilStart = minuteDifference(
+        params.now.toISOString(),
+        nextShiftWindow.scheduledStartAt
+      );
       scheduleState = minutesUntilStart <= earlyMinutes ? "expected_soon" : "scheduled_later";
     } else scheduleState = "shift_complete";
 
@@ -264,17 +273,25 @@ export function resolveAttendanceDayStaffStates(params: {
           !session.session_completed_at
       ) ?? null;
     const openExceptions = params.exceptions.filter(
-      (exception) => exception.staff_id === staff.id && exception.status === "open"
+      (exception) => exception.staff_id === staff.id && isActionableAttendanceException(exception)
     );
     const issueCodes = [
       ...(schedule.conflictCode ? [schedule.conflictCode] : []),
-      ...openExceptions.map((exception) => exception.exception_type),
+      ...openExceptions.map(effectiveAttendanceExceptionType),
     ];
     const isOpen = record?.status === "checked_in" && !record.checked_out_at;
-    const scheduledStart = currentShiftWindow?.scheduledStartAt ?? nextShiftWindow?.scheduledStartAt ?? shiftWindows[0]?.scheduledStartAt ?? null;
-    const scheduledEnd = currentShiftWindow?.scheduledEndAt ?? nextShiftWindow?.scheduledEndAt ?? shiftWindows.at(-1)?.scheduledEndAt ?? null;
-    const lateBoundary = currentShiftWindow
-      ? new Date(currentShiftWindow.scheduledStartAt).getTime() + lateGraceMinutes * 60_000
+    const scheduledStart =
+      currentShiftWindow?.scheduledStartAt ??
+      nextShiftWindow?.scheduledStartAt ??
+      shiftWindows[0]?.scheduledStartAt ??
+      null;
+    const scheduledEnd =
+      currentShiftWindow?.scheduledEndAt ??
+      nextShiftWindow?.scheduledEndAt ??
+      shiftWindows.at(-1)?.scheduledEndAt ??
+      null;
+    const lateBoundary = startedShiftWindow
+      ? new Date(startedShiftWindow.scheduledStartAt).getTime() + lateGraceMinutes * 60_000
       : null;
 
     let currentAttendanceState: AttendanceDayCurrentState;
@@ -282,28 +299,34 @@ export function resolveAttendanceDayStaffStates(params: {
     else if (openExceptions.length > 0) currentAttendanceState = "needs_review";
     else if (isOpen && currentShiftWindow) currentAttendanceState = "available";
     else if (isOpen) currentAttendanceState = "clocked_in";
-    else if (record?.checked_out_at || record?.status === "checked_out") currentAttendanceState = "clocked_out";
+    else if (record?.checked_out_at || record?.status === "checked_out")
+      currentAttendanceState = "clocked_out";
     else if (scheduleState === "schedule_conflict") currentAttendanceState = "needs_review";
-    else if (scheduleState === "expected_now" && lateBoundary !== null && nowMs > lateBoundary) {
+    else if (startedShiftWindow && lateBoundary !== null && nowMs > lateBoundary) {
       currentAttendanceState = "late_not_arrived";
     } else if (scheduleState === "expected_now") currentAttendanceState = "not_arrived";
     else currentAttendanceState = "not_expected";
 
-    const capturedWithoutAttendance = !record && openExceptions.length > 0 && openExceptions.every(
-      (exception) => [
-        "likely_closing_scan_without_clock_in",
-        "already_checked_out",
-        "wrong_branch",
-      ].includes(exception.exception_type)
-    );
+    const capturedWithoutAttendance =
+      !record &&
+      openExceptions.length > 0 &&
+      openExceptions.every((exception) =>
+        ["likely_closing_scan_without_clock_in", "already_checked_out", "wrong_branch"].includes(
+          effectiveAttendanceExceptionType(exception)
+        )
+      );
     let operationalStatus: AttendanceOperationalStatus;
     if (activeServiceSession) operationalStatus = "on_service";
     else if (capturedWithoutAttendance) operationalStatus = "scan_captured";
-    else if (openExceptions.length > 0 || scheduleState === "schedule_conflict") operationalStatus = "needs_review";
+    else if (openExceptions.length > 0 || scheduleState === "schedule_conflict")
+      operationalStatus = "needs_review";
     else if (isOpen) operationalStatus = "clocked_in";
-    else if (record?.checked_out_at || record?.status === "checked_out") operationalStatus = "clocked_out";
-    else if (scheduleState === "expected_now" && lateBoundary !== null && nowMs > lateBoundary) operationalStatus = "missing";
-    else if (["expected_now", "expected_soon", "scheduled_later"].includes(scheduleState)) operationalStatus = "expected_later";
+    else if (record?.checked_out_at || record?.status === "checked_out")
+      operationalStatus = "clocked_out";
+    else if (startedShiftWindow && lateBoundary !== null && nowMs > lateBoundary)
+      operationalStatus = "missing";
+    else if (["expected_now", "expected_soon", "scheduled_later"].includes(scheduleState))
+      operationalStatus = "expected_later";
     else operationalStatus = "not_expected";
 
     const workedMinutes = record
@@ -311,18 +334,17 @@ export function resolveAttendanceDayStaffStates(params: {
         ? record.worked_minutes
         : minuteDifference(record.checked_in_at, params.now.toISOString())
       : 0;
-    const lateMinutes = record?.late_minutes ?? (
-      currentAttendanceState === "late_not_arrived" && currentShiftWindow
-        ? minuteDifference(currentShiftWindow.scheduledStartAt, params.now.toISOString())
-        : 0
-    );
+    const lateMinutes =
+      record?.late_minutes ??
+      (currentAttendanceState === "late_not_arrived" && startedShiftWindow
+        ? minuteDifference(startedShiftWindow.scheduledStartAt, params.now.toISOString())
+        : 0);
     const availabilityState: AttendanceAvailabilityState = activeServiceSession
       ? "in_service"
       : isOpen && currentShiftWindow !== null && openExceptions.length === 0
         ? "available"
         : "not_available";
-    const actionRequired =
-      operationalStatus === "missing" || operationalStatus === "needs_review";
+    const actionRequired = operationalStatus === "missing" || operationalStatus === "needs_review";
 
     return {
       staffId: staff.id,
@@ -351,6 +373,7 @@ export function resolveAttendanceDayStaffStates(params: {
       activeServiceSession,
       availabilityState,
       exceptionState: openExceptions.length > 0 ? "open" : "clear",
+      currentExceptionIds: openExceptions.map((exception) => exception.id),
       issueCodes: Array.from(new Set(issueCodes)),
       displayLabel: scheduleDisplayLabel(scheduleState, currentAttendanceState),
       actionRequired,

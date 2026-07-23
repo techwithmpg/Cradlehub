@@ -107,7 +107,8 @@ export function StaffDayRepairPanel({
                       {record.staff_nickname ?? record.staff_name}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {humanizeAttendanceValue(record.shift_type)} · {formatAttendanceDate(record.shift_date)}
+                      {humanizeAttendanceValue(record.shift_type)} ·{" "}
+                      {formatAttendanceDate(record.shift_date)}
                     </span>
                     <span className="mt-1 block text-xs text-muted-foreground">
                       In {formatAttendanceDateTime(record.checked_in_at)} · Out{" "}
@@ -133,7 +134,8 @@ export function StaffDayRepairPanel({
                     {selectedRecord.staff_nickname ?? selectedRecord.staff_name}
                   </h3>
                   <p className="text-sm capitalize text-muted-foreground">
-                    {selectedRecord.staff_type ?? "Staff"} · {humanizeAttendanceValue(selectedRecord.shift_type)}
+                    {selectedRecord.staff_type ?? "Staff"} ·{" "}
+                    {humanizeAttendanceValue(selectedRecord.shift_type)}
                   </p>
                 </div>
               </div>
@@ -141,19 +143,34 @@ export function StaffDayRepairPanel({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <RepairTile label="Clock In" value={formatAttendanceDateTime(selectedRecord.checked_in_at)} />
-              <RepairTile label="Clock Out" value={formatAttendanceDateTime(selectedRecord.checked_out_at)} />
-              <RepairTile label="Worked" value={formatMinutesCompact(selectedRecord.worked_minutes)} />
+              <RepairTile
+                label="Clock In"
+                value={formatAttendanceDateTime(selectedRecord.checked_in_at)}
+              />
+              <RepairTile
+                label="Clock Out"
+                value={formatAttendanceDateTime(selectedRecord.checked_out_at)}
+              />
+              <RepairTile
+                label="Worked"
+                value={formatMinutesCompact(selectedRecord.worked_minutes)}
+              />
               <RepairTile label="Late" value={formatMinutesCompact(selectedRecord.late_minutes)} />
-              <RepairTile label="Early Leave" value={formatMinutesCompact(selectedRecord.early_leave_minutes)} />
-              <RepairTile label="Overtime" value={formatMinutesCompact(selectedRecord.overtime_minutes)} />
+              <RepairTile
+                label="Early Leave"
+                value={formatMinutesCompact(selectedRecord.early_leave_minutes)}
+              />
+              <RepairTile
+                label="Overtime"
+                value={formatMinutesCompact(selectedRecord.overtime_minutes)}
+              />
             </div>
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <div className="font-bold text-foreground">Safe repair preview</div>
               <p className="mt-1 text-sm leading-6 text-amber-900">
-                This affects only the selected interpreted attendance record. Raw scan events
-                remain available for audit and future rebuilds.
+                This affects only the selected interpreted attendance record. Raw scan events remain
+                available for audit and future rebuilds.
               </p>
             </div>
 
@@ -176,8 +193,8 @@ export function StaffDayRepairPanel({
                   className="mt-1 size-4"
                 />
                 <span>
-                  I understand this voids only the selected interpreted attendance record
-                  and keeps raw scans plus correction history.
+                  I understand this voids only the selected interpreted attendance record and keeps
+                  raw scans plus correction history.
                 </span>
               </label>
             </div>
@@ -202,7 +219,7 @@ export function StaffDayRepairPanel({
                 onClick={() => onResetAttendanceState(selectedRecord, repairReason, confirmVoid)}
               >
                 <RotateCcw className="mr-2 size-4" />
-                Reset Next Scan State
+                Fix Next Scan
               </Button>
 
               <Button type="button" className="sm:col-span-2" disabled>
@@ -225,9 +242,7 @@ export function StaffDayRepairPanel({
 function RepairTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-2 text-sm font-bold text-foreground">{value}</div>
     </div>
   );

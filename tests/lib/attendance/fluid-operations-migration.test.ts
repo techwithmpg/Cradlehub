@@ -8,7 +8,10 @@ const migration = readFileSync(
 );
 const scanEngine = readFileSync(join(process.cwd(), "src/lib/attendance/scan-engine.ts"), "utf8");
 const reviewQueue = readFileSync(
-  join(process.cwd(), "src/components/features/attendance/recovery/selected-recovery-issue-panel.tsx"),
+  join(
+    process.cwd(),
+    "src/components/features/attendance/recovery/selected-recovery-issue-panel.tsx"
+  ),
   "utf8"
 );
 
@@ -32,8 +35,12 @@ describe("Attendance fluid operations database contract", () => {
   });
 
   it("links atomic corrections to their review exception", () => {
-    expect(migration).toContain("add column if not exists exception_id uuid references public.attendance_exceptions");
-    expect(migration).toContain("create or replace function public.apply_attendance_review_correction");
+    expect(migration).toContain(
+      "add column if not exists exception_id uuid references public.attendance_exceptions"
+    );
+    expect(migration).toContain(
+      "create or replace function public.apply_attendance_review_correction"
+    );
     expect(migration).toContain("for update");
     expect(migration).toContain("insert into public.attendance_corrections");
     expect(migration).toContain("to service_role");
@@ -46,8 +53,8 @@ describe("Attendance fluid operations database contract", () => {
   });
 
   it("exposes temporary and permanent branch resolution in the Review Queue", () => {
-    expect(reviewQueue).toContain("Allow This Branch Today");
-    expect(reviewQueue).toContain("Correct Permanent Branch");
+    expect(reviewQueue).toContain("Approve Temporary Assignment");
+    expect(reviewQueue).toContain("Transfer Permanently");
   });
 
   it("captures multiple opens and never invokes the legacy active-service attendance blocker", () => {
@@ -55,6 +62,8 @@ describe("Attendance fluid operations database contract", () => {
     expect(scanEngine).toContain('reasonCode: "conflicting_open_checkin"');
     const attendanceStart = scanEngine.indexOf("async function processAttendanceScan");
     const roomStart = scanEngine.indexOf("async function processRoomScan");
-    expect(scanEngine.slice(attendanceStart, roomStart)).not.toContain("active_service_blocks_clock_out");
+    expect(scanEngine.slice(attendanceStart, roomStart)).not.toContain(
+      "active_service_blocks_clock_out"
+    );
   });
 });

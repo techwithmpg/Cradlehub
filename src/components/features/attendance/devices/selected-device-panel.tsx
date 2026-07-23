@@ -3,14 +3,18 @@
 import { CalendarDays, History, Link2, Pencil, Smartphone, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StaffAvatar, formatAttendanceDateTime } from "@/components/features/attendance/attendance-ui";
+import {
+  StaffAvatar,
+  formatAttendanceDateTime,
+} from "@/components/features/attendance/attendance-ui";
 import type { AttendanceDeviceRegistryEntry } from "@/lib/attendance/types";
+import { attendanceWorkspaceHref } from "@/lib/attendance/workspace-navigation";
 
 function infoRows(entry: AttendanceDeviceRegistryEntry, timezone: string) {
   const device = entry.device;
   if (!device) {
     return [
-      ["Device", "No registered device"],
+      ["Phone", "Not connected"],
       ["Branch", entry.homeBranchName],
     ] as const;
   }
@@ -42,6 +46,21 @@ function branchDate(nowMs: number, timezone: string): string {
   return `${year}-${month}-${day}`;
 }
 
+function visibleStatus(value: string): string {
+  return (
+    (
+      {
+        active: "Connected",
+        never_used: "Connected · Not used",
+        recovery_pending: "Needs recovery",
+        revoked: "Disconnected",
+        no_device: "Not connected",
+        inactive_staff: "Inactive staff",
+      } as Record<string, string>
+    )[value] ?? value.replaceAll("_", " ")
+  );
+}
+
 export function SelectedDevicePanel({
   entry,
   nowMs,
@@ -69,9 +88,15 @@ export function SelectedDevicePanel({
     );
   }
 
-  const recordsHref = `${routeBasePath ?? "/crm/attendance"}?tab=records&staffId=${entry.staffId}&date=${branchDate(nowMs, timezone)}${
-    routeBranchId ? `&branchId=${routeBranchId}` : ""
-  }`;
+  const recordsHref = attendanceWorkspaceHref(
+    { view: "tools", tool: "history" },
+    {
+      basePath: routeBasePath,
+      branchId: routeBranchId,
+      staffId: entry.staffId,
+      date: branchDate(nowMs, timezone),
+    }
+  );
 
   return (
     <aside className="sticky top-4 overflow-hidden rounded-xl border border-stone-200 bg-white">
@@ -80,29 +105,35 @@ export function SelectedDevicePanel({
           <StaffAvatar name={entry.staffName} />
           <div className="min-w-0">
             <h2 className="truncate text-base font-bold text-stone-950">{entry.staffName}</h2>
-            <p className="truncate text-xs text-stone-500">{entry.staffType.replaceAll("_", " ")} - {entry.homeBranchName}</p>
+            <p className="truncate text-xs text-stone-500">
+              {entry.staffType.replaceAll("_", " ")} - {entry.homeBranchName}
+            </p>
           </div>
         </div>
-        <Badge variant="outline" className="capitalize">{entry.status.replaceAll("_", " ")}</Badge>
+        <Badge variant="outline">{visibleStatus(entry.status)}</Badge>
       </div>
 
       <div className="grid gap-4 p-5">
         <section>
           <h3 className="mb-3 text-sm font-bold text-stone-950">Device Information</h3>
           <div className="divide-y divide-stone-100 rounded-lg border border-stone-200">
-            {infoRows(entry, timezone).map(([label, value]) => (
+            {infoRows(entry, timezone).map(([label, value]) =>
               value ? (
                 <div key={label} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2 text-sm">
                   <span className="text-stone-500">{label}</span>
-                  <span className="max-w-44 truncate text-right font-semibold text-stone-950">{value}</span>
+                  <span className="max-w-44 truncate text-right font-semibold text-stone-950">
+                    {value}
+                  </span>
                 </div>
               ) : null
-            ))}
+            )}
           </div>
         </section>
 
         <details className="rounded-lg border border-stone-200 px-3 py-2 text-sm">
-          <summary className="cursor-pointer font-semibold text-stone-950">Technical Details</summary>
+          <summary className="cursor-pointer font-semibold text-stone-950">
+            Technical Details
+          </summary>
           <div className="mt-2 grid gap-1 text-xs text-stone-500">
             <span>Device ID: {entry.device?.id ?? "Not registered"}</span>
             <span>Staff ID: {entry.staffId}</span>
@@ -111,23 +142,38 @@ export function SelectedDevicePanel({
       </div>
 
       <div className="grid gap-3 border-t border-stone-200 p-5">
-        <Button type="button" className="bg-[#9A6A3A] text-white hover:bg-[#82572F]" onClick={() => onGenerateRecovery(entry)}>
+        <Button
+          type="button"
+          className="bg-[#9A6A3A] text-white hover:bg-[#82572F]"
+          onClick={() => onGenerateRecovery(entry)}
+        >
           <Link2 data-icon="inline-start" />
-          Generate recovery link
+          Connect replacement phone
         </Button>
-        <Button type="button" variant="outline" disabled={!entry.device} onClick={() => onRename(entry)}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!entry.device}
+          onClick={() => onRename(entry)}
+        >
           <Pencil data-icon="inline-start" />
           Rename device
         </Button>
-        <Button type="button" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" disabled={!entry.device} onClick={() => onRevoke(entry)}>
+        <Button
+          type="button"
+          variant="outline"
+          className="border-red-200 text-red-700 hover:bg-red-50"
+          disabled={!entry.device}
+          onClick={() => onRevoke(entry)}
+        >
           <Trash2 data-icon="inline-start" />
-          Revoke device
+          Disconnect phone
         </Button>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Button type="button" variant="outline" asChild>
             <a href={recordsHref}>
               <CalendarDays data-icon="inline-start" />
-              Attendance record
+              Attendance history
             </a>
           </Button>
           <Button type="button" variant="outline" asChild>

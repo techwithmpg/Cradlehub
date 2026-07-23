@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AttendanceWorkspace } from "@/components/features/attendance/attendance-workspace";
-import { parseAttendanceTab } from "@/lib/attendance/tabs";
+import { CrmAttendanceWorkspace } from "@/components/features/attendance/crm-attendance-workspace";
+import { parseCrmAttendanceNavigation } from "@/lib/attendance/crm-navigation";
 import { getAttendanceWorkspaceData } from "@/lib/attendance/queries";
 import { getRequestOrigin } from "@/lib/http/request-origin";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
@@ -18,7 +18,7 @@ export default async function CrmAttendancePage({
   searchParams: Promise<AttendanceSearchParams>;
 }) {
   const params = await searchParams;
-  const activeTab = parseAttendanceTab(params.tab);
+  const initialNavigation = parseCrmAttendanceNavigation(params);
   const context = await getFrontDeskContext();
   const headerStore = await headers();
 
@@ -30,6 +30,8 @@ export default async function CrmAttendancePage({
       branchId: context.branchId,
       branchName: context.branchName,
       origin: requestOrigin,
+      historyDays: 0,
+      openExceptionsOnly: true,
     });
   } catch (err) {
     error = err instanceof Error ? err.message : "Attendance data could not be loaded.";
@@ -48,16 +50,13 @@ export default async function CrmAttendancePage({
             <AlertDescription>{error ?? "Unknown error."}</AlertDescription>
           </Alert>
         ) : (
-          <AttendanceWorkspace
+          <CrmAttendanceWorkspace
             data={data}
-            activeTab={activeTab}
-            initialNowMs={data.serverNowMs}
-            initialRecordFilters={recordFilterResult?.filters}
+            initialNavigation={initialNavigation}
+            initialStaffId={recordFilterResult?.filters.staffId}
             flash={{
               status: oneAttendanceParam(params.status),
               message: oneAttendanceParam(params.message) ?? recordFilterResult?.warning,
-              activationUrl: oneAttendanceParam(params.activationUrl),
-              expiresAt: oneAttendanceParam(params.expiresAt),
             }}
           />
         )}

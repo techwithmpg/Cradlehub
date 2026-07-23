@@ -3,7 +3,10 @@
 import { MoreHorizontal, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StaffAvatar, formatAttendanceDateTime } from "@/components/features/attendance/attendance-ui";
+import {
+  StaffAvatar,
+  formatAttendanceDateTime,
+} from "@/components/features/attendance/attendance-ui";
 import { cn } from "@/lib/utils";
 import type { AttendanceDeviceRegistryEntry } from "@/lib/attendance/types";
 
@@ -17,7 +20,18 @@ const STATUS_TONES: Record<string, string> = {
 };
 
 function statusLabel(value: string): string {
-  return value.replaceAll("_", " ");
+  return (
+    (
+      {
+        active: "Connected",
+        never_used: "Connected · Not used",
+        recovery_pending: "Needs recovery",
+        revoked: "Disconnected",
+        no_device: "Not connected",
+        inactive_staff: "Inactive staff",
+      } as Record<string, string>
+    )[value] ?? value.replaceAll("_", " ")
+  );
 }
 
 export function DeviceRegistryTable({
@@ -34,16 +48,22 @@ export function DeviceRegistryTable({
   return (
     <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
       <div className="border-b border-stone-200 px-4 py-3">
-        <h2 className="text-base font-bold text-stone-950">Device Registry</h2>
-        <p className="text-xs text-stone-500">Registered phones and browsers authorized for attendance and service scanning.</p>
+        <h2 className="text-base font-bold text-stone-950">Staff Phones</h2>
+        <p className="text-xs text-stone-500">
+          Registered phones and browsers authorized for attendance and service scanning.
+        </p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[880px] text-sm">
           <thead className="bg-stone-50 text-left text-xs font-semibold text-stone-500">
             <tr>
-              {["Staff", "Device", "Registered", "Last Used", "Last Scan", "Status", "Actions"].map((heading) => (
-                <th key={heading} className="px-4 py-2">{heading}</th>
-              ))}
+              {["Staff", "Device", "Registered", "Last Used", "Last Scan", "Status", "Actions"].map(
+                (heading) => (
+                  <th key={heading} className="px-4 py-2">
+                    {heading}
+                  </th>
+                )
+              )}
             </tr>
           </thead>
           <tbody>
@@ -65,7 +85,9 @@ export function DeviceRegistryTable({
                     <StaffAvatar name={entry.staffName} />
                     <div>
                       <div className="font-semibold text-stone-950">{entry.staffName}</div>
-                      <div className="text-xs text-stone-500">{entry.staffType.replaceAll("_", " ")} - {entry.homeBranchName}</div>
+                      <div className="text-xs text-stone-500">
+                        {entry.staffType.replaceAll("_", " ")} - {entry.homeBranchName}
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -76,15 +98,19 @@ export function DeviceRegistryTable({
                       <div>
                         <div className="font-semibold text-stone-900">{entry.device.label}</div>
                         <div className="text-xs text-stone-500">
-                          {[entry.device.browserName, entry.device.platformName].filter(Boolean).join(" - ") || "Browser device"}
+                          {[entry.device.browserName, entry.device.platformName]
+                            .filter(Boolean)
+                            .join(" - ") || "Browser device"}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <span className="text-stone-400">No registered device</span>
+                    <span className="text-stone-400">Not connected</span>
                   )}
                 </td>
-                <td className="px-4 py-3">{formatAttendanceDateTime(entry.device?.registeredAt)}</td>
+                <td className="px-4 py-3">
+                  {formatAttendanceDateTime(entry.device?.registeredAt)}
+                </td>
                 <td className="px-4 py-3">{formatAttendanceDateTime(entry.device?.lastSeenAt)}</td>
                 <td className="px-4 py-3">{formatAttendanceDateTime(entry.device?.lastScanAt)}</td>
                 <td className="px-4 py-3">
@@ -94,7 +120,12 @@ export function DeviceRegistryTable({
                 </td>
                 <td className="px-4 py-3">
                   {entry.device ? (
-                    <Button type="button" variant="outline" size="icon-sm" aria-label={`Open ${entry.staffName}'s device details`}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Open ${entry.staffName}'s device details`}
+                    >
                       <MoreHorizontal />
                     </Button>
                   ) : (
@@ -107,7 +138,7 @@ export function DeviceRegistryTable({
                         onGenerateRecovery(entry);
                       }}
                     >
-                      Create link
+                      Connect phone
                     </Button>
                   )}
                 </td>

@@ -8,13 +8,16 @@ import {
 } from "@/components/features/attendance/attendance-ui";
 import type { AttendanceDeviceStatus } from "@/lib/attendance/types";
 
-export const DEVICE_STATUS_OPTIONS: Array<{ value: "all" | AttendanceDeviceStatus; label: string }> = [
+export const DEVICE_STATUS_OPTIONS: Array<{
+  value: "all" | AttendanceDeviceStatus;
+  label: string;
+}> = [
   { value: "all", label: "All Statuses" },
-  { value: "active", label: "Active" },
-  { value: "never_used", label: "Never used" },
-  { value: "recovery_pending", label: "Recovery pending" },
-  { value: "revoked", label: "Revoked" },
-  { value: "no_device", label: "No device" },
+  { value: "active", label: "Connected" },
+  { value: "never_used", label: "Connected · Not used" },
+  { value: "recovery_pending", label: "Needs recovery" },
+  { value: "revoked", label: "Disconnected" },
+  { value: "no_device", label: "Not connected" },
   { value: "inactive_staff", label: "Inactive staff" },
 ];
 
@@ -48,7 +51,11 @@ export function DeviceRegistryToolbar({
   return (
     <ToolbarShell
       fieldsClassName="md:grid-cols-[minmax(220px,1.2fr)_minmax(150px,0.75fr)_minmax(150px,0.75fr)_minmax(150px,0.75fr)]"
-      actions={<Button type="button" variant="outline" onClick={onClear}>Clear</Button>}
+      actions={
+        <Button type="button" variant="outline" onClick={onClear}>
+          Clear
+        </Button>
+      }
     >
       <ToolbarSearch
         label="Search"
@@ -57,13 +64,11 @@ export function DeviceRegistryToolbar({
         placeholder="Search staff or device..."
       />
       {canSwitchBranch ? (
-        <ToolbarSelect
-          label="Branch"
-          value={branchId}
-          onChange={onBranchChange}
-        >
+        <ToolbarSelect label="Branch" value={branchId} onChange={onBranchChange}>
           {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>{branch.name}</option>
+            <option key={branch.id} value={branch.id}>
+              {branch.name}
+            </option>
           ))}
         </ToolbarSelect>
       ) : null}
@@ -73,17 +78,17 @@ export function DeviceRegistryToolbar({
         onChange={(value) => onStatusChange(value as "all" | AttendanceDeviceStatus)}
       >
         {DEVICE_STATUS_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
         ))}
       </ToolbarSelect>
-      <ToolbarSelect
-        label="Staff Type"
-        value={staffType}
-        onChange={onStaffTypeChange}
-      >
+      <ToolbarSelect label="Staff Type" value={staffType} onChange={onStaffTypeChange}>
         <option value="all">All Staff Types</option>
         {staffTypes.map((type) => (
-          <option key={type} value={type}>{type.replaceAll("_", " ")}</option>
+          <option key={type} value={type}>
+            {type.replaceAll("_", " ")}
+          </option>
         ))}
       </ToolbarSelect>
     </ToolbarShell>

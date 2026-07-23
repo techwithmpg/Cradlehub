@@ -77,7 +77,8 @@ function methodLabel(record: AttendanceRecord): string {
     return `Auto-closed at ${clockTime} · Confirmation required`;
   }
   if (record.clock_out_method === "staff_portal_home_service") return "Staff Portal · Home service";
-  if (record.clock_out_method === "staff_portal_closing_shift") return "Staff Portal · Closing shift";
+  if (record.clock_out_method === "staff_portal_closing_shift")
+    return "Staff Portal · Closing shift";
   if (record.clock_out_method === "driver_portal_final_trip") return "Driver Portal · Final trip";
   return record.source_label ?? record.clock_in_method ?? record.clock_out_method ?? "QR / manual";
 }
@@ -637,7 +638,9 @@ export function AttendanceRecordsTab({
         <section className="overflow-hidden rounded-2xl border border-border bg-white p-4 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-foreground">Records ({rows.length})</h2>
+              <h2 className="text-base font-bold text-foreground">
+                Attendance History ({rows.length})
+              </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Attendance history, timing issues, and correction review.
               </p>
@@ -688,7 +691,8 @@ export function AttendanceRecordsTab({
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-xs text-muted-foreground">
             <span>
-              Showing {rows.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + pageRows.length, rows.length)} of {rows.length} records
+              Showing {rows.length === 0 ? 0 : pageStart + 1}–
+              {Math.min(pageStart + pageRows.length, rows.length)} of {rows.length} records
             </span>
 
             {pageCount > 1 ? (
