@@ -1,12 +1,22 @@
-import { isBookingClosedForCrm, isCrmPendingBookingStatus } from "@/lib/bookings/crm-booking-status";
+import {
+  isBookingClosedForCrm,
+  isCrmPendingBookingStatus,
+} from "@/lib/bookings/crm-booking-status";
 
-export type WorkQueueActionCategory = "confirmation" | "follow_up" | "exception" | "ready" | "closed";
+export type WorkQueueActionCategory =
+  | "confirmation"
+  | "follow_up"
+  | "exception"
+  | "ready"
+  | "closed";
 export type WorkQueuePrimaryKind = "booking" | "driver" | "payment" | "status";
 
 export type WorkQueueActionInput = {
   status: string;
   type: string;
   paymentStatus?: string | null;
+  bookingProgressStatus?: string | null;
+  sessionCompletedAt?: string | null;
   staffName?: string | null;
   resourceName?: string | null;
   dispatchWarning?: string | null;
@@ -116,7 +126,12 @@ export function getWorkQueueNextAction(input: WorkQueueActionInput): WorkQueueNe
     };
   }
 
-  if (needsPaymentFollowUp(input.paymentStatus) && !isBookingClosedForCrm(input.status)) {
+  const serviceComplete =
+    input.status === "completed" ||
+    input.bookingProgressStatus === "completed" ||
+    Boolean(input.sessionCompletedAt);
+
+  if (needsPaymentFollowUp(input.paymentStatus) && serviceComplete) {
     return {
       category: "follow_up",
       instruction: "Collect or confirm payment.",

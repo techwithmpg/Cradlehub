@@ -343,10 +343,10 @@ export function QuickBookingForm({
   const [homeServiceDistanceError, setHomeServiceDistanceError] = useState("");
   const [homeServiceDistanceQuote, setHomeServiceDistanceQuote] =
     useState<HomeServiceDistanceQuote | null>(null);
-  const [paymentReceived, setPaymentReceived] = useState(initialMode === "walkin");
+  const [paymentReceived, setPaymentReceived] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<
     "cash" | "gcash" | "maya" | "card" | "other" | ""
-  >(initialMode === "walkin" ? "cash" : "");
+  >("");
   const [staffId, setStaffId] = useState(initialStaffId);
   const [resourceId, setResourceId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -459,8 +459,8 @@ export function QuickBookingForm({
       homeServiceBarangay !== "" ||
       homeServiceCity !== "" ||
       homeServiceAccessNote !== "" ||
-      paymentReceived !== (initialMode === "walkin") ||
-      paymentMethod !== (initialMode === "walkin" ? "cash" : "") ||
+      paymentReceived ||
+      paymentMethod !== "" ||
       staffId !== initialStaffId ||
       resourceId !== "",
     [
@@ -1008,7 +1008,7 @@ export function QuickBookingForm({
       <section className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--cs-surface)]">
         <header className="shrink-0 border-b border-[var(--cs-border-soft)] px-4 py-3 sm:px-5">
           <h1 className="font-display text-2xl font-semibold leading-tight text-[var(--cs-text)]">
-            Quick Booking
+            New Booking
           </h1>
           <p className="mt-0.5 text-sm text-[var(--cs-text-secondary)]">{branchName}</p>
         </header>
@@ -1407,7 +1407,7 @@ export function QuickBookingForm({
                       disabled={isSaving}
                       className="size-4 accent-[var(--cs-sand-dark)]"
                     />
-                    Payment received now
+                    Full advance payment received
                   </label>
 
                   {paymentReceived ? (
@@ -1429,7 +1429,7 @@ export function QuickBookingForm({
                     </select>
                   ) : (
                     <div className="flex h-10 items-center rounded-xl border border-dashed border-[var(--cs-border)] px-3 text-xs text-[var(--cs-text-muted)]">
-                      Payment pending
+                      Settle after service
                     </div>
                   )}
                 </div>

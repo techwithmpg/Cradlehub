@@ -65,11 +65,12 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
       icon: "👥",
       label: "Staff Schedules",
       value: `${d.serviceStaffWithSchedule}/${d.serviceStaffTotal}`,
-      sub: d.serviceStaffTotal === 0
-        ? "No service staff"
-        : missingSchedule === 0
-          ? "All staff have schedules"
-          : `${missingSchedule} need schedules`,
+      sub:
+        d.serviceStaffTotal === 0
+          ? "No service staff"
+          : missingSchedule === 0
+            ? "All staff have schedules"
+            : `${missingSchedule} need schedules`,
       status: d.serviceStaffTotal === 0 ? "warning" : missingSchedule === 0 ? "ready" : "warning",
       actionLabel: missingSchedule > 0 ? "Fix Schedules" : undefined,
       actionHref: missingSchedule > 0 ? "/crm/schedule?tab=setup" : undefined,
@@ -78,12 +79,14 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
       icon: "✨",
       label: "Service Coverage",
       value: `${d.servicesWithStaff}/${d.activeServicesTotal}`,
-      sub: d.activeServicesTotal === 0
-        ? "No active services"
-        : servicesWithoutStaff === 0
-          ? "All services covered"
-          : `${servicesWithoutStaff} need providers`,
-      status: d.activeServicesTotal === 0 ? "warning" : servicesWithoutStaff === 0 ? "ready" : "warning",
+      sub:
+        d.activeServicesTotal === 0
+          ? "No active services"
+          : servicesWithoutStaff === 0
+            ? "All services covered"
+            : `${servicesWithoutStaff} need providers`,
+      status:
+        d.activeServicesTotal === 0 ? "warning" : servicesWithoutStaff === 0 ? "ready" : "warning",
       actionLabel: servicesWithoutStaff > 0 ? "Assign Therapists" : undefined,
       actionHref: servicesWithoutStaff > 0 ? "/crm/services?tab=providers" : undefined,
     },
@@ -91,9 +94,7 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
       icon: "🏠",
       label: "Rooms & Resources",
       value: String(d.activeResourcesTotal),
-      sub: d.activeResourcesTotal === 0
-        ? "None configured"
-        : `${d.activeResourcesTotal} active`,
+      sub: d.activeResourcesTotal === 0 ? "None configured" : `${d.activeResourcesTotal} active`,
       status: d.activeResourcesTotal > 0 ? "ready" : "warning",
       actionLabel: d.activeResourcesTotal === 0 ? "Add Resources" : undefined,
       actionHref: d.activeResourcesTotal === 0 ? "/crm/spaces-rules" : undefined,
@@ -102,9 +103,7 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
       icon: "📋",
       label: "Booking Rules",
       value: d.hasCustomRules ? "Custom" : "Defaults",
-      sub: d.hasCustomRules
-        ? "Custom rules saved"
-        : "Using defaults — optional review",
+      sub: d.hasCustomRules ? "Custom rules saved" : "Using defaults — optional review",
       status: d.hasCustomRules ? "ready" : "info",
     },
     {
@@ -122,23 +121,54 @@ function buildStatusCards(d: CrmSetupHealthData): StatusCardData[] {
       icon: "📅",
       label: "Today's Assignments",
       value: String(d.unassignedTodayCount),
-      sub: d.unassignedTodayCount === 0
-        ? "All confirmed bookings assigned"
-        : `${d.unassignedTodayCount} need therapist`,
+      sub:
+        d.unassignedTodayCount === 0
+          ? "All confirmed bookings assigned"
+          : `${d.unassignedTodayCount} need therapist`,
       status: d.unassignedTodayCount === 0 ? "ready" : "error",
-      actionLabel: d.unassignedTodayCount > 0 ? "Open Work Queue" : undefined,
+      actionLabel: d.unassignedTodayCount > 0 ? "Open Cradle Flow" : undefined,
       actionHref: "/crm/today?filter=exceptions",
     },
   ];
 }
 
 const SHORTCUTS = [
-  { icon: "🗓️", label: "Fix Schedules", description: "Set up missing staff schedules", href: "/crm/schedule?tab=setup" },
-  { icon: "✨", label: "Assign Therapists", description: "Assign providers to services", href: "/crm/services" },
-  { icon: "🏠", label: "Edit Rooms & Rules", description: "Manage rooms and booking rules", href: "/crm/spaces-rules" },
-  { icon: "📋", label: "Work Queue", description: "Check today's booking exceptions", href: "/crm/today?filter=exceptions" },
-  { icon: "🚗", label: "Open Dispatch", description: "Manage home-service trips", href: "/crm/dispatch" },
-  { icon: "📊", label: "Work Queue", description: "Return to today's prioritized CRM queue", href: "/crm/today" },
+  {
+    icon: "🗓️",
+    label: "Fix Schedules",
+    description: "Set up missing staff schedules",
+    href: "/crm/schedule?tab=setup",
+  },
+  {
+    icon: "✨",
+    label: "Assign Therapists",
+    description: "Assign providers to services",
+    href: "/crm/services",
+  },
+  {
+    icon: "🏠",
+    label: "Edit Rooms & Rules",
+    description: "Manage rooms and booking rules",
+    href: "/crm/spaces-rules",
+  },
+  {
+    icon: "📋",
+    label: "Cradle Flow",
+    description: "Check today's booking exceptions",
+    href: "/crm/today?filter=exceptions",
+  },
+  {
+    icon: "🚗",
+    label: "Open Dispatch",
+    description: "Manage home-service trips",
+    href: "/crm/dispatch",
+  },
+  {
+    icon: "📊",
+    label: "Cradle Flow",
+    description: "Return to today's front-desk command center",
+    href: "/crm/today",
+  },
 ];
 
 const TIPS = [
@@ -228,7 +258,9 @@ export function SetupHealthContent({ data }: { data: CrmSetupHealthData }) {
           <div className="mt-4 space-y-3">
             {topIssues.length === 0 ? (
               <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50/70 p-4">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-lg">✅</span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-lg">
+                  ✅
+                </span>
                 <p className="text-sm font-semibold text-green-800">
                   No critical actions. Everything looks good.
                 </p>
@@ -252,12 +284,17 @@ export function SetupHealthContent({ data }: { data: CrmSetupHealthData }) {
         {/* Setup Tips */}
         <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-6 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-sm">💡</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-sm">
+              💡
+            </span>
             <h3 className="text-sm font-bold text-[var(--cs-text)]">Setup Tips</h3>
           </div>
           <ul className="mt-4 space-y-2.5">
             {TIPS.map((tip) => (
-              <li key={tip} className="flex items-start gap-2.5 text-xs leading-relaxed text-[var(--cs-text-secondary)]">
+              <li
+                key={tip}
+                className="flex items-start gap-2.5 text-xs leading-relaxed text-[var(--cs-text-secondary)]"
+              >
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--cs-sand)]" />
                 {tip}
               </li>

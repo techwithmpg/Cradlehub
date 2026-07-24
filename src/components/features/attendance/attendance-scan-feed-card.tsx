@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type {
   AttendanceScanFeedData,
   AttendanceScanFeedWorkspace,
+  RecentAttendanceScan,
 } from "@/lib/attendance/types";
 
 type AttendanceScanFeedCardProps = {
@@ -22,6 +23,7 @@ type AttendanceScanFeedCardProps = {
   feed: AttendanceScanFeedData;
   maxItems?: number;
   className?: string;
+  onScanSelect?: (scan: RecentAttendanceScan) => void;
 };
 
 const REFRESH_ERROR = "Attendance activity could not be refreshed.";
@@ -34,6 +36,7 @@ export function AttendanceScanFeedCard({
   feed,
   maxItems = 5,
   className,
+  onScanSelect,
 }: AttendanceScanFeedCardProps) {
   const resolvedBranchId = branchId ?? feed.branchId;
   const resolvedBranchName = branchName ?? feed.branchName;
@@ -50,10 +53,7 @@ export function AttendanceScanFeedCard({
     maxItems,
   });
   const displayError = visibleFeed.error ?? (refreshError ? REFRESH_ERROR : null);
-  const dateLabel = formatAttendanceFeedDateLabel(
-    visibleFeed.selectedDate,
-    visibleFeed.timezone
-  );
+  const dateLabel = formatAttendanceFeedDateLabel(visibleFeed.selectedDate, visibleFeed.timezone);
   const viewAllHref = buildAttendanceViewAllHref({
     workspace,
     selectedDate,
@@ -116,6 +116,7 @@ export function AttendanceScanFeedCard({
               scan={scan}
               workspace={workspace}
               selectedDate={selectedDate}
+              onSelect={onScanSelect}
             />
           ))}
         </div>

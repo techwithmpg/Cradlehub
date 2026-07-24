@@ -3,7 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDevBypassLayoutStaff, isDevAuthBypassEnabled } from "@/lib/dev-bypass";
-import { updateBookingStatusSchema, editBookingSchema, updateBookingPaymentSchema } from "@/lib/validations/booking";
+import {
+  updateBookingStatusSchema,
+  editBookingSchema,
+  updateBookingPaymentSchema,
+} from "@/lib/validations/booking";
 import { assertSlotAvailable } from "@/lib/engine/availability";
 import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/resource-availability";
 import { computeEndTime } from "@/lib/engine/booking-time";
@@ -17,13 +21,16 @@ import { logError, logBusinessEvent } from "@/lib/logger";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
+import { getBookingPaymentGate } from "@/lib/bookings/payment-gate";
 
 const DEV_BYPASS_STAFF_ID = "00000000-0000-0000-0000-000000000000";
 
 // ── Auth helper ────────────────────────────────────────────────────────────
 async function getOperationsContext() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   if (isDevAuthBypassEnabled()) {
@@ -187,10 +194,7 @@ export async function updateBookingStatusAction(rawInput: unknown) {
   }
 
   const admin = createAdminClient();
-  const _statusUpdateQ = admin
-    .from("bookings")
-    .update(updates)
-    .eq("id", parsed.data.bookingId);
+  const _statusUpdateQ = admin.from("bookings").update(updates).eq("id", parsed.data.bookingId);
   const { data: updatedRows, error } = await (
     me.system_role !== "owner" ? _statusUpdateQ.eq("branch_id", me.branch_id) : _statusUpdateQ
   ).select("id, branch_id");
@@ -210,7 +214,8 @@ export async function updateBookingStatusAction(rawInput: unknown) {
   if (!updatedBooking) {
     return {
       success: false,
-      error: "Booking status could not be updated. It may belong to another branch or no longer exist.",
+      error:
+        "Booking status could not be updated. It may belong to another branch or no longer exist.",
     };
   }
 
@@ -245,7 +250,11 @@ export async function updateBookingStatusAction(rawInput: unknown) {
         body: `Your booking on ${bookingBefore.booking_date} at ${bookingBefore.start_time} has been cancelled.`,
         entityType: "booking",
         entityId: parsed.data.bookingId,
-        actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: parsed.data.bookingId }),
+        actionHref: getNotificationTargetPath({
+          workspace: "staff-portal",
+          entityType: "booking",
+          entityId: parsed.data.bookingId,
+        }),
         priority: sameDay ? "high" : "normal",
         requiresAction: sameDay,
       });
@@ -272,7 +281,11 @@ export async function updateBookingStatusAction(rawInput: unknown) {
         body: `Your customer is ready for their session on ${bookingBefore.booking_date} at ${bookingBefore.start_time}.`,
         entityType: "booking",
         entityId: parsed.data.bookingId,
-        actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: parsed.data.bookingId }),
+        actionHref: getNotificationTargetPath({
+          workspace: "staff-portal",
+          entityType: "booking",
+          entityId: parsed.data.bookingId,
+        }),
         priority: "high",
         requiresAction: true,
       });
@@ -301,10 +314,7 @@ export async function editBookingAction(rawInput: unknown) {
   }
 
   // Fetch current booking to fill in unchanged fields for validation
-  const _editCurrentQ = supabase
-    .from("bookings")
-    .select("*")
-    .eq("id", bookingId);
+  const _editCurrentQ = supabase.from("bookings").select("*").eq("id", bookingId);
   const { data: current } = await (
     me.system_role !== "owner" ? _editCurrentQ.eq("branch_id", me.branch_id) : _editCurrentQ
   ).single();
@@ -352,18 +362,13 @@ export async function editBookingAction(rawInput: unknown) {
     // 2. Resource availability check
     if (
       resolvedResourceId &&
-      (changes.resourceId !== undefined ||
-        changes.date ||
-        changes.startTime ||
-        changes.serviceId)
+      (changes.resourceId !== undefined || changes.date || changes.startTime || changes.serviceId)
     ) {
       const isAvailable = await isResourceAvailable({
         resourceId: resolvedResourceId,
         date: resolvedDate,
         startTime: resolvedStartTime,
-        endTime:
-          updates.end_time ??
-          (await computeEndTime(resolvedStartTime, resolvedServiceId)),
+        endTime: updates.end_time ?? (await computeEndTime(resolvedStartTime, resolvedServiceId)),
         excludeBookingId: bookingId,
       });
       if (!isAvailable) {
@@ -398,9 +403,7 @@ export async function editBookingAction(rawInput: unknown) {
   if (changes.deliveryType !== undefined) {
     updates.delivery_type = changes.deliveryType;
     updates.travel_buffer_mins =
-      changes.deliveryType === "home_service"
-        ? (changes.travelBufferMins ?? 30)
-        : null;
+      changes.deliveryType === "home_service" ? (changes.travelBufferMins ?? 30) : null;
   }
 
   if (changes.travelBufferMins !== undefined && changes.deliveryType === undefined) {
@@ -408,7 +411,7 @@ export async function editBookingAction(rawInput: unknown) {
   }
 
   if (notes !== undefined) {
-    const existing = ((updates.metadata ?? current.metadata ?? {}) as Record<string, unknown>);
+    const existing = (updates.metadata ?? current.metadata ?? {}) as Record<string, unknown>;
     updates.metadata = {
       ...existing,
       customer_notes: notes,
@@ -419,17 +422,17 @@ export async function editBookingAction(rawInput: unknown) {
   // set_config is a Postgres built-in, not in generated Supabase types — cast required.
   if (me.id !== DEV_BYPASS_STAFF_ID) {
     try {
-      await (supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
-        .rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
+      await (
+        supabase as unknown as {
+          rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).rpc("set_config", { setting: "app.current_staff_id", value: me.id, is_local: true });
     } catch {
       // Non-critical: trigger attribution may not run, booking update proceeds
     }
   }
 
-  const _editUpdateQ = supabase
-    .from("bookings")
-    .update(updates)
-    .eq("id", bookingId);
+  const _editUpdateQ = supabase.from("bookings").update(updates).eq("id", bookingId);
   const { data: updatedRows, error } = await (
     me.system_role !== "owner" ? _editUpdateQ.eq("branch_id", me.branch_id) : _editUpdateQ
   ).select("id, branch_id");
@@ -459,7 +462,11 @@ export async function editBookingAction(rawInput: unknown) {
       body: `You have been assigned a booking on ${newDate} at ${newTime}.`,
       entityType: "booking",
       entityId: bookingId,
-      actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: bookingId }),
+      actionHref: getNotificationTargetPath({
+        workspace: "staff-portal",
+        entityType: "booking",
+        entityId: bookingId,
+      }),
       priority: isHS ? "high" : "normal",
       requiresAction: isHS,
     });
@@ -478,7 +485,11 @@ export async function editBookingAction(rawInput: unknown) {
       body: `Your booking has been rescheduled to ${newDate} at ${newTime}.`,
       entityType: "booking",
       entityId: bookingId,
-      actionHref: getNotificationTargetPath({ workspace: "staff-portal", entityType: "booking", entityId: bookingId }),
+      actionHref: getNotificationTargetPath({
+        workspace: "staff-portal",
+        entityType: "booking",
+        entityId: bookingId,
+      }),
       priority: "high",
       requiresAction: true,
     });
@@ -501,12 +512,22 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
   if (!ctx) return { success: false, error: "Unauthorized" };
   const { supabase, me } = ctx;
 
-  const { bookingId, paymentMethod, paymentStatus, amountPaid, paymentReference, reason } = parsed.data;
+  const {
+    bookingId,
+    paymentMethod,
+    paymentStatus,
+    amountPaid,
+    paymentReference,
+    paymentPurpose,
+    reason,
+  } = parsed.data;
 
   // Fetch current payment state for audit log
   const _paymentBeforeQ = supabase
     .from("bookings")
-    .select("branch_id, payment_method, payment_status, amount_paid, payment_reference")
+    .select(
+      "branch_id, status, booking_progress_status, session_completed_at, payment_method, payment_status, amount_paid, payment_reference"
+    )
     .eq("id", bookingId);
   const { data: before } = await (
     me.system_role !== "owner" ? _paymentBeforeQ.eq("branch_id", me.branch_id) : _paymentBeforeQ
@@ -516,9 +537,23 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     return { success: false, error: "Booking not found" };
   }
 
+  const paymentGate = getBookingPaymentGate({
+    bookingStatus: before.status,
+    bookingProgressStatus: before.booking_progress_status,
+    sessionCompletedAt: before.session_completed_at,
+    previousAmountPaid: Number(before.amount_paid ?? 0),
+    nextAmountPaid: amountPaid,
+    nextPaymentStatus: paymentStatus,
+    paymentPurpose,
+    reason,
+  });
+  if (!paymentGate.allowed) {
+    return { success: false, error: paymentGate.error };
+  }
+
   const isSignificantChange =
     (before?.payment_status === "paid" && paymentStatus !== "paid") ||
-    ((before?.amount_paid ?? 0) > amountPaid);
+    (before?.amount_paid ?? 0) > amountPaid;
 
   if (isSignificantChange && !reason?.trim()) {
     return { success: false, error: "Reason is required for voids, refunds, or corrections" };
@@ -531,16 +566,17 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
     paymentStatus,
     amountPaid,
     paymentReference,
-    reason,
+    reason:
+      paymentPurpose && paymentPurpose !== "final_settlement"
+        ? `[${paymentPurpose}] ${reason?.trim() ?? ""}`.trim()
+        : reason,
     changedByStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
   });
 
   if (!paymentResult.ok) return { success: false, error: paymentResult.error };
 
   const needsPaymentFollowUp =
-    paymentStatus === "unpaid" ||
-    paymentStatus === "pending" ||
-    paymentMethod === "pay_on_site";
+    paymentStatus === "unpaid" || paymentStatus === "pending" || paymentMethod === "pay_on_site";
 
   if (paymentStatus === "paid" || paymentStatus === "refunded" || !needsPaymentFollowUp) {
     await resolveNotificationsForEntity("booking", bookingId, "crm", "payment_pending");
@@ -553,7 +589,11 @@ export async function updateBookingPaymentAction(rawInput: unknown) {
       body: "A booking payment is unpaid or pending confirmation.",
       entityType: "booking",
       entityId: bookingId,
-      actionHref: getNotificationTargetPath({ workspace: "crm", entityType: "booking", entityId: bookingId }),
+      actionHref: getNotificationTargetPath({
+        workspace: "crm",
+        entityType: "booking",
+        entityId: bookingId,
+      }),
       priority: "normal",
       requiresAction: true,
     });

@@ -1,3 +1,45 @@
+# Current Task - CRADLE-FLOW-001
+
+Task ID: CRADLE-FLOW-001
+Description: Redesign CRM Work Queue as CRADLE FLOW, a compact front-desk
+command center that preserves the existing booking, schedule, attendance,
+service-session, Home Service, payment, readiness, and Close Day workflows while
+making the real Waiting → In Service → Ready to Pay → Completed sequence clear.
+Status: IN PROGRESS
+Started: 2026-07-23
+Last updated: 2026-07-23
+
+## Guardrails
+
+- Keep `/crm/today`, retained-workspace identity, branch/role authorization, and
+  existing source-of-truth actions; do not build parallel booking or Attendance
+  engines.
+- Use centered dialogs, the existing Cradle cream/forest/gold theme, and compact
+  responsive ticket lists instead of a retail POS or horizontal Kanban.
+- Final payment must remain unavailable until service completion. Any genuine
+  advance payment must be explicit and must not be presented as normal checkout.
+- Do not invent split-payment, expense, commission, receipt, or cash-drawer
+  persistence that the audited schema does not currently support.
+- Do not apply or repair database migrations while linked migration history is
+  still 92-local-only / 5-remote-only.
+
+## Work order
+
+1. Audit Work Queue, Quick Booking, booking lifecycle, service sessions,
+   payments, reconciliation, Home Service, Attendance, readiness, permissions,
+   responsive shell, and required repository context.
+2. Build the CRADLE FLOW header, unified booking actions, daily summary, search,
+   four-stage workflow, useful empty state, supporting rail, activity, money
+   summary, and centered operational dialogs from existing real data/actions.
+3. Correct payment-at-creation defaults and final-settlement gating without
+   weakening authorized advance-payment audit requirements.
+4. Add focused workflow, payment-gate, unified-action, empty-state, and
+   responsive presentation coverage.
+5. Run focused/full test, type, lint, format, build, and authenticated browser
+   verification, then update all repository context and create an atomic commit.
+
+---
+
 # Current Task - PRODUCTION-READINESS-REPAIR-20260723
 
 Task ID: PRODUCTION-READINESS-REPAIR-20260723

@@ -53,116 +53,125 @@ function isPreciseHomeServiceLocation(input: {
 }
 
 // ── Public online booking ──────────────────────────────────────────────────
-export const createOnlineBookingSchema = z.object({
-  website:          z.string().max(0, "Unable to submit this request").optional(),
-  branchId:         uuid,
-  serviceId:        uuid,
-  staffId:          uuid.optional(),          // undefined = "any therapist"
-  date:             onlineBookingDate,
-  startTime:        timeStr,
-  type:             z.enum(["online", "home_service"]).default("online"),
-  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
-  travelBufferMins: z.number().int().min(0).max(240).optional(),
-  fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
-  phone,
-  email:            z.string().email("Invalid email").optional().or(z.literal("")),
-  notes:            z.string().max(500).optional(),
-}).strict();
+export const createOnlineBookingSchema = z
+  .object({
+    website: z.string().max(0, "Unable to submit this request").optional(),
+    branchId: uuid,
+    serviceId: uuid,
+    staffId: uuid.optional(), // undefined = "any therapist"
+    date: onlineBookingDate,
+    startTime: timeStr,
+    type: z.enum(["online", "home_service"]).default("online"),
+    deliveryType: z.enum(["in_spa", "home_service"]).optional(),
+    travelBufferMins: z.number().int().min(0).max(240).optional(),
+    fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
+    phone,
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    notes: z.string().max(500).optional(),
+  })
+  .strict();
 export type CreateOnlineBookingInput = z.infer<typeof createOnlineBookingSchema>;
 
 // ── Manager walk-in / home service at front desk ───────────────────────────
 export const createWalkinBookingSchema = z.object({
-  serviceId:        uuid,
-  staffId:          uuid,                     // required — manager picks therapist
-  resourceId:       uuid.optional().nullable(),
-  date:             anyDate,                  // no 30-day limit for front desk
-  startTime:        timeStr,
-  type:             z.enum(["walkin", "home_service"]).default("walkin"),
-  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
+  serviceId: uuid,
+  staffId: uuid, // required — manager picks therapist
+  resourceId: uuid.optional().nullable(),
+  date: anyDate, // no 30-day limit for front desk
+  startTime: timeStr,
+  type: z.enum(["walkin", "home_service"]).default("walkin"),
+  deliveryType: z.enum(["in_spa", "home_service"]).optional(),
   travelBufferMins: z.number().int().min(0).max(240).optional(),
-  fullName:         z.string().min(2).max(100),
+  fullName: z.string().min(2).max(100),
   phone,
-  email:            z.string().email().optional().or(z.literal("")),
-  notes:            z.string().max(500).optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  notes: z.string().max(500).optional(),
 });
 export type CreateWalkinBookingInput = z.infer<typeof createWalkinBookingSchema>;
 
 // ── In-house wizard booking (CRM/Manager): multi-service + optional therapist ──
-export const createInhouseBookingMultiSchema = z.object({
-  branchId:         uuid.optional(), // defaults to operator's branch when omitted
-  customerId:       uuid.optional(),
-  serviceIds:       z.array(uuid).min(1, "Select a service.").max(5, "Maximum 5 services per booking"),
-  staffId:          uuid.optional(), // undefined = auto-assign by seniority
-  resourceId:       uuid.optional().nullable(),
-  date:             anyDate,
-  startTime:        timeStr,
-  type:             z.enum(["walkin", "home_service"]).default("walkin"),
-  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
-  crmBookingMode:   z.enum(["walkin", "phone", "home_service", "standard_future"]).optional(),
-  markArrived:      z.boolean().optional(),
-  travelBufferMins: z.number().int().min(0).max(240).optional(),
-  fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
-  phone,
-  email:            z.string().email("Invalid email").optional().or(z.literal("")),
-  notes:            z.string().max(500).optional(),
-  // Home service address (required when type=home_service, validated in action)
-  homeServiceAddress:          z.string().max(500).optional(),
-  homeServiceAddressDetails:   z.string().max(300).optional(),
-  homeServiceBarangay:         z.string().max(100).optional(),
-  homeServiceCity:             z.string().max(100).optional(),
-  homeServiceLandmark:         z.string().max(200).optional(),
-  homeServiceParkingNotes:     z.string().max(300).optional(),
-  homeServiceCustomerNotes:    z.string().max(500).optional(),
-  homeServiceAccessNote:       z.string().max(300).optional(),
-  homeServiceZone:             z.string().max(50).optional(),
-  // Captured client-side by Places Autocomplete — skip server geocoding when present
-  homeServiceLat:              z.number().optional().nullable(),
-  homeServiceLng:              z.number().optional().nullable(),
-  homeServicePlaceId:          z.string().max(300).optional(),
-  homeServiceFormattedAddress: z.string().max(500).optional(),
-  homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
-  homeServiceMapUrl:           z.string().url().max(1000).optional(),
-  // Payment capture — required for CRM in-house bookings
-  paymentReceived:  z.boolean().optional(),
-  paymentMethod:    z.enum(["cash", "gcash", "maya", "card", "other"], { message: "Please select a payment method." }).optional(),
-  paymentReference: z.string().max(100).optional(),
-  paymentNote:      z.string().max(500).optional(),
-}).superRefine((data, ctx) => {
-  const deliveryType =
-    data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
+export const createInhouseBookingMultiSchema = z
+  .object({
+    branchId: uuid.optional(), // defaults to operator's branch when omitted
+    customerId: uuid.optional(),
+    serviceIds: z.array(uuid).min(1, "Select a service.").max(5, "Maximum 5 services per booking"),
+    staffId: uuid.optional(), // undefined = auto-assign by seniority
+    resourceId: uuid.optional().nullable(),
+    date: anyDate,
+    startTime: timeStr,
+    type: z.enum(["walkin", "home_service"]).default("walkin"),
+    deliveryType: z.enum(["in_spa", "home_service"]).optional(),
+    crmBookingMode: z.enum(["walkin", "phone", "home_service", "standard_future"]).optional(),
+    markArrived: z.boolean().optional(),
+    travelBufferMins: z.number().int().min(0).max(240).optional(),
+    fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
+    phone,
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    notes: z.string().max(500).optional(),
+    // Home service address (required when type=home_service, validated in action)
+    homeServiceAddress: z.string().max(500).optional(),
+    homeServiceAddressDetails: z.string().max(300).optional(),
+    homeServiceBarangay: z.string().max(100).optional(),
+    homeServiceCity: z.string().max(100).optional(),
+    homeServiceLandmark: z.string().max(200).optional(),
+    homeServiceParkingNotes: z.string().max(300).optional(),
+    homeServiceCustomerNotes: z.string().max(500).optional(),
+    homeServiceAccessNote: z.string().max(300).optional(),
+    homeServiceZone: z.string().max(50).optional(),
+    // Captured client-side by Places Autocomplete — skip server geocoding when present
+    homeServiceLat: z.number().optional().nullable(),
+    homeServiceLng: z.number().optional().nullable(),
+    homeServicePlaceId: z.string().max(300).optional(),
+    homeServiceFormattedAddress: z.string().max(500).optional(),
+    homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
+    homeServiceMapUrl: z.string().url().max(1000).optional(),
+    // Optional, explicitly authorized full advance payment at booking creation.
+    paymentReceived: z.boolean().optional(),
+    paymentMethod: z
+      .enum(["cash", "gcash", "maya", "card", "other"], {
+        message: "Please select a payment method.",
+      })
+      .optional(),
+    paymentReference: z.string().max(100).optional(),
+    paymentNote: z.string().max(500).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const deliveryType =
+      data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
 
-  if (deliveryType === "home_service" && !isPreciseHomeServiceLocation(data)) {
-    ctx.addIssue({
-      code: "custom",
-      message: CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
-      path: ["homeServicePlaceId"],
-    });
-  }
+    if (deliveryType === "home_service" && !isPreciseHomeServiceLocation(data)) {
+      ctx.addIssue({
+        code: "custom",
+        message: CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
+        path: ["homeServicePlaceId"],
+      });
+    }
 
-  const paymentReceived = data.paymentReceived ?? true;
-  if (paymentReceived && !data.paymentMethod) {
-    ctx.addIssue({
-      code: "custom",
-      message: "Please select a payment method.",
-      path: ["paymentMethod"],
-    });
-  }
-}).strict();
+    const paymentReceived = data.paymentReceived ?? false;
+    if (paymentReceived && !data.paymentMethod) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Please select a payment method.",
+        path: ["paymentMethod"],
+      });
+    }
+  })
+  .strict();
 export type CreateInhouseBookingMultiInput = z.infer<typeof createInhouseBookingMultiSchema>;
 
 // ── Manager edit any booking field ────────────────────────────────────────
 export const editBookingSchema = z
   .object({
-    bookingId:        uuid,
-    serviceId:        uuid.optional(),
-    staffId:          uuid.optional(),
-    resourceId:       uuid.optional().nullable(),
-    date:             anyDate.optional(),
-    startTime:        timeStr.optional(),
-    type:             z.enum(["online", "walkin", "home_service"]).optional(),
-    deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
+    bookingId: uuid,
+    serviceId: uuid.optional(),
+    staffId: uuid.optional(),
+    resourceId: uuid.optional().nullable(),
+    date: anyDate.optional(),
+    startTime: timeStr.optional(),
+    type: z.enum(["online", "walkin", "home_service"]).optional(),
+    deliveryType: z.enum(["in_spa", "home_service"]).optional(),
     travelBufferMins: z.number().int().min(0).max(240).optional(),
-    notes:            z.string().max(500).optional(),
+    notes: z.string().max(500).optional(),
   })
   .refine(
     (d) => Object.keys(d).length > 1, // must change at least one field
@@ -173,8 +182,8 @@ export type EditBookingInput = z.infer<typeof editBookingSchema>;
 // ── Status transition ─────────────────────────────────────────────────────
 export const updateBookingStatusSchema = z.object({
   bookingId: uuid,
-  status:    z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show"]),
-  notes:     z.string().max(500).optional(),
+  status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show"]),
+  notes: z.string().max(500).optional(),
 });
 export type UpdateBookingStatusInput = z.infer<typeof updateBookingStatusSchema>;
 
@@ -190,68 +199,74 @@ export const HOME_SERVICE_ZONES = [
 export type HomeServiceZone = (typeof HOME_SERVICE_ZONES)[number];
 
 export const homeServiceAddressSchema = z.object({
-  homeServiceAddress:      z.string().min(5, "Full address is required").max(500),
-  homeServiceBarangay:     z.string().min(2, "Barangay is required").max(100),
-  homeServiceCity:         z.string().min(2, "City is required").max(100),
-  homeServiceLandmark:     z.string().max(200).optional(),
+  homeServiceAddress: z.string().min(5, "Full address is required").max(500),
+  homeServiceBarangay: z.string().min(2, "Barangay is required").max(100),
+  homeServiceCity: z.string().min(2, "City is required").max(100),
+  homeServiceLandmark: z.string().max(200).optional(),
   homeServiceParkingNotes: z.string().max(300).optional(),
-  homeServiceZone:         z.string().max(50).optional(),
+  homeServiceZone: z.string().max(50).optional(),
 });
 export type HomeServiceAddressInput = z.infer<typeof homeServiceAddressSchema>;
 
 // ── Multi-service public online booking ───────────────────────────────────────
-export const createOnlineBookingMultiSchema = z.object({
-  website:          z.string().max(0, "Unable to submit this request").optional(),
-  branchId:         uuid,
-  serviceIds:       z.array(uuid).min(1, "Select at least one service").max(5, "Maximum 5 services per booking"),
-  staffId:          uuid.optional(),
-  date:             onlineBookingDate,
-  startTime:        timeStr,
-  type:             z.enum(["online", "home_service"]).default("online"),
-  deliveryType:     z.enum(["in_spa", "home_service"]).optional(),
-  travelBufferMins: z.number().int().min(0).max(240).optional(),
-  fullName:         z.string().min(2, "Name must be at least 2 characters").max(100),
-  phone,
-  email:            z.string().email("Invalid email").optional().or(z.literal("")),
-  notes:            z.string().max(500).optional(),
-  // Home service address (required when type=home_service, validated in action)
-  homeServiceAddress:          z.string().max(500).optional(),
-  homeServiceAddressDetails:   z.string().max(300).optional(),
-  homeServiceBarangay:         z.string().max(100).optional(),
-  homeServiceCity:             z.string().max(100).optional(),
-  homeServiceLandmark:         z.string().max(200).optional(),
-  homeServiceParkingNotes:     z.string().max(300).optional(),
-  homeServiceCustomerNotes:    z.string().max(500).optional(),
-  homeServiceZone:             z.string().max(50).optional(),
-  // Captured client-side by Places Autocomplete — skip server geocoding when present
-  homeServiceLat:              z.number().optional().nullable(),
-  homeServiceLng:              z.number().optional().nullable(),
-  homeServicePlaceId:          z.string().max(300).optional(),
-  homeServiceFormattedAddress: z.string().max(500).optional(),
-  homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
-  homeServiceMapUrl:           z.string().url().max(1000).optional(),
-}).strict().superRefine((data, ctx) => {
-  const deliveryType =
-    data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
+export const createOnlineBookingMultiSchema = z
+  .object({
+    website: z.string().max(0, "Unable to submit this request").optional(),
+    branchId: uuid,
+    serviceIds: z
+      .array(uuid)
+      .min(1, "Select at least one service")
+      .max(5, "Maximum 5 services per booking"),
+    staffId: uuid.optional(),
+    date: onlineBookingDate,
+    startTime: timeStr,
+    type: z.enum(["online", "home_service"]).default("online"),
+    deliveryType: z.enum(["in_spa", "home_service"]).optional(),
+    travelBufferMins: z.number().int().min(0).max(240).optional(),
+    fullName: z.string().min(2, "Name must be at least 2 characters").max(100),
+    phone,
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    notes: z.string().max(500).optional(),
+    // Home service address (required when type=home_service, validated in action)
+    homeServiceAddress: z.string().max(500).optional(),
+    homeServiceAddressDetails: z.string().max(300).optional(),
+    homeServiceBarangay: z.string().max(100).optional(),
+    homeServiceCity: z.string().max(100).optional(),
+    homeServiceLandmark: z.string().max(200).optional(),
+    homeServiceParkingNotes: z.string().max(300).optional(),
+    homeServiceCustomerNotes: z.string().max(500).optional(),
+    homeServiceZone: z.string().max(50).optional(),
+    // Captured client-side by Places Autocomplete — skip server geocoding when present
+    homeServiceLat: z.number().optional().nullable(),
+    homeServiceLng: z.number().optional().nullable(),
+    homeServicePlaceId: z.string().max(300).optional(),
+    homeServiceFormattedAddress: z.string().max(500).optional(),
+    homeServiceAddressComponents: z.array(googleAddressComponentSchema).max(24).optional(),
+    homeServiceMapUrl: z.string().url().max(1000).optional(),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const deliveryType =
+      data.deliveryType ?? (data.type === "home_service" ? "home_service" : "in_spa");
 
-  if (deliveryType !== "home_service") return;
+    if (deliveryType !== "home_service") return;
 
-  if (!isPreciseHomeServiceLocation(data)) {
-    ctx.addIssue({
-      code: "custom",
-      message: PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
-      path: ["homeServicePlaceId"],
-    });
-  }
-});
+    if (!isPreciseHomeServiceLocation(data)) {
+      ctx.addIssue({
+        code: "custom",
+        message: PRECISE_HOME_SERVICE_LOCATION_MESSAGE,
+        path: ["homeServicePlaceId"],
+      });
+    }
+  });
 export type CreateOnlineBookingMultiInput = z.infer<typeof createOnlineBookingMultiSchema>;
 
 // ── Availability query ────────────────────────────────────────────────────
 export const getAvailableSlotsSchema = z.object({
-  branchId:  uuid,
+  branchId: uuid,
   serviceId: uuid,
-  staffId:   uuid.optional(),
-  date:      anyDate,
+  staffId: uuid.optional(),
+  date: anyDate,
 });
 export type GetAvailableSlotsInput = z.infer<typeof getAvailableSlotsSchema>;
 
@@ -263,31 +278,32 @@ export const PAYMENT_STATUSES = ["unpaid", "pending", "paid", "refunded"] as con
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash:        "Cash",
-  gcash:       "GCash",
-  maya:        "Maya",
-  card:        "Card",
+  cash: "Cash",
+  gcash: "GCash",
+  maya: "Maya",
+  card: "Card",
   pay_on_site: "Pay on Site",
-  other:       "Other",
+  other: "Other",
 };
 
 // ── CRM confirm pending-payment booking ───────────────────────────────────
 export const confirmBookingPaymentSchema = z.object({
-  bookingId:        uuid,
-  paymentMethod:    z.enum(["cash", "gcash", "maya", "card", "other"]),
+  bookingId: uuid,
+  paymentMethod: z.enum(["cash", "gcash", "maya", "card", "other"]),
   paymentReference: z.string().max(100).optional(),
-  amountPaid:       z.number().min(0).optional(),
-  note:             z.string().max(500).optional(),
+  amountPaid: z.number().min(0).optional(),
+  note: z.string().max(500).optional(),
 });
 export type ConfirmBookingPaymentInput = z.infer<typeof confirmBookingPaymentSchema>;
 
 // ── Update booking payment ────────────────────────────────────────────────
 export const updateBookingPaymentSchema = z.object({
-  bookingId:        uuid,
-  paymentMethod:    z.enum(PAYMENT_METHODS),
-  paymentStatus:    z.enum(PAYMENT_STATUSES),
-  amountPaid:       z.number().min(0, "Amount cannot be negative"),
+  bookingId: uuid,
+  paymentMethod: z.enum(PAYMENT_METHODS),
+  paymentStatus: z.enum(PAYMENT_STATUSES),
+  amountPaid: z.number().min(0, "Amount cannot be negative"),
   paymentReference: z.string().max(100).optional(),
-  reason:           z.string().max(500).optional(),
+  paymentPurpose: z.enum(["final_settlement", "deposit", "advance", "partial"]).optional(),
+  reason: z.string().max(500).optional(),
 });
 export type UpdateBookingPaymentInput = z.infer<typeof updateBookingPaymentSchema>;

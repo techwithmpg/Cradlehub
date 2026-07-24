@@ -106,7 +106,7 @@ export async function createInhouseBookingMultiAction(
     };
   }
   const startTime = parsedStartTime.value.canonicalTime;
-  const paymentReceived = d.paymentReceived ?? crmBookingMode === "walkin";
+  const paymentReceived = d.paymentReceived ?? false;
   const cleanPhone = d.phone.replace(/\s/g, "");
 
   const supabase = await createClient();
@@ -719,6 +719,7 @@ export async function createInhouseBookingMultiAction(
         crm_booking_mode: crmBookingMode,
         source: "crm_quick_booking",
         payment_received: paymentReceived,
+        ...(paymentReceived && { payment_purpose: "advance" }),
         ...(hsAddressData && { home_service_address: hsAddressData }),
         ...(homeServiceQuote && {
           home_service_distance_km: homeServiceQuote.distanceKm,
@@ -831,7 +832,7 @@ export async function createInhouseBookingMultiAction(
           reason:
             d.paymentNote?.trim() ||
             (paymentReceived
-              ? "CRM quick booking - payment recorded at creation"
+              ? "[advance] Authorized full advance payment at booking creation"
               : "CRM quick booking - payment pending"),
         })
         .then(({ error: logErr }) => {

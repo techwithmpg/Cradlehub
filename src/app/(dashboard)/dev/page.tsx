@@ -19,7 +19,9 @@ type DevCategory = {
 
 async function requireDevAccess() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: me } = await supabase
@@ -29,7 +31,8 @@ async function requireDevAccess() {
     .eq("is_active", true)
     .maybeSingle();
 
-  const devMode = process.env.NODE_ENV !== "production" && process.env.DEV_ALLOW_ALL_MODULES === "true";
+  const devMode =
+    process.env.NODE_ENV !== "production" && process.env.DEV_ALLOW_ALL_MODULES === "true";
   if (me?.system_role !== "owner" && !devMode) {
     redirect("/");
   }
@@ -51,14 +54,36 @@ const CATEGORIES: DevCategory[] = [
       { icon: "👥", label: "Staff", href: "/owner/staff" },
       { icon: "➕", label: "New Staff", href: "/owner/staff/new" },
       { icon: "✉️", label: "Invite Staff", href: "/owner/staff/invite" },
-      { icon: "📋", label: "Onboarding Requests", href: "/owner/staff/onboarding", description: "Review and approve staff applications from the shared onboarding link." },
+      {
+        icon: "📋",
+        label: "Onboarding Requests",
+        href: "/owner/staff/onboarding",
+        description: "Review and approve staff applications from the shared onboarding link.",
+      },
       { icon: "✨", label: "Services", href: "/owner/services" },
       { icon: "➕", label: "New Service", href: "/owner/services/new" },
       { icon: "🏠", label: "Spaces & Rules", href: "/owner/spaces-rules" },
-      { icon: "📡", label: "Dispatch", href: "/owner/dispatch", description: "Home service dispatch management." },
+      {
+        icon: "📡",
+        label: "Dispatch",
+        href: "/owner/dispatch",
+        description: "Home service dispatch management.",
+      },
       { icon: "💰", label: "Payroll", href: "/owner/payroll" },
-      { icon: "🎨", label: "Marketing Studio", href: "/owner/marketing", description: "Manage public homepage content, gallery, promotions, and before-you-book copy." },
-      { icon: "🔔", label: "Notifications", href: "/owner/notifications", description: "Review owner-level setup warnings, onboarding requests, and operational notices." },
+      {
+        icon: "🎨",
+        label: "Marketing Studio",
+        href: "/owner/marketing",
+        description:
+          "Manage public homepage content, gallery, promotions, and before-you-book copy.",
+      },
+      {
+        icon: "🔔",
+        label: "Notifications",
+        href: "/owner/notifications",
+        description:
+          "Review owner-level setup warnings, onboarding requests, and operational notices.",
+      },
     ],
   },
   {
@@ -67,21 +92,56 @@ const CATEGORIES: DevCategory[] = [
     links: [
       { icon: "📋", label: "Today", href: "/manager/today" },
       { icon: "🗓️", label: "Schedule", href: "/manager/schedule" },
-      { icon: "📅", label: "Scheduling", href: "/manager/scheduling", description: "Advanced scheduling and shift planning." },
+      {
+        icon: "📅",
+        label: "Scheduling",
+        href: "/manager/scheduling",
+        description: "Advanced scheduling and shift planning.",
+      },
       { icon: "📊", label: "Bookings", href: "/manager/bookings" },
       { icon: "🚶", label: "Walk-in", href: "/manager/walkin" },
       { icon: "👥", label: "Staff", href: "/manager/staff" },
       { icon: "📆", label: "Staff Availability", href: "/manager/staff-availability" },
-      { icon: "📋", label: "Onboarding Requests", href: "/manager/staff/onboarding", description: "Review staff applications for your branch." },
+      {
+        icon: "📋",
+        label: "Onboarding Requests",
+        href: "/manager/staff/onboarding",
+        description: "Review staff applications for your branch.",
+      },
       { icon: "🏠", label: "Spaces & Rules", href: "/manager/spaces-rules" },
       { icon: "✨", label: "Services", href: "/manager/services" },
       { icon: "🔧", label: "Operations", href: "/manager/operations" },
-      { icon: "🟢", label: "Live Operations", href: "/manager/live-operations", description: "Real-time branch status and active booking monitor." },
-      { icon: "📡", label: "Dispatch", href: "/manager/dispatch", description: "Home service dispatch queue." },
-      { icon: "🎛️", label: "Control", href: "/manager/control", description: "Branch control panel." },
-      { icon: "⚙️", label: "Settings", href: "/manager/settings", description: "Branch booking rules, Home Service config, and service availability." },
+      {
+        icon: "🟢",
+        label: "Live Operations",
+        href: "/manager/live-operations",
+        description: "Real-time branch status and active booking monitor.",
+      },
+      {
+        icon: "📡",
+        label: "Dispatch",
+        href: "/manager/dispatch",
+        description: "Home service dispatch queue.",
+      },
+      {
+        icon: "🎛️",
+        label: "Control",
+        href: "/manager/control",
+        description: "Branch control panel.",
+      },
+      {
+        icon: "⚙️",
+        label: "Settings",
+        href: "/manager/settings",
+        description: "Branch booking rules, Home Service config, and service availability.",
+      },
       { icon: "📈", label: "Reports", href: "/manager/reports" },
-      { icon: "🔔", label: "Notifications", href: "/manager/notifications", description: "Open branch-scoped notification and action items." },
+      {
+        icon: "🔔",
+        label: "Notifications",
+        href: "/manager/notifications",
+        description: "Open branch-scoped notification and action items.",
+      },
     ],
   },
   {
@@ -99,14 +159,34 @@ const CATEGORIES: DevCategory[] = [
       { icon: "💰", label: "Reconciliation", href: "/crm/reconciliation" },
       { icon: "💛", label: "Repeat Clients", href: "/crm/repeats" },
       { icon: "🔔", label: "Lapsed Clients", href: "/crm/lapsed" },
-      { icon: "🛠️", label: "Ops Setup", href: "/crm/setup", description: "Operations setup health center — staff, services, rules, issues." },
+      {
+        icon: "🛠️",
+        label: "Ops Setup",
+        href: "/crm/setup",
+        description: "Operations setup health center — staff, services, rules, issues.",
+      },
       { icon: "✨", label: "Services", href: "/crm/services" },
       { icon: "🏠", label: "Spaces & Rules", href: "/crm/spaces-rules" },
-      { icon: "🟢", label: "Live Operations", href: "/crm/live-operations", description: "Real-time branch status and active booking monitor." },
-      { icon: "📡", label: "Dispatch", href: "/crm/dispatch", description: "Home service dispatch queue." },
-      { icon: "🎛️", label: "Work Queue", href: "/crm/today?filter=all" },
+      {
+        icon: "🟢",
+        label: "Live Operations",
+        href: "/crm/live-operations",
+        description: "Real-time branch status and active booking monitor.",
+      },
+      {
+        icon: "📡",
+        label: "Dispatch",
+        href: "/crm/dispatch",
+        description: "Home service dispatch queue.",
+      },
+      { icon: "🎛️", label: "Cradle Flow", href: "/crm/today?filter=all" },
       { icon: "📝", label: "Staff Applications", href: "/crm/staff-applications" },
-      { icon: "📣", label: "Notifications", href: "/crm/notifications", description: "Open front-desk waitlist, payment, and Home Service action items." },
+      {
+        icon: "📣",
+        label: "Notifications",
+        href: "/crm/notifications",
+        description: "Open front-desk waitlist, payment, and Home Service action items.",
+      },
     ],
   },
   {
@@ -118,17 +198,42 @@ const CATEGORIES: DevCategory[] = [
       { icon: "📅", label: "Schedule", href: "/staff-portal/schedule" },
       { icon: "📊", label: "My Stats", href: "/staff-portal/stats" },
       { icon: "👤", label: "Profile", href: "/staff-portal/profile" },
-      { icon: "📡", label: "Dispatch", href: "/staff-portal/dispatch", description: "Home service assignments." },
-      { icon: "🔔", label: "Notifications", href: "/staff-portal/notifications", description: "Open assigned booking and Home Service action items." },
+      {
+        icon: "📡",
+        label: "Dispatch",
+        href: "/staff-portal/dispatch",
+        description: "Home service assignments.",
+      },
+      {
+        icon: "🔔",
+        label: "Notifications",
+        href: "/staff-portal/notifications",
+        description: "Open assigned booking and Home Service action items.",
+      },
     ],
   },
   {
     title: "🔧 Specialized Roles",
     color: "var(--cs-sand)",
     links: [
-      { icon: "🚗", label: "Driver Panel", href: "/driver", description: "Home service driver dashboard." },
-      { icon: "📡", label: "Driver Dispatch", href: "/driver/dispatch", description: "Live dispatch queue for drivers." },
-      { icon: "🧹", label: "Utility Panel", href: "/utility", description: "Room prep and maintenance tasks." },
+      {
+        icon: "🚗",
+        label: "Driver Panel",
+        href: "/driver",
+        description: "Home service driver dashboard.",
+      },
+      {
+        icon: "📡",
+        label: "Driver Dispatch",
+        href: "/driver/dispatch",
+        description: "Live dispatch queue for drivers.",
+      },
+      {
+        icon: "🧹",
+        label: "Utility Panel",
+        href: "/utility",
+        description: "Room prep and maintenance tasks.",
+      },
     ],
   },
   {
@@ -142,9 +247,25 @@ const CATEGORIES: DevCategory[] = [
       { icon: "🛍️", label: "Products", href: "/products" },
       { icon: "📖", label: "About", href: "/about" },
       { icon: "📞", label: "Contact", href: "/contact" },
-      { icon: "💆", label: "Massage Spa Bacolod", href: "/massage-spa-bacolod", description: "SEO landing page." },
-      { icon: "🏠", label: "Home Service Bacolod", href: "/home-service-massage-bacolod", description: "SEO landing page." },
-      { icon: "📝", label: "Staff Onboarding", href: "/staff-onboarding", description: "Shared onboarding form for new hires (requires access code + STAFF_ONBOARDING_ENABLED=true)." },
+      {
+        icon: "💆",
+        label: "Massage Spa Bacolod",
+        href: "/massage-spa-bacolod",
+        description: "SEO landing page.",
+      },
+      {
+        icon: "🏠",
+        label: "Home Service Bacolod",
+        href: "/home-service-massage-bacolod",
+        description: "SEO landing page.",
+      },
+      {
+        icon: "📝",
+        label: "Staff Onboarding",
+        href: "/staff-onboarding",
+        description:
+          "Shared onboarding form for new hires (requires access code + STAFF_ONBOARDING_ENABLED=true).",
+      },
     ],
   },
 ];
@@ -189,7 +310,13 @@ export default async function DevPanelPage() {
         >
           Session Profile
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.5rem" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "0.5rem",
+          }}
+        >
           {[
             { label: "Auth User ID", value: user.id },
             { label: "Email", value: user.email ?? "—" },
@@ -202,7 +329,14 @@ export default async function DevPanelPage() {
           ].map((row) => (
             <div key={row.label} style={{ display: "flex", gap: 8, fontSize: "0.8125rem" }}>
               <span style={{ color: "var(--cs-text-muted)", minWidth: 90 }}>{row.label}</span>
-              <span style={{ color: "var(--cs-text)", fontFamily: "monospace", fontSize: "0.75rem", wordBreak: "break-all" }}>
+              <span
+                style={{
+                  color: "var(--cs-text)",
+                  fontFamily: "monospace",
+                  fontSize: "0.75rem",
+                  wordBreak: "break-all",
+                }}
+              >
                 {row.value}
               </span>
             </div>
@@ -223,7 +357,8 @@ export default async function DevPanelPage() {
           style={{
             padding: "6px 12px",
             borderRadius: 6,
-            backgroundColor: nodeEnv !== "production" ? "var(--cs-success-bg)" : "var(--cs-surface)",
+            backgroundColor:
+              nodeEnv !== "production" ? "var(--cs-success-bg)" : "var(--cs-surface)",
             border: "1px solid var(--cs-border)",
             fontSize: "0.8125rem",
             color: nodeEnv !== "production" ? "var(--cs-success)" : "var(--cs-text)",
@@ -327,7 +462,9 @@ export default async function DevPanelPage() {
                       </span>
                     ) : null}
                   </span>
-                  <span style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}>›</span>
+                  <span style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}>
+                    ›
+                  </span>
                 </Link>
               ))}
             </div>
@@ -393,7 +530,9 @@ export default async function DevPanelPage() {
                       fontWeight: 600,
                       padding: "2px 8px",
                       borderRadius: "var(--cs-r-pill)",
-                      backgroundColor: branch.is_active ? "var(--cs-success-bg)" : "var(--cs-border)",
+                      backgroundColor: branch.is_active
+                        ? "var(--cs-success-bg)"
+                        : "var(--cs-border)",
                       color: branch.is_active ? "var(--cs-success)" : "var(--cs-text-muted)",
                     }}
                   >
@@ -416,7 +555,11 @@ export default async function DevPanelPage() {
                   >
                     <span style={{ fontSize: 16 }}>🏢</span>
                     Manage Branch
-                    <span style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}>›</span>
+                    <span
+                      style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}
+                    >
+                      ›
+                    </span>
                   </Link>
                   <Link
                     href={`/manager/bookings?branchId=${branch.id}`}
@@ -433,7 +576,11 @@ export default async function DevPanelPage() {
                   >
                     <span style={{ fontSize: 16 }}>📊</span>
                     View Bookings
-                    <span style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}>›</span>
+                    <span
+                      style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}
+                    >
+                      ›
+                    </span>
                   </Link>
                   <Link
                     href={`/manager?branchId=${branch.id}`}
@@ -450,7 +597,11 @@ export default async function DevPanelPage() {
                   >
                     <span style={{ fontSize: 16 }}>📋</span>
                     Today&apos;s Schedule
-                    <span style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}>›</span>
+                    <span
+                      style={{ marginLeft: "auto", color: "var(--cs-text-muted)", fontSize: 12 }}
+                    >
+                      ›
+                    </span>
                   </Link>
                 </div>
               </div>

@@ -125,7 +125,12 @@ type ServiceRelation = OneOrMany<{
   duration_minutes?: number;
   metadata?: Record<string, unknown> | null;
 }>;
-type StaffRelation = OneOrMany<{ id: string; full_name: string; nickname?: string | null; tier?: string }>;
+type StaffRelation = OneOrMany<{
+  id: string;
+  full_name: string;
+  nickname?: string | null;
+  tier?: string;
+}>;
 type CustomerRelation = OneOrMany<{
   id?: string;
   full_name: string;
@@ -169,7 +174,8 @@ type TodayScheduleRow = {
   services: ServiceRelation;
   staff: StaffRelation;
   customers: CustomerRelation;
-} & MaybePaymentFields & MaybeProgressFields;
+} & MaybePaymentFields &
+  MaybeProgressFields;
 type StaffUpcomingRow = {
   id: string;
   booking_date: string;
@@ -257,8 +263,7 @@ function isMissingPaymentColumns(error: QueryError | null): boolean {
 function isMissingResourceColumn(error: QueryError | null): boolean {
   if (!error) return false;
   return (
-    error.code === "42703" ||
-    /column bookings\.resource_id does not exist/i.test(error.message)
+    error.code === "42703" || /column bookings\.resource_id does not exist/i.test(error.message)
   );
 }
 
@@ -276,22 +281,13 @@ function withPaymentDefaults<T extends object>(
     return {
       ...row,
       payment_method:
-        typeof payment.payment_method === "string"
-          ? payment.payment_method
-          : "pay_on_site",
+        typeof payment.payment_method === "string" ? payment.payment_method : "pay_on_site",
       payment_status:
-        typeof payment.payment_status === "string"
-          ? payment.payment_status
-          : "unpaid",
+        typeof payment.payment_status === "string" ? payment.payment_status : "unpaid",
       payment_reference:
-        typeof payment.payment_reference === "string"
-          ? payment.payment_reference
-          : null,
+        typeof payment.payment_reference === "string" ? payment.payment_reference : null,
       amount_paid: Number.isFinite(amountPaid) ? amountPaid : 0,
-      hold_expires_at:
-        typeof payment.hold_expires_at === "string"
-          ? payment.hold_expires_at
-          : null,
+      hold_expires_at: typeof payment.hold_expires_at === "string" ? payment.hold_expires_at : null,
     };
   });
 }
@@ -325,9 +321,7 @@ async function loadBookingRows<T extends object>(
     if (!result.error) {
       return attachBranchResources(
         supabase,
-        withPaymentDefaults(
-          withResourceDefaults(result.data ?? [], variant.hasResource)
-        )
+        withPaymentDefaults(withResourceDefaults(result.data ?? [], variant.hasResource))
       );
     }
 
@@ -355,10 +349,7 @@ async function loadBookingRow<T extends object>(
       const [booking] = await attachBranchResources(
         supabase,
         withPaymentDefaults(
-          withResourceDefaults(
-            result.data ? [result.data] : [],
-            variant.hasResource
-          )
+          withResourceDefaults(result.data ? [result.data] : [], variant.hasResource)
         )
       );
       return booking;
@@ -396,24 +387,17 @@ function readPricePaid(metadata: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export async function getBookingsByBranch(
-  branchId: string,
-  date: string
-) {
+export async function getBookingsByBranch(branchId: string, date: string) {
   const supabase = await createClient();
-  return loadBookingRows(
-    supabase,
-    BOOKING_SELECT_VARIANTS,
-    async (select) => {
-      const result = await supabase
-        .from("bookings")
-        .select(select)
-        .eq("branch_id", branchId)
-        .eq("booking_date", date)
-        .order("start_time");
-      return result as QueryResult<BookingFullRow>;
-    }
-  );
+  return loadBookingRows(supabase, BOOKING_SELECT_VARIANTS, async (select) => {
+    const result = await supabase
+      .from("bookings")
+      .select(select)
+      .eq("branch_id", branchId)
+      .eq("booking_date", date)
+      .order("start_time");
+    return result as QueryResult<BookingFullRow>;
+  });
 }
 
 export async function getAllBookings(filters?: {
@@ -424,23 +408,19 @@ export async function getAllBookings(filters?: {
   staffId?: string;
 }) {
   const supabase = await createClient();
-  return loadBookingRows(
-    supabase,
-    BOOKING_SELECT_VARIANTS,
-    async (select) => {
-      let q = supabase.from("bookings").select(select);
-      if (filters?.branchId) q = q.eq("branch_id", filters.branchId);
-      if (filters?.date) q = q.eq("booking_date", filters.date);
-      if (filters?.status) q = q.eq("status", filters.status);
-      if (filters?.type) q = q.eq("type", filters.type);
-      if (filters?.staffId) q = q.eq("staff_id", filters.staffId);
-      const result = await q
-        .order("booking_date", { ascending: false })
-        .order("start_time")
-        .limit(500);
-      return result as QueryResult<BookingFullRow>;
-    }
-  );
+  return loadBookingRows(supabase, BOOKING_SELECT_VARIANTS, async (select) => {
+    let q = supabase.from("bookings").select(select);
+    if (filters?.branchId) q = q.eq("branch_id", filters.branchId);
+    if (filters?.date) q = q.eq("booking_date", filters.date);
+    if (filters?.status) q = q.eq("status", filters.status);
+    if (filters?.type) q = q.eq("type", filters.type);
+    if (filters?.staffId) q = q.eq("staff_id", filters.staffId);
+    const result = await q
+      .order("booking_date", { ascending: false })
+      .order("start_time")
+      .limit(500);
+    return result as QueryResult<BookingFullRow>;
+  });
 }
 
 export async function getBookingById(bookingId: string) {
@@ -452,11 +432,7 @@ export async function getBookingById(bookingId: string) {
       select: `${variant.select}, booking_events ( * )`,
     })),
     async (select) => {
-      const result = await supabase
-        .from("bookings")
-        .select(select)
-        .eq("id", bookingId)
-        .single();
+      const result = await supabase.from("bookings").select(select).eq("id", bookingId).single();
       return result as SingleQueryResult<BookingFullRow>;
     }
   );
@@ -464,85 +440,63 @@ export async function getBookingById(bookingId: string) {
 
 export async function getBookingsByCustomer(customerId: string) {
   const supabase = await createClient();
-  return loadBookingRows(
-    supabase,
-    BOOKING_SELECT_VARIANTS,
-    async (select) => {
-      const result = await supabase
-        .from("bookings")
-        .select(select)
-        .eq("customer_id", customerId)
-        .order("booking_date", { ascending: false })
-        .limit(50);
-      return result as QueryResult<BookingFullRow>;
-    }
-  );
+  return loadBookingRows(supabase, BOOKING_SELECT_VARIANTS, async (select) => {
+    const result = await supabase
+      .from("bookings")
+      .select(select)
+      .eq("customer_id", customerId)
+      .order("booking_date", { ascending: false })
+      .limit(50);
+    return result as QueryResult<BookingFullRow>;
+  });
 }
 
 export async function getMyBookings(staffId: string, date: string) {
   const supabase = await createClient();
-  return loadBookingRows(
-    supabase,
-    BOOKING_SELECT_VARIANTS,
-    async (select) => {
-      const result = await supabase
-        .from("bookings")
-        .select(select)
-        .eq("staff_id", staffId)
-        .eq("booking_date", date)
-        .not("status", "in", '("cancelled","no_show")')
-        .order("start_time");
-      return result as QueryResult<BookingFullRow>;
-    }
-  );
+  return loadBookingRows(supabase, BOOKING_SELECT_VARIANTS, async (select) => {
+    const result = await supabase
+      .from("bookings")
+      .select(select)
+      .eq("staff_id", staffId)
+      .eq("booking_date", date)
+      .not("status", "in", '("cancelled","no_show")')
+      .order("start_time");
+    return result as QueryResult<BookingFullRow>;
+  });
 }
 
 // ── Today's full branch schedule (manager timeline view) ──────────────────
 export async function getTodaysSchedule(branchId: string, date: string) {
   const supabase = await createClient();
-  return loadBookingRows(
-    supabase,
-    TODAY_SCHEDULE_SELECT_VARIANTS,
-    async (select) => {
-      const result = await supabase
-        .from("bookings")
-        .select(select)
-        .eq("branch_id", branchId)
-        .eq("booking_date", date)
-        .order("start_time");
-      return result as QueryResult<TodayScheduleRow>;
-    }
-  );
+  return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
+    const result = await supabase
+      .from("bookings")
+      .select(select)
+      .eq("branch_id", branchId)
+      .eq("booking_date", date)
+      .order("start_time");
+    return result as QueryResult<TodayScheduleRow>;
+  });
 }
 
 // ── CRM pending / incoming queue (today forward) ─────────────────────────
-export async function getCrmPendingBookingQueue(
-  branchId: string,
-  fromDate: string
-) {
+export async function getCrmPendingBookingQueue(branchId: string, fromDate: string) {
   const supabase = await createClient();
-  return loadBookingRows(
-    supabase,
-    TODAY_SCHEDULE_SELECT_VARIANTS,
-    async (select) => {
-      const result = await supabase
-        .from("bookings")
-        .select(select)
-        .eq("branch_id", branchId)
-        .in("status", [...CRM_PENDING_BOOKING_STATUSES])
-        .gte("booking_date", fromDate)
-        .order("booking_date")
-        .order("start_time")
-        .limit(100);
-      return result as QueryResult<TodayScheduleRow>;
-    }
-  );
+  return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
+    const result = await supabase
+      .from("bookings")
+      .select(select)
+      .eq("branch_id", branchId)
+      .in("status", [...CRM_PENDING_BOOKING_STATUSES])
+      .gte("booking_date", fromDate)
+      .order("booking_date")
+      .order("start_time")
+      .limit(100);
+    return result as QueryResult<TodayScheduleRow>;
+  });
 }
 
-export async function getCrmBookingsCommandCenterRows(
-  branchId: string,
-  date: string
-) {
+export async function getCrmBookingsCommandCenterRows(branchId: string, date: string) {
   return getTodaysSchedule(branchId, date);
 }
 
@@ -560,9 +514,7 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
   }
 
   const rows = result.error
-    ? withPaymentDefaults(
-        await loadDailyPaymentFallbackRows(supabase, branchId, date)
-      )
+    ? withPaymentDefaults(await loadDailyPaymentFallbackRows(supabase, branchId, date))
     : withPaymentDefaults((result.data ?? []) as DailyPaymentRow[]);
 
   const activeRows = rows.filter((r) => !isBookingClosedForCrm(r.status));
@@ -570,47 +522,57 @@ export async function getDailyPaymentSummary(branchId: string, date: string) {
   const unpaidRows = activeRows.filter((r) => ["unpaid", "pending"].includes(r.payment_status));
 
   const totalExpected = activeRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
-  const totalCollected = paidRows.reduce((s, r) => s + Number(r.amount_paid ?? 0), 0);
-  const totalUnpaid = unpaidRows.reduce((s, r) => s + readPricePaid(r.metadata), 0);
+  const totalCollected = activeRows.reduce((sum, row) => sum + Number(row.amount_paid ?? 0), 0);
+  const totalUnpaid = unpaidRows.reduce(
+    (sum, row) => sum + Math.max(0, readPricePaid(row.metadata) - Number(row.amount_paid ?? 0)),
+    0
+  );
 
   const byMethod: Record<string, number> = {
-    cash: 0, gcash: 0, maya: 0, card: 0, pay_on_site: 0, other: 0,
+    cash: 0,
+    gcash: 0,
+    maya: 0,
+    card: 0,
+    pay_on_site: 0,
+    other: 0,
   };
-  for (const r of paidRows) {
+  for (const r of activeRows.filter((row) => Number(row.amount_paid ?? 0) > 0)) {
     const m = r.payment_method ?? "other";
     byMethod[m] = (byMethod[m] ?? 0) + Number(r.amount_paid ?? 0);
   }
 
   return {
     date,
-    total_expected:  totalExpected,
+    total_expected: totalExpected,
     total_collected: totalCollected,
-    total_unpaid:    totalUnpaid,
-    paid_count:      paidRows.length,
-    unpaid_count:    unpaidRows.length,
-    total_count:     activeRows.length,
-    by_method:       byMethod as {
-      cash: number; gcash: number; maya: number;
-      card: number; pay_on_site: number; other: number;
+    total_unpaid: totalUnpaid,
+    paid_count: paidRows.length,
+    unpaid_count: unpaidRows.length,
+    total_count: activeRows.length,
+    by_method: byMethod as {
+      cash: number;
+      gcash: number;
+      maya: number;
+      card: number;
+      pay_on_site: number;
+      other: number;
     },
   };
 }
 
 // ── 7-day schedule for manager planning view ──────────────────────────────
-export async function getWeekSchedule(
-  branchId: string,
-  startDate: string,
-  endDate: string
-) {
+export async function getWeekSchedule(branchId: string, startDate: string, endDate: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("bookings")
-    .select(`
+    .select(
+      `
       id, booking_date, start_time, end_time, type, status,
       services ( id, name, duration_minutes ),
       staff!staff_id ( id, full_name, nickname, tier ),
       customers( id, full_name )
-    `)
+    `
+    )
     .eq("branch_id", branchId)
     .gte("booking_date", startDate)
     .lte("booking_date", endDate)
@@ -632,29 +594,27 @@ export async function getManagerDashboardStats(branchId: string, date: string) {
   if (error) throw new Error(error.message);
   const rows = data ?? [];
   return {
-    total:       rows.length,
-    pending:     rows.filter((r) => isCrmPendingBookingStatus(r.status)).length,
-    confirmed:   rows.filter((r) => r.status === "confirmed").length,
+    total: rows.length,
+    pending: rows.filter((r) => isCrmPendingBookingStatus(r.status)).length,
+    confirmed: rows.filter((r) => r.status === "confirmed").length,
     in_progress: rows.filter((r) => r.status === "in_progress").length,
-    completed:   rows.filter((r) => r.status === "completed").length,
-    cancelled:   rows.filter((r) => r.status === "cancelled").length,
-    no_show:     rows.filter((r) => r.status === "no_show").length,
+    completed: rows.filter((r) => r.status === "completed").length,
+    cancelled: rows.filter((r) => r.status === "cancelled").length,
+    no_show: rows.filter((r) => r.status === "no_show").length,
   };
 }
 
 // ── Owner cross-branch booking list with filters ───────────────────────────
 export async function getAllBookingsOwner(filters?: {
   branchId?: string;
-  staffId?:  string;
+  staffId?: string;
   fromDate?: string;
-  toDate?:   string;
-  status?:   string;
-  type?:     string;
+  toDate?: string;
+  status?: string;
+  type?: string;
 }) {
   const supabase = await createClient();
-  let q = supabase
-    .from("bookings")
-    .select(`
+  let q = supabase.from("bookings").select(`
       id, booking_date, start_time, end_time, type, status,
       travel_buffer_mins, metadata, created_at,
       branches  ( id, name ),
@@ -664,11 +624,11 @@ export async function getAllBookingsOwner(filters?: {
     `);
 
   if (filters?.branchId) q = q.eq("branch_id", filters.branchId);
-  if (filters?.staffId)  q = q.eq("staff_id",  filters.staffId);
-  if (filters?.status)   q = q.eq("status",    filters.status);
-  if (filters?.type)     q = q.eq("type",      filters.type);
+  if (filters?.staffId) q = q.eq("staff_id", filters.staffId);
+  if (filters?.status) q = q.eq("status", filters.status);
+  if (filters?.type) q = q.eq("type", filters.type);
   if (filters?.fromDate) q = q.gte("booking_date", filters.fromDate);
-  if (filters?.toDate)   q = q.lte("booking_date", filters.toDate);
+  if (filters?.toDate) q = q.lte("booking_date", filters.toDate);
 
   const { data, error } = await q
     .order("booking_date", { ascending: false })
@@ -679,39 +639,27 @@ export async function getAllBookingsOwner(filters?: {
 }
 
 // ── Staff: own upcoming bookings — NO customer phone/email (Rule 13) ───────
-export async function getMyUpcomingBookings(
-  staffId:  string,
-  fromDate: string,
-  toDate:   string
-) {
+export async function getMyUpcomingBookings(staffId: string, fromDate: string, toDate: string) {
   const supabase = await createClient();
-  return loadBookingRows(
-    supabase,
-    STAFF_UPCOMING_SELECT_VARIANTS,
-    async (select) => {
-      const result = await supabase
-        .from("bookings")
-        .select(select)
-        .eq("staff_id", staffId)
-        .gte("booking_date", fromDate)
-        .lte("booking_date", toDate)
-        .not("status", "in", '("cancelled","no_show")')
-        .order("booking_date")
-        .order("start_time");
-      return result as QueryResult<StaffUpcomingRow>;
-    }
-  );
+  return loadBookingRows(supabase, STAFF_UPCOMING_SELECT_VARIANTS, async (select) => {
+    const result = await supabase
+      .from("bookings")
+      .select(select)
+      .eq("staff_id", staffId)
+      .gte("booking_date", fromDate)
+      .lte("booking_date", toDate)
+      .not("status", "in", '("cancelled","no_show")')
+      .order("booking_date")
+      .order("start_time");
+    return result as QueryResult<StaffUpcomingRow>;
+  });
 }
 
 // ── Staff: personal monthly stats (Rule 14: uses metadata.price_paid) ─────
-export async function getMyMonthlyStats(
-  staffId: string,
-  year:    number,
-  month:   number
-) {
+export async function getMyMonthlyStats(staffId: string, year: number, month: number) {
   const supabase = await createClient();
   const fromDate = `${year}-${String(month).padStart(2, "0")}-01`;
-  const toDate   = new Date(year, month, 0).toISOString().split("T")[0]!;
+  const toDate = new Date(year, month, 0).toISOString().split("T")[0]!;
 
   const { data, error } = await supabase
     .from("bookings")
@@ -721,17 +669,17 @@ export async function getMyMonthlyStats(
     .lte("booking_date", toDate);
   if (error) throw new Error(error.message);
 
-  const rows      = data ?? [];
+  const rows = data ?? [];
   const completed = rows.filter((r) => r.status === "completed");
-  const revenue   = completed.reduce((sum, r) => {
+  const revenue = completed.reduce((sum, r) => {
     return sum + Number((r.metadata as Record<string, unknown>)?.["price_paid"] ?? 0);
   }, 0);
 
   return {
-    total_assigned:    rows.length,
-    completed:         completed.length,
-    cancelled:         rows.filter((r) => r.status === "cancelled").length,
-    no_show:           rows.filter((r) => r.status === "no_show").length,
+    total_assigned: rows.length,
+    completed: completed.length,
+    cancelled: rows.filter((r) => r.status === "cancelled").length,
+    no_show: rows.filter((r) => r.status === "no_show").length,
     revenue_generated: revenue,
   };
 }

@@ -40,8 +40,8 @@ const TILES: ShortcutTile[] = [
   },
   {
     icon: "📊",
-    label: "Work Queue",
-    description: "Return to today’s prioritized CRM queue.",
+    label: "Cradle Flow",
+    description: "Return to today’s front-desk command center.",
     href: "/crm/today",
   },
 ];

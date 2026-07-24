@@ -56,22 +56,22 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
 // tools into a quieter System Management area. Routes stay stable for now.
 
 const CRM_NAV_ITEMS: NavItem[] = [
-  { label: "Work Queue",   href: "/crm/today",     icon: "LayoutDashboard" },
-  { label: "Bookings",     href: "/crm/bookings",  icon: "ClipboardList"   },
-  { label: "Schedule",     href: "/crm/schedule",  icon: "CalendarDays"    },
-  { label: "Attendance",   href: "/crm/attendance", icon: "ClipboardCheck"  },
-  { label: "Customers",    href: "/crm/customers", icon: "Users"           },
-  { label: "Home Service", href: "/crm/dispatch",  icon: "Truck"           },
+  { label: "Cradle Flow", href: "/crm/today", icon: "LayoutDashboard" },
+  { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
+  { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },
+  { label: "Attendance", href: "/crm/attendance", icon: "ClipboardCheck" },
+  { label: "Customers", href: "/crm/customers", icon: "Users" },
+  { label: "Home Service", href: "/crm/dispatch", icon: "Truck" },
 ];
 
 const CRM_SYSTEM_NAV_ITEMS: NavItem[] = [
-  { label: "Staff & Access",       href: "/crm/staff",                    icon: "UserCheck"      },
-  { label: "Services & Providers", href: "/crm/setup?tab=services",       icon: "Sparkles"       },
-  { label: "Rooms & Resources",    href: "/crm/setup?tab=spaces",         icon: "Building2"      },
-  { label: "Booking Rules",        href: "/crm/setup?tab=booking_rules",  icon: "ClipboardCheck" },
-  { label: "Schedule Management",  href: "/crm/schedule?tab=setup",       icon: "CalendarClock"  },
-  { label: "System Health",        href: "/crm/setup?tab=health",         icon: "Activity"       },
-  { label: "Close Day",            href: "/crm/reconciliation",           icon: "DollarSign"     },
+  { label: "Staff & Access", href: "/crm/staff", icon: "UserCheck" },
+  { label: "Services & Providers", href: "/crm/setup?tab=services", icon: "Sparkles" },
+  { label: "Rooms & Resources", href: "/crm/setup?tab=spaces", icon: "Building2" },
+  { label: "Booking Rules", href: "/crm/setup?tab=booking_rules", icon: "ClipboardCheck" },
+  { label: "Schedule Management", href: "/crm/schedule?tab=setup", icon: "CalendarClock" },
+  { label: "System Health", href: "/crm/setup?tab=health", icon: "Activity" },
+  { label: "Close Day", href: "/crm/reconciliation", icon: "DollarSign" },
 ];
 
 const STAFF_NAV_ITEMS: NavItem[] = [
@@ -90,9 +90,7 @@ const DRIVER_NAV_ITEMS: NavItem[] = [
   { label: "Dispatch", href: "/driver/dispatch", icon: "MapPin" },
 ];
 
-const UTILITY_NAV_ITEMS: NavItem[] = [
-  { label: "Utility Panel", href: "/utility", icon: "Wrench" },
-];
+const UTILITY_NAV_ITEMS: NavItem[] = [{ label: "Utility Panel", href: "/utility", icon: "Wrench" }];
 
 export const NAV_CONFIG: Record<string, WorkspaceNav> = {
   owner: {

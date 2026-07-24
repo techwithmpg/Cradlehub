@@ -8,13 +8,9 @@ export type CrmTabItem = {
 
 // ── Per-section tab configs ───────────────────────────────────────────────────
 
-export const TODAY_TABS: CrmTabItem[] = [
-  { label: "Work Queue", href: "/crm/today" },
-];
+export const TODAY_TABS: CrmTabItem[] = [{ label: "Cradle Flow", href: "/crm/today" }];
 
-export const BOOKINGS_TABS: CrmTabItem[] = [
-  { label: "Today's Bookings", href: "/crm/bookings" },
-];
+export const BOOKINGS_TABS: CrmTabItem[] = [{ label: "Today's Bookings", href: "/crm/bookings" }];
 
 export const SCHEDULE_TABS: CrmTabItem[] = [
   { label: "Daily Timeline", href: "/crm/schedule" },
@@ -22,10 +18,10 @@ export const SCHEDULE_TABS: CrmTabItem[] = [
 ];
 
 export const CUSTOMERS_TABS: CrmTabItem[] = [
-  { label: "All Customers",      href: "/crm/customers" },
-  { label: "Repeat Clients",     href: "/crm/repeats"   },
-  { label: "Lapsed Clients",     href: "/crm/lapsed"    },
-  { label: "Waitlist / Follow-up", href: "/crm/waitlist"  },
+  { label: "All Customers", href: "/crm/customers" },
+  { label: "Repeat Clients", href: "/crm/repeats" },
+  { label: "Lapsed Clients", href: "/crm/lapsed" },
+  { label: "Waitlist / Follow-up", href: "/crm/waitlist" },
 ];
 
 /**
@@ -34,32 +30,26 @@ export const CUSTOMERS_TABS: CrmTabItem[] = [
  * Old routes /crm/services and /crm/spaces-rules now redirect to Setup Center.
  */
 export const SETUP_TABS: CrmTabItem[] = [
-  { label: "Setup Health",   href: "/crm/setup?tab=health"  },
-  { label: "Services",       href: "/crm/setup?tab=services" },
-  { label: "Spaces & Rules", href: "/crm/setup?tab=spaces"  },
+  { label: "Setup Health", href: "/crm/setup?tab=health" },
+  { label: "Services", href: "/crm/setup?tab=services" },
+  { label: "Spaces & Rules", href: "/crm/setup?tab=spaces" },
 ];
 
 export const CRM_SERVICES_TABS: CrmTabItem[] = [
-  { label: "Services",            href: "/crm/services?tab=services"       },
-  { label: "Service Customization", href: "/crm/services?tab=customization"  },
-  { label: "Provider Assignments",  href: "/crm/services?tab=providers"      },
-  { label: "Readiness Issues",      href: "/crm/services?tab=issues"         },
+  { label: "Services", href: "/crm/services?tab=services" },
+  { label: "Service Customization", href: "/crm/services?tab=customization" },
+  { label: "Provider Assignments", href: "/crm/services?tab=providers" },
+  { label: "Readiness Issues", href: "/crm/services?tab=issues" },
 ];
 
 export const DISPATCH_TABS: CrmTabItem[] = [
-  { label: "Dispatch Queue", href: "/crm/dispatch"        },
-  { label: "Live Map",       href: "/crm/live-operations" },
+  { label: "Dispatch Queue", href: "/crm/dispatch" },
+  { label: "Live Map", href: "/crm/live-operations" },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function CrmTabNav({
-  tabs,
-  activeHref,
-}: {
-  tabs: CrmTabItem[];
-  activeHref: string;
-}) {
+export function CrmTabNav({ tabs, activeHref }: { tabs: CrmTabItem[]; activeHref: string }) {
   return (
     <nav
       style={{

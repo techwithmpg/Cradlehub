@@ -3,11 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { updateBookingStatusSchema } from "@/lib/validations/booking";
-import {
-  getAllBookings,
-  getAllBookingsOwner,
-  getBookingById,
-} from "@/lib/queries/bookings";
+import { getAllBookings, getAllBookingsOwner, getBookingById } from "@/lib/queries/bookings";
 import {
   getOwnerDashboardStats,
   getRevenueByBranch,
@@ -17,6 +13,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { updateBookingPaymentSchema } from "@/lib/validations/booking";
+import { getBookingPaymentGate } from "@/lib/bookings/payment-gate";
 import { getCrossbranchCashSummary } from "@/lib/queries/analytics";
 
 export type OwnerReportsRequest = {
@@ -113,11 +110,11 @@ export async function getOwnerDashboardAction(date: string) {
 // ── All bookings across all branches with filters ─────────────────────────
 export async function getOwnerBookingsAction(filters?: {
   branchId?: string;
-  staffId?:  string;
+  staffId?: string;
   fromDate?: string;
-  toDate?:   string;
-  status?:   string;
-  type?:     string;
+  toDate?: string;
+  status?: string;
+  type?: string;
 }) {
   const ctx = await requireOwner();
   if (!ctx) return { error: "Unauthorized" };
@@ -149,8 +146,11 @@ export async function ownerUpdateBookingStatusAction(rawInput: unknown) {
   // set_config is a Postgres built-in, not in generated Supabase types — cast required.
   if (ctx.me.id) {
     try {
-      await (ctx.supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown> })
-        .rpc("set_config", { setting: "app.current_staff_id", value: ctx.me.id, is_local: true });
+      await (
+        ctx.supabase as unknown as {
+          rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).rpc("set_config", { setting: "app.current_staff_id", value: ctx.me.id, is_local: true });
     } catch {
       // Non-critical: trigger attribution may not run, booking update proceeds
     }
@@ -189,7 +189,7 @@ export async function getRevenueByBranchAction(fromDate: string, toDate: string)
 // ── Analytics: staff productivity ────────────────────────────────────────
 export async function getStaffProductivityAction(
   fromDate: string,
-  toDate:   string,
+  toDate: string,
   branchId?: string
 ) {
   const ctx = await requireOwner();
@@ -219,13 +219,14 @@ export async function getOwnerReportsDataAction(
   if (!ctx) return { success: false, error: "Unauthorized" };
 
   const { preset, from, to } = reportRange(request);
-  const trendDays = preset === "today"
-    ? 0
-    : preset === "last30"
-      ? 30
-      : preset === "thisMonth"
-        ? Math.max(0, new Date().getDate() - 1)
-        : 7;
+  const trendDays =
+    preset === "today"
+      ? 0
+      : preset === "last30"
+        ? 30
+        : preset === "thisMonth"
+          ? Math.max(0, new Date().getDate() - 1)
+          : 7;
 
   try {
     const [revenueData, staffData, trendData, cashSummary] = await Promise.all([
@@ -258,18 +259,18 @@ export async function getOwnerReportsDataAction(
 // ── Payment-aware booking list for the new shared workspace ──────────────
 // Uses the full-featured query that returns payment fields + branch resources.
 export async function getOwnerWorkspaceBookingsAction(filters?: {
-  date?:     string;
+  date?: string;
   branchId?: string;
-  status?:   string;
-  type?:     string;
+  status?: string;
+  type?: string;
 }) {
   const ctx = await requireOwner();
   if (!ctx) return { error: "Unauthorized" as const };
   const bookings = await getAllBookings({
-    date:     filters?.date,
+    date: filters?.date,
     branchId: filters?.branchId,
-    status:   filters?.status,
-    type:     filters?.type,
+    status: filters?.status,
+    type: filters?.type,
   });
   return { bookings };
 }
@@ -286,18 +287,46 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
   const ctx = await requireOwner();
   if (!ctx) return { success: false, error: "Unauthorized" };
 
-  const { bookingId, paymentMethod, paymentStatus, amountPaid, paymentReference, reason } = parsed.data;
+  const {
+    bookingId,
+    paymentMethod,
+    paymentStatus,
+    amountPaid,
+    paymentReference,
+    paymentPurpose,
+    reason,
+  } = parsed.data;
 
   // Fetch current payment state for audit log
   const { data: before } = await ctx.supabase
     .from("bookings")
-    .select("branch_id, payment_method, payment_status, amount_paid, payment_reference")
+    .select(
+      "branch_id, status, booking_progress_status, session_completed_at, payment_method, payment_status, amount_paid, payment_reference"
+    )
     .eq("id", bookingId)
     .single();
 
+  if (!before) {
+    return { success: false, error: "Booking not found" };
+  }
+
+  const paymentGate = getBookingPaymentGate({
+    bookingStatus: before.status,
+    bookingProgressStatus: before.booking_progress_status,
+    sessionCompletedAt: before.session_completed_at,
+    previousAmountPaid: Number(before.amount_paid ?? 0),
+    nextAmountPaid: amountPaid,
+    nextPaymentStatus: paymentStatus,
+    paymentPurpose,
+    reason,
+  });
+  if (!paymentGate.allowed) {
+    return { success: false, error: paymentGate.error };
+  }
+
   const isSignificantChange =
     (before?.payment_status === "paid" && paymentStatus !== "paid") ||
-    ((before?.amount_paid ?? 0) > amountPaid);
+    (before?.amount_paid ?? 0) > amountPaid;
 
   if (isSignificantChange && !reason?.trim()) {
     return { success: false, error: "Reason is required for voids, refunds, or corrections" };
@@ -305,25 +334,28 @@ export async function ownerUpdateBookingPaymentAction(rawInput: unknown) {
 
   // Insert audit log
   await ctx.supabase.from("booking_payment_logs").insert({
-    booking_id:            bookingId,
-    changed_by:            ctx.me.id ?? null,
-    old_payment_method:    before?.payment_method ?? null,
-    old_payment_status:    before?.payment_status ?? null,
-    old_amount_paid:       before?.amount_paid ?? null,
+    booking_id: bookingId,
+    changed_by: ctx.me.id ?? null,
+    old_payment_method: before?.payment_method ?? null,
+    old_payment_status: before?.payment_status ?? null,
+    old_amount_paid: before?.amount_paid ?? null,
     old_payment_reference: before?.payment_reference ?? null,
-    new_payment_method:    paymentMethod,
-    new_payment_status:    paymentStatus,
-    new_amount_paid:       amountPaid,
+    new_payment_method: paymentMethod,
+    new_payment_status: paymentStatus,
+    new_amount_paid: amountPaid,
     new_payment_reference: paymentReference ?? null,
-    reason:                reason?.trim() ?? null,
+    reason:
+      paymentPurpose && paymentPurpose !== "final_settlement"
+        ? `[${paymentPurpose}] ${reason?.trim() ?? ""}`.trim()
+        : (reason?.trim() ?? null),
   });
 
   const { error } = await ctx.supabase
     .from("bookings")
     .update({
-      payment_method:    paymentMethod,
-      payment_status:    paymentStatus,
-      amount_paid:       amountPaid,
+      payment_method: paymentMethod,
+      payment_status: paymentStatus,
+      amount_paid: amountPaid,
       payment_reference: paymentReference ?? null,
     })
     .eq("id", bookingId);

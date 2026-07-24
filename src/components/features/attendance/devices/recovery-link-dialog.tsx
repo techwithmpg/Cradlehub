@@ -40,15 +40,19 @@ export function RecoveryLinkDialog({
   onOpenChange,
   registry,
   entry,
+  initialStaffId,
   onGenerated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   registry: AttendanceDeviceRegistryData;
   entry: AttendanceDeviceRegistryEntry | null;
+  initialStaffId?: string | null;
   onGenerated: (link: PendingDeviceRecoveryLink, result: RecoveryLinkResult) => void;
 }) {
-  const [staffId, setStaffId] = useState(entry?.staffId ?? registry.staffOptions[0]?.id ?? "");
+  const [staffId, setStaffId] = useState(
+    initialStaffId ?? entry?.staffId ?? registry.staffOptions[0]?.id ?? ""
+  );
   const [reason, setReason] = useState<DeviceRecoveryReason>("browser_data_cleared");
   const [ttl, setTtl] = useState<15 | 30 | 60>(30);
   const [revokePrevious, setRevokePrevious] = useState(false);

@@ -33,7 +33,7 @@ export function CrmTodayHeader({
               fontFamily: "var(--font-display)",
             }}
           >
-            Work Queue
+            Cradle Flow
           </h1>
           <span
             style={{

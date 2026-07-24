@@ -14,11 +14,11 @@ type EmergencyLink = {
 
 const EMERGENCY_LINKS: EmergencyLink[] = [
   { label: "Reassign / Review Booking", href: "/crm/bookings" },
-  { label: "Open Work Queue",           href: "/crm/today?filter=exceptions" },
-  { label: "Open Dispatch",             href: "/crm/dispatch" },
-  { label: "Review Daily Timeline",     href: "/crm/schedule" },
-  { label: "Review Alerts",             href: "/crm/notifications" },
-  { label: "Open Schedule",             href: "/crm/schedule" },
+  { label: "Open Cradle Flow", href: "/crm/today?filter=exceptions" },
+  { label: "Open Dispatch", href: "/crm/dispatch" },
+  { label: "Review Daily Timeline", href: "/crm/schedule" },
+  { label: "Review Alerts", href: "/crm/notifications" },
+  { label: "Open Schedule", href: "/crm/schedule" },
 ];
 
 export function TodayEmergencyActions() {

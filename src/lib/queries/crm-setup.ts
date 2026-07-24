@@ -74,7 +74,8 @@ function deriveIssues(d: Omit<CrmSetupHealthData, "issues">): SetupIssue[] {
       id: "no-drivers",
       severity: "error",
       title: "Home service is enabled but no drivers are set up",
-      detail: "Home service bookings are allowed, but there are no active driver-type staff members at this branch.",
+      detail:
+        "Home service bookings are allowed, but there are no active driver-type staff members at this branch.",
       impact: "Home service bookings cannot be dispatched.",
       fixHref: "/crm/dispatch",
       fixLabel: "Review Dispatch",
@@ -86,7 +87,8 @@ function deriveIssues(d: Omit<CrmSetupHealthData, "issues">): SetupIssue[] {
       id: "no-resources",
       severity: "warning",
       title: "No rooms or resources configured",
-      detail: "This branch has no active rooms or service resources. Resource-based booking rules cannot apply.",
+      detail:
+        "This branch has no active rooms or service resources. Resource-based booking rules cannot apply.",
       impact: "In-spa bookings may not be linked to specific rooms.",
       fixHref: "/crm/spaces-rules",
       fixLabel: "Configure Spaces",
@@ -98,8 +100,10 @@ function deriveIssues(d: Omit<CrmSetupHealthData, "issues">): SetupIssue[] {
       id: "default-rules",
       severity: "info",
       title: "Booking rules are using system defaults",
-      detail: "No custom booking rules have been saved for this branch. The system defaults are active.",
-      impact: "Opening hours, slot intervals, and advance booking windows may not match your branch operations.",
+      detail:
+        "No custom booking rules have been saved for this branch. The system defaults are active.",
+      impact:
+        "Opening hours, slot intervals, and advance booking windows may not match your branch operations.",
       fixHref: "/crm/spaces-rules",
       fixLabel: "Review Rules",
     });
@@ -113,7 +117,7 @@ function deriveIssues(d: Omit<CrmSetupHealthData, "issues">): SetupIssue[] {
       detail: `${d.unassignedTodayCount} confirmed booking${d.unassignedTodayCount > 1 ? "s are" : " is"} missing a staff assignment. These need to be assigned before service can begin.`,
       impact: "Bookings may start without a therapist ready.",
       fixHref: "/crm/today?filter=exceptions",
-      fixLabel: "Open Work Queue",
+      fixLabel: "Open Cradle Flow",
     });
   }
 
@@ -220,9 +224,7 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
   const serviceStaffTotal = staffResult.count ?? 0;
 
   // De-duplicate staff IDs from the schedule results
-  const scheduledStaffIds = new Set(
-    (scheduledStaffResult.data ?? []).map((r) => r.staff_id)
-  );
+  const scheduledStaffIds = new Set((scheduledStaffResult.data ?? []).map((r) => r.staff_id));
   const serviceStaffWithSchedule = scheduledStaffIds.size;
 
   const activeServicesTotal = (branchServicesResult.data ?? []).length;
@@ -237,7 +239,7 @@ export async function getCrmSetupHealth(branchId: string): Promise<CrmSetupHealt
 
   const rules = rulesRaw;
   // Rules are "custom" if they have a database id (not just computed defaults)
-  const hasCustomRules = !!(rules?.id);
+  const hasCustomRules = !!rules?.id;
   const homeServiceEnabled = rules?.homeServiceEnabled ?? false;
 
   const driversTotal = driversResult.count ?? 0;
