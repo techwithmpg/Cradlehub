@@ -1,5 +1,7 @@
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3 } from "lucide-react";
+import Link from "next/link";
+import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -43,6 +45,58 @@ export function StaffAttendanceHistory({ data }: { data: StaffAttendanceData }) 
   const today = data.currentRecord;
   return (
     <div className="space-y-5">
+      {data.issues.length > 0 ? (
+        <Card className="border-amber-200 bg-amber-50/60">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertCircle className="size-5 text-amber-700" /> Attendance help
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {data.issues.map((issue) => (
+              <section
+                key={issue.id}
+                className="grid gap-3 rounded-xl border border-amber-200 bg-white p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-stone-950">{issue.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-stone-700">{issue.guidance}</p>
+                  </div>
+                  <Badge variant="outline" className="text-amber-800">
+                    {issue.waitingForCrm ? "CRM handling" : "You can fix this"}
+                  </Badge>
+                </div>
+                <div className="grid gap-1 rounded-lg bg-stone-50 p-3 text-sm text-stone-700 sm:grid-cols-2">
+                  <span>Attendance changed: {issue.attendanceChanged ? "Yes" : "No"}</span>
+                  <span>Problem code: {issue.problemCode}</span>
+                  <span>Receipt: {issue.supportReceipt}</span>
+                  <span>
+                    {issue.recurrenceLabel} ({issue.recurrenceCount})
+                  </span>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950">
+                  <strong>Prevent this next time:</strong> {issue.preventionGuidance}
+                </div>
+                <Button
+                  asChild
+                  className="justify-self-start"
+                  variant={issue.staffCanComplete ? "default" : "outline"}
+                >
+                  <Link href={issue.actionHref}>{issue.actionLabel}</Link>
+                </Button>
+              </section>
+            ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-emerald-200 bg-emerald-50/50">
+          <CardContent className="flex items-center gap-3 p-4 text-sm text-emerald-900">
+            <ShieldCheck className="size-5" /> No open Attendance issues need your action.
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -102,7 +156,7 @@ export function StaffAttendanceHistory({ data }: { data: StaffAttendanceData }) 
         <CardContent>
           {data.history.length === 0 ? (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No attendance records in the last 90 days.
+              No Attendance records in the last 90 days.
             </p>
           ) : (
             <div className="overflow-x-auto">

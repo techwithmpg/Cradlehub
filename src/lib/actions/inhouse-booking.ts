@@ -9,12 +9,7 @@ import {
   createInhouseBookingMultiSchema,
   type CreateInhouseBookingMultiInput,
 } from "@/lib/validations/booking";
-import {
-  assignTherapistBySeniorityMultiDetailed,
-  getAvailableSlotsMulti,
-  getScheduledAvailabilityFallbackWarning,
-} from "@/lib/engine/availability";
-import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { resolveExactCrmBookingTime } from "@/lib/engine/exact-crm-booking-time";
 import { parseBookingTime } from "@/lib/bookings/booking-clock-time";
 import {
   validateBookingAgainstBranchRules,
@@ -242,80 +237,60 @@ export async function createInhouseBookingMultiAction(
 
     const admin = createAdminClient();
 
-    let resolvedStaffId: string;
-    let availabilityWarning: string | undefined = requiresManualArrangement
-      ? "Manual arrangement required: the selected provider is only the coordinator; confirm every participant, provider, room, and time before finalizing."
-      : undefined;
-    const preferCheckedInStaff =
-      crmBookingMode === "walkin" &&
-      deliveryType !== "home_service" &&
-      d.date === getBranchBusinessDate();
+    const exactAvailability = await resolveExactCrmBookingTime({
+      branchId: resolvedBranchId,
+      serviceIds: d.serviceIds,
+      date: d.date,
+      startTime,
+      bookingMode: crmBookingMode,
+      deliveryType,
+      staffId: d.staffId,
+      travelBufferMins:
+        deliveryType === "home_service"
+          ? (d.travelBufferMins ?? rulesCheck.rules.travelBufferMins)
+          : 0,
+    });
 
-    if (!d.staffId) {
-      try {
-        const assignment = await assignTherapistBySeniorityMultiDetailed({
-          branchId: resolvedBranchId,
-          serviceIds: d.serviceIds,
-          date: d.date,
-          startTime,
-          preferCheckedIn: preferCheckedInStaff,
-          requireStaffServiceAssignment: deliveryType === "home_service",
-          allowStaffTypeFallbackAlongsideAssignments: deliveryType !== "home_service",
-        });
-        resolvedStaffId = assignment.staffId;
-        availabilityWarning = assignment.warning;
-      } catch (assignErr) {
-        console.error("[CRM_BOOKING] auto-assign failed", { ...logContext, assignErr });
-        throw assignErr;
-      }
-    } else {
-      const candidateSlots = await getAvailableSlotsMulti({
-        branchId: resolvedBranchId,
-        serviceIds: d.serviceIds,
-        date: d.date,
-        requireStaffServiceAssignment: deliveryType === "home_service",
-        allowStaffTypeFallbackAlongsideAssignments: deliveryType !== "home_service",
-      });
-      const exact = candidateSlots.find(
-        (slot) =>
-          slot.staff_id === d.staffId &&
-          slot.available &&
-          slot.slot_time.startsWith(startTime.substring(0, 5))
-      );
-      if (!exact) {
-        throw new SlotUnavailableError();
-      }
-      resolvedStaffId = d.staffId;
-      if (preferCheckedInStaff) {
-        const { data: selectedCheckin, error: selectedCheckinError } = await admin
-          .from("staff_shift_checkins")
-          .select("id")
-          .eq("branch_id", resolvedBranchId)
-          .eq("staff_id", d.staffId)
-          .eq("shift_date", d.date)
-          .eq("status", "checked_in")
-          .eq("is_test", false)
-          .is("checked_out_at", null)
-          .maybeSingle();
-
-        if (selectedCheckinError) {
-          availabilityWarning = await getScheduledAvailabilityFallbackWarning({
-            branchId: resolvedBranchId,
-            serviceIds: d.serviceIds,
-            date: d.date,
-            startTime,
-            requireStaffServiceAssignment: false,
-            allowStaffTypeFallbackAlongsideAssignments: true,
-          });
-        } else if (!selectedCheckin) {
-          const attendanceWarning =
-            "Scheduled today, but not checked in yet. Confirm that the staff member is present and ready.";
-          availabilityWarning = availabilityWarning
-            ? `${availabilityWarning} ${attendanceWarning}`
-            : attendanceWarning;
-        }
-      }
+    if (!exactAvailability.available) {
+      return {
+        ok: false,
+        code:
+          exactAvailability.reasonCode === "no_schedule_for_time"
+            ? "NO_SCHEDULE_AT_START"
+            : "EXACT_TIME_UNAVAILABLE",
+        message:
+          exactAvailability.message ??
+          "No qualified therapist can start at the selected exact time.",
+      };
     }
+
+    const selectedExactProvider = d.staffId
+      ? exactAvailability.providers.find(
+          (provider) => provider.staffId === d.staffId && provider.selectable
+        )
+      : exactAvailability.providers.find((provider) => provider.selectable);
+
+    if (!selectedExactProvider) {
+      return {
+        ok: false,
+        code: "EXACT_TIME_UNAVAILABLE",
+        message: "No qualified therapist can start at the selected exact time.",
+      };
+    }
+
+    const resolvedStaffId = selectedExactProvider.staffId;
+    const availabilityWarning =
+      Array.from(
+        new Set(
+          [
+            requiresManualArrangement
+              ? "Manual arrangement required: the selected provider is only the coordinator; confirm every participant, provider, room, and time before finalizing."
+              : null,
+            exactAvailability.warning,
+            selectedExactProvider.warning,
+          ].filter((warning): warning is string => Boolean(warning))
+        )
+      ).join(" ") || undefined;
 
     let resolvedResourceId = d.resourceId ?? null;
 
@@ -356,6 +331,14 @@ export async function createInhouseBookingMultiAction(
       0
     );
     const combinedEndTime = computeEndTimeLocal(startTime, totalMinutesCombined);
+    if (!combinedEndTime) {
+      return {
+        ok: false,
+        code: "TIME_TOO_LATE",
+        message:
+          "This booking crosses midnight. Choose an earlier time until overnight booking is enabled.",
+      };
+    }
 
     // ── Auto-assign room if not provided ──────────────────────────────────
     if (deliveryType !== "home_service" && !resolvedResourceId && combinedEndTime) {
@@ -718,6 +701,17 @@ export async function createInhouseBookingMultiAction(
         customer_notes: d.notes ?? null,
         crm_booking_mode: crmBookingMode,
         source: "crm_quick_booking",
+        exact_time_resolution: {
+          schedule_start_time: selectedExactProvider.scheduleStartTime,
+          schedule_end_time: selectedExactProvider.scheduleEndTime,
+          service_end_time: selectedExactProvider.serviceEndTime,
+          operational_start_time: selectedExactProvider.operationalStartTime,
+          operational_end_time: selectedExactProvider.operationalEndTime,
+          overtime_minutes: selectedExactProvider.overtimeMinutes,
+          operational_overtime_minutes: selectedExactProvider.operationalOvertimeMinutes,
+          operational_starts_before_shift: selectedExactProvider.operationalStartsBeforeShift,
+          policy: "start_inside_schedule_finish_after_allowed",
+        },
         payment_received: paymentReceived,
         ...(paymentReceived && { payment_purpose: "advance" }),
         ...(hsAddressData && { home_service_address: hsAddressData }),

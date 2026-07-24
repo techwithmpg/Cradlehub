@@ -384,6 +384,28 @@ export async function generateDeviceRecoveryLinkAction(
       input,
       origin: await getOrigin(),
     });
+    if (recovery.deliveryMethod === "staff_profile") {
+      await createOrUpdateNotification({
+        branchId: input.branchId,
+        targetWorkspace: "staff",
+        recipientStaffId: input.staffId,
+        actorStaffId: context.data.actorStaffId,
+        type: "attendance_device_recovery_ready",
+        title: "Connect your Attendance browser",
+        body: "CRM sent a secure browser connection request. Open this on the phone you want to use and tap Connect this browser now.",
+        entityType: "attendance_device_recovery",
+        entityId: recovery.tokenId,
+        actionHref: "/staff-portal/profile#attendance-phone",
+        priority: "high",
+        requiresAction: true,
+        dedupeKey: `attendance-profile-recovery:${recovery.tokenId}`,
+        metadata: {
+          tokenId: recovery.tokenId,
+          reason: input.reason,
+          deliveryMethod: "staff_profile",
+        },
+      });
+    }
     revalidateAttendanceSurfaces();
     return { success: true, data: recovery };
   } catch (error) {
@@ -651,6 +673,117 @@ export async function escalateAttendanceIssueAction(
     tab: "exceptions",
     message: "Escalated to technical support without exposing raw details to staff.",
     exceptionId,
+  };
+}
+
+export async function saveAttendancePreventionPlanAction(input: {
+  exceptionId: string;
+  rootCause: string;
+  preventionAction: string;
+  preventionOwner: "staff" | "crm" | "manager" | "system" | "technical_support";
+  followUp: string;
+  verification: string;
+}): Promise<{ success: boolean; message: string }> {
+  const context = await getContextOrResult("exceptions");
+  if ("result" in context) return { success: false, message: context.result.message };
+  const rootCause = input.rootCause.trim();
+  const preventionAction = input.preventionAction.trim();
+  const verification = input.verification.trim();
+  if (!rootCause || !preventionAction || preventionAction.length > 1000) {
+    return { success: false, message: "Enter a valid root cause and prevention action." };
+  }
+
+  const admin = createAdminClient();
+  const issue = await admin
+    .from("attendance_exceptions")
+    .select("id, branch_id, staff_id, metadata, occurrence_count, exception_type")
+    .eq("id", input.exceptionId)
+    .eq("branch_id", context.ctx.branchId)
+    .maybeSingle();
+  if (issue.error || !issue.data) {
+    return { success: false, message: "This Attendance incident is no longer available." };
+  }
+
+  const now = new Date().toISOString();
+  const metadata =
+    issue.data.metadata &&
+    typeof issue.data.metadata === "object" &&
+    !Array.isArray(issue.data.metadata)
+      ? (issue.data.metadata as Record<string, unknown>)
+      : {};
+  const preventionPlan = {
+    rootCause,
+    action: preventionAction,
+    owner: input.preventionOwner,
+    followUp: input.followUp,
+    verification,
+    recurrenceCount: Math.max(1, issue.data.occurrence_count ?? 1),
+    recordedAt: now,
+    recordedBy: context.ctx.actorStaffId,
+    status: input.followUp === "none" ? "completed" : "pending_verification",
+  };
+
+  const updated = await admin
+    .from("attendance_exceptions")
+    .update({
+      metadata: { ...metadata, preventionPlan },
+      recommended_action: preventionAction,
+      reviewed_by: context.ctx.actorStaffId,
+      reviewed_at: now,
+      resolution_status: input.followUp === "none" ? "reviewed" : "waiting_for_crm",
+    })
+    .eq("id", issue.data.id);
+  if (updated.error) {
+    return { success: false, message: "The prevention plan could not be saved." };
+  }
+
+  if (input.followUp !== "none") {
+    const dueAt = new Date(
+      Date.now() + (input.followUp === "tomorrow" ? 24 : 12) * 60 * 60 * 1000
+    ).toISOString();
+    await createOrUpdateWorkflowTask({
+      branchId: issue.data.branch_id,
+      workspaceScope: input.preventionOwner === "manager" ? "manager" : "crm",
+      assignedToStaffId: input.preventionOwner === "staff" ? issue.data.staff_id : undefined,
+      taskType: "attendance_prevention_follow_up",
+      title: "Verify Attendance prevention action",
+      body: `${preventionAction} Verification: ${verification}`,
+      entityType: "attendance_exception",
+      entityId: issue.data.id,
+      actionHref: "/crm/attendance?tab=exceptions",
+      priority: issue.data.occurrence_count && issue.data.occurrence_count >= 3 ? "high" : "normal",
+      dueAt,
+      dedupeKey: `attendance-prevention:${issue.data.id}`,
+      metadata: preventionPlan,
+    });
+  }
+
+  if (input.preventionOwner === "staff" && issue.data.staff_id) {
+    await createOrUpdateNotification({
+      branchId: issue.data.branch_id,
+      targetWorkspace: "staff",
+      recipientStaffId: issue.data.staff_id,
+      actorStaffId: context.ctx.actorStaffId,
+      type: "attendance_prevention_guidance",
+      title: "How to prevent this Attendance issue",
+      body: preventionAction,
+      entityType: "attendance_exception",
+      entityId: issue.data.id,
+      actionHref: "/staff-portal/attendance",
+      priority: "normal",
+      requiresAction: input.followUp !== "none",
+      dedupeKey: `attendance-prevention-guidance:${issue.data.id}`,
+      metadata: preventionPlan,
+    });
+  }
+
+  revalidateAttendanceSurfaces();
+  return {
+    success: true,
+    message:
+      input.followUp === "none"
+        ? "Prevention plan recorded."
+        : "Prevention plan recorded and follow-up created.",
   };
 }
 

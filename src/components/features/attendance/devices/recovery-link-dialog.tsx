@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState, useTransition } from "react";
-import { CheckCircle2, Copy, Link2 } from "lucide-react";
+import { CheckCircle2, Copy, Link2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { generateDeviceRecoveryLinkAction } from "@/app/(dashboard)/crm/attendance/actions";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ const RECOVERY_REASONS: Array<{ value: DeviceRecoveryReason; label: string; revo
   { value: "browser_data_cleared", label: "Browser data cleared", revoke: false },
   { value: "replacement_phone", label: "Replacement phone", revoke: false },
   { value: "lost_phone", label: "Lost phone", revoke: true },
-  { value: "device_cookie_expired", label: "Device cookie expired", revoke: false },
+  { value: "device_cookie_expired", label: "Browser connection expired", revoke: false },
   { value: "support_recovery", label: "Support recovery", revoke: false },
   { value: "security_concern", label: "Security concern", revoke: true },
   { value: "other", label: "Other", revoke: false },
@@ -55,6 +55,9 @@ export function RecoveryLinkDialog({
   );
   const [reason, setReason] = useState<DeviceRecoveryReason>("browser_data_cleared");
   const [ttl, setTtl] = useState<15 | 30 | 60>(30);
+  const [deliveryMethod, setDeliveryMethod] = useState<"staff_profile" | "copy_link">(
+    "staff_profile"
+  );
   const [revokePrevious, setRevokePrevious] = useState(false);
   const [previousDeviceId, setPreviousDeviceId] = useState(
     entry?.device?.isActive ? entry.device.id : ""
@@ -74,8 +77,9 @@ export function RecoveryLinkDialog({
     const config = RECOVERY_REASONS.find((item) => item.value === nextReason);
     setReason(nextReason);
     setRevokePrevious(Boolean(config?.revoke));
-    if (config?.revoke && activeDevices.length === 1)
+    if (config?.revoke && activeDevices.length === 1) {
       setPreviousDeviceId(activeDevices[0]?.id ?? "");
+    }
   }
 
   function generate() {
@@ -86,14 +90,13 @@ export function RecoveryLinkDialog({
         branchId: registry.branchId,
         reason,
         expiresInMinutes: ttl,
+        deliveryMethod,
         revokePreviousDeviceId: revokePrevious ? previousDeviceId || undefined : undefined,
       });
-
       if (!response.success) {
         toast.error(response.error);
         return;
       }
-
       const pendingLink: PendingDeviceRecoveryLink = {
         id: response.data.tokenId,
         staffId,
@@ -105,10 +108,15 @@ export function RecoveryLinkDialog({
         createdAt: new Date().toISOString(),
         expiresAt: response.data.expiresAt,
         revokePreviousDeviceId: revokePrevious ? previousDeviceId || null : null,
+        deliveryMethod,
       };
       setResult(response.data);
       onGenerated(pendingLink, response.data);
-      toast.success("Recovery link ready.");
+      toast.success(
+        deliveryMethod === "staff_profile"
+          ? "Connection request sent to Staff Profile."
+          : "Secure connection link ready."
+      );
     });
   }
 
@@ -123,9 +131,10 @@ export function RecoveryLinkDialog({
         {!result ? (
           <>
             <DialogHeader className="border-b border-stone-200 p-5">
-              <DialogTitle>Connect Replacement Phone</DialogTitle>
+              <DialogTitle>Connect Attendance browser</DialogTitle>
               <DialogDescription>
-                Create a secure, one-time link to restore attendance access.
+                Send the staff member one secure connection request. Staff Profile is the default
+                because the raw token stays hidden.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 p-5">
@@ -163,6 +172,39 @@ export function RecoveryLinkDialog({
                   className="h-9 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm"
                 />
               </div>
+
+              <fieldset className="grid gap-2 rounded-xl border border-stone-200 p-3">
+                <legend className="px-1 text-xs font-bold uppercase text-stone-500">
+                  Delivery method
+                </legend>
+                <label className="flex cursor-pointer gap-3 rounded-lg border p-3">
+                  <input
+                    type="radio"
+                    checked={deliveryMethod === "staff_profile"}
+                    onChange={() => setDeliveryMethod("staff_profile")}
+                  />
+                  <span>
+                    <strong className="block">Send to Staff Profile</strong>
+                    <small className="text-stone-500">
+                      Recommended. Staff logs in and taps Connect this browser.
+                    </small>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer gap-3 rounded-lg border p-3">
+                  <input
+                    type="radio"
+                    checked={deliveryMethod === "copy_link"}
+                    onChange={() => setDeliveryMethod("copy_link")}
+                  />
+                  <span>
+                    <strong className="block">Copy secure link</strong>
+                    <small className="text-stone-500">
+                      Fallback for WhatsApp, Messenger, or face-to-face help.
+                    </small>
+                  </span>
+                </label>
+              </fieldset>
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-1">
                   <label
@@ -189,7 +231,7 @@ export function RecoveryLinkDialog({
                     htmlFor={`${idPrefix}-ttl`}
                     className="text-xs font-bold uppercase text-stone-500"
                   >
-                    Link expires in
+                    Expires in
                   </label>
                   <select
                     id={`${idPrefix}-ttl`}
@@ -205,6 +247,7 @@ export function RecoveryLinkDialog({
                   </select>
                 </div>
               </div>
+
               <label className="flex items-center gap-2 text-sm font-semibold text-stone-700">
                 <input
                   type="checkbox"
@@ -230,12 +273,9 @@ export function RecoveryLinkDialog({
               ) : null}
               {requiresPreviousSelection ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-                  Select the exact previous device before generating this link.
+                  Select the exact previous device first.
                 </div>
               ) : null}
-              <p className="text-xs leading-5 text-stone-500">
-                The link works once and registers the browser where it is opened.
-              </p>
             </div>
             <DialogFooter className="p-5">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -247,8 +287,16 @@ export function RecoveryLinkDialog({
                 disabled={isPending || !staffId || requiresPreviousSelection}
                 onClick={generate}
               >
-                <Link2 data-icon="inline-start" />
-                {isPending ? "Generating..." : "Generate secure link"}
+                {deliveryMethod === "staff_profile" ? (
+                  <Send data-icon="inline-start" />
+                ) : (
+                  <Link2 data-icon="inline-start" />
+                )}
+                {isPending
+                  ? "Creating…"
+                  : deliveryMethod === "staff_profile"
+                    ? "Send connection request"
+                    : "Generate secure link"}
               </Button>
             </DialogFooter>
           </>
@@ -256,7 +304,11 @@ export function RecoveryLinkDialog({
           <div className="grid gap-4 p-5">
             <div className="flex items-center gap-2 text-emerald-700">
               <CheckCircle2 className="size-5" />
-              <DialogTitle>Recovery link ready</DialogTitle>
+              <DialogTitle>
+                {result.deliveryMethod === "staff_profile"
+                  ? "Request sent to Staff Profile"
+                  : "Secure link ready"}
+              </DialogTitle>
             </div>
             <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm">
               <div className="font-semibold text-stone-950">{result.staffName}</div>
@@ -267,39 +319,46 @@ export function RecoveryLinkDialog({
                 Expires {formatAttendanceDateTime(result.expiresAt)}
               </div>
             </div>
-            <input
-              aria-label="Recovery URL"
-              readOnly
-              value={result.recoveryUrl}
-              className="h-9 rounded-lg border border-stone-200 px-3 text-sm"
-            />
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => copy(result.recoveryUrl, "Recovery link")}
-              >
-                <Copy data-icon="inline-start" />
-                Copy link
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  copy(
-                    `Open this secure recovery link on your phone: ${result.recoveryUrl}`,
-                    "Instructions"
-                  )
-                }
-              >
-                <Copy data-icon="inline-start" />
-                Copy instructions
-              </Button>
-            </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
-              Send this only to the staff member. It cannot be reconstructed after this dialog
-              closes.
-            </div>
+            {result.deliveryMethod === "staff_profile" ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+                The staff member can open Staff Profile on the phone they want to use and tap{" "}
+                <strong>Connect this browser now</strong>. The raw recovery token was not placed in
+                the notification or URL.
+              </div>
+            ) : result.recoveryUrl ? (
+              <>
+                <input
+                  aria-label="Recovery URL"
+                  readOnly
+                  value={result.recoveryUrl}
+                  className="h-9 rounded-lg border border-stone-200 px-3 text-sm"
+                />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => copy(result.recoveryUrl!, "Recovery link")}
+                  >
+                    <Copy data-icon="inline-start" /> Copy link
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      copy(
+                        `Open this secure CradleHub Attendance connection link on the phone you want to use: ${result.recoveryUrl}`,
+                        "Instructions"
+                      )
+                    }
+                  >
+                    <Copy data-icon="inline-start" /> Copy instructions
+                  </Button>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
+                  Send this only to the staff member. It works once.
+                </div>
+              </>
+            ) : null}
             <DialogFooter className="-mx-5 -mb-5 p-5">
               <Button type="button" onClick={() => onOpenChange(false)}>
                 Done

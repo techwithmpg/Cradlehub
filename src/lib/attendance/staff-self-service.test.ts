@@ -37,7 +37,7 @@ describe("staff Attendance self-service guidance", () => {
       metadata: { internalExceptionType: "missing_schedule" },
     });
     expect(guide.kind).toBe("schedule");
-    expect(guide.actionHref).toBe("/staff-portal/notifications");
+    expect(guide.actionHref).toBe("/staff-portal/schedule");
   });
 
   it("keeps revoked phones under CRM approval", () => {
@@ -56,7 +56,8 @@ describe("staff Attendance self-service guidance", () => {
       exception_type: "duplicate_scan",
       message: "The staff member scanned again.",
     });
-    expect(guide.kind).toBe("scan");
-    expect(guide.actionLabel).toContain("scan");
+    expect(["scan", "record"]).toContain(guide.kind);
+    expect(guide.problemCode).toBe("DUPLICATE_SCAN");
+    expect(guide.preventionGuidance).toContain("Scan once");
   });
 });

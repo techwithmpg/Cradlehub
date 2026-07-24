@@ -174,7 +174,7 @@ export function AttendanceCorrectionDialog({
           ) : (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
               This incident does not have an attendance record to edit. Close this dialog and use
-              <strong> Resolve saved scan</strong> from the Review queue.
+              <strong> Decide saved scan</strong> from the Review queue.
             </div>
           )}
         </div>

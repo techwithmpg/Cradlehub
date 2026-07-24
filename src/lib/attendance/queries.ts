@@ -635,7 +635,7 @@ export async function getAttendanceWorkspaceData(params: {
         const query = admin
           .from("attendance_exceptions")
           .select(
-            "id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, resolved_by, resolution_note, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name), resolved_by_staff:staff!attendance_exceptions_resolved_by_fkey(id, full_name)"
+            "id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, resolved_by, resolution_note, safe_error_code, category, resolution_owner, resolution_status, resolution_action, recommended_action, occurrence_count, first_detected_at, last_detected_at, latest_scan_event_id, dedupe_key, priority, staff_response_required, technical_context, staff:staff!attendance_exceptions_staff_id_fkey(id, full_name), resolved_by_staff:staff!attendance_exceptions_resolved_by_fkey(id, full_name)"
           )
           .eq("branch_id", params.branchId)
           .eq("is_test", false);
@@ -1093,6 +1093,20 @@ function mapException(row: unknown): AttendanceException {
     resolved_at: string | null;
     resolved_by?: string | null;
     resolution_note?: string | null;
+    safe_error_code?: string | null;
+    category?: string | null;
+    resolution_owner?: string | null;
+    resolution_status?: string | null;
+    resolution_action?: string | null;
+    recommended_action?: string | null;
+    occurrence_count?: number | null;
+    first_detected_at?: string | null;
+    last_detected_at?: string | null;
+    latest_scan_event_id?: string | null;
+    dedupe_key?: string | null;
+    priority?: string | null;
+    staff_response_required?: boolean | null;
+    technical_context?: unknown;
     staff?: Relation<{ full_name: string | null }>;
     resolved_by_staff?: Relation<{ full_name: string | null }>;
   };
@@ -1114,6 +1128,20 @@ function mapException(row: unknown): AttendanceException {
     resolved_by: exception.resolved_by ?? null,
     resolved_by_name: first(exception.resolved_by_staff)?.full_name ?? null,
     resolution_note: exception.resolution_note ?? null,
+    safe_error_code: exception.safe_error_code ?? null,
+    category: exception.category ?? null,
+    resolution_owner: exception.resolution_owner ?? null,
+    resolution_status: exception.resolution_status ?? null,
+    resolution_action: exception.resolution_action ?? null,
+    recommended_action: exception.recommended_action ?? null,
+    occurrence_count: exception.occurrence_count ?? 1,
+    first_detected_at: exception.first_detected_at ?? exception.detected_at,
+    last_detected_at: exception.last_detected_at ?? exception.detected_at,
+    latest_scan_event_id: exception.latest_scan_event_id ?? null,
+    dedupe_key: exception.dedupe_key ?? null,
+    priority: exception.priority ?? null,
+    staff_response_required: exception.staff_response_required ?? false,
+    technical_context: safeJsonRecord(exception.technical_context),
   };
 }
 

@@ -7,11 +7,13 @@ import {
   Check,
   CircleCheckBig,
   Clock3,
+  Copy,
   Loader2,
   MapPin,
   Send,
   ShieldCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { cn } from "@/lib/utils";
 import type { PublicScanResult } from "@/lib/attendance/types";
@@ -81,6 +83,28 @@ function getResultEyebrow(result: PublicScanResult): string {
   if (result.outcome === "error") return "Scan interrupted";
   if (result.outcome === "noop") return "No change needed";
   return result.ok ? "Scan accepted" : "Action needed";
+}
+
+function supportReceipt(result: PublicScanResult): string {
+  return (result.scanEventId ?? result.operationId ?? "attendance")
+    .replaceAll("-", "")
+    .slice(-8)
+    .toUpperCase();
+}
+
+async function copySupportDetails(result: PublicScanResult): Promise<void> {
+  const resolution = result.resolution;
+  const text = [
+    "Attendance issue",
+    `Problem: ${resolution?.title ?? result.title}`,
+    `Code: ${resolution?.safeErrorCode ?? result.reasonCode ?? "ATTENDANCE_REVIEW"}`,
+    `Receipt: ${supportReceipt(result)}`,
+    `Attendance changed: ${resolution?.attendanceChanged ? "Yes" : "No"}`,
+    `Next action: ${resolution?.staffActionLabel ?? "Wait for CRM confirmation"}`,
+    `Prevention: ${resolution?.staffPrevention ?? "Scan once and wait for the final result."}`,
+  ].join("\n");
+  await navigator.clipboard.writeText(text);
+  toast.success("Attendance support details copied.");
 }
 
 function ResultStatusIcon({ result }: { result: PublicScanResult }) {
@@ -233,6 +257,32 @@ export function PublicScanResultView({
           </div>
         ) : null}
 
+        {resolution && !isAttendanceSuccess ? (
+          <div className="mt-4 grid gap-3 text-left">
+            <div className="rounded-xl border border-stone-200 bg-white p-4 text-sm">
+              <strong className="block text-stone-950">Prevent this next time</strong>
+              <span className="mt-1 block text-stone-700">{resolution.staffPrevention}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {resolution.staffActionRequired && resolution.staffActionHref ? (
+                <a
+                  href={resolution.staffActionHref}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#115D47] px-4 py-2 text-sm font-bold text-white"
+                >
+                  {resolution.staffActionLabel}
+                </a>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void copySupportDetails(result)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-bold text-stone-900"
+              >
+                <Copy size={15} aria-hidden="true" /> Copy support details
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {result.isTest ? (
           <div className={styles.trainingBadge} role="status" aria-label="Training Mode">
             Training Mode · Not live attendance
@@ -291,9 +341,12 @@ export function PublicScanResultView({
               : (resolution?.staffMessage ?? result.message)}
         </p>
         {isDurableReview ? (
-          <div className="mt-4 grid gap-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-left text-sm text-emerald-950">
+          <div className="mt-4 grid gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-left text-sm text-emerald-950">
             <strong>Saved for Attendance review</strong>
-            <span>Receipt: {result.scanEventId?.slice(-8).toUpperCase()}</span>
+            <span>Attendance changed: {resolution?.attendanceChanged ? "Yes" : "No"}</span>
+            <span>Problem code: {resolution?.safeErrorCode ?? result.reasonCode}</span>
+            <span>Receipt: {supportReceipt(result)}</span>
+            <span>Who handles it: {resolution?.resolutionOwner.replaceAll("_", " ") ?? "CRM"}</span>
           </div>
         ) : isCapturedClosing && result.reviewLabel ? (
           <div className={styles.reviewBadge} role="status" aria-label={result.reviewLabel}>
@@ -312,6 +365,32 @@ export function PublicScanResultView({
             {resolution.crmActionRequired ? <span>CRM has been notified.</span> : null}
           </div>
         ) : null}
+        {resolution && !isAttendanceSuccess ? (
+          <div className="mt-4 grid gap-3 text-left">
+            <div className="rounded-xl border border-stone-200 bg-white p-4 text-sm">
+              <strong className="block text-stone-950">Prevent this next time</strong>
+              <span className="mt-1 block text-stone-700">{resolution.staffPrevention}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {resolution.staffActionRequired && resolution.staffActionHref ? (
+                <a
+                  href={resolution.staffActionHref}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#115D47] px-4 py-2 text-sm font-bold text-white"
+                >
+                  {resolution.staffActionLabel}
+                </a>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void copySupportDetails(result)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-bold text-stone-900"
+              >
+                <Copy size={15} aria-hidden="true" /> Copy support details
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {result.isTest ? (
           <div className={styles.trainingBadge} role="status" aria-label="Training Mode">
             Training Mode · Not live attendance
