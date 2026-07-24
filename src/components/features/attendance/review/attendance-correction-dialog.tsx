@@ -37,7 +37,11 @@ function localInput(iso: string | null, timezone: string): string {
 
 function toIso(value: string, timezone: string): string {
   const [date = "", time = ""] = value.split("T");
-  return branchDateTimeToIsoInTimezone({ date, time: `${time}:00`, timezone });
+  return branchDateTimeToIsoInTimezone({
+    date,
+    time: `${time}:00`,
+    timezone,
+  });
 }
 
 export function AttendanceCorrectionDialog({
@@ -101,75 +105,92 @@ export function AttendanceCorrectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90vh] max-w-[min(100%-1rem,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b border-[var(--cs-border-soft)] p-5 pr-12">
           <DialogTitle>Correct attendance</DialogTitle>
           <DialogDescription>
-            Review the before and after times. This change is saved in the audit trail.
+            Review the current record and the proposed result. Every change is saved in the audit
+            trail.
           </DialogDescription>
         </DialogHeader>
-        {record ? (
-          <div className="grid gap-4">
-            <div className="grid gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="attendance-clock-in">Clock in</Label>
-                <Input
-                  id="attendance-clock-in"
-                  type="datetime-local"
-                  value={clockIn}
-                  onChange={(event) => setClockIn(event.target.value)}
+
+        <div className="grid gap-5 overflow-y-auto p-5">
+          {record ? (
+            <>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <strong>What you need to do:</strong> Enter the correct clock-in and clock-out, then
+                explain why the record is changing.
+              </div>
+
+              <div className="grid gap-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="attendance-clock-in">Clock-in</Label>
+                  <Input
+                    id="attendance-clock-in"
+                    type="datetime-local"
+                    value={clockIn}
+                    onChange={(event) => setClockIn(event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="attendance-clock-out">Clock-out</Label>
+                  <Input
+                    id="attendance-clock-out"
+                    type="datetime-local"
+                    value={clockOut}
+                    onChange={(event) => setClockOut(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-[var(--cs-border)] p-4">
+                  <div className="text-xs font-bold uppercase text-[var(--cs-text-muted)]">
+                    Before
+                  </div>
+                  <p className="mt-2 font-semibold">
+                    {localInput(record.checked_in_at, timezone)} →{" "}
+                    {localInput(record.checked_out_at, timezone) || "Open"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="text-xs font-bold uppercase text-emerald-700">After</div>
+                  <p className="mt-2 font-semibold text-emerald-950">
+                    {clockIn || "Missing"} → {clockOut || "Open"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="attendance-correction-reason">Required reason</Label>
+                <Textarea
+                  id="attendance-correction-reason"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Why is this correction needed?"
                 />
               </div>
-              <div>
-                <Label htmlFor="attendance-clock-out">Clock out</Label>
-                <Input
-                  id="attendance-clock-out"
-                  type="datetime-local"
-                  value={clockOut}
-                  onChange={(event) => setClockOut(event.target.value)}
-                />
-              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+              This incident does not have an attendance record to edit. Close this dialog and use
+              <strong> Resolve saved scan</strong> from the Review queue.
             </div>
-            <div>
-              <Label htmlFor="attendance-correction-reason">Reason</Label>
-              <Textarea
-                id="attendance-correction-reason"
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                placeholder="Why is this correction needed?"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-lg border p-3">
-                <b>Before</b>
-                <p className="mt-1 text-[var(--cs-text-muted)]">
-                  {localInput(record.checked_in_at, timezone)} →{" "}
-                  {localInput(record.checked_out_at, timezone) || "Open"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                <b>After</b>
-                <p className="mt-1 text-emerald-800">
-                  {clockIn} → {clockOut || "Open"}
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--cs-text-muted)]">
-            No attendance record is linked to this incident.
-          </p>
-        )}
-        <DialogFooter>
+          )}
+        </div>
+
+        <DialogFooter className="border-t border-[var(--cs-border-soft)] bg-white p-5">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {record ? "Cancel" : "Close"}
           </Button>
-          <Button
-            onClick={save}
-            disabled={pending || !preview?.changed || reason.trim().length < 3}
-          >
-            {pending ? "Saving…" : "Save correction"}
-          </Button>
+          {record ? (
+            <Button
+              onClick={save}
+              disabled={pending || !preview?.changed || reason.trim().length < 3}
+            >
+              {pending ? "Saving…" : "Save correction"}
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

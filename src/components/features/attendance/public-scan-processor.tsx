@@ -10,6 +10,7 @@ import {
 } from "@/app/scan/actions";
 import { cn } from "@/lib/utils";
 import type { PublicScanResult } from "@/lib/attendance/types";
+import { isStaffDeviceSignInReason } from "@/lib/attendance/staff-self-service";
 import type { BranchCorrectionScanDetails } from "@/lib/staff/branch-correction-types";
 import { PublicScanLoginForm } from "./public-scan-login-form";
 import { PublicScanResultView } from "./public-scan-result";
@@ -38,7 +39,10 @@ function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, durationMs));
 }
 
-async function processPublicQrScan(input: { publicCode: string; requestId: string }): Promise<PublicScanResult> {
+async function processPublicQrScan(input: {
+  publicCode: string;
+  requestId: string;
+}): Promise<PublicScanResult> {
   const response = await fetch("/api/attendance/public-scan", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -65,17 +69,16 @@ async function processPublicQrScan(input: { publicCode: string; requestId: strin
 }
 
 function isMissingDeviceResult(result: PublicScanResult): boolean {
-  const reasonCode = result.reasonCode?.toLowerCase();
-  if (reasonCode === "unknown_device" || reasonCode === "missing_device" || reasonCode === "device_not_registered") {
-    return true;
-  }
+  if (isStaffDeviceSignInReason(result.reasonCode)) return true;
 
   const title = result.title.toLowerCase();
   const message = result.message.toLowerCase();
   return (
     title.includes("device not registered") ||
+    title.includes("phone not connected") ||
     message.includes("activate this device before scanning") ||
-    message.includes("not connected to a staff device record")
+    message.includes("not connected to a staff device record") ||
+    message.includes("sign in again to reconnect")
   );
 }
 
@@ -135,7 +138,8 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           outcome: "error",
           reasonCode: "UNKNOWN_ATTENDANCE_ERROR",
           title: "Scan interrupted",
-          message: "We could not complete this scan. Check your connection and scan the QR code again.",
+          message:
+            "We could not complete this scan. Check your connection and scan the QR code again.",
           detail: `Operation ID: ${requestId}`,
           operationId: requestId,
           securityNote: "No attendance change was confirmed from this attempt.",
@@ -233,7 +237,8 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
   }
 
   async function handleBranchCorrectionRequest(details: BranchCorrectionScanDetails) {
-    if (branchCorrectionState.status === "pending" || branchCorrectionState.status === "success") return;
+    if (branchCorrectionState.status === "pending" || branchCorrectionState.status === "success")
+      return;
 
     setBranchCorrectionState({ status: "pending", message: "Sending request..." });
 
@@ -283,11 +288,15 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           fieldErrors={loginFieldErrors}
           pending={stage === "signing_in"}
           onEmailChange={(email) => setLoginCredentials((current) => ({ ...current, email }))}
-          onPasswordChange={(password) => setLoginCredentials((current) => ({ ...current, password }))}
+          onPasswordChange={(password) =>
+            setLoginCredentials((current) => ({ ...current, password }))
+          }
           onSubmit={handleFirstTimeSignIn}
         />
       ) : (
-        <PublicScanStage stage={stage === "result" || stage === "sign_in_required" ? "processing" : stage} />
+        <PublicScanStage
+          stage={stage === "result" || stage === "sign_in_required" ? "processing" : stage}
+        />
       )}
     </div>
   );

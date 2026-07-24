@@ -8,7 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   cancelAttendancePhoneRequestAction,
   completeAttendancePhoneRequestAction,
@@ -42,7 +48,7 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
   }
 
   return (
-    <Card>
+    <Card id="attendance-phone">
       <CardHeader className="gap-2">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -51,7 +57,8 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
               Attendance phone
             </CardTitle>
             <CardDescription className="mt-1">
-              Connect this browser to your staff account before using an attendance QR.
+              Use this phone to scan the branch Attendance QR. If it is not connected, sign in once
+              when the scan page asks you.
             </CardDescription>
           </div>
           {state.registeredDevice ? (
@@ -60,7 +67,8 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
             </Badge>
           ) : hasOpenRequest ? (
             <Badge variant="outline" className="gap-1 text-amber-700">
-              <Clock3 className="size-3.5" /> {request.status === "approved" ? "Approved" : "Pending"}
+              <Clock3 className="size-3.5" />{" "}
+              {request.status === "approved" ? "Approved" : "Pending"}
             </Badge>
           ) : (
             <Badge variant="outline">Not connected</Badge>
@@ -71,13 +79,29 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
         {state.registeredDevice ? (
           <div className="rounded-xl border bg-muted/30 p-4">
             <p className="font-medium">This phone: {state.registeredDevice.label}</p>
-            <p className="mt-1 text-sm text-muted-foreground">The secure browser credential is stored as an HttpOnly cookie.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The secure browser credential is stored as an HttpOnly cookie.
+            </p>
             <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
               <div className="space-y-1.5">
                 <Label htmlFor="attendance-phone-label">Phone name</Label>
-                <Input id="attendance-phone-label" value={label} maxLength={60} onChange={(event) => setLabel(event.target.value)} />
+                <Input
+                  id="attendance-phone-label"
+                  value={label}
+                  maxLength={60}
+                  onChange={(event) => setLabel(event.target.value)}
+                />
               </div>
-              <Button className="self-end" variant="outline" disabled={isPending} onClick={() => run(() => renameOwnAttendancePhoneAction({ deviceId: state.registeredDevice!.id, label }))}>
+              <Button
+                className="self-end"
+                variant="outline"
+                disabled={isPending}
+                onClick={() =>
+                  run(() =>
+                    renameOwnAttendancePhoneAction({ deviceId: state.registeredDevice!.id, label })
+                  )
+                }
+              >
                 Save name
               </Button>
             </div>
@@ -96,12 +120,19 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {request.status === "approved" ? (
-                <Button disabled={isPending} onClick={() => run(() => completeAttendancePhoneRequestAction(request.id))}>
+                <Button
+                  disabled={isPending}
+                  onClick={() => run(() => completeAttendancePhoneRequestAction(request.id))}
+                >
                   <ShieldCheck data-icon="inline-start" /> Finish connecting this phone
                 </Button>
               ) : null}
               {request.status === "pending" ? (
-                <Button variant="outline" disabled={isPending} onClick={() => run(() => cancelAttendancePhoneRequestAction(request.id))}>
+                <Button
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => run(() => cancelAttendancePhoneRequestAction(request.id))}
+                >
                   Cancel request
                 </Button>
               ) : null}
@@ -111,32 +142,61 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
 
         {!state.registeredDevice && !hasOpenRequest ? (
           <div className="space-y-3">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              <p className="font-semibold">Fastest way to connect this phone</p>
+              <p className="mt-1 leading-6">
+                Scan the branch Attendance QR on this phone. When the sign-in page appears, sign in
+                with your own staff account. The system will connect the phone and continue that
+                scan automatically.
+              </p>
+              <p className="mt-2 font-medium">Scan once. Do not refresh or scan repeatedly.</p>
+            </div>
             {state.activeDevices.length > 0 ? (
               <div className="space-y-1.5">
                 <Label htmlFor="replace-attendance-phone">Phone to replace</Label>
-                <Select value={replacementId} onValueChange={(value) => setReplacementId(value ?? "")}>
-                  <SelectTrigger id="replace-attendance-phone"><SelectValue placeholder="Choose an active phone" /></SelectTrigger>
+                <Select
+                  value={replacementId}
+                  onValueChange={(value) => setReplacementId(value ?? "")}
+                >
+                  <SelectTrigger id="replace-attendance-phone">
+                    <SelectValue placeholder="Choose an active phone" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {state.activeDevices.map((device) => <SelectItem key={device.id} value={device.id}>{device.label}</SelectItem>)}
+                    {state.activeDevices.map((device) => (
+                      <SelectItem key={device.id} value={device.id}>
+                        {device.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             ) : null}
             <Button
               disabled={isPending || (state.activeDevices.length > 0 && !replacementId)}
-              onClick={() => run(() => requestAttendancePhoneAction({
-                requestType: state.activeDevices.length > 0 ? "replacement" : "new_phone",
-                existingDeviceId: state.activeDevices.length > 0 ? replacementId : null,
-              }))}
+              onClick={() =>
+                run(() =>
+                  requestAttendancePhoneAction({
+                    requestType: state.activeDevices.length > 0 ? "replacement" : "new_phone",
+                    existingDeviceId: state.activeDevices.length > 0 ? replacementId : null,
+                  })
+                )
+              }
             >
               <Smartphone data-icon="inline-start" />
-              {state.activeDevices.length > 0 ? "Request replacement phone" : "Request this phone"}
+              {state.activeDevices.length > 0
+                ? "Request replacement phone"
+                : "Ask CRM for a connection link"}
             </Button>
           </div>
         ) : null}
 
         {hasOpenRequest ? (
-          <Button variant="ghost" size="sm" disabled={isPending} onClick={() => window.location.reload()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={isPending}
+            onClick={() => window.location.reload()}
+          >
             <RefreshCw data-icon="inline-start" /> Refresh status
           </Button>
         ) : null}

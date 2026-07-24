@@ -2,9 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { AttendanceIssueModalRouter } from "@/components/features/attendance/review/attendance-issue-modal-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AttendanceReviewDrawer } from "@/components/features/attendance/review/attendance-review-drawer";
+import {
+  attendanceReviewPrimaryAction,
+  attendanceReviewResolutionKind,
+} from "@/lib/attendance/review-resolution";
 import type { AttendanceReviewItem } from "@/lib/attendance/crm-review";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
 
@@ -29,6 +33,19 @@ export function AttendanceReviewView({
         `${item.title} ${item.exception.message} ${item.category}`.toLowerCase().includes(query)
     );
   }, [items, search]);
+
+  function primaryAction(item: AttendanceReviewItem): string {
+    const record = item.exception.checkin_id
+      ? (data.records.find((row) => row.id === item.exception.checkin_id) ?? null)
+      : null;
+    const scanEvent = item.exception.scan_event_id
+      ? (data.scanEvents.find((row) => row.id === item.exception.scan_event_id) ?? null)
+      : null;
+    return attendanceReviewPrimaryAction(
+      attendanceReviewResolutionKind({ item, record, scanEvent })
+    );
+  }
+
   return (
     <>
       <section className="overflow-hidden rounded-xl border border-[var(--cs-border)] bg-white">
@@ -36,7 +53,7 @@ export function AttendanceReviewView({
           <div>
             <h2 className="font-bold">Review queue</h2>
             <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-              One row per unresolved incident. Timing statuses stay in Today.
+              Each row tells CRM exactly which tool resolves the incident.
             </p>
           </div>
           <label className="relative">
@@ -50,6 +67,7 @@ export function AttendanceReviewView({
             <span className="sr-only">Search incidents</span>
           </label>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-[var(--cs-surface-warm)] text-xs uppercase tracking-wide text-[var(--cs-text-muted)]">
@@ -57,9 +75,9 @@ export function AttendanceReviewView({
                 <th className="px-4 py-3">Priority</th>
                 <th className="px-4 py-3">Incident</th>
                 <th className="px-4 py-3">Detected</th>
-                <th className="px-4 py-3">Recommended</th>
+                <th className="px-4 py-3">What to do</th>
                 <th className="px-4 py-3">
-                  <span className="sr-only">Open</span>
+                  <span className="sr-only">Resolve</span>
                 </th>
               </tr>
             </thead>
@@ -73,9 +91,9 @@ export function AttendanceReviewView({
                     <span
                       className={
                         item.priority === "critical"
-                          ? "text-red-700"
+                          ? "font-semibold text-red-700"
                           : item.priority === "high"
-                            ? "text-amber-700"
+                            ? "font-semibold text-amber-700"
                             : "text-[var(--cs-text-muted)]"
                       }
                     >
@@ -97,10 +115,10 @@ export function AttendanceReviewView({
                       minute: "2-digit",
                     }).format(new Date(item.exception.detected_at))}
                   </td>
-                  <td className="px-4 py-3 text-xs font-semibold">{item.recommendedAction}</td>
+                  <td className="px-4 py-3 text-xs font-semibold">{primaryAction(item)}</td>
                   <td className="px-4 py-3 text-right">
-                    <Button size="sm" variant="outline" onClick={() => setSelected(item)}>
-                      Review
+                    <Button size="sm" onClick={() => setSelected(item)}>
+                      {primaryAction(item)}
                     </Button>
                   </td>
                 </tr>
@@ -108,16 +126,18 @@ export function AttendanceReviewView({
             </tbody>
           </table>
         </div>
+
         {filtered.length === 0 ? (
           <div className="p-10 text-center">
             <p className="font-semibold">No incidents need review</p>
             <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-              Clock-in timing and arrival statuses are tracked in Today.
+              Clock-in timing and arrival statuses remain visible in Today.
             </p>
           </div>
         ) : null}
       </section>
-      <AttendanceReviewDrawer
+
+      <AttendanceIssueModalRouter
         data={data}
         item={selected}
         onClose={() => setSelected(null)}

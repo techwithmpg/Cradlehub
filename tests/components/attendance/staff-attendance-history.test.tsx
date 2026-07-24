@@ -52,6 +52,7 @@ describe("StaffAttendanceHistory", () => {
         actionRequired: false,
       },
       history: [],
+      issues: [],
     };
     render(<StaffAttendanceHistory data={data} />);
     expect(screen.getByText("Today")).toBeTruthy();

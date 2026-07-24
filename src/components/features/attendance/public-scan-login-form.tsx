@@ -39,10 +39,10 @@ export function PublicScanLoginForm({
 
       <div className={styles.loginHeading}>
         <p className={styles.eyebrow}>Staff attendance</p>
-        <h1>Sign in to continue</h1>
+        <h1>Connect this phone</h1>
         <p>
-          This phone is not connected yet. Sign in with your staff account to connect it and
-          continue your attendance scan.
+          This device is not signed in for Attendance. Sign in with your own staff account. The
+          system will securely connect this phone and continue the scan automatically.
         </p>
       </div>
 
@@ -92,17 +92,19 @@ export function PublicScanLoginForm({
 
         <div className={styles.loginTrustNote}>
           <ShieldCheck size={17} aria-hidden="true" />
-          <span>This phone will be remembered for faster attendance scans.</span>
+          <span>
+            You normally need to do this only once. Scan once and do not refresh repeatedly.
+          </span>
         </div>
 
         <button type="submit" className={styles.loginSubmitButton} disabled={pending}>
           {pending ? (
             <>
               <Loader2 size={17} className={styles.loginSpinner} aria-hidden="true" />
-              Connecting phone…
+              Signing in and connecting…
             </>
           ) : (
-            "Connect phone and continue"
+            "Sign in, connect phone and finish scan"
           )}
         </button>
       </form>

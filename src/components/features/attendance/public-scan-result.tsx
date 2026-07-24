@@ -56,7 +56,12 @@ type PublicScanResultViewProps = {
   onTryAnotherAccount?: (details: BranchCorrectionScanDetails) => void;
 };
 
+function isDurableReviewResult(result: PublicScanResult): boolean {
+  return Boolean(result.scanEventId && !result.attendance && result.resolution?.crmActionRequired);
+}
+
 function getResultStatusClass(result: PublicScanResult): string | undefined {
+  if (isDurableReviewResult(result)) return styles.resultInfo;
   if (
     result.ok &&
     result.outcome === "exception" &&
@@ -69,6 +74,7 @@ function getResultStatusClass(result: PublicScanResult): string | undefined {
 }
 
 function getResultEyebrow(result: PublicScanResult): string {
+  if (isDurableReviewResult(result)) return "Scan received";
   if (result.reasonCode === "likely_closing_scan_without_clock_in") return "Scan captured";
   if (result.reasonCode === "unknown_device") return "Staff sign-in";
   if (result.reasonCode === "device_restored") return "Access restored";
@@ -78,6 +84,7 @@ function getResultEyebrow(result: PublicScanResult): string {
 }
 
 function ResultStatusIcon({ result }: { result: PublicScanResult }) {
+  if (isDurableReviewResult(result)) return <CircleCheckBig size={42} strokeWidth={1.8} />;
   if (result.outcome === "noop") return <Clock3 size={42} strokeWidth={1.8} />;
   if (result.ok) return <CircleCheckBig size={42} strokeWidth={1.8} />;
   return <AlertTriangle size={42} strokeWidth={1.8} />;
@@ -109,9 +116,7 @@ function BranchCorrectionCard({
 
   return (
     <div className={styles.branchCorrectionCard}>
-      <p className={styles.branchCorrectionHint}>
-        If this is wrong, request branch correction.
-      </p>
+      <p className={styles.branchCorrectionHint}>If this is wrong, request branch correction.</p>
 
       <div className={styles.branchCorrectionRows}>
         <div>
@@ -193,6 +198,7 @@ export function PublicScanResultView({
     result.outcome === "exception" &&
     result.reasonCode === "likely_closing_scan_without_clock_in" &&
     !attendance;
+  const isDurableReview = isDurableReviewResult(result);
   const statusClass = getResultStatusClass(result);
   const resolution = result.resolution;
 
@@ -252,7 +258,9 @@ export function PublicScanResultView({
 
         <div className={styles.securityNote}>
           <ShieldCheck size={18} aria-hidden="true" />
-          <span>{result.securityNote ?? "This device is recognized and ready for future scans."}</span>
+          <span>
+            {result.securityNote ?? "This device is recognized and ready for future scans."}
+          </span>
         </div>
       </section>
     );
@@ -268,16 +276,39 @@ export function PublicScanResultView({
 
       <div className={styles.genericResultCopy}>
         <p className={styles.eyebrow}>{getResultEyebrow(result)}</p>
-        <h1>{isCapturedClosing ? result.title : (resolution?.title ?? result.title)}</h1>
-        <p>{isCapturedClosing ? result.message : (resolution?.staffMessage ?? result.message)}</p>
-        {isCapturedClosing && result.reviewLabel ? (
+        <h1>
+          {isDurableReview
+            ? "Scan received"
+            : isCapturedClosing
+              ? result.title
+              : (resolution?.title ?? result.title)}
+        </h1>
+        <p>
+          {isDurableReview
+            ? "Your scan time was saved. CRM has been notified. You do not need to scan again."
+            : isCapturedClosing
+              ? result.message
+              : (resolution?.staffMessage ?? result.message)}
+        </p>
+        {isDurableReview ? (
+          <div className="mt-4 grid gap-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-left text-sm text-emerald-950">
+            <strong>Saved for Attendance review</strong>
+            <span>Receipt: {result.scanEventId?.slice(-8).toUpperCase()}</span>
+          </div>
+        ) : isCapturedClosing && result.reviewLabel ? (
           <div className={styles.reviewBadge} role="status" aria-label={result.reviewLabel}>
             {result.reviewLabel}
           </div>
         ) : resolution ? (
           <div className="mt-4 grid gap-2 text-left text-sm">
-            <strong>{resolution.attendanceChanged ? "Attendance was changed." : "No attendance change was made."}</strong>
-            {resolution.recommendedSteps.map((step) => <span key={step}>{step}</span>)}
+            <strong>
+              {resolution.attendanceChanged
+                ? "Attendance was changed."
+                : "No attendance change was made."}
+            </strong>
+            {resolution.recommendedSteps.map((step) => (
+              <span key={step}>{step}</span>
+            ))}
             {resolution.crmActionRequired ? <span>CRM has been notified.</span> : null}
           </div>
         ) : null}

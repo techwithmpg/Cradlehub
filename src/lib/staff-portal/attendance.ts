@@ -6,14 +6,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { addDaysToYmd } from "@/lib/attendance/time";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
 import { getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
-import { resolveAttendanceDayStaffStates, type AttendanceDayStaffState } from "@/lib/attendance/day-model";
+import {
+  resolveAttendanceDayStaffStates,
+  type AttendanceDayStaffState,
+} from "@/lib/attendance/day-model";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
+import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME, hashSecret } from "@/lib/attendance/tokens";
 import {
-  DEVICE_COOKIE_NAME,
-  LEGACY_DEVICE_COOKIE_NAME,
-  hashSecret,
-} from "@/lib/attendance/tokens";
+  buildStaffAttendanceIssueGuide,
+  type StaffAttendanceIssueGuide,
+} from "@/lib/attendance/staff-self-service";
 
 export type StaffAttendanceHistoryRecord = {
   id: string;
@@ -43,6 +46,7 @@ export type StaffAttendanceData = {
   currentRecord: StaffAttendanceHistoryRecord | null;
   todayState: AttendanceDayStaffState;
   history: StaffAttendanceHistoryRecord[];
+  issues: StaffAttendanceIssueGuide[];
   portalClockOut?: StaffPortalClockOutAvailability;
 };
 
@@ -153,7 +157,9 @@ function formatTime(value: string): string {
   return `${displayHour}:${minute} ${suffix}`;
 }
 
-export function deriveStaffAttendanceReviewState(row: Pick<CheckinRow, "status" | "attendance_status" | "exception_state">): {
+export function deriveStaffAttendanceReviewState(
+  row: Pick<CheckinRow, "status" | "attendance_status" | "exception_state">
+): {
   state: StaffAttendanceHistoryRecord["reviewState"];
   label: string;
 } {
@@ -162,7 +168,11 @@ export function deriveStaffAttendanceReviewState(row: Pick<CheckinRow, "status" 
     return { state: "review", label: "Needs CRM review" };
   }
   if (row.status === "checked_in") return { state: "open", label: "Shift in progress" };
-  if (["incomplete", "exception", "needs_review"].includes((row.attendance_status ?? "").toLowerCase())) {
+  if (
+    ["incomplete", "exception", "needs_review"].includes(
+      (row.attendance_status ?? "").toLowerCase()
+    )
+  ) {
     return { state: "review", label: "Needs CRM review" };
   }
   return { state: "clear", label: "Attendance recorded" };
@@ -191,7 +201,9 @@ function mapCheckin(row: CheckinRow): StaffAttendanceHistoryRecord {
 
 export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceData | null> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
   const staffResult = await supabase
     .from("staff")
@@ -211,7 +223,9 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
   const [checkinsResult, exceptionsResult, sessionsResult, schedules] = await Promise.all([
     supabase
       .from("staff_shift_checkins")
-      .select("id, branch_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at")
+      .select(
+        "id, branch_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at"
+      )
       .eq("staff_id", staff.id)
       .eq("is_test", false)
       .gte("shift_date", historyStart)
@@ -219,13 +233,17 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
       .limit(200),
     supabase
       .from("attendance_exceptions")
-      .select("id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at")
+      .select(
+        "id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, resolution_status, staff_response_required"
+      )
       .eq("staff_id", staff.id)
       .eq("is_test", false)
       .eq("status", "open"),
     supabase
       .from("bookings")
-      .select("id, staff_id, booking_date, start_time, status, booking_progress_status, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot")
+      .select(
+        "id, staff_id, booking_date, start_time, status, booking_progress_status, session_started_at, session_due_at, session_completed_at, session_duration_minutes_snapshot"
+      )
       .eq("staff_id", staff.id)
       .eq("branch_id", staff.branch_id)
       .eq("booking_progress_status", "session_started")
@@ -234,11 +252,13 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
       supabase,
       branchId: staff.branch_id,
       date: today,
-      staff: [{
-        id: staff.id,
-        staff_type: staff.staff_type,
-        system_role: staff.system_role,
-      }],
+      staff: [
+        {
+          id: staff.id,
+          staff_type: staff.staff_type,
+          system_role: staff.system_role,
+        },
+      ],
     }),
   ]);
   if (checkinsResult.error) throw new Error(checkinsResult.error.message);
@@ -248,15 +268,18 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
   const history = ((checkinsResult.data ?? []) as CheckinRow[]).map(mapCheckin);
   const rawCheckins = (checkinsResult.data ?? []) as CheckinRow[];
   const todayRecords = history.filter((record) => record.shiftDate === today);
-  const currentRecord = todayRecords.find((record) => record.status === "checked_in") ?? todayRecords[0] ?? null;
-  const currentOpenRow = rawCheckins.find(
-    (row) => row.shift_date === today && row.status === "checked_in" && !row.checked_out_at
-  ) ?? null;
-  const currentClockState = currentRecord?.status === "checked_in"
-    ? "clocked_in"
-    : currentRecord?.checkedOutAt
-      ? "clocked_out"
-      : "not_clocked_in";
+  const currentRecord =
+    todayRecords.find((record) => record.status === "checked_in") ?? todayRecords[0] ?? null;
+  const currentOpenRow =
+    rawCheckins.find(
+      (row) => row.shift_date === today && row.status === "checked_in" && !row.checked_out_at
+    ) ?? null;
+  const currentClockState =
+    currentRecord?.status === "checked_in"
+      ? "clocked_in"
+      : currentRecord?.checkedOutAt
+        ? "clocked_out"
+        : "not_clocked_in";
   const attendanceRecords = ((checkinsResult.data ?? []) as CheckinRow[]).map((row) => ({
     id: row.id,
     branch_id: staff.branch_id,
@@ -321,14 +344,31 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
       duration_minutes: row.session_duration_minutes_snapshot,
     })),
   })[0]!;
-  const scheduleState: StaffAttendanceData["scheduleState"] = todayState.scheduleState === "day_off"
-    ? "day_off"
-    : todayState.shiftWindows.length > 0
-      ? "scheduled"
-      : "not_scheduled";
-  const scheduleLabel = todayState.shiftWindows.length > 0
-    ? todayState.shiftWindows.map((window) => `${formatTime(window.startTime)}–${formatTime(window.endTime)}`).join(" · ")
-    : todayState.displayLabel;
+  const scheduleState: StaffAttendanceData["scheduleState"] =
+    todayState.scheduleState === "day_off"
+      ? "day_off"
+      : todayState.shiftWindows.length > 0
+        ? "scheduled"
+        : "not_scheduled";
+  const scheduleLabel =
+    todayState.shiftWindows.length > 0
+      ? todayState.shiftWindows
+          .map((window) => `${formatTime(window.startTime)}–${formatTime(window.endTime)}`)
+          .join(" · ")
+      : todayState.displayLabel;
+
+  const issues = (exceptionsResult.data ?? []).map((row) =>
+    buildStaffAttendanceIssueGuide({
+      id: row.id,
+      exception_type: row.exception_type,
+      message: row.message,
+      metadata: (row.metadata as Record<string, unknown> | null) ?? {},
+      resolution_status:
+        "resolution_status" in row ? (row.resolution_status as string | null) : null,
+      staff_response_required:
+        "staff_response_required" in row ? (row.staff_response_required as boolean | null) : null,
+    })
+  );
 
   let portalClockOut = portalAvailabilityCopy({
     code: currentClockState === "clocked_out" ? "already_clocked_out" : "no_open_attendance",
@@ -342,9 +382,9 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
       const policy = await recalculateAttendanceClockOutPolicy(admin, currentOpenRow.id);
       const cookieStore = await cookies();
       const rawCredential =
-        cookieStore.get(DEVICE_COOKIE_NAME)?.value
-        ?? cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value
-        ?? null;
+        cookieStore.get(DEVICE_COOKIE_NAME)?.value ??
+        cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value ??
+        null;
       let registeredDevice = false;
       if (rawCredential) {
         const device = await admin
@@ -359,9 +399,7 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
           .maybeSingle();
         registeredDevice = Boolean(device.data && !device.error);
       }
-      const code = !registeredDevice
-        ? "unregistered_device"
-        : policy.portalEligibilityReason;
+      const code = !registeredDevice ? "unregistered_device" : policy.portalEligibilityReason;
       portalClockOut = portalAvailabilityCopy({
         code,
         eligible: registeredDevice && policy.portalClockOutEligible,
@@ -386,14 +424,16 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
     today,
     scheduleLabel,
     scheduleState,
-    currentClockState: todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
-      ? "clocked_in"
-      : todayState.operationalStatus === "clocked_out"
-        ? "clocked_out"
-        : currentClockState,
+    currentClockState:
+      todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
+        ? "clocked_in"
+        : todayState.operationalStatus === "clocked_out"
+          ? "clocked_out"
+          : currentClockState,
     currentRecord,
     todayState,
     history,
+    issues,
     portalClockOut,
   };
 }

@@ -22,29 +22,63 @@ export type AttendanceReviewItem = {
 
 export function attendanceReviewCategory(typeValue: string): AttendanceReviewCategory {
   const type = typeValue.toLowerCase();
-  if (type.includes("device") || type.includes("phone") || type.includes("registration"))
+  if (type.includes("device") || type.includes("phone") || type.includes("registration")) {
     return "phone";
+  }
   if (type.includes("branch") || type.includes("location")) return "branch";
-  if (type.includes("schedule") || type.includes("shift") || type.includes("off_day"))
+  if (type.includes("schedule") || type.includes("shift") || type.includes("off_day")) {
     return "schedule";
-  if (type.includes("clock") || type.includes("scan") || type.includes("attendance"))
+  }
+  if (type.includes("clock") || type.includes("scan") || type.includes("attendance")) {
     return "clock";
+  }
   return "technical";
 }
 
-function itemCopy(category: AttendanceReviewCategory, staffName: string | null) {
-  const name = staffName ?? "Staff member";
-  if (category === "phone")
-    return { title: `${name} could not use their phone`, action: "Manage phone" };
-  if (category === "branch")
-    return { title: `${name} scanned at the wrong branch`, action: "Confirm branch" };
-  if (category === "schedule")
-    return { title: `${name} needs a schedule decision`, action: "Set today’s schedule" };
-  if (category === "clock")
-    return { title: `${name} has an incomplete attendance record`, action: "Correct attendance" };
+function itemCopy(
+  exception: AttendanceException,
+  category: AttendanceReviewCategory
+): { title: string; action: string } {
+  const name = exception.staff_name ?? "Staff member";
+  if (category === "phone") {
+    return {
+      title: `${name} could not use their attendance phone`,
+      action: "Fix phone",
+    };
+  }
+  if (category === "branch") {
+    return {
+      title: `${name} scanned at a different branch`,
+      action: "Approve branch",
+    };
+  }
+  if (category === "schedule") {
+    return {
+      title: `${name} needs today’s schedule`,
+      action: "Add today’s schedule",
+    };
+  }
+  if (category === "clock" && exception.checkin_id) {
+    return {
+      title: `${name} has an attendance record to correct`,
+      action: "Correct attendance",
+    };
+  }
+  if (category === "clock" && exception.scan_event_id) {
+    return {
+      title: `${name} has a saved scan waiting for a decision`,
+      action: "Resolve saved scan",
+    };
+  }
+  if (category === "clock") {
+    return {
+      title: `${name} has an incomplete attendance incident`,
+      action: "Review processing",
+    };
+  }
   return {
-    title: `${name} has a scan that needs investigation`,
-    action: "Review technical details",
+    title: `${name} has a scan-processing issue`,
+    action: "Review processing",
   };
 }
 
@@ -58,16 +92,19 @@ export function buildAttendanceReviewItems(
   exceptions: AttendanceException[]
 ): AttendanceReviewItem[] {
   const items = new Map<string, AttendanceReviewItem>();
+
   for (const exception of exceptions.filter(isActionableAttendanceException)) {
     const category = attendanceReviewCategory(effectiveAttendanceExceptionType(exception));
     const key = dedupeKey(exception, category);
     const existing = items.get(key);
+
     if (existing) {
       existing.relatedExceptionIds.push(exception.id);
       if (exception.severity === "critical") existing.priority = "critical";
       continue;
     }
-    const copy = itemCopy(category, exception.staff_name);
+
+    const copy = itemCopy(exception, category);
     items.set(key, {
       id: key,
       exception,
@@ -83,6 +120,7 @@ export function buildAttendanceReviewItems(
       recommendedAction: copy.action,
     });
   }
+
   return Array.from(items.values()).sort((a, b) => {
     const rank = { critical: 0, high: 1, normal: 2 };
     return (
@@ -103,9 +141,21 @@ export function applyCanonicalReviewToStaff(
         item.exception.staff_id === row.staff.staffId &&
         item.relatedExceptionIds.some((id) => currentExceptionIds.has(id))
     );
-    if (needsHelp) return { ...row, needsHelp, working: false, notScannedIn: false };
+
+    if (needsHelp) {
+      return {
+        ...row,
+        needsHelp,
+        working: false,
+        notScannedIn: false,
+      };
+    }
+
     const operational = row.staff.operationalStatus;
-    if (operational === "needs_review" || operational === "scan_captured") return row;
+    if (operational === "needs_review" || operational === "scan_captured") {
+      return row;
+    }
+
     const status: AttendanceStaffStatus =
       operational === "on_service"
         ? "in_service"
@@ -118,6 +168,7 @@ export function applyCanonicalReviewToStaff(
               : operational === "expected_later"
                 ? "not_scanned_in"
                 : "not_expected";
+
     const labels: Partial<Record<AttendanceStaffStatus, string>> = {
       in_service: "In service",
       working: "Working",
@@ -126,6 +177,7 @@ export function applyCanonicalReviewToStaff(
       not_scanned_in: "Not scanned in",
       not_expected: "Not expected today",
     };
+
     return {
       ...row,
       status,
