@@ -115,7 +115,7 @@ export function ResolveAttendanceScanDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-[min(100%-1rem,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b border-[var(--cs-border-soft)] p-5 pr-12">
-          <DialogTitle>Resolve saved scan</DialogTitle>
+          <DialogTitle>{item.diagnostic.crmPrimaryAction}</DialogTitle>
           <DialogDescription>
             {staffName} · The scan is safe, but no Attendance record was created.
           </DialogDescription>
@@ -127,7 +127,8 @@ export function ResolveAttendanceScanDialog({
             item={item}
             record={null}
             scanEvent={scanEvent}
-            instruction={attendanceReviewInstruction("resolve_scan")}
+            instruction={attendanceReviewInstruction("resolve_scan", item)}
+            onSaved={onSaved}
           />
 
           <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -142,13 +143,10 @@ export function ResolveAttendanceScanDialog({
             <div className="flex gap-3">
               <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-700" aria-hidden="true" />
               <div>
-                <p className="text-sm font-bold text-amber-950">
-                  Database resolver is being verified
-                </p>
+                <p className="text-sm font-bold text-amber-950">Safe decision required</p>
                 <p className="mt-1 text-sm leading-6 text-amber-900">
-                  CRM cannot safely create Attendance from this scan until the live database audit
-                  confirms the required transaction. Choose one of the safe actions below; do not
-                  ask the staff member to scan repeatedly.
+                  The saved scan is evidence. Use the approved Attendance correction tools only; do
+                  not create a time from memory or ask the staff member to scan repeatedly.
                 </p>
               </div>
             </div>
@@ -157,11 +155,11 @@ export function ResolveAttendanceScanDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <Button type="button" onClick={askStaff} disabled={pending}>
               <MessageCircleQuestion data-icon="inline-start" />
-              Ask staff to confirm
+              Ask staff what the scan meant
             </Button>
             <Button type="button" variant="outline" onClick={escalate} disabled={pending}>
               <ShieldAlert data-icon="inline-start" />
-              Send for safe repair
+              Open technical repair
             </Button>
           </div>
 

@@ -1,10 +1,8 @@
 import type { Database } from "@/types/supabase";
 
-export type WorkspaceNotification =
-  Database["public"]["Tables"]["workspace_notifications"]["Row"];
+export type WorkspaceNotification = Database["public"]["Tables"]["workspace_notifications"]["Row"];
 
-export type WorkflowTask =
-  Database["public"]["Tables"]["workflow_tasks"]["Row"];
+export type WorkflowTask = Database["public"]["Tables"]["workflow_tasks"]["Row"];
 
 export type NotificationType =
   | "staff_onboarding_submitted"
@@ -46,6 +44,8 @@ export type NotificationType =
   | "attendance_issue_question"
   | "attendance_issue_response"
   | "attendance_issue_resolved"
+  | "attendance_prevention_guidance"
+  | "attendance_device_recovery_ready"
   | "attendance_clock_out_reminder"
   | "attendance_closing_escalation"
   | "attendance_provisional_auto_close"
@@ -56,13 +56,7 @@ export type NotificationType =
   | "branch_assignment_issue_review_required"
   | "staff_branch_transfer_completed";
 
-export type NotificationWorkspace =
-  | "owner"
-  | "manager"
-  | "crm"
-  | "staff"
-  | "driver"
-  | "utility";
+export type NotificationWorkspace = "owner" | "manager" | "crm" | "staff" | "driver" | "utility";
 
 export type NotificationPriority = "low" | "normal" | "high" | "critical";
 export type NotificationStatus = "unread" | "read" | "resolved" | "dismissed";

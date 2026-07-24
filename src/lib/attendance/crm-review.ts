@@ -1,3 +1,8 @@
+import {
+  recurrenceLevel,
+  resolveAttendanceDiagnostic,
+  type AttendanceDiagnostic,
+} from "@/lib/attendance/diagnostic-catalog";
 import type { AttendanceException } from "@/lib/attendance/types";
 import type {
   AttendanceStaffDiagnostic,
@@ -18,6 +23,9 @@ export type AttendanceReviewItem = {
   priority: "critical" | "high" | "normal";
   title: string;
   recommendedAction: string;
+  diagnostic: AttendanceDiagnostic;
+  recurrenceCount: number;
+  recurrenceLabel: string;
 };
 
 export function attendanceReviewCategory(typeValue: string): AttendanceReviewCategory {
@@ -35,57 +43,28 @@ export function attendanceReviewCategory(typeValue: string): AttendanceReviewCat
   return "technical";
 }
 
-function itemCopy(
-  exception: AttendanceException,
-  category: AttendanceReviewCategory
-): { title: string; action: string } {
-  const name = exception.staff_name ?? "Staff member";
-  if (category === "phone") {
-    return {
-      title: `${name} could not use their attendance phone`,
-      action: "Fix phone",
-    };
-  }
-  if (category === "branch") {
-    return {
-      title: `${name} scanned at a different branch`,
-      action: "Approve branch",
-    };
-  }
-  if (category === "schedule") {
-    return {
-      title: `${name} needs today’s schedule`,
-      action: "Add today’s schedule",
-    };
-  }
-  if (category === "clock" && exception.checkin_id) {
-    return {
-      title: `${name} has an attendance record to correct`,
-      action: "Correct attendance",
-    };
-  }
-  if (category === "clock" && exception.scan_event_id) {
-    return {
-      title: `${name} has a saved scan waiting for a decision`,
-      action: "Resolve saved scan",
-    };
-  }
-  if (category === "clock") {
-    return {
-      title: `${name} has an incomplete attendance incident`,
-      action: "Review processing",
-    };
-  }
-  return {
-    title: `${name} has a scan-processing issue`,
-    action: "Review processing",
-  };
+function reviewCategoryFromDiagnostic(
+  diagnostic: AttendanceDiagnostic,
+  exception: AttendanceException
+): AttendanceReviewCategory {
+  if (diagnostic.category === "phone") return "phone";
+  if (diagnostic.category === "branch") return "branch";
+  if (diagnostic.category === "schedule") return "schedule";
+  if (diagnostic.category === "clock" || diagnostic.category === "service") return "clock";
+  return attendanceReviewCategory(effectiveAttendanceExceptionType(exception));
 }
 
-function dedupeKey(exception: AttendanceException, category: AttendanceReviewCategory): string {
-  if (exception.checkin_id) return `checkin:${exception.checkin_id}`;
-  if (exception.scan_event_id) return `scan:${exception.scan_event_id}`;
-  return `staff:${exception.staff_id ?? "unknown"}:${category}:${exception.detected_at.slice(0, 10)}`;
+function dedupeKey(exception: AttendanceException, diagnostic: AttendanceDiagnostic): string {
+  if (exception.dedupe_key) return exception.dedupe_key;
+  if (exception.checkin_id) return `checkin:${exception.checkin_id}:${diagnostic.code}`;
+  if (exception.scan_event_id) return `scan:${exception.scan_event_id}:${diagnostic.code}`;
+  return `staff:${exception.staff_id ?? "unknown"}:${diagnostic.code}:${exception.detected_at.slice(0, 10)}`;
+}
+
+function reviewPriority(exception: AttendanceException, diagnostic: AttendanceDiagnostic) {
+  if (exception.severity === "critical" || diagnostic.severity === "critical") return "critical";
+  if (exception.severity === "high") return "high";
+  return "normal";
 }
 
 export function buildAttendanceReviewItems(
@@ -94,30 +73,33 @@ export function buildAttendanceReviewItems(
   const items = new Map<string, AttendanceReviewItem>();
 
   for (const exception of exceptions.filter(isActionableAttendanceException)) {
-    const category = attendanceReviewCategory(effectiveAttendanceExceptionType(exception));
-    const key = dedupeKey(exception, category);
+    const diagnostic = resolveAttendanceDiagnostic({ exception });
+    const category = reviewCategoryFromDiagnostic(diagnostic, exception);
+    const key = dedupeKey(exception, diagnostic);
     const existing = items.get(key);
+    const occurrenceCount = Math.max(1, exception.occurrence_count ?? 1);
 
     if (existing) {
       existing.relatedExceptionIds.push(exception.id);
-      if (exception.severity === "critical") existing.priority = "critical";
+      existing.recurrenceCount += occurrenceCount;
+      existing.recurrenceLabel = recurrenceLevel(existing.recurrenceCount).label;
+      if (reviewPriority(exception, diagnostic) === "critical") existing.priority = "critical";
       continue;
     }
 
-    const copy = itemCopy(exception, category);
+    const name = exception.staff_name ?? "Staff member";
+    const recurrence = recurrenceLevel(occurrenceCount);
     items.set(key, {
       id: key,
       exception,
       relatedExceptionIds: [exception.id],
       category,
-      priority:
-        exception.severity === "critical"
-          ? "critical"
-          : exception.severity === "high"
-            ? "high"
-            : "normal",
-      title: copy.title,
-      recommendedAction: copy.action,
+      priority: reviewPriority(exception, diagnostic),
+      title: `${name} ${diagnostic.crmTitle}`,
+      recommendedAction: diagnostic.crmPrimaryAction,
+      diagnostic,
+      recurrenceCount: occurrenceCount,
+      recurrenceLabel: recurrence.label,
     });
   }
 
@@ -125,6 +107,7 @@ export function buildAttendanceReviewItems(
     const rank = { critical: 0, high: 1, normal: 2 };
     return (
       rank[a.priority] - rank[b.priority] ||
+      b.recurrenceCount - a.recurrenceCount ||
       b.exception.detected_at.localeCompare(a.exception.detected_at)
     );
   });

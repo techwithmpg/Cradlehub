@@ -83,10 +83,9 @@ export function AttendanceTechnicalDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-[min(100%-1rem,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b border-[var(--cs-border-soft)] p-5 pr-12">
-          <DialogTitle>Review Attendance processing</DialogTitle>
+          <DialogTitle>{item.diagnostic.crmPrimaryAction}</DialogTitle>
           <DialogDescription>
-            The system preserved the available evidence but cannot apply a safe automatic
-            correction.
+            {item.diagnostic.crmSummary} The available evidence is preserved.
           </DialogDescription>
         </DialogHeader>
 
@@ -96,7 +95,8 @@ export function AttendanceTechnicalDialog({
             item={item}
             record={record}
             scanEvent={scanEvent}
-            instruction={attendanceReviewInstruction("technical")}
+            instruction={attendanceReviewInstruction("technical", item)}
+            onSaved={onSaved}
           />
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -118,7 +118,7 @@ export function AttendanceTechnicalDialog({
           </Button>
           <Button onClick={escalate} disabled={pending}>
             <Wrench data-icon="inline-start" />
-            {pending ? "Escalating…" : "Escalate technical issue"}
+            {pending ? "Opening repair…" : "Open technical repair"}
           </Button>
         </DialogFooter>
       </DialogContent>

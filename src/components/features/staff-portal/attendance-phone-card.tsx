@@ -18,6 +18,7 @@ import {
 import {
   cancelAttendancePhoneRequestAction,
   completeAttendancePhoneRequestAction,
+  completeProfileAttendanceRecoveryAction,
   renameOwnAttendancePhoneAction,
   requestAttendancePhoneAction,
 } from "@/app/(dashboard)/staff-portal/profile/attendance-device-actions";
@@ -57,8 +58,8 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
               Attendance phone
             </CardTitle>
             <CardDescription className="mt-1">
-              Use this phone to scan the branch Attendance QR. If it is not connected, sign in once
-              when the scan page asks you.
+              This card shows whether the current browser is ready. A removed connection must be
+              restored on this same browser.
             </CardDescription>
           </div>
           {state.registeredDevice ? (
@@ -76,6 +77,43 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {state.profileRecovery ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="font-bold text-emerald-950">CRM sent a browser connection request</p>
+            <p className="mt-1 text-sm leading-6 text-emerald-900">
+              Open this page on the phone and browser you want to use for Attendance, then connect
+              it now.
+            </p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Reason: {state.profileRecovery.reason.replaceAll("_", " ")} · Expires{" "}
+              {new Date(state.profileRecovery.expiresAt).toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </p>
+            <Button
+              className="mt-3"
+              disabled={isPending}
+              onClick={() =>
+                run(() => completeProfileAttendanceRecoveryAction(state.profileRecovery!.id))
+              }
+            >
+              <ShieldCheck data-icon="inline-start" /> Connect this browser now
+            </Button>
+          </div>
+        ) : null}
+
+        {state.recentBrowserRecoveryCount >= 2 ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+            <p className="font-bold">Keep Attendance connected</p>
+            <p className="mt-1 leading-6">
+              This account has had {state.recentBrowserRecoveryCount} browser reconnections in the
+              last 30 days. When clearing browser data, do not select Cookies and site data, Site
+              settings, Clear storage, or All browser data.
+            </p>
+          </div>
+        ) : null}
+
         {state.registeredDevice ? (
           <div className="rounded-xl border bg-muted/30 p-4">
             <p className="font-medium">This phone: {state.registeredDevice.label}</p>
@@ -145,9 +183,9 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
               <p className="font-semibold">Fastest way to connect this phone</p>
               <p className="mt-1 leading-6">
-                Scan the branch Attendance QR on this phone. When the sign-in page appears, sign in
-                with your own staff account. The system will connect the phone and continue that
-                scan automatically.
+                Scan the branch Attendance QR in this browser. When the connection page appears,
+                sign in with your own staff account. The system will connect this browser and
+                continue the saved scan automatically.
               </p>
               <p className="mt-2 font-medium">Scan once. Do not refresh or scan repeatedly.</p>
             </div>
@@ -184,8 +222,8 @@ export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneStat
             >
               <Smartphone data-icon="inline-start" />
               {state.activeDevices.length > 0
-                ? "Request replacement phone"
-                : "Ask CRM for a connection link"}
+                ? "Request replacement browser"
+                : "Ask CRM for a browser connection"}
             </Button>
           </div>
         ) : null}

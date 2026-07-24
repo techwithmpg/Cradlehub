@@ -10,6 +10,7 @@ import {
 } from "@/app/scan/actions";
 import { cn } from "@/lib/utils";
 import type { PublicScanResult } from "@/lib/attendance/types";
+import { withAttendanceScanResolution } from "@/lib/attendance/scan-resolution";
 import { isStaffDeviceSignInReason } from "@/lib/attendance/staff-self-service";
 import type { BranchCorrectionScanDetails } from "@/lib/staff/branch-correction-types";
 import { PublicScanLoginForm } from "./public-scan-login-form";
@@ -133,17 +134,16 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
             ? await processPublicQrScan({ publicCode: scanPublicCode, requestId })
             : await activateDeviceAction({ token: activationToken ?? "", requestId });
       } catch {
-        nextResult = {
+        nextResult = withAttendanceScanResolution({
           ok: false,
           outcome: "error",
-          reasonCode: "UNKNOWN_ATTENDANCE_ERROR",
-          title: "Scan interrupted",
-          message:
-            "We could not complete this scan. Check your connection and scan the QR code again.",
+          reasonCode: "network_error",
+          title: "Internet connection interrupted",
+          message: "Reconnect Wi-Fi or mobile data, then retry once from this same page.",
           detail: `Operation ID: ${requestId}`,
           operationId: requestId,
-          securityNote: "No attendance change was confirmed from this attempt.",
-        };
+          securityNote: "No Attendance change was confirmed from this attempt.",
+        });
       }
 
       const remainingAnimationTime = MINIMUM_FLOW_DURATION_MS - (Date.now() - startedAt);
@@ -151,7 +151,7 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
       if (!active) return;
 
       if (mode === "scan" && isMissingDeviceResult(nextResult)) {
-        setResult(null);
+        setResult(nextResult);
         setLoginError(null);
         setLoginFieldErrors(null);
         setBranchCorrectionState({ status: "idle", message: null });
@@ -286,6 +286,8 @@ export function PublicScanProcessor(props: PublicScanProcessorProps) {
           password={loginCredentials.password}
           error={loginError}
           fieldErrors={loginFieldErrors}
+          issueResult={result}
+          requestId={requestId}
           pending={stage === "signing_in"}
           onEmailChange={(email) => setLoginCredentials((current) => ({ ...current, email }))}
           onPasswordChange={(password) =>

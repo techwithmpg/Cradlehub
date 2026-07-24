@@ -129,6 +129,12 @@ type CrmProviderAvailability = {
   recommended: boolean;
   scheduleStartTime: string | null;
   scheduleEndTime: string | null;
+  serviceEndTime?: string | null;
+  operationalStartTime?: string | null;
+  operationalEndTime?: string | null;
+  overtimeMinutes?: number;
+  operationalOvertimeMinutes?: number;
+  operationalStartsBeforeShift?: boolean;
   nextAvailableAt: string | null;
   reasonCode: string;
   statusLabel: string;
@@ -186,7 +192,7 @@ const CRM_PRECISE_HOME_SERVICE_LOCATION_MESSAGE =
   "Please select a valid address from the search results so distance can be calculated.";
 
 const NO_SCHEDULED_THERAPIST_MESSAGE =
-  "No scheduled therapist is available at this time. Try another time or check staff schedules.";
+  "No qualified therapist can start at this exact time. Try another time or review staff schedules.";
 
 function todayYmd(): string {
   return getBranchWalkInDefaults().date;
@@ -233,6 +239,12 @@ function formatAttendanceTime(iso: string | null): string {
   if (!iso) return "";
   const date = new Date(iso);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatBookingClock(value: string | null | undefined): string {
+  if (!value) return "--";
+  const parsed = parseBookingTime(value);
+  return parsed.ok ? parsed.value.displayTime : value.slice(0, 5);
 }
 
 function formatDistanceKm(distanceKm: number): string {
@@ -415,6 +427,10 @@ export function QuickBookingForm({
     [providerAvailability]
   );
   const selectedProviderAvailability = staffId ? (providerById.get(staffId) ?? null) : null;
+  const effectiveProviderAvailability =
+    selectedProviderAvailability ??
+    providerAvailability.find((provider) => provider.selectable) ??
+    null;
   const therapistPrerequisitesReady =
     selectedServiceIds.length > 0 && Boolean(date) && Boolean(time);
   const eligibleAttendanceHint =
@@ -542,6 +558,12 @@ export function QuickBookingForm({
               recommended: false,
               scheduleStartTime: null,
               scheduleEndTime: null,
+              serviceEndTime: null,
+              operationalStartTime: null,
+              operationalEndTime: null,
+              overtimeMinutes: 0,
+              operationalOvertimeMinutes: 0,
+              operationalStartsBeforeShift: false,
               nextAvailableAt: null,
               reasonCode: nextAvailableStaffIds.includes(member.id)
                 ? "scheduled_available_not_checked_in"
@@ -1246,7 +1268,7 @@ export function QuickBookingForm({
                         : therapistAvailabilityStatus === "loading"
                           ? "Checking schedules…"
                           : therapistAvailabilityStatus === "empty"
-                            ? "No scheduled provider fits this time"
+                            ? "No qualified provider can start at this time"
                             : therapistAvailabilityStatus === "error"
                               ? "Availability failed"
                               : "First available"}
@@ -1327,9 +1349,9 @@ export function QuickBookingForm({
                 <p className="-mt-1 text-xs font-medium text-[var(--cs-danger-text)]">
                   {therapistAvailabilityMessage || NO_SCHEDULED_THERAPIST_MESSAGE}
                 </p>
-              ) : selectedProviderAvailability?.warning ? (
+              ) : effectiveProviderAvailability?.warning ? (
                 <p className="-mt-1 text-xs font-medium text-[var(--cs-sand-dark)]">
-                  {selectedProviderAvailability.warning}
+                  {effectiveProviderAvailability.warning}
                 </p>
               ) : mode === "walkin" && eligibleAttendanceHint ? (
                 <p className="-mt-1 text-xs text-[var(--cs-sand-dark)]">
@@ -1524,12 +1546,54 @@ export function QuickBookingForm({
               <SummaryRow label="Customer" value={fullName || "Not selected"} />
               <SummaryServices services={selectedServices} />
               <SummaryRow label="Service total" value={serviceSummaryLabel} />
+              {effectiveProviderAvailability?.serviceEndTime ? (
+                <SummaryRow
+                  label="Appointment"
+                  value={`${formatBookingClock(time)}–${formatBookingClock(
+                    effectiveProviderAvailability.serviceEndTime
+                  )}`}
+                />
+              ) : null}
               <SummaryRow
                 label="Therapist"
                 value={
-                  selectedStaff ? selectedStaff.nickname || selectedStaff.name : "First available"
+                  selectedStaff
+                    ? selectedStaff.nickname || selectedStaff.name
+                    : effectiveProviderAvailability
+                      ? `First available · ${
+                          effectiveProviderAvailability.nickname ||
+                          effectiveProviderAvailability.fullName
+                        }`
+                      : "First available"
                 }
               />
+              {effectiveProviderAvailability?.scheduleStartTime &&
+              effectiveProviderAvailability.scheduleEndTime ? (
+                <SummaryRow
+                  label="Therapist schedule"
+                  value={`${formatBookingClock(
+                    effectiveProviderAvailability.scheduleStartTime
+                  )}–${formatBookingClock(effectiveProviderAvailability.scheduleEndTime)}`}
+                />
+              ) : null}
+              {(effectiveProviderAvailability?.overtimeMinutes ?? 0) > 0 ? (
+                <SummaryNote
+                  text={`Ends ${formatServiceDuration(
+                    effectiveProviderAvailability?.overtimeMinutes ?? 0
+                  )} after shift — allowed because the booking starts during scheduled time.`}
+                  tone="warning"
+                />
+              ) : null}
+              {isHomeService &&
+              effectiveProviderAvailability?.operationalStartTime &&
+              effectiveProviderAvailability.operationalEndTime ? (
+                <SummaryRow
+                  label="Operational block"
+                  value={`${formatBookingClock(
+                    effectiveProviderAvailability.operationalStartTime
+                  )}–${formatBookingClock(effectiveProviderAvailability.operationalEndTime)}`}
+                />
+              ) : null}
               {!isHomeService ? (
                 <SummaryRow
                   label="Room"

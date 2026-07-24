@@ -3,14 +3,19 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { AttendanceIssueModalRouter } from "@/components/features/attendance/review/attendance-issue-modal-router";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  attendanceReviewPrimaryAction,
-  attendanceReviewResolutionKind,
-} from "@/lib/attendance/review-resolution";
 import type { AttendanceReviewItem } from "@/lib/attendance/crm-review";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
+
+function ownerLabel(owner: AttendanceReviewItem["diagnostic"]["resolutionOwner"]): string {
+  if (owner === "technical_support") return "Technical";
+  if (owner === "automatic" || owner === "system") return "System";
+  if (owner === "manager") return "Manager";
+  if (owner === "staff") return "Staff";
+  return "CRM";
+}
 
 export function AttendanceReviewView({
   data,
@@ -30,30 +35,20 @@ export function AttendanceReviewView({
     return items.filter(
       (item) =>
         !query ||
-        `${item.title} ${item.exception.message} ${item.category}`.toLowerCase().includes(query)
+        `${item.title} ${item.exception.message} ${item.diagnostic.code} ${item.recommendedAction}`
+          .toLowerCase()
+          .includes(query)
     );
   }, [items, search]);
-
-  function primaryAction(item: AttendanceReviewItem): string {
-    const record = item.exception.checkin_id
-      ? (data.records.find((row) => row.id === item.exception.checkin_id) ?? null)
-      : null;
-    const scanEvent = item.exception.scan_event_id
-      ? (data.scanEvents.find((row) => row.id === item.exception.scan_event_id) ?? null)
-      : null;
-    return attendanceReviewPrimaryAction(
-      attendanceReviewResolutionKind({ item, record, scanEvent })
-    );
-  }
 
   return (
     <>
       <section className="overflow-hidden rounded-xl border border-[var(--cs-border)] bg-white">
         <div className="flex flex-col gap-3 border-b border-[var(--cs-border-soft)] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-bold">Review queue</h2>
+            <h2 className="font-bold">Attendance incident queue</h2>
             <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-              Each row tells CRM exactly which tool resolves the incident.
+              Every row shows the exact problem, who owns it, how to fix it, and how to prevent it.
             </p>
           </div>
           <label className="relative">
@@ -61,10 +56,10 @@ export function AttendanceReviewView({
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="w-full pl-9 sm:w-64"
-              placeholder="Search incidents"
+              className="w-full pl-9 sm:w-72"
+              placeholder="Search staff, problem, code, action"
             />
-            <span className="sr-only">Search incidents</span>
+            <span className="sr-only">Search Attendance incidents</span>
           </label>
         </div>
 
@@ -75,7 +70,9 @@ export function AttendanceReviewView({
                 <th className="px-4 py-3">Priority</th>
                 <th className="px-4 py-3">Incident</th>
                 <th className="px-4 py-3">Detected</th>
-                <th className="px-4 py-3">What to do</th>
+                <th className="px-4 py-3">State</th>
+                <th className="px-4 py-3">Owner</th>
+                <th className="px-4 py-3">Prevention</th>
                 <th className="px-4 py-3">
                   <span className="sr-only">Resolve</span>
                 </th>
@@ -85,7 +82,7 @@ export function AttendanceReviewView({
               {filtered.map((item) => (
                 <tr
                   key={item.id}
-                  className="border-t border-[var(--cs-border-soft)] hover:bg-[var(--cs-surface-warm)]"
+                  className="border-t border-[var(--cs-border-soft)] align-top hover:bg-[var(--cs-surface-warm)]"
                 >
                   <td className="px-4 py-3">
                     <span
@@ -99,11 +96,22 @@ export function AttendanceReviewView({
                     >
                       {item.priority}
                     </span>
+                    {item.recurrenceCount > 1 ? (
+                      <Badge
+                        variant="outline"
+                        className="mt-2 block w-fit text-[10px] text-amber-700"
+                      >
+                        {item.recurrenceCount} occurrences
+                      </Badge>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-semibold">{item.title}</div>
-                    <div className="mt-0.5 max-w-md truncate text-xs text-[var(--cs-text-muted)]">
-                      {item.exception.message}
+                    <div className="mt-1 max-w-lg text-xs leading-5 text-[var(--cs-text-muted)]">
+                      {item.diagnostic.crmSummary}
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
+                      {item.diagnostic.code}
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-[var(--cs-text-muted)]">
@@ -113,12 +121,25 @@ export function AttendanceReviewView({
                       day: "numeric",
                       hour: "numeric",
                       minute: "2-digit",
-                    }).format(new Date(item.exception.detected_at))}
+                    }).format(
+                      new Date(item.exception.last_detected_at ?? item.exception.detected_at)
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-xs font-semibold">{primaryAction(item)}</td>
+                  <td className="px-4 py-3 text-xs">
+                    <div className="font-semibold">
+                      Attendance changed: {item.diagnostic.attendanceChanged ? "Yes" : "No"}
+                    </div>
+                    <div className="mt-1 text-[var(--cs-text-muted)]">{item.recurrenceLabel}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline">{ownerLabel(item.diagnostic.resolutionOwner)}</Badge>
+                  </td>
+                  <td className="max-w-xs px-4 py-3 text-xs leading-5 text-[var(--cs-text-muted)]">
+                    {item.diagnostic.preventionAction}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <Button size="sm" onClick={() => setSelected(item)}>
-                      {primaryAction(item)}
+                      {item.recommendedAction}
                     </Button>
                   </td>
                 </tr>
@@ -129,9 +150,9 @@ export function AttendanceReviewView({
 
         {filtered.length === 0 ? (
           <div className="p-10 text-center">
-            <p className="font-semibold">No incidents need review</p>
+            <p className="font-semibold">No Attendance incidents need review</p>
             <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
-              Clock-in timing and arrival statuses remain visible in Today.
+              Resolved incidents and harmless duplicate scans are not kept in the active queue.
             </p>
           </div>
         ) : null}

@@ -9,8 +9,7 @@ legacy Attendance recovery implementation and the remaining unused exception
 loader instead of retaining warning-suppressed dead mutation paths.
 
 **Repository blockers:** Pinned the supported clean-install runtime to Node
-24.14.0 and pnpm 10.33.2 after reproducing Node 25's Supabase postinstall exit
-13. Removed tracked browser snapshots/console logs, smoke logs, and a DOM dump;
+24.14.0 and pnpm 10.33.2 after reproducing Node 25's Supabase postinstall exit 13. Removed tracked browser snapshots/console logs, smoke logs, and a DOM dump;
 ignored generated output, local artifacts, backups, and reports. Replaced the
 unbounded legacy Prettier gate with a deterministic post-baseline code/config
 gate and explicitly classified optional dependency build scripts.
@@ -292,7 +291,7 @@ staff Attendance.
   at 360x740 with no horizontal overflow; revoked-device and invalid-QR states
   remain blocked. No staff credentials were available for final continuation.
 - Added a committed Training Mode result flag and visible `Training Mode · Not
-  live attendance` staff badge, plus regression coverage.
+live attendance` staff badge, plus regression coverage.
 - Regenerated live Supabase types and verified a controlled Training Mode scan
   transaction commits once and replays the same request idempotently. Removed
   only the exact audit-created rows; final operational counts returned to zero.
@@ -310,12 +309,14 @@ staff Attendance.
 **Task:** Build the production Adjust Schedule modal for CRM Schedule Daily Timeline without redesigning Daily Timeline or reviving group schedule runtime behavior.
 
 **Files Added:**
+
 - `src/components/features/schedule-adjustment/*` - reusable Adjust Schedule dialog, staff identity/status/profile/preview/impact panels, weekly matrix, bulk edit popover, date/block wrappers, exceptions empty state, typed draft model, and draft utilities.
 - `tests/lib/schedule/adjust-schedule-utils.test.ts` - schedule adapter/duration/validation/role eligibility coverage.
 - `tests/lib/schedule/daily-timeline-selection-card.test.tsx` - selected-staff action coverage.
 - `tests/lib/schedule/adjust-schedule-dialog.test.tsx` - modal default mode, role-aware controls, and split-window preview coverage.
 
 **Files Changed:**
+
 - `src/components/features/schedule/tabs/daily-timeline-tab.tsx` - replaced the old Adjust Staff availability editor path with the shared `AdjustScheduleDialog`; Block Staff Time opens the new modal in Unavailable Time mode; conflict actions map into the same modal modes.
 - `src/components/features/schedule/tabs/daily-timeline-operations-rail.tsx` - passes the shared Adjust Schedule handler into the selected-staff card.
 - `src/components/features/schedule/tabs/daily-timeline-selection-card.tsx` - added Adjust Schedule alongside Edit Profile, Edit Capabilities, and View Full Schedule while preserving the compact card style.
@@ -326,12 +327,14 @@ staff Attendance.
 - `.context/*`, `docs/PROJECT_CONTEXT.md`, and `docs/ROADMAP.md` - record implementation and verification.
 
 **Behavior:**
+
 - Quick Actions > Adjust Staff and selected-staff card > Adjust Schedule now open the same modal, target contract, draft adapter, weekly save action, and refresh path.
 - Individual `staff_schedules` remain authoritative. No group controls, group labels, Copy From Group, Reset to Group, View Group, automatic fallback, or placeholder 21-row behavior was reintroduced.
 - Weekly mode supports role-aware Opening/Regular/Closing controls for therapists/CRM, Regular-only controls for other staff, split windows, explicit Ends next day, Not Configured vs Day Off, live preview, weekly totals, validation, and acknowledged impact review before saving.
 - Specific Date and Unavailable Time modes reuse the existing real `schedule_overrides` and `blocked_times` actions. Approved Exceptions shows an honest empty state because no durable exception model was found.
 
 **Verification:**
+
 - Focused tests: PASS, 4 files / 21 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
@@ -340,6 +343,7 @@ staff Attendance.
 - `git diff --check`: PASS, CRLF warnings only.
 
 **Follow-up:**
+
 - Authenticated CRM browser QA is still needed for visual/operator certification against live branch data.
 - Server-calculated affected-booking impact/acknowledgement remains future hardening; current saves do not modify bookings.
 - Date range overrides, expanded blocked-time reason taxonomy, and durable approved-exception records need schema/action support before they can be fully implemented.
@@ -351,10 +355,12 @@ staff Attendance.
 **Task:** Simplify runtime scheduling around CRM-entered individual staff schedules.
 
 **Files Added:**
+
 - `supabase/migrations/20260712190359_individual_schedule_runtime_only.sql` - runtime RPC replacement for individual-only `get_available_slots` and `get_daily_schedule`.
 - `src/components/features/staff-schedule/staff-schedule-types.ts` - shared type-only schedule item contract after deleting duplicate schedule list UI.
 
 **Files Changed / Removed:**
+
 - Removed manual paper schedule importer files/actions and paper roster generation paths.
 - Removed group schedule runtime fallback from `resolve-staff-schedule`, runtime schedule queries, realtime subscriptions, booking/attendance/dispatch/readiness consumers, and Schedule UI.
 - Removed legacy group schedule action/query/test helpers and duplicate Schedule Setup UI clusters.
@@ -363,6 +369,7 @@ staff Attendance.
 - Regenerated `src/types/supabase.ts`; widened branch booking rules mapping for pending live distance-fee columns.
 
 **Verification:**
+
 - `pnpm db:types`: PASS.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
@@ -371,6 +378,7 @@ staff Attendance.
 - `git diff --check`: PASS, CRLF warnings only.
 
 **Database Notes:**
+
 - `pnpm db:doctor` and `pnpm db:status` still time out while reading linked Supabase migration history through the pooler.
 - `pnpm db:verify` runs linked SQL/table probes but exits nonzero because `psql` is not installed for fallback.
 - Production migration apply is not claimed; apply local migrations from a working migration-history connection.
@@ -382,9 +390,11 @@ staff Attendance.
 **Task:** Repair the existing CradleHub QR Attendance flow after launch-day reversed clock-in/clock-out loops, without adding a second attendance engine or duplicate recovery module.
 
 **Files Added:**
+
 - `supabase/migrations/20260712000100_attendance_state_reset.sql` - extends `attendance_corrections` action constraints with `reset_attendance_state`.
 
 **Files Changed:**
+
 - `src/lib/attendance/attendance-intent-engine.ts` - added pure open-checkin classification for matching current shift, stale prior rows, same-day conflicts, and legacy generic shift fallback by scheduled-window overlap.
 - `src/lib/attendance/scan-engine.ts` - resolves branch time/schedule before interpreting open attendance rows; uses only the matching current shift row for clock-out; sends stale/conflicting rows to Recovery while continuing current scan intent.
 - `src/lib/attendance/attendance-correction-service.ts` - replaced broad staff-day reset semantics with selected-record Attendance State Reset requiring reason and void confirmation.
@@ -393,6 +403,7 @@ staff Attendance.
 - `tests/lib/attendance/attendance-intent-engine.test.ts` - added coverage for stale prior-day rows, exact current-shift rows, legacy generic overlap, and same-day conflict classification.
 
 **Behavior:**
+
 - Opening scans now clock in for the current scheduled shift even when an old stale open row exists.
 - Closing scans clock out only when an open row matches the current staff/branch/shift date/shift type or legacy overlapping schedule window.
 - Closing-time scans with no matching current clock-in remain `likely_closing_scan_without_clock_in` Recovery items and do not create a new check-in.
@@ -401,6 +412,7 @@ staff Attendance.
 - Reset Next Scan State voids only the selected interpreted attendance record, preserves raw QR scans/history, resolves related open exceptions, and records an audit row.
 
 **Verification:**
+
 - `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts`: PASS, 16 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
@@ -410,6 +422,7 @@ staff Attendance.
 - `pnpm db:status`: blocked on the same migration-history timeout; output included `Remote schema changed: no`.
 
 **Follow-up:**
+
 - Apply/push `supabase/migrations/20260712000100_attendance_state_reset.sql` from a working Supabase DB path before production use of the new reset action.
 - Run authenticated CRM/Owner Attendance browser QA for Recovery issue triage, Attendance State Repair, live QR scan clock-in/out, stale-row Recovery surfacing, active-service block, and Owner Attendance parity.
 - `git diff --check` remains blocked by pre-existing unrelated blank-line-at-EOF issues and line-ending warnings outside this task's attendance edits.
@@ -421,9 +434,11 @@ staff Attendance.
 **Task:** Stabilize CRM Today and Booking Follow-up before adding operational reschedule/change-staff completion.
 
 **Files Added:**
+
 - `src/components/features/bookings/reschedule-booking-modal.tsx` - CRM reschedule modal backed by a branch-checked server action.
 
 **Files Changed:**
+
 - `src/components/features/crm/today/work-queue-panel.tsx`, `work-queue-dashboard.tsx`, `crm-today-shell.tsx`, and `src/app/(dashboard)/crm/today/page.tsx` - removed the fragile `refreshEtaAction` prop chain; the ETA button imports the stable server action directly.
 - `src/app/(dashboard)/manager/bookings/actions.ts` - status updates now use the admin client after session/branch checks and annotate the latest trigger-created `booking_events` row.
 - `src/app/(dashboard)/crm/bookings/actions.ts` - added follow-up audit rows, cancel support, reassignment availability validation/audit, and `rescheduleBookingAction`.
@@ -432,6 +447,7 @@ staff Attendance.
 - Attendance Recovery inherited type/lint blockers were repaired in `src/components/features/attendance/recovery/attendance-recovery-tab.tsx` and `src/components/features/attendance/attendance-workspace.tsx`.
 
 **Behavior:**
+
 - CRM Today no longer passes a server action prop through client/server component boundaries for ETA refresh.
 - Booking Follow-up no longer exposes raw `booking_events`/RLS errors for cancel/follow-up paths.
 - Follow-up results write same-status audit rows through the service-role path, while true status changes annotate trigger-created events.
@@ -439,12 +455,14 @@ staff Attendance.
 - Reschedule explicitly moves date/time through a CRM modal, validates current therapist/room availability, records metadata/history, writes a same-status booking audit row, and notifies the assigned therapist.
 
 **Verification:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts`: PASS, 1 file / 6 tests.
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Follow-up:**
+
 - Authenticated CRM browser QA is still recommended for `/crm/today` ETA refresh, `/crm/bookings` follow-up cancel/reschedule, Change Staff, and Reschedule modal flows against live branch data.
 
 ---
@@ -454,6 +472,7 @@ staff Attendance.
 **Task:** Restyle `/services`, `/contact`, `/about`, and `/branches` plus the shared public catalog/header surfaces so the requested public page set no longer uses white, cream, pale gray, or default-light page/card sections.
 
 **Files Changed:**
+
 - `src/app/(public)/services/page.tsx` - replaced the pale hero bridge and info card with dark/gold surfaces.
 - `src/app/(public)/contact/page.tsx` - moved desktop action/contact sections from cream/white cards to dark glass cards.
 - `src/app/(public)/about/page.tsx` - moved desktop story, values, and secondary sections to dark surfaces and dark glass value cards.
@@ -468,6 +487,7 @@ staff Attendance.
 - `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - logged the public dark theme pass.
 
 **Behavior:**
+
 - Public mobile `/services`, `/contact`, `/about`, and `/branches` now use deep green backgrounds, muted gold borders/actions, cream text, and translucent dark cards.
 - Desktop public sections for the requested pages now match the dark Cradle theme instead of transitioning into pale cream page bands.
 - The shared service catalog now remains dark from empty state through category navigation, service rows, badges, prices, and CTA panel.
@@ -476,6 +496,7 @@ staff Attendance.
 - Booking logic, service/branch queries, Supabase/database logic, server actions, protected portals, auth/RBAC, APIs, and backend behavior were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -485,6 +506,7 @@ staff Attendance.
 - Visual spot-check confirmed dark services desktop catalog and mobile branches layout with no clipped action labels.
 
 **Follow-up:**
+
 - Unrelated public home/SEO landing components still contain intentional light marketing sections and were left out of scope.
 - Tool discovery did not expose the in-app browser controller in this turn; local headless Chrome was used for visual QA instead.
 
@@ -494,6 +516,7 @@ staff Attendance.
 
 **Task:** Full CradleHub project scaffold
 **Files Changed:**
+
 - `src/` — entire source tree created from scratch
 - `supabase/migrations/` — 7 migration files ready for linking
 - `.env.local` — environment variables configured
@@ -510,12 +533,14 @@ staff Attendance.
 **Task:** Rebuilt `/owner` Overview to match the approved Owner Dashboard reference while using real CradleHub data and the existing dashboard shell.
 
 **Files Added:**
+
 - `src/lib/owner/dashboard.ts` — pure dashboard business rules and section load helpers.
 - `src/lib/queries/owner-dashboard.ts` — Owner-only server data loader with section-level error states.
 - `src/components/features/owner/dashboard/*` — Owner overview panels, client-side local filters, and formatting helpers.
 - `tests/lib/owner/dashboard.test.ts` — focused business-rule coverage for dashboard metrics and partial failures.
 
 **Behavior:**
+
 - `/owner` now renders hero, attention banner, five KPI cards, Today at a Glance, Branch Performance, Revenue Trend, Staff Snapshot, Quick Actions, Payroll Snapshot, and Pending Actions.
 - The page preserves the existing Owner sidebar/header/workspace guard; no global shell, theme primitive, or shadcn primitive was redesigned.
 - Metrics use real tables: `bookings`, `branches`, `staff`, `staff_schedules`, `staff_shift_checkins`, `workspace_notifications`, `workflow_tasks`, and fixed-monthly payroll query data.
@@ -525,10 +550,12 @@ staff Attendance.
 - Pending Approvals from the mockup is implemented as Pending Actions because the current app has notifications/workflow tasks but no formal approvals module.
 
 **Related Cleanup:**
+
 - `src/app/(dashboard)/owner/branches/[branchId]/branch-edit-form.tsx` now uses a keyed inner form to reset branch edit state without a set-state-in-effect lint violation.
 - `src/components/features/payroll/employee-payroll-table.tsx` no longer syncs derived branch/page values back into state with set-state-in-effect; displayed values continue to come from the derived view.
 
 **Verification:**
+
 - `pnpm test tests/lib/owner/dashboard.test.ts`: PASS, 13 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS, with existing warnings only in `scripts/generate-service-image-assets.mjs` and payroll test mocks.
@@ -545,6 +572,7 @@ staff Attendance.
 **Task:** Restored the existing Owner workspace entry points without changing CRM, Staff Portal, Driver Portal, public booking, scheduling, dispatch, or database behavior.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/owner/layout.tsx` — replaced the MVP redirect-to-CRM layout with an Owner workspace guard that redirects unauthenticated users to `/login`, non-owner workspace users to their workspace switch destination, and mounts `OWNER_PREFETCH`.
 - `src/lib/auth/workspace-access.ts` and `src/proxy.ts` — extracted protected workspace path authorization into `canAccessWorkspacePath()` so proxy behavior is test-covered without broadening access.
 - `src/components/features/dashboard/nav-config.ts` — restored Owner role-to-nav resolution, removed Owner `mvpHidden`, kept Manager soft-paused to CRM, and removed the production `/dev` Owner nav link.
@@ -554,6 +582,7 @@ staff Attendance.
 - `vitest.config.ts` — added the test-runner alias for the existing TypeScript `@/* -> src/*` path mapping.
 
 **Behavior:**
+
 - Owners now receive Owner + CRM + Staff Portal workspace access, with `/owner` as the primary workspace and `/select-workspace` when multiple workspaces are available.
 - `/owner/*` is reachable only for users whose workspace resolver includes `owner`.
 - CRM, staff, driver, utility, and public booking flows were not changed.
@@ -561,6 +590,7 @@ staff Attendance.
 - No Supabase schema, RLS, migration, or service-role changes were made.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS, with 2 existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm test tests/lib/auth/workspace-access.test.ts`: PASS, 8 tests
@@ -575,6 +605,7 @@ staff Attendance.
 ... [86,000 characters omitted] ...
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 71 app routes.
@@ -586,6 +617,7 @@ staff Attendance.
 **Task:** Create a mobile-first simplified Manager Workspace that activates only on mobile breakpoints without breaking the existing desktop experience.
 
 **Files Created:**
+
 - `src/components/features/manager/mobile/types.ts` — shared mobile types
 - `src/components/features/manager/mobile/manager-mobile-workspace.tsx` — main mobile orchestrator with tab state
 - `src/components/features/manager/mobile/manager-bottom-nav.tsx` — fixed bottom navigation (Today, Schedule, Bookings, Staff, More)
@@ -597,13 +629,15 @@ staff Attendance.
 - `src/components/features/manager/mobile/manager-more-screen.tsx` — branch summary, alerts, settings menu
 
 **Files Changed:**
+
 - `src/app/(dashboard)/manager/page.tsx` — responsive wrapper (hidden md:block desktop / block md:hidden mobile); fetches schedule + staff data for mobile while preserving desktop props exactly
 
 **Design Decisions:**
+
 - Desktop workspace is completely untouched; same component tree, same props, same data flow.
 - Mobile workspace reuses existing data queries and utility functions (computeKpiData, computeAlerts, getUrgencyScore, readRelation, etc.).
 - Bottom nav uses Lucide icons with large tap targets and clear active states.
-- All screens use card-based layouts, large text, and spa design tokens (--cs-*).
+- All screens use card-based layouts, large text, and spa design tokens (--cs-\*).
 - Empty states are included on every list screen.
 - Placeholder actions (Review/Resolve) are rendered with disabled state where full server action wiring does not yet exist.
 
@@ -616,14 +650,17 @@ staff Attendance.
 **Task:** Remove the insecure legacy invite flow (`/onboard/[staffId]`) that created incomplete staff records. Refine the public `/staff-onboarding` page to be the single entry point for staff applications, with proper `staff_type` mapping from the applicant's selected role.
 
 **Files Removed:**
+
 - `src/app/onboard/[staffId]/page.tsx` — legacy invite claim page
 - `src/app/onboard/[staffId]/onboard-form.tsx` — legacy invite claim form
 - `src/lib/queries/staff.ts` — removed unused `getStaffForOnboard` query
 
 **Files Created:**
+
 - `src/app/onboard/page.tsx` — simple redirect to `/staff-onboarding`
 
 **Files Changed:**
+
 - `src/app/(dashboard)/owner/staff/actions.ts`
   - Removed `generateInviteAction` — no longer creates incomplete "Pending Invitation" staff rows.
   - Removed `onboardStaffAction` — eliminated the unauthenticated auth-user creation security hole.
@@ -643,6 +680,7 @@ staff Attendance.
   - Updated RBAC score from 6→7 and risks table.
 
 **Behavior:**
+
 - All staff onboarding now goes through `/staff-onboarding` (protected by `STAFF_ONBOARDING_ACCESS_CODE`).
 - Applicants select their intended role during onboarding; the inactive staff record captures the matching `staff_type`.
 - Owner/manager reviews applications in `/owner/staff/onboarding` or `/manager/staff/onboarding`.
@@ -650,6 +688,7 @@ staff Attendance.
 - No more incomplete "Pending Invitation" staff rows polluting the database.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 76 app routes.
@@ -661,14 +700,17 @@ staff Attendance.
 **Task:** Enable authorized CSR (front-desk) users to review and approve normal operational staff applications directly from the CRM workspace. This avoids the need for full Manager workspace access during MVP.
 
 **Files Created:**
+
 - `docs/MVP_TEMPORARY_PERMISSIONS.md` — documented temporary MVP permission rules
 - `src/components/features/staff-onboarding/onboarding-review-list.tsx` — reusable review component extracted from owner dashboard
 - `src/app/(dashboard)/crm/staff-applications/page.tsx` — new CRM staff application review page
 
 **Files Removed:**
+
 - `src/app/(dashboard)/owner/staff/onboarding/review-list.tsx` — replaced by the reusable component
 
 **Files Changed:**
+
 - `src/lib/staff/approval-permissions.ts`
   - Updated CSR/CRM assignable roles to include `csr_staff`, `driver`, `utility`, and `staff`.
   - Enforced sensitive role restriction (CSR cannot approve managers/admins).
@@ -679,12 +721,14 @@ staff Attendance.
   - Refactored to use the new reusable `OnboardingReviewList` component.
 
 **Behavior:**
+
 - CSR users see "Staff Applications" in their sidebar.
 - CSRs can review applicants for their assigned branch.
 - CSRs can approve only operational roles; management roles show "Owner/Manager required" and have the Approve button disabled.
 - Fixed role mapping: CSR applicants now default to `system_role: csr_staff` when reviewed, ensuring they land in the correct workspace.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 77 app routes.
@@ -696,9 +740,11 @@ staff Attendance.
 **Task:** Unify public branch/contact data into a single database source of truth. Eliminate dual-sourcing between `branches` table and hardcoded `public-site-data.ts`.
 
 **Files Created:**
+
 - `supabase/migrations/20260516000001_branch_public_fields.sql` — adds `opening_hours`, `secondary_phone`, `sort_order` to `branches`
 
 **Files Changed:**
+
 - `src/types/supabase.ts` — added `opening_hours`, `secondary_phone`, `sort_order` to `branches` Row/Insert/Update types
 - `src/lib/queries/branches.ts` — added `getPublicBranches()` helper (active branches ordered by `sort_order`, then `name`)
 - `src/lib/public/public-site-data.ts` — marked `publicPhones` and `publicBranches` as `@deprecated` with explanation
@@ -714,11 +760,13 @@ staff Attendance.
 - `src/components/public/mobile/public-mobile-branches.tsx` — uses `branch.opening_hours` instead of hardcoded fallback text
 
 **Design Decisions:**
+
 - Marketing narrative (hero copy, proof points, trust points) remains in `public-site-data.ts` and `public_site_sections` table. Only operational contact/address/hours data was migrated.
 - All components keep safe fallbacks when branch data is missing: "Contact info updating", "Branch details are being updated", etc.
 - `getPublicBranches()` orders by `sort_order` then `name`, giving owners control over display order without code changes.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 77 app routes.
@@ -730,10 +778,12 @@ staff Attendance.
 **Task:** Wire PaymentActionMenu into all workspace contexts, create booking_payment_logs audit table, and ensure all payment changes are logged with old→new values.
 
 **Files Created:**
+
 - `supabase/migrations/20260517000001_booking_payment_logs.sql` — append-only audit table for payment changes
 - `supabase/migrations/20260517000002_update_daily_schedule_payment_fields.sql` — adds payment fields to `get_daily_schedule` RPC
 
 **Files Changed:**
+
 - `src/types/supabase.ts` — added `booking_payment_logs` table type
 - `src/lib/validations/booking.ts` — extended `updateBookingPaymentSchema` with optional `reason` field
 - `src/components/features/dashboard/payment-action-menu.tsx` — added `reason` state, `confirmUnpaid` view, significant-change guard (requires reason for voids/refunds/corrections)
@@ -749,6 +799,7 @@ staff Attendance.
 - `src/components/features/crm/today/crm-booking-queue-panel.tsx` — added inline `PaymentActionMenu` on each card with event propagation stop
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 77 app routes.
@@ -760,6 +811,7 @@ staff Attendance.
 **Task:** Create a professional operational control page for manager and CRM users showing today's bookings with KPIs, progress status, payment actions, and home-service warnings.
 
 **Files Created:**
+
 - `src/components/features/control-console/types.ts` — `ControlBooking` and `ControlTab` types
 - `src/components/features/control-console/control-kpi-strip.tsx` — 7 KPI cards (Total, Active, In Progress, Completed, Unpaid, Home Service, Issues)
 - `src/components/features/control-console/control-booking-card.tsx` — Enhanced booking card with progress mini-stepper, payment badge, status badge, home-service warnings, and inline action buttons
@@ -769,10 +821,12 @@ staff Attendance.
 - `src/app/(dashboard)/crm/control/page.tsx` — CRM control console route (branch-scoped)
 
 **Files Changed:**
+
 - `src/lib/queries/bookings.ts` — added `booking_progress_status` and timestamp fields to `TODAY_SCHEDULE_SELECT` variants; added `MaybeProgressFields` to `TodayScheduleRow`
 - `src/components/features/dashboard/nav-config.ts` — added "Control" to Manager, CRM, CSR Head, and CSR Staff navigation
 
 **Design Decisions:**
+
 - Reuses `getTodaysSchedule` and existing server actions (`updateBookingPaymentAction`, `updateBookingStatusAction`).
 - No new external APIs, no live maps, no GPS tracking.
 - Cards show progress as a compact dot stepper rather than full timeline.
@@ -782,11 +836,13 @@ staff Attendance.
 - Owner control console is documented as a Phase 3.1 follow-up (requires cross-branch today's schedule query).
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 79 app routes.
 
 **Follow-up:**
+
 - Phase 3.1: Owner cross-branch control console.
 - Phase 4: Booking Delivery Type Cleanup (`in_spa` as first-class type).
 
@@ -797,11 +853,13 @@ staff Attendance.
 **Task:** Give Manager workspace the same staff-management capabilities as Owner, safely branch-scoped, without redesigning staff management.
 
 **Files Created:**
+
 - `docs/MANAGER_STAFF_PARITY_AUDIT.md` — full audit of Owner vs Manager staff capabilities, gaps, safe parity plan, and implementation summary
 - `src/components/features/staff/staff-edit-form.tsx` — shared reusable staff edit form extracted from Owner route
 - `src/app/(dashboard)/manager/staff/[staffId]/page.tsx` — Manager staff detail/edit page (branch-scoped)
 
 **Files Changed:**
+
 - `src/app/(dashboard)/owner/staff/[staffId]/page.tsx` — refactored to use shared `StaffEditForm`
 - `src/app/(dashboard)/owner/staff/[staffId]/staff-edit-form.tsx` — DELETED (replaced by shared component)
 - `src/app/(dashboard)/owner/staff/actions.ts` — hardened `updateStaffAction` with sensitive-role guards, manager-safe role enforcement, branch-change validation, and revalidation of both owner and manager paths
@@ -810,6 +868,7 @@ staff Attendance.
 - `src/components/features/control-console/control-console-page.tsx` — fixed pre-existing `<a>` → `<Link>` lint error
 
 **Behavior:**
+
 - Manager can now edit staff profiles, update roles (manager-safe only), change tier/level, assign service capabilities, activate/deactivate, and toggle department head — all for staff in their branch.
 - Branch field is locked to manager's branch.
 - Protected accounts (owner, manager, assistant_manager, store_manager, super_admin, platform_admin) show "This action requires owner approval." and cannot be modified by manager.
@@ -817,11 +876,13 @@ staff Attendance.
 - Mobile manager staff tab now links to detail edit pages.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 80 app routes.
 
 **Follow-up:**
+
 - Manager direct-invite (`/manager/staff/new`) if business wants managers to create staff directly.
 - Staff delete/soft-delete if needed (currently only deactivate).
 
@@ -832,9 +893,11 @@ staff Attendance.
 **Task:** Fix Staff Edit so it mirrors the full organizational model from owner-level access through operational staff, while keeping workspace access, job function, and supervisor status distinct.
 
 **Files Created:**
+
 - `src/constants/staff-roles.ts` - shared typed source for supported `system_role`, `staff_type`, service staff types, labels, options, sensitive role policy, and assignable role policy.
 
 **Files Changed:**
+
 - `src/constants/staff.ts` - compatibility re-export from the shared catalog.
 - `src/lib/validations/staff.ts` - staff create/update schemas now accept every DB-supported system role and existing staff type.
 - `src/app/(dashboard)/owner/staff/actions.ts` - manager-safe role assignment and protected-role checks now use shared policy; non-service staff clear service mappings server-side.
@@ -847,6 +910,7 @@ staff Attendance.
 - `eslint.config.mjs` - ignores generated `.claude/**` worktree output so lint does not scan build artifacts.
 
 **Behavior:**
+
 - Driver, utility, CSR/front-desk, managerial, salon head, therapist, nail tech, and aesthetician functions are available in edit/direct invite.
 - Owner can assign all DB-supported access roles; manager can assign only operational roles.
 - Managers cannot edit protected owner/manager-level records or assign forbidden high-level access.
@@ -855,11 +919,13 @@ staff Attendance.
 - Defensive admin-like role names remain protected but are not exposed because current DB constraints do not support them.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
 - `pnpm build`: ✅ Passing, 79 app routes.
 
 **Hotfix:**
+
 - Added `public/sw.js` as a self-unregistering service worker cleanup script and no-store `/sw.js` headers in `next.config.ts`.
 - Reason: browser logs showed stale `/sw.js` activity and stale client chunks still requiring the old `@base-ui/react/button` module after the Button component moved to Radix Slot.
 - Verification after hotfix: `pnpm type-check`, `pnpm lint`, and `pnpm build` still pass.
@@ -871,18 +937,21 @@ staff Attendance.
 **Task:** Refine the existing public booking wizard home-service location step into a compact Google-Maps-style precise location input.
 
 **Files Changed:**
+
 - `src/components/public/places-autocomplete.tsx` - extended the shared Places wrapper to return formatted address, place ID, lat/lng, address components, map URL, and load/error status without exposing the server Maps key.
 - `src/components/public/booking-wizard.tsx` - public home-service location step now shows one Google Places search field, a compact selected-location confirmation card with Change, and one merged Delivery notes textarea.
 - `src/lib/validations/booking.ts` - public multi-service booking validation now requires a selected Google place for home-service bookings while leaving in-spa unaffected.
 - `src/lib/actions/online-booking.ts` - server action now enforces precise home-service place data and saves `formatted_address`, `place_id`, `lat`, `lng`, `address_components`, `map_url`, `source: "google_places"`, and `delivery_notes` while preserving legacy address/notes/zone keys.
 
 **Behavior:**
+
 - Public home-service customers must select a Google suggestion before continuing; typed text alone is rejected.
 - Customer-facing zone, house/unit, landmark, and separate driver-note fields were removed/merged into a single Delivery notes field.
 - Metadata keeps `zone: "unknown"` when customers are not asked to choose a zone, while precise lat/lng remain available for dispatch/ETA systems.
 - In-spa booking flow is unchanged.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in staff onboarding form)
 - `pnpm build`: ✅ Passing, 79 app routes.
@@ -894,6 +963,7 @@ staff Attendance.
 **Task:** Audit and replace the noisy staff onboarding notification fanout with a role-aware, deduplicated workflow signal foundation.
 
 **Files Created:**
+
 - `supabase/migrations/20260519000001_workflow_signal_foundation.sql` - adds `workspace_notifications.dedupe_key` and new `workflow_tasks` table with RLS.
 - `src/lib/notifications/workflow-dedupe.ts` - shared dedupe key builder and signal href validation.
 - `src/lib/notifications/workflow-notifications-store.ts` - create/update and resolve notification storage helpers.
@@ -907,6 +977,7 @@ staff Attendance.
 - `src/components/features/notifications/notification-bell-dropdown.tsx` - bell dropdown alias around the grouped popover.
 
 **Files Changed:**
+
 - `src/app/staff-onboarding/actions.ts` - staff onboarding now emits workflow events instead of direct owner/manager notification fanout.
 - `src/app/(dashboard)/manager/page.tsx` - manager dashboard surfaces open workflow tasks in a calm attention strip.
 - `src/app/(dashboard)/manager/staff/onboarding/page.tsx` - manager onboarding page passes open workflow tasks to the review list.
@@ -917,6 +988,7 @@ staff Attendance.
 - `src/lib/notifications/types.ts`, `src/types/supabase.ts` - added workflow task and dedupe types.
 
 **Behavior:**
+
 - `staff_onboarding.submitted` creates one manager workflow task and one applicant status update.
 - Routine onboarding no longer creates an urgent owner notification.
 - CRM receives no staff onboarding notification.
@@ -926,6 +998,7 @@ staff Attendance.
 - Existing direct notification callers remain compatible but now use dedupe keys.
 
 **Verification:**
+
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
 - `pnpm build`: Passing, 80 app routes.
@@ -937,15 +1010,18 @@ staff Attendance.
 **Task:** Add mobile-first UI to Staff Portal and Driver Portal without breaking existing desktop layouts.
 
 **Files Created:**
+
 - `src/components/features/staff-portal/mobile/staff-mobile-bottom-nav.tsx` — Fixed mobile bottom nav (5 items) with active state
 - `src/components/features/staff-portal/mobile/staff-mobile-home.tsx` — Full service staff mobile home: greeting, next action card, today timeline, overview stats, home service alert, quick links
 - `src/components/features/driver/driver-mobile-home.tsx` — Driver-focused mobile home: greeting, current trip card, trip overview stats, upcoming trips list, quick actions
 
 **Files Modified:**
+
 - `src/app/(dashboard)/staff-portal/page.tsx` — Added `hidden md:block` / `block md:hidden` split; desktop unchanged, mobile renders StaffMobileHome
 - `src/app/(dashboard)/driver/page.tsx` — Added `hidden md:block` / `block md:hidden` split; desktop unchanged, mobile renders DriverMobileHome
 
 **Also in this session (schedule task):**
+
 - `src/lib/staff-portal/schedule.ts` — StaffScheduleEvent type + buildDayEvents/buildWeekEvents helpers
 - `src/app/(dashboard)/staff-portal/schedule/page.tsx` — My Schedule server route
 - `src/components/features/staff-portal/staff-schedule-page.tsx` — Schedule client component (week grid + mobile agenda + bottom nav)
@@ -953,6 +1029,7 @@ staff Attendance.
 - `src/components/features/dashboard/nav-config.ts` — Added "My Schedule" to STAFF_NAV_ITEMS
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings only)
 - `pnpm build`: Not run (build was 80 routes prior; new routes add /staff-portal/schedule)
@@ -964,10 +1041,12 @@ staff Attendance.
 **Task:** Fix active public booking wizard Places usage, compact the service-selection UX, and restrict specific staff selection to real qualified service providers.
 
 **Files Created:**
+
 - `src/components/public/booking-service-picker.tsx` - extracted compact category-based booking service picker used by the wizard.
 - `src/lib/staff/service-providers.ts` - shared guard for service-provider eligibility, hard-excluding driver/utility system roles and non-service job functions.
 
 **Files Changed:**
+
 - `src/components/public/booking-wizard.tsx` - delegates service selection to the compact picker; staff picker now keeps Any Available as default and hides unqualified providers.
 - `src/components/public/places-autocomplete.tsx` - selected place result now carries `source: "google_places"` while continuing to use `google.maps.importLibrary("places")` and `PlaceAutocompleteElement`.
 - `src/app/api/public/booking-context/route.ts` - public booking context now preserves service category metadata and returns staff service mappings for eligibility-aware filtering.
@@ -976,6 +1055,7 @@ staff Attendance.
 - `src/features/maps/GoogleMapsProvider.tsx`, `src/features/maps/PlaceAutocompleteInput.tsx`, `src/features/maps/README.md` - browser map key usage now standardizes on `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY`; the provider no longer requests legacy Places libraries.
 
 **Behavior:**
+
 - Active `/book` path has no legacy `google.maps.places.Autocomplete`, `AutocompleteService`, `PlacesService`, `libraries=places`, or `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` usage under `src`.
 - Public home-service location remains a single Places API (New) search field, selected-location confirmation card, and optional delivery notes field.
 - Service selection shows one category at a time instead of expanding the full catalog.
@@ -983,6 +1063,7 @@ staff Attendance.
 - Specific provider selection shows only active service-provider staff who are available for the selected slot and eligible for the selected service set; Any Available remains the default.
 
 **Verification:**
+
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing with 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
 - `pnpm build`: Passing, 80 app routes.
@@ -995,6 +1076,7 @@ staff Attendance.
 **Task:** SECURITY-STAB-002 — Phase 0 security stabilization batch 2 (9 blockers)
 
 **Files Changed:**
+
 - `src/proxy.ts` — Removed unconditional userId+role log on every request; replaced with dev-only `console.debug`; also removed userId from the "no active staff record" path log.
 - `src/app/(dashboard)/owner/staff/actions.ts` — Replaced full raw-input `console.log` and full Zod-issues `console.error` in `updateStaffAction` with dev-only `console.debug` using safe boolean metadata only. No PII or payload logged in production.
 - `src/app/(dashboard)/owner/marketing/actions.ts` — Added `createClient`/`isDevAuthBypassEnabled` imports, `requireOwner()` helper, and owner auth guard to all four exported actions (saveMarketingSectionAction, createMarketingAssetAction, updateMarketingAssetAction, disableMarketingAssetAction). [Batch 1 — completed prior step]
@@ -1011,6 +1093,7 @@ staff Attendance.
 - `.env.example` — Created with all 14 env vars found in `src/`; danger dev-bypass vars clearly marked.
 
 **Verification:**
+
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing with only the 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
 - `pnpm build`: Passing, 80+ app routes compiled successfully.
@@ -1022,6 +1105,7 @@ staff Attendance.
 **Task:** PERF-PHASE1-001 — Phase 1 performance quick wins
 
 **Files Changed:**
+
 - `src/app/(dashboard)/layout.tsx` — Removed redundant `force-dynamic` export; layout is already dynamic because `createClient()` calls `cookies()` from next/headers. Now uses `getLayoutStaffContext()` from the new cached helper instead of inline auth+staff DB calls.
 - `src/lib/queries/staff-context.ts` — Created. React `cache()`-wrapped helper for the dashboard layout's auth + staff fetch. Deduplicates within a single request render tree. Sets up the pattern for Phase 2 broader deduplication.
 - `src/lib/queries/branches.ts` — Added `getPublicBranchesCached` (React `cache()` wrapper around `getPublicBranches`). Deduplicates branch fetches within a request when multiple components in the public layout render tree call it.
@@ -1040,6 +1124,7 @@ staff Attendance.
 - `src/app/(dashboard)/staff-portal/error.tsx` — Created. Staff portal error boundary.
 
 **What was intentionally NOT done in this phase:**
+
 - No service worker / offline mode (Phase 3)
 - No tag-based revalidation migration (Phase 2)
 - No new DB indexes (Phase 2)
@@ -1049,6 +1134,7 @@ staff Attendance.
 - Target H (local refresh): no obvious safe wins found without deeper investigation.
 
 **Verification:**
+
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing with only 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
 - `pnpm build`: Passing, 80+ app routes compiled successfully.
@@ -1060,9 +1146,11 @@ staff Attendance.
 **Task:** PERF-PHASE2-001 — Phase 2 database request optimization
 
 **Files Created:**
+
 - `src/lib/queries/crm-context.ts` — Shared `getCrmContext()` helper for CRM page server components. Returns `{ role, branchId }` with owner getting `branchId: null` (cross-branch) and CRM/CSR roles getting their own `branch_id`.
 
 **Files Changed:**
+
 - `src/lib/queries/customers.ts` — Added `branchCustomerIds()` private helper. Added optional `branchId?: string | null` parameter to `searchCustomers`, `getAllCustomers`, `getRepeatCustomers`, `getLapsedCustomers`, `getCrmStats`. When provided, each function first fetches distinct customer IDs from `bookings` for that branch, then filters customers via `.in("id", ids)`. Owners pass `null` and get unfiltered results. Also added a comment on `lookupCustomerByPhone` explaining it is intentionally not branch-scoped.
 - `src/app/(dashboard)/crm/actions.ts` — `requireCrmAccess()` now returns `{ supabase, branchId: string | null } | null` (was `supabase | null`). Now fetches `branch_id` from staff record. Owner role maps to `branchId: null`. Updated all callers to destructure `ctx` and pass `ctx.branchId` to query functions.
 - `src/app/(dashboard)/crm/customers/page.tsx` — Replaced local `getCsrContext()` + direct supabase calls with imported `getCrmContext()`. Passes `branchId` to `getAllCustomers(page, 25, branchId)`.
@@ -1073,12 +1161,14 @@ staff Attendance.
 - `src/lib/queries/bookings.ts` — Added `.limit(50)` to `getBookingsByCustomer()` (customer profile booking history). Added `.limit(500)` safety cap to `getAllBookings()` (owner day view) and `getAllBookingsOwner()` (owner cross-branch booking list).
 
 **What was intentionally NOT done in this phase:**
+
 - `select("*")` wildcard replacement in branches and staff queries: The staff queries use a backward-compat fallback pattern that would be fragile to refactor. The branches table is small and `select("*")` is fine there. Deferred.
 - Selective `revalidateTag` migration: Requires tagging all cached data and is a cross-cutting concern. The existing `revalidatePath` is correct. Deferred to Phase 3 if profiling shows stale-cache issues.
 - DB index recommendations: No profiling data available. Adding indexes without evidence would be speculative. Deferred.
 - `unstable_cache` / Next.js 16 `"use cache"` directive: Behavior in Next.js 16.2.4 was not verified. Deferred.
 
 **Verification:**
+
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing with only 2 pre-existing warnings in `src/app/staff-onboarding/onboarding-form.tsx`.
 - `pnpm build`: Passing, 80+ app routes compiled successfully.
@@ -1090,6 +1180,7 @@ staff Attendance.
 **Task:** Phase 2B — Shared pagination utility, CRM customer paginated search, index audit.
 
 **Files Changed:**
+
 - `src/lib/queries/pagination.ts` (NEW) — Shared pagination helpers: `PaginationParams`, `PaginatedResult<T>`, `normalizePagination()`, `toPaginatedResult()`. Normalizes page/pageSize with safe bounds; wraps Supabase count responses.
 - `src/lib/queries/customers.ts` — Added `CustomerPageRow` exported type and `getCustomersPage()` function combining branch scoping + ILIKE search (with `%_` escaping) + server-side pagination via `.range(from, to)` with `count: "exact"`.
 - `src/app/(dashboard)/crm/customers/page.tsx` — Switched from `getAllCustomers` to `getCustomersPage`. Added `q` search param support. Added plain `<form method="GET">` search bar (no client state). Quick action cards hidden during active search. Pagination Prev/Next links now preserve `q` param via `encodeURIComponent`. EmptyState shows search-specific messaging.
@@ -1098,11 +1189,13 @@ staff Attendance.
 - `src/lib/logger.ts` — Fixed pre-existing TS2345 errors by widening `LogContext` from `Record<string, string | number | boolean | null | undefined>` to `Record<string, unknown>` so `error: unknown` in catch blocks passes without casts.
 
 **Scope deliberately NOT changed:**
+
 - Booking list pages (manager/CRM/owner): already date+branch scoped, naturally bounded — no pagination needed.
 - Staff list pages: `StaffManagementWorkspace` uses client-side filtering on safety-capped (500/200) server results. Pagination would require UI redesign. Deferred.
 - `public-site.ts` list queries: CMS tables with owner-defined content — small by design, no limit needed.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
 - `pnpm build`: ✅ Passing, 79+ app routes compiled successfully
@@ -1114,9 +1207,11 @@ staff Attendance.
 **Task:** Phase 3 — Replace selected broad `revalidatePath()` usage with scoped cache tags using `unstable_cache` on stable read data.
 
 **Files Created:**
+
 - `src/lib/cache/cache-tags.ts` — Tag constants (`publicBranches`, `branchBookingRules(id)`, `branchServices(id)`) and `invalidateTag()` wrapper that handles Next.js 16's required second `profile` argument to `revalidateTag`.
 
 **Files Modified:**
+
 - `src/lib/queries/branches.ts` — Upgraded `getPublicBranchesCached` from `React.cache()` (per-request only) to `React.cache(unstable_cache(...))` (cross-request + per-request dedup). Added `getBranchServicesPublicCached(branchId)` using `createAdminClient()` + `unstable_cache`; tags `branch-services:{branchId}`, TTL 300s.
 - `src/lib/queries/branch-booking-rules.ts` — Added `getBranchBookingRulesOrDefaultCached(branchId)` using `unstable_cache`; tags `branch-booking-rules:{branchId}`, TTL 3600s. `updateBranchBookingRules` now calls `invalidateTag` on commit.
 - `src/app/(dashboard)/owner/branches/actions.ts` — All branch mutations (`createBranchAction`, `updateBranchAction`, `toggleBranchActiveAction`) now call `invalidateTag(cacheTags.publicBranches)`. All service mutations (`removeBranchServiceAction`, `addBranchServiceAction`, `updateBranchServiceEligibilityAction`, `updateBranchServicePriceAction`, `updateBranchServiceVisibilityAction`) now call `invalidateTag(cacheTags.branchServices(branchId))`.
@@ -1125,11 +1220,13 @@ staff Attendance.
 - `src/app/api/public/dispatch-slots/route.ts` — Now uses `getBranchBookingRulesOrDefaultCached`.
 
 **Domains cached:**
+
 1. Public branches (`public-branches` tag, 1h TTL)
 2. Branch booking rules per branch (`branch-booking-rules:{id}` tag, 1h TTL)
 3. Branch services — public-only (`branch-services:{id}` tag, 5min TTL)
 
 **Intentionally NOT cached:**
+
 - `getBranchesOverview` — includes live stats (today's bookings, active staff count)
 - `getBranchWithFullDetail` — owner edit page; includes live staff list
 - All booking/dispatch/schedule data
@@ -1137,12 +1234,15 @@ staff Attendance.
 - Notification, payroll, reconciliation data
 
 **Revalidation paths kept:**
+
 - All existing `revalidatePath()` calls preserved alongside the new `invalidateTag()` calls. The path invalidation clears Next.js route cache; the tag invalidation clears the `unstable_cache` function result. Both are needed.
 
 **Next.js 16 compatibility note:**
+
 - `revalidateTag` in Next.js 16 requires a second `profile` argument. The `invalidateTag(tag)` wrapper in `cache-tags.ts` passes `{}` (empty `CacheLifeConfig`) as the profile, which works for `unstable_cache` entries.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
 - `pnpm build`: ✅ Passing, 79+ app routes compiled
@@ -1154,11 +1254,13 @@ staff Attendance.
 **Task:** Phase 4 — Protect all write-path flows from silent failures when the device has no connectivity.
 
 **Files Created:**
+
 - `src/hooks/use-network-status.ts` — `useNetworkStatus()` hook using `useSyncExternalStore` (React 18) to subscribe to `navigator.onLine` / `online` / `offline` events. Returns `{ isOnline, isOffline, wasOffline, lastChangedAt }`. Server snapshot returns `true` (assume online). No hydration mismatch.
 - `src/components/shared/offline-banner.tsx` — `"use client"` fixed-position banner (`z-index: 9999`). Two states: offline (dark charcoal, `WifiOff` icon, `aria-live="assertive"`) and back-online (dark green, `aria-live="polite"`). Renders nothing when connectivity never changed.
 - `docs/audits/OFFLINE_RESILIENCE_PLAN.md` — Full implementation plan documenting each target, what was protected, what was intentionally excluded, and next steps.
 
 **Files Modified:**
+
 - `src/app/(dashboard)/layout.tsx` — Imports and renders `<OfflineBanner />` inside the outer flex container (renders before Sidebar + Header).
 - `src/app/(public)/layout.tsx` — Imports and renders `<OfflineBanner />` before `<SiteHeader>`.
 - `src/components/public/booking-wizard.tsx` — Added `useNetworkStatus()`. `handleSubmit` early-returns with "You're offline. Check your connection and try again." when `isOffline`. "Confirm Booking" button `disabled={!canProceed || submitting || isOffline}`. Network-error server responses show retry-friendly message.
@@ -1166,11 +1268,13 @@ staff Attendance.
 - `src/components/features/staff-portal/booking-progress-actions.tsx` — Added `useNetworkStatus()`. `handleAdvance` early-returns when `isPending || isOffline`. Both action buttons (advance + no-show) disabled when offline. Cursor/opacity styles updated.
 
 **Components NOT changed (low priority, covered by banner):**
+
 - `staff-weekly-hours-editor.tsx`, `branch-services-panel.tsx`, `reconciliation-form.tsx`, `waitlist-queue.tsx`, `onboarding-form.tsx`
 
 **`public/sw.js`:** Confirmed self-unregistering — no changes made.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `staff-onboarding/onboarding-form.tsx`)
 - `pnpm build`: ✅ Passing, 79 routes
@@ -1186,13 +1290,16 @@ staff Attendance.
 **Solution:** Two-phase UX — main page shows a summary, detailed editing opens in a Sheet.
 
 **Files Created:**
+
 - `src/components/features/staff/staff-service-editor-sheet.tsx` — Sheet-based service capability editor. Collapsible category rows (accordion, one open at a time). Each category shows "N selected / M total". Expanded rows: selected chips first, then unselected, max 8 per category with "Show more". Search mode: bypass accordion, show all matching grouped. Filter chips: "All services" / "Selected (N)". Quick actions per category: Select all, Clear. `aria-pressed` on service chips for accessibility.
 - (rewrite) `src/components/features/staff/staff-approval-workspace.tsx` — Orchestrator + focused sub-components in one file: `PageHeader` (back link, avatar, name, status badge, dirty indicator), `DraftRestoreBanner` (localStorage restore offer), `StaffInformationCard` (3-col compact grid: name spans full width, others pair up), `ServiceSummaryCard` (count + up to 6 preview chips + "+X more" + "Edit services" button), `ApprovalSummaryPanel` (sticky right: branch/role/job/tier/status/services rows with change markers, service message green/orange, internal tier note, Approve & Activate / Save / Discard actions). Draft includes `isActive`. Lazy `useState` initializers read localStorage without `setState-in-effect`.
 
 **Files Modified:**
+
 - `src/app/(dashboard)/manager/staff/[staffId]/page.tsx` — maxWidth 760→1100, removed PageHeader+StaffEditForm, uses StaffApprovalWorkspace
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing, 80 routes
@@ -1204,6 +1311,7 @@ staff Attendance.
 **Task:** Fixed public booking home-service availability mismatch.
 
 **Files Changed:**
+
 - `src/lib/queries/branches.ts` - corrected the public booking branch-service query to read the same Home/Public branch-service source of truth used by admin service management, while preserving legacy fallbacks.
 - `src/app/api/public/booking-context/route.ts` - preserved branch-specific custom duration in public booking service payloads.
 - `src/app/(dashboard)/owner/branches/actions.ts` - updated service visibility writes to use current `visibility` first, with a legacy `booking_visibility` fallback.
@@ -1213,11 +1321,13 @@ staff Attendance.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - updated project context and handoff notes.
 
 **Notes:**
+
 - Public booking now shows Home-enabled Public services for the selected branch.
 - In-spa filtering, active-service filtering, branch scope, public visibility, branch price, branch duration, provider/date/payment/confirmation flow, and UI layout were preserved.
 - No dummy services or hardcoded service names were added.
 
 **Verification:**
+
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing.
 - `pnpm build`: Passing, 80 routes.
@@ -1231,6 +1341,7 @@ staff Attendance.
 **Task:** Patch the public booking wizard service selection UI so mobile service cards remain in a compact responsive grid with no page-level horizontal overflow.
 
 **Files Changed:**
+
 - `src/components/public/booking-service-picker.tsx`
   - Added stricter mobile card/grid containment (`w-full`, `min-w-0`, `max-w-full`, `overflow-hidden`).
   - Kept the compact image-top mobile card with `aspect-[4/3]`, responsive `next/image` sizes, and meaningful service alt text.
@@ -1242,6 +1353,7 @@ staff Attendance.
   - Preserved booking flow logic, sticky/fixed action controls, desktop layout, and the floating circular widget.
 
 **Verification:**
+
 - `pnpm type-check`: Passing.
 - `pnpm lint`: Passing.
 - `pnpm build`: Passing, 80 routes.
@@ -1256,20 +1368,24 @@ staff Attendance.
 **Problem solved:** The provider step always showed a 2-column initials-avatar grid regardless of how many (or few) providers were qualified. Services with only one qualified provider forced customers to make a trivial "choice." No photos were shown even though staff have `avatar_url` on record.
 
 **Logic (3-case):**
+
 1. **0 providers**: "Any available provider" card + dashed fallback note.
 2. **1 provider**: Auto-assigned. Booking card shows provider name, photo, "Available and assigned for you." Customer can tap "Use any available provider instead" (sets `"prefer-auto"` sentinel) to opt out.
 3. **2+ providers**: "Any available provider" (Recommended) card on top, then 4-column (2-column mobile) photo grid below. First provider gets a "Recommended" ribbon.
 
 **State model (no useEffect):**
+
 - `selectedStaff: "auto" | "prefer-auto" | staffId` — three semantic values
 - `selectedStaffForBooking` useMemo resolves: `"prefer-auto"` → `"auto"`, specific id → validate still available, default `"auto"` + single provider → provider id
 - No `setState` inside effects; no cascading renders.
 
 **Files Modified:**
+
 - `src/app/api/public/booking-context/route.ts` — Added `nickname` and `avatar_url` to primary select string and response mapping; extended `isMissingStaffOrgColumnsError` guard; added `nickname: null` / `avatar_url: null` to legacy fallback map.
 - `src/components/public/booking-wizard.tsx` — `BookingContextStaff`, `StaffLookup`, `StaffOption` types updated with `avatarUrl`; `staffAtSlot()` prefers `nickname` over `name` as display; lookup build populates `avatarUrl`; `selectedStaffForBooking` handles 3-case auto-select logic; removed unused `STAFF_TYPE_LABELS` / `StaffType` imports; new `ProviderPhotoCard` component (photo/initials, recommended ribbon, selection ring); `StepTherapist` redesigned with 3 distinct cases; booking summary label updated to "Any available provider".
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing, 80 routes
@@ -1283,12 +1399,14 @@ staff Attendance.
 **Problem solved:** Ad-hoc inline warning divs scattered across the app were non-interactive, had inconsistent styling, and gave no guidance on how to fix the issue. Managers had to navigate manually after seeing a warning.
 
 **Architecture:**
+
 - Type-discriminated `WarningActionType` drives a unified click handler: `scroll` → DOM smooth-scroll, `focus` → DOM focus+scroll, `navigate` → `router.push`, `open-panel`/`modal`/`custom` → `onAction(warning)` callback.
 - Severity palette (danger/warning/success/info) matches all existing inline divs exactly — visual parity guaranteed.
 - `warningTargets` factory pattern: pre-built targets for every known context (staff, scheduling, branches, services, bookings, dispatch, notifications, settings). Import only what you need; tree-shaking removes the rest.
 - `compact` mode: collapses icon + description + impact to just title + action button for dense list contexts.
 
 **Files Created:**
+
 - `src/types/warnings.ts` — Core types: `WarningSeverity`, `WarningActionType`, `ActionableWarningTarget` (discriminated union of 6 types), `ActionableWarning`
 - `src/lib/warnings/scroll-to-target.ts` — DOM helpers: `scrollToElement(id)`, `focusElement(id)`, `buildHref(href, tab?, query?)` (SSR-safe with `typeof window === "undefined"` guards)
 - `src/lib/warnings/action-targets.ts` — `warningTargets` const object: 25+ factory functions covering all known CradleHub contexts (staff workspace, scheduling, branches, services, bookings, dispatch, notifications, settings, generic scroll/focus/custom)
@@ -1296,9 +1414,11 @@ staff Attendance.
 - `src/components/shared/actionable-warning-list.tsx` — `ActionableWarningList` vertical stack. Renders nothing when empty.
 
 **Files Modified:**
+
 - `src/components/features/staff/staff-approval-workspace.tsx` — Reference integration: replaced 7 inline warning divs with `ActionableWarning` (protected-account danger, zero-services warning, missing-services info in ServiceSummaryCard; awaiting-approval, services warning/success, draft-saved success, save-result in ApprovalSummaryPanel). Added `id="approval-actions"` for scroll target. Added `onAction` prop to `ApprovalSummaryPanel` and wired `panelId === "service-editor"` → `setIsSheetOpen(true)`.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing, 80 routes
@@ -1312,6 +1432,7 @@ staff Attendance.
 **Problem solved:** The services step rendered each service as a flat horizontal text row — functional but low-premium. The new design uses 4/5-aspect-ratio portrait photo cards with spa imagery, dark gradient overlays, and a +/✓ selection indicator — consistent with the ProviderPhotoCard aesthetic from BOOKING-PROVIDER-001.
 
 **Design:**
+
 - **Card**: `button` with `aspectRatio: "4/5"`, `next/image fill`, `object-cover`, `group-hover:scale-105`
 - **Gradient**: `from-black/80 via-black/20 to-black/10` (bottom-heavy for text legibility)
 - **Selection ring**: golden (`ring-[#C8A96B]`) when selected, neutral when not; +/✓ indicator top-right
@@ -1319,6 +1440,7 @@ staff Attendance.
 - **Images**: category-name keyword mapping to `SPA_IMAGES` constants (no per-service DB column)
 
 **Architecture:**
+
 - `CATEGORY_IMAGE_KEYWORDS` array — ordered keyword list maps category name substrings to `SPA_IMAGES` paths
 - `getCategoryImage(categoryName)` — pure function, first-match wins, falls back to `SPA_IMAGES.booking`
 - `ServiceImageCard` — self-contained sub-component, receives pre-resolved `categoryImage`
@@ -1326,9 +1448,11 @@ staff Attendance.
 - Loading skeleton updated to `grid grid-cols-2` with `aspect-ratio: 4/5` skeletons
 
 **Files Modified:**
+
 - `src/components/public/booking-service-picker.tsx` — full rewrite of card rendering; logic layer untouched
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing, 80 routes
@@ -1340,6 +1464,7 @@ staff Attendance.
 **Task:** Add tiny premium interaction feedback to the existing staff portal booking progress actions without changing the booking lifecycle, business logic, or UI layout.
 
 **Files Created:**
+
 - `src/components/shared/motion/premium-action-overlay.tsx` — reusable full-screen cream translucent overlay with forest-green spinner and short action title/description; shown while a server action is in-flight.
 - `src/components/shared/motion/premium-success-toast.tsx` — fixed bottom-center slide-up toast for success (green), warning (amber, used for no-show), and error (red) feedback; auto-dismissed by parent via setTimeout.
 - `src/components/shared/motion/premium-inline-spinner.tsx` — 13px circular spinner with white borders for use inside the green primary action button.
@@ -1347,16 +1472,19 @@ staff Attendance.
 - `src/components/shared/motion/motion-status-dot.tsx` — animated status dot replacing the plain colored span in the compact stepper: done=green, active=gold pulse, pending=muted, warning=amber.
 
 **Files Modified:**
+
 - `src/components/features/staff-portal/booking-progress-actions.tsx` — added `actionFeedback` state, `getProgressFeedback()` helper, `PremiumActionOverlay` during server action, `PremiumSuccessToast`/error toast replacing `alert()`, inline spinner in buttons, `active:scale-[0.98]` press effect, `MotionStatusDot` in stepper, `LivePulseIndicator` next to timers for active travel/session states.
 - `src/app/globals.css` — appended four named keyframes: `cradle-premium-pulse` (pulse ring for active dots), `cradle-soft-slide-up` (toast entrance), `cradle-check-pop` (icon pop-in), `cradle-card-glow` (ambient glow, available for future use).
 
 **Notes:**
+
 - No booking lifecycle logic was changed. `progress.ts` and `actions.ts` are untouched.
 - No UI redesign: card layouts, desktop/mobile split, and booking card structure unchanged.
 - No new npm packages installed. Animations use Tailwind `animate-spin` and custom CSS keyframes only.
 - Existing staff portal flow (home-service and in-spa lifecycles, no-show) remains intact.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 80 app routes
@@ -1368,13 +1496,16 @@ staff Attendance.
 **Task:** CRM and CSR Head roles were missing the Services page in their workspace. Fixed role guards, created the CRM services route, expanded branch-action authorization, and corrected a duplicate nav item.
 
 **Files Created:**
+
 - `src/app/(dashboard)/crm/services/page.tsx` — CRM-scoped services page using same `ServicesOfferedTab` component as manager, but with `CRM_SERVICE_ROLES` set (owner, manager, assistant_manager, store_manager, crm, csr_head); redirects to `/crm` on unauthorized.
 
 **Files Modified:**
+
 - `src/app/(dashboard)/owner/branches/actions.ts` — `requireOwnerOrBranchManager()` now includes `crm` and `csr_head` roles; added `revalidatePath("/manager/services")` and `revalidatePath("/crm/services")` to `removeBranchServiceAction`, `addBranchServiceAction`, and `updateBranchServiceEligibilityAction`.
 - `src/components/features/dashboard/nav-config.ts` — added `{ label: "Services", href: "/crm/services", icon: "Sparkles" }` to `CRM_NAV_ITEMS` and `CSR_HEAD_NAV_ITEMS`; removed duplicate "My Schedule" from `STAFF_NAV_ITEMS`.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 81 app routes
@@ -1388,9 +1519,11 @@ staff Attendance.
 **Route:** `/manager/staff-availability`
 
 **Files Created:**
+
 - `src/app/(dashboard)/manager/staff-availability/page.tsx` — Server component. Uses `getManagerBranchId()` for auth, `getStaffWithAvailability(branchId)` for data, renders `PageHeader` + `StaffSchedulePageClient`. Shows `Alert` on load error.
 
 **Files Modified:**
+
 - `src/lib/queries/staff.ts` — added `StaffAvailabilityItem` type, `buildAvailabilityItems()` helper (parallel fetch of schedules/overrides/blocked_times for all branch staff), and `getStaffWithAvailability(branchId)` export. Includes graceful fallback for older DB schemas missing `staff_type`/`is_head`/`nickname` columns. Fetches overrides and blocked times scoped to next 90 days.
 - `src/components/features/staff-schedule/staff-weekly-hours-editor.tsx` — added optional `onSave?: () => void` prop; called after successful schedule save.
 - `src/components/features/staff-schedule/staff-day-overrides-editor.tsx` — added optional `onSave?: () => void` prop; called after successful override save.
@@ -1401,12 +1534,14 @@ staff Attendance.
 - `src/app/(dashboard)/manager/staff/actions.ts` — all four server actions (`setStaffScheduleAction`, `createScheduleOverrideAction`, `deleteBlockedTimeAction`, `deleteScheduleOverrideAction`) now also call `revalidatePath("/manager/staff-availability")`.
 
 **Design decisions:**
+
 - Route at `/manager/staff-availability` (not `/manager/staff/schedule`) to avoid route conflict with `/manager/staff/[staffId]` dynamic segment.
 - All staff in branch visible (active and inactive) so manager can set availability before re-activating staff.
 - Editors keep existing inline inline-banner feedback for immediate response; `PremiumSuccessToast` adds a global confirmation at the page level.
 - No DB schema changes. No new npm packages. Booking lifecycle logic untouched.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 82 app routes
@@ -1418,10 +1553,12 @@ staff Attendance.
 **Task:** Added a compact manual staff schedule adjustment control to the existing Manager/CRM schedule workflow.
 
 **Files Created:**
+
 - `src/lib/actions/staff-schedule-adjustments.ts` — shared `adjustStaffScheduleAction` with RBAC, branch scope, date override/block CRUD, and schedule/bookings/booking-page revalidation.
 - `src/components/features/schedule/manual-staff-schedule-adjustment.tsx` — compact staff-mode adjustment UI for custom hours, day off, block time, clear override, and remove block.
 
 **Files Changed:**
+
 - `src/components/features/schedule/schedule-workspace.tsx` — added schedule-adjustment toast feedback and refresh after successful adjustments.
 - `src/components/features/schedule/schedule-board-panel.tsx` — threaded adjustment feedback into staff view mode.
 - `src/components/features/schedule/schedule-staff-mode.tsx` — added the manual adjustment section below the selected staff summary.
@@ -1430,12 +1567,14 @@ staff Attendance.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `docs/PROJECT_CONTEXT.md` — updated agent context.
 
 **Notes:**
+
 - Manager/CRM can now adjust one staff member's availability from `/manager/schedule` and `/crm/schedule` staff mode.
 - Weekly schedules remain intact; custom hours/day off are date-specific overrides.
 - Booking availability and assignment continue to use the existing availability engine, which already prioritizes overrides/blocks before weekly schedules.
 - No database schema changes, new packages, UI redesign, or scheduling engine rewrite.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing
 - `pnpm build`: ✅ Passing, 83 app routes
@@ -1447,11 +1586,13 @@ staff Attendance.
 **Task:** CRM-OPS-001 — Exposed categorized CRM operations navbar and fixed CRM landing route
 
 **Files Changed:**
+
 - `src/components/features/dashboard/nav-config.ts` — Added `NavGroup` type; replaced flat `CRM_NAV_ITEMS`, `CSR_HEAD_NAV_ITEMS`, `CSR_STAFF_NAV_ITEMS` with grouped nav configs using 5 operational categories
 - `src/components/features/dashboard/sidebar.tsx` — Extracted `NavLink` helper, added grouped nav rendering (renders category labels + items when `nav.groups` is set; falls back to flat `nav.items` for owner/manager/staff — no breaking changes), added `CalendarClock` to icon map
 - `src/app/(dashboard)/crm/page.tsx` — Changed CRM landing redirect from `/crm/today` to `/crm/control`
 
 **CRM Nav Categories Added:**
+
 1. Main Operations — Control, Live Map, Dispatch, Bookings, Schedule, Availability
 2. Customer Management — Customers, Repeats, Lapsed, Waitlist
 3. Service & Resource Setup — Services, Spaces
@@ -1459,6 +1600,7 @@ staff Attendance.
 5. Finance / End-of-day — Reconciliation
 
 **Design Decisions:**
+
 - Used existing route paths (`/crm/live-operations`, `/crm/staff-availability`, `/crm/spaces-rules`) with cleaner display labels to avoid unnecessary redirect pages
 - Grouped nav only applies to CRM roles; owner/manager/staff remain flat (backward compatible)
 - `NavGroup` type added to `WorkspaceNav`; `items` made optional so the type supports both flat and grouped configs
@@ -1476,9 +1618,11 @@ staff Attendance.
 **Task:** CRM-OPS-002A — Audited shift-aware schedule and availability foundation
 
 **Files Created:**
+
 - `docs/phase-2-shift-aware-availability-audit.md` — Technical audit covering schedule model, availability engine, CRM pages, dispatch readiness, staff capability mapping, and Phase 2B–2D implementation plan
 
 **Key Findings:**
+
 - `staff_schedules` UNIQUE `(staff_id, day_of_week)` blocks opening+closing shift support
 - `/crm/staff-availability` is a Schedule Setup editor mislabeled as "Availability"
 - No staff check-in/check-out table exists
@@ -1498,6 +1642,7 @@ staff Attendance.
 **Task:** Create the `/crm/availability` live availability dashboard from existing data (no schema changes).
 
 **Files Created:**
+
 - `src/lib/queries/crm-availability.ts` — `getCrmAvailabilitySnapshot()` combining `getDailySchedule` + `getStaffByBranch`; builds `liveStatus`, `scheduleStatus`, `is_driver`, summary counts
 - `src/app/(dashboard)/crm/availability/page.tsx` — Server component at `/crm/availability`
 - `src/components/features/crm/availability/crm-availability-summary.tsx` — 6 stat cards (Scheduled / Available / Busy / Off / No Schedule / Drivers Ready)
@@ -1505,6 +1650,7 @@ staff Attendance.
 - `src/components/features/crm/availability/crm-availability-client.tsx` — Tabbed client: All Staff / Service Providers / Drivers / Schedule Issues
 
 **Files Modified:**
+
 - `src/components/features/dashboard/nav-config.ts` — CRM "Availability" → `/crm/availability`; added "Schedule Setup" → `/crm/staff-availability`
 - `src/app/(dashboard)/crm/staff-availability/page.tsx` — Title changed "Staff Availability" → "Schedule Setup"
 
@@ -1517,6 +1663,7 @@ staff Attendance.
 **Task:** Add `shift_type` to staff schedules, update booking engine RPCs, and redesign Schedule Setup + Live Availability UIs.
 
 **Files Created:**
+
 - `supabase/migrations/20260522000004_add_shift_type_to_staff_schedules.sql`
   - Adds `shift_type TEXT NOT NULL DEFAULT 'single'` with CHECK (`single | opening | closing`)
   - Replaces UNIQUE `(staff_id, day_of_week)` with `(staff_id, day_of_week, shift_type)`
@@ -1524,6 +1671,7 @@ staff Attendance.
   - Rewrites `get_daily_schedule` with `GROUP BY sid` + `MIN`/`MAX` aggregation
 
 **Files Modified:**
+
 - `src/types/supabase.ts` — Added `shift_type` to `staff_schedules` Row/Insert/Update (manual edit; `pnpm db:types` not run)
 - `src/lib/validations/staff.ts` — `setScheduleSchema` includes `shiftType` enum field (default `'single'`)
 - `src/app/(dashboard)/manager/staff/actions.ts` — Upsert includes `shift_type`; `onConflict` updated
@@ -1542,11 +1690,13 @@ staff Attendance.
 - `.context/CURRENT_TASK.cmd.md` — Marked DONE
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
 
 **Notes:**
+
 - `pnpm db:types` was NOT run — local Supabase unavailable. `src/types/supabase.ts` manually updated.
 - Run `pnpm db:types` after applying the migration to a live DB.
 - Existing single-shift schedules fully preserved (`shift_type = 'single'` default).
@@ -1559,11 +1709,13 @@ staff Attendance.
 **Task:** Add staff shift check-ins table and wire physical presence into CRM Live Availability.
 
 **Files Created:**
+
 - `supabase/migrations/20260523000001_staff_shift_checkins.sql` — `staff_shift_checkins` table, indexes, RLS, `fn_update_updated_at` trigger, data API grants
 - `src/lib/actions/staff-checkins.ts` — `checkInStaffForShiftAction`, `checkOutStaffForShiftAction`, `getStaffCheckinForDate`, `getBranchCheckinsForDate`
 - `src/components/features/staff-portal/staff-checkin-widget.tsx` — staff self-check-in/out widget for staff portal
 
 **Files Modified:**
+
 - `src/types/supabase.ts` — added `staff_shift_checkins` Row/Insert/Update (manual; run `pnpm db:types` after migration)
 - `src/lib/queries/crm-availability.ts` — added `PresenceStatus` type, fourth parallel check-in query, updated `LiveStatus` enum, updated `liveStatus`/`presenceStatus` logic, drivers-ready requires checked-in status, `branchId` added to snapshot
 - `src/components/features/crm/availability/crm-availability-summary.tsx` — new summary cards: Checked In, Not Checked In, updated Drivers Ready
@@ -1573,6 +1725,7 @@ staff Attendance.
 - `src/app/(dashboard)/staff-portal/page.tsx` — fetches check-in status; renders `StaffCheckinWidget` on desktop + mobile
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1584,26 +1737,31 @@ staff Attendance.
 **Task:** Redesign `/crm/staff-availability` into a professional Schedule Setup workspace with universal group schedules and individual adjustments.
 
 **Files Created:**
+
 - `src/components/features/staff-schedule/schedule-setup-workspace.tsx` — Main tabbed orchestrator (General Rules / Individual Adjustments / Overrides / Coverage Issues)
 - `src/components/features/staff-schedule/schedule-setup-helper-bar.tsx` — Bottom "How it works" helper bar
 - `src/components/features/staff-schedule/schedule-overrides-view.tsx` — Overrides tab content (day-off overrides + blocked times summaries)
 
 **Files Modified:**
+
 - `src/app/(dashboard)/crm/staff-availability/page.tsx` — Replaced inline explainer cards with `ScheduleSetupWorkspace`; added page actions (Coverage Overview / Publish Schedules placeholders)
 
 **Pre-existing untracked components brought into the workspace:**
+
 - `src/components/features/staff-schedule/schedule-group-cards.tsx` — Horizontal staff group cards with real computed counts
 - `src/components/features/staff-schedule/group-schedule-rules-panel.tsx` — Universal rules panel with shift templates, weekly pattern matrix, schedule summary, overlap window
 - `src/components/features/staff-schedule/schedule-setup-right-rail.tsx` — Group overview, coverage insight bars, quick actions
 - `src/components/features/staff-schedule/schedule-coverage-issues.tsx` — Coverage issues list (no schedule, no opening, on leave)
 
 **Design Decisions:**
+
 - Existing individual schedule editing (`StaffSchedulePageClient`) preserved under the "Individual Adjustments" tab.
 - No new database schema introduced — universal schedule persistence is UI-shell only with clear placeholder messaging.
 - Real computed staff counts used in group cards and right rail; no fake data.
 - Responsive: group cards scroll horizontally on mobile; right rail stacks below main content.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1615,12 +1773,14 @@ staff Attendance.
 **Task:** Redesign the Individual Adjustments tab inside Schedule Setup for better scannability, cleaner filters, status chips, and summary stats.
 
 **Files Modified:**
+
 - `src/components/features/staff-schedule/staff-schedule-page-client.tsx` — Added horizontal stat strip (Total Staff, Scheduled, Not Scheduled, With Overrides, With Blocks, Inactive) computed from real data.
 - `src/components/features/staff-schedule/staff-schedule-toolbar.tsx` — Replaced filter dropdown with filter pills/chips; improved search input focus ring; added custom select arrow; cleaner layout.
 - `src/components/features/staff-schedule/staff-schedule-list.tsx` — Polished table header with warm background; better column proportions; centered override/block columns.
 - `src/components/features/staff-schedule/staff-schedule-row.tsx` — Added colored avatars; `StatusChip` component (Scheduled/Off/Inactive as pill badges); `CountBadge` for overrides/blocks; `ShiftBadge` uses uppercase pill style; "Manage" button upgraded to `cs-btn-secondary`; hover states preserved.
 
 **Design Decisions:**
+
 - All stats are computed from real `items` prop — no fake data.
 - Existing `StaffScheduleDetailPanel` sheet editor is untouched.
 - Filter pills are clickable buttons with active/hover states matching CradleHub sand theme.
@@ -1628,6 +1788,7 @@ staff Attendance.
 - Responsive: stat strip scrolls horizontally on mobile; filter pills wrap.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1639,6 +1800,7 @@ staff Attendance.
 **Task:** Redesign the `StaffScheduleDetailPanel` sheet/modal and its three editors for a cleaner, more professional experience.
 
 **Files Modified:**
+
 - `src/components/features/staff-schedule/staff-schedule-detail-panel.tsx` — Complete redesign:
   - Larger colored avatar with staff initials
   - Name, role, tier, head badge, and status chip in header
@@ -1664,6 +1826,7 @@ staff Attendance.
   - Empty state with centered icon
 
 **Design Decisions:**
+
 - All existing logic, state, server actions, and callbacks preserved exactly.
 - Feedback alerts use CradleHub theme tokens (`--cs-success-bg`, `--cs-error-bg`) instead of hardcoded hex colors.
 - Editors wrapped in `var(--cs-surface)` white cards with `var(--cs-border-soft)` borders.
@@ -1671,6 +1834,7 @@ staff Attendance.
 - Tabs use existing `Tabs` component with `variant="line"` and sand accent.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1680,6 +1844,7 @@ staff Attendance.
 **Task:** Add recommendation engine that helps CRM choose the best available staff for bookings.
 
 **Files Created:**
+
 - `src/lib/assignments/recommendation-engine.ts` — Pure scoring logic for therapist and driver candidates
   - `scoreTherapistCandidates()` — scores service providers by check-in, conflicts, capability, schedule fit, workload
   - `scoreDriverCandidates()` — scores drivers by check-in, active trips, schedule fit, workload
@@ -1697,6 +1862,7 @@ staff Attendance.
   - "Get Recommendations" button, best match + alternatives, loading/error states
 
 **Files Changed:**
+
 - `src/components/features/bookings/bookings-table.tsx`
   - Added `BookingRecommendationSection` inside `BookingDetailsPanel`
   - Shows therapist recommendations when staff is unassigned
@@ -1708,6 +1874,7 @@ staff Attendance.
   - Wires existing `assignBookingDriverAction`
 
 **Design Decisions:**
+
 - Recommendation-only: no auto-assignment. CRM must still click existing assign/confirm controls.
 - Therapist assignment in booking panel is recommendation-only because no existing "assign therapist to booking" UI action exists in the detail panel (assignment happens during booking creation via seniority auto-assign or edit booking flow).
 - Driver assignment uses the existing `assignBookingDriverAction` server action.
@@ -1715,6 +1882,7 @@ staff Attendance.
 - `staff_scheduling_preferences` is queried but not yet used in scoring (graceful fallback if table absent).
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1728,11 +1896,13 @@ staff Attendance.
 **Task:** CRM-OPS-002X-A — Audit the entire operations workflow for duplication, broken links, and missing integration points.
 
 **Files Changed:**
+
 - `docs/phase-2x-operations-unification-audit.md` — Created: full audit document
 - `.context/CURRENT_TASK.cmd.md` — Updated to 2X-A
 - `.context/HANDOFF.cmd.md` — Updated with audit findings and 2X-B+ plan
 
 **Key Findings:**
+
 - CRITICAL: `staff_group_schedule_rules` is ignored by all 5 operational schedule consumers (booking engine, recommendation engine, daily schedule RPC, CRM availability, individual editor). Group rules have zero effect on bookings.
 - HIGH: `manager/staff-availability` diverged from `crm/staff-availability` — still uses legacy `StaffSchedulePageClient` while CRM has full Phase 2E `ScheduleSetupWorkspace`.
 - MEDIUM: `fmt12h()` duplicated in `dispatch-queries.ts` and `dispatch-workspace.tsx`. Shift badge constants in 4 files. Presence badge in 2 files.
@@ -1742,6 +1912,7 @@ staff Attendance.
 **No code behavior was changed in this audit.**
 
 **Verification:**
+
 - No build needed (docs-only commit)
 
 **Commit:** `docs(ops): audit workflow unification gaps` on `main`
@@ -1753,12 +1924,14 @@ staff Attendance.
 **Task:** CRM-OPS-002X-B — Consolidate duplicated shared UI components for schedule, availability, and dispatch.
 
 **Files Created:**
+
 - `src/lib/utils/time-format.ts` — `formatTime12h()` — null-safe 12h time formatter
 - `src/components/shared/shift-type-badge.tsx` — `ShiftTypeBadge` (opening/closing/single with CradleHub theme colors)
 - `src/components/shared/presence-status-badge.tsx` — `PresenceStatusBadge` (pill variant)
 - `src/components/shared/availability-status-badge.tsx` — `AvailabilityStatusBadge` (dot + label variant)
 
 **Files Updated (duplicates removed):**
+
 - `crm-availability-board.tsx` — removed `SHIFT_BADGE`, `ShiftBadge`, `PresenceBadge`, `formatTime` (4 local defs)
 - `crm-availability-client.tsx` — removed `SHIFT_BADGE`, `STATUS_DOT`, `STATUS_LABEL`, `PresencePill`, `formatTime` (5 local defs)
 - `staff-schedule-row.tsx` — removed `SHIFT_BADGE_COLORS` + local `ShiftBadge`
@@ -1770,6 +1943,7 @@ staff Attendance.
 **No business logic changed. No schema changed. Public booking untouched.**
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, all routes compiled
@@ -1781,6 +1955,7 @@ staff Attendance.
 **Task:** Make `/manager/staff-availability` use the same full `ScheduleSetupWorkspace` as `/crm/staff-availability`.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/manager/staff-availability/page.tsx` — Rewritten to match CRM page
   - Now imports `ScheduleSetupWorkspace` instead of `StaffSchedulePageClient`
   - Fetches `getScheduleSetupOverview()` in parallel with `getStaffWithAvailability()`
@@ -1790,6 +1965,7 @@ staff Attendance.
   - Same error handling pattern
 
 **What did NOT change:**
+
 - `src/app/(dashboard)/crm/staff-availability/page.tsx` — untouched
 - `ScheduleSetupWorkspace` component — no changes needed (already role-agnostic)
 - `StaffSchedulePageClient` — still used inside `ScheduleSetupWorkspace` for Individual Adjustments tab
@@ -1797,6 +1973,7 @@ staff Attendance.
 - Security — no role guards weakened
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1808,10 +1985,12 @@ staff Attendance.
 **Task:** Remove proven unused legacy schedule components after Manager and CRM aligned on `ScheduleSetupWorkspace`.
 
 **Files Deleted:**
+
 - `src/components/features/schedule/staff-schedule-grid.tsx` — **336 lines, completely unreferenced.** Legacy schedule grid component. Not imported by any page, component, or utility. Exported `StaffScheduleGrid` had zero external references.
 - `src/components/features/dashboard/schedule-manager.tsx` — **569 lines, completely unreferenced.** Legacy standalone schedule manager that imported old server actions from `@/app/(dashboard)/manager/staff/actions`. Replaced by the newer `staff-schedule-detail-panel.tsx` + `staff-weekly-hours-editor.tsx` + `staff-day-overrides-editor.tsx` + `staff-block-time-editor.tsx` stack. Not imported anywhere.
 
 **What was NOT deleted (intentionally kept):**
+
 - `StaffSchedulePageClient` — still used inside `ScheduleSetupWorkspace` (Individual Adjustments tab).
 - `StaffScheduleToolbar` — still used inside `StaffSchedulePageClient`.
 - `StaffScheduleDetailPanel` — still used inside `StaffSchedulePageClient`.
@@ -1822,6 +2001,7 @@ staff Attendance.
 - `today-kpi-row.tsx`, `customer-create-form.tsx`, `customer-search.tsx`, `role-badge.tsx`, `notification-card.tsx`, `scheduling-rules-form.tsx`, `service-card-skeleton.tsx` — outside Phase 2X-G scope.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1833,27 +2013,33 @@ staff Attendance.
 **Task:** Verify the full operational workflow from public booking to CRM operations. Test and document results. Apply only small safe fixes.
 
 **Smoke Test Document:**
+
 - `docs/phase-2x-h-end-to-end-smoke-test.md` — Full report with executive summary, build verification, per-route results, gaps, bugs, fixes, and production readiness assessment.
 
 **Critical Bug Found & Fixed:**
+
 - `src/lib/actions/online-booking.ts` — Notification `Promise.all` after booking insert could throw, causing the catch block to return `{ ok: false }` even though the booking already existed in the database. User would see a failure message but the slot was actually taken.
   - **Fix:** Wrapped notification `Promise.all` in a dedicated `try/catch` so notification failures are logged via `logBookingError` but never fail the already-committed booking.
 
 **Medium Bugs Found & Fixed:**
+
 - `src/components/features/bookings/bookings-table.tsx` — Driver assignment in `BookingRecommendationSection` was fire-and-forget (no `await`, no `router.refresh()`). UI stayed showing "No driver assigned" after clicking Assign.
   - **Fix:** Added `async/await` + `router.refresh()` to `onAssignDriver` callback.
 - `src/components/features/dispatch/dispatch-workspace.tsx` — Same fire-and-forget driver assignment bug in `DispatchItemRow`.
   - **Fix:** Extracted `DispatchRecommendationPanel` component with `async/await` + `router.refresh()`.
 
 **Minor Fix Applied:**
+
 - `src/components/features/staff-portal/staff-schedule-page.tsx` + `src/app/(dashboard)/staff-portal/schedule/page.tsx` — Removed unused `rawBlocks` prop and `BlockedTimeRow` type import.
 
 **Deferred Issues (documented in smoke test report):**
+
 1. Group schedule `shift_type` not reflected in CRM Live Availability check-in — staff with group rules but no individual schedule get `shift_type: "single"` for check-in, which may not match their group rule.
 2. Recommendation engine does not use `max_services_per_day` / `max_trips_per_day` from `staff_scheduling_preferences`.
 3. Driver ETA/travel distance not factored into driver recommendations.
 
 **Build Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 84 app routes
@@ -1867,6 +2053,7 @@ staff Attendance.
 **Task:** CRM-OPS-003 — Build unified CRM Operations Setup Center
 
 **Audit Findings:**
+
 - 20 existing CRM pages covering all operational areas
 - Nav already grouped into 5 logical sections (Main Ops, Customer Mgmt, Service & Resource Setup, Staff & Internal Work, Finance)
 - All individual setup pages exist: schedule, availability, services, spaces-rules, dispatch, control, live-operations
@@ -1874,6 +2061,7 @@ staff Attendance.
 - Key gap: no "Setup Issues" checklist — no way to see broken configuration at a glance
 
 **Files Created:**
+
 - `src/lib/queries/crm-setup.ts` — `getCrmSetupHealth()` query: checks service staff schedules, staff_services assignments, booking rules, resources, drivers, unassigned bookings
 - `src/app/(dashboard)/crm/setup/page.tsx` — Operations Setup Center page (`/crm/setup`)
 - `src/components/features/crm/setup/crm-setup-health-cards.tsx` — 6 health status cards (ready/warning/error/info)
@@ -1881,10 +2069,12 @@ staff Attendance.
 - `src/components/features/crm/setup/crm-setup-workspace-tiles.tsx` — tiles navigating to existing setup pages (no duplication of logic)
 
 **Files Updated:**
+
 - `src/components/features/dashboard/nav-config.ts` — added "Ops Setup" link to CRM and CSR Head "Service & Resource Setup" nav groups
 - `src/app/(dashboard)/dev/page.tsx` — added /crm/setup to CRM section in dev panel
 
 **Architecture Decisions Followed:**
+
 - DEC-CRM-001: Used existing route paths — no redirect indirection
 - DEC-CRM-002: Grouped nav only for CRM roles — not touched for other workspaces
 - No business logic duplicated — all existing queries/pages reused via links
@@ -1892,6 +2082,7 @@ staff Attendance.
 - day_of_week: 0=Sunday (JS getDay() convention, matches staff_schedules DB column)
 
 **What the Setup Center Checks:**
+
 1. Service staff with individual schedule rows (for today's day_of_week)
 2. Active branch services with at least one staff_services assignment
 3. Active branch_resources count
@@ -1900,6 +2091,7 @@ staff Attendance.
 6. Unassigned confirmed bookings for today
 
 **Build Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing, 85 app routes (added /crm/setup)
@@ -1912,6 +2104,7 @@ staff Attendance.
 Phase 1 only — small, regression-resistant changes. No booking logic changed.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/page.tsx` — changed /crm redirect from /crm/control → /crm/today
 - `src/app/(dashboard)/crm/availability/page.tsx` — clarified live availability vs online booking; notice now explicitly states online booking remains schedule-based and is not controlled by the check-in board
 - `src/app/(dashboard)/crm/bookings/new/page.tsx` — reads `type` query param (walkin | home_service), derives initialVisitType and passes it to BookingWizard; also updates page title/description dynamically
@@ -1921,6 +2114,7 @@ Phase 1 only — small, regression-resistant changes. No booking logic changed.
 - `src/components/features/dashboard/nav-config.ts` — renamed "Ops Setup" → "Rules & Setup" and "Spaces" → "Spaces & Rules" in CRM_NAV_GROUPS and CSR_HEAD_NAV_GROUPS
 
 **Files NOT Changed (confirmed):**
+
 - src/lib/actions/online-booking.ts — untouched
 - src/lib/actions/inhouse-booking.ts — untouched
 - src/lib/engine/availability.ts — untouched
@@ -1936,6 +2130,7 @@ Home-service booking keeps its dispatch/location workflow.
 All three flows share the scheduling/availability engine but apply it differently based on booking context.
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS, 85 app routes
@@ -1947,6 +2142,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 2 CRM Today Daily Operations Center UI organization.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/today/page.tsx` — title changed to "Daily Operations Center"; added TodayWorkflowStrip, "Serve Customers" section label, "Today's Operational Snapshot" section label, TodaySystemMatchStatus, TodayEmergencyActions; retained all existing components
 - `src/components/features/crm/today/crm-booking-queue-panel.tsx` — improved empty-state message for active tab
 - `src/components/features/crm/today/today-staff-readiness.tsx` — added "Start Day" label and description inside the card
@@ -1954,11 +2150,13 @@ All three flows share the scheduling/availability engine but apply it differentl
 - `src/components/features/crm/today/today-priority-strip.tsx` — removed self-owned marginBottom (now owned by section wrapper)
 
 **Files Created:**
+
 - `src/components/features/crm/today/today-workflow-strip.tsx` — visual shift workflow guide (Start Day → Serve Customers → Confirm Bookings → Monitor Operations → Emergency Actions)
 - `src/components/features/crm/today/today-system-match-status.tsx` — orientation card linking to 6 operational tools (no new queries, navigation only)
 - `src/components/features/crm/today/today-emergency-actions.tsx` — mid-shift action links card (navigation only)
 
 **Notes:**
+
 - Reorganized /crm/today around the daily front-desk workflow.
 - Added workflow strip, System Match Status, and Emergency Actions.
 - No booking business logic changed.
@@ -1969,6 +2167,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - All links in new components point to existing CRM routes — no invented routes.
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS, 85 app routes
@@ -1980,19 +2179,23 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 3 CRM Rules & Setup Center.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/setup/page.tsx` — title changed to "Rules & Setup Center"; Section helper upgraded with description prop; 5-section layout: Booking Flow Rules, Setup Health, Setup Issues, Setup Workspaces, What affects each booking type?; both informational-only sections render even on health-check error; footer updated with online-booking architecture note
 - `src/components/features/crm/setup/crm-setup-workspace-tiles.tsx` — TILES array updated to match Phase 3 required 6 workspaces: Services & Therapists, Schedule Setup, Spaces & Rules, Live Availability, Dispatch, Daily Operations Center
 
 **Files Created:**
+
 - `src/components/features/crm/setup/crm-booking-flow-rules.tsx` — 3-card grid (Online Booking/Schedule-based, In-House/Live operations, Home-Service/Dispatch workflow) with badge, description, and 3 quick links each; informational/navigation only
 - `src/components/features/crm/setup/crm-booking-impact-matrix.tsx` — responsive table (overflow-x: auto) with 10 data-factor rows × 3 booking-type columns; ✓/✕/partial-note cells; informational only
 
 **Files Untouched (reused as-is):**
+
 - `src/components/features/crm/setup/crm-setup-health-cards.tsx`
 - `src/components/features/crm/setup/crm-setup-issues-list.tsx`
 - `src/lib/queries/crm-setup.ts`
 
 **Notes:**
+
 - Converted /crm/setup into Rules & Setup Center.
 - Added booking flow rules explanation (3 cards, badges, quick links).
 - Added booking impact matrix (10 factors × 3 booking types).
@@ -2004,6 +2207,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - No new DB queries. No schema changes. No new migrations.
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS, 85 app routes
@@ -2015,10 +2219,12 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 4 — /crm/services → "Services & Therapist Setup"
 
 **Files Added:**
+
 - `src/lib/queries/crm-services.ts` — `getBranchStaffAndServiceAssignments(branchId, serviceIds)`: parallel fetch of active branch staff + staff_services rows for the provider panel
 - `src/components/features/crm/services/crm-service-therapist-panel.tsx` — `CrmServiceTherapistPanel`: read-only per-service provider assignment view with warning/critical states
 
 **Files Modified:**
+
 - `src/app/(dashboard)/crm/services/page.tsx`
   - Title: "Services" → "Services & Therapist Setup" (icon: ✨)
   - Added `isActiveBranchService` type guard
@@ -2026,6 +2232,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Two sections: Active Services + Provider Assignments
 
 **Key Decisions:**
+
 - Provider Assignments panel is read-only for CRM workspace — assignment editing stays in owner workspace (owner → Staff → [member] → Services tab)
 - `SERVICE_STAFF_TYPES = ["therapist", "nail_tech", "aesthetician", "salon_head"]` — only these count as valid providers
 - `HARD_EXCLUDED_SYSTEM_ROLES = ["driver", "utility"]` — never shown as providers even if staff_services row exists
@@ -2034,10 +2241,12 @@ All three flows share the scheduling/availability engine but apply it differentl
 - Panel footnote explains the matching rule and links to /owner/staff for edits
 
 **Notes:**
+
 - No booking logic changed. No DB schema changes. No new migrations.
 - The `noUncheckedIndexedAccess` tsconfig flag required using inline object fallbacks for Record<string, T> access (not `record[key] ?? record.defaultKey` pattern).
 
 **Build Status:**
+
 - `npx tsc --noEmit`: ✅ PASS (0 errors)
 - Commit: 79dd447
 
@@ -2048,6 +2257,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 4B — CRM-managed therapist-service assignments with guardrails
 
 **Files Added:**
+
 - `src/app/(dashboard)/crm/services/actions.ts`
   - `assignProviderToServiceAction`: role guard → branch scope → service-active → staff-eligible (SERVICE_STAFF_TYPES, HARD_EXCLUDED_SYSTEM_ROLES, is_active) → no-duplicate → inserts staff_services row
   - `removeProviderFromServiceAction`: same guards + last-provider protection (blocks removal that would leave a public active service with 0 valid providers)
@@ -2060,6 +2270,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - ServiceRow shared type (server panel + client card)
 
 **Files Modified:**
+
 - `src/components/features/crm/services/crm-service-therapist-panel.tsx`
   - Refactored from client → server component shell
   - Computes ServiceRow[] including assignableProviders per service
@@ -2069,6 +2280,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Passes branchId prop to CrmServiceTherapistPanel
 
 **Notes:**
+
 - Enabled CRM to assign/remove valid service providers for MVP setup.
 - Uses existing staff_services relationship — no duplicate system.
 - Validates staff eligibility with SERVICE_STAFF_TYPES and HARD_EXCLUDED_SYSTEM_ROLES.
@@ -2080,6 +2292,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - No database schema changes. No new migrations.
 
 **Build Status:**
+
 - `npx tsc --noEmit`: ✅ PASS (0 errors)
 - `eslint (changed files)`: ✅ PASS (0 warnings)
 - Commit: e1c65da
@@ -2091,6 +2304,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 7 — /crm/availability → "Live Availability & Check-In Center"
 
 **Files Added:**
+
 - `src/components/features/crm/availability/checkin-explainer.tsx`
   - 3 cards: In-House Operations (amber), Online Booking (blue), Home Service (green)
   - Each card explains the booking flow's relationship to check-in with bullet points
@@ -2107,6 +2321,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - 6 footer tool link cards: Today, Schedule Setup, Dispatch, Services, Spaces & Rules, Rules & Setup
 
 **Files Modified:**
+
 - `src/app/(dashboard)/crm/availability/page.tsx`
   - Title: "Live Availability" → "Live Availability & Check-In Center"
   - Subtitle updated to describe same-day operations scope
@@ -2117,6 +2332,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Added StartDayChecklist, LiveAvailabilityImpactCard, AvailabilityRelatedTools imports
 
 **Notes:**
+
 - All existing check-in / check-out server actions (`checkInStaffForShiftAction`,
   `checkOutStaffForShiftAction`) preserved unchanged.
 - `CrmAvailabilityClient` (4-tab board) and `CrmAvailabilitySummary` (7 stat cards)
@@ -2125,6 +2341,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 - Online booking remains strictly schedule-based and is unaffected by this board.
 
 **Build Status:**
+
 - `npx tsc --noEmit`: ✅ PASS (0 errors)
 - `eslint (changed files)`: ✅ PASS (0 warnings)
 - `pnpm build`: ✅ PASS (85/85 routes)
@@ -2137,6 +2354,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 9A — Audit Existing Readiness & Condition Checks
 
 **Files Added:**
+
 - `docs/CRM_READINESS_AUDIT.md`
   - Full codebase audit of all readiness/health/warning/issue/notification logic
   - Section A: Readiness system map (8 CRM pages/features, each with queries, components, data shapes)
@@ -2150,11 +2368,13 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Section I: Summary table across all CRM pages
 
 **Files Changed:**
+
 - `.context/CURRENT_TASK.cmd.md` — updated to Phase 9A COMPLETE
 - `.context/CHANGELOG.cmd.md` — this entry
 - `.context/HANDOFF.cmd.md` — Phase 9A summary added
 
 **Key Audit Findings:**
+
 - 7 different severity type systems in use (`"danger"/"error"/"critical"` all mean the same thing but appear in different files)
 - `ActionableWarning` in `src/types/warnings.ts` is the most mature shared type and should become the standard
 - `getCrmSetupHealth()` in `src/lib/queries/crm-setup.ts` is the only centralized multi-domain aggregator — the model for the future engine
@@ -2163,10 +2383,12 @@ All three flows share the scheduling/availability engine but apply it differentl
 - 14 missing checks identified including: driver-assigned-not-checked-in, home-service-no-therapist, no-opening-shift, ghost-check-in, payment-overdue, booking-no-address
 
 **Notes:**
+
 - No booking logic changed. No DB schema changes. No new migrations.
 - No source code files modified — audit document only.
 
 **Build Status:**
+
 - No source changes — build not run (not required)
 
 ---
@@ -2176,6 +2398,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 9B — Shared Operations Readiness Types & Components
 
 **Files Added:**
+
 - `src/types/readiness.ts`
   - `ReadinessSeverity` — "critical" | "warning" | "info" | "success"
   - `ReadinessScope` — 8 domains: setup/schedule/daily/service/space/dispatch/payment/system
@@ -2206,11 +2429,13 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** dbdef68
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
 
 **Notes:**
+
 - No existing CRM pages touched. No booking logic changed. No DB schema changes.
 - All new files are Server Components (no "use client"). Uses Link from next/link.
 - noUncheckedIndexedAccess safety: ?? fallbacks on all Record indexing.
@@ -2223,6 +2448,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 9C — CRM Operations Readiness Aggregator
 
 **Files Added:**
+
 - `src/lib/queries/crm-readiness.ts`
   - `getCrmReadinessIssues(branchId)` — main aggregator, returns `ReadinessIssue[]`
   - `getCrmReadiness(branchId)` — convenience wrapper, returns `ReadinessResult`
@@ -2235,44 +2461,49 @@ All three flows share the scheduling/availability engine but apply it differentl
   - `mapSetupSeverity()`, `mapSetupScope()`, `deriveSetupFix()` — field mapping helpers
 
 **Existing Checks Mapped:**
-  From getCrmSetupHealth (6 issues):
-  - no-schedule → setup:no-schedule (schedule / warning)
-  - no-staff-for-service → setup:no-staff-for-service (service / critical)
-  - no-drivers → setup:no-drivers (dispatch / critical)
-  - no-resources → setup:no-resources (space / warning)
-  - default-rules → setup:default-rules (setup / info)
-  - unassigned-bookings → setup:unassigned-bookings (daily / critical)
+From getCrmSetupHealth (6 issues):
+
+- no-schedule → setup:no-schedule (schedule / warning)
+- no-staff-for-service → setup:no-staff-for-service (service / critical)
+- no-drivers → setup:no-drivers (dispatch / critical)
+- no-resources → setup:no-resources (space / warning)
+- default-rules → setup:default-rules (setup / info)
+- unassigned-bookings → setup:unassigned-bookings (daily / critical)
   From getCrmTodaySnapshot (5 issues):
-  - notCheckedIn → availability:not-checked-in (daily / warning)
-  - needsAttention → availability:needs-attention (schedule / warning)
-  - no drivers ready → availability:drivers-not-ready (dispatch / warning)
-  - awaitingDispatch → dispatch:awaiting-driver (dispatch / warning)
-  - unpaid_count → payment:unpaid-bookings (payment / warning)
+- notCheckedIn → availability:not-checked-in (daily / warning)
+- needsAttention → availability:needs-attention (schedule / warning)
+- no drivers ready → availability:drivers-not-ready (dispatch / warning)
+- awaitingDispatch → dispatch:awaiting-driver (dispatch / warning)
+- unpaid_count → payment:unpaid-bookings (payment / warning)
 
 **Design Decisions:**
-  - getCrmTodaySnapshot called once (it internally calls getCrmAvailabilitySnapshot)
-    to avoid running availability queries twice
-  - Two sources run in parallel via Promise.allSettled (never throws)
-  - Source failure emits system:warning issue rather than crashing or silently omitting
-  - dedupeReadinessIssues keeps highest severity on ID collision
-  - Severity mapping: SetupIssue "error" → "critical", "warning" → "warning", "info" → "info"
-  - Scope derived from issue.id via SETUP_SCOPE_MAP lookup with "setup" fallback
+
+- getCrmTodaySnapshot called once (it internally calls getCrmAvailabilitySnapshot)
+  to avoid running availability queries twice
+- Two sources run in parallel via Promise.allSettled (never throws)
+- Source failure emits system:warning issue rather than crashing or silently omitting
+- dedupeReadinessIssues keeps highest severity on ID collision
+- Severity mapping: SetupIssue "error" → "critical", "warning" → "warning", "info" → "info"
+- Scope derived from issue.id via SETUP_SCOPE_MAP lookup with "setup" fallback
 
 **Deferred to Phase 9E:**
-  - Service provider public/non-public distinction (requires staff_type filtering)
-  - Resource conflict detection (per-booking compute in spaces-rules-utils)
-  - Schedule coverage detail (per-staff, schedule-coverage-issues.tsx)
-  - 14 missing checks from docs/CRM_READINESS_AUDIT.md Section E
+
+- Service provider public/non-public distinction (requires staff_type filtering)
+- Resource conflict detection (per-booking compute in spaces-rules-utils)
+- Schedule coverage detail (per-staff, schedule-coverage-issues.tsx)
+- 14 missing checks from docs/CRM_READINESS_AUDIT.md Section E
 
 **Notes:**
-  - No existing CRM page behavior changed
-  - No booking logic changed
-  - No DB schema changed
-  - Aggregator not wired to UI yet — Phase 9D will wire /crm/setup first
+
+- No existing CRM page behavior changed
+- No booking logic changed
+- No DB schema changed
+- Aggregator not wired to UI yet — Phase 9D will wire /crm/setup first
 
 **Commit:** 10a8062
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2284,6 +2515,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 9D — Wire /crm/setup to Shared ReadinessIssueList
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/setup/page.tsx`
   - Added `getCrmReadiness` import (Phase 9C aggregator)
   - Added `ReadinessIssueList` import (Phase 9B shared component)
@@ -2300,6 +2532,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - All other sections (Booking Flow Rules, Setup Health, Setup Workspaces, Impact Matrix) unchanged
 
 **Intentionally Left Unchanged:**
+
 - `src/components/features/crm/setup/crm-setup-issues-list.tsx` — NOT deleted
 - `src/lib/queries/crm-setup.ts` — NOT changed
 - All other CRM pages — NOT migrated in this phase
@@ -2309,6 +2542,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** d3aaf73
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2320,6 +2554,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 9E-A — Add Compact System Readiness Strip to /crm/today
 
 **Files Added:**
+
 - `src/components/features/crm/today/today-readiness-strip.tsx`
   - Server component. Props: `{ readiness: ReadinessResult | null }`
   - Header row: section label + status badge (Critical/Warning/All Clear) + count summary + "View all issues ›" → /crm/setup
@@ -2328,12 +2563,14 @@ All three flows share the scheduling/availability engine but apply it differentl
   - STATUS_STYLE record for color/bg/border per ReadinessStatus
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/today/page.tsx`
   - `getCrmReadiness(branchId).catch(() => null)` added to existing `Promise.all` — no extra round trip; graceful degradation to null if aggregator throws
   - `TodayReadinessStrip` rendered after `TodayWorkflowStrip`, before "Serve Customers" section
   - All existing Today sections unchanged (TodayAttentionStrip, TodayWorkflowStrip, TodayPriorityStrip, TodayStaffReadiness, TodayDispatchSnapshot, TodaySideRail, CrmBookingQueuePanel, TodaySystemMatchStatus, TodayEmergencyActions)
 
 **Intentionally Left Unchanged:**
+
 - TodayPriorityStrip, TodayAttentionStrip — not replaced
 - No other CRM pages touched
 - No booking logic changed
@@ -2342,6 +2579,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** b5a7679
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2366,6 +2604,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Replaced old ⛔/⚠️ italic text block with `<ReadinessIssueCard issue={noProviderIssue} compact />` in the else branch of the assigned-providers conditional
 
 **Intentionally Left Unchanged:**
+
 - Assign Provider dropdown (select + Assign button)
 - Remove provider chips (ProviderChip + ✕ button)
 - Inline StatusMessage (success/error feedback)
@@ -2377,6 +2616,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** b071912
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2388,11 +2628,13 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** CRM-READINESS-PHASE9E-C-001 — Migrate hand-rolled schedule coverage warning banners in /crm/staff-availability to use shared ReadinessIssueCard and ReadinessIssueList components.
 
 **Files Created:**
+
 - `src/components/features/staff-schedule/schedule-readiness-utils.ts`
   - Pure helper functions (no React, no server-only APIs): `buildMissingScheduleIssue`, `buildNoGroupOrIndividualIssue`, `buildNoActiveScheduleIssue`, `buildNoOpeningShiftIssue`, `buildOnLeaveTodayIssue`
   - Usable in both server and client component contexts
 
 **Files Changed:**
+
 - `src/components/features/staff-schedule/schedule-coverage-issues.tsx`
   - Removed hand-rolled `IssueSection` sub-component (title/description/badge/color div header)
   - Replaced each section header with `ReadinessIssueCard compact` using helpers from utils
@@ -2407,6 +2649,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Stat cards grid unchanged
 
 **Intentionally Left Unchanged:**
+
 - All schedule data computation (noSchedule, noGroupOrIndividual, noOpeningToday, onLeaveToday filters)
 - `IssueCard` per-staff detail cards (still show individual staff names with tag badges)
 - `ScheduleSetupWorkspace` (4-tab editor), `ScheduleSetupExplainer`, `ScheduleRelatedTools`
@@ -2417,6 +2660,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** 5144f65
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2428,11 +2672,13 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** CRM-READINESS-PHASE9E-E-001 — Migrate hand-rolled resource conflict warnings in /crm/spaces-rules to use shared ReadinessIssueCard and ReadinessIssueList components.
 
 **Files Created:**
+
 - `src/components/features/spaces-rules/spaces-readiness-utils.ts`
   - `mapResourceConflictToReadinessIssue(conflict, index)` — one ReadinessIssue per conflict; conflict.description → problem field (detail preserved); severity from conflict type: missing_assignment=warning, overlap/capacity_overflow=critical
   - `buildConflictSummaryIssues(conflicts)` — aggregates to one summary issue per conflict type; used in OverviewTab alerts section
 
 **Files Changed:**
+
 - `src/components/features/spaces-rules/conflicts-tab.tsx`
   - Removed hand-rolled `ConflictRow` sub-component and lucide-react icon imports (AlertTriangle, CircleDashed, Wrench)
   - Maps all conflicts via `mapResourceConflictToReadinessIssue` then passes to `ReadinessIssueList` (non-compact: problem/impact/fix/action all visible)
@@ -2443,6 +2689,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Replaced "Alerts" card content with `ReadinessIssueList compact` fed by `buildConflictSummaryIssues(conflicts)` — shows one card per conflict type with count badge
 
 **Intentionally Left Unchanged:**
+
 - `computeResourceConflicts()` in spaces-rules-utils.ts — all conflict detection logic preserved
 - `computeKpiData()`, `ResourceConflict` type, `ResourceRow` — unchanged
 - `SpacesRulesHealthSummary` — pure stat cards, no warning banners, untouched
@@ -2454,6 +2701,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** 5914379
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2465,11 +2713,13 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** CRM-READINESS-PHASE9E-G-001 — Migrate needs-attention / live availability warning UI in /crm/availability to shared ReadinessIssueCard and ReadinessIssueList components.
 
 **Files Created:**
+
 - `src/components/features/crm/availability/availability-readiness-utils.ts`
   - `buildAvailabilityReadinessIssues(summary)` — maps CrmAvailabilitySummary → ReadinessIssue[]: notCheckedIn → warning (scope:daily), needsAttention → warning (scope:schedule), driversTotal>0 && driversReady===0 → warning (scope:dispatch)
   - `buildNoScheduleStaffIssue(count)` — single issue for ScheduleIssuesView tab banner
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/availability/page.tsx`
   - Added imports: ReadinessIssueList, buildAvailabilityReadinessIssues
   - Added `<ReadinessIssueList compact>` between CrmAvailabilitySummary and CrmAvailabilityClient; emits issues only when snapshot.summary has notCheckedIn/needsAttention/no-driver-ready; shows "Live availability looks ready" empty state when none
@@ -2479,6 +2729,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - `ScheduleIssuesView` only: replaced description paragraph with `ReadinessIssueCard compact`; replaced custom empty state div with `ReadinessIssueList issues={[]}` empty state; per-staff orange-bordered grid preserved
 
 **Intentionally Left Unchanged:**
+
 - `CrmAvailabilitySummary` stat cards (Scheduled, Checked In, Available, Busy, Not Checked In, Drivers Ready, Needs Attention) — pure metrics, no banner
 - `StaffListView` (check-in/check-out buttons untouched)
 - `DriverReadinessView` (check-in/check-out buttons untouched)
@@ -2490,6 +2741,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** d4327d4
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2501,11 +2753,13 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 9E-F — Migrate /crm/dispatch Home-Service Dispatch Warnings to Shared Readiness Components
 
 **Files Created:**
+
 - `src/components/features/dispatch/dispatch-readiness-utils.ts`
   - `mapDispatchAlertToReadinessIssue(alert)` — maps single DispatchAlert → ReadinessIssue; severity: "danger"→"critical", "warning"→"warning"; scope:"dispatch"; contextual impact+fix per alert title pattern (No Driver Assigned / Location Needs Confirmation / Booking Running Late)
   - `buildAlertIssues(alerts)` — DispatchAlert[] → ReadinessIssue[], preserves order
 
 **Files Changed:**
+
 - `src/components/features/dispatch/dispatch-workspace.tsx` (minimal)
   - Removed `AlertBanner` sub-component (lucide AlertTriangle, amber/red styled divs, return-null-when-empty pattern)
   - Removed `AlertTriangle` from lucide imports
@@ -2513,6 +2767,7 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Replaced `<AlertBanner alerts={data.alerts} />` with `<ReadinessIssueList issues={buildAlertIssues(data.alerts)} compact emptyTitle="No active dispatch alerts" ...>`
 
 **Intentionally Left Unchanged:**
+
 - `src/lib/bookings/ops-warnings.ts` — OperationalWarning computation untouched
 - `src/lib/queries/dispatch-queries.ts` — computeAlerts, getDispatchData untouched
 - `src/features/dispatch/types.ts` — DispatchAlert, DispatchStatus untouched
@@ -2523,6 +2778,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Commit:** 036714d
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
@@ -2534,6 +2790,7 @@ All three flows share the scheduling/availability engine but apply it differentl
 **Task:** Phase 9F — Add Global CRM Readiness Badge / Indicator
 
 **Files Created:**
+
 - `src/components/features/crm/readiness/crm-readiness-badge.tsx`
   - Server component — compact single-line pill linking to /crm/setup
   - Props: `{ readiness: ReadinessResult | null }`
@@ -2543,13 +2800,14 @@ All three flows share the scheduling/availability engine but apply it differentl
   - Uses `Link` from next/link; `aria-label` for accessibility
 
 - `src/app/(dashboard)/crm/layout.tsx` (NEW)
-  - Server layout wrapping all /crm/* routes
+  - Server layout wrapping all /crm/\* routes
   - Calls `getLayoutStaffContext()` (React cache()-wrapped — no extra DB call vs dashboard layout)
   - Calls `getCrmReadiness(branchId).catch(() => null)` — failure-safe
   - Renders CrmReadinessBadge above {children}
   - Mobile: badge wrapper uses `px-4 pt-3 md:px-0 md:pt-0` (main is p-0 mobile / p-5 desktop)
 
 **Intentionally Left Unchanged:**
+
 - `src/components/features/crm/today/today-readiness-strip.tsx` — /crm/today page-level strip preserved
 - `src/components/shared/readiness-issue-list.tsx` — no changes
 - All booking logic, dispatch logic, availability engine, schedule engine unchanged
@@ -2563,6 +2821,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Commit:** 7ecc036
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (86 routes — crm layout adds 1 route segment)
@@ -2574,6 +2833,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Phase 9G-1 — Add Daily Operations Missing Readiness Checks
 
 **Files Changed:**
+
 - `src/lib/queries/crm-readiness.ts`
   - Added `import { createClient } from "@/lib/supabase/server"`
   - Added `getCheckedInNotScheduledIssue(branchId, today, dayOfWeek)`:
@@ -2595,12 +2855,14 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
     - Handles `dailyOpsResult` fulfilled/rejected paths with source-failure fallback
 
 **Deferred Checks:**
+
 - None in Phase 9G-1. All three required checks implemented.
 - Note: `getNoOpeningShiftIssue` checks individual `staff_schedules` only (not `staff_group_schedule_rules`).
   If a branch uses only group rules to define opening shifts, this check may produce false positives.
   Phase 9G future work can extend this to also check group rules if needed.
 
 **Intentionally Unchanged:**
+
 - No UI changes — existing badge (/crm/layout.tsx), /crm/today strip, /crm/setup list naturally surface new issues
 - `src/lib/actions/staff-checkins.ts` — unchanged
 - `src/lib/queries/crm-availability.ts` — unchanged
@@ -2609,6 +2871,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - No DB schema changed. No public /book behavior changed.
 
 **Query Strategy:**
+
 - Check 1: 2 Supabase queries (staff_shift_checkins → staff_schedules cross-ref)
 - Check 2: 2 Supabase queries (staff → staff_schedules)
 - Check 3: 1 Supabase query (bookings with 4 filters + limit 20)
@@ -2617,6 +2880,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Commit:** d8220fb
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing
@@ -2628,25 +2892,31 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Phase 9G-2 — Add Dispatch Missing Readiness Checks
 
 **Files Changed:**
+
 - `src/lib/queries/crm-readiness.ts` — added Phase 9G-2 section with 3 checks + coordinator; integrated as Source 4 in getCrmReadinessIssues
 
 **Checks Added:**
+
 1. `dispatch:assigned-driver-not-checked-in` (critical) — driver assigned to active HS booking but not checked in today. Two-query: bookings with driver_id → staff_shift_checkins cross-ref.
 2. `dispatch:home-service-missing-address` (critical) — active HS booking missing metadata.home_service_address.full_address. Single bookings query + TypeScript filter on JSONB.
 3. `dispatch:home-service-missing-destination-coordinates` (warning) — active HS booking missing lat/lng coordinates. Same query pattern as Check 2; checks numeric validity via typeof + Number.isNaN.
 
 **Checks Skipped:**
+
 - Check 4 (active home-service no driver) — deliberately excluded. Covered by existing `dispatch:awaiting-driver` issue from mapDispatchStatsToReadinessIssues / getCrmTodaySnapshot. Emitting a second ID for the same condition would confuse operators.
 
 **Helper added:**
+
 - `extractHomeServiceAddress(metadata)` — safe JSONB accessor for home_service_address sub-object
 - `getDispatchMissingReadinessIssues(branchId, today)` — Promise.allSettled coordinator; always resolves
 
 **Integration:**
+
 - getCrmReadinessIssues now runs 4 sources in parallel (was 3)
 - Source 4 failure emits system:failure:dispatch-missing warning (same pattern as other sources)
 
 **Notes:**
+
 - Home-service detection: `.or("type.eq.home_service,delivery_type.eq.home_service")` (both legacy + new field)
 - Active status filter: `.neq("status", "cancelled").neq("status", "completed").neq("status", "no_show")`
 - Coordinates stored in metadata JSONB at home_service_address.lat / .lng (numeric)
@@ -2656,6 +2926,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - No dispatch actions changed. No booking logic changed. No database schema changed. No public /book behavior changed.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
@@ -2667,6 +2938,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Build Home-Service Dispatch Center with 3 Tabs
 
 **Files Changed:**
+
 - `src/components/features/dispatch/dispatch-workspace.tsx` — replaced with 3-tab shell; same `HomeServiceDispatchWorkspace` / `HomeServiceDispatchWorkspaceProps` export interface preserved
 - `src/components/features/dispatch/dispatch-summary-cards.tsx` (new) — 6 KPI cards: Needs Driver, Ready, En Route, In Service, Completed, Alerts; all values derived from DispatchData
 - `src/components/features/dispatch/dispatch-flow-tab.tsx` (new) — Tab 1: booking queue (status badges, missing-info badges, address/staff snippets) + selected booking readiness checklist (therapist/driver/address/GPS/payment) + AssignmentRecommendationPanel for awaiting-driver items
@@ -2676,12 +2948,14 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/dispatch/dispatch-related-tools.tsx` (new) — 6 related tool links
 
 **Existing components preserved/reused:**
+
 - `dispatch-readiness-utils.ts` — unchanged; `buildAlertIssues` still used in workspace
 - `AssignmentRecommendationPanel` — unchanged; reused in Tab 1 for driver assignment
 - `assignBookingDriverAction` / `getDriverRecommendationsAction` — unchanged server actions reused
 - Both `/crm/dispatch` and `/manager/dispatch` page files — unchanged; same component interface
 
 **Visual improvements:**
+
 - Page title: "Home-Service Dispatch Center" (was "Home Service Dispatch")
 - Architecture note visible to operators
 - Booking queue: status badges + missing-info + payment badges
@@ -2691,6 +2965,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Emergency actions card + related tools card at bottom
 
 **Data: live vs empty state:**
+
 - Summary cards: live (derived from DispatchData.items)
 - Dispatch alerts: live (buildAlertIssues from DispatchData.alerts)
 - Booking queue: live bookings from getDispatchData
@@ -2701,6 +2976,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Progress stages: derived from live dispatchStatus + timestamps
 
 **Notes:**
+
 - No "Confirm Dispatch" server action was created — Tab 1 shows an honest informational note for ready bookings ("handled by driver via Driver Portal")
 - No fake map, no fake route lines, no fake location markers
 - Map placeholder shows how many trips have live location snapshots and how many are missing coordinates
@@ -2708,6 +2984,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - No booking logic changed. No dispatch actions changed. No DB schema changed. No public /book changed.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
@@ -2721,16 +2998,19 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Root Cause:** `BookingCard` wraps its content in `<Link href={...}>` (which renders as `<a>`). Inside the home-service footer row, the "Map ↗" link was also rendered as `<a href={booking.hs_map_url} target="_blank">` — invalid nested anchors per HTML spec.
 
 **Files Changed:**
+
 - `src/components/features/crm/today/crm-booking-queue-panel.tsx` — replaced the inner `<a>` map link with `<button type="button">` that calls `window.open(booking.hs_map_url!, "_blank", "noopener,noreferrer")` on click, preserving the same visual style and UX.
 
 **Commit:** `25ac12f`
 
 **Notes:**
+
 - No logic change — "Map ↗" still opens the Google Maps URL in a new tab
 - `e.preventDefault()` + `e.stopPropagation()` prevent the outer Link click from firing
 - No other components affected
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 0 warnings)
 - `pnpm build`: ✅ Passing (85 routes)
@@ -2742,6 +3022,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Add Therapist Assignments tab to /crm/services.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/services/page.tsx` — replaced stacked Section layout with `CrmServicesWorkspace`; reads `?tab=assignments` searchParam to pre-select tab server-side
 - `src/components/features/crm/services/crm-services-workspace.tsx` (NEW) — client tab shell managing "Active Services" | "Therapist Assignments" tab state; initialised from `initialTab` prop (no useEffect needed)
 - `src/components/features/crm/services/crm-therapist-assignment-tab.tsx` (NEW) — full Therapist Assignments tab: intro card, stat cards (active services + services without therapist), filter row (search / category / service type / missing-only toggle), desktop assignment table, right-side help panel
@@ -2751,6 +3032,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/crm/services/provider-assignment-card.tsx` — updated readiness `actionHref` to `/crm/services?tab=assignments`
 
 **Notes:**
+
 - Active Services tab keeps existing ServicesOfferedTab (service toggle, visibility, price overrides) completely unchanged
 - All assignment mutations use existing `assignProviderToServiceAction` and `removeProviderFromServiceAction` — no new server actions
 - Last-provider protection for public active services remains enforced server-side
@@ -2761,6 +3043,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - No booking logic changed. No dispatch actions changed. No DB schema changed. No public /book changed.
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS (85 routes)
@@ -2772,10 +3055,12 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Fix scalability of Therapist Assignments table — rows with many providers expanded vertically.
 
 **Files Changed:**
+
 - `src/components/features/crm/services/service-assignment-table-row.tsx` (rewritten) — now shows max 3 mini provider chips inline + "+N more" badge + "N assigned" count; Manage/Assign Therapist button opens Sheet (no inline expand)
 - `src/components/features/crm/services/provider-assignment-sheet.tsx` (NEW) — right-side Sheet (480px) with service summary bar, full vertical provider list with Remove buttons, Add Provider select + Assign button, status feedback, eligibility note
 
 **Notes:**
+
 - Sheet uses existing `Sheet`/`SheetContent`/`SheetHeader`/`SheetTitle` from `@/components/ui/sheet` (backed by `@base-ui/react/dialog`)
 - All mutations reuse `assignProviderToServiceAction` and `removeProviderFromServiceAction` unchanged
 - Last-provider protection for public active services still enforced server-side
@@ -2783,6 +3068,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `router.refresh()` after mutations keeps data fresh without full page reload
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS (85 routes)
@@ -2794,6 +3080,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Redesign Therapist Assignments tab into a compact professional SaaS table.
 
 **Files Changed:**
+
 - `src/components/features/crm/services/crm-therapist-assignment-tab.tsx` (rewritten)
   - 4 KPI `StatCard` components: Active Services, Without Therapist, Eligible Providers, Fully Assigned
   - `RightRail` with "Who can be assigned?" card, "Assignment Overview" card (color-coded dots + counts), and Tip card
@@ -2810,11 +3097,13 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Commit:** 481aac8
 
 **Notes:**
+
 - Table now has 5 columns matching header: Service | Category | Assigned Therapists | Status | Actions
 - All mutations, last-provider protection, and Sheet drawer behavior unchanged
 - No booking logic changed. No DB schema changed.
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS
 - `pnpm build`: ✅ PASS (85 routes)
@@ -2826,6 +3115,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Implement workspace route warm-up and smart prefetching for CradleHub CRM/Manager/Owner workspaces.
 
 **Files Created:**
+
 - `src/components/features/workspace/workspace-route-prefetcher.tsx` — reusable client component with connection-aware prefetching (Data Saver, 2g guards, requestIdleCallback fallback)
 - `src/components/features/workspace/workspace-prefetch-config.ts` — workspace route configs with immediate / idle / hover priority tiers
 - `src/app/(dashboard)/manager/layout.tsx` — manager layout wrapper mounting the prefetcher
@@ -2833,6 +3123,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/lib/queries/workspace-cached.ts` — `unstable_cache` wrappers for high-traffic queries (today snapshot, availability, dispatch, setup health)
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/layout.tsx` — added `<WorkspaceRoutePrefetcher config={CRM_PREFETCH} />`
 - `src/components/features/dashboard/sidebar.tsx` — NavLink now calls `router.prefetch` on `onMouseEnter` for instant hover warming
 - `src/lib/cache/cache-tags.ts` — added workspace-scoped cache tags (`crm-workspace`, `crm-bookings`, `crm-dispatch`, `crm-availability`, `crm-setup`, `manager-workspace`, `owner-workspace`) plus batch invalidation helpers (`invalidateCrmWorkspace`, `invalidateManagerWorkspace`, `invalidateOwnerWorkspace`)
@@ -2847,6 +3138,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/app/(dashboard)/crm/services/actions.ts` — added CRM workspace tag invalidation after provider assign/remove
 
 **Design Decisions:**
+
 - Immediate routes (today, control, bookings, dispatch) prefetch ~250ms after mount.
 - Idle routes (availability, staff-availability, customers, setup) defer via `requestIdleCallback` or 2s fallback.
 - Heavy routes (reports, live map, reconciliation, analytics) are NEVER auto-prefetched — they warm only on sidebar hover.
@@ -2860,6 +3152,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Redesign CRM Spaces & Rules page UI only. Transform it from a generic admin settings page into a clean "Spaces & Availability" operations center for front-desk CRM staff.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/spaces-rules/page.tsx` — Simplified: removed heavy explainer/health/access components, renders only workspace component
 - `src/components/features/spaces-rules/spaces-rules-workspace.tsx` — Added CRM-specific layout with conditional rendering based on workspaceContext
 - `src/components/features/spaces-rules/spaces-rules-utils.ts` — Added CrmOperationalKpiData type, computeCrmOperationalKpi(), resource status helpers
@@ -2872,6 +3165,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/spaces-rules/crm-spaces-quick-actions.tsx` — NEW: Quick links to Bookings, Availability, Dispatch, Schedule, Setup
 
 **Design Improvements:**
+
 - Premium spa operations dashboard aesthetic (cream background, white cards)
 - Forest green (#4A7C59) for available/healthy states
 - Warm gold (#B08850) for occupied states
@@ -2883,22 +3177,26 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Conflict grouping by severity with actionable recommendations
 
 **Preserved:**
+
 - Owner/Manager layout completely unchanged (uses workspaceContext conditional)
 - All permission flags (canManageResources, canEditRules) behavior intact
 - No changes to booking logic, RBAC, Supabase queries, or DB schema
 
 **Build Status:**
+
 - `pnpm type-check`: ✅ PASS
 - `pnpm lint`: ✅ PASS (0 errors, 1 pre-existing warning)
 - `pnpm build`: ⚠️ Pre-existing environment issue (supabaseUrl required at build time) — not related to this task
 
 **Safety:**
+
 - No booking logic changed.
 - No DB schema changed.
 - No routes removed.
 - RBAC preserved — prefetcher is a pure client component with no data access.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning)
 - `pnpm build`: ✅ Passing (99 routes)
@@ -2910,18 +3208,22 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Redesign and simplify the overloaded Front Desk operational pages so main content appears above the fold, readiness warnings are accessible but not dominant, and each page reads like a focused professional tool.
 
 **Pages Fixed:**
+
 1. `/crm/today` — Daily Operations Center
 2. `/crm/setup` — Rules & Setup Center
 3. `/crm/availability` — Live Availability & Check-In Center
 
 **DO NOT TOUCH — Preserved Unchanged:**
+
 - `/crm/staff-availability` — Schedule Setup Center (no changes)
 
 **Files Created:**
+
 - `src/components/shared/system-readiness-bar.tsx` — Compact single-line horizontal bar showing total issue count, category breakdown (Critical: N · Warning: N), and a "Review issues →" button that opens a Sheet panel. Panel groups all issues by scope (Daily Ops, Schedule, Dispatch, Payment, Services, Spaces, Setup, System). Fully keyboard-accessible; closes on ESC. Client component — receives plain serializable `ReadinessIssue[]` props from server components.
 - `src/components/shared/page-help-disclosure.tsx` — Collapsible "How this page works" section. Defaults closed so it doesn't push main content down. Uses `aria-expanded` / `aria-controls` / `role="region"` for accessibility. Trigger shows ℹ️ icon + label + animated chevron.
 
 **Files Modified:**
+
 - `src/app/(dashboard)/crm/today/page.tsx`
   - Removed `TodayReadinessStrip` (showed up to 3 full ReadinessIssueCards inline)
   - Added `SystemReadinessBar` above the page header — single compact line
@@ -2947,6 +3249,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
   - Kept `LiveAvailabilityImpactCard` and `AvailabilityRelatedTools` as informational footer
 
 **Design Decisions:**
+
 - `SystemReadinessBar` is a single slim bar (36px tall) — never pushes content down.
 - Full issue details are always accessible via "Review issues →" Sheet panel.
 - `PageHelpDisclosure` uses native `hidden` attribute (no animation flicker, SSR-safe).
@@ -2954,6 +3257,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - No new npm packages installed.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -2967,11 +3271,13 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Problem:** The schedule grid expanded vertically with every staff member. With 30+ staff, the page became an extremely long scroll page.
 
 **Files Created:**
+
 - `src/components/features/schedule/schedule-density.tsx` — Density context + toggle UI
 - `src/components/features/schedule/schedule-staff-group.tsx` — Collapsible staff group headers
 - `src/components/features/schedule/crm-schedule-details-panel.tsx` — Inline right-side details panel
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/schedule/page.tsx` — Added PageHeader, SystemReadinessBar, wrapper
 - `src/components/features/schedule/schedule-workspace.tsx` — CRM uses inline panel + density provider
 - `src/components/features/schedule/schedule-board-panel.tsx` — Added `showHeader` prop
@@ -2982,6 +3288,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/lib/utils/schedule-timeline.ts` — Added `getRowHeightPx()` and `getHeaderHeightPx()`
 
 **Behavior:**
+
 - Fixed-height board (`maxHeight: calc(100vh - 380px)`) with internal scroll
 - Sticky staff column + time header preserved
 - Density: Comfortable (76px), Compact (56px, default), Ultra-compact (42px)
@@ -2989,6 +3296,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Owner/manager schedule pages completely untouched
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing (85/85 routes)
 
@@ -3001,6 +3309,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Files Rewritten (3):**
 
 `src/components/features/crm/availability/crm-availability-board.tsx`:
+
 - Complete rewrite from 5-column Kanban (tall cards, static layout) → 4-column fixed-height compact board
 - `BOARD_HEIGHT = 380px`; each column has `overflow-y: auto` for scroll within the fixed height
 - Columns: Not Checked In (amber, `#c97a18`) | Available Now (green, `#2d9e63`) | Busy/Assigned (blue, `#2471a3`) | Needs Attention (orange, `#c97a18`)
@@ -3012,6 +3321,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `maxPerColumn` prop kept for backward compat (unused)
 
 `src/components/features/crm/availability/crm-availability-summary.tsx`:
+
 - Complete rewrite — replaced tall `StatCard` (1.75rem value font-size) with compact `MetricChip` inline components
 - `MetricChip`: `inline-flex`, `padding: 5px 11px`, `border-radius: 8px`, 7px colored dot + 10px uppercase label + 14px bold value
 - `highlight` prop: colored border + faint bg when actionable (checkedIn > 0, availableNow > 0, notCheckedIn > 0, etc.)
@@ -3019,6 +3329,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Layout: `flexWrap: "wrap"`, `gap: "0.5rem"` — chips flow naturally, no grid
 
 `src/components/features/crm/availability/crm-availability-client.tsx`:
+
 - Added quick action buttons right of the tab bar: ⚠ Schedule Issues (amber, shows when issueCount > 0 and not already on that tab), 🚗 Drivers (shows when driverCount > 0 and not on driver tab), Staff List (shows when not on staff_list tab), ↺ Refresh (always, useTransition + router.refresh())
 - Quick action button style: 11px/500, surface bg, soft border, radius 6
 - Tab bar tightened: font-size 12, font-weight 600 when active; Schedule Issues badge uses `#c97a18`
@@ -3028,6 +3339,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **What was NOT changed:** getCrmAvailabilitySnapshot query, check-in/check-out server actions, RBAC, schedule logic, dispatch logic, all other pages, availability calculations.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -3039,6 +3351,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Created the Figma UI/UX redesign context package for the CRM / Front Desk Workspace.
 
 **Files Created:**
+
 - `docs/figma-crm-redesign/README.md`
 - `docs/figma-crm-redesign/01-crm-page-map.md`
 - `docs/figma-crm-redesign/02-crm-ui-style-guide.md`
@@ -3053,15 +3366,18 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `docs/figma-crm-redesign/screenshots/redesigned/.gitkeep`
 
 **Files Modified:**
+
 - `.context/CURRENT_TASK.cmd.md`
 - `.context/CHANGELOG.cmd.md`
 - `.context/HANDOFF.cmd.md`
 
 **Notes:**
+
 - Documentation/context only.
 - No application logic, routes, components, database queries, server actions, Supabase policies, RBAC, or UI source files changed.
 
 **Verification:**
+
 - `pnpm exec prettier --write docs/figma-crm-redesign`: ✅ Passing
 - Full app build not run by design because this was documentation-only.
 
@@ -3072,14 +3388,17 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Fix CRM sidebar navigation grouping and workspace badge sublabel bug.
 
 **Problem 1:** Workspace badge showed user's role access level instead of workspace description.
+
 - Example: Owner viewing `/crm/today` saw "FRONT DESK WORKSPACE · Owner access" instead of "Front-desk access".
 - This was misleading for users and made it unclear which workspace they were actually in.
 
 **Problem 2:** CRM nav groups were not optimally organized.
+
 - "Availability" and "Schedule Setup" were in separate groups, making daily readiness tools hard to find.
 - "Schedule Setup" was under "Staff & Internal Work" instead of near other daily operations tools.
 
 **Files Changed:**
+
 - `src/components/features/dashboard/sidebar.tsx`
   - Removed `roleMeta.sublabel` override in workspace badge `meta` object
   - Badge now uses `pathMeta` directly so sublabel describes the current workspace
@@ -3094,6 +3413,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
   - CSR_HEAD_NAV_GROUPS and CSR_STAFF_NAV_GROUPS now use defensive spread `[...CRM_NAV_GROUPS]`
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm build`: ✅ Passing (85/85 routes)
 - Note: 3 pre-existing lint errors in committed code (unrelated to this change)
@@ -3105,6 +3425,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Pilot the centered task modal pattern on the CRM Services provider assignment UI.
 
 **Files Changed:**
+
 - `src/components/features/crm/services/provider-assignment-sheet.tsx` (rewritten)
   - Converted from side Sheet to centered Dialog (`sm:max-w-3xl`, `max-h-[85vh]`)
   - Added fixed footer with "Done" button and assigned provider count summary
@@ -3120,16 +3441,19 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
   - All server actions unchanged (`assignProviderToServiceAction`, `removeProviderFromServiceAction`)
 
 **Design Decisions:**
+
 - Footer stays visible while body scrolls — `shrink-0` header/summary/footer + `flex-1 min-h-0 overflow-y-auto` body
 - One-provider-at-a-time assignment preserved (no batch action needed)
 - Search state resets on modal close
 - Mobile: full-screen `max-sm:h-[100dvh]` with same scrollable body + sticky footer
 
 **Scope:**
+
 - CRM Services page only — Manager and Owner services pages untouched
 - No booking logic changed. No DB schema changed. No RBAC changed.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 1 pre-existing warning in staff-availability/actions.ts)
 - `pnpm build`: ✅ Passing (85/85 routes)
@@ -3143,21 +3467,25 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Files Changed:**
 
 `src/components/features/staff/staff-service-editor-sheet.tsx` (updated):
+
 - `DialogContent` height: `max-h-[85vh]` → `h-[90dvh] max-h-[90dvh]`; added `max-sm:max-h-[100dvh]`
 - Scrollable body: added `min-h-0` and `overscroll-contain`; added `pb-24` bottom padding
 - Fixes: service list items below the viewport were unreachable on desktop
 
 `src/app/(dashboard)/crm/services/actions.ts` (updated):
+
 - `CRM_SETUP_ROLES`: added `"csr_staff"` and `"csr"` so CSR staff who can open the page can also call assign/remove actions
 - Updated file-level MVP comment to name the full role set
 - Added `revalidatePath("/manager/services")` to both `assignProviderToServiceAction` and `removeProviderFromServiceAction`
 
 `src/app/(dashboard)/owner/branches/actions.ts` (updated):
+
 - `requireOwnerOrBranchManager`: added `isSuperAdmin(user.id)` check before staff lookup
 - Added `"csr_staff"` and `"csr"` to branch-scoped roles
 - `updateBranchServiceEligibilityAction`: chained `.select("id, available_in_spa, available_home_service").maybeSingle()` — now returns `success: false` when no row is updated
 
 `src/components/features/manager-settings/services-offered-tab.tsx` (updated):
+
 - Added `localServices` state + `useEffect` to sync from `services` prop
 - `activeServices` derived from `localServices` so optimistic updates render immediately
 - `handleEligibilityChange` updates `localServices` on success before `router.refresh()`
@@ -3165,6 +3493,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Intentionally Unchanged:** Booking logic, scheduling, public booking flow, DB schema.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm build`: ✅ Passing (all routes)
 
@@ -3177,47 +3506,58 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Files Changed:**
 
 `src/proxy.ts` (updated):
+
 - `resolveWorkspace()`: owner, manager, assistant_manager, store_manager now resolve to `/crm` instead of `/owner`/`/manager`
 - Access guard: owner/manager/assistant_manager/store_manager redirected to `/crm` if not on a `/crm` path (they no longer have cross-workspace bypass)
 
 `src/lib/permissions.ts` (updated):
+
 - `getDefaultDashboardPath()`: owner and management roles now return `/crm`; staff/therapist/masseuse/service_provider variants explicitly return `/staff-portal`
 
 `src/app/(auth)/login/actions.ts` (updated):
+
 - Dev bypass redirect changed from `/owner` to `/crm`
 
 `src/app/(dashboard)/owner/layout.tsx` (updated):
-- Replaced prefetch layout with a single `redirect("/crm")` — all /owner/* routes silently redirect to /crm. Files preserved.
+
+- Replaced prefetch layout with a single `redirect("/crm")` — all /owner/\* routes silently redirect to /crm. Files preserved.
 
 `src/app/(dashboard)/manager/layout.tsx` (updated):
-- Replaced prefetch layout with a single `redirect("/crm")` — all /manager/* routes silently redirect to /crm. Files preserved.
+
+- Replaced prefetch layout with a single `redirect("/crm")` — all /manager/\* routes silently redirect to /crm. Files preserved.
 
 `src/lib/auth/crm-permissions.ts` (created):
+
 - `CRM_WORKSPACE_ROLES` const and `CrmWorkspaceRole` type
 - `canAccessCrmWorkspace`, `canManageCrmSetup`, `canManageServices`, `canManageBookings`, `canConfirmPayments`, `canManageCustomers`, `canManageStaffAssignments`, `canManageResources`, `canManageDispatch` — all typed helpers with MVP-correct access levels
 
 `src/components/features/dashboard/nav-config.ts` (updated):
+
 - `WorkspaceNav` type: added `mvpHidden?: boolean` flag
 - Owner and Manager workspace entries marked `mvpHidden: true`
 - `resolveWorkspaceKeyFromRole()`: owner/manager/assistant_manager/store_manager now resolve to `"crm"` (CRM nav and badge)
 
 `src/components/features/dashboard/sidebar.tsx` (updated):
+
 - Minor comment on `isManagerRoute` to note /manager now redirects (no logic change needed — role→workspace resolution already updated in nav-config)
 
 **Behavior:**
+
 - owner, manager, assistant_manager, store_manager → /crm on login and on any direct URL attempt
-- /owner/* and /manager/* all silently redirect to /crm via layout.tsx
+- /owner/_ and /manager/_ all silently redirect to /crm via layout.tsx
 - Sidebar shows CRM nav and workspace badge for management roles
 - Owner/Manager workspace nav entries exist but are `mvpHidden: true` (rendering layer can filter)
 - CRM permission helpers available for new feature gates
 
 **Intentionally NOT changed:**
-- /owner/* and /manager/* page components (preserved for future restoration)
+
+- /owner/_ and /manager/_ page components (preserved for future restoration)
 - Public booking flow
 - Staff portal, driver portal
 - Supabase schema, RLS, database queries
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 new errors; 4 pre-existing errors in services-offered-tab.tsx, staff-schedule-card.tsx, service-image.tsx not introduced by this task)
 - `pnpm build`: ✅ Passing (87/87 routes)
@@ -3229,11 +3569,13 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Enhance CRM Schedule Setup and Staff Schedule tabs while preserving existing schedule editing workflows.
 
 **Files Created:**
+
 - `src/components/features/schedule/tabs/daily-timeline-right-rail.tsx` — contextual right rail for Daily Timeline tab
 - `src/app/api/crm/availability/route.ts` — API route for live availability data
 - `src/app/api/crm/staff-schedule/overview/route.ts` — API route for staff schedule overview data
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/schedule/page.tsx` — Updated to use `ScheduleWorkspaceShell`
 - `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` — Unified shell with header, tabs, status chips, metric grid
 - `src/components/features/schedule/tabs/schedule-setup-tab.tsx` — Now renders actual `ScheduleSetupWorkspace` via SWR
@@ -3245,6 +3587,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/staff-schedule/staff-schedule-page-client.tsx` — Stat strip now uses responsive grid
 
 **Behavior:**
+
 - `/crm/schedule?tab=setup` renders the full `ScheduleSetupWorkspace` (group tabs, weekly rules editor, right rail)
 - `/crm/schedule?tab=staff` renders the full `StaffSchedulePageClient` (stat strip, toolbar, staff list, detail sheet)
 - `/crm/staff-availability` continues to render `ScheduleSetupWorkspace` directly (unchanged page structure)
@@ -3260,9 +3603,11 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Remove the persistent full-width System Readiness warning banner from workspace page content and replace it with a compact, premium readiness indicator in the shared header/topbar.
 
 **Files Created:**
+
 - `src/components/features/dashboard/workspace-readiness-indicator.tsx` — compact rounded-full chip with icon, status text, issue count; opens a popover with full issue list, scope icons, problem descriptions, and action links; supports ok/warning/critical/unavailable states; keyboard accessible (Escape closes)
 
 **Files Changed:**
+
 - `src/components/features/dashboard/header.tsx` — added optional `readiness?: ReadinessResult | null` prop; renders `WorkspaceReadinessIndicator` between date and notification bell
 - `src/app/(dashboard)/layout.tsx` — fetches `getCrmReadiness(branchId)` failure-safely and passes to `Header`; readiness query now runs once per dashboard layout render instead of per CRM page
 - `src/app/(dashboard)/crm/layout.tsx` — removed `CrmReadinessBadgeWrapper` and old readiness banner from CRM content flow; layout now only renders route prefetcher
@@ -3270,6 +3615,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/app/(dashboard)/crm/availability/page.tsx` — removed `SystemReadinessBar` import and render; removed `buildAvailabilityReadinessIssues` and `buildReadinessResult` imports; removed availability-specific readiness variables; page content starts immediately after tab nav
 
 **Behavior:**
+
 - All CRM pages (`/crm/today`, `/crm/schedule`, `/crm/setup`, `/crm/availability`, `/crm/bookings`, `/crm/dispatch`, `/crm/services`, `/crm/spaces-rules`, `/crm/customers`, `/crm/staff-applications`, `/crm/staff-availability`) no longer have a full-width readiness banner pushing content down.
 - A compact 32px-tall rounded-full chip appears in the shared header next to the notification bell.
 - Chip states:
@@ -3284,6 +3630,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Business logic, RBAC, and auth are unchanged.
 
 **Intentionally NOT changed:**
+
 - `src/components/shared/system-readiness-bar.tsx` — component preserved (may be referenced by other unused components)
 - `src/components/features/crm/readiness/crm-readiness-badge.tsx` — preserved but no longer imported
 - `src/components/features/crm/readiness/crm-readiness-badge-wrapper.tsx` — preserved but no longer imported
@@ -3291,6 +3638,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/crm/today/today-readiness-strip.tsx` — page-specific inline readiness strip on `/crm/today` is preserved (allowed by design rules)
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 new errors; 4 pre-existing warnings in unrelated files)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3302,6 +3650,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Redesign CRM Setup Center UI to match approved premium mockup quality.
 
 **Files Created:**
+
 - `src/components/features/setup-center/setup-shell.tsx` — shared layout wrapper
 - `src/components/features/setup-center/setup-progress-ring.tsx` — circular SVG progress ring with percentage label
 - `src/components/features/setup-center/setup-status-card.tsx` — compact status card with left accent border, icon, value, status dot, action button
@@ -3311,12 +3660,14 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/setup-center/setup-health-content.tsx` — complete Setup Health tab composition
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/setup/page.tsx` — redesigned with new SetupHealthContent; title changed to "Setup Center"; removed old health cards, issues list, workspace tiles
 - `src/app/(dashboard)/crm/services/page.tsx` — cleaner header description
 - `src/app/(dashboard)/crm/spaces-rules/page.tsx` — removed duplicated SpacesRulesHealthSummary and text-heavy SpacesRulesAccessNotice; now only shows tab nav + workspace
 - `src/components/features/crm/services/crm-therapist-assignment-tab.tsx` — simplified intro card to compact strip; redesigned StatCard with rounded-2xl and Tailwind; redesigned RightRail with sticky positioning, cleaner styling, Tailwind classes
 
 **Setup Health Layout:**
+
 - Top row: 3-column grid (Overall Setup Progress | Critical Actions | Setup Tips)
 - Overall Progress: 110px circular ring + status text + "View all issues" CTA
 - Critical Actions: up to 3 top issues with severity-colored rows and action buttons
@@ -3325,16 +3676,19 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Quick Fix Shortcuts: 6 hover-lift action cards
 
 **Services Improvements:**
+
 - Intro card reduced from verbose paragraph to one-line compact strip
 - KPI cards restyled with rounded-2xl, softer shadows
 - Right rail made sticky on desktop, cleaner badge styling
 
 **Spaces & Rules Improvements:**
+
 - Removed page-level SpacesRulesHealthSummary (8 cards) — workspace already has its own KPIs
 - Removed large SpacesRulesAccessNotice text block
 - Page now shows clean header → tab nav → workspace only
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 new errors; 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3346,6 +3700,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Fix the bug where CRM enabling a service for Home Service did not result in it appearing in the public booking wizard.
 
 **Root causes:**
+
 1. `updateBranchServiceEligibilityAction` used `.select().maybeSingle()` and returned failure when 0 rows matched or data was null — causing UI to silently revert the toggle while the DB may not have been updated.
 2. The action only revalidated CRM/owner/manager paths, not the public booking routes (`/`, `/services`, `/book`).
 3. The `/api/public/booking-context` route had no `Cache-Control: no-store` header — browser could cache stale service data.
@@ -3353,6 +3708,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 5. Readiness checklist items had no guidance notes on how to fix failures.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/owner/branches/actions.ts`
   - `updateBranchServiceEligibilityAction`: replaced `.select().maybeSingle()` with a plain update + separate existence check; added `/`, `/services`, `/book` revalidation
   - `updateBranchServiceDeliveryModeAction`: added `/`, `/services`, `/book` revalidation
@@ -3361,6 +3717,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/crm/services/service-customization-table.tsx` — `HomeServiceToggle` shows ⚠ indicator and tooltip when service is ON but won't appear publicly
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3372,9 +3729,11 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Make CRM fully operational for staff editing, service assignments, and service visibility control. Remove Manager workspace dependency for daily operations.
 
 **Files Created:**
+
 - `src/lib/actions/crm-staff-services.ts` — `updateStaffServicesFromCrmAction`: CRM-safe server action to replace all staff service capability assignments (branch-scoped, CRM operational roles allowed)
 
 **Files Changed:**
+
 - `src/app/(dashboard)/owner/staff/actions.ts` — Added `STAFF_OPERATIONAL_ROLES` const; expanded `requireOwnerOrManager()` to include crm/csr_head/csr_staff/csr; changed `isManager` to `isBranchScoped`; added `/crm/staff` revalidation; added new exported `toggleStaffActiveAction` (CRM-accessible activate/deactivate)
 - `src/app/(dashboard)/owner/branches/actions.ts` — Changed `updateBranchServiceVisibilityAction` from `requireOwner()` to `requireOwnerOrBranchManager(branchId)`; added `/crm/services` + `/crm/setup` revalidation
 - `src/lib/auth/crm-permissions.ts` — Added `canManageOperationalStaff`, `canManageStaffServices`, `canUpdateServiceVisibility`; updated `canManageStaffAssignments` to include crm+csr_head
@@ -3388,6 +3747,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/crm/services/service-assignment-table-row.tsx` — Added visibility toggle button (🌐 Public / 🔒 CSR Only) in status cell; wired to `updateBranchServiceVisibilityAction` with optimistic UI
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing (90/90 routes)
@@ -3399,6 +3759,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Build the dedicated Service Customization tab inside the CRM Services workspace.
 
 **Files Created:**
+
 - `src/components/features/crm/services/service-customization-tab.tsx` — Main tab shell with metric grid, filter bar, table, and editor rail layout
 - `src/components/features/crm/services/customization-rows.ts` — `buildCustomizationRows()` helper: enriches ServiceLite with deliveryMode, readinessIssues, providerCount, isReady
 - `src/components/features/crm/services/service-customization-metric-grid.tsx` — 6 KPI cards: Total, Public, In-Spa, Home-Service, Hidden, Needs Setup
@@ -3408,6 +3769,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/ui/switch.tsx` — Custom toggle switch component (no new dependencies)
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/services/page.tsx` — Updated tab routing to support customization/providers/issues; passes branchName and services to workspace; updated page description
 - `src/components/features/crm/services/crm-services-workspace.tsx` — Added 4th tab "Service Customization"; renamed "Staff Capabilities" → "Provider Assignments"; receives branchName + full services list
 - `src/components/features/crm/crm-tab-nav.tsx` — Added `CRM_SERVICES_TABS` with 4 tab links using `?tab=` query params
@@ -3418,6 +3780,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/crm/services/provider-assignment-card.tsx` — Updated old links → `?tab=services`
 
 **Schema / Data Mapping:**
+
 - No new database columns added. Delivery mode maps to existing fields:
   - In-Spa Only: `available_in_spa=true, available_home_service=false, is_active=true`
   - Home-Service: `available_in_spa=false, available_home_service=true, is_active=true`
@@ -3426,6 +3789,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Public visibility maps to existing `visibility` field (`public` vs `csr_only`)
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing (91/91 routes)
@@ -3437,16 +3801,19 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Add a compact Home Service toggle column to the CRM Service Customization table.
 
 **Files Changed:**
+
 - `src/components/features/crm/services/service-customization-table.tsx` — Added "Home Service" column with compact Switch toggle + ON/OFF label; uses `updateBranchServiceEligibilityAction` with optimistic UI and error revert
 - `src/components/features/crm/services/selected-service-editor-rail.tsx` — Added standalone "Home Service" toggle row in the editor rail (below Delivery Mode cards)
 - `src/components/features/crm/services/service-customization-tab.tsx` — Passes `branchId` prop down to `ServiceCustomizationTable`
 
 **Data / Integration:**
+
 - Reuses existing `branch_services.available_home_service` boolean field (no migration)
 - Reuses existing `updateBranchServiceEligibilityAction()` server action (no new action)
 - Public booking wizard (`src/components/public/booking-wizard.tsx`) already filters services by `availableHomeService` when `isHomeService=true`
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 4 pre-existing warnings)
 - `pnpm build`: ✅ Passing (91/91 routes)
@@ -3458,6 +3825,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Audit and implement performance improvements for CRM, Staff Portal, and Driver Portal workspaces.
 
 **Files Created:**
+
 - `src/app/(dashboard)/staff-portal/layout.tsx` — mounts WorkspaceRoutePrefetcher for staff portal
 - `src/app/(dashboard)/driver/layout.tsx` — mounts WorkspaceRoutePrefetcher for driver portal
 - `src/app/(dashboard)/driver/loading.tsx` — driver portal skeleton loading state
@@ -3477,6 +3845,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/app/(dashboard)/staff-portal/stats/loading.tsx` — staff stats skeleton
 
 **Files Changed:**
+
 - `src/components/features/crm/today/crm-today-shell.tsx` — lazy-loaded all 5 tab panels with `next/dynamic` + tab skeletons; removed unused imports
 - `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` — lazy-loaded all 5 tab panels with `next/dynamic` + tab skeletons
 - `src/lib/queries/crm-context.ts` — wrapped `getCrmContext` with `React.cache` for request-level deduplication
@@ -3488,6 +3857,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/features/crm/services/service-assignment-table-row.tsx` — visibility toggle now reverts on error + shows toast feedback
 
 **Performance Improvements:**
+
 - Staff Portal and Driver now have workspace-level route prefetching (was missing)
 - CRM Today tabs and Schedule tabs are code-split — only the active tab downloads
 - `getCrmReadiness` is cached with 60s TTL — eliminates repeated computation on every page navigation
@@ -3496,6 +3866,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - Driver portal now has error boundary
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in scripts)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3507,18 +3878,21 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Optimize all staff-related overlays in the CRM workspace: Edit Staff Profile drawer, Edit Service Capabilities modal, and staff service assignment popups.
 
 **Files Changed:**
+
 - `src/components/features/staff/staff-edit-form.tsx` — Added `onEditServices`, `formId`, `compact`, `onDirtyChange`, `onSuccess` props. Service checkbox grid is now hidden when `onEditServices` is provided; instead shows a compact summary (count + top 5 chips + "Edit Services" button). Inline Save button hidden in compact mode. Form gets `id` attribute for external footer submit.
 - `src/components/features/crm/staff/crm-staff-management-tab.tsx` — Sheet restructured with fixed header, scrollable body (`flex-1 overflow-y-auto`), sticky footer with Cancel/Save buttons. Width narrowed to `sm:max-w-lg`. Added unsaved changes `AlertDialog` for the staff edit sheet. Passes `onEditServices` to open the service editor from the drawer. Tracks `editSheetDirty` state via `onDirtyChange`/`onSuccess`.
 - `src/components/features/staff/staff-service-editor-sheet.tsx` — Service chips replaced with checkbox grid (1-col mobile, 2-col desktop). Each checkbox item shows service name + duration. Added `staffName` prop shown in header. Footer button text changed from "Done — N services selected" to "Save N services". Added unsaved changes `AlertDialog` when closing with modified selections. Added `onOpenChange` handler that captures baseline selections on open and checks for changes on close.
 - `src/components/features/crm/staff/crm-staff-assignments-tab.tsx` — Passes `staffName` prop to `StaffServiceEditorSheet`.
 
 **Behavior:**
+
 - Staff Profile drawer is now narrow (max-w-lg), scrollable, with sticky footer. It no longer contains the full service checklist.
 - Service capability editing opens in the dedicated wider modal with category accordions, search, and Selected tab.
 - Closing either overlay with unsaved changes shows a confirmation dialog.
 - Owner page (`owner/staff/[staffId]`) is unaffected — still shows full service checkboxes inline.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3530,6 +3904,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Create a central reusable CRM overlay system (AdminDialog, AdminDrawer, header/body/footer subcomponents) and refactor priority CRM page popups to use it.
 
 **Files Created:**
+
 - `src/components/shared/overlays/admin-dialog.tsx` — Central dialog shell wrapping `@base-ui/react/dialog` primitives. Size variants: sm/md/lg/xl/wide/full. Backdrop: `bg-black/35`. Max-height: `min(90vh, calc(100dvh - 48px))`. Flex column with `overflow-hidden`.
 - `src/components/shared/overlays/admin-drawer.tsx` — Central drawer shell wrapping `@base-ui/react/dialog` primitives. Size variants: sm/md/lg. Right-side drawer, `h-[100dvh]`, flex column.
 - `src/components/shared/overlays/admin-overlay-header.tsx` — Fixed/sticky header with title + description + optional children slot.
@@ -3540,16 +3915,19 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 - `src/components/shared/overlays/index.ts` — Barrel export for all overlay components.
 
 **Files Changed:**
+
 - `src/components/features/staff/staff-service-editor-sheet.tsx` — Replaced `Dialog`/`DialogContent`/`DialogHeader`/`DialogFooter` with `AdminDialog` + `AdminOverlayHeader`/`AdminOverlayToolbar`/`AdminOverlayBody`/`AdminOverlayFooter`. Size: `xl`. Replaced inline `AlertDialog` with `ConfirmUnsavedChangesDialog`.
 - `src/components/features/crm/services/provider-assignment-sheet.tsx` — Replaced `Dialog`/`DialogContent`/`DialogHeader`/`DialogTitle`/`DialogDescription`/`DialogFooter` with `AdminDialog` + overlay subcomponents. Size: `lg`.
 - `src/components/features/crm/staff/crm-staff-management-tab.tsx` — Replaced `Sheet`/`SheetContent`/`SheetHeader`/`SheetTitle`/`SheetDescription`/`SheetFooter` with `AdminDrawer` + overlay subcomponents. Size: `md`. Replaced inline `AlertDialog` with `ConfirmUnsavedChangesDialog`.
 
 **Overlay Inventory (CRM page-level):**
+
 - ✅ Refactored: Edit Staff Profile drawer, Edit Service Capabilities modal, Provider Assignment modal
 - ⏭️ Not touched (excluded per task): notification bell popovers, readiness chip popovers, readiness horizontal bars, sidebar/mobile nav drawers, toast overlays, hover cards, dropdown menus, command/search popovers
 - ⏭️ Not CRM: Booking details sheet (schedule workspace, hidden in CRM context), staff approval workspace (owner context)
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3561,12 +3939,14 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
 **Task:** Fix the Edit Service Capabilities modal so all services are reachable by internal scroll, the footer never covers content, and the page behind the modal does not scroll.
 
 **Root Cause:**
+
 1. `AdminDialog` was vertically centered with `top-1/2 left-1/2 translate-x/y-1/2`. For tall content, centering caused the popup to push against viewport edges and the inner flex body's `overflow-y-auto` scrollbar to be clipped or ineffective.
 2. `staff-service-editor-sheet.tsx` used a stacked accordion layout where every category rendered into the same scroll column. When one category with 50+ services expanded, the scrollable body became taller than the allocated flex space, but the scrollbar was not reliably usable because the flex parent height was not definite.
 3. The body had `pb-24` padding-bottom hack attempting to clear a footer that was already `shrink-0` in the flex column, meaning the padding was unnecessary and browser handling of bottom padding in overflow containers is inconsistent.
 4. Dozens of inline `style={{...}}` props throughout the file made layout debugging fragile and violated project style rules.
 
 **Files Changed:**
+
 - `src/components/shared/overlays/admin-dialog.tsx` — Changed positioning from `top-1/2 left-1/2 translate-x/y-1/2` to `top-6 left-1/2 translate-x-1/2`. Added explicit `h-auto max-h-[calc(100dvh-3rem)]` so the flex column has a definite, viewport-safe height. Close button remains absolute.
 - `src/components/features/staff/staff-service-editor-sheet.tsx` — Complete rewrite of internal layout:
   - Replaced stacked accordion with split-pane layout: fixed 220px category rail on the left, scrollable service list panel on the right.
@@ -3582,6 +3962,7 @@ first; `crm/layout.tsx` calls it again — React deduplicates to zero extra DB c
   - Size changed from `xl` to `wide` (1080px) to give the split pane adequate horizontal room.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3599,6 +3980,7 @@ the server's OS timezone (UTC on cloud hosts). Slot times represent branch local
 far in the future — so it was never filtered even when 2 PM Manila had already passed.
 
 **Files Changed:**
+
 - `src/lib/engine/slot-time.ts`
   - Added `BRANCH_TIMEZONE = "Asia/Manila"` export.
   - Added private `getBranchTime(now, timezone)` using `Intl.DateTimeFormat`.
@@ -3614,6 +3996,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - `handleSubmit`: client-side `isPastSlot` guard — clears selection, shows error, navigates back to date/time step.
 
 **Acceptance criteria met:**
+
 - Past slots hidden for today (server-side, timezone-correct).
 - Future slots visible normally.
 - Past dates return empty slot list.
@@ -3623,6 +4006,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - No DB schema changes. No new dependencies. TypeScript strict.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3634,6 +4018,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build a centralized, centered CRM Edit Availability modal from the Schedule page staff details panel and Staff Schedule tab.
 
 **What Changed:**
+
 - Added a centered `AdminDialog` placement while preserving the existing top-anchored default for other admin overlays.
 - Added CRM schedule availability modal components:
   - `edit-availability-modal.tsx`
@@ -3660,6 +4045,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Expanded existing schedule action revalidation to include `/crm/schedule` and `/manager/schedule`.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3672,6 +4058,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Diagnose and fix why the CRM Edit Availability modal was blocked for operational staff schedule editing.
 
 **Root Causes Identified:**
+
 1. **RLS policies too strict:** Existing RLS on `staff_schedules`, `schedule_overrides`, `blocked_times`, and `staff` only allowed `manager` and `owner`. CRM, CSR Head, CSR Staff, CSR, assistant_manager, and store_manager had no write (and CRM/CSR had no read) access to branch staff schedules. This caused:
    - `getStaffWithAvailability` to return only the CRM user's own record (because `staff` table had no CRM branch-read policy).
    - Day Overrides and Block Time tab saves to fail silently because they reuse `manager/staff/actions.ts` which uses the regular Supabase client subject to RLS.
@@ -3679,6 +4066,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 3. **CRM weekly action bypassed RLS:** `updateCrmStaffWeeklyAvailabilityAction` used `createAdminClient()` (service role) instead of the regular client. This masked the RLS problem for weekly hours but created an inconsistency and reduced defense-in-depth.
 
 **Files Changed:**
+
 - `supabase/migrations/20260529000002_crm_csr_schedule_rls.sql` (NEW)
   - Added `staff_operational_read_branch` policy so CRM/CSR/assistant_manager/store_manager can read branch staff.
   - Replaced manager-only `staff_schedules` policies with `staff_schedules_operational_read/insert/update` covering all operational roles.
@@ -3693,6 +4081,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - Updated `canAdjustStaffSchedule()` to include `isCsrStaff(role)` (`csr_staff` + `csr`).
 
 **Behavior:**
+
 - CRM and all front-desk roles can now read all branch staff and their schedules through RLS.
 - CRM/CSR/assistant_manager/store_manager can create/update `staff_schedules`, `schedule_overrides`, and `blocked_times` for staff in their assigned branch.
 - Weekly Hours, Day Overrides, and Block Time tabs all use the same permission model and RLS enforcement.
@@ -3700,6 +4089,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - No database schema changes (only RLS policy additions/replacements).
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3711,12 +4101,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Diagnose and fix why CRM/CSR user `86ce597a-2e35-4741-8394-fa84fc21c00e` could not save staff profile edits.
 
 **Root Causes Identified:**
+
 1. **RLS migration not applied:** The `staff_operational_update_branch` UPDATE policy did not exist in production. The previous migration file was modified but `supabase db push` could not connect, so the policy was never applied. CRM/CSR `UPDATE` on `staff` was silently blocked by RLS (no error, just 0 rows affected).
 2. **Silent failure in server action:** `updateStaffAction` used `.update().eq("id", staffId)` without `.select()`. When RLS blocks an UPDATE, Supabase returns `error: null, status: 204`, so the action returned `{ success: true }` even though nothing was saved.
 3. **Missing `nickname` field:** The server action's `updatePayload` did not include `nickname`, so even when updates worked, nickname changes were silently dropped.
 4. **Same silent-failure pattern in `toggleStaffActiveAction`:** Also lacked `.select()` and 0-row detection.
 
 **Affected User Verified:**
+
 - Staff ID: `74e12b49-e011-492d-8da5-23aa293454f3`
 - Auth user ID: `86ce597a-2e35-4741-8394-fa84fc21c00e` ✅ correctly linked
 - Role: `csr_staff` ✅ operational role
@@ -3724,6 +4116,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - is_active: `true` ✅
 
 **Files Changed:**
+
 - `supabase/migrations/20260529000003_crm_csr_staff_update_rls.sql` (NEW)
   - Idempotent migration adding `staff_operational_update_branch` UPDATE policy for operational roles on staff in their branch.
   - Idempotent migration adding `staff_services_operational_all` ALL policy for operational roles on `staff_services`, replacing `staff_services_manager_all`.
@@ -3734,6 +4127,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - Fixed `toggleStaffActiveAction` with the same `.select("id")` + 0-row detection pattern.
 
 **Behavior:**
+
 - CRM/CSR operational roles can now UPDATE staff records in their branch through RLS (after migration is applied).
 - Server actions return real errors when RLS blocks an update or the row is missing.
 - Nickname changes are now persisted.
@@ -3741,6 +4135,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Owner and manager access remain unchanged.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3753,6 +4148,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Convert the CRM Edit Staff Profile drawer into a centered modal matching the newer centralized modal style, and ensure CRM-safe staff profile saving works end-to-end.
 
 **Root Causes Identified:**
+
 1. **UI was a right-side drawer:** `CrmStaffManagementTab` used `AdminDrawer` for Edit Profile, inconsistent with the newer centered modal pattern used for Edit Availability.
 2. **Inline styles throughout:** `StaffEditForm` had extensive inline `style={{}}` props violating project rules.
 3. **Silent failure on RLS block:** `updateStaffAction` returned `{ success: true }` even when RLS silently blocked the UPDATE (0 rows affected, no error from Supabase client).
@@ -3761,6 +4157,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 6. **Migration not applied:** `staff_operational_update_branch` RLS policy never reached production because `supabase db push` timed out.
 
 **Files Changed:**
+
 - `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx` (NEW)
   - Centered `AdminDialog` with `placement="center"`, `size="lg"`.
   - Staff identity summary card with `UserAvatar`, name, role, tier, status, branch.
@@ -3791,6 +4188,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - Idempotent migration adding `staff_services_operational_all` ALL policy for `staff_services`.
 
 **Behavior:**
+
 - CRM/CSR opens a centered Edit Staff Profile modal from `/crm/staff?tab=management`.
 - Modal has fixed header, scrollable body, sticky footer.
 - All fields use Tailwind classes; no inline styles.
@@ -3804,6 +4202,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Server actions return explicit errors on RLS blocks instead of fake success.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3816,6 +4215,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Rebuild the CRM Edit Staff Profile modal on `/crm/staff?tab=management` to match the approved centered tabbed mockup.
 
 **Files Created:**
+
 - `src/components/features/crm/staff/edit-staff-profile-types.ts` — Shared draft/tab/service/branch types and dirty-count helpers.
 - `src/components/features/crm/staff/edit-staff-profile-form-parts.tsx` — Shared section, field, input, and checkbox styling helpers.
 - `src/components/features/crm/staff/edit-staff-profile-identity-card.tsx` — Premium staff identity summary card.
@@ -3828,6 +4228,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/crm/staff/tabs/edit-staff-service-capabilities-tab.tsx` — Service Capabilities summary-only tab.
 
 **Files Changed:**
+
 - `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx`
   - Rebuilt from a plain long-form modal into a centered `AdminDialog size="xl"` tabbed editor.
   - Added fixed header, identity card, tab navigation, internally scrollable body, sticky footer, field validation, and dirty tracking across tabs.
@@ -3838,6 +4239,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - Profile save success now shows a short status message and refreshes the CRM staff table.
 
 **Behavior:**
+
 - Edit Profile opens a centered tabbed modal with the approved CRM visual structure.
 - Tabs: Profile Info, Work Setup, Access & Status, Service Capabilities.
 - CRM/CSR protected role restrictions remain enforced by the existing action and UI guards.
@@ -3846,6 +4248,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - No database schema changes, no new dependencies, no RBAC/auth weakening.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3858,22 +4261,26 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Full backend/RLS audit and stabilization so CRM/CSR can run daily operations without hidden DB failures.
 
 **Phase 1 — Silent failure fixes (code only, no DB changes):**
+
 - `crm/actions.ts` `updateCustomerAction`: added `.select("id")` + 0-row detection
 - `crm/bookings/actions.ts` `confirmBookingPaymentAction`: added `.select("id")` on primary + 42703-fallback booking update paths
 - `crm/waitlist/actions.ts` `updateWaitlistStatusAction`: added `.select("id")` + 0-row detection
 - `crm/reconciliation/actions.ts` `approveReconciliationAction`: added `.select("id")` + 0-row detection
 
 **Phase 2 — RLS migrations (created and applied to live DB):**
+
 - `20260530000001_crm_operational_rls_bookings.sql` — `crm` role INSERT+UPDATE on bookings (branch-scoped)
 - `20260530000002_crm_operational_rls_customers.sql` — `crm`+`csr_*` UPDATE on customers (scoped via bookings)
 - `20260530000003_crm_operational_rls_resources.sql` — fix `branch_resources` cross-branch read; add crm+csr_head UPDATE
 - `20260530000004_crm_operational_rls_misc.sql` — public→authenticated tightening; csr_staff booking_events read; crm onboarding read
 
 **Phase 3 — Guard fixes:**
+
 - `lib/actions/crm-schedule-availability.ts`: `getScheduleEditContext` now returns typed specific error per failure mode; branch UUID comparison now case-insensitive (fixes Zod v4 `z.guid()` case preservation)
 - `lib/actions/crm-staff-services.ts`: `z.string().uuid()` → `z.guid()` for Zod v4 compat
 
 **Browser verification:**
+
 - Staff profile edit (csr_staff): ✅ PASS
 - Service assignment (csr_staff): ✅ PASS
 - Schedule update (csr_staff): ✅ PASS
@@ -3882,11 +4289,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Owner regression: ✅ PASS
 
 **Remaining deferred:**
+
 - `booking_payment_logs` broad access: business decision, intentional
 - `departments` table: separate cleanup needed (backup + FK check)
 - Unused schedule helper tables: candidates for archival, do NOT drop without approval
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing script warnings)
 - `pnpm build`: ✅ Passing (89/89 routes)
@@ -3898,6 +4307,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Redesign `/crm/customers` into a unified CRM customer command center with premium tabs, KPI cards, tables, and a right preview rail.
 
 **Files Created:**
+
 - `src/components/features/crm/customers/lib/customer-segments.ts` — shared segment computation, date helpers, initials
 - `src/components/features/crm/customers/lib/customer-formatters.ts` — safe date/currency/days formatters
 - `src/components/features/crm/customers/customer-segment-tabs.tsx` — premium tab bar with forest-green active state
@@ -3911,6 +4321,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/crm/customers/customers-workspace.tsx` — main workspace orchestrator
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/customers/page.tsx` — unified server component fetching tab-specific data + KPIs
 - `src/app/(dashboard)/crm/repeats/page.tsx` — redirect to `/crm/customers?tab=repeat`
 - `src/app/(dashboard)/crm/lapsed/page.tsx` — redirect to `/crm/customers?tab=lapsed`
@@ -3918,6 +4329,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/crm/crm-tab-nav.tsx` — updated `CUSTOMERS_TABS` to 4 tabs; removed waitlist from `BOOKINGS_TABS`
 
 **Design Decisions:**
+
 - Single workspace at `/crm/customers?tab={all|repeat|lapsed|followup}` with server-side data fetching per tab.
 - Old routes (`/crm/repeats`, `/crm/lapsed`, `/crm/waitlist`) redirect to unified tab URLs.
 - Right preview rail fetches full customer profile + bookings on selection via existing `getCustomerProfileAction`.
@@ -3928,10 +4340,10 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - KPI data is derived safely from existing customer/bookings/waitlist queries.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing (0 errors)
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in scripts)
 - `pnpm build`: ✅ Passing
-
 
 ---
 
@@ -3942,6 +4354,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Files Created:** 12 premium components in `src/components/features/crm/premium/` (crm-motion-section, crm-kpi-card, crm-segment-tabs, crm-table-row, crm-preview-rail-shell, crm-empty-state, crm-status-badge, crm-loading-shimmer, crm-inline-action-button, crm-filter-bar, crm-table-shell, index.ts)
 
 **Files Changed:**
+
 - `src/app/globals.css` — crm-fade-up, crm-row-enter, .crm-row-selected, .crm-shimmer-wrap keyframes and classes
 - `src/components/features/crm/customers/customer-kpi-row.tsx` — CrmMotionSection + CrmKpiCard
 - `src/components/features/crm/customers/customer-segment-tabs.tsx` — delegates to CrmSegmentTabs
@@ -3953,6 +4366,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Notes:** No motion library installed. CSS-only animations. Scope: Customers only. No sidebar/auth/RLS changes.
 
 **Verification:**
+
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
@@ -3964,12 +4378,15 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Install motion 12 (modern Framer Motion), create shared variants, and upgrade CRM premium components from CSS-only animations to proper motion.
 
 **Dependency added:**
+
 - `motion` 12.40.0 — import path `motion/react`
 
 **Files Created:**
+
 - `src/components/features/crm/premium/variants.ts` — shared motion variants (sectionVariants, itemVariants, railVariants, emptyStateVariants, TAB_INDICATOR_SPRING, CS_EASE) + reduced-motion "still" counterparts
 
 **Files Changed:**
+
 - `src/components/features/crm/premium/crm-motion-section.tsx` — motion.div + real staggerChildren; useReducedMotion; falls back to plain div
 - `src/components/features/crm/premium/crm-kpi-card.tsx` — motion.div stagger child (itemVariants); whileHover y:-2 lift; useReducedMotion
 - `src/components/features/crm/premium/crm-segment-tabs.tsx` — motion.span with layoutId="crm-tab-indicator" spring slide; LayoutGroup scoped per instance via useId(); useReducedMotion fallback to plain span
@@ -3979,6 +4396,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/crm/premium/index.ts` — re-exports variants.ts
 
 **Design Decisions:**
+
 - `@number-flow/react` skipped — CountUpNumber is adequate for static server-fetched KPIs (values don't change after page load, Math.round issue only appears on value-change animations which don't occur here).
 - All shadcn/ui components needed (button, sheet, dropdown-menu, etc.) were already installed. Zero new shadcn installs needed.
 - CSS classes `crm-fade-up` and `crm-row-enter` remain in globals.css as non-breaking legacy — they are no longer used by the premium components but do not cause any issues.
@@ -3987,6 +4405,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - All motion code respects useReducedMotion() — reduced-motion users get instant/no animation with identical visual result.
 
 **Verification:**
+
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings in scripts)
 - pnpm build: Passing, 89 routes
@@ -3998,25 +4417,30 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Install Kokonut loader via shadcn CLI, adapt it to CradleHub theme, and integrate as a premium full-section loader working alongside (not replacing) the existing skeleton shimmer system.
 
 **Install:**
+
 - `pnpm dlx shadcn@latest add @kokonutui/loader` → created `src/components/kokonutui/loader.tsx`
 - No new npm dependency added (motion already installed)
 
 **Files Created:**
+
 - `src/components/features/crm/premium/crm-premium-loader.tsx` — CRM-themed wrapper around Kokonut loader. Changes from source: all ring conic-gradient colors use var(--cs-sand/--cs-sand-dark/--cs-border); 4 dark:block ring duplicates removed; text uses var(--cs-text/--cs-text-muted); useReducedMotion respected (static border rings fallback); role="status" + aria-live="polite"; inline styles kept only for conic-gradient + radial-gradient mask (cannot be expressed as Tailwind)
 - `src/components/features/crm/premium/crm-loading-state.tsx` — combined CrmPremiumLoader + optional CrmLoadingShimmer below it. Props: title, subtitle, loaderSize, shimmer ("kpi-row"|"table"|"rail"|"card-grid"|"none"), rows, cols
 
 **Files Changed:**
+
 - `src/components/features/crm/premium/index.ts` — exports CrmPremiumLoader, CrmPremiumLoaderProps, CrmLoadingState, CrmLoadingStateProps
 - `src/app/(dashboard)/crm/setup/loading.tsx` — now uses CrmLoadingState (title: "Checking setup readiness...", shimmer: card-grid, cols: 4)
 - `src/app/(dashboard)/crm/loading.tsx` — now uses CrmLoadingState (title: "Preparing CRM workspace...", shimmer: kpi-row, cols: 4)
 - `src/app/(dashboard)/crm/customers/loading.tsx` — warm skeleton preserved; small CrmPremiumLoader (size="sm") added between KPI shimmer and table shimmer
 
 **Small actions NOT touched:**
+
 - CrmInlineActionButton unchanged
 - All row/button/toggle/modal save loading patterns unchanged
 - PremiumSuccessToast unchanged
 
 **Verification:**
+
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
@@ -4028,24 +4452,28 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Wire the existing CrmEditStaffProfileModal (from Staff Management) into the Services Provider Assignments tab so staff profiles can be edited from both places using the same modal.
 
 **Audit findings:**
+
 - Existing modal: `src/components/features/crm/staff/crm-edit-staff-profile-modal.tsx`
 - Already used by: `CrmStaffManagementTab` via `handleEditStaff` / `onEditStaff` pattern
 - Provider Assignment tab: `CrmStaffCapabilitiesTab` (tab id "providers") had `<Link href="/manager/staff/${id}">Edit Profile ›</Link>` — navigated away from the CRM
 - `StaffForServicePanel` type was missing: nickname, phone, branch_id, tier, is_head, is_active, avatar_url, branches
 
 **Files Changed:**
+
 - `src/lib/queries/crm-services.ts` — Extended `StaffForServicePanel` type with modal-required fields; extended SELECT to fetch `nickname, phone, branch_id, tier, is_head, is_active, avatar_url, branches(id, name)`; used `as unknown as StaffForServicePanel[]` cast (Supabase inferred type for the complex select string doesn't overlap directly)
 - `src/components/features/crm/services/crm-staff-capabilities-tab.tsx` — Removed `import Link from "next/link"`; added optional `onEditProfile?: (member: StaffForServicePanel) => void` prop; replaced `<Link>` with `<button>` that calls `onEditProfile(member)` (renders null if prop not provided)
 - `src/components/features/crm/services/crm-services-workspace.tsx` — Added `reviewerSystemRole: string` prop; added `editingStaff` state; added `toStaffMember` mapper (StaffForServicePanel → StaffMember with null defaults for unused fields); added `serviceRows` useMemo (toCrmStaffServiceRows); added `branchOptions` useMemo (single branch); added `editingStaffServiceIds` computed from providerAssignments; added `handleEditProfile` and `handleEditSuccess` callbacks; renders `CrmEditStaffProfileModal` once; passes `onEditProfile` to `CrmStaffCapabilitiesTab`
 - `src/app/(dashboard)/crm/services/page.tsx` — Added `reviewerSystemRole: me.system_role` to return value; passed to `CrmServicesWorkspace`
 
 **Design decisions:**
+
 - Modal lifted to `CrmServicesWorkspace` — same pattern as `CrmStaffManagementTab` (tab fires callback, parent orchestrator manages modal)
 - `onEditServices` in the modal closes the modal (user is already on Services page, can manage assignments directly)
 - Single branch passed to modal — CRM/CSR cannot change branches (modal hides branch dropdown for non-owner/manager reviewers)
 - No new server actions, no new modal component, no RLS/auth changes
 
 **Verification:**
+
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
@@ -4059,6 +4487,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Root cause:** page.tsx was rendering CrmTabNav (route-link pills) ABOVE CrmServicesWorkspace, which already had its own internal button tab bar. Clicking the CrmTabNav pills triggered full Next.js soft-navigation → full page reload + loading.tsx flash. The internal workspace tabs were already instant but not exposed as the primary UI.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/services/page.tsx`
   - Removed `import { CrmTabNav, CRM_SERVICES_TABS }` — no longer needed
   - Removed `<CrmTabNav ...>` JSX — the route-link pills are gone
@@ -4072,17 +4501,20 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - `onSelect={handleTabChange}` wired to `CrmSegmentTabs`
 
 **URL sync approach:** `window.history.replaceState` (not `router.replace`) because `router.replace` triggers Next.js soft-navigation which would refetch server data. The `TAB_URL_PARAM` map ensures the canonical `?tab=` values match what the server's `initialTab` resolver expects:
-  - `readiness_issues` → `?tab=issues` (consistent with existing deep links in codebase)
+
+- `readiness_issues` → `?tab=issues` (consistent with existing deep links in codebase)
 
 **Deep links:** All `?tab=` params continue to work. Server reads `searchParams.tab`, computes `initialTab`, passes it to `CrmServicesWorkspace` as the initial `useState` value. After page load, tab switches are instant via client state.
 
 **Preserved:**
+
 - ProviderAssignmentSheet, service toggles, provider assignment save actions
 - CrmEditStaffProfileModal (wired at workspace level in previous task)
 - All actionHref links in readiness/provider components pointing to `/crm/services?tab=...`
 - router.refresh() after saves (reloads data after mutations — acceptable)
 
 **Verification:**
+
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
@@ -4094,10 +4526,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Convert /crm/setup, /crm/services, /crm/spaces-rules into one unified in-page workspace at /crm/setup with instant tab switching.
 
 **Files Created:**
+
 - `src/components/features/crm/setup/crm-setup-workspace.tsx` — Client orchestrator. 7 tabs: health, services, providers, spaces, booking_rules, staff_readiness, public_readiness. Uses CrmSegmentTabs + window.history.replaceState. No full page reload on tab switch.
 - `src/components/features/crm/setup/crm-staff-readiness-panel.tsx` — Simple staff readiness summary panel using preloaded health data.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/setup/page.tsx` — Major rewrite. Loads all data (health + services + staff-assignments + branch-detail + booking-rules + bookings) in parallel. Passes data as props to CrmSetupWorkspace. SetupHealthContent passed as a `healthSlot` RSC slot. Added `resolveTab()` mapping old URL params to internal SetupTab values.
 - `src/app/(dashboard)/crm/services/page.tsx` — Converted to compatibility redirect. Maps old ?tab= params to /crm/setup?tab=... (services/customization→services, providers→providers, issues→public_readiness).
 - `src/app/(dashboard)/crm/spaces-rules/page.tsx` — Converted to compatibility redirect. Always redirects to /crm/setup?tab=spaces.
@@ -4105,6 +4539,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/crm/crm-tab-nav.tsx` — SETUP_TABS updated to point directly to /crm/setup?tab=... (avoids extra redirect hop).
 
 **Design decisions:**
+
 - `SetupHealthContent` is a Server Component; passed as `healthSlot: React.ReactNode` from the server page to the client workspace — the standard Next.js RSC slot pattern.
 - Services-related tabs (services, providers, public_readiness) each mount `CrmServicesWorkspace` with `key={activeTab}` to force remount and start on correct inner tab.
 - Spaces-related tabs (spaces, booking_rules) each mount `SpacesRulesWorkspace` with `key={activeTab}` and `initialTab`.
@@ -4113,6 +4548,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - revalidatePath calls in actions still revalidate /crm/services and /crm/setup — those paths still exist as real routes (one redirects, one is the unified page). Both revalidations remain correct.
 
 **Verification:**
+
 - pnpm type-check: Passing (0 errors)
 - pnpm lint: Passing (0 errors, 2 pre-existing warnings)
 - pnpm build: Passing, 89 routes
@@ -4125,11 +4561,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Convert `/crm/staff` from route-link tabs to true in-page workspace tabs.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/staff/page.tsx`
 - `src/components/features/crm/staff/crm-staff-workspace.tsx`
 - `src/components/features/crm/crm-tab-nav.tsx`
 
 **Behavior:**
+
 - Removed Staff's rendered `CrmTabNav` route-link tab bar.
 - `CrmStaffWorkspace` now owns `activeTab` client-side and uses `CrmSegmentTabs` button tabs.
 - Tab switches update `?tab=` via `window.history.replaceState`, preserving unrelated URL params without triggering Next.js route navigation.
@@ -4139,6 +4577,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Existing Staff profile edit modal, service capabilities sheet, activate/deactivate action, `router.refresh()`, and success toasts were preserved.
 
 **Verification:**
+
 - `pnpm type-check`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 89 routes
@@ -4151,10 +4590,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Simplify the notification bell popover into one business-readable notification list.
 
 **Files Created:**
+
 - `src/components/features/notifications/notification-display.ts` — Display mapper that turns raw workspace notifications into title, detail, meta, action label, tone, href, and icon metadata.
 - `src/components/features/notifications/notification-popover-row.tsx` — Bell-only notification row with Lucide icons, unread dot, primary action, mark-read, and dismiss controls.
 
 **Files Changed:**
+
 - `src/components/features/notifications/notification-bell.tsx` — Replaced manual absolute dropdown/outside-click shell with existing Popover primitive; preserved unread count polling, visibility pause behavior, fetch-on-open behavior, and `BookingNotificationSound`.
 - `src/components/features/notifications/notification-popover.tsx` — Removed category tabs from the bell popover; replaced Action Required/Updates/Resolved/Activity buckets with one newest-first scrollable list, unread badge, Mark all read, warm skeleton rows, empty state, and footer link.
 - `.context/CURRENT_TASK.cmd.md` — Marked task in progress, then done.
@@ -4162,12 +4603,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/HANDOFF.cmd.md` — Added implementation and verification notes.
 
 **Behavior:**
+
 - Bell popover now shows one list, newest first.
 - Rows explain what happened, who/what is affected, when it happened, and the next action using safe metadata/body fallbacks.
 - Existing notification creation, database schema, RLS, auth, notification queries/actions, unread count, mark-read, mark-all-read, dismiss behavior, and notification sound were preserved.
 - Full notification pages were not redesigned; `notification-tabs.tsx`, `notification-row.tsx`, `notification-card.tsx`, and `notification-list-client.tsx` remain available for the notification center.
 
 **Verification:**
+
 - `pnpm type-check`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 89 routes
@@ -4180,6 +4623,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Convert CRM Bookings into an operational workflow surface with in-page tabs, centralized booking action modals, room assignment actions, and embedded callback follow-up.
 
 **Files Created:**
+
 - `src/components/features/bookings/booking-followup-modal.tsx` - centralized Booking Follow-up modal.
 - `src/components/features/bookings/customer-arrived-modal.tsx` - Customer Arrived confirmation modal.
 - `src/components/features/bookings/room-assignment-modal.tsx` - Assign Room / Change Room modal using branch resource availability.
@@ -4189,6 +4633,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/bookings/crm-booking-status.test.ts` - focused coverage for CRM booking status grouping.
 
 **Files Changed:**
+
 - `src/components/features/bookings/bookings-workspace.tsx` - added workflow tabs: Needs Confirmation, Confirmed, Waiting / Arrived, In Service, Completed, Callback Follow-up.
 - `src/components/features/bookings/bookings-table.tsx` - lifted booking actions into centralized modals and added next-action panel behavior.
 - `src/components/features/bookings/crm-bookings-view.tsx` - added SWR tab payload handling, `bookingId`/legacy `highlight` deep-link support, and mutation refresh.
@@ -4200,6 +4645,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Booking creation/status/payment actions - moved booking surface revalidation through the shared helper.
 
 **Behavior:**
+
 - CRM Bookings now opens as an operational workflow with tab-level counts and URL-synced `?tab=`.
 - Pending/incoming bookings include `pending`, `pending_payment`, and `pending_crm_confirmation`.
 - Booking Follow-up supports Confirmed, No Answer, Reschedule, Confirm Later, note capture, follow-up time, and cancellation.
@@ -4209,6 +4655,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Today queue links now use `bookingId` instead of `highlight`; legacy `highlight` still resolves in Bookings.
 
 **Verification:**
+
 - `pnpm type-check`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm test -- tests/lib/bookings/crm-booking-status.test.ts`: Passing, 2 tests
@@ -4224,6 +4671,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Redesign the CRM Bookings page into a premium Bookings Command Center without removing existing booking workflow logic.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/bookings/page.tsx` - loads unified command-center booking rows, cash summary, and callback follow-up rows.
 - `src/app/api/crm/bookings/route.ts` - returns the same command-center payload and replaces direct console logging with `logError`.
 - `src/lib/queries/bookings.ts` - added `getCrmBookingsCommandCenterRows()` to merge today's schedule with the pending/incoming CRM queue.
@@ -4233,6 +4681,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/shared/overlays/admin-dialog.tsx` - added dim blurred modal backdrop.
 
 **Behavior:**
+
 - CRM Bookings now opens as `Bookings Command Center` with the requested subtitle and primary `Refresh` / `New Booking` controls.
 - Workflow tabs are in-page and count-backed: Needs Confirmation, Confirmed, Waiting / Arrived, In Service, Completed, Callback Follow-up.
 - The booking table now shows Customer, Service, Time, Source/Type, Status, Payment, Amount, and Next Action.
@@ -4240,6 +4689,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Home-service travel states stay visible in the workflow instead of falling between tabs.
 
 **Verification:**
+
 - `pnpm type-check`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 89 routes
@@ -4252,12 +4702,15 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Add a compact live service timer to the CRM selected booking right panel.
 
 **Files Created:**
+
 - `src/components/features/bookings/service-countdown-chip.tsx` — new `ServiceCountdownChip` client component.
 
 **Files Changed:**
+
 - `src/components/features/bookings/bookings-table.tsx` — imported `ServiceCountdownChip` and inserted it as the first item in the `BookingDetailsPanel` sections container, between the compact hero card and `CrmNextActionsPanel`.
 
 **Implementation:**
+
 - Six timer phases: `buffer` (start buffer), `delayed` (start overdue), `running` (service in progress), `grace` (wrap-up window), `overtime` (past grace), `done` (completed tiny chip).
 - Phase logic:
   - `checked_in` + `resourceId` set → 5-minute start buffer counting down from `checkedInAt` (or mount time as fallback).
@@ -4270,6 +4723,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Color scheme: sand/gold for buffer+grace, green for running, soft red for delayed+overtime, neutral for done — all CSS variables only.
 
 **Visual order in right panel:**
+
 ```
 [compact hero card]
 [ServiceCountdownChip — service timer]  ← new
@@ -4279,6 +4733,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 ```
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: ✅ Passing, 89 routes
@@ -4291,12 +4746,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Upgrade the staff portal booking progress system into a full Service Progress workflow with a dedicated modal, direct session start, auto-completion, and CRM revalidation.
 
 **Files Created:**
+
 - `supabase/migrations/20260603000001_staff_direct_session_start.sql` — RPC update allowing `not_started → session_started` for in_spa bookings (direct start without CRM check-in).
 - `src/lib/bookings/service-session.ts` — Shared timing helpers: `computeServiceTimerState`, `fmtServiceSecs`, `SERVICE_BUFFER_SECS`, `SERVICE_GRACE_SECS`, `ServiceTimerState`, `ServiceTimerInput`, `ServiceTimerPhase`.
 - `src/components/features/staff-portal/service-session-countdown.tsx` — Staff portal live countdown widget (36px bold timer, progress bar, 6 phases: buffer/delayed/running/grace/overtime/done). Fires `onDue` callback when service duration expires.
 - `src/components/features/staff-portal/service-progress-modal.tsx` — Bottom sheet with booking header (customer/service/time/room), `ServiceSessionCountdown`, `BookingProgressActions` (full stepper + buttons), and auto-complete orchestration.
 
 **Files Changed:**
+
 - `src/lib/bookings/progress.ts` — Added `session_started` to `IN_SPA_TRANSITIONS.not_started` so staff can go directly to session without CRM check-in.
 - `src/app/(dashboard)/staff-portal/actions.ts`:
   - Added `revalidateOperationalBookingSurfaces` import + `revalidateStaffAndOperationalSurfaces` helper (revalidates all staff portal + CRM + manager booking paths).
@@ -4307,12 +4764,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/staff-portal/staff-appointment-card.tsx` — Converted to `"use client"`. Replaced always-expanded `BookingProgressActions` with compact progress dot + "Service Progress" button that opens `ServiceProgressModal`.
 
 **Key decisions:**
+
 - The `react-hooks/refs` rule in this project forbids reading/writing refs during render. Phase-transition tracking for `onDue` lives in a `useEffect([currentPhase])` — refs are only accessed inside effects.
 - `onDue` fires when phase enters `grace` or `overtime` (service duration expired). The `autoCompleteDueSessionAction` independently validates server time, making it safe even if the client clock drifts.
 - Home service bookings remain unchanged: travel → arrived → session is still required. The modal shows the full flow for both delivery types.
 - CRM still retains full control — the new staff actions go through the same `update_booking_progress` RPC and revalidate all CRM surfaces.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 89 routes
@@ -4326,6 +4785,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Integrate service countdown directly into the CRM Bookings selected-booking right panel hero card instead of as a separate section below.
 
 **Files Created:**
+
 - `src/components/features/bookings/hybrid-selected-booking-card.tsx` — `HybridSelectedBookingCard` client component.
   - **Normal mode**: hero (avatar + customer + service + room), detail rows (Customer/Service/Staff/Room/Time), and `Start Service` button when booking is checked-in with a room.
   - **Active service mode** (triggered by `status === "in_progress"` OR `booking_progress_status === "session_started"` AND `session_started_at != null`): same hero, plus integrated `CountdownZone` (minutes remaining, MM:SS timer, `of N min` total, segmented progress bar, "Started HH:MM · Staff · Room" meta row), and `Complete Service` button.
@@ -4333,6 +4793,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - Exported `HybridBookingViewModel` type for the flat view-model passed from the panel.
 
 **Files Changed:**
+
 - `src/components/features/bookings/bookings-table.tsx`:
   - Swapped `ServiceCountdownChip` import for `HybridSelectedBookingCard`.
   - Removed `X` icon import (close button now lives inside `HybridSelectedBookingCard`).
@@ -4343,12 +4804,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   - Panel title row simplified: booking code + status pills shown as a compact header row.
 
 **Behavior:**
+
 - Pending / confirmed / not-started bookings: clean detail card, `Start Service` only when `checked_in + resource assigned` (non-home-service).
 - In-progress / session-started bookings: same card but the countdown zone appears, showing live `N min remaining`, `MM:SS` timer, segmented bar, and `Complete Service` button.
 - Home-service bookings: countdown and Start/Complete buttons are suppressed; `CrmNextActionsPanel` handles dispatch flow.
 - Both CRM and staff portal write to the same `booking_progress_status` / `session_started_at` fields; CRM auto-refreshes after progress updates from either source.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 89 routes
@@ -4360,6 +4823,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fix the selected booking panel showing "Complete Service" when the service had not actually started.
 
 **Root cause (multi-layered):**
+
 1. `updateBookingStatusAction` only wrote `status = 'in_progress'`. It did NOT call the `update_booking_progress` RPC, so `booking_progress_status = 'session_started'` and `session_started_at` were never set.
 2. `isServiceActive` in `BookingDetailsPanel` checked `status === 'in_progress'` without requiring `session_started_at`. So any booking marked `in_progress` via the old path triggered the "active" branch — showing "Complete Service" with no countdown.
 3. `canStartService` only matched `checked_in + room` bookings, so confirmed non-checked-in bookings got neither "Start Service" nor "Complete Service" — just blank actions.
@@ -4367,11 +4831,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Fix summary:**
 
 `src/app/(dashboard)/crm/bookings/actions.ts`:
+
 - Added `revalidatePath` import + `revalidateServiceSurfaces()` (covers CRM + manager + all staff-portal paths).
 - Added `crmStartServiceAction({ bookingId })`: validates CRM access, calls `update_booking_progress` RPC with `session_started` (atomically sets `session_started_at`, `booking_progress_status`, and `status = 'in_progress'`). Idempotent for already-started bookings.
 - Added `crmCompleteServiceAction({ bookingId })`: calls RPC with `completed` (atomically sets `session_completed_at`, `booking_progress_status = 'completed'`, `status = 'completed'`). Idempotent for already-completed bookings.
 
 `src/components/features/bookings/hybrid-selected-booking-card.tsx`:
+
 - Added `useRef` import.
 - Added `onAutoComplete?: () => void` prop.
 - Tightened `isServiceActive`: now requires BOTH `(status === 'in_progress' || progress === 'session_started')` AND `Boolean(session_started_at)`.
@@ -4379,6 +4845,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Added `hasAutoCompletedRef` + `useEffect([isCountdownDue, onAutoComplete])` that fires `onAutoComplete` exactly once when countdown hits zero. Refs read/written in effect (never during render) — satisfies `react-hooks/refs` rule.
 
 `src/components/features/bookings/bookings-table.tsx`:
+
 - Imported `crmStartServiceAction`, `crmCompleteServiceAction`, `autoCompleteDueSessionAction`, `isBookingClosedForCrm`.
 - Fixed `isServiceActive`: same tight guard (requires `session_started_at`).
 - Broadened `canStartService`: any confirmed in-spa non-closed non-pending booking, not just checked_in+room.
@@ -4390,6 +4857,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Added `key={booking.id + session_started_at}` to `HybridSelectedBookingCard` so `hasAutoCompletedRef` resets when a new session starts.
 
 **Verification:**
+
 - `pnpm type-check`: ✅ Passing
 - `pnpm lint`: ✅ Passing (0 errors, 2 pre-existing warnings)
 - `pnpm build`: ✅ Passing, 89 routes
@@ -4412,11 +4880,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
    - **Fix**: `BookingDetailsPanel` has a `sessionOverride` state that is set in the Start Service success callback with `{ status, booking_progress_status, session_started_at }`. `effectiveStatus/ProgressStatus/SessionStartedAt` merge server props with the override. `HybridSelectedBookingCard` uses these effective values — countdown activates immediately. When the parent's `key` changes (server data arrives), the panel remounts and clears the override.
 
 **Files changed:**
+
 - `src/app/(dashboard)/crm/bookings/actions.ts` — direct update in `crmStartServiceAction` + `crmCompleteServiceAction`; tighter idempotency check
 - `src/components/features/bookings/bookings-workspace.tsx` — pass `allBookings={bookings}` to `BookingsTable`
 - `src/components/features/bookings/bookings-table.tsx` — `allBookings` fallback in `selected` derivation; `key` on `BookingDetailsPanel`; `SessionOverride` state + effective fields in `BookingDetailsPanel`; `wrappedStatusAction` also sets override
 
 **Verification:**
+
 - `pnpm type-check`: ✅
 - `pnpm lint`: ✅ (0 errors, 2 pre-existing warnings)
 - `pnpm build`: ✅ 89 routes
@@ -4428,14 +4898,17 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build a responsive Staff Full Schedule Calendar Modal for the CRM Schedule selected-staff right panel.
 
 **Files Created:**
+
 - `src/app/(dashboard)/crm/schedule/actions.ts` - server action that loads selected staff schedule data, overrides, group fallback rules, blocked times, and bookings with branch-scoped access checks.
 - `src/components/features/staff-schedule/staff-schedule-calendar-modal.tsx` - client modal with Day, Week, and Month calendar views.
 
 **Files Changed:**
+
 - `src/components/features/schedule/crm-schedule-details-panel.tsx` - replaced the old `View Full Schedule` navigation link with a modal-opening action and passes selected staff context into the modal.
 - `src/components/features/schedule/schedule-workspace.tsx` - passes the selected availability item and branch name into the details panel.
 
 **Behavior:**
+
 - `View Full Schedule` now opens an in-page modal instead of navigating away.
 - Week view is the default, uses Monday-Sunday columns, and renders a time rail with shift, day-off, booking, blocked-time, and overnight blocks.
 - Day view focuses the selected date, while Month view shows a compact operational overview across the full grid.
@@ -4443,6 +4916,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Summary cards, date navigation, filters, and legend are included in the modal shell.
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: Passing
 - `pnpm type-check`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
@@ -4457,6 +4931,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Implement a professional multi-workspace switching experience with a premium centered transition loader.
 
 **Files Created:**
+
 - `src/lib/auth/workspace-access.ts` - typed workspace access model, access builder, and redirect helpers.
 - `src/lib/auth/get-user-workspace-access.ts` - Supabase-backed current-user workspace resolver with super-admin/dev-bypass support.
 - `src/app/(dashboard)/select-workspace/page.tsx` - premium workspace selector page.
@@ -4465,6 +4940,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/shared/workspace-switch-link.tsx` - client navigation wrapper with loader, repeated-click guard, and failure handling.
 
 **Files Changed:**
+
 - `src/app/(auth)/login/actions.ts` - login redirect now uses workspace access count: zero → `/account/setup`, one → workspace, many → `/select-workspace`.
 - `src/proxy.ts` - route guard now validates workspace access instead of forcing a single role destination.
 - `src/app/(dashboard)/layout.tsx` - passes workspace access to the dashboard header.
@@ -4472,6 +4948,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/(dashboard)/driver/page.tsx` and `src/app/(dashboard)/driver/dispatch/page.tsx` - allow driver portal access by `staff_type = driver`.
 
 **Behavior:**
+
 - CRM/CSR users with linked active staff profiles can switch between CRM and Staff Portal.
 - Owners/managers are no longer forcibly redirected to CRM by the proxy and can enter their authorized workspaces.
 - Workspace cards expose only authorized destinations.
@@ -4479,6 +4956,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Users with no usable workspace land on `/account/setup` instead of being signed out immediately after login.
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: Passing
 - `pnpm type-check`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
@@ -4492,14 +4970,17 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fix Staff Portal pages for multi-access CSR/staff users showing the CRM/CSR sidebar instead of the Staff Portal navigation.
 
 **Files Changed:**
+
 - `src/components/features/dashboard/sidebar.tsx` - sidebar workspace resolution now uses the current route workspace first, then falls back to the role workspace.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up fix and verification notes.
 
 **Behavior:**
+
 - `/staff-portal/*` now uses Staff Portal sidebar metadata and `NAV_CONFIG.staff` entries such as `My Schedule`, `My Week`, `My Stats`, `Profile`, and `Notifications`.
 - CSR/CRM roles still fall back to CRM navigation on non-workspace or CRM paths.
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 91 routes
@@ -4512,19 +4993,23 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Let staff edit their own Staff Portal profile name/nickname while keeping system role, staff role, and tier editable only by higher-power staff management users.
 
 **Files Created:**
+
 - `src/components/features/staff-portal/staff-profile-details-form.tsx` - client form with editable Full Name/Nickname and locked read-only System Role, Staff Role, and Tier fields.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/staff-portal/actions.ts` - added `updateMyProfileDetailsAction`; profile lookup now selects real `staff_type`, `avatar_url`, and `avatar_path`; profile photo DB update now uses the server admin client after staff auth validation.
 - `src/app/(dashboard)/staff-portal/profile/page.tsx` - replaces read-only account details grid with the new self-edit form and label formatting.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up fix and verification notes.
 
 **Behavior:**
+
 - Staff can update only `full_name` and `nickname` from `/staff-portal/profile`.
 - `system_role`, `staff_type`, and `tier` stay locked in Staff Portal and must be changed from the higher-power staff management flows.
 - Staff Portal profile cards now show real `staff_type` and existing avatar URL/path when the columns are present.
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 91 routes
@@ -4537,17 +5022,20 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Allow Staff Portal users to edit Staff Role and System Role from supported dropdown lists and keep the save button spinner inside the button.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/staff-portal/actions.ts` - `updateMyProfileDetailsAction` now accepts and validates `systemRole` and `staffType` against supported constants before updating `system_role` and `staff_type`.
 - `src/components/features/staff-portal/staff-profile-details-form.tsx` - System Role and Staff Role are now dropdown fields sourced from `SYSTEM_ROLE_OPTIONS` and `STAFF_TYPE_OPTIONS`; save button keeps `Loader2` in-button pending state.
 - `src/app/(dashboard)/staff-portal/profile/page.tsx` - passes raw `system_role` and `staff_type` values into the form.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up.
 
 **Behavior:**
+
 - Staff can edit `full_name`, `nickname`, `system_role`, and `staff_type` from `/staff-portal/profile`.
 - `tier` remains read-only in the Staff Portal profile form.
 - Dropdown choices use the supported app role constants rather than free text.
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 91 routes
@@ -4560,14 +5048,17 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Make the Staff Portal profile save button obvious and ensure the spinner effect appears inside the button while saving.
 
 **Files Changed:**
+
 - `src/components/features/staff-portal/staff-profile-details-form.tsx` - moved the submit button into the Account Details header and switched the button pending state to a `useFormStatus()` submit component with inline `Loader2` spinner and `Saving` label.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - recorded the follow-up.
 
 **Behavior:**
+
 - Staff see `Save Changes` at the top of the Account Details card, beside the tier-managed badge.
 - While the form submits, the button disables and shows the spinner inline before `Saving`.
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: Passing
 - `pnpm lint`: Passing with 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`
 - `pnpm build`: Passing, 91 routes
@@ -4580,6 +5071,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Implement approved Basic Staff Portal mobile experience for non-therapist, non-driver staff.
 
 **New files:**
+
 - `src/lib/staff/get-staff-portal-mode.ts` — StaffPortalMode helper (basic | therapist | driver | crm_staff) using `isServiceStaffType` and system_role
 - `src/components/features/staff-portal/basic/basic-staff-header.tsx` — sticky mobile header with logo, role label, notification bell, avatar
 - `src/components/features/staff-portal/basic/basic-staff-greeting-card.tsx` — greeting + status badge (On Duty / Day Off / No Shift)
@@ -4594,6 +5086,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/(dashboard)/staff-portal/more/page.tsx` — new route `/staff-portal/more`
 
 **Modified files:**
+
 - `src/lib/staff-portal/week.ts` — WeekResult.staff extended to include `nickname`, `staff_type`, `avatar_url`, `avatar_path`
 - `src/app/(dashboard)/staff-portal/actions.ts` — added `getMyTodayScheduleAction` (today's shift/override data) and `getMyMonthlyScheduleStatsAction` (schedule-based monthly stats)
 - `src/app/(dashboard)/staff-portal/page.tsx` — detects mode via `getStaffPortalMode`; basic staff see `BasicStaffMobileHome`, therapist/driver see existing `StaffMobileHome`
@@ -4603,6 +5096,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/staff-portal/mobile/staff-mobile-bottom-nav.tsx` — More item now links to `/staff-portal/more` (was `/staff-portal/profile`); active detection handles all More sub-paths
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: PASS
 - `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in scripts/)
 - `pnpm build`: PASS, 92 routes (+1 `/staff-portal/more`)
@@ -4618,11 +5112,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Implement approved Therapist Staff Portal mobile experience for service provider staff (therapist, nail_tech, aesthetician, salon_head).
 
 **New server action:**
+
 - `getMyServiceProgressAction(date)` in `actions.ts` — fetches all non-cancelled today's bookings; returns `{ active, completed, staff }`.
 
 **New route:** `/staff-portal/service-progress` — therapist service progress page.
 
 **New components (13) in `src/components/features/staff-portal/therapist/`:**
+
 - `therapist-mobile-bottom-nav.tsx` — Home, Schedule, Service (→ /service-progress), Stats, More
 - `therapist-header.tsx` — header with logo, role label, bell, avatar
 - `therapist-greeting-card.tsx` — service-aware status: In Service, Traveling, On Duty, Day Off, No Shift
@@ -4638,6 +5134,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `therapist-more-menu.tsx` — Account + Work (My Week, Dispatch, Service History) + Support sections; server logout action
 
 **Modified files:**
+
 - `actions.ts` — new `getMyServiceProgressAction` and `ServiceProgressResult` type
 - `page.tsx` (home) — therapist mode → `TherapistMobileHome`; schedule data also fetched for therapist
 - `schedule/page.tsx` — therapist mobile → `TherapistScheduleList`
@@ -4646,12 +5143,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `more/page.tsx` — mode-aware: therapist → `TherapistMoreMenu`, basic → `BasicStaffMoreMenu`
 
 **Key design decisions:**
+
 - `BookingProgressActions` reused unchanged inside service progress cards — no duplicate progress system
 - Dispatch page at `/staff-portal/dispatch` unchanged — therapist home and more menu link there
 - Basic Staff Portal (`basic/` folder) and Driver Portal completely untouched
 - Service-aware status badge in greeting: detects session_started → "In Service", travel_started/arrived → "Traveling"
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: PASS
 - `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in scripts/)
 - `pnpm build`: PASS, 93 routes (+1 /staff-portal/service-progress)
@@ -4664,6 +5163,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Implement approved Driver Staff Portal mobile experience for driver staff (system_role=driver OR staff_type=driver).
 
 **New server actions (4) in actions.ts:**
+
 - `getMyDriverJobsAction(date)` — today's dispatch jobs via `getDispatchData(role="driver")`
 - `getMyDriverAllJobsAction()` — last 30 days of jobs for "All" tab (direct driver_id query)
 - `getMyDriverJobByIdAction(bookingId)` — single job with driver safety check
@@ -4672,6 +5172,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **New routes (4):** /staff-portal/map, /staff-portal/jobs, /staff-portal/jobs/active, /staff-portal/jobs/[bookingId]
 
 **New components (18) in src/components/features/staff-portal/driver/:**
+
 - driver-mobile-bottom-nav.tsx — Home, Dispatch, Map, Jobs, More
 - driver-header.tsx, driver-greeting-card.tsx (route-aware status), driver-today-overview-card.tsx
 - driver-next-stop-card.tsx (countdown badge + address), driver-quick-actions.tsx
@@ -4686,6 +5187,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Modified pages:** home, dispatch, stats, more — all now route driver mode to driver components.
 
 **Key decisions:**
+
 - `updateBookingProgressAction` reused for travel/arrived transitions — no duplicate progress system
 - `getDispatchData(role="driver")` reused — no new dispatch table
 - Map uses Google Maps links — no new map library installed
@@ -4700,6 +5202,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Refine the driver staff mobile portal so navigation/profile editing match the approved mobile-first flow and staff identity edits stay safe.
 
 **New/updated driver components:**
+
 - `driver-mobile-shell.tsx` — shared mobile shell for driver staff; owns persistent bottom nav and profile sheet.
 - `driver-mobile-bottom-nav.tsx` — bottom nav is now Home, Dispatch, Map, Jobs, Profile; Profile opens the sheet instead of routing to a separate More tab.
 - `driver-profile-sheet.tsx` — mobile bottom sheet reusing safe profile/photo actions; staff can edit only full name, nickname, and avatar.
@@ -4707,6 +5210,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `driver-route-bottom-card.tsx`, `driver-status-badge.tsx`, `driver-empty-state.tsx` — shared route/status/empty-state UI helpers.
 
 **Modified behavior:**
+
 - `/staff-portal/layout.tsx` wraps only driver-mode staff in `DriverMobileShell`, preserving existing Basic and Therapist mobile portals.
 - Driver screens no longer render duplicated fixed bottom navs.
 - `/staff-portal/schedule` now renders `DriverSchedulePage` on mobile for driver staff and keeps the desktop schedule on desktop.
@@ -4715,11 +5219,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Staff/booking revalidation includes driver routes (`dispatch`, `map`, `jobs`, `jobs/active`, `stats`, `more`) and operational CRM dispatch/live surfaces.
 
 **Safety notes:**
+
 - Staff Portal profile details action remains restricted to `full_name` and `nickname`.
 - System role, staff role/type, tier, branch, active status, permissions, services, schedules, and assignments are read-only or unavailable to staff self-edit flows.
 - Profile photo update continues through the existing `updateStaffProfilePhotoAction`.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 pre-existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 96 routes
@@ -4732,6 +5238,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build a premium mobile-first Driver Jobs page and wire the driver floating navbar center button to the Jobs route, preserving existing booking/status logic.
 
 **Files Created:**
+
 - `src/components/features/staff-portal/driver/jobs/driver-jobs-page.tsx` - client Jobs page with Today/All tabs, summary row, active job, grouped cards, and empty/error states.
 - `src/components/features/staff-portal/driver/jobs/driver-jobs-view-model.ts` - typed display-safe mapping from `RealDispatchItem` to driver job cards.
 - `src/components/features/staff-portal/driver/jobs/driver-jobs-header.tsx` - large mobile Jobs header with notification button.
@@ -4746,6 +5253,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/(dashboard)/driver/jobs/[bookingId]/page.tsx` - standalone Driver job details route reusing existing job details component.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/staff-portal/jobs/page.tsx` - now renders the new Jobs page component.
 - `src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx` - center floating action is now `Jobs`, routing to `/staff-portal/jobs` or `/driver/jobs`.
 - `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` - center action supports active state.
@@ -4755,6 +5263,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Removed old inline-styled `driver-jobs-list-page.tsx` and `driver-job-card.tsx`.
 
 **Behavior:**
+
 - Driver Jobs page uses real existing driver booking/job data from `getMyDriverAllJobsAction`.
 - The page title and visible copy use Jobs/Job/Trips wording, not Dispatch.
 - Active/on-route/arrived/in-progress jobs are highlighted in an Active Job card with a live elapsed timer when a start timestamp exists.
@@ -4765,6 +5274,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Desktop dispatch workspace and backend booking/status logic were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -4772,6 +5282,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Protected route smoke checks for `/driver/jobs`, `/staff-portal/jobs`, and `/driver/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
 
 **Follow-up:**
+
 - Authenticated mobile visual QA still needs a valid local driver staff session.
 
 ## 2026-06-04 - Codex (DRIVER-PROFILE-EDIT-001 - Driver Profile pop modal)
@@ -4779,6 +5290,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build a mobile pop modal / bottom-sheet profile experience for the Driver mobile Profile button with inline edit mode.
 
 **Files Created:**
+
 - `src/components/features/staff-portal/driver/profile/driver-profile-sheet.tsx` - shell-owned bottom sheet with view/edit mode.
 - `src/components/features/staff-portal/driver/profile/driver-profile-view.tsx` - view-mode composition.
 - `src/components/features/staff-portal/driver/profile/driver-profile-edit-form.tsx` - inline edit form for supported self-edit fields.
@@ -4791,6 +5303,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/staff-portal/driver/profile/driver-profile-utils.ts` - profile label helpers.
 
 **Files Changed:**
+
 - `src/components/features/staff-portal/driver/driver-profile-sheet.tsx` - now wraps the new profile sheet component.
 - `src/components/features/staff-portal/driver/driver-mobile-shell.tsx` - passes `isProfileOpen` / `onProfileOpen` to the driver nav.
 - `src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx` - Profile is a button with `aria-label="Open profile"` and active modal state.
@@ -4800,6 +5313,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/lib/dev-bypass.ts` - dev bypass staff record includes profile fields required by the driver modal.
 
 **Behavior:**
+
 - The shell-owned driver Profile nav button opens a mobile bottom sheet instead of navigating away.
 - View mode shows real staff data: avatar/initials, full name, nickname, Driver role, branch, duty chip, phone, staff type, Driver Portal access, readiness, actions, and logout.
 - Edit mode stays inside the sheet and supports full name, nickname, phone, and profile photo.
@@ -4808,6 +5322,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Standalone `/driver/*` contexts keep missing action routes disabled instead of linking to broken routes.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -4815,6 +5330,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Protected route smoke checks for `/staff-portal`, `/driver`, and `/driver/jobs` returned 307 -> `/login` as expected.
 
 **Follow-up:**
+
 - Authenticated mobile visual QA still needs a valid local driver staff session.
 
 ---
@@ -4824,6 +5340,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build a premium mobile-first Driver Route Map page for the existing driver map route, preserving backend booking/status logic and the shell-owned floating bottom nav.
 
 **Files Created:**
+
 - `src/components/features/staff-portal/driver/map/driver-route-map-page.tsx` - composed Route Map page with mobile premium layout and restrained desktop fallback.
 - `src/components/features/staff-portal/driver/map/driver-route-view-model.ts` - typed route state/stop view model derived from real dispatch items.
 - `src/components/features/staff-portal/driver/map/driver-route-map-header.tsx` - compact mobile Route Map header.
@@ -4839,11 +5356,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/(dashboard)/driver/map/page.tsx` - standalone Driver Route Map route.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/staff-portal/map/page.tsx` - now renders the new Route Map component set.
 - `src/components/features/staff-portal/driver/driver-mobile-bottom-nav.tsx` - standalone Driver portal now links to `/driver/map` with visible label `Map`.
 - Removed old inline-styled `driver-route-map-page.tsx` and `driver-route-bottom-card.tsx`.
 
 **Behavior:**
+
 - Mobile driver Route Map now shows a compact header, real route status summary chips, map-like route panel, floating map controls, next-stop bottom sheet, navigation/details actions, and today stops strip.
 - Visible route UI uses Route Map / Map / Trips wording; internal dispatch route/query names remain unchanged for safety.
 - ETA and distance only show concrete values when the existing dispatch item data supports them; otherwise the UI uses pending labels instead of fake values.
@@ -4851,6 +5370,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - No backend logic, booking status rules, tables, or desktop dispatch workspace were changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 97 routes
@@ -4858,6 +5378,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Protected route smoke checks for `/staff-portal/map`, `/driver/map`, and `/driver/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
 
 **Follow-up:**
+
 - Authenticated mobile visual QA still needs a valid local driver staff session because this turn only had unauthenticated route access and no in-app browser screenshot tool.
 
 ---
@@ -4867,11 +5388,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build a persistent floating glass mobile bottom navbar across Basic Staff Portal, Therapist Staff Portal, Driver Staff Portal, and standalone `/driver/*` routes without changing desktop layouts or backend dispatch/booking logic.
 
 **Files Created:**
+
 - `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` - shared reusable floating glass mobile nav with four edge items and optional center action.
 - `src/components/features/staff-portal/mobile/staff-mobile-shell.tsx` - Basic/CSR staff mobile shell that owns bottom spacing and nav.
 - `src/components/features/staff-portal/therapist/therapist-mobile-shell.tsx` - Therapist mobile shell that owns bottom spacing and nav.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/staff-portal/layout.tsx` - wraps staff portal children in the correct mode-specific mobile shell: basic, therapist, or driver.
 - `src/app/(dashboard)/driver/layout.tsx` - wraps standalone driver routes in `DriverMobileShell` when a staff profile is available.
 - `src/components/features/staff-portal/mobile/staff-mobile-bottom-nav.tsx` - now configures the shared floating nav for staff routes.
@@ -4881,18 +5404,21 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Basic, Therapist, legacy Staff mobile home, and standalone Driver mobile pages - removed duplicate per-page fixed nav renders and old hardcoded `paddingBottom: 96`.
 
 **Behavior:**
+
 - Mobile staff, therapist, and driver workspaces now get one persistent shell-owned floating glass bottom nav.
 - Desktop behavior remains unchanged through `md:hidden` nav and `md:contents` shell behavior.
 - Staff portal mobile routes preserve existing Basic, Therapist, Driver, mobile week, and mobile schedule component flows.
 - Standalone `/driver` and `/driver/dispatch` now share the same mobile driver shell/profile sheet pattern as driver staff portal routes.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 96 routes
 - Protected route smoke checks for `/staff-portal`, `/staff-portal/schedule`, `/staff-portal/service-progress`, `/staff-portal/dispatch`, `/driver`, and `/driver/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
 
 **Follow-up:**
+
 - Authenticated mobile visual QA still needs a valid local staff/therapist/driver session because the current unauthenticated route checks redirect to `/login`.
 
 ---
@@ -4902,6 +5428,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build a polished mobile-first Driver Trips page UI for the existing driver trips/dispatch routes, using Trips/Trip/Jobs user-facing naming while keeping internal dispatch route/action names stable.
 
 **Files Created:**
+
 - `src/components/features/staff-portal/driver/trips/driver-trips-page.tsx` - client Trips page with Today, Upcoming, and History tabs.
 - `src/components/features/staff-portal/driver/trips/driver-trips-header.tsx` - compact sticky Trips header.
 - `src/components/features/staff-portal/driver/trips/driver-trips-tabs.tsx` - mobile filter tabs with counts.
@@ -4911,17 +5438,20 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/staff-portal/driver/trips/driver-trip-empty-state.tsx` - empty states for today/upcoming/history.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/driver/dispatch/page.tsx` - mobile now renders `DriverTripsPage`; desktop keeps `HomeServiceDispatchWorkspace`.
 - `src/app/(dashboard)/staff-portal/dispatch/page.tsx` - driver-mode mobile now renders `DriverTripsPage`; desktop/non-driver dispatch behavior is preserved.
 - `src/components/features/staff-portal/driver/driver-dispatch-page.tsx` - compatibility wrapper now delegates to `DriverTripsPage` so old visible Dispatch copy is not used.
 
 **Behavior:**
+
 - Driver mobile Trips page shows Today, Upcoming, and History filters.
 - Active in-progress trips are promoted into a premium active trip section.
 - Upcoming trips and completed/cancelled history use real booking/trip data from existing driver dispatch queries/actions.
 - No backend logic, status rules, tables, or desktop dispatch workspace were changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 96 routes
@@ -4929,6 +5459,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Protected route smoke checks for `/driver/dispatch` and `/staff-portal/dispatch` reached the local server and redirected unauthenticated traffic to `/login` as expected.
 
 **Follow-up:**
+
 - Authenticated mobile visual QA still needs a valid local driver staff session.
 
 ---
@@ -4938,6 +5469,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Add a slim mobile route-change loading line that pairs with existing skeleton loading states without changing backend logic, booking rules, or desktop layouts.
 
 **Files Created:**
+
 - `src/components/features/mobile-shell/mobile-navigation-progress-provider.tsx` - mobile navigation progress context with minimum visible duration and stuck-state fallback timeout.
 - `src/components/features/mobile-shell/mobile-route-progress.tsx` - mobile-only fixed top progress line.
 - `src/components/features/mobile-shell/mobile-nav-link.tsx` - Next Link wrapper that starts progress only for normal internal route navigation.
@@ -4946,6 +5478,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/(dashboard)/driver/map/loading.tsx` - standalone driver Map skeleton.
 
 **Files Changed:**
+
 - `src/components/features/mobile-shell/floating-mobile-bottom-nav.tsx` - uses `MobileNavLink` for href items and center actions.
 - `src/components/features/staff-portal/driver/driver-mobile-shell.tsx` - mounts one mobile progress provider/line around driver children, nav, and profile sheet.
 - `src/components/features/staff-portal/mobile/staff-mobile-shell.tsx` - mounts one mobile progress provider/line for Basic Staff navigation.
@@ -4953,6 +5486,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/(dashboard)/driver/page.tsx` - removed an existing inline-styled desktop error banner in favor of Tailwind classes.
 
 **Behavior:**
+
 - Mobile bottom-nav route taps show a thin forest/teal top loading line.
 - Tapping the current active route does not start progress.
 - Driver Profile remains a modal button action and does not start route progress.
@@ -4960,6 +5494,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Desktop UI remains unchanged.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -4967,6 +5502,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Protected route smoke checks for `/driver`, `/driver/dispatch`, `/driver/jobs`, `/driver/map`, `/staff-portal`, `/staff-portal/dispatch`, `/staff-portal/jobs`, `/staff-portal/map`, `/staff-portal/schedule`, and `/staff-portal/service-progress` reached the local server and redirected unauthenticated traffic to `/login` as expected.
 
 **Follow-up:**
+
 - Authenticated mobile visual QA still needs valid local Basic Staff, Therapist, and Driver sessions because protected mobile routes redirect unauthenticated traffic to `/login` and no in-app browser navigation/screenshot tool was exposed in this turn.
 
 ---
@@ -4976,6 +5512,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Redesign Schedule Setup General Rules and Individual Schedule Editing to match the provided role-aware rule-builder mockup without changing backend logic.
 
 **Files Created:**
+
 - `src/components/features/staff-schedule/schedule-rule-builder-utils.ts` - shared group schedule policy, pattern conversion, shift helpers, and save payload helpers.
 - `src/components/features/staff-schedule/shift-toggle-pill.tsx` - reusable opening/closing/regular/day-off pill toggle.
 - `src/components/features/staff-schedule/weekly-rule-day-row.tsx` - day row for the pill-based weekly matrix.
@@ -4984,6 +5521,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/staff-schedule/individual-schedule-editor.tsx` - individual staff schedule editor with staff selector, save/reset actions, comparison state, and right rail.
 
 **Files Changed:**
+
 - `src/components/features/staff-schedule/group-schedule-rules-panel.tsx` - replaced the old checkbox-style group rule editor with role-aware shift cards, pill toggles, edit-time controls, and summary sections.
 - `src/components/features/staff-schedule/schedule-group-cards.tsx` - refreshed group selector pills with role labels, icons, counts, and missing-rule hints.
 - `src/components/features/staff-schedule/schedule-setup-right-rail.tsx` - redesigned coverage, group summary, and quick action cards.
@@ -4991,12 +5529,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
 
 **Behavior:**
+
 - General Rules now renders opening/closing shift controls only for split-shift groups and regular-shift controls for regular-only groups.
 - Individual Adjustments now supports staff selection, custom weekly override editing, reset-to-group-default, save feedback, custom diff hints, and compare-with-group summaries.
 - Existing `upsertStaffGroupScheduleRuleAction`, `deleteStaffGroupScheduleRuleAction`, and `saveStaffWeeklyScheduleAction` remain the only write paths.
 - Booking, dispatch, driver portal, payment, schema, and unrelated operational logic were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5005,6 +5545,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Targeted scan found no inline styles, `any`, `@ts-ignore`, or lingering `React.ComponentType` references in touched schedule files.
 
 **Follow-up:**
+
 - Authenticated visual QA still needs a valid CRM/manager session because protected schedule setup routes redirect unauthenticated traffic to `/login` and no in-app browser navigation/screenshot tool was exposed in this turn.
 
 ---
@@ -5014,6 +5555,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Replace the public booking Select therapist card grid with a compact dropdown-only provider picker while preserving existing booking behavior.
 
 **Files Created:**
+
 - `src/components/features/booking/therapist-picker/therapist-picker-types.ts` - shared picker value, option, and staff data types.
 - `src/components/features/booking/therapist-picker/therapist-picker-utils.ts` - Any provider option, initials, labels, and option-building helpers.
 - `src/components/features/booking/therapist-picker/therapist-availability-badge.tsx` - compact availability/recommendation badge.
@@ -5024,10 +5566,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/booking/therapist-picker/therapist-selection-step.tsx` - composed Select therapist step UI.
 
 **Files Changed:**
+
 - `src/components/public/booking-wizard.tsx` - replaced the old therapist card grid with the dropdown-only picker and updated booking summary provider labels.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
 
 **Behavior:**
+
 - `Any available provider` remains the recommended default and maps to the existing `"auto"` flow.
 - Specific therapist selection sets the existing staff/provider id.
 - Clear resets selection back to `Any available provider`.
@@ -5036,6 +5580,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Existing booking backend logic, status rules, API contracts, submission payload shape, tables, and real provider data sources remain unchanged.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5044,6 +5589,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Targeted scans found no TypeScript `any` in the touched picker/wizard paths, no inline styles or `@ts-ignore` in the new therapist-picker files, no therapist-step search UI, and no old large-card grid markers. Existing inline styles remain elsewhere in the older booking wizard outside this picker scope.
 
 **Follow-up:**
+
 - Manual browser QA through the full public booking flow can confirm final visual spacing with live service, location, slot, and provider data.
 
 ---
@@ -5053,6 +5599,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Enhance only the public mobile homepage first-load experience with a Cradle Breath Reveal and premium real-photo hero using the uploaded Cradle images.
 
 **Files Created:**
+
 - `src/components/public/mobile/cradle-breath-reveal.tsx` - mobile-only once-per-session Cradle Breath Reveal client component.
 - `public/images/spa/hero-mobile.jpg` - optimized `LAB08869.jpg`, first mobile hero image.
 - `public/images/spa/hero-wide.jpg` - optimized `LAB08817.jpg`, room/trust hero slide.
@@ -5060,6 +5607,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `public/images/spa/hero-supporting-massage.jpg` - optimized `LAB08871.jpg`, optional supporting image.
 
 **Files Changed:**
+
 - `src/components/public/mobile/mobile-home-hero-carousel.tsx` - replaced the fast carousel with stable hero copy, real Cradle slides, slow CSS crossfade, and gentle Ken Burns zoom.
 - `src/components/public/mobile/public-mobile-home.tsx` - mounted `CradleBreathReveal` above the mobile hero.
 - `src/app/layout.tsx` - added Manrope through `next/font/google`.
@@ -5068,6 +5616,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
 
 **Behavior:**
+
 - Mobile homepage shows Cradle Breath Reveal once per browser session using `cradle_mobile_home_reveal_seen`.
 - Reveal is mounted only on the public mobile homepage and skips desktop/reduced-motion/session-seen states.
 - Mobile hero first slide is `hero-mobile.jpg` from `LAB08869.jpg`.
@@ -5078,6 +5627,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Booking, Supabase, schema, server actions, CRM/admin/staff/driver portals, authentication, RBAC, and route behavior were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5086,6 +5636,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Targeted scan found no `any`, `@ts-ignore`, or console logs in the touched reveal/hero/font/image files.
 
 **Follow-up:**
+
 - Existing desktop/lower-section image `sizes` warnings for older `hero.jpg` and `cta-banner.jpg` remain outside this scoped mobile hero task.
 
 ---
@@ -5095,12 +5646,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fix the public mobile homepage so the old generic loading skeleton no longer appears before the Cradle reveal, the first hero image is ready when the reveal ends, and the hero photo is not washed out by a heavy overlay.
 
 **Files Changed:**
+
 - `src/app/loading.tsx` - replaced the root gray skeleton fallback with a lightweight branded Cradle loading bridge using deep forest green, cream, and warm gold.
 - `src/components/public/mobile/cradle-breath-reveal.tsx` - changed reveal state from immediate visible/default-dismissed behavior to an explicit checking/showing/hidden state so repeat sessions do not flash the reveal overlay.
 - `src/components/public/mobile/mobile-home-hero-carousel.tsx` - changed the first hero image to Next 16 `preload={true}` behavior, left secondary slides unpreloaded, and replaced the heavy full-screen overlay with targeted top/text/bottom gradients plus a subtle warm glow.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - updated Codex task records.
 
 **Behavior:**
+
 - Public route streaming now starts with Cradle-branded loading instead of generic skeleton blocks.
 - `hero-mobile.jpg` is the only preloaded mobile hero slide; `hero-wide.jpg` and `hero-ambience.jpg` remain normal secondary carousel images.
 - Overlay moved from one full-screen green wash (`0.38 -> 0.66 -> 0.96`) to localized layers: top `0.42 -> 0.18 -> 0`, bottom max `0.78`, text-area `0.44 -> 0.16 -> 0`, and warm glow max `0.16`.
@@ -5109,6 +5662,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Booking, Supabase, schema, server actions, CRM/admin/staff/driver portals, authentication, RBAC, and route behavior were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5117,6 +5671,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Rendered stream check confirmed the new `Loading Cradle Wellness Living` fallback markup is emitted.
 
 **Follow-up:**
+
 - The Browser plugin navigation/screenshot tool was not exposed in this turn, so screenshots were captured with local headless Chrome instead.
 
 ---
@@ -5126,6 +5681,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Refine the public mobile homepage sections after the hero so they match the approved dark, premium, cinematic spa mockup.
 
 **Files Changed:**
+
 - `src/components/public/mobile/public-mobile-home.tsx` - removed the lighter interim mobile sections from the homepage flow and converted FAQ shell to dark glass.
 - `src/components/public/mobile/mobile-calm-categories.tsx` - rebuilt service category cards as full-image dark cinematic cards.
 - `src/components/public/mobile/mobile-most-loved-treatments.tsx` - rebuilt most-loved treatment cards as image-dominant dark cards with compact booking actions.
@@ -5138,6 +5694,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md` - updated Codex task records.
 
 **Behavior:**
+
 - Mobile homepage flow is now hero/reveal, Service Categories, Most-Loved Treatments, Signature Rituals, Guest Impressions, Branches, FAQ, and Final CTA.
 - Mobile homepage sections no longer use white/cream card surfaces in the touched section files.
 - Existing services and branches data continue to drive cards; no fake data, generated images, or stock images were added.
@@ -5145,6 +5702,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Booking logic, Supabase/database logic, server actions, CRM/admin/staff/driver portals, authentication, RBAC, and route behavior were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5153,6 +5711,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Targeted source scan found no `bg-white`, `bg-[#F3E9D2]`, `bg-[#FFF8E9]`, or `#FFFFFF` card backgrounds in the touched mobile homepage section files.
 
 **Follow-up:**
+
 - Headless Chrome screenshot capture was blocked because sandboxed Chrome failed with access denied and the escalated browser run was declined. Manual/in-app visual QA can still be run in a normal browser session.
 
 ---
@@ -5162,11 +5721,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Implement the final public mobile loading/transition behavior: one short homepage intro on first `/` entry per browser session, plus a simple top route-loading line for public page navigation.
 
 **Files Created:**
+
 - `src/components/public/public-loading-events.ts` - typed intro active-state event name/detail shared by the intro and route line.
 - `src/components/public/public-route-loading-line.tsx` - root-mounted, public-route-scoped client route-loading line.
 - `src/app/(public)/loading.tsx` - public segment warm-gold top-line loading fallback.
 
 **Files Changed:**
+
 - `src/components/public/mobile/cradle-breath-reveal.tsx` - switched to `cradle_public_intro_seen`, shortened to 1.2 seconds, and emits intro active/inactive events.
 - `src/app/layout.tsx` - mounts the self-scoped public route loading line.
 - `src/app/loading.tsx` - replaced the full-screen branded loading bridge with a non-branded dark mobile paint guard so no second shell appears before the homepage intro and mobile avoids light/white flash.
@@ -5175,6 +5736,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - logged the public loading transition update.
 
 **Behavior:**
+
 - Mobile homepage intro appears only from the homepage component and only once per browser session via `cradle_public_intro_seen`.
 - Desktop, reduced-motion, and repeat-session visits skip the intro without a flash.
 - Public top-line loading starts only for normal internal clicks between `/`, `/services`, `/book`, `/branches`, `/about`, and `/contact`.
@@ -5184,6 +5746,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Booking logic, booking data, APIs, Supabase/database logic, server actions, protected workspaces, CRM/admin/staff/driver portals, auth/RBAC, and middleware were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5193,6 +5756,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Targeted source scan found no new `any`, `@ts-ignore`, console logs, old intro key, or old full-screen loading-shell markers in touched loading/intro files.
 
 **Follow-up:**
+
 - Manual mobile visual QA should verify first homepage session intro, repeat-session skip, `/` back-navigation skip, route line on top-level public navigation, and no line during booking wizard step changes. Tool discovery did not expose the in-app browser controller in this turn.
 
 ---
@@ -5202,6 +5766,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Refine the public `/book` mobile booking wizard into a viewport-fitted app-like flow, with mobile Date & Time slots in a bottom sheet instead of below the calendar.
 
 **Files Changed:**
+
 - `src/components/public/booking-wizard.tsx` - changed the public mobile wizard shell to `h-[100dvh] min-h-[100dvh] overflow-hidden`, added the internal active-step scroll pane, compacted mobile header/progress/short steps, and added the mobile time-slot bottom sheet.
 - `src/components/public/booking-service-picker.tsx` - made the service picker live safely inside constrained-height parents, with mobile category chips fixed above an internally scrollable service grid.
 - `src/components/public/site-footer.tsx` - added a `public-site-footer` hook class.
@@ -5210,6 +5775,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - logged the public booking mobile viewport update.
 
 **Behavior:**
+
 - Public mobile `/book` now uses a viewport-fitted shell with compact booking header/progress, an internally scrollable active-step middle pane, and a fixed bottom action bar.
 - Branch, Visit Type, Location, Date & Time, Therapist, Details, and Success steps now use tighter mobile spacing; naturally long content remains inside the middle scroll region.
 - Services now keep category chips and selected summary compact while the service grid scrolls internally inside the active step area.
@@ -5219,6 +5785,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Booking step order, branch/service/visit/date/slot/therapist logic, submit payloads, available-slot API behavior, server actions, Supabase/database logic, protected workspaces, CRM/admin/staff/driver portals, auth/RBAC, and public route behavior were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5230,6 +5797,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Targeted scan found no new TypeScript `any`, `@ts-ignore`, or console logs in touched booking files; plain-English "any" matches were copy only.
 
 **Follow-up:**
+
 - Manual mobile click-through should still verify the live Date & Time bottom sheet after selecting branch, visit type, service, and date, because the in-app browser controller was not exposed and full slot availability depends on local/remote API responsiveness.
 
 ---
@@ -5239,22 +5807,26 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Warmed the public mobile homepage hero and redesigned only the mobile Signature Ritual cards to match the cinematic warm/dark CTA-card style.
 
 **Files Changed:**
+
 - `src/components/public/mobile/mobile-home-hero-carousel.tsx` - added a subtle amber image veil, warmer layered hero gradients, a warmer gold primary CTA, a warmer dark secondary CTA, and no-wrap guards for the unchanged hero button labels.
 - `src/components/public/mobile/mobile-signature-rituals.tsx` - replaced the large dark glass content block with full-background image cards, side-specific darker gradients behind text, lighter subject areas, top-left label pills, nearby price chips, preserved title/copy/duration content, and gold `Book Ritual` pills.
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md` - updated task records.
 - `public/images/spa/home/ritual-glow.jpg`, `public/images/spa/home/ritual-recovery.jpg`, `public/images/spa/home/ritual-full-reset.jpg` - supporting homepage ritual images referenced by the current mobile card state.
 
 **Preserved:**
+
 - Hero copy, hero layout, carousel image logic, button labels, and button hrefs.
 - Ritual names, copy, resolved prices, resolved durations, `/book` links, and final image paths.
 - Choose Your Calm, public services/about/contact/branches, booking flow, service logic, backend/API, Supabase/database, server actions, protected portals, auth/RBAC, and CRM/admin/staff/driver areas were not changed for this task.
 
 **Final Ritual Images/Object Positions:**
+
 - Glow Ritual: `/images/spa/home/ritual-glow.jpg`, `object-[center_42%]`
 - Recovery Ritual: `/images/spa/home/ritual-recovery.jpg`, `object-[center_35%]`
 - Full Reset Ritual: `/images/spa/home/ritual-full-reset.jpg`, `object-[center_55%]`
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5278,6 +5850,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Added mobile-only first-visit preloader for Cradle public pages.
 
 **Files Changed:**
+
 - `src/components/shared/mobile-first-visit-preloader.tsx` — added isolated mobile first-visit preloader
 - `src/app/page.tsx` — mounted preloader only on the public homepage
 - `src/app/(public)/layout.tsx` — mounted preloader only on public route-group pages
@@ -5296,12 +5869,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fixed the mobile preloader so first-visit public pages render the overlay in the initial server HTML before landing-page animations can paint.
 
 **Files Changed:**
+
 - `src/components/shared/mobile-first-visit-preloader.tsx` — changed the preloader to accept `initiallyVisible`, start visible from server-provided state, use a session cookie plus sessionStorage fallback, apply the dark forest/gold/ivory visual treatment, and add a scoped animation pause guard while mounted.
 - `src/lib/public/mobile-preloader.ts` — added shared cookie/storage key constants.
 - `src/app/page.tsx` — reads the session cookie with `await cookies()` and passes `initiallyVisible` for `/`.
 - `src/app/(public)/layout.tsx` — reads the session cookie with `await cookies()` and passes `initiallyVisible` for public route-group pages.
 
 **Behavior:**
+
 - No-cookie public responses for `/` and public route-group pages include the preloader markup immediately; requests with `cradle_mobile_preloader_seen=1` omit it.
 - Mobile clients set `cradle_mobile_preloader_seen=1` as a session cookie and in `sessionStorage`, then fade/remove the overlay after the short timing window.
 - Desktop clients remove the server-rendered mobile-hidden overlay without setting the cookie.
@@ -5309,6 +5884,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Route progress bars, workspace loaders, skeleton loaders, global loading files, protected portals, booking logic, Supabase/database logic, APIs, server actions, auth/RBAC, middleware, and global CSS were not changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5323,6 +5899,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fixed CRM Schedule Daily Timeline to fit its display area with expand mode.
 
 **Files Changed:**
+
 - `src/components/features/schedule/schedule-workspace.tsx` — updated the CRM Schedule board layout to use `minmax(0, 1fr)` containment, keep the right rail visible in Fit Day mode, and hide it in Expanded mode.
 - `src/components/features/schedule/daily-schedule-board.tsx` — added Fit Day / Expanded behavior, full-width fit containment, expanded horizontal scrolling, sticky header/staff sizing, and shared timeline range props.
 - `src/lib/utils/schedule-timeline.ts` — added computed active-day ranges, fit/expanded timeline sizing constants, percent-based block positioning helpers, half-hour range support, and the 8 AM to 11 PM fallback.
@@ -5333,6 +5910,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Notes:** Daily Timeline now fits the full active day inside its available center column by default. Expanded mode gives detailed horizontal inspection and collapses the CRM right rail. No booking logic, database logic, Supabase schema, mobile preloader, public landing page, workspace loaders, or skeleton loaders were changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 2 existing warnings in `scripts/generate-service-image-assets.mjs`)
 - `pnpm build`: PASS, 98 routes
@@ -5348,6 +5926,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Add secure staff password recovery, accessible password visibility controls, and Owner account-access diagnostics without replacing existing Supabase Auth, RBAC, proxy protection, or workspace switching.
 
 **Files Added:**
+
 - `src/app/(auth)/forgot-password/page.tsx` and `actions.ts` - self-service reset request form with generic response copy.
 - `src/app/auth/callback/route.ts` - Supabase auth code exchange handler with internal redirect sanitization.
 - `src/app/(auth)/reset-password/page.tsx`, `reset-password-form.tsx`, and `actions.ts` - recovery-session password update flow.
@@ -5361,6 +5940,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/auth/auth-redirects.test.ts`, `tests/lib/auth/staff-account-diagnostics.test.ts`, `tests/components/shared/password-input.test.tsx` - focused coverage.
 
 **Files Changed:**
+
 - `src/app/(auth)/login/page.tsx` - added Forgot Password link and `PasswordInput`.
 - `src/app/onboard/[staffId]/onboard-form.tsx` and `src/app/staff-onboarding/onboarding-form.tsx` - added password visibility controls.
 - `src/components/features/staff/staff-preview-panel.tsx` - mounted Owner-only account access panel.
@@ -5369,6 +5949,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/*`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - updated task records.
 
 **Behavior:**
+
 - Staff can request a secure password reset from `/forgot-password`; the app returns generic copy regardless of whether the email exists.
 - Supabase recovery links now land on `/auth/callback`, exchange the auth code, and continue to `/reset-password`.
 - Reset-password updates the active recovery session password, records the event, and signs the user out for a fresh login.
@@ -5377,6 +5958,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Service-role access remains server-only.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS with 4 existing warnings outside this task.
 - Focused tests: PASS, 3 files / 9 tests.
@@ -5394,6 +5976,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fix individual staff schedule saves so CRM Live Staff immediately shows the confirmed schedule instead of stale/group-fallback data.
 
 **Files Added:**
+
 - `src/lib/schedule/resolve-staff-schedule.ts` — shared effective schedule resolver with override, individual, group, unscheduled, multi-window, weekday, and overnight helpers.
 - `src/lib/queries/resolved-staff-schedules.ts` — branch/date loader that feeds the resolver from `staff_schedules`, `schedule_overrides`, and staff group rules.
 - `src/lib/schedule/staff-schedule-write.ts` — verified staff schedule upsert conflict target, returned columns, and saved-row confirmation helper.
@@ -5402,6 +5985,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/components/crm/availability-staff-shift-cell.test.tsx` — Live Staff multi-shift display coverage.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/staff-availability/actions.ts` — individual schedule save now includes `csr`, verifies staff branch with the session/RLS client for real users, upserts on `staff_id,day_of_week,shift_type`, selects saved rows back, checks row count, revalidates `/crm/schedule`, and returns safe user errors.
 - `src/lib/actions/crm-schedule-availability.ts` — CRM schedule modal weekly save now selects saved rows back, checks row count, normalizes branch comparison, logs technical context server-side, and returns safe permission/time/generic errors.
 - `src/lib/queries/schedule.ts` — daily schedule rows now use the shared resolver for `work_start`, `work_end`, `schedule_source`, `schedule_is_day_off`, and `schedule_windows`.
@@ -5413,6 +5997,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/api/crm/availability/route.ts` and `src/components/features/schedule/tabs/live-availability-tab.tsx` — removed short-lived availability caching and SWR dedupe that could keep stale Live Staff data after save.
 
 **Behavior:**
+
 - CRM individual weekly schedule saves no longer report success before Supabase returns the saved rows.
 - Date-specific day-off overrides win first, then custom date overrides, individual weekly schedules, group fallback, then unscheduled.
 - A saved individual day off is treated as individual schedule state and no longer displays the group fallback.
@@ -5422,6 +6007,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - No new realtime subscription was added; same-session freshness uses confirmed save, route revalidation/cache invalidation, router refresh, and no-store availability fetches.
 
 **Database/RLS Findings:**
+
 - `staff_schedules` unique key is `staff_schedules_staff_day_shift_unique` on `staff_id, day_of_week, shift_type`.
 - `20260521000001_data_api_explicit_grants.sql` grants authenticated SELECT/INSERT/UPDATE/DELETE on `staff_schedules`.
 - `20260529000002_crm_csr_schedule_rls.sql` provides branch-scoped SELECT/INSERT/UPDATE policies for `manager`, `assistant_manager`, `store_manager`, `crm`, `csr_head`, `csr_staff`, and `csr`.
@@ -5429,6 +6015,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - No forward RLS migration was added because the fixed save flow uses upsert, not delete; operational `staff_schedules` DELETE remains intentionally not broadened by this task.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm test`: PASS, 43 files / 493 tests
 - `pnpm lint`: PASS, with 4 existing warnings outside this task
@@ -5436,6 +6023,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Swallowed-error scan: only existing notification audio empty catches, no schedule-related matches
 
 **Manual QA Note:**
+
 - Authenticated CRM browser click-through still needs a real CRM-authorized session to confirm the full modal/table flow visually with production-like data.
 
 ---
@@ -5445,6 +6033,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Connect local and production CradleHub password reset to Supabase Auth URL configuration and the `/reset-password` recovery flow.
 
 **Files Added:**
+
 - `src/app/(auth)/login/login-form.tsx` — client login form split from the server page so query-param success messaging can render cleanly.
 - `src/app/(auth)/login/messages.ts` — shared login/reset copy outside the `"use server"` action module.
 - `src/lib/auth/password-policy.ts` — shared reset password requirements and validation helper.
@@ -5455,6 +6044,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/auth/password-policy.test.ts` — shared password policy coverage.
 
 **Files Changed:**
+
 - `src/lib/auth/auth-redirects.ts` — added `NEXT_PUBLIC_APP_URL` helpers, `/reset-password` URL construction, recovery marker cookie name, and production localhost rejection.
 - `src/app/(auth)/forgot-password/actions.ts` and `page.tsx` — reset requests now send Supabase to `/reset-password`, keep safe/generic copy, show safe request errors, and preserve audit/rate-limit logging.
 - `src/app/(dashboard)/owner/staff/account-access-actions.ts` — Owner-triggered recovery uses the same trusted reset redirect helper.
@@ -5467,6 +6057,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/*`, `docs/PROJECT_CONTEXT.md`, and `docs/ROADMAP.md` — updated task records.
 
 **Behavior:**
+
 - Staff reset emails now use `${NEXT_PUBLIC_APP_URL}/reset-password`; development can fall back to `http://localhost:3000`, while production refuses localhost.
 - Supabase recovery redirects landing on `/reset-password?code=...` or `/reset-password?token_hash=...&type=recovery` are exchanged through `/auth/callback` before the form renders.
 - Password updates require the recovery-session marker and current Supabase user, update the password once through `auth.updateUser({ password })`, delete the marker, sign out, and redirect to `/login?passwordUpdated=true`.
@@ -5474,6 +6065,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Production setup must set Supabase Auth Site URL to `https://cradlewellnessliving.com` and include redirect URLs for `http://localhost:3000/reset-password` and `https://cradlewellnessliving.com/reset-password`; replace any placeholder Vercel redirect with the real deployment URL.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS, 0 errors and 4 existing warnings
 - `pnpm test`: PASS, 49 files / 513 tests
@@ -5485,6 +6077,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `rg -n "localStorage.*password|sessionStorage.*password" src`: PASS, no matches
 
 **Manual QA Note:**
+
 - Click a real local and production Supabase recovery email after dashboard URL configuration is saved to confirm the provider email template lands on `/reset-password`.
 
 ---
@@ -5494,23 +6087,28 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Repair production RLS and server authorization for CRM/front-desk staff group schedule rule saves.
 
 **Files Added:**
+
 - `supabase/migrations/20260617123431_fix_staff_group_schedule_rules_rls.sql` - forward-only explicit branch-aware SELECT/INSERT/UPDATE/DELETE policies and least-privilege Data API grants.
 - `tests/lib/actions/staff-schedule-groups.test.ts` - server-action authorization, branch isolation, safe-error, verified-upsert, delete, and revalidation coverage.
 
 **Files Changed:**
+
 - `src/lib/actions/staff-schedule-groups.ts` - authenticated active-staff and target-group authorization before upsert/delete, centralized role checks, safe errors, returned-row confirmation, and Schedule route revalidation.
 - `.context/*`, `docs/PROJECT_CONTEXT.md`, and `docs/ROADMAP.md` - task findings, deployment evidence, verification, and handoff records.
 
 **Root Cause:**
+
 - The production CRM/CSR write policy included `crm`, `csr_head`, and `csr_staff` but omitted the active legacy `csr` role. A same-branch `csr` could read the parent group through staff read policies, then failed the INSERT side of the upsert with PostgreSQL `42501`.
 
 **Production Result:**
+
 - Migration `20260617123431` is applied and recorded on project `lsrbwqhvzjfpiabeolkv`.
 - RLS remains enabled. Owner is unrestricted; approved Manager and CRM/front-desk roles are branch-scoped; ordinary staff, driver, utility, cross-branch users, and anonymous clients cannot write.
 - Anonymous table grants were removed. Authenticated grants are SELECT-only on schedule groups and SELECT/INSERT/UPDATE/DELETE on group rules, with RLS enforcing row scope.
 - Live rollback-only tests passed all 14 authorization cases. Production row counts and schedule/availability RPC results remained unchanged, and no test rows persisted.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS, 0 errors and 4 existing warnings
 - `pnpm test`: PASS, 50 files / 519 tests
@@ -5518,6 +6116,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `git diff --check`: PASS, line-ending notices only
 
 **Manual QA Note:**
+
 - Authenticated browser save remains pending because no CRM/front-desk credentials or existing authenticated browser session were available. Live RLS verification used real active production auth identities in rollback-only authenticated-role transactions without bypassing RLS.
 
 ---
@@ -5527,21 +6126,25 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Replace only the CRM Schedule module's Daily Timeline tab with the approved role-aware operations board.
 
 **Daily Timeline Replaced:**
+
 - Replaced the old `DailyTimelineTab -> ScheduleWorkspace` composition with a CRM-specific operational board using existing resolved schedules, bookings, blocked periods, overrides, branch context, and realtime route refresh.
 - Added staff-type tabs, branch/shift/status/search filters, opening/regular/closing/day-off bands, sticky staff identities, fixed timeline grid, booking and blocked-time overlays, current-time marker, coverage rail, selected staff/booking details, quick actions, available staff, and daily summary.
 
 **Cleanup and Preservation:**
+
 - Removed `daily-timeline-right-rail.tsx` and the unreferenced `crm-schedule-view.tsx`.
 - Retained shared `ScheduleWorkspace`, `DailyScheduleBoard`, schedule resolution, timeline utilities, and Owner/Manager schedule pages.
 - Preserved `/crm/schedule`, module tab/date URL state, Live Availability, Schedule Setup, Coverage Issues, Staff Schedule, Weekly Rules, Individual Adjustments, Overrides, booking availability, schedule saving, RLS, and CRM authorization.
 - Quick actions reuse `/crm/bookings/new`, `/crm/availability`, and `/crm/staff-availability` deep links instead of rebuilding setup forms.
 
 **Error and State Handling:**
+
 - Daily schedule load errors now render inside the Daily tab so other Schedule tabs stay usable.
 - Staff-type selection persists in `?staffType=` through module tab switches; date and active module tab continue using existing URL conventions.
 - Live availability status uses a server-seeded, minute-updated client clock to avoid hydration drift.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS, 0 errors and 4 existing warnings
 - `pnpm test`: PASS, 51 files / 525 tests
@@ -5551,6 +6154,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Temporary QA route removed before build; route count remains unchanged
 
 **Manual QA Note:**
+
 - An authenticated CRM session was unavailable, so one final protected-route visual pass with live branch data remains recommended.
 
 ---
@@ -5560,12 +6164,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fix CRM Staff service assignments and align the local staff-service authorization/save path.
 
 **Files Added:**
+
 - `supabase/migrations/20260617141348_crm_staff_service_capabilities_rpc.sql` - transactional SECURITY INVOKER staff service capability replacement RPC plus branch-scoped `staff_services` operational RLS policies.
 - `src/lib/staff/service-assignment-state.ts` - deterministic local assignment replacement helper.
 - `tests/lib/staff/service-assignment-state.test.ts` - local-state replacement regression tests.
 - `docs/CRM_AUTHORIZATION_INVENTORY.md` - focused CRM authorization inventory and live DB inspection status.
 
 **Files Changed:**
+
 - `src/lib/actions/crm-staff-services.ts` - now validates CRM staff-service access, calls `replace_staff_service_capabilities`, returns authoritative saved service IDs, logs safe technical errors, avoids raw DB messages, and revalidates affected CRM/public surfaces.
 - `src/lib/queries/crm-services.ts` - no longer hides `staff_services` SELECT errors as empty assignments; assignment reads are scoped through active branch staff and requested active service IDs.
 - `src/components/features/crm/staff/*` - passes assignment-load errors to the Staff UI, avoids false empty summaries, updates local assignment rows immediately after save, and removes timeout-based modal close dependency.
@@ -5574,16 +6180,19 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/app/(dashboard)/crm/staff/page.tsx` - distinguishes assignment query failure from legitimate empty data.
 
 **Immediate Culprits Fixed:**
+
 - Hidden `staff_services` read errors were previously converted to `[]`, causing the table to display `No services assigned`.
 - Staff service saves previously used separate delete and insert requests, risking capability loss if insertion failed.
 - The UI relied on `router.refresh()` plus a timeout instead of updating from the saved authoritative service IDs.
 
 **Database Design:**
+
 - New RPC validates authenticated actor, CRM role, target staff, branch scope, privileged target protection for non-owner roles, active branch services, and duplicate service IDs before changing rows.
 - Replacement happens inside one PostgreSQL function call, so any failure rolls back the full delete/insert sequence.
 - RLS remains enabled; the RPC is SECURITY INVOKER, not a service-role bypass.
 
 **Verification:**
+
 - `npx tsc --noEmit`: PASS
 - `npx vitest tests/lib/staff/service-assignment-state.test.ts`: PASS, 3 tests
 - `pnpm lint`: PASS, 0 errors and 4 pre-existing warnings
@@ -5591,6 +6200,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: PASS, 100 routes
 
 **Blocked / Manual Follow-up:**
+
 - Live Supabase policy inspection and migration dry-run are blocked from this environment because `supabase db query --linked` and `supabase db push --linked --dry-run` hung.
 - Local `supabase db lint --local --schema public` could not connect because local Postgres was not running.
 - Apply migration `20260617141348` from an environment with working Supabase access, inspect `pg_policies`, then run a real authenticated CRM save on `/crm/staff?tab=assignments`.
@@ -5602,6 +6212,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build the first CradleHub AI agent — a CRM Coach that guides front-desk/CRM users, detects idle users, offers proactive tips, answers questions, and suggests one-click actions.
 
 **Files Changed:**
+
 - `.env.example` - added `ANTHROPIC_API_KEY` and `AGENT_COACH_WORKSPACES`.
 - `src/lib/agents/types.ts` - shared agent types, workspaces, messages, and suggested actions.
 - `src/lib/agents/config.ts` - feature flags and workspace enablement.
@@ -5616,6 +6227,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/types/supabase.ts` - added `agent_audit_logs` table types.
 
 **Behavior:**
+
 - CRM users see a floating "Cradle Coach" button on every `/crm/*` page.
 - Opening the chat shows a context-aware greeting and answers natural-language questions.
 - Coach replies include up to 3 suggested one-click actions (links only, suggest-only, no data mutations).
@@ -5624,12 +6236,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - The coach is disabled unless `ANTHROPIC_API_KEY` is configured.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 4 pre-existing warnings)
 - `pnpm test -- --run`: PASS, 52 files / 528 tests
 - `pnpm build`: PASS, 101 routes
 
 **Follow-up:**
+
 - Apply migration `20260620140000_agent_audit_logs.sql` to the live Supabase project.
 - Add `ANTHROPIC_API_KEY` to `.env.local` and production environment variables.
 - Build an owner-facing review UI for `agent_audit_logs`.
@@ -5642,6 +6256,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Add three one-click agent tools to the CRM Coach: create reminder task, check available slots, and pre-fill walk-in booking.
 
 **Files Changed:**
+
 - `src/lib/agents/types.ts` - added tool action keys.
 - `src/lib/agents/tools.ts` - new tool implementations.
 - `src/lib/agents/crm/prompts.ts` - CRM prompt now describes available tools and when to use them.
@@ -5651,6 +6266,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md` - updated task description.
 
 **Behavior:**
+
 - Coach can suggest `create_reminder_task`, `check_available_slots`, or `prefill_walk_in_booking`.
 - User taps the action button to confirm.
 - `/api/agent/act` runs the tool server-side and returns a result message.
@@ -5658,12 +6274,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - All actions remain suggest-only; nothing happens without user confirmation.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS (0 errors, 4 pre-existing warnings)
 - `pnpm test -- --run`: PASS, 52 files / 528 tests
 - `pnpm build`: PASS, 102 routes
 
 **Follow-up:**
+
 - Add more tools: record payment reminder, assign therapist, check booking status.
 - Build follow-up/escalation agent for overdue bookings and tasks.
 
@@ -5674,6 +6292,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Update the active CRM stabilization/refactor handoff so future agents can resume safely if the current Codex session stops.
 
 **Files Changed:**
+
 - `.context/CURRENT_TASK.cmd.md` - replaced stale CRM Coach active task with the current CRM stabilization/refactor state.
 - `.context/HANDOFF.cmd.md` - replaced stale CRM Coach next-agent note with current CRM stabilization pickup guidance.
 - `.context/CHANGELOG.cmd.md` - appended this handoff update.
@@ -5687,11 +6306,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `docs/FRONT_DESK_REFACTOR_PROGRESS.md` - added agent continuation protocol and latest prompt direction reconciliation.
 
 **Notes:**
+
 - No application code was changed during this handoff-only update.
 - The prior code checkpoint remains: richer `getFrontDeskContext()` plus Today/Bookings/Control/Live Operations context consolidation.
 - Latest CRM prompt wants `Work Queue`, `Bookings`, `Schedule`, `Customers`, `Home Service`, plus collapsed `System Management`; older checkpoint still says `Front Desk`, `Dispatch`, and `Admin & Setup`.
 
 **Validation:**
+
 - Not rerun for this docs-only update.
 - Last code checkpoint passed `npm run type-check`, `npm run lint`, and `npm run build`.
 
@@ -5702,12 +6323,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Implement Checkpoint 1 of the focused CRM stabilization prompt: update the CRM sidebar primary destinations and move management tools into a quiet collapsed System Management section.
 
 **Files Changed:**
+
 - `src/components/features/dashboard/nav-config.ts` - changed CRM primary labels to `Work Queue`, `Bookings`, `Schedule`, `Customers`, and `Home Service`; added System Management link definitions for existing setup/staff/schedule/reconciliation routes.
 - `src/components/features/dashboard/sidebar.tsx` - added query-aware nav highlighting, hover-prefetch opt-out support for secondary links, and a bottom collapsed `SYSTEM / System Management` section with gear icon.
 - `src/components/features/workspace/workspace-prefetch-config.ts` - limited CRM automatic prefetching to primary daily routes; secondary system routes remain explicit-navigation only.
 - `.context/CURRENT_TASK.cmd.md` and `docs/CURRENT_TASK.cmd.md` - updated active task to this checkpoint.
 
 **Behavior:**
+
 - Management-authorized CRM workspace users now see the approved five daily CRM destinations.
 - `Admin & Setup` no longer competes as a primary CRM sidebar item.
 - System tools remain available through a visually quieter collapsed System Management area.
@@ -5715,12 +6338,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - System Management links use current routes/deep links instead of creating a new manager workspace or new route tree.
 
 **Verification:**
+
 - `npm run type-check`: PASS
 - `npm run lint`: PASS with 4 unrelated existing warnings in `scripts/generate-service-image-assets.mjs` and `tests/components/payroll/employee-payroll-table.test.tsx`.
 - `npm run build`: PASS, 103 generated app routes.
 - `git diff --check`: PASS, line-ending notices only.
 
 **Remaining Risks / Follow-up:**
+
 - Header work from the prompt is not complete in this checkpoint: compact CRM page title, branch/search/New Booking header behavior still needs a dedicated pass.
 - System Management follows the current management-authorized route gates. The latest prompt's broader "CRM users can occasionally edit system tools" direction still needs a deliberate permission/page-gate review before exposing those tools to ordinary CRM/CSR roles.
 - No authenticated browser click-through was performed; protected CRM action flows still need a real CRM/front-desk session before claiming workflow readiness.
@@ -5732,6 +6357,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Finish the interrupted CRM Bookings / Quick Booking checkpoint without restarting the Work Queue refactor.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/bookings/new/page.tsx` - loads branch services, staff, resources, customer prefill, and booking rules for the CRM Quick Booking form.
 - `src/components/features/bookings/quick-booking-form.tsx` - added the CRM form for walk-in, phone, future, and home-service bookings with customer search, inline customer entry, More Options, next-slot selection, and date-aware success redirect.
 - `src/lib/actions/inhouse-booking.ts` - aligned schema/action payload handling, customer upsert, home-service metadata, payment pending/paid state, resource fallback, checked-in walk-ins, safe errors, and best-effort revalidation.
@@ -5743,6 +6369,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/FRONT_DESK_REFACTOR_PROGRESS.md` - concise verification/handoff updates.
 
 **Behavior:**
+
 - Quick Booking now supports walk-in, phone, standard future, and home-service modes through the existing `createInhouseBookingMultiAction`.
 - New customers can be created inline; existing customers can be searched by name or phone.
 - Home service captures address, city/barangay, landmark, and location notes without requiring a room.
@@ -5751,6 +6378,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Payment state is no longer hard-coded paid: walk-ins default paid, phone/future/home-service default pending unless payment is recorded.
 
 **Verification:**
+
 - `npm run type-check`: PASS
 - `npm run lint`: PASS with 4 unrelated existing warnings.
 - `npm run build`: PASS, 103 app routes.
@@ -5758,6 +6386,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - RLS errors: none surfaced during verified authenticated flows.
 
 **Notes:**
+
 - A temporary CRM verifier account was created for QA, then disabled/unlinked and deleted from Supabase Auth after verification.
 - QA bookings created during browser verification remain in the database as synthetic test records.
 
@@ -5768,12 +6397,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Add the shared administrative booking modal and wire active CRM Schedule actions to in-context modals.
 
 **Files Added:**
+
 - `src/lib/queries/quick-booking-options.ts`
 - `src/lib/actions/administrative-booking.ts`
 - `src/components/features/bookings/administrative-booking-modal-provider.tsx`
 - `src/components/features/crm/schedule/check-availability-modal.tsx`
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/layout.tsx` - mounts the administrative booking modal provider for CRM routes.
 - `src/app/(dashboard)/crm/bookings/new/page.tsx` - now uses shared quick-booking option helpers while preserving direct route access.
 - `src/components/features/bookings/quick-booking-form.tsx` - supports modal prefill, stay-on-success behavior, cancel/success callbacks, and dirty-state reporting.
@@ -5783,18 +6414,21 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Existing availability/block-time editor now supports `initialTab` and selected-date block form prefill.
 
 **Behavior:**
+
 - Internal CRM New Booking triggers use the shared modal while `/crm/bookings/new` remains available for direct/legacy access.
 - Schedule users can create bookings, check slots, inspect staff, view complete schedules, and block time without leaving `/crm/schedule`.
 - Check Availability can select an available slot and hand it directly to the booking modal with service/staff/date/time prefilled.
 - Unsaved booking and schedule editor protections remain in place.
 
 **Verification:**
+
 - `npm run type-check`: PASS
 - `npm run lint`: PASS with 4 unrelated existing warnings.
 - `npm run build`: PASS, 103 app routes.
 - Browser smoke via `agent-browser`: public home route loads with content and no Next.js error overlay; unauthenticated `/crm/schedule` redirects to `/login`, which loads with content and no Next.js error overlay.
 
 **Remaining Manual QA:**
+
 - Authenticated CRM browser pass is still needed for the new modal flows because this session did not have an authenticated CRM browser state.
 
 ---
@@ -5804,9 +6438,11 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Complete the active CRM Schedule workspace before authenticated QA while preserving the shared administrative booking modal and existing CRM routes.
 
 **Files Added:**
+
 - `src/components/features/schedule/tabs/full-schedule-live-bookings-view.tsx`
 
 **Files Changed:**
+
 - `src/components/features/schedule/workspace/schedule-workspace-header.tsx` - adds the Daily Timeline / Full Schedule + Live Bookings view toggle.
 - `src/components/features/schedule/workspace/schedule-workspace-shell.tsx` - owns shared staff/booking selection and `view` query-param state across Schedule views.
 - `src/components/features/schedule/tabs/daily-timeline-tab.tsx` - removes first-visible-staff fallback and wires explicit selection plus shared modal actions.
@@ -5816,6 +6452,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/lib/actions/crm-staff-services.ts` - revalidates `/crm/schedule` after staff capability updates.
 
 **Behavior:**
+
 - Schedule no longer auto-selects staff; profile/capability/full-schedule actions require an explicit staff selection and show selection feedback when needed.
 - Daily Timeline and Full Schedule share selected staff and selected booking state inside `/crm/schedule`.
 - Full Schedule + Live Bookings provides a master-detail staff schedule with Day/Week mode, layer toggles, shifts, live bookings, blocked time, overrides, no-shift states, and conflict flags.
@@ -5824,6 +6461,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Edit Capabilities reuses the existing staff service-capabilities sheet and server action rather than introducing a new mutation path.
 
 **Permissions / Migrations:**
+
 - No new migration was added.
 - Existing relevant coverage remains in:
   - `supabase/migrations/20260529000002_crm_csr_schedule_rls.sql`
@@ -5832,6 +6470,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Supabase changelog was checked on 2026-07-01; no new-table Data API exposure change applies because this checkpoint added no tables.
 
 **Verification:**
+
 - `npm run type-check`: PASS
 - `npm run lint`: PASS with 4 unrelated existing warnings.
 - `npm run build`: PASS, 103 app routes.
@@ -5839,6 +6478,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Browser smoke via `agent-browser`: unauthenticated `/crm/schedule` redirects to `/login`, login renders, and no page errors are reported.
 
 **Remaining Manual QA:**
+
 - Authenticated CRM Schedule browser pass is still needed for Daily Timeline actions, Full Schedule + Live Bookings, Edit Capabilities save, conflict/lane inspection, and booking-detail panel verification.
 
 ---
@@ -5848,6 +6488,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build and wire the complete CradleHub QR Attendance and Service Session system.
 
 **Files Added:**
+
 - `supabase/migrations/20260702075213_attendance_qr_system.sql`
 - `src/app/(dashboard)/crm/attendance/actions.ts`
 - `src/app/(dashboard)/crm/attendance/page.tsx`
@@ -5866,6 +6507,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/lib/attendance/types.ts`
 
 **Files Changed:**
+
 - `package.json`, `pnpm-lock.yaml` - added `qrcode` and `@types/qrcode`.
 - `src/components/features/dashboard/nav-config.ts` - added CRM Attendance navigation.
 - `src/components/features/workspace/workspace-prefetch-config.ts` - added Attendance CRM route warm-up.
@@ -5874,6 +6516,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `docs/CURRENT_TASK.cmd.md`, `docs/HANDOFF.cmd.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - updated task memory and roadmap notes.
 
 **Database / Security:**
+
 - Added tables: `qr_points`, `staff_devices`, `device_activation_tokens`, `qr_scan_events`, `attendance_exceptions`, `attendance_corrections`, `attendance_settings`.
 - Extended `staff_shift_checkins` with QR/source/schedule/metric fields.
 - Extended `bookings` with service-session duration/due/completion/source fields.
@@ -5883,6 +6526,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pg_cron` is not installed on the linked project, so automatic cron scheduling was not created.
 
 **Behavior:**
+
 - CRM `/crm/attendance` now provides Overview, Attendance Records, Service Sessions, QR Codes, Registered Devices, Exceptions, and Reports tabs.
 - CRM users can generate permanent branch attendance QR and room/resource QR points, create one-time device activation links, revoke devices, resolve exceptions, and run due-session completion manually.
 - Public `/scan/activate/[token]` activates a staff device and stores the credential in an HttpOnly scan cookie.
@@ -5891,18 +6535,21 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Room/resource scans start eligible checked-in service sessions and can reopen the countdown for an already active session.
 
 **Verification:**
+
 - `npx tsc --noEmit --pretty false`: PASS
 - `npm run lint`: PASS with 4 unrelated existing warnings.
 - `npx vitest run src/lib/attendance/time.test.ts`: PASS, 1 file / 3 tests.
 - `npm run build`: PASS, 104 app routes.
 
 **Remaining Manual QA / Caveats:**
+
 - Authenticated browser QA is still needed for `/crm/attendance`, device activation, real attendance scans, room/resource scans, and blocked/revoked/wrong-branch duplicate flows.
 - Migration history may not be reconciled because the migration was applied through `db query --file`, not a successful `db push`.
 - `npm run db:types` is stale for the current Supabase CLI because it uses removed `--project-ref`.
 - Two zero-byte `_tmp_14412_*` files remain after scoped deletion returned Access denied.
 
 **Follow-up Fix - 2026-07-02:**
+
 - Fixed runtime `insert or update on table "qr_points" violates foreign key constraint "qr_points_branch_id_fkey"`.
 - Root cause was Attendance server actions using the dev-bypass zero UUID branch before trying the authenticated staff branch.
 - Added `src/lib/dev-bypass-server.ts` to resolve dev bypass to a real active branch.
@@ -5917,6 +6564,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Refit the entire CRM Attendance workspace UI/actions without rebuilding the database, scan engine, service-session engine, device activation flow, or Supabase security model.
 
 **Files Added:**
+
 - `src/lib/attendance/tabs.ts`
 - `src/lib/attendance/qr-url.ts`
 - `src/lib/attendance/qr-print-layout.ts`
@@ -5937,6 +6585,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/attendance/qr-filenames.test.ts`
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/attendance/page.tsx` - keeps one route while delegating to the client workspace without duplicate page header.
 - `src/app/(dashboard)/crm/attendance/actions.ts` - returns typed `AttendanceActionResult` values instead of redirecting after routine mutations.
 - `src/components/features/attendance/attendance-workspace.tsx` - owns local tab/data/selection state and keeps tab panels mounted for state preservation.
@@ -5947,6 +6596,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/*` and `docs/*` - updated task, handoff, decisions, errors, roadmap, and project notes.
 
 **Behavior:**
+
 - `/crm/attendance` remains the single protected Attendance route.
 - Overview, Records, Sessions, QR Codes, Devices, Exceptions, and Reports switch instantly with local client state and `window.history.replaceState()`.
 - Attendance tab panels stay mounted, preserving filters, selected QR, selected format, activation link, and dialogs while switching tabs.
@@ -5958,11 +6608,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Public QR URL generation rejects localhost in production and masks public codes in UI display.
 
 **Root Causes Addressed:**
+
 - Slow tabs came from URL-driven tab changes and route work; the refit keeps the workspace mounted and only mirrors tab state into history.
 - `NEXT_REDIRECT` surfaced because Attendance actions used redirect/status-query flows for routine mutations; actions now return typed results to the client.
 - The missing sidebar icon came from using `QrCode`, which was not in the sidebar icon map; `ClipboardCheck` already existed.
 
 **Validation:**
+
 - `npx tsc --noEmit --pretty false`: PASS
 - `npx vitest run tests/lib/attendance/tabs.test.ts tests/lib/attendance/qr-url.test.ts tests/lib/attendance/qr-print-layout.test.ts tests/lib/attendance/qr-filenames.test.ts`: PASS, 4 files / 14 tests.
 - `npm run lint`: PASS with 4 unrelated existing warnings.
@@ -5972,8 +6624,9 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Browser smoke via `agent-browser`: existing `http://localhost:3000/crm/attendance` redirects unauthenticated to `/login`; login renders content and no Next/Vite overlay is present.
 
 **Remaining Manual QA / Caveats:**
+
 - Authenticated CRM browser QA is still needed for the live Attendance workspace tabs, server actions, device activation, QR scan flows, and room/resource service-session scans.
-- Existing `ATTENDANCE-QR-001` caveats still apply: no pg_cron install, migration history may need reconciliation, stale `db:types` script, and two locked `_tmp_14412_*` files.
+- Existing `ATTENDANCE-QR-001` caveats still apply: no pg*cron install, migration history may need reconciliation, stale `db:types` script, and two locked `\_tmp_14412*\*` files.
 
 ---
 
@@ -5982,17 +6635,20 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Complete the remaining Attendance QR verification/cleanup using `pnpm`, resolve lint warnings, rerun the full suite, attempt browser visual QA, and document blockers precisely.
 
 **Files Changed:**
+
 - `scripts/generate-service-image-assets.mjs` - removed unused `FALLBACK_IMAGE_URL` and replaced the `generationPrompt` rest-omit pattern with an explicit `appManifestEntry()` mapper.
 - `tests/components/payroll/employee-payroll-table.test.tsx` - kept typed staff-id mock arguments and marked them intentionally unused with `void staffId`.
 - `.context/*` and `docs/*` - recorded final pnpm verification, lint warning resolution, visual QA blocker, screenshot evidence, and remaining manual scan requirements.
 
 **Original Four Lint Warnings Resolved:**
+
 - `scripts/generate-service-image-assets.mjs:26`, `@typescript-eslint/no-unused-vars`: removed unused `FALLBACK_IMAGE_URL`.
 - `scripts/generate-service-image-assets.mjs:523`, `@typescript-eslint/no-unused-vars`: replaced unused `generationPrompt` destructuring with explicit app-manifest projection.
 - `tests/components/payroll/employee-payroll-table.test.tsx:17`, `@typescript-eslint/no-unused-vars`: preserved mock signature and used `void staffId`.
 - `tests/components/payroll/employee-payroll-table.test.tsx:18`, `@typescript-eslint/no-unused-vars`: preserved mock signature and used `void staffId`.
 
 **Validation:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS, 0 warnings.
 - `pnpm test`: PASS, 60 files / 564 tests.
@@ -6000,6 +6656,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Final pnpm checks ran outside the restricted sandbox with `CI=true` because sandboxed pnpm script startup hit Windows `EPERM` temp-file cleanup before scripts could run.
 
 **Browser / Export QA:**
+
 - Dev server started at `http://localhost:3000`.
 - Required route `/crm/attendance?tab=qr` was checked at 1440, 1280, 1024, 768, and 375 px widths.
 - All widths redirected to `/login` because the local browser has no authenticated Supabase CRM/front-desk session. Starting the dev server with `DEV_AUTH_BYPASS=true` did not bypass this, because `src/proxy.ts` still requires a real Supabase user before the dev bypass skips staff-record checks.
@@ -6010,6 +6667,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Browser console/page errors for the blocked session: no Next/Vite overlay and no page errors; only normal React DevTools, HMR, and Vercel Speed Insights development messages.
 
 **Remaining Manual QA / Caveats:**
+
 - Authenticated QR visual QA is still blocked until a valid CRM/front-desk browser session is available.
 - Real interactions are not approved yet: select QR row(s), format changes, search/filter, copy link, PNG/SVG/download/print/export, print selected, and deactivate confirmation.
 - Real phone scanning is not complete: attendance PNG, room SVG, and print/PDF preview still need scanning with a phone camera against real exported artifacts.
@@ -6035,6 +6693,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Integrate live attendance scan visibility into the CRM Work Queue and Owner overview without creating a second attendance system.
 
 **Files Changed:**
+
 - `src/lib/attendance/recent-scans.ts`, `src/lib/attendance/recent-scans-map.ts`, `src/lib/attendance/recent-scans-api.ts`, `src/lib/attendance/scan-feed.ts`, `src/lib/attendance/record-filters.ts`, `src/lib/attendance/owner-attendance-branch.ts`, `src/lib/attendance/tabs.ts` - added server query/API helpers, branch/context helpers, and pure feed/tab URL/status formatting helpers.
 - `src/app/api/attendance/recent-scans/route.ts` - added authenticated no-store refresh endpoint for the feed.
 - `src/components/features/attendance/attendance-scan-feed-card.tsx`, `attendance-scan-feed-row.tsx`, `use-attendance-scan-feed.ts`, `use-attendance-scan-realtime.ts` - added reusable live feed UI with SWR refresh and Supabase realtime invalidation.
@@ -6045,6 +6704,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/attendance/scan-feed.test.ts`, `tests/lib/attendance/tabs.test.ts` - added focused helper coverage.
 
 **Behavior:**
+
 - CRM Work Queue now shows recent successful attendance clock-in/out scans from the authoritative `qr_scan_events` trail.
 - The feed refreshes through `/api/attendance/recent-scans` and invalidates on Supabase Realtime insert events.
 - Feed rows deep-link to `/crm/attendance?tab=records&staffId=...&date=...`; the Records tab applies the filters and highlights the matching row.
@@ -6053,6 +6713,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Owner attendance tab switching stays on `/owner/attendance` and preserves the selected `branchId`.
 
 **Validation:**
+
 - `npx tsc --noEmit --pretty false`: PASS.
 - `npx vitest run tests/lib/attendance/scan-feed.test.ts tests/lib/attendance/tabs.test.ts`: PASS, 2 files / 9 tests.
 - `npm run lint`: PASS.
@@ -6060,6 +6721,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `git diff --check`: PASS, line-ending notices only.
 
 **Remaining Caveats:**
+
 - Authenticated browser QA is still required for the Work Queue/Owner card and Records deep-link flow.
 - The full first-scan trusted-device sign-in/linking flow, Staff Portal My Attendance, and staff profile attendance history remain outside this completed slice.
 - `pnpm db:push`, `pnpm db:types`, Supabase migration-history reconciliation, and database password rotation remain deployment blockers.
@@ -6071,6 +6733,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Reset the broken Supabase database tooling workflow into a secure reusable local process.
 
 **Files Added:**
+
 - `scripts/database/_shared.mjs`
 - `scripts/database/db-doctor.mjs`
 - `scripts/database/db-status.mjs`
@@ -6082,6 +6745,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `docs/DATABASE_CONNECTION_RUNBOOK.md`
 
 **Files Changed:**
+
 - `.gitignore` - unignored `.env.example` while keeping `.env.local` and `.env.database.local` ignored.
 - `.env.example` - added placeholders for app Supabase config and local-only database tooling variables.
 - `package.json` - replaced stale hardcoded Supabase scripts with safe database wrappers.
@@ -6089,12 +6753,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` - recorded the tooling stabilization work and remaining blockers.
 
 **Behavior:**
+
 - Future database work now has `pnpm db:doctor`, `pnpm db:status`, `pnpm db:verify`, `pnpm db:link`, `pnpm db:push`, `pnpm db:types`, and `pnpm db:migration`.
 - The scripts prefer the project-local Supabase CLI shim and mask sensitive values in output.
 - Type generation writes through a temporary file and preserves the checked-in type file on failure.
 - The transaction pooler remains documented as a diagnostic/emergency fallback, not the normal migration path.
 
 **Current Blockers:**
+
 - Database password rotation is not confirmed.
 - Linked remote verification still depends on valid rotated local secrets and/or Supabase CLI auth.
 - `psql` is not installed, so emergency transaction-pooler migration application remains documented but not executable here.
@@ -6106,6 +6772,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Build the Attendance Device Registry and Recovery Center backend first, then replace the Attendance Devices tab.
 
 **Files Added:**
+
 - `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql`
 - `docs/ATTENDANCE_DEVICE_REGISTRY_AUDIT.md`
 - `src/lib/attendance/device-display.ts`
@@ -6123,6 +6790,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/attendance/device-recovery.test.ts`
 
 **Files Changed:**
+
 - `src/lib/attendance/types.ts`, `tokens.ts`, `queries.ts`, `scan-engine.ts`
 - `src/app/(dashboard)/crm/attendance/actions.ts`
 - `src/app/(dashboard)/owner/attendance/page.tsx`
@@ -6133,6 +6801,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/types/supabase.ts`
 
 **Behavior:**
+
 - The Devices tab now shows a registry of staff/device rows, pending recovery links, selected-device detail panel, branch/status/staff-type/search filters, and CRM actions for recovery link generation, rename, pending-link revocation, and device revocation.
 - Recovery links are one-time tokens stored only as raw SHA-256 hashes; raw recovery URLs are returned once to the CRM UI.
 - `/scan/activate/[token]` now inspects recovery tokens without consuming them and consumes only after staff confirmation.
@@ -6140,6 +6809,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Existing first-scan/device credential hashing remains peppered through `hashSecret`; the new `cradle_attendance_device` cookie is set at path `/` while legacy `cradle_device` is still read for compatibility.
 
 **Validation:**
+
 - Live SQL probe: migration `20260703151111`, all new columns, `consume_attendance_device_recovery`, and `service_role` execute grant returned `ok`.
 - `pnpm db:types`: PASS.
 - `pnpm type-check`: PASS.
@@ -6150,6 +6820,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `git diff --check`: PASS, line-ending notices only.
 
 **Remaining Caveats:**
+
 - `pnpm db:status` and `pnpm db:push` still time out on the Supabase pooler port `5432`; live schema was verified via linked SQL instead.
 - Authenticated browser QA for the protected Devices tab and real phone recovery scan remains pending.
 - `tmp-attendance-device-registry-verify.sql` remains untracked because sandbox deletion was denied and the elevated delete request was blocked by the environment usage limit.
@@ -6161,9 +6832,11 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Inspect and finish the mobile Attendance QR scan flow wiring without replacing the existing scan engine, device registry, or Supabase-backed attendance business logic.
 
 **Files Added:**
+
 - `src/app/scan/[publicCode]/loading.tsx` - route-level mobile scan loading shell that immediately shows the recognizing animation while the App Router page resolves.
 
 **Files Changed:**
+
 - `src/app/scan/actions.ts` - wrapped public scan, first-scan activation, and recovery consumption in user-safe error fallbacks; preserved trusted-device cookie handling; revalidated existing Attendance surfaces after scan/recovery writes.
 - `src/lib/attendance/types.ts` - extended `PublicScanResult` with backward-compatible `reasonCode`, `severity`, and `securityNote` fields.
 - `src/lib/attendance/scan-engine.ts` - exposed structured reason codes/severity/security notes on public results while keeping existing event writes, branch/device checks, duplicate protection, and clock-in/out logic as the source of truth.
@@ -6171,6 +6844,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/attendance/public-scan-processor.module.css` - normalized scan typography letter spacing for mobile readability.
 
 **Behavior:**
+
 - `/scan/[publicCode]` still renders `PublicScanProcessor` and passes the async route `publicCode` into `processPublicQrScanAction`.
 - The client processor still starts at `recognizing`, moves to `processing`, then settles on `result`; scan actions are invoked from `useEffect` after mount, not during server render.
 - Blank-route time is covered by the new `loading.tsx`, and runtime action failures return a safe `"Scan interrupted"` result instead of crashing the public scanner.
@@ -6180,6 +6854,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Public scan writes revalidate the existing Attendance surfaces through `revalidateAttendanceSurfaces()` (`/crm/attendance`, `/crm/availability`, `/crm/today`, `/staff-portal`).
 
 **Validation:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, Next.js 16.2.4, 105 app routes.
@@ -6188,6 +6863,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Annotated smoke screenshot: `C:\Users\eleur\.agent-browser\tmp\screenshots\screenshot-1783127833941.png`.
 
 **Remaining Caveats:**
+
 - Authenticated/live phone QA against real staff devices and real branch QR codes is still pending.
 - Local manual phone testing should use the current LAN IP `192.168.137.149` with a dev server bound to all interfaces, for example `pnpm dev -- -H 0.0.0.0`, then open `http://192.168.137.149:3000/scan/<publicCode>` on the phone.
 - Existing untracked local artifacts remain: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.
@@ -6199,9 +6875,11 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Replace the first-time Attendance QR missing-device dead end with staff sign-in, secure phone registration, and automatic continuation of the original scan.
 
 **Files Added:**
+
 - `src/components/features/attendance/public-scan-login-form.tsx` - mobile scan sign-in panel with email, password show/hide, clean form errors, and the trust note that the phone will be remembered for faster attendance scans.
 
 **Files Changed:**
+
 - `src/app/scan/actions.ts` - added `completeFirstTimeAttendanceScanAction`, scan-login input validation, Supabase password sign-in without workspace redirect, attendance-device cookie override support, and continuation request-id suffixes for register/attendance audit rows.
 - `src/lib/attendance/scan-engine.ts` - added authenticated first-scan device registration that maps `auth.users.id` to the caller's own active `staff.auth_user_id`, enforces branch/device/staff ownership checks, inserts a pepper-hashed `staff_devices` credential, and blocks revoked/wrong-branch/device-mismatch cases.
 - `src/components/features/attendance/public-scan-processor.tsx` - changed only `reasonCode: "unknown_device"` into the recoverable sign-in-required flow; other blocked/noop/success results still render through the existing result view.
@@ -6210,6 +6888,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/HANDOFF.cmd.md`, `.context/ERRORS.cmd.md`, `.context/CHANGELOG.cmd.md` - documented the implementation, validation, and the duplicate-detection audit fix.
 
 **Behavior:**
+
 - First scan from an unregistered phone now goes `recognizing -> processing -> sign in` instead of ending at "Device not registered."
 - Correct staff credentials register the current browser/phone to that authenticated staff member, set the existing `cradle_attendance_device` HttpOnly cookie pattern, briefly show `Registering this phone` and `Phone connected`, then automatically resume the same QR scan.
 - Future scans from the same phone skip sign-in because the same scan engine resolves the stored attendance device credential.
@@ -6219,6 +6898,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Front-desk recovery links and `/scan/activate/[token]` remain intact as the admin fallback.
 
 **Database Tables Touched At Runtime:**
+
 - `staff` - maps the authenticated Supabase user to the active staff profile and branch.
 - `qr_points` - validates the scanned public code and branch.
 - `staff_devices` - inserts the new hashed attendance device credential with `registration_source = 'first_scan_activation'` and metadata source `first_scan_login`.
@@ -6227,11 +6907,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `staff_shift_checkins` - updated only by the resumed normal attendance scan path.
 
 **Validation:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, Next.js 16.2.4, 105 app routes.
 
 **Remaining Caveats:**
+
 - Live phone QA with real staff credentials and a real branch attendance QR is still pending.
 - CRM confirmation that the newly registered phone appears in the Device Registry requires an authenticated CRM session.
 - Duplicate-window clock-in/noop/clock-out timing still needs real-device manual testing.
@@ -6243,9 +6925,11 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Finish the first-scan Attendance login flow all the way through a valid active `staff_devices` row and a cookie-backed next scan that skips login.
 
 **Files Added:**
+
 - `src/app/api/attendance/public-scan/route.ts` - public scan POST route that reads `cradle_attendance_device` / legacy `cradle_device` directly from `NextRequest.cookies`, calls the existing scan engine, and returns a safe `PublicScanResult`.
 
 **Files Changed:**
+
 - `src/app/scan/actions.ts` - renamed the first-scan action to `signInAndRegisterAttendanceDeviceAction`; it now signs in, registers the phone, sets the HttpOnly device cookie, returns registration metadata, and leaves the actual attendance scan to the next browser request.
 - `src/components/features/attendance/public-scan-processor.tsx` - fixed the scan effect dependency bug that stranded scans on `Processing scan...`; broadened missing-device detection; moved scan reads to the new API route; after phone registration, reloads the scan URL so the next request carries the browser cookie.
 - `src/lib/attendance/scan-engine.ts` - changed unknown-device public copy to the recoverable sign-in state, blocked first-scan registration from non-attendance QRs, and disambiguated `staff_devices -> staff` / activation-token staff joins with explicit Supabase FK hints.
@@ -6254,11 +6938,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/attendance/public-scan-result.tsx` - changed the unknown-device eyebrow from `Device setup needed` to `Staff sign-in`.
 
 **Root Causes Fixed:**
+
 - `PublicScanProcessor` depended on the full `props` object. When the recognition animation set `stage = processing`, React cleaned up the effect and marked the in-flight scan inactive; `startedRef` then prevented a restart, leaving the public page stuck on `Processing scan...`.
 - The previous same-action continuation did not prove the browser stored and resent the HttpOnly cookie.
 - Valid device cookies still resolved as unknown because Supabase rejected the embedded `staff(full_name, ...)` join on `staff_devices`; that table now has both `staff_id` and `revoked_by` relationships to `staff`, and `resolveDevice()` ignored the query error as `null`.
 
 **Runtime Behavior Verified:**
+
 - First unregistered scan returns `reasonCode = "unknown_device"` and renders the in-flow staff sign-in form.
 - Staff sign-in writes `staff_devices.status = 'active'`, `registration_source = 'first_scan_activation'`, and metadata source `first_scan_login`.
 - The device cookie remains `cradle_attendance_device`, HttpOnly, `SameSite=Lax`, path `/`, 180-day max age; `cradle_device` is still cleared/read only for legacy compatibility.
@@ -6267,12 +6953,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Event proof: `qr_scan_events` contains `first_scan_device_registered` for device `9395ae4f-65c1-4005-b491-19309e3a4b26`, then `clock_in` success with the same `device_id`, then `duplicate_scan` noop with the same `device_id`.
 
 **Validation:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, Next.js 16.2.4, 106 app routes including `/api/attendance/public-scan`.
 - Browser/MCP proof on local dev: a cookie-bearing scan page rendered `Already recorded` rather than the staff sign-in form, with `cradle_attendance_device` present as an HttpOnly cookie.
 
 **Notes:**
+
 - Temporary Codex QA auth/staff/device rows created during diagnosis were removed after verification.
 - Existing untracked local artifacts remain intentionally untouched: `.attendance-scan-backups/` and `tmp-attendance-device-registry-verify.sql`.
 
@@ -6283,12 +6971,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Separate booking schedule availability from attendance readiness, add same-day walk-in fallback warnings, and fix Attendance QR wrong-branch validation when `staff_devices.branch_id` is stale.
 
 **Files Added:**
+
 - `src/lib/attendance/branch-validation.ts` - pure QR/staff/device branch decision helper.
 - `tests/lib/attendance/branch-validation.test.ts` - stale-device and wrong-branch branch decision coverage.
 - `tests/lib/assignments/recommendation-engine.test.ts` - walk-in fallback and phone/future/home-service attendance-scoping coverage.
 - `supabase/migrations/20260709054954_attendance_device_branch_sync.sql` - active device branch sync trigger plus one-time repair.
 
 **Files Changed:**
+
 - `src/lib/engine/availability.ts` - added detailed therapist assignment with optional checked-in preference and scheduled fallback warning.
 - `src/lib/actions/inhouse-booking.ts` - uses checked-in preference only for same-day walk-ins and returns fallback warning to the UI.
 - `src/components/features/bookings/quick-booking-form.tsx` - surfaces the fallback warning in the booking success toast.
@@ -6298,6 +6988,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/ERRORS.cmd.md`, `.context/DECISIONS.cmd.md` - updated task records.
 
 **Behavior:**
+
 - Future, phone, and home-service booking recommendations are schedule/conflict/service-capability based and no longer warn or penalize for not being checked in.
 - Same-day walk-in auto-assignment prefers checked-in eligible therapists by attendance queue. If no eligible checked-in therapist exists, scheduled availability is used and the operator sees: `No staff has checked in yet. Showing scheduled availability. Confirm staff presence before starting service.`
 - Manual same-day walk-in booking also returns the same warning when the selected scheduled slot is available but no eligible checked-in therapist exists for that time.
@@ -6305,11 +6996,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Wrong-branch blocks remain correct when the current staff record belongs to another branch.
 
 **Database:**
+
 - Applied migration `20260709054954_attendance_device_branch_sync` through linked `supabase db query --file` because both wrapper and direct `db push` timed out before SQL execution.
 - Recorded the migration row manually in `supabase_migrations.schema_migrations`.
 - Live verification: migration row present, trigger `trg_staff_branch_sync_devices` present, active device/staff branch mismatch count is `0`.
 
 **Verification:**
+
 - `pnpm test --run tests/lib/attendance/branch-validation.test.ts tests/lib/assignments/recommendation-engine.test.ts`: PASS, 8 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
@@ -6322,6 +7015,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Harden the staff onboarding and approval flow so applicants cannot register under the wrong branch and approvers cannot silently assign them to a different branch.
 
 **Files Changed:**
+
 - `src/app/staff-onboarding/onboarding-form.tsx` — required branch selection/confirmation, branch cards, review branch display, password reminder, updated success copy.
 - `src/app/staff-onboarding/actions.ts` — removed first-branch fallback, added branch validation, duplicate checks, branch confirmation metadata, approval branch-change metadata.
 - `src/components/features/staff-onboarding/onboarding-review-list.tsx` — default approval branch from `requested_branch_id`, CRM branch selector lock, branch-change warning.
@@ -6332,6 +7026,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/components/staff-onboarding/onboarding-review-branch.test.tsx` — new.
 
 **Behavior:**
+
 - Applicants must select an active branch and confirm it; "No preference" is removed.
 - Single-branch setups auto-select the branch but still show it to the applicant.
 - Multi-branch setups show branch cards for the active branches.
@@ -6342,13 +7037,16 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - CRM/CSR cannot approve into another branch; owner/manager branch changes are allowed but warned and recorded in request metadata.
 
 **Verification:**
+
 - `pnpm type-check`: PASS
 - `pnpm lint`: PASS
 - `pnpm build`: PASS, 107 routes
 - `pnpm test --run`: PASS, 73 files / 623 tests
 
 **Follow-up:**
+
 - Authenticated browser QA of the onboarding form and CRM staff applications review list is still needed.
+
 ---
 
 ## 2026-07-09 - Codex (BRANCH-CORRECTION-REQUESTS-001 - QR Wrong Branch Correction Request Flow)
@@ -6356,6 +7054,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Check whether the QR Attendance wrong-branch correction request flow existed, then complete the missing request/review/audit/UI pieces.
 
 **Files Changed:**
+
 - `supabase/migrations/20260709083908_staff_branch_audit_logs.sql` - added branch audit table, missing request indexes, active-branch validation, approval audit logging, and hardened review RPC.
 - `src/lib/staff/branch-correction.ts` - added secure create/review/cancel helpers, device-cookie staff verification, duplicate-pending handling, inbox mapping, and staff-friendly success/error copy.
 - `src/lib/staff/branch-correction-policy.ts` and `src/lib/staff/branch-correction-types.ts` - centralized owner/manager/CRM/staff rules and expanded scan/inbox types.
@@ -6366,6 +7065,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/staff/branch-correction-policy.test.ts`, `tests/lib/staff/branch-correction-migrations.test.ts`, `tests/components/attendance/public-scan-branch-correction.test.tsx`, and `tests/components/crm/crm-staff-branch-corrections-tab.test.tsx` - added focused coverage.
 
 **Behavior:**
+
 - Wrong-branch QR scans now show current staff profile branch, scanned QR branch, correction request action, pending-request state, and the front-desk approval reminder.
 - Staff can submit correction requests only from an authenticated staff session or trusted wrong-branch scan device context; staff cannot update their own branch or approve their own request.
 - CRM/CSR/front desk aliases can see/review only requests whose `requested_branch_id` equals their branch; owner/manager roles can review all.
@@ -6373,12 +7073,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Wrong-branch scan events now carry QR/staff/branch/device/pending-request metadata for future diagnostics.
 
 **Verification:**
+
 - `pnpm test --run tests/lib/staff/branch-correction-policy.test.ts tests/lib/staff/branch-correction-migrations.test.ts tests/components/attendance/public-scan-branch-correction.test.tsx tests/components/crm/crm-staff-branch-corrections-tab.test.tsx tests/lib/attendance/branch-validation.test.ts`: PASS, 16 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, 106 routes.
 
 **Follow-up:**
+
 - Apply pending Supabase migrations and regenerate database types if required by the deployment workflow.
 - Run authenticated CRM/front-desk browser QA and physical QR phone scan QA after the migrations are live.
 
@@ -6389,12 +7091,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Finish the CRM/internal booking fix so saved schedules drive therapist availability, Home Service addresses use live search, and CRM computes/stores travel distance and fee.
 
 **Files Changed:**
+
 - `src/components/features/bookings/quick-booking-form.tsx` - switched pre-submit availability checks to `/api/booking/crm-availability`, reused the public Places autocomplete for CRM Home Service, required a selected geocoded address, added live distance/travel-fee summary, and submitted address/coordinate/distance metadata.
 - `src/lib/actions/inhouse-booking.ts` - replaced the remaining generic no-therapist error copy with the schedule-specific CRM message while preserving the existing distance quote/metadata storage path.
 - `src/app/(dashboard)/owner/spaces-rules/page.tsx` - added fallback defaults for Home Service free-km and extra-km fee settings.
 - `tests/lib/home-service/distance-fee.test.ts` - added pure travel-fee and distance boundary coverage.
 
 **Behavior:**
+
 - CRM quick booking now uses the CRM availability endpoint instead of the generic public slots endpoint.
 - Saved schedules and staff service assignment are the source of truth; attendance/check-in is not a hard blocker.
 - Same-day walk-in contexts can warn: `No therapist has clocked in yet, but scheduled staff are available.`
@@ -6404,12 +7108,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Public booking wizard behavior was preserved.
 
 **Verification:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, 108 routes.
 - `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts`: PASS, 2 files / 18 tests.
 
 **Follow-up:**
+
 - Apply pending Supabase migrations and regenerate database types if required by the deployment workflow.
 - Configure `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` for browser autocomplete and `GOOGLE_MAPS_SERVER_API_KEY` for driving distance quotes.
 - Run authenticated CRM browser QA with real Places/distance credentials.
@@ -6421,17 +7127,20 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Remove redundant CRM Home Service location fields and make the selected Google Places service address the single source of truth.
 
 **Files Changed:**
+
 - `src/components/features/bookings/quick-booking-form.tsx` - removed visible city/barangay/landmark/location-note inputs, kept one required Places-backed `Service address`, added optional `Access note / special direction`, and updated the summary labels/order.
 - `src/lib/actions/inhouse-booking.ts` - stores the optional note as `home_service_access_note` and persists address components plus distance/source/travel-fee details in Home Service metadata.
 - `src/lib/validations/booking.ts` - added `homeServiceAccessNote` to the CRM in-house booking schema.
 
 **Behavior:**
+
 - Staff must select a valid Google Places result before CRM Home Service distance can be calculated.
 - City and barangay are auto-derived from Google address components when available and are no longer manually edited in CRM.
 - The optional access note does not affect distance calculation.
 - Public booking wizard behavior was not changed.
 
 **Verification:**
+
 - `pnpm test --run tests/lib/home-service/distance-fee.test.ts`: PASS, 14 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
@@ -6444,6 +7153,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Add editable branch location settings so CRM Home Service distance can use the selected branch coordinates as the origin.
 
 **Discovery:**
+
 - Branch edit UI/action are `src/app/(dashboard)/owner/branches/[branchId]/branch-edit-form.tsx` and `src/app/(dashboard)/owner/branches/actions.ts`.
 - `branches` already had `address`, `maps_embed_url`, `latitude`, and `longitude`.
 - `branch_booking_rules` already had `home_service_free_km` and `home_service_extra_km_fee`.
@@ -6451,6 +7161,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Shared Places autocomplete lives at `src/components/public/places-autocomplete.tsx`.
 
 **Files Changed:**
+
 - `supabase/migrations/20260709114038_branch_location_settings.sql` - adds branch `place_id`, `city`, `barangay`, and `location_metadata`.
 - `src/app/(dashboard)/owner/branches/[branchId]/branch-edit-form.tsx` - replaces plain address editing with a Places-backed branch service address origin editor.
 - `src/app/(dashboard)/owner/branches/actions.ts` - persists origin coordinates/place metadata.
@@ -6460,18 +7171,21 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/validations/branch-location.test.ts` - adds focused validation coverage.
 
 **Behavior:**
+
 - Owner branch details can now save the selected branch service address with latitude/longitude.
 - City/barangay are derived from Google address components when available.
 - CRM Home Service distance continues to use selected branch coordinates as origin and customer Places coordinates as destination.
 - Public booking wizard behavior was not changed.
 
 **Verification:**
+
 - `pnpm test --run tests/lib/validations/branch-location.test.ts tests/lib/home-service/distance-fee.test.ts`: PASS, 16 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, 108 routes.
 
 **Follow-up:**
+
 - Apply pending Supabase migrations and run authenticated owner branch-detail plus CRM Home Service quote QA with real Google Places selection.
 
 ---
@@ -6481,10 +7195,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Make the live Schedule Daily Timeline / Coverage Overview conflict count clear, clickable, and actionable for front desk staff without changing booking, attendance, QR, or schedule setup write behavior.
 
 **Discovery / Root Cause:**
+
 - The visible `Conflicts` count was calculated in `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx` by counting `DailyTimelineAlert` items with `resource_conflict` or `staff_conflict`.
 - That count was too narrow and count-only: it did not expose who/what/time/rule/fix details, and it was separate from the broader schedule safety cases operators need to understand.
 
 **Files Added:**
+
 - `src/lib/schedule/live-schedule-conflict-types.ts`
 - `src/lib/schedule/live-schedule-conflicts.ts`
 - `src/components/features/schedule/tabs/daily-timeline-conflict-details-panel.tsx`
@@ -6493,6 +7209,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/schedule/daily-timeline-conflict-details-panel.test.tsx`
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/schedule/page.tsx`
 - `src/app/api/crm/schedule/route.ts`
 - `src/components/features/schedule/hooks/use-live-daily-schedule.ts`
@@ -6506,6 +7223,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/schedule/daily-timeline-coverage-card.test.tsx`
 
 **Behavior:**
+
 - Daily Timeline and Coverage Overview now use one central `LiveScheduleConflict` list.
 - The conflict count opens a `Conflict Details` panel with one card per conflict, plain-language operator copy, severity, affected staff/bookings/room/time, rule/fix guidance, and dev-only debug metadata.
 - Timeline staff rows and booking blocks now show warning/critical conflict indicators.
@@ -6515,6 +7233,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Public/online booking, CRM booking availability, QR attendance, and schedule setup write behavior were preserved.
 
 **Verification:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
@@ -6522,6 +7241,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts tests/lib/bookings/crm-booking-status.test.ts tests/components/crm/availability-staff-shift-cell.test.tsx`: PASS, 4 files / 22 tests.
 
 **Follow-up:**
+
 - Run authenticated CRM browser QA against live branch data to confirm operator flow and copy in the real workspace.
 
 ---
@@ -6531,10 +7251,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Replace the redundant right-rail Conflict Details card with a centralized Schedule Conflict Center modal launched from Coverage Overview.
 
 **Discovery / Root Cause:**
+
 - The conflict system itself was already working, but the UI rendered two conflict surfaces in the right rail: Coverage Overview plus a separate expanded details card.
 - Large conflict batches made the Schedule workspace too tall because details were rendered inline instead of in a bounded modal.
 
 **Files Added:**
+
 - `src/components/features/schedule/tabs/schedule-conflict-center-dialog.tsx`
 - `src/components/features/schedule/tabs/schedule-conflict-category-tabs.tsx`
 - `src/components/features/schedule/tabs/schedule-conflict-summary-list.tsx`
@@ -6544,6 +7266,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/schedule/schedule-conflict-center-dialog.test.tsx`
 
 **Files Changed:**
+
 - `src/components/features/schedule/tabs/daily-timeline-coverage-card.tsx` - now shows All clear / Schedule issues states and opens the modal via `Review Issues`.
 - `src/components/features/schedule/tabs/daily-timeline-operations-rail.tsx` - no longer renders an inline conflict details card.
 - `src/components/features/schedule/tabs/daily-timeline-tab.tsx` - owns the modal open state and mounts `ScheduleConflictCenterDialog`.
@@ -6551,6 +7274,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/schedule/daily-timeline-coverage-card.test.tsx` - covers the single Coverage Overview entry point.
 
 **Behavior:**
+
 - Coverage Overview is now the only conflict entry point in the right rail.
 - The modal filters conflicts by All, Critical, Staff, Rooms, Coverage, Travel, Blocked Time, and Schedule.
 - Issue cards show human-friendly titles, affected staff/booking/time/resource context, broken rule, why it matters, recommended fix, and safe quick actions.
@@ -6558,6 +7282,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Existing conflict detection, conflict count, timeline indicators, staff-row indicators, SWR refresh, public booking, CRM booking availability, QR attendance, and schedule setup write behavior were preserved.
 
 **Verification:**
+
 - `pnpm test --run tests/lib/schedule/live-schedule-conflicts.test.ts tests/lib/schedule/schedule-conflict-center-dialog.test.tsx tests/lib/schedule/daily-timeline-coverage-card.test.tsx tests/lib/schedule/daily-timeline-operations.test.ts`: PASS, 4 files / 17 tests.
 - `pnpm test --run tests/lib/assignments/recommendation-engine.test.ts tests/lib/home-service/distance-fee.test.ts tests/lib/bookings/crm-booking-status.test.ts tests/components/crm/availability-staff-shift-cell.test.tsx`: PASS, 4 files / 22 tests.
 - `pnpm type-check`: PASS.
@@ -6565,6 +7290,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Follow-up:**
+
 - Run authenticated CRM browser QA against live branch data for final visual/operator confirmation.
 
 ---
@@ -6574,14 +7300,17 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fix `Maximum update depth exceeded` runtime error in `AgentCoachProvider`.
 
 **Root Cause:**
+
 - The Agent Coach idle reset listener called `setIsIdle(false)` on every mousemove, keydown, click, and scroll event even when `isIdle` was already false.
 - Scroll/activity bursts could repeatedly request identical React state updates and trip the nested-update guard in the CRM/Owner provider tree.
 
 **Files Changed:**
+
 - `src/components/agent/agent-context-provider.tsx` - added ref-backed idle state and timeout guards so only real idle-state changes call `setIsIdle`.
 - `tests/components/agent/agent-context-provider.test.tsx` - adds a regression test for repeated activity events and the 45-second idle transition.
 
 **Verification:**
+
 - `pnpm test --run tests/components/agent/agent-context-provider.test.tsx`: PASS, 1 test.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
@@ -6594,6 +7323,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Finalize the Schedule Conflict Center impact-model cleanup and verification after the new dialog wiring landed.
 
 **Files Changed:**
+
 - `src/components/features/schedule/tabs/schedule-conflict-center-dialog.tsx` - removed the unused severity-count memo/import.
 - `src/components/features/schedule/tabs/schedule-conflict-center-model.ts` - fixed stale coverage-tab typing and narrowed accepted/active issue status.
 - `src/components/features/schedule/tabs/schedule-conflict-summary-list.tsx` - updated the helper to compile against impact groups and new tab keys.
@@ -6601,11 +7331,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `tests/lib/schedule/schedule-conflict-center-dialog.test.tsx` - refreshed dialog coverage for the reasoned accept-exception flow.
 
 **Behavior:**
+
 - Coverage-gap issues now remain in All/Audit instead of pointing at a removed Coverage tab.
 - Approval-level issues can be accepted only with reason/scope/audit visibility and then move to Accepted.
 - Must Fix issues still cannot be accepted, and no blind schedule writes were added.
 
 **Verification:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - Focused schedule tests: PASS, 12 files / 49 tests.
@@ -6613,6 +7345,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Follow-up:**
+
 - Run authenticated CRM browser QA against live branch data for final visual/operator confirmation.
 
 ---
@@ -6622,6 +7355,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Upgrade Attendance with schedule-aware recovery, rules, audit, and closing-scan intent handling.
 
 **Files Added:**
+
 - `src/lib/attendance/attendance-intent-engine.ts` - pure Smart Attendance Intent Engine for schedule-aware scan classification.
 - `src/lib/attendance/attendance-correction-service.ts` - server-only correction/rules service for Recovery actions and audit rows.
 - `src/components/features/attendance/recovery/attendance-recovery-tab.tsx` - Recovery Center UI with Today Recovery, Staff Records, Rules, and Audit Log.
@@ -6629,6 +7363,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `supabase/migrations/20260710040835_attendance_recovery_rules.sql` - attendance rules and correction audit migration.
 
 **Files Changed:**
+
 - `src/lib/attendance/scan-engine.ts` - classifies intent before writing check-ins; first closing scans without active check-in now go to Recovery instead of becoming clock-ins.
 - `src/lib/attendance/types.ts` and `src/lib/attendance/queries.ts` - expanded settings DTOs, record schedule fields, exception metadata, and audit feed.
 - `src/app/(dashboard)/crm/attendance/actions.ts` - added correction/rule server actions.
@@ -6636,6 +7371,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/attendance/attendance-header.tsx`, `attendance-tabs.tsx`, overview quick actions/attention panel, and records tab - updated visible entry points from Exceptions to Recovery.
 
 **Behavior:**
+
 - The internal attendance tab key remains `exceptions`; visible UI now labels it Recovery.
 - QR attendance scans preserve device/branch validation and raw scan event logging.
 - If a staff member's first scan is in a configured clock-out/closing window and there is no active check-in, the scan is recorded as an `exception` with reason `likely_closing_scan_without_clock_in`; no `staff_shift_checkins` row is inserted.
@@ -6643,6 +7379,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Normal clock-in/out, room scan, service session, first-scan registration, duplicate debounce, and branch mismatch behavior are preserved.
 
 **Verification:**
+
 - `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts`: PASS, 10 tests.
 - `npx vitest run tests/lib/attendance`: PASS, 8 files / 41 tests.
 - `npx tsc --noEmit`: PASS.
@@ -6651,6 +7388,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `git diff --check`: PASS, line-ending notices only.
 
 **Follow-up:**
+
 - Apply/push `supabase/migrations/20260710040835_attendance_recovery_rules.sql` before using the new correction/rule actions against a shared database.
 - Run authenticated CRM browser QA for Recovery Rules and Apply Recovery flows against live branch data.
 
@@ -6661,10 +7399,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Complete the frozen CRM performance optimization program with evidence-backed, low-risk source optimizations.
 
 **Files Added:**
+
 - `docs/performance/crm-performance-baseline.md` - baseline verification, route/build artifact evidence, client manifest/source hotspot audit, findings, and deferred areas.
 - `docs/performance/crm-performance-optimization-report.md` - implementation summary, verification, bundle outcome, and follow-up candidates.
 
 **Files Changed:**
+
 - `src/components/features/crm/today/work-queue-dashboard.tsx` - memoized the Work Queue summary as a single pass over `queueData`.
 - `src/components/features/crm/today/work-queue-panel.tsx` - replaced repeated filter-count scans with one memoized counter pass and memoized visible rows.
 - `src/components/features/bookings/bookings-workspace.tsx` - made initial tab derivation lazy and memoized tab counts/current visible rows.
@@ -6672,17 +7412,20 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/CURRENT_TASK.cmd.md`, `.context/CHANGELOG.cmd.md`, `.context/HANDOFF.cmd.md`, `.context/DECISIONS.cmd.md`, `docs/PROJECT_CONTEXT.md`, and `docs/ROADMAP.md` - logged the completed performance pass.
 
 **Behavior:**
+
 - No CRM UI, workflow, route, server action, schema, RLS, permission, payment, booking lifecycle, dispatch guard, or cache semantics were changed.
 - Today and Bookings now avoid repeated derived-list work on unrelated local UI renders.
 - Dispatch map selection no longer changes the `MapCanvas` effect dependency solely because selected booking state changed.
 
 **Verification:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm test -- --run --testTimeout=10000`: PASS, 83 files / 674 tests.
 - `pnpm build`: PASS, Next.js 16.2.4, 108 app routes.
 
 **Follow-up:**
+
 - Bookings remains NOT CERTIFIED until authenticated browser interaction QA is completed.
 - Bundle splitting, query column narrowing, and database/index work should wait for a separately certified performance phase.
 
@@ -6693,6 +7436,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Perform the final local Attendance hardening pass while preserving the schedule-first scan alignment and selected-record reset work already present in the repository.
 
 **Files Added:**
+
 - `src/lib/attendance/shift-instance.ts` - branch-local business time and stable Attendance shift-instance model.
 - `src/lib/attendance/attendance-state-machine.ts` - current Attendance state and next expected scan action resolver.
 - `tests/lib/attendance/shift-instance.test.ts` - timezone, business-day, source, and stable key coverage.
@@ -6701,6 +7445,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `docs/maintenance/attendance-operations-runbook.md` - operations runbook for device connection, recovery, replacement, Test Mode, Recovery, reconciliation, migration verification, and troubleshooting.
 
 **Files Changed:**
+
 - `src/lib/attendance/scan-engine.ts` - captures shift-instance snapshots, uses branch timezone/business date, dedupes Recovery cases, records operation ids/results, and scopes operational revalidation.
 - `src/lib/attendance/attendance-intent-engine.ts` - carries branch timezone into schedule window conversion and exposes shift-instance key on current open sessions.
 - `src/lib/attendance/time.ts` - supports configured IANA timezone conversion while keeping Manila as the default.
@@ -6713,6 +7458,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Project context/docs files - recorded architecture, blockers, and runbook.
 
 **Behavior:**
+
 - Every normal clock-in now captures an immutable shift snapshot: shift-instance key, schedule source, source id, branch timezone, business date, and scheduled start/end.
 - Duplicate/completed checks prefer the stable `shift_instance_key` instead of only `shift_date` plus `shift_type`.
 - Branch timezone and attendance day boundary drive current business date and schedule timestamp conversion.
@@ -6722,6 +7468,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Production device-cookie hashing now fails closed without `ATTENDANCE_DEVICE_SECRET`.
 
 **Verification:**
+
 - `npx vitest run tests/lib/attendance/attendance-intent-engine.test.ts tests/lib/attendance/shift-instance.test.ts tests/lib/attendance/attendance-state-machine.test.ts tests/lib/attendance/device-recovery.test.ts`: PASS, 4 files / 27 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
@@ -6733,6 +7480,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm db:doctor`: BLOCKED, CLI/link/token/pooler checks passed, migration-history read timed out.
 
 **Follow-up:**
+
 - Apply/verify the two pending Attendance migrations from a working Supabase DB path and regenerate types against the updated schema.
 - Replace app-level idempotent replay with a true transactional PostgreSQL RPC for scan persistence.
 - Move all multi-step correction operations into transactional RPCs.
@@ -6746,17 +7494,20 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Continue the Attendance autonomy hardening pass by closing the highest-risk transactional gaps that were still explicitly open.
 
 **Files Added:**
+
 - `supabase/migrations/20260712044527_attendance_transactional_scan_rpc.sql` - transactional interpreted scan commit RPC.
 - `supabase/migrations/20260712045429_attendance_transactional_corrections_rpc.sql` - transactional selected-record reset correction RPC.
 - `tests/lib/attendance/transactional-scan-rpc-migration.test.ts` - migration contract checks for locking, idempotency, and service-role-only execution.
 
 **Files Changed:**
+
 - `src/lib/attendance/scan-engine.ts` - routes normal interpreted clock-in, clock-out, active-service-blocked, and Recovery-intent Attendance commits through `commit_attendance_scan_transaction`.
 - `src/lib/attendance/attendance-correction-service.ts` - routes selected-record Attendance State Reset through `reset_attendance_state_transaction`.
 - `src/types/supabase.ts` - reconciles generated types for the two new RPCs.
 - `.context/*`, `docs/ARCHITECTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, and `docs/maintenance/attendance-operations-runbook.md` - records the continuation, live DB evidence, and remaining blockers.
 
 **Database Evidence:**
+
 - Both new RPC definitions were applied to the linked database via `supabase db query --linked --dns-resolver https --file ...`.
 - Catalog verification confirmed both RPCs exist and are `security invoker`.
 - Routine privilege verification showed EXECUTE only for `postgres` and `service_role`.
@@ -6764,6 +7515,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Migration history remains unreconciled: `supabase_migrations.schema_migrations` returned `0` rows for `20260710040835`, `20260710055131`, `20260712000100`, `20260712035222`, `20260712044527`, and `20260712045429`.
 
 **Verification:**
+
 - Focused Attendance tests: PASS, 5 files / 30 tests.
 - `npx tsc --noEmit --pretty false`: PASS.
 - `pnpm type-check`: PASS.
@@ -6772,6 +7524,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Follow-up:**
+
 - Reconcile Supabase migration history from a working migration-history connection.
 - Add transactional RPC coverage for manual clock-out, launch recovery, ignore-scan, rule updates, archive-test-data, and future rebuild/manual-attendance actions.
 - Complete account claim/OTP/rate limits, canonical scan host, rotating challenge, scheduled reconciliation, diagnostic tooling, authenticated CRM/Owner QA, and real-device QA.
@@ -6783,16 +7536,19 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Fix CRM/Owner Attendance hydration mismatch in live worked-time labels.
 
 **Files Changed:**
+
 - `src/lib/attendance/types.ts` - added serialized `serverNowMs` to `AttendanceWorkspaceData`.
 - `src/lib/attendance/queries.ts` - captures one server timestamp snapshot while building Attendance workspace data.
 - `src/app/(dashboard)/crm/attendance/page.tsx` and `src/app/(dashboard)/owner/attendance/page.tsx` - pass `data.serverNowMs` into `AttendanceWorkspace`.
 - `src/components/features/attendance/attendance-workspace.tsx` - requires `initialNowMs` and uses it for the initial client state before the post-hydration interval takes over.
 
 **Behavior:**
+
 - The initial SSR and client hydration render use the same timestamp for relative worked-time labels such as `94h 42m`.
 - The live clock still refreshes after hydration through the existing 30-second interval.
 
 **Verification:**
+
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
@@ -6804,6 +7560,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Complete the resumed Schedule Setup and scheduling-data optimization pass from partial local edits.
 
 **Files Changed:**
+
 - `src/lib/schedule/resolve-staff-schedule.ts` - adds explicit schedule statuses and conflict metadata, treats malformed overrides as authoritative conflicts, and returns empty operational windows for conflicts.
 - `src/lib/schedule/staff-schedule-write.ts` - centralizes full-week schedule/group-rule row builders, split-shift validation, stale-row deactivation matrices, and content-level save verification.
 - `src/app/(dashboard)/crm/staff-availability/actions.ts` and `src/lib/actions/crm-schedule-availability.ts` - route individual weekly saves through complete matrix builders.
@@ -6813,6 +7570,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Focused schedule/action/recommendation/CRM availability tests updated or added.
 
 **Verification:**
+
 - Focused scheduling slice: PASS, 8 files / 52 tests.
 - `npm run type-check`: PASS.
 - `npm run lint`: PASS.
@@ -6826,11 +7584,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Continue the backend stabilization and Schedule Setup hardening pass by moving weekly schedule saves toward transactional database replacement, adding deterministic repair SQL, and filtering non-operational duplicate/test staff from availability.
 
 **Files Added:**
+
 - `supabase/migrations/20260712165012_backend_stabilization_schedule_repair.sql` - idempotent schedule/data repair migration with backups, operational staff helpers, booking-rule fee columns, schedule overlap validation triggers, and transactional weekly replacement RPCs.
 - `src/lib/staff/operational-staff.ts` - shared metadata/archive/merge-aware operational staff predicate.
 - `tests/lib/staff/operational-staff.test.ts` - focused operational staff filtering coverage.
 
 **Files Changed:**
+
 - `src/app/(dashboard)/crm/staff-availability/actions.ts` - individual weekly schedule saves call `replace_staff_weekly_schedule(...)` and verify returned rows.
 - `src/lib/actions/staff-schedule-groups.ts` - group weekly schedule saves call `replace_group_weekly_schedule(...)` and verify returned rows.
 - `src/lib/engine/availability.ts` - provider selection excludes inactive, archived, merged, test, and non-schedulable staff.
@@ -6840,11 +7600,13 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/*`, `docs/ARCHITECTURE.md`, and `docs/PROJECT_CONTEXT.md` - record the implementation, live findings, verification, and remaining production apply blocker.
 
 **Database Evidence:**
+
 - Linked live probes found corrupted Main Spa `scheduling_rules` minimums, duplicate unmerged staff identities, empty `staff_duty_assignments`, stale older `single` rows superseded by newer opening/closing rows, overlapping group default templates, and missing `branch_booking_rules.home_service_*` columns that code already expects.
 - The new migration was dry-run executed inside `BEGIN; ... ROLLBACK;` against the linked database through `supabase db query --linked --dns-resolver https`; it completed successfully without committing changes.
 - The migration was not applied to production from this environment because linked migration-history reads still time out on port 5432 and remote migration history is known to be behind live schema effects.
 
 **Verification:**
+
 - Focused scheduling/action/staff tests: PASS, 4 files / 31 tests.
 - `pnpm db:types`: PASS, followed by local pending-column reconciliation.
 - `pnpm type-check`: PASS.
@@ -6853,6 +7615,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Follow-up:**
+
 - Apply `20260712165012_backend_stabilization_schedule_repair.sql` from a working Supabase migration-history path, then rerun type generation and all app checks.
 - Resolve ambiguous Nikki active opening/closing overlaps manually after business confirmation.
 - Move manual staff schedule import and group apply-to-staff replacement onto transactional RPC paths.
@@ -6865,16 +7628,19 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Repair CRM staff schedule update failures that surfaced as the generic "We could not update this schedule. Please try again." message.
 
 **Root Cause:**
+
 - The Adjust Schedule and Schedule Setup weekly save actions called `public.replace_staff_weekly_schedule(uuid, uuid, jsonb)`, but the linked live database did not have that RPC.
 - The live `staff_schedules` table still had `staff_schedules_staff_day_shift_unique`, so ordered split windows were not the enforced database identity.
 - Live data also contained legacy inactive placeholder rows from the old shift-type matrix contract.
 
 **Files Added:**
+
 - `supabase/migrations/20260713035024_schedule_update_integration_repair.sql` - idempotent corrective migration for ordered-window constraints, helper functions, trigger, RPC, stale inactive cleanup with backups, and PostgREST schema reload.
 - `src/lib/actions/schedule-mutation-errors.ts` - shared schedule mutation classifier for `MIGRATION_REQUIRED`, `RLS_DENIED`, `OVERLAPPING_WINDOWS`, `INVALID_OVERNIGHT_WINDOW`, `INVALID_SHIFT_TYPE`, and generic fallback.
 - `tests/lib/actions/schedule-mutation-errors.test.ts` - regression coverage for missing RPC/stale constraint/RLS/overlap classification.
 
 **Files Changed:**
+
 - `src/lib/actions/crm-schedule-availability.ts` and `src/app/(dashboard)/crm/staff-availability/actions.ts` - weekly saves now return structured safe error codes and operation ids while preserving `error` for existing UI.
 - `src/app/(dashboard)/manager/staff/actions.ts` - removed direct old-conflict `staff_schedules` upsert; single-day manager saves now replace the full staff week through `replace_staff_weekly_schedule`.
 - `src/lib/schedule/staff-schedule-write.ts` and Adjust Schedule utilities/editor - added the 12-window per weekday contract and UI guard.
@@ -6883,6 +7649,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Context/docs updated with live findings, migration apply path, verification, and remaining migration-history blocker.
 
 **Live Database Evidence:**
+
 - Applied `20260713035024_schedule_update_integration_repair.sql` through `supabase db query --linked --dns-resolver https --file ...` because the normal direct Postgres migration-history path timed out.
 - Live catalog now shows `staff_schedules_staff_day_window_unique`, no `staff_schedules_staff_day_shift_unique`, `window_order` check `1..12`, `validate_staff_schedule_window_trigger`, and `replace_staff_weekly_schedule(uuid,uuid,jsonb)`.
 - PostgREST RPC probe with fake IDs returned business validation `23514`, proving the function is visible to the app-facing API.
@@ -6890,6 +7657,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Live data probes show zero duplicate staff/day/window keys and zero invalid inactive placeholder rows.
 
 **Verification:**
+
 - Focused tests: PASS, 5 files / 38 tests.
 - `pnpm db:types`: PASS after live corrective migration.
 - `npx tsc --noEmit`: PASS.
@@ -6897,6 +7665,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Remaining Blocker:**
+
 - `pnpm db:push --dry-run` and `pnpm db:status` still time out against `aws-1-ap-northeast-1.pooler.supabase.com:5432`, including escalated retries. Live schema is repaired, but linked migration history is not certified from this environment.
 
 ---
@@ -6906,12 +7675,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Finish unifying runtime scheduling around CRM-controlled individual schedules without redesigning Daily Timeline or reintroducing group fallback.
 
 **Files Added:**
+
 - `src/lib/schedule/schedule-domain.ts` - shared UI/DB shift adapter for `regular <-> single` plus Opening/Regular/Closing labels.
 - `src/components/features/staff-schedule/individual-schedule-window-editor.tsx` - Schedule Setup weekly editor using the same Adjust Schedule draft, validation, preview, and `updateCrmStaffWeeklyWindowScheduleAction` save path.
 - `supabase/migrations/20260713064332_schedule_realtime_publication.sql` - idempotent realtime publication repair for the schedule runtime tables.
 - `tests/lib/schedule/schedule-domain.test.ts` and `tests/lib/staff-portal/week.test.ts` - adapter and staff-portal split/day-off regressions.
 
 **Files Changed:**
+
 - `src/lib/queries/schedule.ts` - Daily Timeline now starts from the operational branch roster and joins bookings, blocked times, overrides, staff check-ins, and resolved individual schedules directly.
 - `src/lib/schedule/resolve-staff-schedule.ts` and `src/lib/queries/resolved-staff-schedules.ts` - added `STAFF_NOT_OPERATIONAL`, override ids, and operational flags.
 - `src/components/features/schedule/tabs/*` - preserved Daily Timeline layout while distinguishing Day Off, Not Configured, and Needs Review; added shift-aware colors, split-window filtering, attendance presence, and overnight block rendering.
@@ -6922,10 +7693,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `src/components/features/schedule-adjustment/*` and `src/lib/actions/crm-schedule-availability.ts` - shared shift adapter usage so UI never persists/display-leaks `single`.
 
 **Live Database Evidence:**
+
 - Applied `20260713064332_schedule_realtime_publication.sql` with `supabase db query --linked --dns-resolver https --file ...`.
 - Verified `supabase_realtime` includes `staff`, `staff_schedules`, `schedule_overrides`, `blocked_times`, `staff_shift_checkins`, `bookings`, and `branch_resources`.
 
 **Verification:**
+
 - Focused tests: PASS, 8 files / 41 tests.
 - `npx tsc --noEmit`: PASS.
 - `pnpm test`: PASS, 94 files / 731 tests.
@@ -6934,6 +7707,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `git diff --check`: PASS, CRLF warnings only.
 
 **Remaining Caveat:**
+
 - Linked migration-history reads through the direct pooler path still need reconciliation. Live schema effects were verified via the Supabase Management API query path, but migration history is not certified from this environment.
 
 ---
@@ -6943,10 +7717,12 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Clean leftover legacy schedule-health warnings after individual schedule unification without hiding genuine schedule issues.
 
 **Files Added:**
+
 - `supabase/migrations/20260713090000_schedule_leftover_cleanup.sql` - backed-up live data cleanup for corrupted Main Spa scheduling-rule minima and deterministic stale active `single` schedule rows.
 - `tests/components/manager-today/manager-today-utils.test.ts` - Manager Today regression coverage for explicit room requirements.
 
 **Files Changed:**
+
 - `src/lib/schedule/live-schedule-conflicts.ts` and `src/lib/schedule/live-schedule-conflict-types.ts` - added exact schedule issue conflict types/codes/fingerprints/source ids, explicit resource requirement detection, coverage requirement gating, resource-capacity-aware room overlap checks, and conflict dedupe.
 - `src/lib/queries/schedule.ts` and `src/lib/queries/bookings.ts` - selected service metadata and resource details needed for explicit resource-requirement checks.
 - `src/components/features/schedule/tabs/schedule-conflict-center-model.ts`, `schedule-conflict-issue-card.tsx`, and `schedule-conflict-resolution-panel.tsx` - display exact schedule issue labels and stop using the false `All day` fallback.
@@ -6955,6 +7731,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/*` and `docs/*` - recorded live evidence, warning contract, cleanup behavior, and verification.
 
 **Live Database Evidence:**
+
 - Dante/Boy (`a384447d-5e71-4ee2-809b-d91ef4cfe44b`) has active Mon-Sat `single` schedule rows `02:00-22:00`; resolver state is correctly `INVALID_TIME_WINDOW`.
 - Angels Massage booking `1ea3ce31-6ead-49e0-9ff4-43501d5cf20d` has `resource_id=null`, `delivery_type=in_spa`, `service_metadata={}`, and no explicit resource requirement.
 - Main Spa `scheduling_rules` had corrupted roster-total minima (`29/29/4/3/2`), which produced the false "Only 27 staff scheduled today" warning.
@@ -6962,12 +7739,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Verified `schedule_repair_backups` contains 7 `leftover_cleanup_deactivate_stale_single_window` rows and 1 `leftover_cleanup_restore_corrupted_coverage_roster_totals` row; stale superseded active `single` rows are gone; Main Spa minima are now `1/1/1/0/0`.
 
 **Behavior:**
+
 - Genuine invalid schedule data now surfaces as exact issue types such as `schedule_invalid_time_window` with `INVALID_TIME_WINDOW`, exact time range, source ids, and stable fingerprint.
 - Missing room/resource warnings require explicit service metadata (`requires_room`, `required_resource_type`, or equivalent); missing `resource_id` alone is not a warning.
 - Coverage-gap conflicts require an explicit `coverageRequirement`; broad daily roster minima no longer generate live conflicts by themselves.
 - Ambiguous schedule overlaps remain active for CRM review instead of being silently normalized.
 
 **Verification:**
+
 - `npx tsc --noEmit`: PASS.
 - Focused tests: PASS, 5 files / 24 tests.
 - `pnpm test --run`: PASS, 95 files / 735 tests.
@@ -6975,6 +7754,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Remaining Caveat:**
+
 - Linked Supabase migration-history reads through the direct pooler path still need reconciliation. Live effects were verified via linked SQL probes, but migration history is not certified from this environment.
 
 ---
@@ -6984,12 +7764,14 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 **Task:** Repair public Attendance QR scan failures that collapsed into generic Scan Interrupted while preserving security, individual schedule truth, and the atomic scan RPC.
 
 **Files Added:**
+
 - `src/lib/attendance/scan-errors.ts` - structured safe attendance scan error codes, operation IDs, DB/RPC classification, and server log helper.
 - `src/lib/attendance/exception-codes.ts` - internal-to-stable Recovery exception mapping with metadata preservation.
 - `supabase/migrations/20260713082146_attendance_scan_contract_repair.sql` - override `ends_next_day` column and explicit attendance schedule-source values.
 - `tests/lib/attendance/exception-codes.test.ts` and `tests/app/attendance/public-scan-route.test.ts` - exception mapping and non-200 structured route failure coverage.
 
 **Files Changed:**
+
 - `src/app/api/attendance/public-scan/route.ts`, `src/app/scan/actions.ts`, and `src/components/features/attendance/public-scan-processor.tsx` - public scan failures now return/render structured safe JSON with operation IDs; unexpected backend failures are not returned as HTTP 200.
 - `src/lib/attendance/scan-engine.ts` - generated DB typing, strict query/write error handling, stable exception persistence, RPC error classification, operation ID propagation, and typed check-in payloads.
 - `src/lib/attendance/shift-instance.ts` and `tests/lib/attendance/shift-instance.test.ts` - schedule source values are `weekly | override | recovery | none`; split-shift identity includes window order/source row id; overnight uses authoritative `ends_next_day`.
@@ -6999,18 +7781,22 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `.context/*` - recorded live evidence, root cause, decision, handoff, and verification.
 
 **Live Database Evidence:**
+
 - Before repair, live `attendance_exceptions.exception_type` allowed only stable values (`late`, `early_leave`, `overtime`, `missed_checkout`, `wrong_branch`, `unscheduled`, `duplicate_scan`, `active_service`, `unknown_device`, `revoked_device`, `resource_conflict`, `manual`), while scan events used internal reason codes.
 - RPC `commit_attendance_scan_transaction` exists with service-role execute grant and RLS remains enabled on attendance/schedule tables.
 - `supabase db push` timed out on the pooler; applied `20260713082146_attendance_scan_contract_repair.sql` idempotently via linked `db query` and inserted the migration record.
 - Verified `schedule_overrides.ends_next_day` exists, `staff_shift_checkins.schedule_source` allows `weekly/override/recovery/none`, existing `weekly_schedule` rows migrated to `weekly`, and a no-mutation RPC probe returned `code=invalid_request`.
 
 **Verification:**
+
 - `npx tsc --noEmit`: PASS.
 - Focused attendance tests: PASS, 5 files / 28 tests.
 - `pnpm build`: PASS, Next.js 16.2.4, 108 routes.
 
 **Remaining Caveat:**
+
 - Physical phone scan QA was not certified in this session. Run registered-device live scans for clock-in, duplicate, clock-out, Recovery, and wrong-branch paths before declaring the operator workflow fully certified.
+
 ## 2026-07-13 - CRADLE-ATTENDANCE-DB-CONNECTION-AND-END-TO-END-DIAGNOSTICS-011
 
 - Certified the local public scan path against linked Supabase with controlled
@@ -7053,7 +7839,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   and schedule routes handle Contact customer and Open staff schedule.
 - No migration or RLS change. Verification passed: focused 7 files / 25 tests,
   full Vitest 108 files / 780 tests, `pnpm type-check`, `pnpm lint`, `pnpm
-  build`, and public browser verification. Authenticated CRM browser QA remains
+build`, and public browser verification. Authenticated CRM browser QA remains
   blocked by `/login`.
 
 ## 2026-07-14 - CRM-BOOKINGS-DESKTOP-REDESIGN-001
@@ -7117,6 +7903,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   tests, type-check, lint, and production build. Remote migration apply/history
   and authenticated physical-phone browser certification remain blocked by
   pooler timeout and the available browser's `/login` boundary.
+
 ## 2026-07-14 - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 0 baseline
 
 - Added the focused Attendance architecture map at
@@ -7128,6 +7915,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check` pass.
 - Phase 1 is gated because linked migration-history access still times out, so
   deployed migrations, RPC grants, and RLS cannot be certified.
+
 ## 2026-07-14 - Attendance device-request schema-cache repair
 
 - Confirmed the production error was caused by the absent
@@ -7140,6 +7928,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
 - Added the request table to `pnpm db:verify`; its service-role REST probe passes.
 - Migration-history version reconciliation remains required because direct SQL
   application does not register the migration version.
+
 ## 2026-07-14 - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 1
 
 - Added the typed authoritative Attendance-day model composing canonical
@@ -7155,6 +7944,7 @@ far in the future — so it was never filtered even when 2 PM Manila had already
   `docs/attendance/PHASE_1_AUTHORITATIVE_DAILY_MODEL.md`.
 - Verification passes: 25 focused files / 112 tests, 120 full-suite files / 835
   tests, type-check, lint, production build, and diff check.
+
 ## 2026-07-14 - ATTENDANCE-SCAN-RESOLUTION-001
 
 - Added canonical typed scan resolutions and issue-specific mobile failure copy.
@@ -7257,6 +8047,7 @@ console errors; a real staff credential/valid-phone mutation was not submitted.
 **Build Status:** Pending automated checks in this script.
 
 ---
+
 # 2026-07-21 — RELEASE-READINESS-001-RESUME
 
 Verified the partial Attendance status, stale-recovery, device-branch, enforcement, AI Coach, and navigation work with 60 focused tests. Added read-only Attendance cron verification, operator runbook, migration-history audit/inspection/runbook, operational checklist, and read-only database preflight.
@@ -7282,5 +8073,23 @@ Validation: TypeScript and production build pass; 150 files / 1,137 tests pass; 
 **Result:** CRM in-spa and Walk-in booking show every qualified provider scheduled for the selected day. Attendance affects recommendation order only. A provider is disabled only when the complete requested service window conflicts with another booking, a schedule adjustment, branch hours or shift coverage.
 **Fix:** Replaced nullable map/filter typing with a typed flatMap roster and removed impossible Home Service comparisons from the already narrowed in-spa manual-selection branch.
 **Database:** No migration required.
+
+---
+
+### 2026-07-24 — PowerShell Implementation
+
+**Task:** EXACT-CRM-TIME-001 — Add exact-minute CRM booking resolution with finish-after-shift overtime.
+**Files Changed:** Shared resolver, CRM availability API, CRM booking action, Quick Booking UI, and focused tests.
+**Database:** No migration or Supabase operation.
+**Build Status:** See execution output.
+
+---
+
+### 2026-07-24 — Guided Attendance diagnostics and prevention
+
+**Task:** ATTENDANCE-DIAGNOSTICS-PREVENTION-001
+**Implemented:** Central problem catalogue; exact CRM action labels; staff support receipts; same-browser connection guidance; Staff Profile recovery delivery; recurrence coaching; prevention plans, tasks, notifications, and verification guidance.
+**Database:** No migration or live database operation.
+**Validation:** See installer execution output.
 
 ---

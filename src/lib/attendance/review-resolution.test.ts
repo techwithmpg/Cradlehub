@@ -4,6 +4,7 @@ import {
   attendanceReviewResolutionKind,
 } from "@/lib/attendance/review-resolution";
 import type { AttendanceReviewItem } from "@/lib/attendance/crm-review";
+import { resolveAttendanceDiagnostic } from "@/lib/attendance/diagnostic-catalog";
 import type {
   AttendanceException,
   AttendanceRecord,
@@ -33,7 +34,15 @@ function item(
   category: AttendanceReviewItem["category"],
   overrides: Partial<AttendanceException> = {}
 ): AttendanceReviewItem {
-  const current = exception(overrides);
+  const defaultType =
+    category === "schedule"
+      ? "missing_schedule"
+      : category === "branch"
+        ? "wrong_branch"
+        : category === "phone"
+          ? "unknown_device"
+          : "manual";
+  const current = exception({ exception_type: defaultType, ...overrides });
   return {
     id: "item-1",
     exception: current,
@@ -42,6 +51,9 @@ function item(
     priority: "high",
     title: "Attendance issue",
     recommendedAction: "Review",
+    diagnostic: resolveAttendanceDiagnostic({ exception: current }),
+    recurrenceCount: 1,
+    recurrenceLabel: "First occurrence",
   };
 }
 
@@ -65,7 +77,7 @@ it("routes a saved scan without attendance to the scan resolver", () => {
     } satisfies AttendanceScanEvent,
   });
   expect(kind).toBe("resolve_scan");
-  expect(attendanceReviewPrimaryAction(kind)).toBe("Resolve saved scan");
+  expect(attendanceReviewPrimaryAction(kind)).toBe("Decide saved scan");
 });
 
 it("routes linked attendance to the correction dialog", () => {

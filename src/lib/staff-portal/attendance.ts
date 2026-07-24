@@ -234,7 +234,7 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
     supabase
       .from("attendance_exceptions")
       .select(
-        "id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, resolution_status, staff_response_required"
+        "id, branch_id, staff_id, checkin_id, scan_event_id, exception_type, severity, status, message, metadata, detected_at, resolved_at, safe_error_code, resolution_owner, resolution_status, occurrence_count, staff_response_required"
       )
       .eq("staff_id", staff.id)
       .eq("is_test", false)
@@ -363,8 +363,11 @@ export async function getMyAttendanceData(days = 90): Promise<StaffAttendanceDat
       exception_type: row.exception_type,
       message: row.message,
       metadata: (row.metadata as Record<string, unknown> | null) ?? {},
+      safe_error_code: "safe_error_code" in row ? (row.safe_error_code as string | null) : null,
+      resolution_owner: "resolution_owner" in row ? (row.resolution_owner as string | null) : null,
       resolution_status:
         "resolution_status" in row ? (row.resolution_status as string | null) : null,
+      occurrence_count: "occurrence_count" in row ? (row.occurrence_count as number | null) : 1,
       staff_response_required:
         "staff_response_required" in row ? (row.staff_response_required as boolean | null) : null,
     })

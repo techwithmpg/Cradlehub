@@ -10,7 +10,9 @@ import {
   type StaffDeviceRegistrationRequestType,
 } from "@/lib/attendance/device-registration";
 import { createDeviceCredential, DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
+import { consumeProfileDeliveredDeviceRecovery } from "@/lib/attendance/device-recovery";
 import { ATTENDANCE_REGISTRATION_COOKIE_NAME } from "@/lib/attendance/scan-continuation";
+import { resolveNotificationsForEntity } from "@/lib/notifications/create";
 
 type ActionResult = { success: true; message: string } | { success: false; message: string };
 
@@ -69,11 +71,16 @@ export async function cancelAttendancePhoneRequestAction(requestId: string): Pro
   }
 }
 
-export async function completeAttendancePhoneRequestAction(requestId: string): Promise<ActionResult> {
+export async function completeAttendancePhoneRequestAction(
+  requestId: string
+): Promise<ActionResult> {
   const cookieStore = await cookies();
   const credential = cookieStore.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value;
   if (!credential) {
-    return { success: false, message: "Open this page on the same phone that submitted the request." };
+    return {
+      success: false,
+      message: "Open this page on the same phone that submitted the request.",
+    };
   }
   try {
     const headerStore = await headers();
@@ -113,5 +120,39 @@ export async function renameOwnAttendancePhoneAction(input: {
     return { success: true, message: "Phone name updated." };
   } catch (error) {
     return { success: false, message: safeMessage(error, "The phone name could not be updated.") };
+  }
+}
+
+export async function completeProfileAttendanceRecoveryAction(
+  tokenId: string
+): Promise<ActionResult> {
+  try {
+    const headerStore = await headers();
+    const result = await consumeProfileDeliveredDeviceRecovery({
+      tokenId,
+      userAgent: headerStore.get("user-agent"),
+    });
+    if (!result.success) return { success: false, message: result.message };
+    const cookieStore = await cookies();
+    cookieStore.set(DEVICE_COOKIE_NAME, result.rawDeviceCredential, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 180,
+    });
+    await resolveNotificationsForEntity(
+      "attendance_device_recovery",
+      tokenId,
+      "staff",
+      "attendance_device_recovery_ready"
+    );
+    revalidateDeviceSurfaces();
+    return { success: true, message: "This browser is connected and ready for Attendance." };
+  } catch (error) {
+    return {
+      success: false,
+      message: safeMessage(error, "This browser could not be connected."),
+    };
   }
 }

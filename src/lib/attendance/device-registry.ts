@@ -58,6 +58,7 @@ type TokenRow = {
   created_at: string;
   expires_at: string;
   revoke_previous_device_id: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type DeviceScanStats = {
@@ -105,7 +106,11 @@ function scanStatsFromDevice(device: DeviceRow): DeviceScanStats {
   };
 }
 
-function toPendingRecoveryLink(token: TokenRow, staff: StaffRow, branchName: string): PendingDeviceRecoveryLink {
+function toPendingRecoveryLink(
+  token: TokenRow,
+  staff: StaffRow,
+  branchName: string
+): PendingDeviceRecoveryLink {
   return {
     id: token.id,
     staffId: token.staff_id,
@@ -117,6 +122,8 @@ function toPendingRecoveryLink(token: TokenRow, staff: StaffRow, branchName: str
     createdAt: token.created_at,
     expiresAt: token.expires_at,
     revokePreviousDeviceId: token.revoke_previous_device_id,
+    deliveryMethod:
+      token.metadata?.delivery_method === "staff_profile" ? "staff_profile" : "copy_link",
   };
 }
 
@@ -195,7 +202,9 @@ async function loadBranches(canSwitchBranch: boolean): Promise<BranchRow[]> {
   return (data ?? []) as BranchRow[];
 }
 
-export async function getAttendanceDeviceRegistry(params: RegistryParams): Promise<AttendanceDeviceRegistryData> {
+export async function getAttendanceDeviceRegistry(
+  params: RegistryParams
+): Promise<AttendanceDeviceRegistryData> {
   const admin = asAttendanceDb(createAdminClient());
   const now = new Date().toISOString();
 
@@ -203,13 +212,17 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
     loadBranches(params.canSwitchBranch ?? false),
     admin
       .from("staff")
-      .select("id, branch_id, full_name, nickname, avatar_url, staff_type, is_active, branches(name)")
+      .select(
+        "id, branch_id, full_name, nickname, avatar_url, staff_type, is_active, branches(name)"
+      )
       .eq("branch_id", params.branchId)
       .order("is_active", { ascending: false })
       .order("full_name", { ascending: true }),
     admin
       .from("device_activation_tokens")
-      .select("id, staff_id, branch_id, reason, created_at, expires_at, revoke_previous_device_id")
+      .select(
+        "id, staff_id, branch_id, reason, created_at, expires_at, revoke_previous_device_id, metadata"
+      )
       .eq("branch_id", params.branchId)
       .eq("purpose", "device_recovery")
       .is("used_at", null)
@@ -222,15 +235,20 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
   if (staffResult.error) throw new Error(staffResult.error.message);
   if (tokensResult.error) throw new Error(tokensResult.error.message);
 
-  const staffRows = ((staffResult.data ?? []) as unknown as StaffRow[]).filter((staff) => staff.branch_id === params.branchId);
+  const staffRows = ((staffResult.data ?? []) as unknown as StaffRow[]).filter(
+    (staff) => staff.branch_id === params.branchId
+  );
   const staffIds = staffRows.map((staff) => staff.id);
-  const devicesResult = staffIds.length > 0
-    ? await admin
-        .from("staff_devices")
-        .select("id, staff_id, branch_id, device_label, status, trusted_after, last_seen_at, created_at, registration_source, browser_name, browser_version, platform_name, last_attendance_scan_at, last_service_scan_at, revoked_at, revoked_by, revocation_reason, branches(name)")
-        .in("staff_id", staffIds)
-        .order("created_at", { ascending: false })
-    : { data: [], error: null };
+  const devicesResult =
+    staffIds.length > 0
+      ? await admin
+          .from("staff_devices")
+          .select(
+            "id, staff_id, branch_id, device_label, status, trusted_after, last_seen_at, created_at, registration_source, browser_name, browser_version, platform_name, last_attendance_scan_at, last_service_scan_at, revoked_at, revoked_by, revocation_reason, branches(name)"
+          )
+          .in("staff_id", staffIds)
+          .order("created_at", { ascending: false })
+      : { data: [], error: null };
 
   if (devicesResult.error) throw new Error(devicesResult.error.message);
 
@@ -256,24 +274,28 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
     const pendingRecovery = pendingByStaff.get(staff.id) ?? null;
 
     if (staffDevices.length === 0) {
-      entries.push(toEntry({
-        staff,
-        branchName: params.branchName,
-        device: null,
-        pendingRecovery,
-        stats: emptyStats(),
-      }));
+      entries.push(
+        toEntry({
+          staff,
+          branchName: params.branchName,
+          device: null,
+          pendingRecovery,
+          stats: emptyStats(),
+        })
+      );
       continue;
     }
 
     for (const device of staffDevices) {
-      entries.push(toEntry({
-        staff,
-        branchName: params.branchName,
-        device,
-        pendingRecovery,
-        stats: scanStatsFromDevice(device),
-      }));
+      entries.push(
+        toEntry({
+          staff,
+          branchName: params.branchName,
+          device,
+          pendingRecovery,
+          stats: scanStatsFromDevice(device),
+        })
+      );
     }
   }
 
@@ -311,7 +333,9 @@ export async function getAttendanceDeviceRegistry(params: RegistryParams): Promi
   };
 }
 
-export async function getPendingDeviceRecoveryLinks(params: RegistryParams): Promise<PendingDeviceRecoveryLink[]> {
+export async function getPendingDeviceRecoveryLinks(
+  params: RegistryParams
+): Promise<PendingDeviceRecoveryLink[]> {
   const registry = await getAttendanceDeviceRegistry(params);
   return registry.pendingRecoveryLinks;
 }
@@ -336,7 +360,9 @@ export async function getDeviceScanHistory(params: {
   const admin = asAttendanceDb(createAdminClient());
   const { data, error } = await admin
     .from("qr_scan_events")
-    .select("id, scan_type, action, outcome, reason_code, message, created_at, staff_id, booking_id, resource_id, qr_points(label)")
+    .select(
+      "id, scan_type, action, outcome, reason_code, message, created_at, staff_id, booking_id, resource_id, qr_points(label)"
+    )
     .eq("branch_id", params.branchId)
     .eq("device_id", params.deviceId)
     .eq("is_test", false)

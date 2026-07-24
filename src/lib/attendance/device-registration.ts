@@ -60,6 +60,8 @@ export type StaffAttendancePhoneState = {
   registeredDevice: { id: string; label: string; lastSeenAt: string | null } | null;
   activeDevices: Array<{ id: string; label: string; isCurrent: boolean }>;
   request: StaffDeviceRegistrationRequest | null;
+  profileRecovery: { id: string; reason: string; createdAt: string; expiresAt: string } | null;
+  recentBrowserRecoveryCount: number;
 };
 
 type StaffRow = {
@@ -216,17 +218,38 @@ export async function getOwnAttendancePhoneState(
     .order("requested_at", { ascending: false })
     .limit(1);
   if (fingerprint) requestQuery.eq("device_fingerprint_hash", fingerprint);
-  const [devicesResult, requestsResult] = await Promise.all([
-    supabase
-      .from("staff_devices")
-      .select("id, device_label, last_seen_at, device_fingerprint_hash")
-      .eq("staff_id", auth.staff.id)
-      .eq("status", "active")
-      .order("created_at", { ascending: false }),
-    fingerprint ? requestQuery : Promise.resolve({ data: [], error: null }),
-  ]);
+  const admin = asAttendanceDb(createAdminClient());
+  const recentCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const [devicesResult, requestsResult, profileTokensResult, recentRecoveryResult] =
+    await Promise.all([
+      supabase
+        .from("staff_devices")
+        .select("id, device_label, last_seen_at, device_fingerprint_hash")
+        .eq("staff_id", auth.staff.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false }),
+      fingerprint ? requestQuery : Promise.resolve({ data: [], error: null }),
+      admin
+        .from("device_activation_tokens")
+        .select("id, reason, created_at, expires_at, metadata")
+        .eq("staff_id", auth.staff.id)
+        .eq("purpose", "device_recovery")
+        .is("used_at", null)
+        .is("revoked_at", null)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(10),
+      admin
+        .from("device_activation_tokens")
+        .select("id", { count: "exact", head: true })
+        .eq("staff_id", auth.staff.id)
+        .eq("reason", "browser_data_cleared")
+        .gte("created_at", recentCutoff),
+    ]);
   if (devicesResult.error) throw new Error(devicesResult.error.message);
   if (requestsResult.error) throw new Error(requestsResult.error.message);
+  if (profileTokensResult.error) throw new Error(profileTokensResult.error.message);
+  if (recentRecoveryResult.error) throw new Error(recentRecoveryResult.error.message);
   const devices = (devicesResult.data ?? []).map((device) => ({
     id: device.id,
     label: device.device_label?.trim() || "Attendance phone",
@@ -255,6 +278,20 @@ export async function getOwnAttendancePhoneState(
       : null,
     activeDevices: devices.map(({ id, label, isCurrent }) => ({ id, label, isCurrent })),
     request: requestRow ? mapRequest(requestRow, auth.staff.full_name) : null,
+    profileRecovery:
+      (profileTokensResult.data ?? [])
+        .map((row) => ({
+          id: row.id,
+          reason: row.reason ?? "other",
+          createdAt: row.created_at,
+          expiresAt: row.expires_at,
+          metadata:
+            row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+              ? (row.metadata as Record<string, unknown>)
+              : {},
+        }))
+        .find((row) => row.metadata.delivery_method === "staff_profile") ?? null,
+    recentBrowserRecoveryCount: recentRecoveryResult.count ?? 0,
   };
 }
 

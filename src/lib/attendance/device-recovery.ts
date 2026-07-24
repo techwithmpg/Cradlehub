@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { asAttendanceDb } from "@/lib/attendance/db";
 import { inferDeviceClientHints } from "@/lib/attendance/device-display";
 import { buildActivationUrl } from "@/lib/attendance/qr-url";
@@ -38,6 +39,7 @@ export type GenerateDeviceRecoveryInput = {
   reason: DeviceRecoveryReason;
   expiresInMinutes: 15 | 30 | 60;
   revokePreviousDeviceId?: string | null;
+  deliveryMethod?: "staff_profile" | "copy_link";
 };
 
 export type ConsumeDeviceRecoveryResult =
@@ -149,38 +151,108 @@ function trimInput(value: string | null | undefined): string {
 function previewFailure(code: RecoveryTokenFailureCode): RecoveryTokenPreview {
   switch (code) {
     case "token_expired":
-      return { ok: false, code, title: "Link expired", message: "Ask the front desk to generate a new recovery link." };
+      return {
+        ok: false,
+        code,
+        title: "Link expired",
+        message: "Ask the front desk to generate a new recovery link.",
+      };
     case "token_used":
-      return { ok: false, code, title: "Link already used", message: "This recovery link has already restored a phone." };
+      return {
+        ok: false,
+        code,
+        title: "Link already used",
+        message: "This recovery link has already restored a phone.",
+      };
     case "token_revoked":
-      return { ok: false, code, title: "Link revoked", message: "This recovery link was revoked by the front desk." };
+      return {
+        ok: false,
+        code,
+        title: "Link revoked",
+        message: "This recovery link was revoked by the front desk.",
+      };
     case "staff_inactive":
-      return { ok: false, code, title: "Staff inactive", message: "This staff account is no longer active." };
+      return {
+        ok: false,
+        code,
+        title: "Staff inactive",
+        message: "This staff account is no longer active.",
+      };
     case "branch_unavailable":
-      return { ok: false, code, title: "Branch unavailable", message: "This recovery link is not available for the branch." };
+      return {
+        ok: false,
+        code,
+        title: "Branch unavailable",
+        message: "This recovery link is not available for the branch.",
+      };
     default:
-      return { ok: false, code: "invalid_token", title: "Link invalid", message: "This recovery link could not be verified." };
+      return {
+        ok: false,
+        code: "invalid_token",
+        title: "Link invalid",
+        message: "This recovery link could not be verified.",
+      };
   }
 }
 
 function consumeFailure(code: string, message?: string | null): ConsumeDeviceRecoveryResult {
   switch (code) {
     case "token_expired":
-      return { success: false, code, title: "Link expired", message: "Ask the front desk to generate a new recovery link." };
+      return {
+        success: false,
+        code,
+        title: "Link expired",
+        message: "Ask the front desk to generate a new recovery link.",
+      };
     case "token_used":
-      return { success: false, code, title: "Link already used", message: "This recovery link has already restored a phone." };
+      return {
+        success: false,
+        code,
+        title: "Link already used",
+        message: "This recovery link has already restored a phone.",
+      };
     case "token_revoked":
-      return { success: false, code, title: "Link revoked", message: "This recovery link was revoked by the front desk." };
+      return {
+        success: false,
+        code,
+        title: "Link revoked",
+        message: "This recovery link was revoked by the front desk.",
+      };
     case "staff_inactive":
-      return { success: false, code, title: "Staff inactive", message: "This staff account is no longer active." };
+      return {
+        success: false,
+        code,
+        title: "Staff inactive",
+        message: "This staff account is no longer active.",
+      };
     case "device_limit_reached":
-      return { success: false, code, title: "Device limit reached", message: "Ask the front desk to revoke an old device first." };
+      return {
+        success: false,
+        code,
+        title: "Device limit reached",
+        message: "Ask the front desk to revoke an old device first.",
+      };
     case "branch_unavailable":
-      return { success: false, code, title: "Branch unavailable", message: "This recovery link is not available for the branch." };
+      return {
+        success: false,
+        code,
+        title: "Branch unavailable",
+        message: "This recovery link is not available for the branch.",
+      };
     case "previous_device_invalid":
-      return { success: false, code, title: "Previous device unavailable", message: "Ask the front desk to generate a replacement link." };
+      return {
+        success: false,
+        code,
+        title: "Previous device unavailable",
+        message: "Ask the front desk to generate a replacement link.",
+      };
     default:
-      return { success: false, code: "invalid_token", title: "Link invalid", message: message ?? "This recovery link could not be verified." };
+      return {
+        success: false,
+        code: "invalid_token",
+        title: "Link invalid",
+        message: message ?? "This recovery link could not be verified.",
+      };
   }
 }
 
@@ -195,11 +267,7 @@ async function loadStaffAndBranch(input: {
       .select("id, branch_id, full_name, staff_type, is_active")
       .eq("id", input.staffId)
       .maybeSingle(),
-    admin
-      .from("branches")
-      .select("id, name, is_active")
-      .eq("id", input.branchId)
-      .maybeSingle(),
+    admin.from("branches").select("id, name, is_active").eq("id", input.branchId).maybeSingle(),
   ]);
 
   if (staffResult.error) throw new Error(staffResult.error.message);
@@ -228,7 +296,8 @@ export async function generateDeviceRecoveryLink(params: {
 
   const admin = asAttendanceDb(createAdminClient());
   const { staff, branch } = await loadStaffAndBranch({ staffId, branchId });
-  if (!staff.is_active || staff.branch_id !== branchId) throw new Error("Staff member is not active in this branch.");
+  if (!staff.is_active || staff.branch_id !== branchId)
+    throw new Error("Staff member is not active in this branch.");
   if (!branch.is_active) throw new Error("Branch is not active.");
 
   const previousDeviceId = trimInput(params.input.revokePreviousDeviceId ?? null) || null;
@@ -246,7 +315,9 @@ export async function generateDeviceRecoveryLink(params: {
   }
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + params.input.expiresInMinutes * 60 * 1000).toISOString();
+  const expiresAt = new Date(
+    now.getTime() + params.input.expiresInMinutes * 60 * 1000
+  ).toISOString();
   const rawToken = createRecoveryToken();
 
   await admin
@@ -277,6 +348,7 @@ export async function generateDeviceRecoveryLink(params: {
       metadata: {
         source: "device_registry",
         ttl_minutes: params.input.expiresInMinutes,
+        delivery_method: params.input.deliveryMethod ?? "copy_link",
       },
     })
     .select("id")
@@ -285,13 +357,16 @@ export async function generateDeviceRecoveryLink(params: {
   if (error) throw new Error(error.message);
   if (!insertedToken) throw new Error("Recovery link could not be created.");
 
+  const deliveryMethod = params.input.deliveryMethod ?? "copy_link";
   return {
     tokenId: insertedToken.id as string,
-    recoveryUrl: buildActivationUrl(rawToken, params.origin),
+    recoveryUrl:
+      deliveryMethod === "copy_link" ? buildActivationUrl(rawToken, params.origin) : null,
     expiresAt,
     staffName: staff.full_name,
     branchName: branch.name ?? "Branch",
     reason: params.input.reason,
+    deliveryMethod,
   };
 }
 
@@ -387,7 +462,9 @@ export async function getRecoveryTokenPreview(rawToken: string): Promise<Recover
   const admin = asAttendanceDb(createAdminClient());
   const { data, error } = await admin
     .from("device_activation_tokens")
-    .select("id, purpose, staff_id, branch_id, reason, expires_at, used_at, revoked_at, staff:staff!device_activation_tokens_staff_id_fkey(full_name, staff_type, is_active), branches(name, is_active)")
+    .select(
+      "id, purpose, staff_id, branch_id, reason, expires_at, used_at, revoked_at, staff:staff!device_activation_tokens_staff_id_fkey(full_name, staff_type, is_active), branches(name, is_active)"
+    )
     .eq("token_hash", hashRecoveryToken(token))
     .maybeSingle();
 
@@ -442,7 +519,9 @@ export async function consumeDeviceRecoveryLink(params: {
     });
   }
 
-  const row = Array.isArray(data) ? (data[0] as ConsumeRpcRow | undefined) : (data as ConsumeRpcRow | null);
+  const row = Array.isArray(data)
+    ? (data[0] as ConsumeRpcRow | undefined)
+    : (data as ConsumeRpcRow | null);
   if (!row) return consumeFailure("invalid_token");
   if (!row.success) return consumeFailure(row.code, row.message);
   if (!row.device_id || !row.staff_id || !row.branch_id) return consumeFailure("invalid_token");
@@ -458,4 +537,78 @@ export async function consumeDeviceRecoveryLink(params: {
     branchName: row.branch_name ?? "Branch",
     expiresAt: row.expires_at ?? new Date().toISOString(),
   };
+}
+
+export async function consumeProfileDeliveredDeviceRecovery(params: {
+  tokenId: string;
+  userAgent?: string | null;
+}): Promise<ConsumeDeviceRecoveryResult> {
+  const tokenId = trimInput(params.tokenId);
+  if (!tokenId) return consumeFailure("invalid_token");
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) {
+    return {
+      success: false,
+      code: "staff_inactive",
+      title: "Sign in required",
+      message: "Sign in with the staff account that received this connection request.",
+    };
+  }
+
+  const staffResult = await supabase
+    .from("staff")
+    .select("id, is_active, archived_at, merged_into_staff_id")
+    .eq("auth_user_id", auth.user.id)
+    .maybeSingle();
+  if (
+    staffResult.error ||
+    !staffResult.data ||
+    !staffResult.data.is_active ||
+    staffResult.data.archived_at ||
+    staffResult.data.merged_into_staff_id
+  ) {
+    return consumeFailure("staff_inactive");
+  }
+
+  const admin = asAttendanceDb(createAdminClient());
+  const tokenResult = await admin
+    .from("device_activation_tokens")
+    .select("id, staff_id, purpose, expires_at, used_at, revoked_at, metadata")
+    .eq("id", tokenId)
+    .eq("staff_id", staffResult.data.id)
+    .eq("purpose", "device_recovery")
+    .maybeSingle();
+  if (tokenResult.error || !tokenResult.data) return consumeFailure("invalid_token");
+  if (tokenResult.data.used_at) return consumeFailure("token_used");
+  if (tokenResult.data.revoked_at) return consumeFailure("token_revoked");
+  if (new Date(tokenResult.data.expires_at).getTime() <= Date.now()) {
+    return consumeFailure("token_expired");
+  }
+  const metadata =
+    tokenResult.data.metadata &&
+    typeof tokenResult.data.metadata === "object" &&
+    !Array.isArray(tokenResult.data.metadata)
+      ? (tokenResult.data.metadata as Record<string, unknown>)
+      : {};
+  if (metadata.delivery_method !== "staff_profile") return consumeFailure("invalid_token");
+
+  const rawToken = createRecoveryToken();
+  const rekeyed = await admin
+    .from("device_activation_tokens")
+    .update({
+      token_hash: hashRecoveryToken(rawToken),
+      updated_at: new Date().toISOString(),
+      metadata: { ...metadata, profile_claimed_at: new Date().toISOString() },
+    })
+    .eq("id", tokenId)
+    .eq("staff_id", staffResult.data.id)
+    .is("used_at", null)
+    .is("revoked_at", null)
+    .select("id")
+    .maybeSingle();
+  if (rekeyed.error || !rekeyed.data) return consumeFailure("token_used");
+
+  return consumeDeviceRecoveryLink({ rawToken, userAgent: params.userAgent });
 }

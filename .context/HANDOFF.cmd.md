@@ -407,6 +407,7 @@ migration-history reconciliation remain pending.
 CRADLE-ATTENDANCE-DIAGNOSTICS-AND-SCAN-REPAIR-009 is implemented, live contract migration applied, and code/build verified.
 
 Done:
+
 - Audited the public Attendance QR scan pipeline end-to-end: route, server actions, client processor, device/QR lookups, schedule resolver, intent engine, shift instance identity, transaction RPC, and Recovery exception persistence.
 - Live DB probes confirmed the RPC exists and preserves rejection codes, RLS remains enabled, and the root mismatch was internal exception codes being persisted against the stable `attendance_exceptions.exception_type` CHECK constraint.
 - Added `src/lib/attendance/scan-errors.ts` for structured safe public error codes, operation IDs, server-only technical logging, and non-200 backend failure responses.
@@ -418,10 +419,12 @@ Done:
 - Verification passed: `npx tsc --noEmit`, focused attendance tests (5 files / 28 tests), and `pnpm build` (Next.js 16.2.4, 108 routes).
 
 Still open:
+
 - A real physical phone scan was not certified in this session. Operator QA should scan with a registered active staff device and confirm the phone either commits attendance or shows the new precise safe code/operation ID.
 - Recent Supabase migration history is still behind live schema effects from prior manual repairs. Do not run a blind `db push` until migration history is reconciled from a working direct DB path.
 
 Next steps:
+
 1. Run live registered-device QR QA for clock-in, duplicate scan, clock-out, off-day/missing-schedule Recovery, and wrong-branch correction.
 2. Reconcile recent Supabase migration history, including manually applied schedule and attendance repair migrations.
 3. Regenerate DB types from the reconciled live schema and rerun type-check/tests/build.
@@ -431,6 +434,7 @@ Next steps:
 CRADLE-SCHEDULE-LEFTOVER-CLEANUP-008 is implemented, live cleanup applied, and code/build verified.
 
 Done:
+
 - Audited the three leftover visible warnings against live data:
   - Dante/Boy has real invalid individual schedule windows (`02:00-22:00`, 20 hours) and now surfaces as `schedule_invalid_time_window` / `INVALID_TIME_WINDOW` with exact source ids and fingerprint.
   - Angels Massage booking `1ea3ce31-6ead-49e0-9ff4-43501d5cf20d` has no explicit service/resource requirement, so missing-room warnings were broad false positives.
@@ -443,11 +447,13 @@ Done:
 - Verification passed: `npx tsc --noEmit`, focused schedule/manager tests (5 files / 24 tests), `pnpm test --run` (95 files / 735 tests), `pnpm lint`, and `pnpm build` (Next.js 16.2.4, 108 routes).
 
 Still open:
+
 - Dante/Boy's invalid 20-hour windows are legitimate data needing CRM correction, not a stale fallback issue.
 - Nikki's ambiguous active Opening/Closing overlaps remain for CRM review.
 - Linked Supabase migration-history reads through the direct pooler path remain uncertified from this environment. Live effects are verified through Management API SQL probes.
 
 Next steps:
+
 1. Reconcile migration history for recent schedule migrations from a working direct DB path.
 2. Run authenticated CRM browser QA for Daily Timeline, Conflict Center, Manager Today, and Adjust Schedule with live branch data.
 3. Correct remaining genuine schedule data issues in CRM, starting with Dante/Boy's invalid 20-hour windows and Nikki's ambiguous overlaps.
@@ -457,6 +463,7 @@ Next steps:
 CRADLE-SCHEDULE-SYSTEM-UNIFICATION-007 is implemented, live realtime repaired, and code/build verified.
 
 Done:
+
 - Added canonical shift adapter in `src/lib/schedule/schedule-domain.ts`: UI `regular/opening/closing`, DB `single/opening/closing`, no active UI display of `single`.
 - Extended resolver with `STAFF_NOT_OPERATIONAL`; kept missing schedule, configured day off, valid schedules, split, overnight, and conflicts as distinct states.
 - Replaced Daily Timeline data loading with an operational branch roster query plus direct joins for `staff_schedules`, `schedule_overrides`, `blocked_times`, `staff_shift_checkins`, `bookings`, and `branch_resources`.
@@ -469,11 +476,13 @@ Done:
 - Verification passed: focused schedule/staff-portal tests (8 files / 41 tests), `npx tsc --noEmit`, `pnpm test` (94 files / 731 tests), `pnpm lint`, `pnpm build`, and `git diff --check` with CRLF warnings only.
 
 Still open:
+
 - Linked Supabase migration-history reads through the direct pooler path remain uncertified from this environment. Live schema effects are verified through Management API SQL probes.
 - Authenticated CRM browser QA against live branch data is still recommended for the Schedule Setup/Adjust Schedule save flows and Daily Timeline realtime refresh.
 - The old `individual-schedule-editor.tsx` file remains in the tree but Schedule Setup no longer imports it; it can be deleted in a cleanup pass if desired.
 
 Next steps:
+
 1. Reconcile Supabase migration history from a working migration-history connection for the schedule repair and realtime publication migrations.
 2. Run authenticated CRM QA: Schedule Setup save, Adjust Schedule save, Daily Timeline roster/status/realtime refresh, booking availability smoke.
 3. After migration history is reconciled, rerun DB status/types and app verification.
@@ -483,6 +492,7 @@ Next steps:
 CRADLE-SCHEDULE-UPDATE-INTEGRATION-REPAIR-006 is implemented, live schema repaired, and code/build verified.
 
 Done:
+
 - Reproduced root cause: Adjust Schedule/Schedule Setup called `replace_staff_weekly_schedule(uuid, uuid, jsonb)` but the linked live DB had no RPC and still used the old `staff_id, day_of_week, shift_type` unique constraint.
 - Added `supabase/migrations/20260713035024_schedule_update_integration_repair.sql` with stale inactive placeholder backups/cleanup, ordered-window `staff_schedules` constraint repair, 1..12 window check, validation trigger, operational helper functions, `replace_staff_weekly_schedule`, and PostgREST schema reload.
 - Applied that corrective migration to the linked live schema through `supabase db query --linked --dns-resolver https --file ...` because the project `db push/status` pooler path still timed out.
@@ -494,10 +504,12 @@ Done:
 - Verification passed: focused schedule/action tests (5 files / 38 tests), `npx tsc --noEmit`, and `pnpm build`.
 
 Still open:
+
 - `pnpm db:push --dry-run` and `pnpm db:status` still time out against `aws-1-ap-northeast-1.pooler.supabase.com:5432`, including escalated retries. Live schema is fixed, but migration history is not certified from this environment.
 - Authenticated CRM browser QA against live branch data is still recommended for the Adjust Schedule save flow.
 
 Next steps:
+
 1. Restore/reconcile the direct Supabase migration-history path and run `pnpm db:status`.
 2. If migration history does not include `20260713035024`, reconcile it with the live-applied corrective SQL using the approved database runbook.
 3. Run authenticated CRM QA: open Daily Timeline, Adjust Schedule, edit/save weekly rows, reopen, and confirm booking/Today/Timeline refresh behavior.
@@ -507,6 +519,7 @@ Next steps:
 CRADLE-BACKEND-STABILIZATION-AND-SCHEDULE-REPAIR-001 is locally implemented and fully verified, but production database apply is still blocked.
 
 Done:
+
 - Added `supabase/migrations/20260712165012_backend_stabilization_schedule_repair.sql` with schedule repair backups, operational staff helpers/view, booking-rule fee columns, overlap validation triggers, and transactional weekly replacement RPCs for staff and schedule groups.
 - CRM weekly staff schedule saves now call `replace_staff_weekly_schedule(...)` and verify returned rows.
 - Group weekly schedule saves now call `replace_group_weekly_schedule(...)` and verify returned rows.
@@ -515,10 +528,12 @@ Done:
 - Verification passed: migration rollback dry-run against linked DB, focused schedule/action/staff tests, `pnpm type-check`, `pnpm lint`, `pnpm test` (89 files / 710 tests), and `pnpm build` (Next.js 16.2.4, 108 routes).
 
 Still blocked:
+
 - The migration was not applied to production. `pnpm db:doctor` and `pnpm db:status` still time out while reading linked Supabase migration history on `aws-1-ap-northeast-1.pooler.supabase.com:5432`; `db:status` reports `Remote schema changed: no` before failing.
 - Do not run a blind `db push` from this environment because remote migration history is behind live schema effects.
 
 Next steps:
+
 1. Apply `supabase/migrations/20260712165012_backend_stabilization_schedule_repair.sql` from a working migration-history path.
 2. Rerun `pnpm db:types`, `pnpm type-check`, `pnpm lint`, `pnpm test`, and `pnpm build`.
 3. Resolve Nikki's same-timestamp active opening/closing schedule overlaps manually after business confirmation.
@@ -548,6 +563,7 @@ ATTENDANCE-AUTONOMY-HARDENING-001 has a continuation checkpoint: the main interp
 - Follow-up hydration fix: CRM/Owner Attendance now pass the serialized `data.serverNowMs` snapshot into `AttendanceWorkspace`, eliminating the initial worked-time text mismatch while preserving the post-hydration 30-second refresh. Verified with `pnpm type-check`, `pnpm lint`, and `pnpm build`.
 
 Still open:
+
 - Reconcile the six recent Attendance migrations in Supabase migration history. Local DB is not running at `127.0.0.1:54322`; linked migration-history reads time out to `aws-1-ap-northeast-1.pooler.supabase.com:5432`; linked `supabase_migrations.schema_migrations` currently reports `0` rows for `20260710040835`, `20260710055131`, `20260712000100`, `20260712035222`, `20260712044527`, and `20260712045429`.
 - `pnpm db:types` passed, but the linked remote schema is behind local pending migrations; `src/types/supabase.ts` was locally reconciled afterward.
 - Event-only/noop scan paths still need retry/concurrency QA.
@@ -1118,6 +1134,7 @@ However, System Management follows the current management-authorized route gates
 ## Handoff - ATTENDANCE-SCHEDULE-REPAIR-002
 
 Done:
+
 - CRM Schedule Daily Timeline now logs actionable branch/date/error diagnostics and returns a safe unavailable message.
 - Daily schedule query now selects `schedule_overrides.shift_type`, propagates it into timed override labels, and fails loudly on staff metadata, blocked-times, and override query errors.
 - Schedule workspace uses live SWR schedule data and explicit refresh tokens instead of router refresh for setup changes.
@@ -1127,11 +1144,13 @@ Done:
 - Local verification passed: `npx tsc --noEmit`, `npm run lint`, focused schedule tests, full `npx vitest run`, `npm run build`, and `git diff --check`.
 
 Still blocked:
+
 - `pnpm db:push` and `pnpm db:types` cannot complete until the local Supabase CLI/pnpm issue is repaired.
 - Supabase migration history does not show `20260703022600` applied even though the live column exists.
 - The pasted Supabase database password should be rotated before deploy.
 
 Suggested next steps:
+
 1. Repair pnpm/Supabase CLI build-script approval or reinstall the Supabase CLI binary cleanly.
 2. Rerun `pnpm db:push` and `pnpm db:types`.
 3. Rotate the Supabase database password and update environment variables.
@@ -1142,6 +1161,7 @@ Suggested next steps:
 ## Handoff - SCHEDULE-DATA-OPTIMIZATION-001
 
 Done:
+
 - Schedule resolution now returns explicit `resolved`, `day_off`, `missing`, or `conflict` status.
 - Invalid overrides, overlapping windows, and day-off-plus-working group rules become conflict states with no operational windows.
 - Individual schedule saves, CRM weekly availability saves, group rule saves, and group apply-to-staff now write complete matrices so stale shift rows are deactivated.
@@ -1150,6 +1170,7 @@ Done:
 - Verification passed: focused scheduling tests, `npm run type-check`, `npm run lint`, full `npx vitest run`, and `npm run build`.
 
 Notes:
+
 - The repository already had a large unrelated dirty Attendance/CRM worktree before this scheduling continuation. Those changes were preserved and not reverted.
 - No new scheduling tables or migrations were added.
 
@@ -1158,6 +1179,7 @@ Notes:
 ## Handoff - CRADLE-INDIVIDUAL-SCHEDULING-SIMPLIFICATION-005
 
 Done:
+
 - Manual/paper schedule importer, paper roster constants, importer action paths, and duplicate scheduling UI were removed.
 - CRM Schedule now exposes only Daily Timeline and Schedule Setup; old CRM staff availability and availability pages redirect to the Schedule workspace.
 - Runtime schedule resolver, queries, realtime subscriptions, booking availability, attendance, dispatch recommendations, readiness, and schedule conflict text no longer use group schedule fallback.
@@ -1165,6 +1187,7 @@ Done:
 - Supabase types were regenerated and app checks pass on the current tree.
 
 Verified:
+
 - `pnpm db:types`
 - `pnpm type-check`
 - `pnpm lint`
@@ -1173,11 +1196,13 @@ Verified:
 - `git diff --check`
 
 Still blocked:
+
 - Production migration apply is not verified. `pnpm db:doctor` and `pnpm db:status` still time out while reading linked migration history through the pooler.
 - `pnpm db:verify` can run linked SQL/table checks but exits nonzero because `psql` is missing for fallback.
 - Linked generated types still show `branch_booking_rules` without pending distance-fee columns until migrations are applied.
 
 Next pickup:
+
 1. Apply `20260712165012_backend_stabilization_schedule_repair.sql` and `20260712190359_individual_schedule_runtime_only.sql` from a working Supabase migration-history connection.
 2. Rerun `pnpm db:types`, `pnpm type-check`, `pnpm lint`, `pnpm test --run`, and `pnpm build`.
 3. Run authenticated CRM browser QA for `/crm/schedule` Daily Timeline and Schedule Setup.
@@ -1187,6 +1212,7 @@ Next pickup:
 ## Handoff - CRADLE-ADJUST-SCHEDULE-MODAL-003
 
 Done:
+
 - Added the reusable `src/components/features/schedule-adjustment` modal suite with staff identity strip, left adjustment navigation, Staff Shift Profile, weekly matrix, right Schedule Status/Preview/Impact rail, sticky validation footer, mobile weekday cards, and honest exceptions empty state.
 - Replaced CRM Schedule Daily Timeline Quick Actions > Adjust Staff with `AdjustScheduleDialog` in Weekly Schedule mode.
 - Added Adjust Schedule to the selected-staff card beside Edit Profile, Edit Capabilities, and View Full Schedule; it uses the same modal target/state/save/refresh behavior.
@@ -1195,6 +1221,7 @@ Done:
 - Added ordered-window weekly save support through `updateCrmStaffWeeklyWindowScheduleAction`, `buildStaffWeeklyWindowScheduleRows`, and the pending schedule repair migration.
 
 Verified:
+
 - Focused tests: `pnpm test --run tests/lib/schedule/adjust-schedule-utils.test.ts tests/lib/schedule/staff-schedule-write.test.ts tests/lib/schedule/daily-timeline-selection-card.test.tsx tests/lib/schedule/adjust-schedule-dialog.test.tsx` (4 files / 21 tests).
 - `pnpm type-check`
 - `pnpm lint`
@@ -1203,13 +1230,16 @@ Verified:
 - `git diff --check` (passes with CRLF warnings only)
 
 Still open:
+
 - Authenticated CRM browser QA/visual certification for the modal against live branch data.
 - Production migration apply remains blocked by the existing Supabase migration-history connectivity issue.
 - Authoritative affected-booking impact analysis is not yet wired into weekly save confirmation.
 - Date-range overrides, expanded blocked-time reasons, override overnight persistence, and durable approved-exception records need separately approved schema/action work.
+
 ## Handoff - CRADLE-ATTENDANCE-DB-CONNECTION-AND-END-TO-END-DIAGNOSTICS-011
 
 Done:
+
 - Same-project database identity, live schema, RLS, grants, generated types,
   transaction RPC, recovery RPC, scan writes, Activity query, and Realtime were
   inspected and exercised.
@@ -1219,6 +1249,7 @@ Done:
 - New migration `20260713120237` is applied and recorded.
 
 Key operation IDs:
+
 - `998ba4f6-9499-4c76-960b-5543d67cdd6e`: safe unknown-device failure audit.
 - `971879ba-a130-4df2-991c-6b5030b59ea3`: successful atomic clock-in.
 - `4b8e9251-cb03-4565-b459-5c406cd03b53`: pre-write `PGRST201` clock-out failure.
@@ -1226,6 +1257,7 @@ Key operation IDs:
   early-leave exception.
 
 Still open:
+
 - Restore direct pooler TCP 5432 connectivity and reconcile old migration
   history before any broad `db push`.
 - `psql` is absent; `db:verify` therefore returns warning exit 2 after all table
@@ -1238,6 +1270,7 @@ Still open:
 ## Handoff - ONLINE-STAFF-PREFERENCE-EXCEPTIONS-001
 
 Done:
+
 - Public booking defaults/resets to Any available and never derives the form
   value from the recommended provider.
 - Manual preferences are hard-validated for tenant/branch/provider/service
@@ -1251,11 +1284,13 @@ Done:
 - No database/RLS change.
 
 Verified:
+
 - Focused 7 files / 25 tests, full 108 files / 780 tests, type-check, lint,
   build, and diff check.
 - Public browser flow confirmed default/recommendation/manual-preference state.
 
 Still open:
+
 - Run authenticated CRM browser QA for Today/list/details and Keep/Reassign/
   Reschedule/Mark-resolved clicks using a safe test booking. The local browser
   session redirects CRM routes to `/login`.
@@ -1263,6 +1298,7 @@ Still open:
 ## Handoff - CRM-BOOKINGS-DESKTOP-REDESIGN-001
 
 Done:
+
 - CRM desktop Bookings uses the approved two-pane layout; selected-date rows,
   quick/exact filters, search, selection, pagination, legacy links, and the
   fixed command-pane structure are implemented.
@@ -1273,10 +1309,12 @@ Done:
   UI. No database migration or RLS policy changed.
 
 Verified:
+
 - Focused 3 files / 9 tests; full 111 files / 789 tests; type-check, lint,
   production build, and diff check all pass.
 
 Still open:
+
 - Run the manual CRM Bookings matrix in a safe authenticated browser session at
   desktop widths, including filter/search/pagination, row selection/close,
   pending/confirmed/checked-in/in-service/completed actions, and legacy URLs.
@@ -1286,6 +1324,7 @@ Still open:
 ## Handoff - CRM-BOOKING-ACTIONS-COMPACT-001
 
 Done:
+
 - CRM desktop routine actions bypass Booking Follow-up: direct confirmation,
   `tel:` Call, existing Message copy, direct No Answer, and direct Confirm Later.
 - Reschedule still opens `RescheduleBookingModal`; Cancel now uses a compact
@@ -1300,11 +1339,13 @@ Done:
 - No database migration or RLS policy change was required.
 
 Verified:
+
 - Focused booking tests: 6 files / 27 tests.
 - Full Vitest: 114 files / 807 tests.
 - `pnpm type-check`, `pnpm lint`, `pnpm build`, and `git diff --check` pass.
 
 Still open:
+
 - Authenticated live operator QA for direct mutation toasts/refresh and the
   focused cancel/reschedule dialogs. The only available in-app browser reached
   the running local app but redirected `/crm/bookings` to `/login` and had no
@@ -1313,6 +1354,7 @@ Still open:
 ## Handoff - ATTENDANCE-STAFF-SELF-SERVICE-001
 
 Done:
+
 - Autonomous first-scan phone registration is continuation-bound, retry-safe,
   policy-aware, and completes attendance in the same action/operation context.
 - Staff Portal phone requests, CRM review, expiring same-phone activation,
@@ -1322,19 +1364,23 @@ Done:
   coverage are included without adding a second engine or device registry.
 
 Verified:
+
 - Focused 6 files / 14 tests; full 119 files / 819 tests; type-check, lint, and
   production build pass.
 
 Still open:
+
 - Apply and verify `20260714050554_attendance_staff_self_service.sql` after the
   linked Postgres pooler is reachable; then regenerate live schema types and run
   service-role RPC plus authenticated RLS probes.
 - Run the physical/signed-in Method 1 and Method 2 matrix. The only available
   browser redirects protected routes to `/login`, so production/device
   certification must not be claimed yet.
+
 ## Handoff - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 0
 
 Done:
+
 - Mapped current Attendance routes, engine entry points, schedule resolution,
   device paths, RPCs, Recovery, realtime, staff/CRM/report sources,
   notifications/tasks/payroll connections, limits, and timezone hardcoding.
@@ -1344,20 +1390,24 @@ Done:
 - Type-check, lint, production build, and diff check pass on the current tree.
 
 Blocked:
+
 - Linked migration-history access times out on Postgres port 5432. Deployed
   migrations, RLS, RPC grants, and scheduler state remain uncertified.
 - Phase 1 must not begin until this gate is cleared; do not blind-push local
   migrations.
 
 Next pickup:
+
 1. Restore an approved authoritative linked SQL/migration-history path.
 2. Verify live Attendance tables, functions/signatures, grants, policies,
    publications, extensions, and migration versions.
 3. Rerun Phase 0 checks, mark the gate complete, then begin the authoritative
    daily Attendance model in Phase 1.
+
 ## Handoff - Attendance device-request schema-cache repair
 
 Done:
+
 - Applied the focused Staff Portal device-request migration to the linked
   project and reloaded PostgREST.
 - Verified table, RLS, policies, grants, privileged RPC restrictions, and
@@ -1366,13 +1416,16 @@ Done:
 - Focused device/Staff Attendance tests pass: 3 files / 7 tests.
 
 Still open:
+
 - The SQL effects are live, but linked migration-history reads still time out;
   reconcile version `20260714050554` before a normal broad migration push.
 - Physical same-phone staff/CRM request approval and activation QA remains
   required for full device certification.
+
 ## Handoff - ATTENDANCE-COMPLETE-SYSTEM-001 Phase 1
 
 Done:
+
 - Added the pure authoritative Attendance-day model and connected CRM/Owner and
   self-only Staff Portal consumers.
 - Removed CRM Overview's first-36 truncation and record-existence schedule
@@ -1382,19 +1435,23 @@ Done:
 - Documented the model in the Attendance Phase 1 and Architecture documents.
 
 Verified:
+
 - 25 focused Attendance files / 112 tests.
 - Full suite: 120 files / 835 tests.
 - Type-check, lint, production build, and diff check pass.
 
 Pending at this checkpoint:
+
 - Run authenticated CRM and Staff Portal browser QA with safe accounts.
 - Migration version `20260714050554` remains live-but-unreconciled in migration
   history; do not run a blind broad push.
+
 ## ATTENDANCE-BETA-READINESS-001 - 2026-07-15
 
 Decision: **NO-GO**.
 
 Done:
+
 - Live baseline, tables, RLS, policies, grants, indexes, functions, types, and
   migration-history state audited.
 - Missing live `staff.is_cross_branch` repaired with migration `20260714180606`;
@@ -1405,6 +1462,7 @@ Done:
 - Type-check, 131-file/958-test suite, lint, and production build pass.
 
 Still required before staff beta:
+
 1. Reconcile all live July 12-15 Attendance migration effects with migration history.
 2. Use dedicated staff credentials and an active physical phone to run clock-in,
    duplicate, clock-out, first-scan registration continuation, late/outside-hours,
@@ -1420,6 +1478,7 @@ Still required before staff beta:
 - Every approved resolution requiring Attendance instructs the staff member to scan again.
 - Legacy pending requests are migrated and closed by migration 20260716090000.
 - Verify Supabase migrations were pushed and production was redeployed.
+
 # RELEASE-READINESS-001-RESUME handoff — 2026-07-21
 
 Code and operational assets are complete with a CONDITIONAL GO for controlled staff use. Before production activation, an operator must apply and verify `20260721190000_attendance_stale_recovery_transaction.sql`, run the migration-history comparison, install/verify the four Attendance cron jobs, set `ATTENDANCE_ENFORCEMENT_ENABLED` deliberately, and run the read-only operational preflight.
@@ -1456,3 +1515,22 @@ Manager activation remains deferred. Browser QA could not be fabricated without 
 - CRM Home Service strict service-assignment behavior remains unchanged.
 - TypeScript nullability and narrowed-delivery-type errors were corrected.
 - No Supabase migration was created.
+
+## EXACT-CRM-TIME-001
+
+- CRM preview and final save now share the same exact-time resolver.
+- A service start inside the therapist shift is allowed even when the service ends after shift.
+- Overtime is shown and recorded in booking metadata.
+- Home Service travel buffers are included in source-level staff conflict checks.
+- Cross-midnight booking remains blocked.
+- No database migration was applied; concurrent Home Service travel-range hardening still requires a separate audited database change.
+
+## ATTENDANCE-DIAGNOSTICS-PREVENTION-001
+
+- Generic scan-processing labels are replaced by exact problem and action labels.
+- Staff results show what happened, whether Attendance changed, the next action, owner, code, receipt, and prevention guidance.
+- CRM incidents show immediate repair, root cause, recurrence, prevention owner/action, follow-up, and verification.
+- Browser recovery remains on the browser that needs connection; Staff Profile delivery is the default CRM option and raw tokens stay server-side.
+- Source uses existing Attendance exception metadata, workflow tasks, notifications, device tokens, and recovery RPCs.
+- No Supabase migration was applied.
+- Applying a preserved scan as clock-in/out still requires a separately audited atomic database RPC; the UI does not fake that capability.

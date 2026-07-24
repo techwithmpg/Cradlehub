@@ -185,6 +185,7 @@ export type PendingDeviceRecoveryLink = {
   createdAt: string;
   expiresAt: string;
   revokePreviousDeviceId: string | null;
+  deliveryMethod: "staff_profile" | "copy_link";
 };
 
 export type AttendanceDeviceRegistryData = {
@@ -211,11 +212,12 @@ export type AttendanceDeviceRegistryData = {
 
 export type RecoveryLinkResult = {
   tokenId: string;
-  recoveryUrl: string;
+  recoveryUrl: string | null;
   expiresAt: string;
   staffName: string;
   branchName: string;
   reason: DeviceRecoveryReason;
+  deliveryMethod: "staff_profile" | "copy_link";
 };
 
 export type RecoveryTokenPreview =
@@ -296,6 +298,20 @@ export type AttendanceException = {
   resolved_by?: string | null;
   resolved_by_name?: string | null;
   resolution_note?: string | null;
+  safe_error_code?: string | null;
+  category?: string | null;
+  resolution_owner?: string | null;
+  resolution_status?: string | null;
+  resolution_action?: string | null;
+  recommended_action?: string | null;
+  occurrence_count?: number;
+  first_detected_at?: string | null;
+  last_detected_at?: string | null;
+  latest_scan_event_id?: string | null;
+  dedupe_key?: string | null;
+  priority?: string | null;
+  staff_response_required?: boolean;
+  technical_context?: Record<string, unknown>;
 };
 
 export type AttendanceCorrection = {
