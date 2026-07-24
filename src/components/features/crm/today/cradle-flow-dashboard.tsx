@@ -1,16 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   crmStartServiceAction,
   markBookingArrivedAction,
 } from "@/app/(dashboard)/crm/bookings/actions";
-import {
-  BOOKINGS_CHANGED_EVENT,
-  notifyBookingsChanged,
-} from "@/lib/bookings/bookings-client-events";
+import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
   getCradleFlowCounts,
   getCradleFlowStage,
@@ -61,12 +58,6 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   const [totalsOpen, setTotalsOpen] = useState(false);
   const [collected, setCollected] = useState(props.snapshot.payment?.total_collected ?? 0);
   const [isActing, startAction] = useTransition();
-
-  useEffect(() => {
-    const refresh = () => router.refresh();
-    window.addEventListener(BOOKINGS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, refresh);
-  }, [router]);
 
   const counts = useMemo(() => getCradleFlowCounts(bookings), [bookings]);
   const pendingBooking =

@@ -78,9 +78,11 @@ describe("PublicScanProcessor first-device continuation", () => {
     render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
     await finishTimers();
 
-    expect(screen.getByRole("heading", { name: "Sign in to continue" })).toBeTruthy();
-    expect(screen.getByText(/connect it and continue your attendance scan/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Connect phone and continue" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "This browser is not connected" })).toBeTruthy();
+    expect(screen.getByText(/original scan will continue automatically/i)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Sign in, connect this browser and finish scan" })
+    ).toBeTruthy();
     expect(screen.queryByText("Device not registered")).toBeNull();
     expect(screen.queryByText("unknown-device-operation")).toBeNull();
   });
@@ -100,11 +102,15 @@ describe("PublicScanProcessor first-device continuation", () => {
 
     render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
     await finishTimers();
-    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "nikki@example.com" } });
+    fireEvent.change(screen.getByLabelText("Your staff email"), {
+      target: { value: "nikki@example.com" },
+    });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "correct-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "Connect phone and continue" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sign in, connect this browser and finish scan" })
+    );
 
-    expect(screen.getByRole("button", { name: "Connecting phone…" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Connecting this browser…" })).toBeTruthy();
     await finishTimers();
 
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).toHaveBeenCalledTimes(1);
@@ -127,31 +133,40 @@ describe("PublicScanProcessor first-device continuation", () => {
 
     render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
     await finishTimers();
-    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "wrong@example.com" } });
+    fireEvent.change(screen.getByLabelText("Your staff email"), {
+      target: { value: "wrong@example.com" },
+    });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "Connect phone and continue" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sign in, connect this browser and finish scan" })
+    );
     await act(async () => Promise.resolve());
 
-    expect(screen.getByRole("heading", { name: "Sign in to continue" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "This browser is not connected" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("Check your email and password");
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a revoked phone blocked instead of entering registration", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({
-      ok: false,
-      outcome: "blocked",
-      reasonCode: "device_revoked",
-      severity: "critical",
-      title: "This phone is no longer approved",
-      message: "Ask CRM to review or replace this phone.",
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response({
+          ok: false,
+          outcome: "blocked",
+          reasonCode: "device_revoked",
+          severity: "critical",
+          title: "This phone is no longer approved",
+          message: "Ask CRM to review or replace this phone.",
+        })
+      )
+    );
 
     render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "This phone is no longer approved" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Sign in to continue" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "This browser is not connected" })).toBeNull();
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).not.toHaveBeenCalled();
   });
 });

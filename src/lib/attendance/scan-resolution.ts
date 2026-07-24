@@ -48,8 +48,19 @@ export type AttendanceScanResolution = {
 };
 
 function resolutionCategory(
+  code: string,
   category: ReturnType<typeof resolveAttendanceDiagnosticFromScan>["category"]
 ): AttendanceResolutionCategory {
+  if (
+    code === "phone_revoked" ||
+    code === "device_connected_other_staff" ||
+    code === "wrong_staff_account"
+  ) {
+    return "security";
+  }
+  if (code === "duplicate_scan" || code === "scan_after_clock_out") {
+    return "duplicate";
+  }
   if (category === "phone") return "device";
   if (category === "clock") return "attendance_state";
   if (category === "service") return "booking_or_service";
@@ -109,7 +120,7 @@ export function classifyAttendanceScanResult(result: PublicScanResult): Attendan
 
   return {
     safeErrorCode: diagnostic.code.toUpperCase(),
-    category: resolutionCategory(diagnostic.category),
+    category: resolutionCategory(diagnostic.code, diagnostic.category),
     title: diagnostic.staffTitle,
     staffMessage: diagnostic.staffMessage,
     crmSummary: diagnostic.crmSummary,

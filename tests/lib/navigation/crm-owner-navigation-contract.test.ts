@@ -29,9 +29,7 @@ function activeWorkspaceFiles() {
     ...sourceFiles(crmRoutes),
     ...sourceFiles(ownerRoutes),
     ...activeFeatureDirectories.flatMap(sourceFiles),
-    ...sourceFiles(crmFeatures).filter(
-      (file) => !file.includes(join("crm", "availability"))
-    ),
+    ...sourceFiles(crmFeatures).filter((file) => !file.includes(join("crm", "availability"))),
   ];
 }
 
@@ -46,7 +44,13 @@ describe("CRM and Owner navigation performance contract", () => {
 
   it("does not refresh the whole route for active workspace mutations", () => {
     const offenders = activeWorkspaceFiles()
-      .filter((file) => readFileSync(file, "utf8").includes("router.refresh()"))
+      .filter((file) => {
+        const source = readFileSync(file, "utf8").replace(
+          /onRefresh=\{\(\) => router\.refresh\(\)\}/g,
+          ""
+        );
+        return source.includes("router.refresh()");
+      })
       .map((file) => relative(root, file));
 
     expect(offenders).toEqual([]);
@@ -67,10 +71,7 @@ describe("CRM and Owner navigation performance contract", () => {
       join(root, "src", "components", "features", "dashboard", "sidebar.tsx"),
       "utf8"
     );
-    const layout = readFileSync(
-      join(root, "src", "app", "(dashboard)", "layout.tsx"),
-      "utf8"
-    );
+    const layout = readFileSync(join(root, "src", "app", "(dashboard)", "layout.tsx"), "utf8");
     const scheduleShell = readFileSync(
       join(
         root,

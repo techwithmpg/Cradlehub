@@ -22,7 +22,7 @@ const history = readFileSync(
   "utf8"
 );
 const review = readFileSync(
-  "src/components/features/attendance/review/attendance-review-drawer.tsx",
+  "src/components/features/attendance/review/attendance-issue-modal-router.tsx",
   "utf8"
 );
 
