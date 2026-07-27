@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   createAdminClient: vi.fn(),
@@ -89,31 +91,39 @@ type SetupOptions = {
 };
 
 function setup(options: SetupOptions = {}) {
-  const baseData = options.baseData === undefined
-    ? { id: BOOKING_ID, branch_id: BRANCH_ID, status: "pending", booking_progress_status: "not_started", customer_id: null }
-    : options.baseData;
-  const details = options.details === undefined
-    ? {
-        id: BOOKING_ID,
-        branch_id: BRANCH_ID,
-        customer_id: null,
-        service_id: null,
-        booking_date: "2026-07-14",
-        start_time: "10:00:00",
-        end_time: "11:00:00",
-        type: "online",
-        delivery_type: "in_spa",
-        staff_id: STAFF_ID,
-        driver_id: null,
-        payment_status: options.paymentStatus ?? "paid",
-        status: "pending",
-        booking_progress_status: "not_started",
-        checked_in_at: null,
-        session_started_at: null,
-        resource_id: null,
-        metadata: {},
-      }
-    : options.details;
+  const baseData =
+    options.baseData === undefined
+      ? {
+          id: BOOKING_ID,
+          branch_id: BRANCH_ID,
+          status: "pending",
+          booking_progress_status: "not_started",
+          customer_id: null,
+        }
+      : options.baseData;
+  const details =
+    options.details === undefined
+      ? {
+          id: BOOKING_ID,
+          branch_id: BRANCH_ID,
+          customer_id: null,
+          service_id: null,
+          booking_date: "2026-07-14",
+          start_time: "10:00:00",
+          end_time: "11:00:00",
+          type: "online",
+          delivery_type: "in_spa",
+          staff_id: STAFF_ID,
+          driver_id: null,
+          payment_status: options.paymentStatus ?? "paid",
+          status: "pending",
+          booking_progress_status: "not_started",
+          checked_in_at: null,
+          session_started_at: null,
+          resource_id: null,
+          metadata: {},
+        }
+      : options.details;
 
   const staffQuery = queryBuilder({
     maybeSingle: {
@@ -126,7 +136,7 @@ function setup(options: SetupOptions = {}) {
   });
   const client = {
     auth: { getUser: vi.fn(async () => ({ data: { user: { id: AUTH_USER_ID } } })) },
-    from: vi.fn((table: string) => table === "staff" ? staffQuery : baseQuery),
+    from: vi.fn((table: string) => (table === "staff" ? staffQuery : baseQuery)),
   };
 
   const detailsQuery = queryBuilder({ maybeSingle: { data: details, error: null } });
@@ -186,7 +196,9 @@ describe("CRM booking action identifier and lookup boundary", () => {
       "id, branch_id, status, booking_progress_status, customer_id"
     );
     expect(baseQuery.eq).toHaveBeenCalledWith("id", BOOKING_ID);
-    expect(updateQuery.update).toHaveBeenCalledWith(expect.objectContaining({ status: "confirmed" }));
+    expect(updateQuery.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "confirmed" })
+    );
   });
 
   it("returns a branch-access error instead of Booking not found", async () => {
@@ -230,7 +242,10 @@ describe("CRM booking action identifier and lookup boundary", () => {
 describe("CRM direct follow-up and cancellation actions", () => {
   it("records no-answer metadata with actor and timestamp without changing status", async () => {
     const { updateQuery, eventQuery } = setup();
-    const result = await recordBookingFollowupAction({ bookingId: BOOKING_ID, result: "no_answer" });
+    const result = await recordBookingFollowupAction({
+      bookingId: BOOKING_ID,
+      result: "no_answer",
+    });
 
     expect(result).toEqual({ success: true });
     const update = updateQuery.update.mock.calls[0]?.[0] as {
@@ -246,7 +261,10 @@ describe("CRM direct follow-up and cancellation actions", () => {
 
   it("keeps confirm-later in the existing pending state", async () => {
     const { updateQuery } = setup();
-    const result = await recordBookingFollowupAction({ bookingId: BOOKING_ID, result: "confirm_later" });
+    const result = await recordBookingFollowupAction({
+      bookingId: BOOKING_ID,
+      result: "confirm_later",
+    });
 
     expect(result).toEqual({ success: true });
     expect(updateQuery.update).toHaveBeenCalledWith(expect.objectContaining({ status: "pending" }));
@@ -254,32 +272,80 @@ describe("CRM direct follow-up and cancellation actions", () => {
 
   it("blocks already-cancelled and completed bookings", async () => {
     setup({
-      baseData: { id: BOOKING_ID, branch_id: BRANCH_ID, status: "cancelled", booking_progress_status: "not_started", customer_id: null },
+      baseData: {
+        id: BOOKING_ID,
+        branch_id: BRANCH_ID,
+        status: "cancelled",
+        booking_progress_status: "not_started",
+        customer_id: null,
+      },
       details: {
-        id: BOOKING_ID, branch_id: BRANCH_ID, customer_id: null, service_id: null,
-        booking_date: "2026-07-14", start_time: "10:00:00", end_time: "11:00:00",
-        type: "online", delivery_type: "in_spa", staff_id: null, driver_id: null,
-        status: "cancelled", booking_progress_status: "not_started", checked_in_at: null,
-        session_started_at: null, resource_id: null, metadata: {},
+        id: BOOKING_ID,
+        branch_id: BRANCH_ID,
+        customer_id: null,
+        service_id: null,
+        booking_date: "2026-07-14",
+        start_time: "10:00:00",
+        end_time: "11:00:00",
+        type: "online",
+        delivery_type: "in_spa",
+        staff_id: null,
+        driver_id: null,
+        status: "cancelled",
+        booking_progress_status: "not_started",
+        checked_in_at: null,
+        session_started_at: null,
+        resource_id: null,
+        metadata: {},
       },
     });
-    expect(await recordBookingFollowupAction({ bookingId: BOOKING_ID, result: "cancel", note: "Legacy reason" })).toEqual({
+    expect(
+      await recordBookingFollowupAction({
+        bookingId: BOOKING_ID,
+        result: "cancel",
+        note: "Legacy reason",
+      })
+    ).toEqual({
       success: false,
       error: "Booking is already cancelled.",
     });
 
     vi.clearAllMocks();
     setup({
-      baseData: { id: BOOKING_ID, branch_id: BRANCH_ID, status: "completed", booking_progress_status: "completed", customer_id: null },
+      baseData: {
+        id: BOOKING_ID,
+        branch_id: BRANCH_ID,
+        status: "completed",
+        booking_progress_status: "completed",
+        customer_id: null,
+      },
       details: {
-        id: BOOKING_ID, branch_id: BRANCH_ID, customer_id: null, service_id: null,
-        booking_date: "2026-07-14", start_time: "10:00:00", end_time: "11:00:00",
-        type: "online", delivery_type: "in_spa", staff_id: null, driver_id: null,
-        status: "completed", booking_progress_status: "completed", checked_in_at: null,
-        session_started_at: null, resource_id: null, metadata: {},
+        id: BOOKING_ID,
+        branch_id: BRANCH_ID,
+        customer_id: null,
+        service_id: null,
+        booking_date: "2026-07-14",
+        start_time: "10:00:00",
+        end_time: "11:00:00",
+        type: "online",
+        delivery_type: "in_spa",
+        staff_id: null,
+        driver_id: null,
+        status: "completed",
+        booking_progress_status: "completed",
+        checked_in_at: null,
+        session_started_at: null,
+        resource_id: null,
+        metadata: {},
       },
     });
-    expect(await recordBookingFollowupAction({ bookingId: BOOKING_ID, result: "cancel", note: "Legacy reason" })).toEqual({
+    expect(
+      await recordBookingFollowupAction({
+        bookingId: BOOKING_ID,
+        result: "cancel",
+        note: "Legacy reason",
+      })
+    ).toEqual({
       success: false,
       error: "Completed bookings cannot be cancelled.",
     });
@@ -287,7 +353,13 @@ describe("CRM direct follow-up and cancellation actions", () => {
 
   it("returns specific wrong-branch and missing-booking cancellation errors", async () => {
     setup({ baseData: null, diagnostic: { id: BOOKING_ID, branch_id: OTHER_BRANCH_ID } });
-    expect(await recordBookingFollowupAction({ bookingId: BOOKING_ID, result: "cancel", note: "Legacy reason" })).toEqual({
+    expect(
+      await recordBookingFollowupAction({
+        bookingId: BOOKING_ID,
+        result: "cancel",
+        note: "Legacy reason",
+      })
+    ).toEqual({
       success: false,
       code: "booking_wrong_branch",
       error: "Booking belongs to another branch.",
@@ -295,7 +367,13 @@ describe("CRM direct follow-up and cancellation actions", () => {
 
     vi.clearAllMocks();
     setup({ baseData: null, diagnostic: null });
-    expect(await recordBookingFollowupAction({ bookingId: BOOKING_ID, result: "cancel", note: "Legacy reason" })).toEqual({
+    expect(
+      await recordBookingFollowupAction({
+        bookingId: BOOKING_ID,
+        result: "cancel",
+        note: "Legacy reason",
+      })
+    ).toEqual({
       success: false,
       code: "booking_missing",
       error: "Booking does not exist.",
@@ -317,33 +395,42 @@ describe("CRM direct follow-up and cancellation actions", () => {
       metadata: { cancellation: { reason: string; note: string; cancelled_by: string } };
     };
     expect(update.status).toBe("cancelled");
-    expect(update.metadata.cancellation).toEqual(expect.objectContaining({
-      reason: "Scheduling conflict",
-      note: "Customer requested another date.",
-      cancelled_by: STAFF_ID,
-    }));
-    expect(mocks.createNotification).toHaveBeenCalledWith(expect.objectContaining({
-      entityId: BOOKING_ID,
-      recipientStaffId: STAFF_ID,
-      type: "booking_cancelled",
-    }));
+    expect(update.metadata.cancellation).toEqual(
+      expect.objectContaining({
+        reason: "Scheduling conflict",
+        note: "Customer requested another date.",
+        cancelled_by: STAFF_ID,
+      })
+    );
+    expect(mocks.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityId: BOOKING_ID,
+        recipientStaffId: STAFF_ID,
+        type: "booking_cancelled",
+      })
+    );
   });
 
   it("does not alert assigned staff when an unpaid booking is cancelled", async () => {
     setup({ paymentStatus: "pending" });
 
-    await expect(recordBookingFollowupAction({
-      bookingId: BOOKING_ID,
-      result: "cancel",
-      cancellationReason: "scheduling_conflict",
-    })).resolves.toEqual({ success: true });
+    await expect(
+      recordBookingFollowupAction({
+        bookingId: BOOKING_ID,
+        result: "cancel",
+        cancellationReason: "scheduling_conflict",
+      })
+    ).resolves.toEqual({ success: true });
 
     expect(mocks.createNotification).not.toHaveBeenCalled();
   });
 
   it("returns update failures without misreporting the booking as missing", async () => {
     setup({ updateError: { code: "23514", message: "constraint failed" } });
-    const result = await recordBookingFollowupAction({ bookingId: BOOKING_ID, result: "no_answer" });
+    const result = await recordBookingFollowupAction({
+      bookingId: BOOKING_ID,
+      result: "no_answer",
+    });
 
     expect(result).toEqual({ success: false, error: "Booking update failed. Please try again." });
     expect(result.error).not.toContain("not found");

@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import { resolveExactCrmScheduleMatch } from "./exact-crm-booking-time";
 
 const window = (startTime: string, endTime: string) => ({

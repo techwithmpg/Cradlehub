@@ -12,13 +12,10 @@ import type { AttendanceSettings } from "@/lib/attendance/types";
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock(
-  "@/app/(dashboard)/owner/branches/[branchId]/attendance-rule-actions",
-  () => ({
-    saveBranchAttendanceRulesAction: vi.fn(),
-    saveAttendanceCategoryRuleAction: vi.fn(),
-  })
-);
+vi.mock("@/app/(dashboard)/owner/branches/[branchId]/attendance-rule-actions", () => ({
+  saveBranchAttendanceRulesAction: vi.fn(),
+  saveAttendanceCategoryRuleAction: vi.fn(),
+}));
 
 const settings: AttendanceSettings = {
   branch_id: "branch-1",
@@ -140,7 +137,9 @@ describe("BranchAttendanceRulesCard", () => {
     expect(screen.getAllByText("11:00 PM").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("11:30 PM")).toBeInTheDocument();
     expect(screen.getByText("12:00 AM")).toBeInTheDocument();
-    expect(screen.getByText("4 active CRM closing schedule rows may use this policy.")).toBeInTheDocument();
+    expect(
+      screen.getByText("4 active CRM closing schedule rows may use this policy.")
+    ).toBeInTheDocument();
   });
 
   it("updates the derived preview when the owner edits branch closing time", () => {
@@ -155,6 +154,27 @@ describe("BranchAttendanceRulesCard", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Category overrides" }));
     expect(screen.getByText("CRM closing policy")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save category override" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    expect(screen.getByText("No rule changes have been recorded yet.")).toBeInTheDocument();
+  });
+
+  it("shows read-only maintenance controls while keeping history available", () => {
+    render(
+      <BranchAttendanceRulesCard
+        branchId="branch-1"
+        data={data}
+        maintenance={{
+          active: true,
+          banner:
+            "Attendance maintenance mode is active. Existing records remain available for review.",
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Attendance maintenance mode is active/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save Attendance rules" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Category overrides" }));
+    expect(screen.getByRole("button", { name: "Save category override" })).toBeDisabled();
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(screen.getByText("No rule changes have been recorded yet.")).toBeInTheDocument();
   });

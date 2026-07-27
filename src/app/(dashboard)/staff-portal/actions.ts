@@ -14,7 +14,10 @@ import {
   getTimestampFieldForProgressStatus,
   type BookingProgressStatus,
 } from "@/lib/bookings/progress";
-import type { StaffPortalBooking, StaffPortalStaff } from "@/components/features/staff-portal/types";
+import type {
+  StaffPortalBooking,
+  StaffPortalStaff,
+} from "@/components/features/staff-portal/types";
 
 import { revalidatePath } from "next/cache";
 import { logError, logBusinessEvent } from "@/lib/logger";
@@ -23,12 +26,14 @@ import { canonicalizeSystemRole } from "@/constants/staff";
 import { canManageBookings } from "@/lib/auth/crm-permissions";
 import type { Database } from "@/types/supabase";
 import type { Json } from "@/types/supabase";
-import {
-  DEVICE_COOKIE_NAME,
-  LEGACY_DEVICE_COOKIE_NAME,
-  hashSecret,
-} from "@/lib/attendance/tokens";
+import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME, hashSecret } from "@/lib/attendance/tokens";
 import { resolveClosingInterventionSignals } from "@/lib/attendance/scan-engine";
+import {
+  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+  ATTENDANCE_MAINTENANCE_REASON_CODE,
+  getAttendanceMaintenanceState,
+  isAttendanceMaintenanceMode,
+} from "@/lib/attendance/maintenance-mode";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -45,12 +50,7 @@ const STAFF_PORTAL_PATHS = [
   "/staff-portal/attendance",
 ] as const;
 
-const DRIVER_PORTAL_PATHS = [
-  "/driver",
-  "/driver/dispatch",
-  "/driver/map",
-  "/driver/jobs",
-] as const;
+const DRIVER_PORTAL_PATHS = ["/driver", "/driver/dispatch", "/driver/map", "/driver/jobs"] as const;
 
 const staffSelfProfileSchema = z.object({
   fullName: z
@@ -58,26 +58,16 @@ const staffSelfProfileSchema = z.object({
     .trim()
     .min(2, "Full name must be at least 2 characters.")
     .max(100, "Full name must be 100 characters or fewer."),
-  nickname: z.preprocess(
-    (value) => {
-      if (typeof value !== "string") return null;
-      const trimmed = value.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    },
-    z.string().max(80, "Nickname must be 80 characters or fewer.").nullable()
-  ),
-  phone: z.preprocess(
-    (value) => {
-      if (typeof value !== "string") return undefined;
-      const trimmed = value.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    },
-    z
-      .string()
-      .max(30, "Phone must be 30 characters or fewer.")
-      .nullable()
-      .optional()
-  ),
+  nickname: z.preprocess((value) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, z.string().max(80, "Nickname must be 80 characters or fewer.").nullable()),
+  phone: z.preprocess((value) => {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, z.string().max(30, "Phone must be 30 characters or fewer.").nullable().optional()),
 });
 
 export type StaffProfileDetailsActionState = {
@@ -125,6 +115,15 @@ function jsonRecord(value: Json | null): Record<string, unknown> {
  * are resolved again by the restricted database transaction.
  */
 export async function clockOutFromStaffPortalAction(): Promise<PortalClockOutActionResult> {
+  if (isAttendanceMaintenanceMode()) {
+    const maintenance = getAttendanceMaintenanceState();
+    return {
+      ok: false,
+      code: ATTENDANCE_MAINTENANCE_REASON_CODE,
+      title: maintenance.title,
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const supabase = await createClient();
   const {
     data: { user },
@@ -140,9 +139,9 @@ export async function clockOutFromStaffPortalAction(): Promise<PortalClockOutAct
 
   const cookieStore = await cookies();
   const rawDeviceCredential =
-    cookieStore.get(DEVICE_COOKIE_NAME)?.value
-    ?? cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value
-    ?? null;
+    cookieStore.get(DEVICE_COOKIE_NAME)?.value ??
+    cookieStore.get(LEGACY_DEVICE_COOKIE_NAME)?.value ??
+    null;
   if (!rawDeviceCredential) {
     return {
       ok: false,
@@ -185,19 +184,26 @@ export async function clockOutFromStaffPortalAction(): Promise<PortalClockOutAct
     revalidatePath("/owner/attendance");
   }
 
-  const classification = result.classification === "early"
-    || result.classification === "normal"
-    || result.classification === "overtime"
+  const classification =
+    result.classification === "early" ||
+    result.classification === "normal" ||
+    result.classification === "overtime"
       ? result.classification
       : undefined;
   return {
     ok,
     code: typeof result.code === "string" ? result.code : ok ? "clocked_out" : "blocked",
-    title: typeof result.title === "string" ? result.title : ok ? "Clocked out" : "Clock-out unavailable",
+    title:
+      typeof result.title === "string"
+        ? result.title
+        : ok
+          ? "Clocked out"
+          : "Clock-out unavailable",
     message: typeof result.message === "string" ? result.message : "Attendance was not changed.",
     classification,
     checkedOutAt: typeof result.checked_out_at === "string" ? result.checked_out_at : undefined,
-    clockOutMethod: typeof result.clock_out_method === "string" ? result.clock_out_method : undefined,
+    clockOutMethod:
+      typeof result.clock_out_method === "string" ? result.clock_out_method : undefined,
   };
 }
 
@@ -233,7 +239,9 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
 
   const primary = await supabase
     .from("staff")
-    .select("id, full_name, nickname, phone, tier, system_role, staff_type, branch_id, is_active, avatar_url, avatar_path, branches(name)")
+    .select(
+      "id, full_name, nickname, phone, tier, system_role, staff_type, branch_id, is_active, avatar_url, avatar_path, branches(name)"
+    )
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -244,7 +252,9 @@ async function getMyStaffRecord(): Promise<StaffPortalStaff | null> {
   if (primary.error && isMissingStaffProfileColumnError(primary.error.message)) {
     const fallback = await supabase
       .from("staff")
-      .select("id, full_name, nickname, phone, tier, system_role, branch_id, is_active, branches(name)")
+      .select(
+        "id, full_name, nickname, phone, tier, system_role, branch_id, is_active, branches(name)"
+      )
       .eq("auth_user_id", user.id)
       .eq("is_active", true)
       .maybeSingle();
@@ -312,9 +322,9 @@ export async function updateStaffProfilePhotoAction(formData: FormData) {
   if (uploadError) return { error: uploadError.message };
 
   // Get public URL
-  const { data: { publicUrl } } = supabase.storage
-    .from("staff-pictures")
-    .getPublicUrl(filePath);
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("staff-pictures").getPublicUrl(filePath);
 
   // Update staff record
   const { data: updatedRows, error: updateError } = await createAdminClient()
@@ -467,12 +477,8 @@ export async function getMyServiceProgressAction(date: string): Promise<ServiceP
     );
 
     const bookings = allBookings as unknown as StaffPortalBooking[];
-    const active = bookings.filter(
-      (b) => b.status !== "completed" && b.status !== "no_show"
-    );
-    const completed = bookings.filter(
-      (b) => b.status === "completed" || b.status === "no_show"
-    );
+    const active = bookings.filter((b) => b.status !== "completed" && b.status !== "no_show");
+    const completed = bookings.filter((b) => b.status === "completed" || b.status === "no_show");
 
     return { active, completed, staff: me };
   } catch (err) {
@@ -549,9 +555,7 @@ export type MonthlyScheduleStats = {
   daysInMonth: number;
 };
 
-export type MonthlyScheduleStatsResult =
-  | { error: string }
-  | MonthlyScheduleStats;
+export type MonthlyScheduleStatsResult = { error: string } | MonthlyScheduleStats;
 
 export async function getMyMonthlyScheduleStatsAction(
   year: number,
@@ -568,16 +572,18 @@ export async function getMyMonthlyScheduleStatsAction(
 
   const [scheduleRows, allOverrides] = await Promise.all([
     getStaffSchedule(me.id).catch((): Awaited<ReturnType<typeof getStaffSchedule>> => []),
-    getStaffOverrides(me.id, monthStart).catch((): Awaited<ReturnType<typeof getStaffOverrides>> => []),
+    getStaffOverrides(me.id, monthStart).catch(
+      (): Awaited<ReturnType<typeof getStaffOverrides>> => []
+    ),
   ]);
 
   const overrides = allOverrides.filter(
     (o) => o.override_date >= monthStart && o.override_date <= monthEnd
   );
-  const overrideByDate: Record<string, typeof overrides[number]> = {};
+  const overrideByDate: Record<string, (typeof overrides)[number]> = {};
   for (const o of overrides) overrideByDate[o.override_date] = o;
 
-  const schedByDow: Partial<Record<number, typeof scheduleRows[number]>> = {};
+  const schedByDow: Partial<Record<number, (typeof scheduleRows)[number]>> = {};
   for (const row of scheduleRows) schedByDow[row.day_of_week] = row;
 
   let workingDays = 0;
@@ -599,7 +605,7 @@ export async function getMyMonthlyScheduleStatsAction(
         if (st && et) {
           const [sh, sm] = st.split(":").map(Number);
           const [eh, em] = et.split(":").map(Number);
-          totalMinutes += ((eh ?? 0) * 60 + (em ?? 0)) - ((sh ?? 0) * 60 + (sm ?? 0));
+          totalMinutes += (eh ?? 0) * 60 + (em ?? 0) - ((sh ?? 0) * 60 + (sm ?? 0));
         }
       }
     } else {
@@ -608,14 +614,13 @@ export async function getMyMonthlyScheduleStatsAction(
         workingDays++;
         const [sh, sm] = schedRow.start_time.split(":").map(Number);
         const [eh, em] = schedRow.end_time.split(":").map(Number);
-        totalMinutes += ((eh ?? 0) * 60 + (em ?? 0)) - ((sh ?? 0) * 60 + (sm ?? 0));
+        totalMinutes += (eh ?? 0) * 60 + (em ?? 0) - ((sh ?? 0) * 60 + (sm ?? 0));
       }
     }
   }
 
   const hoursScheduled = Math.round((totalMinutes / 60) * 10) / 10;
-  const avgDailyHours =
-    workingDays > 0 ? Math.round((hoursScheduled / workingDays) * 10) / 10 : 0;
+  const avgDailyHours = workingDays > 0 ? Math.round((hoursScheduled / workingDays) * 10) / 10 : 0;
 
   return {
     workingDays,
@@ -665,10 +670,7 @@ export async function getMyTodayAction(date: string) {
 
   let { data, error } = await query(selectWithResource);
 
-  if (
-    error &&
-    /column bookings\.resource_id does not exist/i.test(error.message)
-  ) {
+  if (error && /column bookings\.resource_id does not exist/i.test(error.message)) {
     const fallback = await query(selectWithoutResource);
     data = fallback.data;
     error = fallback.error;
@@ -679,17 +681,13 @@ export async function getMyTodayAction(date: string) {
   try {
     const bookings = await attachBranchResources(
       supabase,
-      (data ?? []) as unknown as Array<
-        StaffPortalBooking & { resource_id?: string | null }
-      >
+      (data ?? []) as unknown as Array<StaffPortalBooking & { resource_id?: string | null }>
     );
     return { bookings: bookings as unknown as StaffPortalBooking[], staff: me };
   } catch (resourceError) {
     return {
       error:
-        resourceError instanceof Error
-          ? resourceError.message
-          : "Unable to load booking resources",
+        resourceError instanceof Error ? resourceError.message : "Unable to load booking resources",
     };
   }
 }
@@ -737,7 +735,9 @@ export async function updateBookingProgressAction({
   // Fetch the booking — delivery_type drives transition validation (not type)
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
-    .select("id, staff_id, branch_id, type, delivery_type, status, booking_progress_status, driver_id")
+    .select(
+      "id, staff_id, branch_id, type, delivery_type, status, booking_progress_status, driver_id"
+    )
     .eq("id", bookingId)
     .single();
 
@@ -750,18 +750,14 @@ export async function updateBookingProgressAction({
   }
 
   const isAssignedStaff = booking.staff_id === me.id;
-  const isAssignedDriver =
-    (booking as { driver_id?: string | null }).driver_id === me.id;
+  const isAssignedDriver = (booking as { driver_id?: string | null }).driver_id === me.id;
   const role = canonicalizeSystemRole(me.system_role);
   const isManager = ["owner", "manager", "assistant_manager", "store_manager"].includes(role);
   const canManageOperationalProgress = canManageBookings(role);
   const isDriver = me.system_role === "driver" || me.staff_type === "driver";
 
   // Categorize the requested action
-  const therapistActions: BookingProgressStatus[] = [
-    "session_started",
-    "completed",
-  ];
+  const therapistActions: BookingProgressStatus[] = ["session_started", "completed"];
   // Drivers can advance travel stages for home-service trips
   const driverActions: BookingProgressStatus[] = ["travel_started", "arrived"];
   const csrActions: BookingProgressStatus[] = ["checked_in", "no_show"];
@@ -887,17 +883,14 @@ export async function updateBookingProgressAction({
   }
 
   if (requiresTimestampRead) {
-    const timestampField =
-      getTimestampFieldForProgressStatus(nextStatus) ?? "updated_at";
+    const timestampField = getTimestampFieldForProgressStatus(nextStatus) ?? "updated_at";
     const { data: updated } = await supabase
       .from("bookings")
       .select(timestampField)
       .eq("id", bookingId)
       .single();
 
-    timestamp =
-      (updated?.[timestampField as keyof typeof updated] as string | null) ??
-      timestamp;
+    timestamp = (updated?.[timestampField as keyof typeof updated] as string | null) ?? timestamp;
   }
 
   logBusinessEvent("staff_progress.updated", {
@@ -956,7 +949,12 @@ function getInvalidTransitionMessage(
   }
 
   if (bookingType === "in_spa") {
-    if (current === "not_started" && next !== "checked_in" && next !== "session_started" && next !== "no_show") {
+    if (
+      current === "not_started" &&
+      next !== "checked_in" &&
+      next !== "session_started" &&
+      next !== "no_show"
+    ) {
       return "You may check in, start service directly, or mark no-show.";
     }
     if (current === "checked_in" && next !== "session_started" && next !== "no_show") {
@@ -1023,7 +1021,18 @@ export type DriverJobsResult =
 export async function getMyDriverJobsAction(date: string): Promise<DriverJobsResult> {
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
-  if (!me.branch_id) return { items: [], stats: { totalToday: 0, awaitingDispatch: 0, activeTrips: 0, completedToday: 0, cancelledToday: 0 }, staff: me };
+  if (!me.branch_id)
+    return {
+      items: [],
+      stats: {
+        totalToday: 0,
+        awaitingDispatch: 0,
+        activeTrips: 0,
+        completedToday: 0,
+        cancelledToday: 0,
+      },
+      staff: me,
+    };
 
   const data = await getDispatchData({
     branchId: me.branch_id,
@@ -1046,11 +1055,14 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
 
   const supabase = await createClient();
   const todayStr = new Date().toISOString().split("T")[0]!;
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0]!;
 
   const { data, error } = await supabase
     .from("bookings")
-    .select(`
+    .select(
+      `
       id, booking_date, start_time, end_time,
       status, booking_progress_status,
       driver_id, staff_id,
@@ -1058,7 +1070,8 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
       travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
       services ( name ),
       customers ( full_name )
-    `)
+    `
+    )
     .eq("driver_id", me.id)
     .gte("booking_date", thirtyDaysAgo)
     .order("booking_date", { ascending: false })
@@ -1097,17 +1110,27 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
     const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
     const rawLat = hsAddr?.lat;
     const rawLng = hsAddr?.lng;
-    const lat = typeof rawLat === "number" ? rawLat : typeof rawLat === "string" ? parseFloat(rawLat) : null;
-    const lng = typeof rawLng === "number" ? rawLng : typeof rawLng === "string" ? parseFloat(rawLng) : null;
-    const area = typeof hsAddr?.zone === "string" ? hsAddr.zone : typeof hsAddr?.city === "string" ? hsAddr.city : null;
-    const customer = firstRel(b.customers as { full_name: string } | { full_name: string }[] | null);
+    const lat =
+      typeof rawLat === "number" ? rawLat : typeof rawLat === "string" ? parseFloat(rawLat) : null;
+    const lng =
+      typeof rawLng === "number" ? rawLng : typeof rawLng === "string" ? parseFloat(rawLng) : null;
+    const area =
+      typeof hsAddr?.zone === "string"
+        ? hsAddr.zone
+        : typeof hsAddr?.city === "string"
+          ? hsAddr.city
+          : null;
+    const customer = firstRel(
+      b.customers as { full_name: string } | { full_name: string }[] | null
+    );
     const service = firstRel(b.services as { name: string } | { name: string }[] | null);
     const progressStatus = b.booking_progress_status ?? null;
     const driverId = b.driver_id ?? null;
 
     let dispatchStatus: import("@/features/dispatch/types").DispatchStatus = "ready";
     if (b.status === "cancelled" || b.status === "no_show") dispatchStatus = "cancelled";
-    else if (b.status === "completed" || progressStatus === "completed") dispatchStatus = "completed";
+    else if (b.status === "completed" || progressStatus === "completed")
+      dispatchStatus = "completed";
     else if (progressStatus === "session_started") dispatchStatus = "service_started";
     else if (progressStatus === "arrived") dispatchStatus = "arrived_at_customer";
     else if (progressStatus === "travel_started") dispatchStatus = "in_route";
@@ -1158,7 +1181,10 @@ export async function getMyDriverAllJobsAction(): Promise<DriverAllJobsResult> {
 // ── Driver: single job by bookingId (with driver safety check) ────────────
 export type DriverJobByIdResult =
   | { error: string }
-  | { job: RealDispatchItem & { durationMinutes: number | null; notes: string | null }; staff: StaffPortalStaff };
+  | {
+      job: RealDispatchItem & { durationMinutes: number | null; notes: string | null };
+      staff: StaffPortalStaff;
+    };
 
 export async function getMyDriverJobByIdAction(bookingId: string): Promise<DriverJobByIdResult> {
   const me = await getMyStaffRecord();
@@ -1167,7 +1193,8 @@ export async function getMyDriverJobByIdAction(bookingId: string): Promise<Drive
   const supabase = await createClient();
   const { data: b, error } = await supabase
     .from("bookings")
-    .select(`
+    .select(
+      `
       id, booking_date, start_time, end_time,
       status, booking_progress_status,
       driver_id, staff_id,
@@ -1175,26 +1202,47 @@ export async function getMyDriverJobByIdAction(bookingId: string): Promise<Drive
       travel_started_at, arrived_at, session_started_at, session_due_at, session_duration_minutes_snapshot, completed_at,
       services ( name, duration_minutes ),
       customers ( full_name )
-    `)
+    `
+    )
     .eq("id", bookingId)
     .maybeSingle();
 
   if (error) return { error: error.message };
   if (!b) return { error: "Job not found" };
 
-  type JobRow = typeof b & { driver_id?: string | null; staff_id?: string | null; booking_progress_status?: string | null; travel_started_at?: string | null; arrived_at?: string | null; session_started_at?: string | null; completed_at?: string | null };
+  type JobRow = typeof b & {
+    driver_id?: string | null;
+    staff_id?: string | null;
+    booking_progress_status?: string | null;
+    travel_started_at?: string | null;
+    arrived_at?: string | null;
+    session_started_at?: string | null;
+    completed_at?: string | null;
+  };
   const row = b as JobRow;
 
   if (row.driver_id !== me.id) return { error: "Unauthorized" };
 
   const meta = row.metadata as Record<string, unknown> | null;
   const hsAddr = meta?.home_service_address as Record<string, unknown> | null;
-  const notes = typeof meta?.notes === "string" ? meta.notes : typeof meta?.customer_notes === "string" ? meta.customer_notes : null;
+  const notes =
+    typeof meta?.notes === "string"
+      ? meta.notes
+      : typeof meta?.customer_notes === "string"
+        ? meta.customer_notes
+        : null;
   const rawLat = hsAddr?.lat;
   const rawLng = hsAddr?.lng;
-  const lat = typeof rawLat === "number" ? rawLat : typeof rawLat === "string" ? parseFloat(rawLat) : null;
-  const lng = typeof rawLng === "number" ? rawLng : typeof rawLng === "string" ? parseFloat(rawLng) : null;
-  const area = typeof hsAddr?.zone === "string" ? hsAddr.zone : typeof hsAddr?.city === "string" ? hsAddr.city : null;
+  const lat =
+    typeof rawLat === "number" ? rawLat : typeof rawLat === "string" ? parseFloat(rawLat) : null;
+  const lng =
+    typeof rawLng === "number" ? rawLng : typeof rawLng === "string" ? parseFloat(rawLng) : null;
+  const area =
+    typeof hsAddr?.zone === "string"
+      ? hsAddr.zone
+      : typeof hsAddr?.city === "string"
+        ? hsAddr.city
+        : null;
 
   type SvcRow = { name: string; duration_minutes?: number | null } | null;
   type CustRow = { full_name: string } | null;
@@ -1210,7 +1258,8 @@ export async function getMyDriverJobByIdAction(bookingId: string): Promise<Drive
   const branchName = getStaffBranchName(me);
   let dispatchStatus: import("@/features/dispatch/types").DispatchStatus = "ready";
   if (row.status === "cancelled" || row.status === "no_show") dispatchStatus = "cancelled";
-  else if (row.status === "completed" || progressStatus === "completed") dispatchStatus = "completed";
+  else if (row.status === "completed" || progressStatus === "completed")
+    dispatchStatus = "completed";
   else if (progressStatus === "session_started") dispatchStatus = "service_started";
   else if (progressStatus === "arrived") dispatchStatus = "arrived_at_customer";
   else if (progressStatus === "travel_started") dispatchStatus = "in_route";
@@ -1262,11 +1311,12 @@ export type DriverMonthlyStats = {
   inProgressJobs: number;
 };
 
-export type DriverStatsResult =
-  | { error: string }
-  | DriverMonthlyStats;
+export type DriverStatsResult = { error: string } | DriverMonthlyStats;
 
-export async function getMyDriverStatsAction(year: number, month: number): Promise<DriverStatsResult> {
+export async function getMyDriverStatsAction(
+  year: number,
+  month: number
+): Promise<DriverStatsResult> {
   const me = await getMyStaffRecord();
   if (!me) return { error: "Unauthorized" };
 

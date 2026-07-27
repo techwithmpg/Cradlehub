@@ -10,10 +10,7 @@ import {
   type ProvisionalAttendanceReconcileInput,
 } from "@/lib/attendance/scan-engine";
 import { getAttendanceSettings } from "@/lib/attendance/queries";
-import {
-  isAttendanceScanError,
-  logAttendanceScanError,
-} from "@/lib/attendance/scan-errors";
+import { isAttendanceScanError, logAttendanceScanError } from "@/lib/attendance/scan-errors";
 import {
   branchDateTimeToIsoInTimezone,
   getAttendanceBranchNow,
@@ -42,6 +39,10 @@ import type {
   BranchCorrectionScanDetails,
   BranchCorrectionStatus,
 } from "./branch-correction-types";
+import {
+  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+  isAttendanceMaintenanceMode,
+} from "@/lib/attendance/maintenance-mode";
 import type { PublicScanResult } from "@/lib/attendance/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -174,7 +175,9 @@ function branchName(branch: BranchRelation, fallback: string): string {
 }
 
 function metadataObject(metadata: Json): Record<string, unknown> {
-  return metadata !== null && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+  return metadata !== null && typeof metadata === "object" && !Array.isArray(metadata)
+    ? metadata
+    : {};
 }
 
 function normalizeStatus(status: string): BranchCorrectionStatus {
@@ -200,7 +203,7 @@ function normalizeDecisionType(value: unknown): BranchCorrectionDecisionType | n
 
 function jsonRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : null;
 }
 
@@ -214,10 +217,10 @@ function isPublicScanResult(value: unknown): value is PublicScanResult {
   const record = jsonRecord(value);
   return Boolean(
     record &&
-      typeof record.ok === "boolean" &&
-      typeof record.outcome === "string" &&
-      typeof record.title === "string" &&
-      typeof record.message === "string"
+    typeof record.ok === "boolean" &&
+    typeof record.outcome === "string" &&
+    typeof record.title === "string" &&
+    typeof record.message === "string"
   );
 }
 
@@ -244,7 +247,8 @@ async function loadStaffForDeviceCredential(
 ): Promise<{ staff: AuthStaffRow; deviceId: string; deviceBranchId: string | null } | null> {
   const { data, error } = await admin
     .from("staff_devices")
-    .select(`
+    .select(
+      `
       id,
       branch_id,
       status,
@@ -255,7 +259,8 @@ async function loadStaffForDeviceCredential(
         is_active,
         branches(name)
       )
-    `)
+    `
+    )
     .eq("device_fingerprint_hash", hashSecret(rawDeviceCredential))
     .maybeSingle();
 
@@ -358,6 +363,13 @@ export async function createBranchCorrectionRequestForScan(params: {
   reason?: string | null;
   userAgent?: string | null;
 }): Promise<BranchCorrectionRequestResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REQUEST_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const admin = createAdminClient();
   const point = await loadAttendanceQrPoint(admin, params.details);
   const pointBranch = first(point?.branches);
@@ -429,7 +441,6 @@ export async function createBranchCorrectionRequestForScan(params: {
     };
   }
 
-
   const sourceScan = await loadSourceWrongBranchScan({
     admin,
     scanEventId: params.details.scanEventId,
@@ -441,7 +452,8 @@ export async function createBranchCorrectionRequestForScan(params: {
     return {
       ok: false,
       code: "REQUEST_FAILED",
-      message: "The original Attendance scan could not be linked. Please scan once more or ask CRM for help.",
+      message:
+        "The original Attendance scan could not be linked. Please scan once more or ask CRM for help.",
     };
   }
 
@@ -518,7 +530,8 @@ export async function getBranchCorrectionInboxForActor(
   const admin = createAdminClient();
   let query = admin
     .from("staff_branch_change_requests")
-    .select(`
+    .select(
+      `
       *,
       staff:staff!staff_branch_change_requests_staff_id_fkey(
         id,
@@ -544,7 +557,8 @@ export async function getBranchCorrectionInboxForActor(
       current_branch:branches!staff_branch_change_requests_current_branch_id_fkey(id, name),
       requested_branch:branches!staff_branch_change_requests_requested_branch_id_fkey(id, name),
       qr_points:qr_points!staff_branch_change_requests_qr_point_id_fkey(id, label)
-    `)
+    `
+    )
     .in("status", ["pending", "approved", "rejected"])
     .order("created_at", { ascending: false })
     .limit(50);
@@ -634,10 +648,12 @@ async function loadResolutionRequest(
 ): Promise<ResolutionRequestRow | null> {
   const { data, error } = await admin
     .from("staff_branch_change_requests")
-    .select("id, staff_id, current_branch_id, requested_branch_id, qr_point_id, scan_event_id, status, decision_type, resolution_status, attendance_result, created_at")
+    .select(
+      "id, staff_id, current_branch_id, requested_branch_id, qr_point_id, scan_event_id, status, decision_type, resolution_status, attendance_result, created_at"
+    )
     .eq("id", requestId)
     .maybeSingle();
-  return error ? null : data as ResolutionRequestRow | null;
+  return error ? null : (data as ResolutionRequestRow | null);
 }
 
 async function buildBranchCorrectionImpactSummary(params: {
@@ -674,11 +690,7 @@ async function buildBranchCorrectionImpactSummary(params: {
       .select("id", { count: "exact", head: true })
       .eq("staff_id", request.staff_id)
       .gte("override_date", effectiveDate),
-    admin
-      .from("staff_services")
-      .select("service_id")
-      .eq("staff_id", request.staff_id)
-      .limit(500),
+    admin.from("staff_services").select("service_id").eq("staff_id", request.staff_id).limit(500),
     admin
       .from("staff_duty_assignments")
       .select("id", { count: "exact", head: true })
@@ -722,15 +734,16 @@ async function buildBranchCorrectionImpactSummary(params: {
   if (impactQueryError) throw new Error("branch_correction_impact_query_failed");
 
   const serviceIds = (staffServices.data ?? []).map((row) => row.service_id);
-  const targetBranchServices = serviceIds.length > 0
-    ? await admin
-        .from("branch_services")
-        .select("service_id")
-        .eq("branch_id", request.requested_branch_id)
-        .eq("is_active", true)
-        .in("service_id", serviceIds)
-        .limit(500)
-    : { data: [] as Array<{ service_id: string }>, error: null };
+  const targetBranchServices =
+    serviceIds.length > 0
+      ? await admin
+          .from("branch_services")
+          .select("service_id")
+          .eq("branch_id", request.requested_branch_id)
+          .eq("is_active", true)
+          .in("service_id", serviceIds)
+          .limit(500)
+      : { data: [] as Array<{ service_id: string }>, error: null };
   if (targetBranchServices.error) throw new Error("branch_correction_service_impact_query_failed");
   const availableServiceIds = new Set(
     (targetBranchServices.data ?? []).map((row) => row.service_id)
@@ -762,14 +775,15 @@ async function buildBranchCorrectionImpactSummary(params: {
 export async function getBranchCorrectionImpactForActor(params: {
   actor: BranchCorrectionActor;
   requestId: string;
-}): Promise<
-  | { ok: true; summary: BranchCorrectionImpactSummary }
-  | { ok: false; message: string }
-> {
+}): Promise<{ ok: true; summary: BranchCorrectionImpactSummary } | { ok: false; message: string }> {
   const admin = createAdminClient();
   const request = await loadResolutionRequest(admin, params.requestId);
   if (!request) return { ok: false, message: "This branch correction request was not found." };
-  if (!canReviewBranchCorrectionRequest(params.actor, { requestedBranchId: request.requested_branch_id })) {
+  if (
+    !canReviewBranchCorrectionRequest(params.actor, {
+      requestedBranchId: request.requested_branch_id,
+    })
+  ) {
     return { ok: false, message: "You can only review correction requests for your branch." };
   }
   const settings = await getAttendanceSettings(request.requested_branch_id);
@@ -832,9 +846,7 @@ async function callResolutionRpc(params: {
       p_valid_from: params.validFrom ?? undefined,
       p_valid_until: params.validUntil ?? undefined,
       p_permanent_effective_date:
-        params.decisionType === "permanent_branch_transfer"
-          ? params.businessDate
-          : undefined,
+        params.decisionType === "permanent_branch_transfer" ? params.businessDate : undefined,
       p_impact_summary: params.impact as unknown as Json,
       p_scan_commit: params.scanCommit as unknown as Json,
     })
@@ -888,7 +900,8 @@ function mapReviewError(message: string): BranchCorrectionReviewResult {
     return {
       ok: false,
       code: "INACTIVE_BRANCH",
-      message: "The requested branch is not active. Please ask an owner or manager to check the branch setup.",
+      message:
+        "The requested branch is not active. Please ask an owner or manager to check the branch setup.",
     };
   }
 
@@ -1047,13 +1060,32 @@ export async function resolveBranchCorrectionRequestForActor(params: {
   actor: BranchCorrectionActor & { staffId: string; authUserId: string };
   input: BranchCorrectionResolutionInput;
 }): Promise<BranchCorrectionReviewResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const admin = createAdminClient();
   const request = await loadResolutionRequest(admin, params.input.requestId);
   if (!request) {
-    return { ok: false, code: "INVALID_INPUT", message: "This branch correction request could not be found." };
+    return {
+      ok: false,
+      code: "INVALID_INPUT",
+      message: "This branch correction request could not be found.",
+    };
   }
-  if (!canReviewBranchCorrectionRequest(params.actor, { requestedBranchId: request.requested_branch_id })) {
-    return { ok: false, code: "UNAUTHORIZED", message: "You can only resolve correction requests for your branch." };
+  if (
+    !canReviewBranchCorrectionRequest(params.actor, {
+      requestedBranchId: request.requested_branch_id,
+    })
+  ) {
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "You can only resolve correction requests for your branch.",
+    };
   }
   if (request.status !== "pending") {
     if (
@@ -1070,7 +1102,11 @@ export async function resolveBranchCorrectionRequestForActor(params: {
         message: "The existing branch resolution was replayed safely.",
       };
     }
-    return { ok: false, code: "NOT_PENDING", message: "This request already has a final decision." };
+    return {
+      ok: false,
+      code: "NOT_PENDING",
+      message: "This request already has a final decision.",
+    };
   }
 
   const sourceScan = await loadSourceWrongBranchScan({
@@ -1094,23 +1130,30 @@ export async function resolveBranchCorrectionRequestForActor(params: {
       effectiveDate: branchNow.businessDate,
     });
   } catch {
-    return { ok: false, code: "REVIEW_FAILED", message: "The branch impact summary could not be verified. Refresh and try again." };
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: "The branch impact summary could not be verified. Refresh and try again.",
+    };
   }
   const now = new Date();
-  const validity = params.input.decisionType === "permanent_branch_transfer"
-    ? null
-    : temporaryValidity({
-        decisionType: params.input.decisionType,
-        businessDate: branchNow.businessDate,
-        timezone: branchNow.timezone,
-        dayBoundary: branchNow.dayBoundary,
-        now,
-      });
+  const validity =
+    params.input.decisionType === "permanent_branch_transfer"
+      ? null
+      : temporaryValidity({
+          decisionType: params.input.decisionType,
+          businessDate: branchNow.businessDate,
+          timezone: branchNow.timezone,
+          dayBoundary: branchNow.dayBoundary,
+          now,
+        });
   const resolutionState: { row: ResolutionRpcRow | null } = { row: null };
   let rejectedCode: string | null = null;
 
   async function commitResolution(
-    attendanceAdmin: Parameters<NonNullable<Parameters<typeof resumeAttendanceScanFromStoredSource>[0]["commit"]>>[0],
+    attendanceAdmin: Parameters<
+      NonNullable<Parameters<typeof resumeAttendanceScanFromStoredSource>[0]["commit"]>
+    >[0],
     input: AttendanceScanCommitInput
   ): Promise<AttendanceScanCommitResult> {
     const args = buildAttendanceScanCommitRpcArgs(input);
@@ -1131,9 +1174,7 @@ export async function resolveBranchCorrectionRequestForActor(params: {
       throw new Error(`branch_resolution_rejected:${row.code}`);
     }
     resolutionState.row = row;
-    const result = isPublicScanResult(row.operation_result)
-      ? row.operation_result
-      : input.result;
+    const result = isPublicScanResult(row.operation_result) ? row.operation_result : input.result;
     return {
       result,
       scanEventId: row.scan_event_id ?? undefined,
@@ -1142,7 +1183,11 @@ export async function resolveBranchCorrectionRequestForActor(params: {
   }
 
   async function reconcileResolution(
-    attendanceAdmin: Parameters<NonNullable<Parameters<typeof resumeAttendanceScanFromStoredSource>[0]["reconcileProvisional"]>>[0],
+    attendanceAdmin: Parameters<
+      NonNullable<
+        Parameters<typeof resumeAttendanceScanFromStoredSource>[0]["reconcileProvisional"]
+      >
+    >[0],
     input: ProvisionalAttendanceReconcileInput
   ): Promise<PublicScanResult> {
     const row = await callResolutionRpc({
@@ -1233,13 +1278,32 @@ export async function rejectBranchCorrectionScanForActor(params: {
   requestId: string;
   reason: string;
 }): Promise<BranchCorrectionReviewResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const admin = createAdminClient();
   const request = await loadResolutionRequest(admin, params.requestId);
   if (!request) {
-    return { ok: false, code: "INVALID_INPUT", message: "This branch correction request could not be found." };
+    return {
+      ok: false,
+      code: "INVALID_INPUT",
+      message: "This branch correction request could not be found.",
+    };
   }
-  if (!canReviewBranchCorrectionRequest(params.actor, { requestedBranchId: request.requested_branch_id })) {
-    return { ok: false, code: "UNAUTHORIZED", message: "You can only reject correction requests for your branch." };
+  if (
+    !canReviewBranchCorrectionRequest(params.actor, {
+      requestedBranchId: request.requested_branch_id,
+    })
+  ) {
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "You can only reject correction requests for your branch.",
+    };
   }
   if (
     request.status !== "pending" &&
@@ -1257,7 +1321,11 @@ export async function rejectBranchCorrectionScanForActor(params: {
     };
   }
   if (request.status !== "pending") {
-    return { ok: false, code: "NOT_PENDING", message: "This request already has a final decision." };
+    return {
+      ok: false,
+      code: "NOT_PENDING",
+      message: "This request already has a final decision.",
+    };
   }
 
   const settings = await getAttendanceSettings(request.requested_branch_id);
@@ -1270,7 +1338,11 @@ export async function rejectBranchCorrectionScanForActor(params: {
       effectiveDate: branchNow.businessDate,
     });
   } catch {
-    return { ok: false, code: "REVIEW_FAILED", message: "The branch impact summary could not be verified. Refresh and try again." };
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: "The branch impact summary could not be verified. Refresh and try again.",
+    };
   }
   let row: ResolutionRpcRow;
   try {
@@ -1286,9 +1358,7 @@ export async function rejectBranchCorrectionScanForActor(params: {
     });
   } catch (error) {
     return mapBranchResolutionCode(
-      error instanceof BranchResolutionTransactionError
-        ? error.resolutionCode
-        : null
+      error instanceof BranchResolutionTransactionError ? error.resolutionCode : null
     );
   }
   if (!row.success) return mapBranchResolutionCode(row.code);
@@ -1315,6 +1385,13 @@ export async function reviewBranchCorrectionRequestForActor(params: {
   status: BranchCorrectionReviewStatus;
   reviewerNote?: string | null;
 }): Promise<BranchCorrectionReviewResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const admin = createAdminClient();
   const { data: request, error: requestError } = await admin
     .from("staff_branch_change_requests")
@@ -1330,7 +1407,11 @@ export async function reviewBranchCorrectionRequestForActor(params: {
     };
   }
 
-  if (!canReviewBranchCorrectionRequest(params.actor, { requestedBranchId: request.requested_branch_id })) {
+  if (
+    !canReviewBranchCorrectionRequest(params.actor, {
+      requestedBranchId: request.requested_branch_id,
+    })
+  ) {
     return {
       ok: false,
       code: "UNAUTHORIZED",
@@ -1365,13 +1446,20 @@ export async function reviewBranchCorrectionRequestForActor(params: {
       params.status === "approved"
         ? "Branch correction approved. The staff profile is now assigned to the requested branch."
         : "Branch correction rejected.",
-    };
+  };
 }
 
 export async function cancelBranchCorrectionRequestForActor(params: {
   actor: BranchCorrectionActor & { staffId: string };
   requestId: string;
 }): Promise<BranchCorrectionReviewResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const admin = createAdminClient();
   const { data: request, error } = await admin
     .from("staff_branch_change_requests")
@@ -1390,7 +1478,9 @@ export async function cancelBranchCorrectionRequestForActor(params: {
   const ownsRequest = request.staff_id === params.actor.staffId;
   const canCancel =
     ownsRequest ||
-    canReviewBranchCorrectionRequest(params.actor, { requestedBranchId: request.requested_branch_id });
+    canReviewBranchCorrectionRequest(params.actor, {
+      requestedBranchId: request.requested_branch_id,
+    });
 
   if (!canCancel) {
     return {
@@ -1442,6 +1532,13 @@ export async function cancelOwnBranchCorrectionRequestForScan(params: {
   rawDeviceCredential?: string | null;
   requestId: string;
 }): Promise<BranchCorrectionReviewResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const admin = createAdminClient();
   const { data: request, error } = await admin
     .from("staff_branch_change_requests")
@@ -1477,7 +1574,8 @@ export async function cancelOwnBranchCorrectionRequestForScan(params: {
     return {
       ok: false,
       code: "UNAUTHENTICATED",
-      message: "Scan again on this phone or sign in with your staff account to cancel this request.",
+      message:
+        "Scan again on this phone or sign in with your staff account to cancel this request.",
     };
   }
 

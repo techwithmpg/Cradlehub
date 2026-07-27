@@ -32,6 +32,11 @@ import type {
   BranchCorrectionReviewResult,
   BranchCorrectionScanDetails,
 } from "@/lib/staff/branch-correction-types";
+import {
+  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+  createAttendanceMaintenanceResult,
+  isAttendanceMaintenanceMode,
+} from "@/lib/attendance/maintenance-mode";
 
 type PublicScanInput = {
   publicCode: string;
@@ -87,7 +92,10 @@ export type FirstTimeAttendanceDeviceRegistrationResult =
       result?: PublicScanResult;
     };
 
-async function getRequestContext(requestId?: string | null, rawDeviceCredentialOverride?: string | null) {
+async function getRequestContext(
+  requestId?: string | null,
+  rawDeviceCredentialOverride?: string | null
+) {
   const headerStore = await headers();
   const cookieStore = await cookies();
   return {
@@ -148,7 +156,7 @@ async function clearDeviceCookies(): Promise<void> {
 function isUuidLike(value: string | null | undefined): value is string {
   return Boolean(
     value &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
   );
 }
 
@@ -163,7 +171,9 @@ function safeScanError(error: unknown, title: string, operationId: string): Publ
     error,
     context: { title },
   });
-  return withAttendanceScanResolution(attendanceScanFailureFromError({ error, operationId, title }).result);
+  return withAttendanceScanResolution(
+    attendanceScanFailureFromError({ error, operationId, title }).result
+  );
 }
 
 function validateFirstTimeScanLogin(input: FirstTimeScanLoginInput): {
@@ -196,12 +206,15 @@ function validateFirstTimeScanLogin(input: FirstTimeScanLoginInput): {
 }
 
 function revalidatePublicScanResult(result: PublicScanResult): void {
-  if (result.scanEventId || result.attendance || result.countdown || result.reasonCode === "device_restored") {
+  if (
+    result.scanEventId ||
+    result.attendance ||
+    result.countdown ||
+    result.reasonCode === "device_restored"
+  ) {
     revalidateAttendanceSurfaces({
       includeOperationalReadiness: Boolean(
-        result.attendance ||
-          result.countdown ||
-          result.reasonCode === "device_restored"
+        result.attendance || result.countdown || result.reasonCode === "device_restored"
       ),
     });
   }
@@ -271,7 +284,9 @@ export async function signInAndRegisterAttendanceDeviceAction(
 ): Promise<FirstTimeAttendanceDeviceRegistrationResult> {
   const parsed = validateFirstTimeScanLogin(input);
   const rootOperationId = normalizeAttendanceOperationId(input.requestId);
-  const operationId = normalizeAttendanceOperationId(appendRequestStep(rootOperationId, "register"));
+  const operationId = normalizeAttendanceOperationId(
+    appendRequestStep(rootOperationId, "register")
+  );
   if (!parsed.publicCode) {
     return {
       ok: false,
@@ -308,7 +323,9 @@ export async function signInAndRegisterAttendanceDeviceAction(
       result: {
         ok: false,
         outcome: "blocked",
-        reasonCode: continuation.ok ? "scan_continuation_missing" : `scan_continuation_${continuation.code}`,
+        reasonCode: continuation.ok
+          ? "scan_continuation_missing"
+          : `scan_continuation_${continuation.code}`,
         severity: "warning",
         title: "Scan session expired",
         message: "Scan the attendance QR again, then sign in from the page that opens.",
@@ -351,7 +368,10 @@ export async function signInAndRegisterAttendanceDeviceAction(
       if (registration.result.reasonCode !== "wrong_branch") {
         await supabase.auth.signOut();
       }
-      const publicResult = { ...registration.result, operationId: registration.result.operationId ?? operationId };
+      const publicResult = {
+        ...registration.result,
+        operationId: registration.result.operationId ?? operationId,
+      };
       revalidatePublicScanResult(publicResult);
       return {
         ok: false,
@@ -393,6 +413,13 @@ export async function signInAndRegisterAttendanceDeviceAction(
 export async function requestBranchCorrectionAction(
   input: BranchCorrectionRequestInput
 ): Promise<BranchCorrectionRequestResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REQUEST_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const details = validateBranchCorrectionDetails(input);
   if (!details) {
     return {
@@ -403,7 +430,9 @@ export async function requestBranchCorrectionAction(
   }
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const requestContext = await getRequestContext(null);
   if (!user && !requestContext.rawDeviceCredential) {
     return {
@@ -438,6 +467,13 @@ export async function createBranchCorrectionRequestAction(
 export async function cancelOwnBranchCorrectionRequestAction(
   input: BranchCorrectionCancelInput
 ): Promise<BranchCorrectionReviewResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "REVIEW_FAILED",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   if (!isUuidLike(input.requestId)) {
     return {
       ok: false,
@@ -447,7 +483,9 @@ export async function cancelOwnBranchCorrectionRequestAction(
   }
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const requestContext = await getRequestContext(null);
   const result = await cancelOwnBranchCorrectionRequestForScan({
     authUserId: user?.id ?? null,
@@ -496,6 +534,9 @@ export async function processPublicQrScanAction(input: PublicScanInput): Promise
 }
 
 export async function activateDeviceAction(input: ActivationInput): Promise<PublicScanResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return createAttendanceMaintenanceResult({ operationId: input.requestId });
+  }
   const token = input.token?.trim();
   const operationId = normalizeAttendanceOperationId(input.requestId, "attendance-activation");
   if (!token) {
@@ -524,7 +565,12 @@ export async function activateDeviceAction(input: ActivationInput): Promise<Publ
   }
 }
 
-export async function consumeDeviceRecoveryLinkAction(input: RecoveryInput): Promise<PublicScanResult> {
+export async function consumeDeviceRecoveryLinkAction(
+  input: RecoveryInput
+): Promise<PublicScanResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return createAttendanceMaintenanceResult();
+  }
   const token = input.token?.trim();
   const operationId = normalizeAttendanceOperationId(null, "attendance-recovery");
   if (!token) {

@@ -34,6 +34,7 @@ import type { DispatchStats } from "./dispatch-queries";
 import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getDailySchedule, type DailyScheduleStaffRow } from "@/lib/queries/schedule";
+import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 import {
   buildReadinessResult,
   sortReadinessIssues,
@@ -78,7 +79,8 @@ const SETUP_FIX_MAP: Record<string, string> = {
   "no-drivers": "Add an active driver-type staff member to enable home-service dispatch.",
   "no-resources": "Add at least one active room or resource in Spaces & Rules.",
   "default-rules": "Review and save custom booking rules for this branch.",
-  "unassigned-bookings": "Open the bookings queue and assign a therapist to each confirmed booking.",
+  "unassigned-bookings":
+    "Open the bookings queue and assign a therapist to each confirmed booking.",
 };
 
 function deriveSetupFix(issueId: string): string {
@@ -181,13 +183,13 @@ function mapSetupIssuesToReadinessIssues(issues: SetupIssue[]): ReadinessIssue[]
  * Uses the staffReadiness field from CrmTodaySnapshot to avoid running a
  * separate getCrmAvailabilitySnapshot call in parallel.
  */
-function mapStaffReadinessToReadinessIssues(
-  summary: CrmAvailabilitySummary
-): ReadinessIssue[] {
+function mapStaffReadinessToReadinessIssues(summary: CrmAvailabilitySummary): ReadinessIssue[] {
   const issues: ReadinessIssue[] = [];
+  const attendancePresenceActive =
+    isAttendanceEnforcementEnabled() && !isAttendanceMaintenanceMode();
 
   // Staff scheduled today but not yet checked in
-  if (summary.notCheckedIn > 0) {
+  if (attendancePresenceActive && summary.notCheckedIn > 0) {
     const n = summary.notCheckedIn;
     issues.push({
       id: "availability:not-checked-in",
@@ -195,7 +197,8 @@ function mapStaffReadinessToReadinessIssues(
       severity: "warning",
       title: `${n} scheduled staff ${n === 1 ? "has" : "have"} not checked in`,
       problem: `${n} staff member${n === 1 ? "" : "s"} scheduled today ${n === 1 ? "has" : "have"} not been marked present.`,
-      impact: "CRM cannot rely on them for walk-ins, in-house bookings, or dispatch until they check in.",
+      impact:
+        "CRM cannot rely on them for walk-ins, in-house bookings, or dispatch until they check in.",
       fix: "Mark arrived staff as checked in or review today's Daily Timeline.",
       actionLabel: "Open Daily Timeline",
       actionHref: "/crm/schedule",
@@ -212,7 +215,8 @@ function mapStaffReadinessToReadinessIssues(
       severity: "critical",
       title: `${n} staff ${n === 1 ? "schedule conflict" : "schedule conflicts"} found`,
       problem: `${n} active staff member${n === 1 ? "" : "s"} ${n === 1 ? "has" : "have"} an invalid, overlapping, or contradictory schedule.`,
-      impact: "Availability and booking recommendations will exclude these staff until their schedules are corrected.",
+      impact:
+        "Availability and booking recommendations will exclude these staff until their schedules are corrected.",
       fix: "Open Schedule Setup and keep one ordinary shift or a non-overlapping Split Shift.",
       actionLabel: "Open Schedule Setup",
       actionHref: "/crm/schedule?tab=setup",
@@ -230,7 +234,8 @@ function mapStaffReadinessToReadinessIssues(
       severity: "warning",
       title: `${n} staff ${n === 1 ? "member needs" : "members need"} schedule attention`,
       problem: `${n} active staff member${n === 1 ? "" : "s"} ${n === 1 ? "has" : "have"} no saved schedule for today.`,
-      impact: "They will not appear in online booking and cannot be assigned to sessions without a schedule.",
+      impact:
+        "They will not appear in online booking and cannot be assigned to sessions without a schedule.",
       fix: "Add individual schedule rows for each affected staff member in Schedule Setup.",
       actionLabel: "Open Schedule Setup",
       actionHref: "/crm/schedule?tab=setup",
@@ -240,7 +245,7 @@ function mapStaffReadinessToReadinessIssues(
   }
 
   // Drivers exist but none are ready — only meaningful if the branch has drivers
-  if (summary.driversTotal > 0 && summary.driversReady === 0) {
+  if (attendancePresenceActive && summary.driversTotal > 0 && summary.driversReady === 0) {
     issues.push({
       id: "availability:drivers-not-ready",
       scope: "dispatch",
@@ -351,9 +356,7 @@ async function getCheckedInNotScheduledIssue(
   if (!checkedInIds.length) return null;
 
   const scheduledIds = new Set(
-    dailySchedule
-      .filter((row) => row.schedule_status === "resolved")
-      .map((row) => row.staff_id)
+    dailySchedule.filter((row) => row.schedule_status === "resolved").map((row) => row.staff_id)
   );
   const ghostIds = checkedInIds.filter((id) => !scheduledIds.has(id));
 
@@ -405,8 +408,7 @@ async function getNoOpeningShiftIssue(
     scope: "schedule",
     severity: "info",
     title: "No opening-shift staff configured for today",
-    problem:
-      "The system did not find any staff configured for opening-shift duty today.",
+    problem: "The system did not find any staff configured for opening-shift duty today.",
     impact:
       "Opening-shift duty designation is optional. CRM can manually confirm who opens the branch without this configuration.",
     fix: "Optionally assign opening-shift duty in the schedule for clearer CRM visibility.",
@@ -530,7 +532,7 @@ async function getAssignedDriverNotCheckedInIssue(
   today: string
 ): Promise<ReadinessIssue | null> {
   // Check-in is paused for MVP — this check would create constant false positives.
-  if (!isAttendanceEnforcementEnabled()) return null;
+  if (!isAttendanceEnforcementEnabled() || isAttendanceMaintenanceMode()) return null;
 
   const supabase = await createClient();
 
@@ -731,12 +733,13 @@ async function getDispatchMissingReadinessIssues(
   branchId: string,
   today: string
 ): Promise<ReadinessIssue[]> {
-  const [driverCheckinResult, missingAddressResult, missingCoordsResult] =
-    await Promise.allSettled([
+  const [driverCheckinResult, missingAddressResult, missingCoordsResult] = await Promise.allSettled(
+    [
       getAssignedDriverNotCheckedInIssue(branchId, today),
       getHomeServiceMissingAddressIssue(branchId, today),
       getHomeServiceMissingCoordinatesIssue(branchId, today),
-    ]);
+    ]
+  );
 
   const issues: ReadinessIssue[] = [];
   if (driverCheckinResult.status === "fulfilled" && driverCheckinResult.value !== null) {
@@ -766,9 +769,7 @@ async function getDispatchMissingReadinessIssues(
  *
  * @param branchId  The branch to check readiness for.
  */
-export async function getCrmReadinessIssues(
-  branchId: string
-): Promise<ReadinessIssue[]> {
+export async function getCrmReadinessIssues(branchId: string): Promise<ReadinessIssue[]> {
   const today = getBranchBusinessDate();
   const allIssues: ReadinessIssue[] = [];
 
@@ -786,15 +787,14 @@ export async function getCrmReadinessIssues(
 
   // ── Source 1: Setup health ─────────────────────────────────────────────────
   if (setupResult.status === "fulfilled") {
-    allIssues.push(
-      ...mapSetupIssuesToReadinessIssues(setupResult.value.issues)
-    );
+    allIssues.push(...mapSetupIssuesToReadinessIssues(setupResult.value.issues));
   } else {
     allIssues.push(
       createSourceFailureIssue({
         sourceKey: "setup",
         title: "Setup readiness could not be checked",
-        problem: "The readiness engine could not load setup health data. Some configuration issues may not be visible.",
+        problem:
+          "The readiness engine could not load setup health data. Some configuration issues may not be visible.",
         actionHref: "/crm/setup",
         actionLabel: "Open Setup",
       })
@@ -819,7 +819,8 @@ export async function getCrmReadinessIssues(
       createSourceFailureIssue({
         sourceKey: "today",
         title: "Daily operational readiness could not be checked",
-        problem: "The readiness engine could not load today's operational snapshot. Staff check-in, dispatch, and payment issues may not appear.",
+        problem:
+          "The readiness engine could not load today's operational snapshot. Staff check-in, dispatch, and payment issues may not appear.",
         actionHref: "/crm/today",
         actionLabel: "Open Today",
       })
@@ -836,7 +837,8 @@ export async function getCrmReadinessIssues(
       createSourceFailureIssue({
         sourceKey: "daily-ops",
         title: "Daily operations checks could not be completed",
-        problem: "The readiness engine could not run daily operations checks. Ghost check-in, opening-shift, and booking follow-up warnings may not appear.",
+        problem:
+          "The readiness engine could not run daily operations checks. Ghost check-in, opening-shift, and booking follow-up warnings may not appear.",
         actionHref: "/crm/today",
         actionLabel: "Open Today",
       })
@@ -872,9 +874,7 @@ export async function getCrmReadinessIssues(
  *
  * @param branchId  The branch to check readiness for.
  */
-export async function getCrmReadiness(
-  branchId: string
-): Promise<ReadinessResult> {
+export async function getCrmReadiness(branchId: string): Promise<ReadinessResult> {
   const issues = await getCrmReadinessIssues(branchId);
   return buildReadinessResult(issues);
 }
@@ -894,9 +894,8 @@ import { cacheTags } from "@/lib/cache/cache-tags";
  * `invalidateCrmWorkspace(branchId)`.
  */
 export function getCrmReadinessCached(branchId: string): Promise<ReadinessResult> {
-  return unstable_cache(
-    async () => getCrmReadiness(branchId),
-    ["crm-readiness", branchId],
-    { tags: [cacheTags.crmSetup(branchId)], revalidate: 60 }
-  )();
+  return unstable_cache(async () => getCrmReadiness(branchId), ["crm-readiness", branchId], {
+    tags: [cacheTags.crmSetup(branchId)],
+    revalidate: 60,
+  })();
 }

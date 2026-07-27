@@ -225,6 +225,29 @@ export function PublicScanResultView({
   const isDurableReview = isDurableReviewResult(result);
   const statusClass = getResultStatusClass(result);
   const resolution = result.resolution;
+  const isMaintenance = result.reasonCode === "attendance_maintenance";
+
+  if (isMaintenance) {
+    const hasReceipt = Boolean(result.operationId || result.scanEventId);
+    return (
+      <section className={cn(styles.resultPanel, styles.resultInfo)} aria-live="polite">
+        <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
+        <div className={styles.genericResultIcon} aria-hidden="true">
+          <ShieldCheck size={42} strokeWidth={1.8} />
+        </div>
+        <div className={styles.genericResultCopy}>
+          <p className={styles.eyebrow}>Planned maintenance</p>
+          <h1>{result.title}</h1>
+          <p>{result.message}</p>
+          <div className="mt-4 grid gap-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-left text-sm text-blue-950">
+            <strong>Attendance changed: No</strong>
+            <span>{result.detail}</span>
+            {hasReceipt ? <span>Receipt: {supportReceipt(result)}</span> : null}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (isAttendanceSuccess && attendance) {
     const cardLabel = isClockIn ? "Session started" : "Total worked today";

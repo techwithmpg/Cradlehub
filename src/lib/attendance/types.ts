@@ -434,6 +434,7 @@ export type AttendanceWorkspaceData = {
   dailyStaffStates: import("@/lib/attendance/day-model").AttendanceDayStaffState[];
   staffOptions: Array<{ id: string; full_name: string; staff_type: string | null }>;
   resourceOptions: Array<{ id: string; name: string; type: string | null; is_active: boolean }>;
+  maintenance?: import("@/lib/attendance/maintenance-mode").AttendanceMaintenanceState;
 };
 
 export type PublicScanResult = {

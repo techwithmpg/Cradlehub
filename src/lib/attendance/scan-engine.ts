@@ -52,6 +52,11 @@ import {
 } from "@/lib/notifications/workflow-signals";
 import { recalculateAttendanceClockOutPolicy } from "@/lib/attendance/dynamic-clock-out";
 import { resolveStaleAttendanceRecoveryClockOutAt } from "@/lib/attendance/stale-recovery";
+import {
+  createAttendanceMaintenanceResult,
+  isAttendanceMaintenanceMode,
+  isAttendanceMaintenanceResult,
+} from "@/lib/attendance/maintenance-mode";
 
 export type ScanRequestContext = {
   requestId?: string | null;
@@ -1086,6 +1091,13 @@ export async function registerDeviceForAuthenticatedScan(
   const admin = asAttendanceDb(createAdminClient());
   const point = await loadQrPoint(admin, publicCode);
 
+  if (point?.point_type === "attendance" && isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      result: createAttendanceMaintenanceResult({ operationId: ctx.requestId }),
+    };
+  }
+
   if (!point || !point.is_active) {
     const eventId = await recordScanEvent(admin, {
       scanType: "unknown",
@@ -1921,6 +1933,7 @@ export async function resolveClosingInterventionSignals(
   admin: AttendanceDb,
   checkinId: string
 ): Promise<void> {
+  if (isAttendanceMaintenanceMode()) return;
   await Promise.all([
     markNotificationResolved({
       entityType: "attendance_record",
@@ -3025,6 +3038,9 @@ export async function resumeAttendanceScanFromStoredSource(params: {
   commit: AttendanceScanCommitter;
   reconcileProvisional: ProvisionalAttendanceReconciler;
 }): Promise<PublicScanResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return createAttendanceMaintenanceResult({ operationId: params.continuationRequestId });
+  }
   const admin = asAttendanceDb(createAdminClient());
   const sourceResult = await admin
     .from("qr_scan_events")
@@ -3644,6 +3660,10 @@ async function processQrScanFresh(
 ): Promise<PublicScanResult> {
   const point = await loadQrPoint(admin, publicCode);
 
+  if (point?.point_type === "attendance" && isAttendanceMaintenanceMode()) {
+    return createAttendanceMaintenanceResult({ operationId: ctx.requestId });
+  }
+
   if (!point || !point.is_active) {
     const eventId = await recordScanEvent(admin, {
       scanType: "unknown",
@@ -3933,10 +3953,19 @@ export async function processQrScan(
   const admin = asAttendanceDb(createAdminClient());
   const operationId = normalizeAttendanceOperationId(ctx.requestId);
   const scanCtx: ScanRequestContext = { ...ctx, requestId: operationId };
+  if (isAttendanceMaintenanceMode()) {
+    const point = await loadQrPoint(admin, publicCode);
+    if (point?.point_type === "attendance") {
+      return createAttendanceMaintenanceResult({ operationId });
+    }
+  }
   const replayed = await loadCommittedScanResult(admin, operationId);
   if (replayed) return replayed;
 
   const result = await processQrScanFresh(admin, publicCode, scanCtx);
+  if (isAttendanceMaintenanceResult(result)) {
+    return withOperationId(result, operationId);
+  }
   await persistCommittedScanResult({
     admin,
     requestId: operationId,
@@ -3949,6 +3978,9 @@ export async function activateDeviceWithToken(
   token: string,
   ctx: ScanRequestContext
 ): Promise<ActivationResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return createAttendanceMaintenanceResult({ operationId: ctx.requestId });
+  }
   const admin = asAttendanceDb(createAdminClient());
   const tokenHash = hashSecret(token);
   const { data: activation, error: activationError } = await admin

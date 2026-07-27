@@ -21,9 +21,16 @@ function formatTime(value: string | null, timezone: string): string | null {
 export function StaffAttendanceClockOut({
   availability,
   timezone,
+  maintenance = { active: false, title: "", message: "", instruction: "" },
 }: {
   availability: StaffPortalClockOutAvailability;
   timezone: string;
+  maintenance?: {
+    active: boolean;
+    title: string;
+    message: string;
+    instruction: string;
+  };
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -46,21 +53,23 @@ export function StaffAttendanceClockOut({
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-xl border bg-muted/35 p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="text-sm font-medium">{result?.title ?? availability.label}</p>
+        <p className="text-sm font-medium">
+          {maintenance.active ? maintenance.title : (result?.title ?? availability.label)}
+        </p>
         <p className="text-xs text-muted-foreground">
-          {result?.message ?? availability.message}
-          {!result && nextAssignment ? ` Next assignment: ${nextAssignment}.` : ""}
-          {!result && !nextAssignment && expected ? ` Expected completion: ${expected}.` : ""}
+          {maintenance.active
+            ? `${maintenance.message} ${maintenance.instruction}`
+            : (result?.message ?? availability.message)}
+          {!maintenance.active && !result && nextAssignment
+            ? ` Next assignment: ${nextAssignment}.`
+            : ""}
+          {!maintenance.active && !result && !nextAssignment && expected
+            ? ` Expected completion: ${expected}.`
+            : ""}
         </p>
       </div>
-      {availability.enabled && !result?.ok ? (
-        <Button
-          type="button"
-          size="sm"
-          className="shrink-0"
-          disabled={isPending}
-          onClick={submit}
-        >
+      {!maintenance.active && availability.enabled && !result?.ok ? (
+        <Button type="button" size="sm" className="shrink-0" disabled={isPending} onClick={submit}>
           {isPending ? <LoaderCircle className="animate-spin" /> : <ClockArrowDown />}
           {isPending ? "Clocking out…" : "Clock out"}
         </Button>

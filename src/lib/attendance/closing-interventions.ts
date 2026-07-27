@@ -3,6 +3,7 @@ import "server-only";
 import { asAttendanceDb } from "@/lib/attendance/db";
 import { logError, logInfo } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 export const CLOSING_INTERVENTION_STAGES = [
   "reminder",
@@ -11,8 +12,7 @@ export const CLOSING_INTERVENTION_STAGES = [
   "catch_up",
 ] as const;
 
-export type ClosingInterventionStage =
-  (typeof CLOSING_INTERVENTION_STAGES)[number];
+export type ClosingInterventionStage = (typeof CLOSING_INTERVENTION_STAGES)[number];
 
 export type ClosingInterventionRunResult = {
   stage: ClosingInterventionStage;
@@ -24,11 +24,10 @@ export type ClosingInterventionRunResult = {
   failed: number;
   autoClosed: number;
   activeServiceBlocks: number;
+  maintenanceMode?: boolean;
 };
 
-export function isClosingInterventionStage(
-  value: unknown
-): value is ClosingInterventionStage {
+export function isClosingInterventionStage(value: unknown): value is ClosingInterventionStage {
   return (
     typeof value === "string" &&
     CLOSING_INTERVENTION_STAGES.includes(value as ClosingInterventionStage)
@@ -43,16 +42,15 @@ function sanitizeSummary(
   stage: ClosingInterventionStage,
   data: unknown
 ): ClosingInterventionRunResult {
-  const value = data && typeof data === "object" && !Array.isArray(data)
-    ? (data as Record<string, unknown>)
-    : {};
+  const value =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
 
   return {
     stage: isClosingInterventionStage(value.stage) ? value.stage : stage,
     processedAt:
-      typeof value.processedAt === "string"
-        ? value.processedAt
-        : new Date(0).toISOString(),
+      typeof value.processedAt === "string" ? value.processedAt : new Date(0).toISOString(),
     batchSize: numberValue(value.batchSize),
     examined: numberValue(value.examined),
     applied: numberValue(value.applied),
@@ -60,6 +58,7 @@ function sanitizeSummary(
     failed: numberValue(value.failed),
     autoClosed: numberValue(value.autoClosed),
     activeServiceBlocks: numberValue(value.activeServiceBlocks),
+    maintenanceMode: false,
   };
 }
 
@@ -68,15 +67,26 @@ export async function runClosingAttendanceInterventions(
   processedAt = new Date(),
   batchSize = 50
 ): Promise<ClosingInterventionRunResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      stage,
+      processedAt: processedAt.toISOString(),
+      batchSize: Math.max(0, batchSize),
+      examined: 0,
+      applied: 0,
+      skipped: 0,
+      failed: 0,
+      autoClosed: 0,
+      activeServiceBlocks: 0,
+      maintenanceMode: true,
+    };
+  }
   const admin = asAttendanceDb(createAdminClient());
-  const { data, error } = await admin.rpc(
-    "process_due_attendance_closing_interventions",
-    {
-      p_stage: stage,
-      p_processed_at: processedAt.toISOString(),
-      p_batch_size: batchSize,
-    }
-  );
+  const { data, error } = await admin.rpc("process_due_attendance_closing_interventions", {
+    p_stage: stage,
+    p_processed_at: processedAt.toISOString(),
+    p_batch_size: batchSize,
+  });
 
   if (error) {
     logError("attendance.closing_interventions.failed", {

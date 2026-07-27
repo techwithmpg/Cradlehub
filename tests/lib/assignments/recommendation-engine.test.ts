@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  NO_CHECKED_IN_STAFF_WARNING,
-} from "@/lib/engine/availability";
+vi.mock("server-only", () => ({}));
+
+import { NO_CHECKED_IN_STAFF_WARNING } from "@/lib/engine/availability";
 import {
   type CheckinForScoring,
   type RecommendationContext,
@@ -13,12 +13,20 @@ import { addDaysToYmd, getBranchBusinessDate } from "@/lib/engine/slot-time";
 const BRANCH_ID = "branch-main";
 const SERVICE_ID = "service-massage";
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 function dayOfWeekFromYmd(date: string): number {
   const [y = "0", m = "1", d = "1"] = date.split("-");
   return new Date(Number(y), Number(m) - 1, Number(d)).getDay();
 }
 
-function checkin(staffId: string, date: string, checkedInAt = "2026-07-09T01:00:00.000Z"): CheckinForScoring {
+function checkin(
+  staffId: string,
+  date: string,
+  checkedInAt = "2026-07-09T01:00:00.000Z"
+): CheckinForScoring {
   return {
     staff_id: staffId,
     shift_date: date,
@@ -158,7 +166,9 @@ describe("assignment recommendation attendance behavior", () => {
       futureScored.some((candidate) => candidate.warnings.includes(NO_CHECKED_IN_STAFF_WARNING))
     ).toBe(false);
     expect(
-      homeServiceScored.some((candidate) => candidate.warnings.includes(NO_CHECKED_IN_STAFF_WARNING))
+      homeServiceScored.some((candidate) =>
+        candidate.warnings.includes(NO_CHECKED_IN_STAFF_WARNING)
+      )
     ).toBe(false);
   });
 
@@ -180,6 +190,60 @@ describe("assignment recommendation attendance behavior", () => {
     const candidate = scored.find((item) => item.staffId === "junior-checked-in");
     expect(candidate?.status).toBe("unavailable");
     expect(candidate?.warnings).toContain("Has overlapping booking");
+  });
+
+  it("ignores only live Attendance during maintenance and still enforces real conflicts", () => {
+    vi.stubEnv("ATTENDANCE_MAINTENANCE_MODE", "true");
+    const bookingDate = getBranchBusinessDate();
+    const context = makeContext({
+      checkins: [],
+      existingBookings: [
+        {
+          booking_id: "existing-booking",
+          staff_id: "junior-checked-in",
+          start_time: "10:30:00",
+          end_time: "11:30:00",
+          status: "confirmed",
+        },
+      ],
+      schedules: [
+        {
+          staff_id: "senior-not-checked-in",
+          day_of_week: dayOfWeekFromYmd(bookingDate),
+          start_time: "09:00:00",
+          end_time: "18:00:00",
+          is_active: true,
+          shift_type: "regular",
+        },
+        {
+          staff_id: "junior-checked-in",
+          day_of_week: dayOfWeekFromYmd(bookingDate),
+          start_time: "09:00:00",
+          end_time: "13:00:00",
+          is_active: true,
+          shift_type: "opening",
+        },
+        {
+          staff_id: "junior-checked-in",
+          day_of_week: dayOfWeekFromYmd(bookingDate),
+          start_time: "12:00:00",
+          end_time: "18:00:00",
+          is_active: true,
+          shift_type: "closing",
+        },
+      ],
+    });
+
+    const scored = scoreTherapistCandidates(context);
+    const scheduled = scored.find((item) => item.staffId === "senior-not-checked-in");
+    const conflicted = scored.find((item) => item.staffId === "junior-checked-in");
+
+    expect(scheduled?.status).not.toBe("unavailable");
+    expect(scheduled?.warnings).not.toContain(NO_CHECKED_IN_STAFF_WARNING);
+    expect(scheduled?.warnings).not.toContain("Not checked in for today");
+    expect(conflicted?.status).toBe("unavailable");
+    expect(conflicted?.warnings).toContain("Has overlapping booking");
+    expect(conflicted?.warnings).toContain("Schedule has conflicting windows");
   });
 
   it("marks therapists with conflicting schedule windows unavailable", () => {

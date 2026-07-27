@@ -33,6 +33,11 @@ import {
 } from "@/lib/attendance/shift-instance";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
+import {
+  assertAttendanceWritable,
+  getAttendanceMaintenanceState,
+  isAttendanceMaintenanceMode,
+} from "@/lib/attendance/maintenance-mode";
 
 export type AttendanceActionContext = {
   branchId: string;
@@ -286,6 +291,9 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
 
   await requireBranch(admin, branchId);
   const fallback = { branch_id: branchId, ...DEFAULT_SETTINGS };
+  if (isAttendanceMaintenanceMode()) {
+    return normalizeAttendanceSettings(fallback, branchId);
+  }
   const { data: inserted, error: insertError } = await admin
     .from("attendance_settings")
     .insert(fallback)
@@ -307,6 +315,7 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
 export async function ensureBranchAttendanceQrPoint(
   ctx: AttendanceActionContext
 ): Promise<AttendanceQrPoint> {
+  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const branch = await requireBranch(admin, ctx.branchId);
   const existing = await admin
@@ -415,6 +424,7 @@ export async function replaceBranchAttendanceQrPoint(params: {
   ctx: AttendanceActionContext;
   qrPointId: string;
 }): Promise<AttendanceQrPoint> {
+  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const current = await admin
     .from("qr_points")
@@ -445,6 +455,16 @@ export async function deactivateQrPoint(params: {
   qrPointId: string;
 }): Promise<void> {
   const admin = asAttendanceDb(createAdminClient());
+  const point = await admin
+    .from("qr_points")
+    .select("id, point_type")
+    .eq("id", params.qrPointId)
+    .eq("branch_id", params.ctx.branchId)
+    .maybeSingle();
+  if (point.error) throw new Error(point.error.message);
+  if (!point.data) throw new Error("The selected QR code is no longer available.");
+  if (point.data.point_type === "attendance") assertAttendanceWritable();
+
   const { data, error } = await admin
     .from("qr_points")
     .update({ is_active: false })
@@ -463,6 +483,7 @@ export async function createDeviceActivationLink(params: {
   staffId: string;
   origin?: string | null;
 }): Promise<{ token: string; activationUrl: string; expiresAt: string }> {
+  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
 
   const { data: staff, error: staffError } = await admin
@@ -499,6 +520,7 @@ export async function revokeAttendanceDevice(params: {
   ctx: AttendanceActionContext;
   deviceId: string;
 }): Promise<void> {
+  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const { error } = await admin
     .from("staff_devices")
@@ -518,6 +540,7 @@ export async function resolveAttendanceException(params: {
   exceptionId: string;
   resolutionNote?: string | null;
 }): Promise<void> {
+  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const { error } = await admin
     .from("attendance_exceptions")
@@ -537,6 +560,7 @@ export async function reviewAttendanceException(params: {
   ctx: AttendanceActionContext;
   exceptionId: string;
 }): Promise<void> {
+  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const { error } = await admin
     .from("attendance_exceptions")
@@ -825,6 +849,7 @@ export async function getAttendanceWorkspaceData(params: {
         is_active: row.is_active,
       })
     ),
+    maintenance: getAttendanceMaintenanceState(),
   };
 }
 

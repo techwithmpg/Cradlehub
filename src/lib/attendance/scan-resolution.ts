@@ -151,5 +151,6 @@ export function classifyAttendanceScanResult(result: PublicScanResult): Attendan
 }
 
 export function withAttendanceScanResolution(result: PublicScanResult): PublicScanResult {
+  if (result.resolution) return result;
   return { ...result, resolution: classifyAttendanceScanResult(result) };
 }

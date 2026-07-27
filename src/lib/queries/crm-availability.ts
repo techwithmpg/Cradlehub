@@ -10,6 +10,7 @@ import {
   isTimeWithinScheduleWindows,
   type ResolvedStaffScheduleSource,
 } from "@/lib/schedule/resolve-staff-schedule";
+import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule" | "conflict";
 
@@ -108,7 +109,8 @@ export async function getCrmAvailabilitySnapshot(params: {
   date: string;
   now?: Date;
 }): Promise<CrmAvailabilitySnapshot> {
-  const attendanceEnforcementPaused = !isAttendanceEnforcementEnabled();
+  const attendanceEnforcementPaused =
+    isAttendanceMaintenanceMode() || !isAttendanceEnforcementEnabled();
   const now = params.now ?? new Date();
   const nowTime = getBranchClockTime(now, BRANCH_TIMEZONE);
   const supabase = await createClient();
@@ -169,7 +171,10 @@ export async function getCrmAvailabilitySnapshot(params: {
     let scheduleStatus: ScheduleStatus;
     if (schedule?.schedule_status === "conflict") {
       scheduleStatus = "conflict";
-    } else if (schedule?.schedule_is_day_off === true || schedule?.current_override?.is_day_off === true) {
+    } else if (
+      schedule?.schedule_is_day_off === true ||
+      schedule?.current_override?.is_day_off === true
+    ) {
       scheduleStatus = "off_today";
     } else if (!schedule || shifts.length === 0 || schedule.work_start === null) {
       scheduleStatus = "no_schedule";
@@ -273,21 +278,25 @@ export async function getCrmAvailabilitySnapshot(params: {
     };
   });
 
-  const scheduled             = staffRows.filter((s) => s.scheduleStatus === "scheduled");
-  const checkedIn             = staffRows.filter((s) => s.presenceStatus === "checked_in");
-  const notCheckedIn          = staffRows.filter((s) => s.presenceStatus === "not_checked_in");
-  const availableNow          = staffRows.filter((s) => s.liveStatus === "available_now");
-  const busyNow               = staffRows.filter((s) => s.liveStatus === "busy_now");
-  const checkedOut            = staffRows.filter((s) => s.presenceStatus === "checked_out");
-  const offToday              = staffRows.filter((s) => s.scheduleStatus === "off_today");
-  const noSchedule            = staffRows.filter((s) => s.scheduleStatus === "no_schedule");
-  const scheduleConflicts     = staffRows.filter((s) => s.scheduleStatus === "conflict");
-  const drivers               = staffRows.filter((s) => s.is_driver);
+  const scheduled = staffRows.filter((s) => s.scheduleStatus === "scheduled");
+  const checkedIn = staffRows.filter((s) => s.presenceStatus === "checked_in");
+  const notCheckedIn = staffRows.filter((s) => s.presenceStatus === "not_checked_in");
+  const availableNow = staffRows.filter((s) => s.liveStatus === "available_now");
+  const busyNow = staffRows.filter((s) => s.liveStatus === "busy_now");
+  const checkedOut = staffRows.filter((s) => s.presenceStatus === "checked_out");
+  const offToday = staffRows.filter((s) => s.scheduleStatus === "off_today");
+  const noSchedule = staffRows.filter((s) => s.scheduleStatus === "no_schedule");
+  const scheduleConflicts = staffRows.filter((s) => s.scheduleStatus === "conflict");
+  const drivers = staffRows.filter((s) => s.is_driver);
   // Drivers ready = checked in + not busy
-  const driversReady          = drivers.filter((s) => s.presenceStatus === "checked_in" && s.liveStatus !== "busy_now");
-  const attention             = staffRows.filter((s) => s.needsAttention);
+  const driversReady = drivers.filter(
+    (s) => s.presenceStatus === "checked_in" && s.liveStatus !== "busy_now"
+  );
+  const attention = staffRows.filter((s) => s.needsAttention);
   // Service providers (therapists, nail techs, etc.) with no schedule — affects online booking
-  const serviceStaffNoSched   = staffRows.filter((s) => s.scheduleStatus === "no_schedule" && s.is_service_provider);
+  const serviceStaffNoSched = staffRows.filter(
+    (s) => s.scheduleStatus === "no_schedule" && s.is_service_provider
+  );
 
   return {
     branchId: params.branchId,

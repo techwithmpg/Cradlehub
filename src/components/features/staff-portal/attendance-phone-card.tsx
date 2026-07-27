@@ -33,12 +33,50 @@ function statusLabel(status: NonNullable<StaffAttendancePhoneState["request"]>["
   return "Cancelled";
 }
 
-export function AttendancePhoneCard({ state }: { state: StaffAttendancePhoneState }) {
+export function AttendancePhoneCard({
+  state,
+  maintenanceActive = false,
+}: {
+  state: StaffAttendancePhoneState;
+  maintenanceActive?: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [replacementId, setReplacementId] = useState(state.activeDevices[0]?.id ?? "");
   const [label, setLabel] = useState(state.registeredDevice?.label ?? "");
   const request = state.request;
   const hasOpenRequest = request?.status === "pending" || request?.status === "approved";
+
+  if (maintenanceActive) {
+    return (
+      <Card id="attendance-phone">
+        <CardHeader className="gap-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Smartphone className="size-5 text-primary" />
+            Attendance phone
+          </CardTitle>
+          <CardDescription>
+            Attendance phone changes are temporarily unavailable during maintenance.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-xl border bg-muted/30 p-4 text-sm">
+            <p className="font-medium">
+              This phone: {state.registeredDevice?.label ?? "Not connected"}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Existing phone connections remain unchanged. Activation, replacement, rename,
+              recovery, approval, and revocation actions are paused.
+            </p>
+          </div>
+          {request ? (
+            <p className="text-sm text-muted-foreground">
+              Current request status: {statusLabel(request.status)}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  }
 
   function run(action: () => Promise<{ success: boolean; message: string }>) {
     startTransition(async () => {

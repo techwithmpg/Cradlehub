@@ -37,6 +37,7 @@ import {
   deriveAttendanceClosingTimeline,
 } from "@/lib/attendance/closing-policy";
 import { AttendanceCategoryRulesEditor } from "./attendance-category-rules-editor";
+import { AttendanceMaintenanceBanner } from "@/components/features/attendance/attendance-maintenance-banner";
 import { saveBranchAttendanceRulesAction } from "./attendance-rule-actions";
 
 function timeValue(value: string): string {
@@ -64,10 +65,7 @@ function formatDateTime(value: string | null): string {
   }).format(new Date(value));
 }
 
-function historyValueSummary(
-  item: AttendanceRuleHistoryItem,
-  side: "previous" | "new"
-): string {
+function historyValueSummary(item: AttendanceRuleHistoryItem, side: "previous" | "new"): string {
   const next =
     item.newValues && typeof item.newValues === "object" && !Array.isArray(item.newValues)
       ? item.newValues
@@ -95,9 +93,11 @@ function historyValueSummary(
 export function BranchAttendanceRulesCard({
   branchId,
   data,
+  maintenance = { active: false, banner: "" },
 }: {
   branchId: string;
   data: BranchAttendanceRulesData;
+  maintenance?: { active: boolean; banner: string };
 }) {
   const [workspaceData, setWorkspaceData] = useState(data);
   const [isPending, startTransition] = useTransition();
@@ -107,7 +107,9 @@ export function BranchAttendanceRulesCard({
   const [lateGrace, setLateGrace] = useState(data.settings.late_grace_minutes);
   const [earlyLeave, setEarlyLeave] = useState(data.settings.early_leave_threshold_minutes);
   const [overtime, setOvertime] = useState(data.settings.overtime_threshold_minutes);
-  const [duplicateWindow, setDuplicateWindow] = useState(data.settings.duplicate_scan_window_seconds);
+  const [duplicateWindow, setDuplicateWindow] = useState(
+    data.settings.duplicate_scan_window_seconds
+  );
   const [activeServiceBlocks, setActiveServiceBlocks] = useState(
     data.settings.active_service_blocks_clock_out
   );
@@ -185,7 +187,8 @@ export function BranchAttendanceRulesCard({
       <CardHeader>
         <CardTitle>Attendance Rules</CardTitle>
         <CardDescription>
-          Branch timing, effective-dated category overrides, and the CRM closing-shift intervention policy.
+          Branch timing, effective-dated category overrides, and the CRM closing-shift intervention
+          policy.
         </CardDescription>
         <CardAction>
           <Badge variant={workspaceData.scheduler.recentlyObserved ? "secondary" : "outline"}>
@@ -195,6 +198,9 @@ export function BranchAttendanceRulesCard({
       </CardHeader>
 
       <CardContent>
+        {maintenance.active ? (
+          <AttendanceMaintenanceBanner message={maintenance.banner} className="mb-4" />
+        ) : null}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="max-w-full justify-start overflow-x-auto">
             <TabsTrigger value="closing">Branch & closing</TabsTrigger>
@@ -202,28 +208,82 @@ export function BranchAttendanceRulesCard({
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="closing" className="mt-4 flex flex-col gap-5">
+          <TabsContent
+            value="closing"
+            className="mt-4 flex flex-col gap-5"
+            inert={maintenance.active}
+            aria-disabled={maintenance.active || undefined}
+          >
             <Alert>
               <ShieldCheck />
               <AlertTitle>Raw schedules remain unchanged</AlertTitle>
               <AlertDescription>
-                Physical branch closing time is used for CRM closing attendance. Only CRM / front-desk staff on a Closing shift use the operational window below. A schedule such as 5:00 PM–1:30 AM remains stored exactly as assigned.
+                Physical branch closing time is used for CRM closing attendance. Only CRM /
+                front-desk staff on a Closing shift use the operational window below. A schedule
+                such as 5:00 PM–1:30 AM remains stored exactly as assigned.
               </AlertDescription>
             </Alert>
 
             <div className="grid gap-4 md:grid-cols-4">
               <RuleField label="Timezone" htmlFor="attendance-timezone">
-                <Input id="attendance-timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)} />
+                <Input
+                  id="attendance-timezone"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                />
               </RuleField>
               <RuleField label="Attendance day boundary" htmlFor="attendance-boundary">
-                <Input id="attendance-boundary" type="time" value={dayBoundary} onChange={(event) => setDayBoundary(event.target.value)} />
+                <Input
+                  id="attendance-boundary"
+                  type="time"
+                  value={dayBoundary}
+                  onChange={(event) => setDayBoundary(event.target.value)}
+                />
               </RuleField>
-              <NumberField id="attendance-late" label="Late grace (minutes)" value={lateGrace} onChange={setLateGrace} min={0} max={240} />
-              <NumberField id="attendance-duplicate" label="Duplicate window (seconds)" value={duplicateWindow} onChange={setDuplicateWindow} min={10} max={600} />
-              <NumberField id="attendance-early" label="Early leave threshold" value={earlyLeave} onChange={setEarlyLeave} min={0} max={240} />
-              <NumberField id="attendance-overtime" label="Overtime threshold" value={overtime} onChange={setOvertime} min={0} max={240} />
-              <SwitchField id="attendance-active-service" label="Active service blocks clock-out" checked={activeServiceBlocks} onChange={setActiveServiceBlocks} />
-              <SwitchField id="attendance-closing-enabled" label="Enable CRM closing policy" checked={closingPolicyEnabled} onChange={setClosingPolicyEnabled} />
+              <NumberField
+                id="attendance-late"
+                label="Late grace (minutes)"
+                value={lateGrace}
+                onChange={setLateGrace}
+                min={0}
+                max={240}
+              />
+              <NumberField
+                id="attendance-duplicate"
+                label="Duplicate window (seconds)"
+                value={duplicateWindow}
+                onChange={setDuplicateWindow}
+                min={10}
+                max={600}
+              />
+              <NumberField
+                id="attendance-early"
+                label="Early leave threshold"
+                value={earlyLeave}
+                onChange={setEarlyLeave}
+                min={0}
+                max={240}
+              />
+              <NumberField
+                id="attendance-overtime"
+                label="Overtime threshold"
+                value={overtime}
+                onChange={setOvertime}
+                min={0}
+                max={240}
+              />
+              <SwitchField
+                id="attendance-active-service"
+                label="Active service blocks clock-out"
+                checked={activeServiceBlocks}
+                onChange={setActiveServiceBlocks}
+              />
+              <SwitchField
+                id="attendance-closing-enabled"
+                label="Enable CRM closing policy"
+                checked={closingPolicyEnabled}
+                onChange={setClosingPolicyEnabled}
+              />
             </div>
 
             <div className="rounded-lg border p-4">
@@ -232,28 +292,90 @@ export function BranchAttendanceRulesCard({
                 <div>
                   <div className="font-medium">CRM closing timeline</div>
                   <div className="text-sm text-muted-foreground">
-                    Reminder, manager escalation, and provisional auto-close are derived from branch time.
+                    Reminder, manager escalation, and provisional auto-close are derived from branch
+                    time.
                   </div>
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-4">
                 <RuleField label="Branch closes" htmlFor="attendance-branch-close">
-                  <Input id="attendance-branch-close" type="time" value={branchClose} onChange={(event) => setBranchClose(event.target.value)} />
+                  <Input
+                    id="attendance-branch-close"
+                    type="time"
+                    value={branchClose}
+                    onChange={(event) => setBranchClose(event.target.value)}
+                  />
                 </RuleField>
-                <NumberField id="attendance-normal-buffer" label="Normal buffer (minutes)" value={normalBuffer} onChange={setNormalBuffer} min={0} max={240} />
-                <NumberField id="attendance-escalation-delay" label="Manager escalation after reminder" value={escalationDelay} onChange={setEscalationDelay} min={1} max={240} />
-                <NumberField id="attendance-hard-cutoff" label="Hard cutoff after reminder" value={hardCutoffDelay} onChange={setHardCutoffDelay} min={1} max={360} />
+                <NumberField
+                  id="attendance-normal-buffer"
+                  label="Normal buffer (minutes)"
+                  value={normalBuffer}
+                  onChange={setNormalBuffer}
+                  min={0}
+                  max={240}
+                />
+                <NumberField
+                  id="attendance-escalation-delay"
+                  label="Manager escalation after reminder"
+                  value={escalationDelay}
+                  onChange={setEscalationDelay}
+                  min={1}
+                  max={240}
+                />
+                <NumberField
+                  id="attendance-hard-cutoff"
+                  label="Hard cutoff after reminder"
+                  value={hardCutoffDelay}
+                  onChange={setHardCutoffDelay}
+                  min={1}
+                  max={360}
+                />
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <PreviewItem label="Earliest normal" value={formatPolicyTime(preview?.earliestNormalClockOutAt ?? workspaceData.closingPreview.earliestNormalClockOutAt, timezone)} />
-                <PreviewItem label="Latest normal / reminder" value={formatPolicyTime(preview?.reminderAt ?? workspaceData.closingPreview.reminderAt, timezone)} />
-                <PreviewItem label="Manager escalation" value={formatPolicyTime(preview?.managerEscalationAt ?? workspaceData.closingPreview.managerEscalationAt, timezone)} />
-                <PreviewItem label="Hard cutoff" value={formatPolicyTime(preview?.hardCutoffAt ?? workspaceData.closingPreview.hardCutoffAt, timezone)} />
-                <PreviewItem label="Provisional close time" value={formatPolicyTime(preview?.provisionalClockOutAt ?? workspaceData.closingPreview.provisionalClockOutAt, timezone)} />
+                <PreviewItem
+                  label="Earliest normal"
+                  value={formatPolicyTime(
+                    preview?.earliestNormalClockOutAt ??
+                      workspaceData.closingPreview.earliestNormalClockOutAt,
+                    timezone
+                  )}
+                />
+                <PreviewItem
+                  label="Latest normal / reminder"
+                  value={formatPolicyTime(
+                    preview?.reminderAt ?? workspaceData.closingPreview.reminderAt,
+                    timezone
+                  )}
+                />
+                <PreviewItem
+                  label="Manager escalation"
+                  value={formatPolicyTime(
+                    preview?.managerEscalationAt ??
+                      workspaceData.closingPreview.managerEscalationAt,
+                    timezone
+                  )}
+                />
+                <PreviewItem
+                  label="Hard cutoff"
+                  value={formatPolicyTime(
+                    preview?.hardCutoffAt ?? workspaceData.closingPreview.hardCutoffAt,
+                    timezone
+                  )}
+                />
+                <PreviewItem
+                  label="Provisional close time"
+                  value={formatPolicyTime(
+                    preview?.provisionalClockOutAt ??
+                      workspaceData.closingPreview.provisionalClockOutAt,
+                    timezone
+                  )}
+                />
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
-                CRM staff should scan out normally. If the shift remains open after the hard cutoff, CradleHub provisionally closes it at the latest normal closing time and sends it for confirmation.
+                CRM staff should scan out normally. If the shift remains open after the hard cutoff,
+                CradleHub provisionally closes it at the latest normal closing time and sends it for
+                confirmation.
               </p>
             </div>
 
@@ -263,26 +385,52 @@ export function BranchAttendanceRulesCard({
                 <PreviewItem label="Policy" value={closingPolicyEnabled ? "Enabled" : "Disabled"} />
                 <PreviewItem label="Reminder" value="CRM staff at latest normal clock-out" />
                 <PreviewItem label="Escalation recipients" value="CRM Head or branch manager" />
-                <PreviewItem label="Hard-cutoff behavior" value="Provisional close + missing clock-out review" />
-                <PreviewItem label="Last successful run" value={formatDateTime(workspaceData.scheduler.lastRunAt)} />
-                <PreviewItem label="Next expected run" value={formatDateTime(workspaceData.scheduler.nextExpectedRunAt)} />
+                <PreviewItem
+                  label="Hard-cutoff behavior"
+                  value="Provisional close + missing clock-out review"
+                />
+                <PreviewItem
+                  label="Last successful run"
+                  value={formatDateTime(workspaceData.scheduler.lastRunAt)}
+                />
+                <PreviewItem
+                  label="Next expected run"
+                  value={formatDateTime(workspaceData.scheduler.nextExpectedRunAt)}
+                />
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                Scheduler status: {schedulerLabel}. Supabase runs four bounded daily safety stages; normal dynamic recalculation is event-driven.
+                Scheduler status: {schedulerLabel}. Supabase runs four bounded daily safety stages;
+                normal dynamic recalculation is event-driven.
               </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
               <RuleField label="Effective date (blank = now)" htmlFor="attendance-effective-date">
-                <Input id="attendance-effective-date" type="date" value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} />
+                <Input
+                  id="attendance-effective-date"
+                  type="date"
+                  value={effectiveDate}
+                  onChange={(event) => setEffectiveDate(event.target.value)}
+                />
               </RuleField>
-              <RuleField label="Change reason" htmlFor="attendance-change-reason" className="md:col-span-2">
-                <Input id="attendance-change-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
+              <RuleField
+                label="Change reason"
+                htmlFor="attendance-change-reason"
+                className="md:col-span-2"
+              >
+                <Input
+                  id="attendance-change-reason"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
               </RuleField>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-              <span>{workspaceData.affectedClosingScheduleRows} active CRM closing schedule rows may use this policy.</span>
+              <span>
+                {workspaceData.affectedClosingScheduleRows} active CRM closing schedule rows may use
+                this policy.
+              </span>
               <span>Last worker run: {formatDateTime(workspaceData.scheduler.lastRunAt)}</span>
             </div>
             {workspaceData.scheduler.lastError ? (
@@ -298,6 +446,7 @@ export function BranchAttendanceRulesCard({
               branchId={branchId}
               categories={workspaceData.categories}
               onSaved={setWorkspaceData}
+              maintenanceActive={maintenance.active}
             />
           </TabsContent>
 
@@ -316,19 +465,27 @@ export function BranchAttendanceRulesCard({
               <TableBody>
                 {workspaceData.history.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground">No rule changes have been recorded yet.</TableCell>
+                    <TableCell colSpan={6} className="text-muted-foreground">
+                      No rule changes have been recorded yet.
+                    </TableCell>
                   </TableRow>
                 ) : (
                   workspaceData.history.map((item) => (
                     <TableRow key={`${item.scope}:${item.id}`}>
                       <TableCell>
                         <div className="font-medium">
-                          {item.category ? ATTENDANCE_STAFF_CATEGORY_LABELS[item.category] : "Branch defaults"}
+                          {item.category
+                            ? ATTENDANCE_STAFF_CATEGORY_LABELS[item.category]
+                            : "Branch defaults"}
                         </div>
                         <div className="text-xs text-muted-foreground">{item.reason}</div>
                       </TableCell>
-                      <TableCell className="max-w-64 whitespace-normal text-xs">{historyValueSummary(item, "previous")}</TableCell>
-                      <TableCell className="max-w-64 whitespace-normal text-xs">{historyValueSummary(item, "new")}</TableCell>
+                      <TableCell className="max-w-64 whitespace-normal text-xs">
+                        {historyValueSummary(item, "previous")}
+                      </TableCell>
+                      <TableCell className="max-w-64 whitespace-normal text-xs">
+                        {historyValueSummary(item, "new")}
+                      </TableCell>
                       <TableCell>{formatDateTime(item.effectiveFrom)}</TableCell>
                       <TableCell>{item.changedByName ?? "System / administrator"}</TableCell>
                       <TableCell>{formatDateTime(item.createdAt)}</TableCell>
@@ -341,7 +498,7 @@ export function BranchAttendanceRulesCard({
         </Tabs>
       </CardContent>
 
-      {activeTab === "closing" ? (
+      {activeTab === "closing" && !maintenance.active ? (
         <CardFooter className="justify-end">
           <Button type="button" onClick={save} disabled={isPending}>
             <Save data-icon="inline-start" />
@@ -353,18 +510,78 @@ export function BranchAttendanceRulesCard({
   );
 }
 
-function RuleField({ label, htmlFor, className, children }: { label: string; htmlFor: string; className?: string; children: React.ReactNode }) {
-  return <div className={`grid gap-2 ${className ?? ""}`}><Label htmlFor={htmlFor}>{label}</Label>{children}</div>;
+function RuleField({
+  label,
+  htmlFor,
+  className,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`grid gap-2 ${className ?? ""}`}>
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
+  );
 }
 
-function NumberField({ id, label, value, onChange, min, max }: { id: string; label: string; value: number; onChange: (value: number) => void; min: number; max: number }) {
-  return <RuleField label={label} htmlFor={id}><Input id={id} type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} /></RuleField>;
+function NumberField({
+  id,
+  label,
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+}) {
+  return (
+    <RuleField label={label} htmlFor={id}>
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </RuleField>
+  );
 }
 
-function SwitchField({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"><Label htmlFor={id}>{label}</Label><Switch id={id} checked={checked} onCheckedChange={onChange} /></div>;
+function SwitchField({
+  id,
+  label,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
 }
 
 function PreviewItem({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg bg-muted p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 font-medium">{value}</div></div>;
+  return (
+    <div className="rounded-lg bg-muted p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 font-medium">{value}</div>
+    </div>
+  );
 }

@@ -6,6 +6,7 @@ import {
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
 import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
+import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 import {
   doesDurationFitWithinScheduleWindows,
   resolveScheduleForStaffDay,
@@ -150,8 +151,7 @@ const SCORE = {
   insideShift: 15,
   shiftAlignment: 10,
   lessWorkload: 10,
-  // Enforcement remains neutral until the deployment launch gate is enabled.
-  notCheckedIn: isAttendanceEnforcementEnabled() ? -50 : 0,
+  notCheckedIn: -50,
   activeConflict: -50,
   blockedTime: -30,
   dayOff: -30,
@@ -178,12 +178,7 @@ function formatAttendanceTime(iso: string): string {
   });
 }
 
-function timesOverlap(
-  startA: string,
-  endA: string,
-  startB: string,
-  endB: string
-): boolean {
+function timesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
   return rangesOverlap(
     timeToMinutes(startA),
     timeToMinutes(endA),
@@ -302,10 +297,7 @@ function isCheckedInToday(
   );
 }
 
-function hasActiveCheckinsForDate(
-  bookingDate: string,
-  checkins: CheckinForScoring[]
-): boolean {
+function hasActiveCheckinsForDate(bookingDate: string, checkins: CheckinForScoring[]): boolean {
   return checkins.some(
     (c) => c.shift_date === bookingDate && c.status === "checked_in" && !c.checked_out_at
   );
@@ -313,6 +305,7 @@ function hasActiveCheckinsForDate(
 
 function shouldUseAttendancePreference(ctx: RecommendationContext): boolean {
   return (
+    !isAttendanceMaintenanceMode() &&
     ctx.bookingMode === "walkin" &&
     !ctx.isHomeService &&
     ctx.bookingDate === getBranchBusinessDate()
@@ -362,10 +355,7 @@ export function getTodayQueuePosition(
         !c.checked_out_at &&
         c.checked_in_at
     )
-    .sort(
-      (a, b) =>
-        new Date(a.checked_in_at!).getTime() - new Date(b.checked_in_at!).getTime()
-    );
+    .sort((a, b) => new Date(a.checked_in_at!).getTime() - new Date(b.checked_in_at!).getTime());
 
   const index = activeCheckins.findIndex((c) => c.staff_id === staffId);
   return index >= 0 ? index + 1 : null;
@@ -403,24 +393,16 @@ function isDriver(staff: StaffForScoring): boolean {
   return staff.system_role === "driver" || staff.staff_type === "driver";
 }
 
-function hasActiveDriverTrip(
-  staffId: string,
-  existingBookings: ConflictBooking[]
-): boolean {
+function hasActiveDriverTrip(staffId: string, existingBookings: ConflictBooking[]): boolean {
   // For drivers, existingBookings should already be filtered to driver_id assignments
   return existingBookings.some(
-    (b) =>
-      b.staff_id === staffId &&
-      !["cancelled", "no_show", "completed"].includes(b.status)
+    (b) => b.staff_id === staffId && !["cancelled", "no_show", "completed"].includes(b.status)
   );
 }
 
 // ── Scoring ────────────────────────────────────────────────────────────────────
 
-function scoreTherapist(
-  staff: StaffForScoring,
-  ctx: RecommendationContext
-): ScoredStaff {
+function scoreTherapist(staff: StaffForScoring, ctx: RecommendationContext): ScoredStaff {
   const reasons: string[] = [];
   const warnings: string[] = [];
   let score = 0;
@@ -460,7 +442,7 @@ function scoreTherapist(
       score += SCORE.checkedIn;
       reasons.push("Checked in");
     } else if (hasCheckedInStaff) {
-      score += SCORE.notCheckedIn;
+      score += isAttendanceEnforcementEnabled() ? SCORE.notCheckedIn : 0;
       warnings.push("Not checked in for today");
     } else {
       warnings.push(NO_CHECKED_IN_STAFF_WARNING);
@@ -555,10 +537,7 @@ function scoreTherapist(
   return buildResult(staff, "therapist", score, reasons, warnings, ctx);
 }
 
-function scoreDriver(
-  staff: StaffForScoring,
-  ctx: RecommendationContext
-): ScoredStaff {
+function scoreDriver(staff: StaffForScoring, ctx: RecommendationContext): ScoredStaff {
   const reasons: string[] = [];
   const warnings: string[] = [];
   let score = 0;
@@ -587,7 +566,7 @@ function scoreDriver(
       score += SCORE.checkedIn;
       reasons.push("Checked in");
     } else if (hasCheckedInStaff) {
-      score += SCORE.notCheckedIn;
+      score += isAttendanceEnforcementEnabled() ? SCORE.notCheckedIn : 0;
       warnings.push("Not checked in for today");
     } else {
       warnings.push(NO_CHECKED_IN_STAFF_WARNING);
@@ -695,12 +674,17 @@ function buildResult(
 
   const roleLabel = staff.staff_type
     ? staff.staff_type.replace(/_/g, " ")
-    : staff.system_role?.replace(/_/g, " ") ?? "Staff";
+    : (staff.system_role?.replace(/_/g, " ") ?? "Staff");
 
   const attendanceState: ScoredStaff["attendanceState"] =
     getTodayQueuePosition(staff.id, ctx.bookingDate, ctx.checkins) !== null
       ? "checked_in"
-      : ctx.checkins.some((c) => c.staff_id === staff.id && c.shift_date === ctx.bookingDate && c.status === "checked_out")
+      : ctx.checkins.some(
+            (c) =>
+              c.staff_id === staff.id &&
+              c.shift_date === ctx.bookingDate &&
+              c.status === "checked_out"
+          )
         ? "checked_out"
         : ctx.checkins.some((c) => c.staff_id === staff.id && c.shift_date === ctx.bookingDate)
           ? "not_arrived"
@@ -725,9 +709,7 @@ function buildResult(
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-export function scoreTherapistCandidates(
-  ctx: RecommendationContext
-): ScoredStaff[] {
+export function scoreTherapistCandidates(ctx: RecommendationContext): ScoredStaff[] {
   const candidates = ctx.staffList
     .filter((s) => isServiceProvider(s))
     .map((s) => scoreTherapist(s, ctx));
@@ -735,12 +717,8 @@ export function scoreTherapistCandidates(
   return candidates.sort((a, b) => b.score - a.score);
 }
 
-export function scoreDriverCandidates(
-  ctx: RecommendationContext
-): ScoredStaff[] {
-  const candidates = ctx.staffList
-    .filter((s) => isDriver(s))
-    .map((s) => scoreDriver(s, ctx));
+export function scoreDriverCandidates(ctx: RecommendationContext): ScoredStaff[] {
+  const candidates = ctx.staffList.filter((s) => isDriver(s)).map((s) => scoreDriver(s, ctx));
 
   return candidates.sort((a, b) => b.score - a.score);
 }

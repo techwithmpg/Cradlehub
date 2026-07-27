@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAttendanceScanError } from "@/lib/attendance/scan-errors";
+import { createAttendanceMaintenanceResult } from "@/lib/attendance/maintenance-mode";
 import { processQrScan } from "@/lib/attendance/scan-engine";
 import { POST } from "@/app/api/attendance/public-scan/route";
 
@@ -102,5 +103,32 @@ describe("public attendance scan route", () => {
     expect(setCookies).toContain("cradle_attendance_scan_intent=");
     expect(setCookies).toContain("HttpOnly");
     expect(setCookies).toContain("SameSite=lax");
+  });
+
+  it("returns a typed friendly 503 without creating device cookies during maintenance", async () => {
+    processQrScanMock.mockResolvedValueOnce(
+      createAttendanceMaintenanceResult({ operationId: "scan-op-maintenance" })
+    );
+
+    const response = await POST(
+      request({ publicCode: "qr-code", requestId: "scan-op-maintenance" })
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json).toMatchObject({
+      reasonCode: "attendance_maintenance",
+      securityNote: "Attendance changed: No",
+      resolution: {
+        attendanceChanged: false,
+        incidentRequired: false,
+        crmActionRequired: false,
+        technicalSupportRequired: false,
+      },
+    });
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(JSON.stringify(json)).not.toMatch(
+      /UNKNOWN_DEVICE|ATTENDANCE_DEVICE_SECRET|commit_attendance|stack/i
+    );
   });
 });

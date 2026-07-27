@@ -11,6 +11,7 @@ import { BranchResourcesManager } from "./branch-resources-manager";
 import { BranchServicesPanel } from "./branch-services-panel";
 import { BranchAttendanceRulesCard } from "./branch-attendance-rules-card";
 import { getBranchAttendanceRulesData } from "@/lib/attendance/branch-attendance-rules";
+import { getAttendanceMaintenanceState } from "@/lib/attendance/maintenance-mode";
 import type { GlobalService } from "./branch-services-panel";
 import type { Database } from "@/types/supabase";
 
@@ -82,6 +83,7 @@ export default async function BranchDetailPage({
   }
 
   const { branch, services, staff, resources } = result;
+  const attendanceMaintenance = getAttendanceMaintenanceState();
   await ensureBranchSetupWarningNotifications(branch.id);
   const activeStaffCount = staff.filter((s) => s.is_active).length;
 
@@ -89,7 +91,11 @@ export default async function BranchDetailPage({
     <div>
       <PageHeader title={branch.name} description={branch.address} />
 
-      <BranchAttendanceRulesCard branchId={branch.id} data={attendanceRules} />
+      <BranchAttendanceRulesCard
+        branchId={branch.id}
+        data={attendanceRules}
+        maintenance={attendanceMaintenance}
+      />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -110,7 +116,14 @@ export default async function BranchDetailPage({
               }}
             >
               {staff.length === 0 ? (
-                <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--cs-text-muted)", fontSize: "0.875rem" }}>
+                <div
+                  style={{
+                    padding: "1.5rem",
+                    textAlign: "center",
+                    color: "var(--cs-text-muted)",
+                    fontSize: "0.875rem",
+                  }}
+                >
                   No staff members assigned to this branch.
                 </div>
               ) : (
@@ -127,15 +140,33 @@ export default async function BranchDetailPage({
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}>
+                      <div
+                        style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--cs-text)" }}
+                      >
                         {getStaffAdminName(s)}
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", textTransform: "capitalize" }}>
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--cs-text-muted)",
+                          textTransform: "capitalize",
+                        }}
+                      >
                         {s.tier} · {s.system_role.replace(/_/g, " ")}
                       </div>
                     </div>
                     {!s.is_active && (
-                      <div style={{ fontSize: "0.625rem", fontWeight: 700, color: "#991B1B", backgroundColor: "#FEF2F2", padding: "2px 6px", borderRadius: 4, textTransform: "uppercase" }}>
+                      <div
+                        style={{
+                          fontSize: "0.625rem",
+                          fontWeight: 700,
+                          color: "#991B1B",
+                          backgroundColor: "#FEF2F2",
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          textTransform: "uppercase",
+                        }}
+                      >
                         Inactive
                       </div>
                     )}

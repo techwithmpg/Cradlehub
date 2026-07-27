@@ -13,8 +13,18 @@ import { createDeviceCredential, DEVICE_COOKIE_NAME } from "@/lib/attendance/tok
 import { consumeProfileDeliveredDeviceRecovery } from "@/lib/attendance/device-recovery";
 import { ATTENDANCE_REGISTRATION_COOKIE_NAME } from "@/lib/attendance/scan-continuation";
 import { resolveNotificationsForEntity } from "@/lib/notifications/create";
+import {
+  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+  isAttendanceMaintenanceMode,
+} from "@/lib/attendance/maintenance-mode";
 
 type ActionResult = { success: true; message: string } | { success: false; message: string };
+
+function maintenanceFailure(): ActionResult | null {
+  return isAttendanceMaintenanceMode()
+    ? { success: false, message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE }
+    : null;
+}
 
 function revalidateDeviceSurfaces(): void {
   revalidatePath("/staff-portal/profile");
@@ -46,6 +56,8 @@ export async function requestAttendancePhoneAction(input: {
   requestType: StaffDeviceRegistrationRequestType;
   existingDeviceId?: string | null;
 }): Promise<ActionResult> {
+  const maintenance = maintenanceFailure();
+  if (maintenance) return maintenance;
   try {
     const headerStore = await headers();
     await requestAttendancePhoneRegistration({
@@ -62,6 +74,8 @@ export async function requestAttendancePhoneAction(input: {
 }
 
 export async function cancelAttendancePhoneRequestAction(requestId: string): Promise<ActionResult> {
+  const maintenance = maintenanceFailure();
+  if (maintenance) return maintenance;
   try {
     await cancelOwnAttendancePhoneRequest(requestId);
     revalidateDeviceSurfaces();
@@ -74,6 +88,8 @@ export async function cancelAttendancePhoneRequestAction(requestId: string): Pro
 export async function completeAttendancePhoneRequestAction(
   requestId: string
 ): Promise<ActionResult> {
+  const maintenance = maintenanceFailure();
+  if (maintenance) return maintenance;
   const cookieStore = await cookies();
   const credential = cookieStore.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value;
   if (!credential) {
@@ -114,6 +130,8 @@ export async function renameOwnAttendancePhoneAction(input: {
   deviceId: string;
   label: string;
 }): Promise<ActionResult> {
+  const maintenance = maintenanceFailure();
+  if (maintenance) return maintenance;
   try {
     await renameOwnAttendanceDevice(input.deviceId, input.label);
     revalidateDeviceSurfaces();
@@ -126,6 +144,8 @@ export async function renameOwnAttendancePhoneAction(input: {
 export async function completeProfileAttendanceRecoveryAction(
   tokenId: string
 ): Promise<ActionResult> {
+  const maintenance = maintenanceFailure();
+  if (maintenance) return maintenance;
   try {
     const headerStore = await headers();
     const result = await consumeProfileDeliveredDeviceRecovery({

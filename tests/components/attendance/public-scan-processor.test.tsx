@@ -48,9 +48,9 @@ const finalAttendance: PublicScanResult = {
   },
 };
 
-function response(result: PublicScanResult): Response {
+function response(result: PublicScanResult, ok = true): Response {
   return {
-    ok: true,
+    ok,
     json: vi.fn().mockResolvedValue(result),
   } as unknown as Response;
 }
@@ -168,5 +168,43 @@ describe("PublicScanProcessor first-device continuation", () => {
     expect(screen.getByRole("heading", { name: "This phone is no longer approved" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "This browser is not connected" })).toBeNull();
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).not.toHaveBeenCalled();
+  });
+
+  it("renders a friendly typed maintenance result from HTTP 503 without a connection form", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response(
+          {
+            ok: false,
+            outcome: "noop",
+            reasonCode: "attendance_maintenance",
+            severity: "info",
+            title: "Attendance is temporarily under maintenance",
+            message:
+              "Attendance scanning is temporarily unavailable while we complete system maintenance. Please record your arrival and departure with the front desk.",
+            detail:
+              "Do not scan repeatedly. The front desk will record your arrival and departure during maintenance.",
+            securityNote: "Attendance changed: No",
+            operationId: "safe-maintenance-receipt",
+          },
+          false
+        )
+      )
+    );
+
+    render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
+    await finishTimers();
+
+    expect(
+      screen.getByRole("heading", { name: "Attendance is temporarily under maintenance" })
+    ).toBeTruthy();
+    expect(screen.getByText("Attendance changed: No")).toBeTruthy();
+    expect(screen.getByText(/Do not scan repeatedly/i)).toBeTruthy();
+    expect(screen.queryByLabelText("Your staff email")).toBeNull();
+    expect(actionMocks.signInAndRegisterAttendanceDeviceAction).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toMatch(
+      /UNKNOWN_DEVICE|ATTENDANCE_DEVICE_SECRET|commit_attendance|stack trace/i
+    );
   });
 });

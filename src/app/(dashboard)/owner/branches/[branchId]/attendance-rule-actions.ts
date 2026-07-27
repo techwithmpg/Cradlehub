@@ -19,6 +19,10 @@ import { logBusinessEvent, logError } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/supabase";
+import {
+  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+  isAttendanceMaintenanceMode,
+} from "@/lib/attendance/maintenance-mode";
 
 export type SaveBranchAttendanceRulesInput = {
   branchId: string;
@@ -73,11 +77,7 @@ async function requireOwnerContext(): Promise<OwnerContext | null> {
     .eq("is_active", true)
     .maybeSingle();
 
-  if (
-    actor?.system_role !== "owner" &&
-    !isSuperAdmin(user.id) &&
-    !isDevAuthBypassEnabled()
-  ) {
+  if (actor?.system_role !== "owner" && !isSuperAdmin(user.id) && !isDevAuthBypassEnabled()) {
     return null;
   }
   return { actorStaffId: actor?.id ?? null };
@@ -108,9 +108,16 @@ async function branchExists(branchId: string): Promise<boolean> {
 export async function saveBranchAttendanceRulesAction(
   input: SaveBranchAttendanceRulesInput
 ): Promise<
-  | { success: true; message: string; data: Awaited<ReturnType<typeof getBranchAttendanceRulesData>> }
+  | {
+      success: true;
+      message: string;
+      data: Awaited<ReturnType<typeof getBranchAttendanceRulesData>>;
+    }
   | { success: false; error: string }
 > {
+  if (isAttendanceMaintenanceMode()) {
+    return { success: false, error: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE };
+  }
   const owner = await requireOwnerContext();
   if (!owner) return { success: false, error: "Unauthorized" };
   if (!input.branchId || !(await branchExists(input.branchId))) {
@@ -173,9 +180,16 @@ export async function saveBranchAttendanceRulesAction(
 export async function saveAttendanceCategoryRuleAction(
   input: SaveAttendanceCategoryRuleInput
 ): Promise<
-  | { success: true; message: string; data: Awaited<ReturnType<typeof getBranchAttendanceRulesData>> }
+  | {
+      success: true;
+      message: string;
+      data: Awaited<ReturnType<typeof getBranchAttendanceRulesData>>;
+    }
   | { success: false; error: string }
 > {
+  if (isAttendanceMaintenanceMode()) {
+    return { success: false, error: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE };
+  }
   const owner = await requireOwnerContext();
   if (!owner) return { success: false, error: "Unauthorized" };
   if (!input.branchId || !(await branchExists(input.branchId))) {

@@ -16,6 +16,7 @@ import {
 } from "@/lib/attendance/scan-errors";
 import type { PublicScanResult } from "@/lib/attendance/types";
 import { withAttendanceScanResolution } from "@/lib/attendance/scan-resolution";
+import { isAttendanceMaintenanceResult } from "@/lib/attendance/maintenance-mode";
 
 type PublicScanBody = {
   publicCode?: string | null;
@@ -23,7 +24,12 @@ type PublicScanBody = {
 };
 
 function revalidatePublicScanResult(result: PublicScanResult): void {
-  if (result.scanEventId || result.attendance || result.countdown || result.reasonCode === "device_restored") {
+  if (
+    result.scanEventId ||
+    result.attendance ||
+    result.countdown ||
+    result.reasonCode === "device_restored"
+  ) {
     revalidateAttendanceSurfaces();
   }
 }
@@ -89,7 +95,9 @@ export async function POST(request: NextRequest) {
     });
     revalidatePublicScanResult(result);
     const resolvedResult = withAttendanceScanResolution(result);
-    const response = NextResponse.json(toPublicResult(resolvedResult));
+    const response = NextResponse.json(toPublicResult(resolvedResult), {
+      status: isAttendanceMaintenanceResult(result) ? 503 : 200,
+    });
     if (result.reasonCode === "unknown_device") {
       const temporaryCredential =
         request.cookies.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ?? createDeviceCredential();
@@ -118,6 +126,8 @@ export async function POST(request: NextRequest) {
       context: { publicCodeLength: publicCode.length },
     });
     const failure = attendanceScanFailureFromError({ error, operationId });
-    return NextResponse.json(toPublicResult(withAttendanceScanResolution(failure.result)), { status: failure.status });
+    return NextResponse.json(toPublicResult(withAttendanceScanResolution(failure.result)), {
+      status: failure.status,
+    });
   }
 }

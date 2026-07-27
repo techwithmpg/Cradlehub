@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/supabase";
+import { assertAttendanceWritable } from "@/lib/attendance/maintenance-mode";
 
 export type DynamicClockOutSource =
   | "schedule"
@@ -65,23 +66,23 @@ export function parseDynamicClockOutPolicy(value: Json): DynamicClockOutPolicy {
     escalationAt: stringValue(result.manager_escalation_at),
     hardCutoffAt: stringValue(result.hard_cutoff_at),
     provisionalClockOutAt: stringValue(result.provisional_clock_out_at),
-    source: source === "crm_closing"
-      || source === "service_completion"
-      || source === "home_service"
-      || source === "driver_trip"
-      ? source
-      : "schedule",
+    source:
+      source === "crm_closing" ||
+      source === "service_completion" ||
+      source === "home_service" ||
+      source === "driver_trip"
+        ? source
+        : "schedule",
     snapshot: record((result.attendance_policy_snapshot ?? null) as Json | null),
     hasActiveAssignment: booleanValue(result.has_active_assignment),
     hasUpcomingAssignment: booleanValue(result.has_upcoming_assignment),
     nextAssignmentAt: stringValue(result.next_assignment_at),
     portalClockOutEligible: booleanValue(result.portal_clock_out_eligible),
-    portalEligibilityReason:
-      stringValue(result.portal_eligibility_reason) ?? "use_branch_qr",
+    portalEligibilityReason: stringValue(result.portal_eligibility_reason) ?? "use_branch_qr",
     portalClockOutMethod:
-      result.portal_clock_out_method === "staff_portal_home_service"
-      || result.portal_clock_out_method === "staff_portal_closing_shift"
-      || result.portal_clock_out_method === "driver_portal_final_trip"
+      result.portal_clock_out_method === "staff_portal_home_service" ||
+      result.portal_clock_out_method === "staff_portal_closing_shift" ||
+      result.portal_clock_out_method === "driver_portal_final_trip"
         ? result.portal_clock_out_method
         : null,
     changed: booleanValue(result.changed),
@@ -110,6 +111,7 @@ export async function recalculateAttendanceClockOutPolicy(
   checkinId: string,
   calculatedAt = new Date().toISOString()
 ): Promise<DynamicClockOutPolicy> {
+  assertAttendanceWritable();
   const { data, error } = await db.rpc("recalculate_attendance_clock_out_policy", {
     p_checkin_id: checkinId,
     p_calculated_at: calculatedAt,

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 import type { AvailabilitySlot } from "@/types";
 import { SlotUnavailableError } from "@/types/errors";
 import {
@@ -766,7 +767,8 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
 
   const TIER_ORDER: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
 
-  const checkedInQueue = params.preferCheckedIn
+  const useAttendancePreference = params.preferCheckedIn === true && !isAttendanceMaintenanceMode();
+  const checkedInQueue = useAttendancePreference
     ? await getActiveCheckinQueue({
         branchId: params.branchId,
         date: params.date,
@@ -793,7 +795,9 @@ export async function assignTherapistBySeniorityMultiDetailed(params: {
   return {
     staffId: candidates[0]!.staff_id,
     warning:
-      params.preferCheckedIn && checkedInQueue.size === 0 ? NO_CHECKED_IN_STAFF_WARNING : undefined,
+      useAttendancePreference && checkedInQueue.size === 0
+        ? NO_CHECKED_IN_STAFF_WARNING
+        : undefined,
   };
 }
 
@@ -805,6 +809,7 @@ export async function getScheduledAvailabilityFallbackWarning(params: {
   requireStaffServiceAssignment?: boolean;
   allowStaffTypeFallbackAlongsideAssignments?: boolean;
 }): Promise<string | undefined> {
+  if (isAttendanceMaintenanceMode()) return undefined;
   const slots = await getAvailableSlotsMulti({
     branchId: params.branchId,
     serviceIds: params.serviceIds,

@@ -7,15 +7,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { StaffShiftCell } from "@/components/features/crm/availability/crm-availability-client";
 import type { CrmAvailabilityStaffRow } from "@/lib/queries/crm-availability";
 
+vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 afterEach(() => cleanup());
 
-function makeStaffRow(
-  shifts: CrmAvailabilityStaffRow["shifts"]
-): CrmAvailabilityStaffRow {
+function makeStaffRow(shifts: CrmAvailabilityStaffRow["shifts"]): CrmAvailabilityStaffRow {
   return {
     staff_id: "staff-1",
     staff_name: "Ava Santos",

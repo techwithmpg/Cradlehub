@@ -6,12 +6,26 @@ import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
+import {
+  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+  isAttendanceMaintenanceMode,
+} from "@/lib/attendance/maintenance-mode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type CheckinActionResult =
   | { ok: true; id: string; status: "checked_in" | "checked_out"; alreadyCheckedIn?: boolean }
-  | { ok: false; code: "UNAUTHORIZED" | "NOT_FOUND" | "CONFLICT" | "ALREADY_CHECKED_OUT" | "DB_ERROR"; message: string };
+  | {
+      ok: false;
+      code:
+        | "UNAUTHORIZED"
+        | "NOT_FOUND"
+        | "CONFLICT"
+        | "ALREADY_CHECKED_OUT"
+        | "DB_ERROR"
+        | "ATTENDANCE_MAINTENANCE";
+      message: string;
+    };
 
 export type CheckinRecord = {
   id: string;
@@ -30,17 +44,17 @@ export type CheckinRecord = {
 // mismatch bugs (empty string, dev bypass UUID vs real UUID, etc.).
 
 const checkinInputSchema = z.object({
-  staffId:   z.string().uuid(),
+  staffId: z.string().uuid(),
   shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "shiftDate must be YYYY-MM-DD"),
   shiftType: z.enum(["single", "opening", "closing"]).default("single"),
-  notes:     z.string().max(500).optional(),
+  notes: z.string().max(500).optional(),
 });
 
 const checkoutInputSchema = z.object({
-  staffId:   z.string().uuid(),
+  staffId: z.string().uuid(),
   shiftDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   shiftType: z.enum(["single", "opening", "closing"]).default("single"),
-  notes:     z.string().max(500).optional(),
+  notes: z.string().max(500).optional(),
 });
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
@@ -52,7 +66,9 @@ type CheckinContext = {
 
 async function getCheckinContext(): Promise<CheckinContext | null> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   // Dev bypass: no real Supabase session, so DB operations won't work.
@@ -73,13 +89,29 @@ async function getCheckinContext(): Promise<CheckinContext | null> {
 // ── Check-in ──────────────────────────────────────────────────────────────────
 
 export async function checkInStaffForShiftAction(rawInput: unknown): Promise<CheckinActionResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "ATTENDANCE_MAINTENANCE",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const parsed = checkinInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { ok: false, code: "UNAUTHORIZED", message: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
   }
 
   const ctx = await getCheckinContext();
-  if (!ctx) return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in with an active staff account." };
+  if (!ctx)
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "You must be signed in with an active staff account.",
+    };
 
   const { supabase, me } = ctx;
   const { staffId, shiftDate, shiftType, notes } = parsed.data;
@@ -87,11 +119,15 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
   // branchId is always resolved from the operator's own staff record — never from the client.
   const effectiveBranchId = me.branch_id;
 
-  const isSelf     = me.id === staffId;
+  const isSelf = me.id === staffId;
   const isOperator = canAccessCrmWorkspace(me.system_role);
 
   if (!isSelf && !isOperator) {
-    return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to check in other staff." };
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "You do not have permission to check in other staff.",
+    };
   }
 
   // Check for existing record for this staff / date / shift
@@ -108,7 +144,12 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
       return { ok: true, id: existing.id, status: "checked_in", alreadyCheckedIn: true };
     }
     if (existing.status === "checked_out") {
-      return { ok: false, code: "ALREADY_CHECKED_OUT", message: "Already checked out for this shift. A manager must void the record before re-checking in." };
+      return {
+        ok: false,
+        code: "ALREADY_CHECKED_OUT",
+        message:
+          "Already checked out for this shift. A manager must void the record before re-checking in.",
+      };
     }
     // voided — fall through to insert a fresh record
   }
@@ -116,13 +157,13 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
   const { data: inserted, error } = await supabase
     .from("staff_shift_checkins")
     .insert({
-      staff_id:    staffId,
-      branch_id:   effectiveBranchId,
-      shift_date:  shiftDate,
-      shift_type:  shiftType,
-      status:      "checked_in",
+      staff_id: staffId,
+      branch_id: effectiveBranchId,
+      shift_date: shiftDate,
+      shift_type: shiftType,
+      status: "checked_in",
       recorded_by: isSelf ? null : me.id,
-      notes:       notes ?? null,
+      notes: notes ?? null,
     })
     .select("id")
     .single();
@@ -152,22 +193,42 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
 // ── Check-out ─────────────────────────────────────────────────────────────────
 
 export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<CheckinActionResult> {
+  if (isAttendanceMaintenanceMode()) {
+    return {
+      ok: false,
+      code: "ATTENDANCE_MAINTENANCE",
+      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
+    };
+  }
   const parsed = checkoutInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { ok: false, code: "UNAUTHORIZED", message: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
   }
 
   const ctx = await getCheckinContext();
-  if (!ctx) return { ok: false, code: "UNAUTHORIZED", message: "You must be signed in with an active staff account." };
+  if (!ctx)
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "You must be signed in with an active staff account.",
+    };
 
   const { supabase, me } = ctx;
   const { staffId, shiftDate, shiftType } = parsed.data;
 
-  const isSelf     = me.id === staffId;
+  const isSelf = me.id === staffId;
   const isOperator = canAccessCrmWorkspace(me.system_role);
 
   if (!isSelf && !isOperator) {
-    return { ok: false, code: "UNAUTHORIZED", message: "You do not have permission to check out other staff." };
+    return {
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "You do not have permission to check out other staff.",
+    };
   }
 
   const { data: checkin } = await supabase
@@ -179,7 +240,11 @@ export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<Ch
     .maybeSingle();
 
   if (!checkin) {
-    return { ok: false, code: "NOT_FOUND", message: "No check-in record found for this staff member and shift." };
+    return {
+      ok: false,
+      code: "NOT_FOUND",
+      message: "No check-in record found for this staff member and shift.",
+    };
   }
 
   if (checkin.status === "checked_out") {
@@ -211,7 +276,9 @@ export async function getStaffCheckinForDate(
   const supabase = await createClient();
   const { data } = await supabase
     .from("staff_shift_checkins")
-    .select("id, staff_id, branch_id, shift_date, shift_type, checked_in_at, checked_out_at, status")
+    .select(
+      "id, staff_id, branch_id, shift_date, shift_type, checked_in_at, checked_out_at, status"
+    )
     .eq("staff_id", staffId)
     .eq("branch_id", branchId)
     .eq("shift_date", date)
@@ -233,7 +300,9 @@ export async function getBranchCheckinsForDate(
   const supabase = await createClient();
   const { data } = await supabase
     .from("staff_shift_checkins")
-    .select("id, staff_id, branch_id, shift_date, shift_type, checked_in_at, checked_out_at, status")
+    .select(
+      "id, staff_id, branch_id, shift_date, shift_type, checked_in_at, checked_out_at, status"
+    )
     .eq("branch_id", branchId)
     .eq("shift_date", date)
     .neq("status", "voided");

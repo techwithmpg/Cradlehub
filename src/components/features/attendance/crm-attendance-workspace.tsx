@@ -13,6 +13,7 @@ import { AttendanceReviewView } from "@/components/features/attendance/review/at
 import { AttendanceSetupView } from "@/components/features/attendance/setup/attendance-setup-view";
 import { AttendanceTodayView } from "@/components/features/attendance/today/attendance-today-view";
 import { useAttendanceWorkspaceRealtime } from "@/components/features/attendance/use-attendance-workspace-realtime";
+import { AttendanceMaintenanceBanner } from "@/components/features/attendance/attendance-maintenance-banner";
 import {
   crmAttendanceHref,
   crmAttendancePanelId,
@@ -74,6 +75,7 @@ export function CrmAttendanceWorkspace({
       toast.error(error instanceof Error ? error.message : "Attendance could not be refreshed.")
     );
   }, [mutate]);
+  const maintenance = current.maintenance ?? { active: false, banner: "" };
   useAttendanceWorkspaceRealtime({ branchId: current.branchId, onRefresh: refresh });
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
@@ -115,6 +117,7 @@ export function CrmAttendanceWorkspace({
         refreshing={isValidating}
         onRefresh={refresh}
       />
+      {maintenance.active ? <AttendanceMaintenanceBanner message={maintenance.banner} /> : null}
       <section className="overflow-hidden rounded-[var(--cs-r-lg)] border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
         <CrmAttendanceNavigation
           activeView={view}
@@ -131,6 +134,8 @@ export function CrmAttendanceWorkspace({
             id={crmAttendancePanelId(view)}
             role="tabpanel"
             aria-labelledby={crmAttendanceTabId(view)}
+            inert={maintenance.active}
+            title={maintenance.active ? "Attendance maintenance mode is active" : undefined}
           >
             {view === "today" ? (
               <AttendanceTodayView
@@ -166,7 +171,7 @@ export function CrmAttendanceWorkspace({
       </section>
       <AttendanceStaffDrawer
         data={current}
-        row={selectedStaff}
+        row={maintenance.active ? null : selectedStaff}
         onClose={() => setSelectedStaff(null)}
         onAction={handleStaffAction}
       />

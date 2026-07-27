@@ -40,9 +40,7 @@ afterEach(() => cleanup());
 
 describe("PublicScanResultView attendance success", () => {
   it("formats the authoritative timestamp in the server-provided branch timezone", () => {
-    expect(formatAttendanceTime("2026-07-15T01:52:00.000Z", "Pacific/Auckland")).toBe(
-      "1:52 PM"
-    );
+    expect(formatAttendanceTime("2026-07-15T01:52:00.000Z", "Pacific/Auckland")).toBe("1:52 PM");
     expect(formatAttendanceDate("2026-07-15T01:52:00.000Z", "America/New_York")).toContain(
       "Jul 14"
     );
@@ -65,9 +63,7 @@ describe("PublicScanResultView attendance success", () => {
     "Recorded · Outside schedule",
   ])("shows the secondary review badge %s without replacing success", (reviewLabel) => {
     const { container } = render(
-      <PublicScanResultView
-        result={{ ...successResult, severity: "warning", reviewLabel }}
-      />
+      <PublicScanResultView result={{ ...successResult, severity: "warning", reviewLabel }} />
     );
 
     expect(screen.getByRole("status", { name: reviewLabel })).toBeTruthy();
@@ -105,12 +101,43 @@ describe("PublicScanResultView captured closing scan", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Scan captured, Nikki" })).toBeTruthy();
-    expect(screen.getByText("The front desk will confirm today’s attendance. You may continue normally.")).toBeTruthy();
+    expect(
+      screen.getByText("The front desk will confirm today’s attendance. You may continue normally.")
+    ).toBeTruthy();
     expect(screen.getByRole("status", { name: "Captured · For review" })).toBeTruthy();
     expect(container.querySelector("section")?.className).toContain("resultInfo");
     expect(container.querySelector("section")?.className).not.toContain("attendanceSuccess");
     expect(container.textContent).not.toContain("internal-captured-operation");
     expect(container.textContent?.toLowerCase()).not.toContain("no attendance change");
     expect(container.textContent?.toLowerCase()).not.toContain("scan again");
+  });
+});
+
+describe("PublicScanResultView planned maintenance", () => {
+  it("shows the calm no-change state and no device or technical recovery controls", () => {
+    render(
+      <PublicScanResultView
+        result={{
+          ok: false,
+          outcome: "noop",
+          reasonCode: "attendance_maintenance",
+          severity: "info",
+          title: "Attendance is temporarily under maintenance",
+          message:
+            "Attendance scanning is temporarily unavailable while we complete system maintenance. Please record your arrival and departure with the front desk.",
+          detail:
+            "Do not scan repeatedly. The front desk will record your arrival and departure during maintenance.",
+          securityNote: "Attendance changed: No",
+        }}
+      />
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Attendance is temporarily under maintenance" })
+    ).toBeTruthy();
+    expect(screen.getByText("Attendance changed: No")).toBeTruthy();
+    expect(screen.getByText(/front desk will record/i)).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/unknown_device|rpc|stack trace/i);
   });
 });

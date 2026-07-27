@@ -33,6 +33,7 @@ import { getScheduleWindowAbsoluteRange } from "@/lib/schedule/schedule-coverage
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 const DAY_MINUTES = 24 * 60;
 
@@ -579,6 +580,7 @@ export async function resolveExactCrmBookingTime(params: {
   }
 
   const sameDayWalkin = isSameDayWalkin(params);
+  const useAttendancePreference = sameDayWalkin && !isAttendanceMaintenanceMode();
   const tierOrder: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
   const providers = branchStaff
     .filter((staff) => capableStaffIds.has(staff.id))
@@ -665,12 +667,12 @@ export async function resolveExactCrmBookingTime(params: {
             : null;
         warning = combineWarnings(overtimeWarning, travelBeforeWarning, travelAfterWarning);
 
-        if (sameDayWalkin && checkedIn) {
+        if (useAttendancePreference && checkedIn) {
           reasonCode = "checked_in_available";
           statusLabel = scheduleMatch?.overtimeMinutes
             ? `Checked in · Exact time available · ${formatDurationCompact(scheduleMatch.overtimeMinutes)} overtime`
             : "Checked in · Exact time available";
-        } else if (sameDayWalkin && checkedOut) {
+        } else if (useAttendancePreference && checkedOut) {
           reasonCode = "scheduled_available_checked_out";
           statusLabel = scheduleMatch?.overtimeMinutes
             ? `Scheduled · Checked out · ${formatDurationCompact(scheduleMatch.overtimeMinutes)} overtime`
@@ -684,7 +686,7 @@ export async function resolveExactCrmBookingTime(params: {
           statusLabel = scheduleMatch?.overtimeMinutes
             ? `Exact time available · Ends ${formatDurationCompact(scheduleMatch.overtimeMinutes)} after shift`
             : "Exact time available";
-          if (sameDayWalkin && !checkedIn) {
+          if (useAttendancePreference && !checkedIn) {
             warning = combineWarnings(
               warning,
               "Scheduled today, but not checked in yet. You may continue after confirming that the staff member is present and ready."
@@ -703,7 +705,7 @@ export async function resolveExactCrmBookingTime(params: {
         scheduledAtTime,
         availableAtTime,
         selectable,
-        recommended: sameDayWalkin && checkedIn && selectable,
+        recommended: useAttendancePreference && checkedIn && selectable,
         scheduleStartTime: scheduleMatch?.window.startTime ?? null,
         scheduleEndTime: scheduleMatch?.window.endTime ?? null,
         serviceEndTime: scheduleMatch ? formatCanonicalTime(scheduleMatch.serviceEndMinutes) : null,
@@ -745,7 +747,9 @@ export async function resolveExactCrmBookingTime(params: {
   const available = availableProviders.length > 0;
   const topProvider = availableProviders[0] ?? null;
   const warning = combineWarnings(
-    available && sameDayWalkin && availableProviders.every((provider) => !provider.checkedIn)
+    available &&
+      useAttendancePreference &&
+      availableProviders.every((provider) => !provider.checkedIn)
       ? NO_CHECKED_IN_STAFF_WARNING
       : null,
     topProvider?.warning
@@ -789,7 +793,7 @@ export async function resolveExactCrmBookingTime(params: {
         const overrideBlocked = provider?.reasonCode === "blocked_by_override";
         const bookingOverlap = provider?.reasonCode === "booking_conflict";
         const attendancePreferenceOnly =
-          Boolean(provider?.selectable) && sameDayWalkin && !provider?.checkedIn;
+          Boolean(provider?.selectable) && useAttendancePreference && !provider?.checkedIn;
 
         return {
           staff_id: staff.id,

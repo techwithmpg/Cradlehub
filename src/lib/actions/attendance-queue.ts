@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 export type AttendanceQueueSuggestion = {
   staffId: string;
@@ -16,9 +17,15 @@ export async function getAttendanceQueueSuggestionAction(
   | { success: true; suggestion: AttendanceQueueSuggestion | null }
   | { success: false; error: string }
 > {
-  const parsed = (typeof rawInput === "object" && rawInput !== null)
-    ? (rawInput as { branchId?: string; date?: string; serviceId?: string | null; serviceIds?: string[] })
-    : {};
+  const parsed =
+    typeof rawInput === "object" && rawInput !== null
+      ? (rawInput as {
+          branchId?: string;
+          date?: string;
+          serviceId?: string | null;
+          serviceIds?: string[];
+        })
+      : {};
   const serviceIds = Array.from(
     new Set(
       (Array.isArray(parsed.serviceIds) && parsed.serviceIds.length > 0
@@ -35,6 +42,12 @@ export async function getAttendanceQueueSuggestionAction(
   }
   if (!parsed.date || typeof parsed.date !== "string") {
     return { success: false, error: "Date is required" };
+  }
+
+  // The booking form treats this as an optional preference only. During planned
+  // maintenance, leave provider choice to schedule/service/conflict eligibility.
+  if (isAttendanceMaintenanceMode()) {
+    return { success: true, suggestion: null };
   }
 
   const admin = createAdminClient();
@@ -140,13 +153,11 @@ export type AttendanceQueueStatus = {
 
 export async function getAttendanceQueueStatusAction(
   rawInput: unknown
-): Promise<
-  | { success: true; data: AttendanceQueueStatus }
-  | { success: false; error: string }
-> {
-  const parsed = (typeof rawInput === "object" && rawInput !== null)
-    ? (rawInput as { branchId?: string; date?: string })
-    : {};
+): Promise<{ success: true; data: AttendanceQueueStatus } | { success: false; error: string }> {
+  const parsed =
+    typeof rawInput === "object" && rawInput !== null
+      ? (rawInput as { branchId?: string; date?: string })
+      : {};
 
   if (!parsed.branchId || typeof parsed.branchId !== "string") {
     return { success: false, error: "Branch ID is required" };

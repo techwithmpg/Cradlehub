@@ -71,10 +71,12 @@ export function AttendanceCategoryRulesEditor({
   branchId,
   categories,
   onSaved,
+  maintenanceActive = false,
 }: {
   branchId: string;
   categories: BranchAttendanceCategoryRule[];
   onSaved: (data: BranchAttendanceRulesData) => void;
+  maintenanceActive?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const categoryItems = useMemo(
@@ -84,9 +86,10 @@ export function AttendanceCategoryRulesEditor({
   const [selectedCategory, setSelectedCategory] = useState<AttendanceStaffCategory>(
     categories[0]?.category ?? "crm_front_desk"
   );
-  const selected =
-    categories.find((row) => row.category === selectedCategory) ?? categories[0];
-  const [lateGrace, setLateGrace] = useState(() => toInput(selected?.override.late_grace_minutes ?? null));
+  const selected = categories.find((row) => row.category === selectedCategory) ?? categories[0];
+  const [lateGrace, setLateGrace] = useState(() =>
+    toInput(selected?.override.late_grace_minutes ?? null)
+  );
   const [earlyLeave, setEarlyLeave] = useState(() =>
     toInput(selected?.override.early_leave_threshold_minutes ?? null)
   );
@@ -180,9 +183,21 @@ export function AttendanceCategoryRulesEditor({
           {categories.map((row) => (
             <TableRow key={row.category}>
               <TableCell className="font-medium">{row.label}</TableCell>
-              <TableCell>{valueBadge(row.override.late_grace_minutes, `${row.resolved.lateGraceMinutes}m`)}</TableCell>
-              <TableCell>{valueBadge(row.override.early_leave_threshold_minutes, `${row.resolved.earlyLeaveThresholdMinutes}m`)}</TableCell>
-              <TableCell>{valueBadge(row.override.overtime_threshold_minutes, `${row.resolved.overtimeThresholdMinutes}m`)}</TableCell>
+              <TableCell>
+                {valueBadge(row.override.late_grace_minutes, `${row.resolved.lateGraceMinutes}m`)}
+              </TableCell>
+              <TableCell>
+                {valueBadge(
+                  row.override.early_leave_threshold_minutes,
+                  `${row.resolved.earlyLeaveThresholdMinutes}m`
+                )}
+              </TableCell>
+              <TableCell>
+                {valueBadge(
+                  row.override.overtime_threshold_minutes,
+                  `${row.resolved.overtimeThresholdMinutes}m`
+                )}
+              </TableCell>
               <TableCell>
                 {row.category === "crm_front_desk" && row.resolved.crmClosingPolicyEnabled
                   ? `Branch final service + closing buffer`
@@ -203,6 +218,7 @@ export function AttendanceCategoryRulesEditor({
                   variant="ghost"
                   size="sm"
                   aria-label={`Edit ${row.label}`}
+                  disabled={maintenanceActive}
                   onClick={() => chooseCategory(row.category)}
                 >
                   Edit
@@ -213,7 +229,11 @@ export function AttendanceCategoryRulesEditor({
         </TableBody>
       </Table>
 
-      <div className="rounded-lg border p-4">
+      <div
+        className="rounded-lg border p-4"
+        inert={maintenanceActive}
+        aria-disabled={maintenanceActive || undefined}
+      >
         <div className="grid gap-4 md:grid-cols-3">
           <div className="grid gap-2 md:col-span-3">
             <Label htmlFor="attendance-category">Edit category</Label>
@@ -348,7 +368,7 @@ export function AttendanceCategoryRulesEditor({
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button type="button" onClick={submit} disabled={isPending}>
+          <Button type="button" onClick={submit} disabled={isPending || maintenanceActive}>
             <Save data-icon="inline-start" />
             {isPending ? "Saving..." : "Save category override"}
           </Button>
