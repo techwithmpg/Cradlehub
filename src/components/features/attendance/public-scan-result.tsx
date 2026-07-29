@@ -1,18 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  CalendarClock,
-  Check,
-  CircleCheckBig,
-  Clock3,
-  Copy,
-  Loader2,
-  MapPin,
-  Send,
-  ShieldCheck,
-} from "lucide-react";
+import { AlertTriangle, Check, CircleCheckBig, Clock3, Copy, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { cn } from "@/lib/utils";
@@ -58,33 +47,6 @@ type PublicScanResultViewProps = {
   onTryAnotherAccount?: (details: BranchCorrectionScanDetails) => void;
 };
 
-function isDurableReviewResult(result: PublicScanResult): boolean {
-  return Boolean(result.scanEventId && !result.attendance && result.resolution?.crmActionRequired);
-}
-
-function getResultStatusClass(result: PublicScanResult): string | undefined {
-  if (isDurableReviewResult(result)) return styles.resultInfo;
-  if (
-    result.ok &&
-    result.outcome === "exception" &&
-    result.reasonCode === "likely_closing_scan_without_clock_in"
-  ) {
-    return styles.resultInfo;
-  }
-  if (result.outcome === "noop" || result.severity === "info") return styles.resultInfo;
-  return result.ok ? styles.resultSuccess : styles.resultBlocked;
-}
-
-function getResultEyebrow(result: PublicScanResult): string {
-  if (isDurableReviewResult(result)) return "Scan received";
-  if (result.reasonCode === "likely_closing_scan_without_clock_in") return "Scan captured";
-  if (result.reasonCode === "unknown_device") return "Staff sign-in";
-  if (result.reasonCode === "device_restored") return "Access restored";
-  if (result.outcome === "error") return "Scan interrupted";
-  if (result.outcome === "noop") return "No change needed";
-  return result.ok ? "Scan accepted" : "Action needed";
-}
-
 function supportReceipt(result: PublicScanResult): string {
   return (result.scanEventId ?? result.operationId ?? "attendance")
     .replaceAll("-", "")
@@ -92,26 +54,20 @@ function supportReceipt(result: PublicScanResult): string {
     .toUpperCase();
 }
 
+function attendanceChanged(result: PublicScanResult): boolean {
+  return Boolean(result.attendance);
+}
+
 async function copySupportDetails(result: PublicScanResult): Promise<void> {
-  const resolution = result.resolution;
   const text = [
-    "Attendance issue",
-    `Problem: ${resolution?.title ?? result.title}`,
-    `Code: ${resolution?.safeErrorCode ?? result.reasonCode ?? "ATTENDANCE_REVIEW"}`,
+    "Attendance scan",
+    `Problem: ${result.title}`,
+    `Code: ${result.reasonCode?.toUpperCase() ?? "ATTENDANCE_REVIEW"}`,
     `Receipt: ${supportReceipt(result)}`,
-    `Attendance changed: ${resolution?.attendanceChanged ? "Yes" : "No"}`,
-    `Next action: ${resolution?.staffActionLabel ?? "Wait for CRM confirmation"}`,
-    `Prevention: ${resolution?.staffPrevention ?? "Scan once and wait for the final result."}`,
+    `Attendance changed: ${attendanceChanged(result) ? "Yes" : "No"}`,
   ].join("\n");
   await navigator.clipboard.writeText(text);
   toast.success("Attendance support details copied.");
-}
-
-function ResultStatusIcon({ result }: { result: PublicScanResult }) {
-  if (isDurableReviewResult(result)) return <CircleCheckBig size={42} strokeWidth={1.8} />;
-  if (result.outcome === "noop") return <Clock3 size={42} strokeWidth={1.8} />;
-  if (result.ok) return <CircleCheckBig size={42} strokeWidth={1.8} />;
-  return <AlertTriangle size={42} strokeWidth={1.8} />;
 }
 
 function BranchCorrectionCard({
@@ -131,41 +87,39 @@ function BranchCorrectionCard({
     state.status === "success" ||
     details.canRequestBranchCorrection === false ||
     Boolean(pendingRequest);
-  const pendingCreatedAt = pendingRequest
-    ? new Intl.DateTimeFormat("en-PH", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(pendingRequest.createdAt))
-    : null;
 
   return (
     <div className={styles.branchCorrectionCard}>
-      <p className={styles.branchCorrectionHint}>If this is wrong, request branch correction.</p>
-
       <div className={styles.branchCorrectionRows}>
         <div>
-          <span>Your profile is currently assigned to</span>
+          <span>Your profile</span>
           <strong>{details.currentBranchName}</strong>
         </div>
         <div>
-          <span>This QR is for</span>
+          <span>This QR</span>
           <strong>{details.requestedBranchName}</strong>
         </div>
       </div>
 
       {pendingRequest ? (
         <div className={styles.branchCorrectionPending}>
-          <strong>Branch correction request already pending.</strong>
-          <span>
-            Requested branch: {pendingRequest.requestedBranchName}
-            {pendingCreatedAt ? ` · Sent ${pendingCreatedAt}` : ""}
-          </span>
+          <strong>Branch correction is already pending.</strong>
+          <span>Wait for the front desk. Do not scan again.</span>
         </div>
-      ) : (
-        <p className={styles.branchCorrectionMessage}>
-          Your request must be approved by the front desk before scanning again.
+      ) : null}
+
+      {state.message ? (
+        <p
+          className={cn(
+            styles.branchCorrectionMessage,
+            state.status === "success" && styles.branchCorrectionMessageSuccess,
+            state.status === "error" && styles.branchCorrectionMessageError
+          )}
+          role="status"
+        >
+          {state.message}
         </p>
-      )}
+      ) : null}
 
       <div className={styles.branchCorrectionActions}>
         <button
@@ -175,37 +129,52 @@ function BranchCorrectionCard({
           onClick={() => onRequest?.(details)}
         >
           {state.status === "pending" ? (
-            <Loader2 size={16} className={styles.loginSpinner} aria-hidden="true" />
+            <>
+              <Loader2 size={16} className={styles.loginSpinner} aria-hidden="true" />
+              Sending…
+            </>
           ) : (
-            <Send size={16} aria-hidden="true" />
+            "Request branch correction"
           )}
-          {state.status === "success" ? "Request sent" : "Request branch correction"}
         </button>
-
-        {onTryAnotherAccount ? (
-          <button
-            type="button"
-            className={styles.branchCorrectionSecondaryButton}
-            onClick={() => onTryAnotherAccount(details)}
-          >
-            Try another account
-          </button>
-        ) : null}
-      </div>
-
-      {state.message ? (
-        <p
-          className={cn(
-            styles.branchCorrectionMessage,
-            state.status === "error" && styles.branchCorrectionMessageError,
-            state.status === "success" && styles.branchCorrectionMessageSuccess
-          )}
+        <button
+          type="button"
+          className={styles.branchCorrectionSecondaryButton}
+          onClick={() => onTryAnotherAccount?.(details)}
         >
-          {state.message}
-        </p>
-      ) : null}
+          Use another account
+        </button>
+      </div>
     </div>
   );
+}
+
+function SupportDetails({ result }: { result: PublicScanResult }) {
+  return (
+    <details className="w-full rounded-xl border border-stone-200 bg-white p-3 text-left text-sm text-stone-700">
+      <summary className="cursor-pointer font-semibold text-stone-900">Help details</summary>
+      <div className="mt-3 grid gap-2">
+        <span>Problem code: {result.reasonCode?.toUpperCase() ?? "ATTENDANCE_REVIEW"}</span>
+        <span>Scan receipt: {supportReceipt(result)}</span>
+        {result.securityNote &&
+        result.securityNote.trim().toLowerCase() !==
+          `attendance changed: ${attendanceChanged(result) ? "yes" : "no"}` ? (
+          <span>{result.securityNote}</span>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => void copySupportDetails(result)}
+          className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 font-semibold text-stone-900"
+        >
+          <Copy size={15} aria-hidden="true" /> Copy support details
+        </button>
+      </div>
+    </details>
+  );
+}
+
+function isReviewResult(result: PublicScanResult): boolean {
+  return !result.attendance && result.ok && result.outcome === "exception";
 }
 
 export function PublicScanResultView({
@@ -216,62 +185,25 @@ export function PublicScanResultView({
 }: PublicScanResultViewProps) {
   const attendance = result.attendance;
   const isClockIn = attendance?.action === "clock_in";
-  const isAttendanceSuccess = result.ok && Boolean(attendance);
-  const isCapturedClosing =
-    result.ok &&
-    result.outcome === "exception" &&
-    result.reasonCode === "likely_closing_scan_without_clock_in" &&
-    !attendance;
-  const isDurableReview = isDurableReviewResult(result);
-  const statusClass = getResultStatusClass(result);
-  const resolution = result.resolution;
-  const isMaintenance = result.reasonCode === "attendance_maintenance";
+  const isWrongBranch = result.reasonCode === "wrong_branch" && result.branchCorrection;
+  const isReview = isReviewResult(result) && !isWrongBranch;
 
-  if (isMaintenance) {
-    const hasReceipt = Boolean(result.operationId || result.scanEventId);
-    return (
-      <section className={cn(styles.resultPanel, styles.resultInfo)} aria-live="polite">
-        <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
-        <div className={styles.genericResultIcon} aria-hidden="true">
-          <ShieldCheck size={42} strokeWidth={1.8} />
-        </div>
-        <div className={styles.genericResultCopy}>
-          <p className={styles.eyebrow}>Planned maintenance</p>
-          <h1>{result.title}</h1>
-          <p>{result.message}</p>
-          <div className="mt-4 grid gap-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-left text-sm text-blue-950">
-            <strong>Attendance changed: No</strong>
-            <span>{result.detail}</span>
-            {hasReceipt ? <span>Receipt: {supportReceipt(result)}</span> : null}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (isAttendanceSuccess && attendance) {
-    const cardLabel = isClockIn ? "Session started" : "Total worked today";
-    const cardValue = isClockIn
-      ? formatAttendanceTime(attendance.sessionStartedAt, attendance.branchTimezone)
-      : formatWorkedMinutes(attendance.workedMinutes);
-
+  if (attendance) {
     return (
       <section className={cn(styles.resultPanel, styles.attendanceSuccess)} aria-live="polite">
         <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
-
         <div className={styles.successIcon} aria-hidden="true">
           <Check size={38} strokeWidth={2.4} />
         </div>
-
         <div className={styles.resultHeading}>
           <p className={styles.successEyebrow}>
             {formatAttendanceDate(attendance.occurredAt, attendance.branchTimezone)}
           </p>
-          <h1>{result.title}</h1>
+          <h1>{isClockIn ? "Clocked in" : "Clocked out"}</h1>
           <div className={styles.attendanceTime}>
             {formatAttendanceTime(attendance.occurredAt, attendance.branchTimezone)}
           </div>
-          <p className={styles.successMessage}>{result.message}</p>
+          <p className={styles.successMessage}>You may close this page.</p>
         </div>
 
         {result.reviewLabel ? (
@@ -280,35 +212,9 @@ export function PublicScanResultView({
           </div>
         ) : null}
 
-        {resolution && !isAttendanceSuccess ? (
-          <div className="mt-4 grid gap-3 text-left">
-            <div className="rounded-xl border border-stone-200 bg-white p-4 text-sm">
-              <strong className="block text-stone-950">Prevent this next time</strong>
-              <span className="mt-1 block text-stone-700">{resolution.staffPrevention}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {resolution.staffActionRequired && resolution.staffActionHref ? (
-                <a
-                  href={resolution.staffActionHref}
-                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#115D47] px-4 py-2 text-sm font-bold text-white"
-                >
-                  {resolution.staffActionLabel}
-                </a>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void copySupportDetails(result)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-bold text-stone-900"
-              >
-                <Copy size={15} aria-hidden="true" /> Copy support details
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         {result.isTest ? (
           <div className={styles.trainingBadge} role="status" aria-label="Training Mode">
-            Training Mode · Not live attendance
+            Training Mode · Not live Attendance
           </div>
         ) : null}
 
@@ -321,131 +227,34 @@ export function PublicScanResultView({
           <em>{formatShiftLabel(attendance.shiftLabel)}</em>
         </div>
 
-        <div className={styles.summaryCard}>
-          <CalendarClock size={20} aria-hidden="true" />
-          <div>
-            <span>{cardLabel}</span>
-            <strong>{cardValue}</strong>
+        {!isClockIn ? (
+          <div className={styles.summaryCard}>
+            <Clock3 size={20} aria-hidden="true" />
+            <div>
+              <span>Worked today</span>
+              <strong>{formatWorkedMinutes(attendance.workedMinutes)}</strong>
+            </div>
           </div>
-        </div>
-
-        <div className={styles.securityNote}>
-          <ShieldCheck size={18} aria-hidden="true" />
-          <span>
-            {result.securityNote ?? "This device is recognized and ready for future scans."}
-          </span>
-        </div>
+        ) : null}
       </section>
     );
   }
 
-  return (
-    <section className={cn(styles.resultPanel, statusClass)} aria-live="polite">
-      <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
-
-      <div className={styles.genericResultIcon} aria-hidden="true">
-        <ResultStatusIcon result={result} />
-      </div>
-
-      <div className={styles.genericResultCopy}>
-        <p className={styles.eyebrow}>{getResultEyebrow(result)}</p>
-        <h1>
-          {isDurableReview
-            ? "Scan received"
-            : isCapturedClosing
-              ? result.title
-              : (resolution?.title ?? result.title)}
-        </h1>
-        <p>
-          {isDurableReview
-            ? "Your scan time was saved. CRM has been notified. You do not need to scan again."
-            : isCapturedClosing
-              ? result.message
-              : (resolution?.staffMessage ?? result.message)}
-        </p>
-        {isDurableReview ? (
-          <div className="mt-4 grid gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-left text-sm text-emerald-950">
-            <strong>Saved for Attendance review</strong>
-            <span>Attendance changed: {resolution?.attendanceChanged ? "Yes" : "No"}</span>
-            <span>Problem code: {resolution?.safeErrorCode ?? result.reasonCode}</span>
-            <span>Receipt: {supportReceipt(result)}</span>
-            <span>Who handles it: {resolution?.resolutionOwner.replaceAll("_", " ") ?? "CRM"}</span>
-          </div>
-        ) : isCapturedClosing && result.reviewLabel ? (
-          <div className={styles.reviewBadge} role="status" aria-label={result.reviewLabel}>
-            {result.reviewLabel}
-          </div>
-        ) : resolution ? (
-          <div className="mt-4 grid gap-2 text-left text-sm">
-            <strong>
-              {resolution.attendanceChanged
-                ? "Attendance was changed."
-                : "No attendance change was made."}
-            </strong>
-            {resolution.recommendedSteps.map((step) => (
-              <span key={step}>{step}</span>
-            ))}
-            {resolution.crmActionRequired ? <span>CRM has been notified.</span> : null}
-          </div>
-        ) : null}
-        {resolution && !isAttendanceSuccess ? (
-          <div className="mt-4 grid gap-3 text-left">
-            <div className="rounded-xl border border-stone-200 bg-white p-4 text-sm">
-              <strong className="block text-stone-950">Prevent this next time</strong>
-              <span className="mt-1 block text-stone-700">{resolution.staffPrevention}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {resolution.staffActionRequired && resolution.staffActionHref ? (
-                <a
-                  href={resolution.staffActionHref}
-                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#115D47] px-4 py-2 text-sm font-bold text-white"
-                >
-                  {resolution.staffActionLabel}
-                </a>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void copySupportDetails(result)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-bold text-stone-900"
-              >
-                <Copy size={15} aria-hidden="true" /> Copy support details
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {result.isTest ? (
-          <div className={styles.trainingBadge} role="status" aria-label="Training Mode">
-            Training Mode · Not live attendance
-          </div>
-        ) : null}
-      </div>
-
-      {result.securityNote ? (
-        <div className={styles.securityNote}>
-          <ShieldCheck size={18} aria-hidden="true" />
-          <span>{result.securityNote}</span>
+  if (isWrongBranch && result.branchCorrection) {
+    return (
+      <section className={cn(styles.resultPanel, styles.resultBlocked)} aria-live="polite">
+        <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
+        <div className={styles.genericResultIcon} aria-hidden="true">
+          <AlertTriangle size={42} strokeWidth={1.8} />
         </div>
-      ) : null}
-
-      {result.countdown ? (
-        <div className={styles.serviceCard}>
-          <div>
-            <span>Active service</span>
-            <strong>{result.countdown.serviceName}</strong>
-            <small>
-              {result.countdown.customerName}
-              {result.countdown.resourceName ? ` · ${result.countdown.resourceName}` : ""}
-            </small>
-          </div>
-          <div className={styles.countdownWrap}>
-            <span>Remaining</span>
-            <Countdown dueAt={result.countdown.dueAt} />
-          </div>
+        <div className={styles.genericResultCopy}>
+          <p className={styles.eyebrow}>Wrong branch</p>
+          <h1>This QR belongs to {result.branchCorrection.requestedBranchName}</h1>
+          <p>
+            Your profile is assigned to {result.branchCorrection.currentBranchName}. No Attendance
+            change was made.
+          </p>
         </div>
-      ) : null}
-
-      {!result.ok && result.reasonCode === "wrong_branch" && result.branchCorrection ? (
         <BranchCorrectionCard
           details={{
             ...result.branchCorrection,
@@ -455,7 +264,73 @@ export function PublicScanResultView({
           onRequest={onRequestBranchCorrection}
           onTryAnotherAccount={onTryAnotherAccount}
         />
+        <SupportDetails result={result} />
+      </section>
+    );
+  }
+
+  if (isReview) {
+    return (
+      <section className={cn(styles.resultPanel, styles.resultInfo)} aria-live="polite">
+        <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
+        <div className={styles.genericResultIcon} aria-hidden="true">
+          <CircleCheckBig size={42} strokeWidth={1.8} />
+        </div>
+        <div className={styles.genericResultCopy}>
+          <p className={styles.eyebrow}>Scan received</p>
+          <h1>Scan saved</h1>
+          <p>The front desk will review your Attendance. Do not scan again.</p>
+          <strong className="mt-3 block text-sm">Attendance changed: No</strong>
+        </div>
+        <SupportDetails result={result} />
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className={cn(styles.resultPanel, result.ok ? styles.resultSuccess : styles.resultBlocked)}
+      aria-live="polite"
+    >
+      <BrandLogo mode="mark" size="sm" className={styles.brandMark} />
+      <div className={styles.genericResultIcon} aria-hidden="true">
+        {result.ok ? (
+          <CircleCheckBig size={42} strokeWidth={1.8} />
+        ) : (
+          <AlertTriangle size={42} strokeWidth={1.8} />
+        )}
+      </div>
+      <div className={styles.genericResultCopy}>
+        <p className={styles.eyebrow}>{result.ok ? "Scan complete" : "Action needed"}</p>
+        <h1>{result.title}</h1>
+        <p>{result.message}</p>
+        {!result.ok ? <strong className="mt-3 block text-sm">Attendance changed: No</strong> : null}
+      </div>
+
+      {result.nextHref ? (
+        <a
+          href={result.nextHref}
+          className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#115D47] px-4 py-2 text-sm font-bold text-white"
+        >
+          Continue
+        </a>
       ) : null}
+
+      {result.countdown ? (
+        <div className={styles.serviceCard}>
+          <div>
+            <span>Active service</span>
+            <strong>{result.countdown.serviceName}</strong>
+            <small>{result.countdown.customerName}</small>
+          </div>
+          <div className={styles.countdownWrap}>
+            <span>Remaining</span>
+            <Countdown dueAt={result.countdown.dueAt} />
+          </div>
+        </div>
+      ) : null}
+
+      <SupportDetails result={result} />
     </section>
   );
 }

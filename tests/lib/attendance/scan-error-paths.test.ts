@@ -13,7 +13,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { getAttendanceSettings } from "@/lib/attendance/queries";
 import { consumeDeviceRecoveryLink } from "@/lib/attendance/device-recovery";
-import { activateDeviceWithToken, processQrScan } from "@/lib/attendance/scan-engine";
+import { activateDeviceWithToken } from "@/lib/attendance/scan-engine";
 
 function queryBuilder(result: unknown) {
   const builder: Record<string, ReturnType<typeof vi.fn>> = {};
@@ -32,45 +32,6 @@ describe("attendance scan structured error paths", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
-  });
-
-  it("returns maintenance before device registration, event, incident, or Attendance writes", async () => {
-    vi.stubEnv("ATTENDANCE_MAINTENANCE_MODE", "true");
-    adminClient.from.mockReturnValueOnce(
-      queryBuilder({
-        data: {
-          id: "qr-1",
-          branch_id: "branch-1",
-          public_code: "attendance-code",
-          point_type: "attendance",
-          resource_id: null,
-          label: "Branch Attendance",
-          is_active: true,
-          requires_registered_device: true,
-          scan_behavior: null,
-          branch_resources: null,
-          branches: { name: "Main" },
-        },
-        error: null,
-      })
-    );
-
-    const result = await processQrScan("attendance-code", {
-      requestId: "00000000-0000-4000-8000-000000000201",
-      rawDeviceCredential: "must-not-be-used",
-      userAgent: "Vitest",
-    });
-
-    expect(result).toMatchObject({
-      reasonCode: "attendance_maintenance",
-      resolution: {
-        attendanceChanged: false,
-        incidentRequired: false,
-      },
-    });
-    expect(adminClient.from).toHaveBeenCalledTimes(1);
-    expect(adminClient.from).toHaveBeenCalledWith("qr_points");
-    expect(adminClient.rpc).not.toHaveBeenCalled();
   });
 
   it("does not treat attendance settings query errors as missing settings", async () => {

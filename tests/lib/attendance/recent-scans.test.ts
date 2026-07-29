@@ -4,12 +4,10 @@ import { mapRecentScan } from "@/lib/attendance/recent-scans-map";
 
 describe("attendance activity boundaries and audit mapping", () => {
   it("converts a branch-local day to UTC boundaries", () => {
-    expect(
-      attendanceDateBoundaryIso("2026-07-13", "Asia/Manila")
-    ).toBe("2026-07-12T16:00:00.000Z");
-    expect(
-      attendanceDateBoundaryIso("2026-07-13", "America/New_York", 1)
-    ).toBe("2026-07-14T04:00:00.000Z");
+    expect(attendanceDateBoundaryIso("2026-07-13", "Asia/Manila")).toBe("2026-07-12T16:00:00.000Z");
+    expect(attendanceDateBoundaryIso("2026-07-13", "America/New_York", 1)).toBe(
+      "2026-07-14T04:00:00.000Z"
+    );
   });
 
   it("keeps staff-less blocked attendance attempts in the activity model", () => {
@@ -23,6 +21,8 @@ describe("attendance activity boundaries and audit mapping", () => {
           outcome: "blocked",
           reason_code: "unknown_device",
           message: "No registered device cookie was found.",
+          request_id: null,
+          operation_id: null,
           created_at: "2026-07-13T12:00:00.000Z",
         },
         {

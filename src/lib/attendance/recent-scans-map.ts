@@ -1,3 +1,4 @@
+import { rootAttendanceOperationId } from "@/lib/attendance/recent-scan-grouping";
 import type { RecentAttendanceScan } from "@/lib/attendance/types";
 
 type Relation<T> = T | T[] | null | undefined;
@@ -10,6 +11,8 @@ export type RecentScanRow = {
   outcome: "success" | "blocked" | "noop" | "exception" | "error";
   reason_code: string | null;
   message: string | null;
+  request_id: string | null;
+  operation_id: string | null;
   created_at: string;
   staff?: Relation<{
     id: string;
@@ -64,10 +67,11 @@ export function mapRecentScan(
     timezone: context.timezone,
     shiftType: checkin?.shift_type ?? null,
     attendanceStatus: checkin?.attendance_status ?? null,
-    workedMinutes:
-      typeof checkin?.worked_minutes === "number" ? checkin.worked_minutes : null,
+    workedMinutes: typeof checkin?.worked_minutes === "number" ? checkin.worked_minutes : null,
     clockInAt: checkin?.checked_in_at ?? null,
     clockOutAt: checkin?.checked_out_at ?? null,
     sourceLabel: point?.label ?? null,
+    operationId: row.operation_id ?? row.request_id ?? null,
+    rootOperationId: rootAttendanceOperationId(row.operation_id, row.request_id, row.id),
   };
 }

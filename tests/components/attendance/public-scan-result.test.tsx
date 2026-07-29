@@ -38,7 +38,7 @@ const successResult: PublicScanResult = {
 
 afterEach(() => cleanup());
 
-describe("PublicScanResultView attendance success", () => {
+describe("PublicScanResultView Attendance success", () => {
   it("formats the authoritative timestamp in the server-provided branch timezone", () => {
     expect(formatAttendanceTime("2026-07-15T01:52:00.000Z", "Pacific/Auckland")).toBe("1:52 PM");
     expect(formatAttendanceDate("2026-07-15T01:52:00.000Z", "America/New_York")).toContain(
@@ -46,14 +46,38 @@ describe("PublicScanResultView attendance success", () => {
     );
   });
 
-  it("keeps the green success card and renders authoritative backend copy", () => {
+  it("shows the simplified clock-in result and staff identity", () => {
     const { container } = render(<PublicScanResultView result={successResult} />);
 
-    expect(screen.getByRole("heading", { name: successResult.title })).toBeTruthy();
-    expect(screen.getByText(successResult.message)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+    expect(screen.getByText("Nicole Santos")).toBeTruthy();
+    expect(screen.getByText("Cradle Main")).toBeTruthy();
+    expect(screen.getByText("You may close this page.")).toBeTruthy();
     expect(container.querySelector("section")?.className).toContain("attendanceSuccess");
-    expect(screen.queryByText(/internal-operation-id/i)).toBeNull();
-    expect(screen.queryByText(/^Recorded ·/)).toBeNull();
+    expect(container.textContent).not.toContain(successResult.title);
+    expect(container.textContent).not.toContain(successResult.message);
+    expect(container.textContent).not.toContain("internal-operation-id");
+  });
+
+  it("shows the simplified clock-out result with worked duration", () => {
+    render(
+      <PublicScanResultView
+        result={{
+          ...successResult,
+          reasonCode: "clock_out",
+          attendance: {
+            ...successResult.attendance!,
+            action: "clock_out",
+            workedMinutes: 545,
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Clocked out" })).toBeTruthy();
+    expect(screen.getByText("Nicole Santos")).toBeTruthy();
+    expect(screen.getByText("9h 05m")).toBeTruthy();
+    expect(screen.getByText("You may close this page.")).toBeTruthy();
   });
 
   it.each([
@@ -61,7 +85,7 @@ describe("PublicScanResultView attendance success", () => {
     "Recorded · Early clock-out",
     "Recorded · Overtime",
     "Recorded · Outside schedule",
-  ])("shows the secondary review badge %s without replacing success", (reviewLabel) => {
+  ])("shows the accessible secondary review badge %s without replacing success", (reviewLabel) => {
     const { container } = render(
       <PublicScanResultView result={{ ...successResult, severity: "warning", reviewLabel }} />
     );
@@ -77,14 +101,15 @@ describe("PublicScanResultView attendance success", () => {
     );
 
     expect(screen.getByRole("status", { name: "Training Mode" }).textContent).toBe(
-      "Training Mode · Not live attendance"
+      "Training Mode · Not live Attendance"
     );
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
     expect(container.querySelector("section")?.className).toContain("attendanceSuccess");
   });
 });
 
-describe("PublicScanResultView captured closing scan", () => {
-  it("shows a calm captured result with review ownership and no technical details", () => {
+describe("PublicScanResultView reviewable scan", () => {
+  it("shows Scan saved, no Attendance change, and no technical ownership", () => {
     const { container } = render(
       <PublicScanResultView
         result={{
@@ -100,44 +125,34 @@ describe("PublicScanResultView captured closing scan", () => {
       />
     );
 
-    expect(screen.getByRole("heading", { name: "Scan captured, Nikki" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Scan saved" })).toBeTruthy();
     expect(
-      screen.getByText("The front desk will confirm today’s attendance. You may continue normally.")
+      screen.getByText("The front desk will review your Attendance. Do not scan again.")
     ).toBeTruthy();
-    expect(screen.getByRole("status", { name: "Captured · For review" })).toBeTruthy();
+    expect(screen.getByText("Attendance changed: No")).toBeTruthy();
     expect(container.querySelector("section")?.className).toContain("resultInfo");
-    expect(container.querySelector("section")?.className).not.toContain("attendanceSuccess");
     expect(container.textContent).not.toContain("internal-captured-operation");
-    expect(container.textContent?.toLowerCase()).not.toContain("no attendance change");
-    expect(container.textContent?.toLowerCase()).not.toContain("scan again");
+    expect(container.textContent).not.toMatch(/CRM owner|root cause|RPC|database policy/i);
   });
 });
 
-describe("PublicScanResultView planned maintenance", () => {
-  it("shows the calm no-change state and no device or technical recovery controls", () => {
+describe("PublicScanResultView duplicate scan", () => {
+  it("states that Attendance is already recorded and no further action is needed", () => {
     render(
       <PublicScanResultView
         result={{
-          ok: false,
+          ok: true,
           outcome: "noop",
-          reasonCode: "attendance_maintenance",
+          reasonCode: "duplicate_scan",
           severity: "info",
-          title: "Attendance is temporarily under maintenance",
-          message:
-            "Attendance scanning is temporarily unavailable while we complete system maintenance. Please record your arrival and departure with the front desk.",
-          detail:
-            "Do not scan repeatedly. The front desk will record your arrival and departure during maintenance.",
-          securityNote: "Attendance changed: No",
+          title: "Attendance already recorded",
+          message: "No further action is needed.",
         }}
       />
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Attendance is temporarily under maintenance" })
-    ).toBeTruthy();
-    expect(screen.getByText("Attendance changed: No")).toBeTruthy();
-    expect(screen.getByText(/front desk will record/i)).toBeTruthy();
-    expect(screen.queryByRole("button")).toBeNull();
-    expect(document.body.textContent).not.toMatch(/unknown_device|rpc|stack trace/i);
+    expect(screen.getByRole("heading", { name: "Attendance already recorded" })).toBeTruthy();
+    expect(screen.getByText("No further action is needed.")).toBeTruthy();
+    expect(document.body.textContent?.toLowerCase()).not.toContain("scan repeatedly");
   });
 });

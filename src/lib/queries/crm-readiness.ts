@@ -34,7 +34,6 @@ import type { DispatchStats } from "./dispatch-queries";
 import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getDailySchedule, type DailyScheduleStaffRow } from "@/lib/queries/schedule";
-import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 import {
   buildReadinessResult,
   sortReadinessIssues,
@@ -185,8 +184,7 @@ function mapSetupIssuesToReadinessIssues(issues: SetupIssue[]): ReadinessIssue[]
  */
 function mapStaffReadinessToReadinessIssues(summary: CrmAvailabilitySummary): ReadinessIssue[] {
   const issues: ReadinessIssue[] = [];
-  const attendancePresenceActive =
-    isAttendanceEnforcementEnabled() && !isAttendanceMaintenanceMode();
+  const attendancePresenceActive = isAttendanceEnforcementEnabled();
 
   // Staff scheduled today but not yet checked in
   if (attendancePresenceActive && summary.notCheckedIn > 0) {
@@ -532,7 +530,7 @@ async function getAssignedDriverNotCheckedInIssue(
   today: string
 ): Promise<ReadinessIssue | null> {
   // Check-in is paused for MVP — this check would create constant false positives.
-  if (!isAttendanceEnforcementEnabled() || isAttendanceMaintenanceMode()) return null;
+  if (!isAttendanceEnforcementEnabled()) return null;
 
   const supabase = await createClient();
 

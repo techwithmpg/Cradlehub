@@ -12,15 +12,20 @@ vi.mock("next/link", () => ({
   default: ({
     href,
     children,
+    prefetch,
     ...props
   }: {
     href: string;
     children: ReactNode;
-  }) => (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  ),
+    prefetch?: boolean | null;
+  }) => {
+    void prefetch;
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  },
 }));
 
 function scan(overrides: Partial<RecentAttendanceScan> = {}): RecentAttendanceScan {
@@ -52,13 +57,7 @@ afterEach(() => cleanup());
 
 describe("AttendanceScanFeedRow", () => {
   it("renders completed status with duration only as secondary detail", () => {
-    render(
-      <AttendanceScanFeedRow
-        scan={scan()}
-        workspace="crm"
-        selectedDate="2026-07-03"
-      />
-    );
+    render(<AttendanceScanFeedRow scan={scan()} workspace="crm" selectedDate="2026-07-03" />);
 
     expect(screen.getByText("Completed")).toBeTruthy();
     expect(screen.getByText(/Opening shift - Main Branch - 9h 05m/)).toBeTruthy();

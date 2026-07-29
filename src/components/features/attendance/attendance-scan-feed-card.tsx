@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bell, RefreshCw } from "lucide-react";
 import { AttendanceScanFeedRow } from "@/components/features/attendance/attendance-scan-feed-row";
 import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
+import type { AttendanceRealtimeStatus } from "@/components/features/attendance/use-attendance-scan-realtime";
 import {
   buildAttendanceViewAllHref,
   formatAttendanceFeedDateLabel,
@@ -26,9 +27,35 @@ type AttendanceScanFeedCardProps = {
   onScanSelect?: (scan: RecentAttendanceScan) => void;
 };
 
+type AttendanceScanFeedPanelProps = AttendanceScanFeedCardProps & {
+  realtimeStatus: AttendanceRealtimeStatus;
+  isValidating: boolean;
+  refreshError: string | null;
+  onRefresh: () => void;
+};
+
 const REFRESH_ERROR = "Attendance activity could not be refreshed.";
 
-export function AttendanceScanFeedCard({
+const statusPresentation: Record<AttendanceRealtimeStatus, { label: string; className: string }> = {
+  connecting: {
+    label: "Connecting",
+    className: "bg-blue-100 text-blue-800",
+  },
+  live: {
+    label: "Live",
+    className: "bg-emerald-100 text-emerald-800",
+  },
+  delayed: {
+    label: "Delayed",
+    className: "bg-amber-100 text-amber-800",
+  },
+  offline: {
+    label: "Offline",
+    className: "bg-stone-200 text-stone-700",
+  },
+};
+
+export function AttendanceScanFeedPanel({
   workspace,
   selectedDate,
   branchId,
@@ -37,28 +64,21 @@ export function AttendanceScanFeedCard({
   maxItems = 5,
   className,
   onScanSelect,
-}: AttendanceScanFeedCardProps) {
+  realtimeStatus,
+  isValidating,
+  refreshError,
+  onRefresh,
+}: AttendanceScanFeedPanelProps) {
   const resolvedBranchId = branchId ?? feed.branchId;
   const resolvedBranchName = branchName ?? feed.branchName;
-  const {
-    feed: visibleFeed,
-    error: refreshError,
-    isValidating,
-    refreshFeed,
-  } = useAttendanceScanFeed({
-    workspace,
-    selectedDate,
-    branchId: resolvedBranchId,
-    initialFeed: feed,
-    maxItems,
-  });
-  const displayError = visibleFeed.error ?? (refreshError ? REFRESH_ERROR : null);
-  const dateLabel = formatAttendanceFeedDateLabel(visibleFeed.selectedDate, visibleFeed.timezone);
+  const displayError = feed.error ?? (refreshError ? REFRESH_ERROR : null);
+  const dateLabel = formatAttendanceFeedDateLabel(feed.selectedDate, feed.timezone);
   const viewAllHref = buildAttendanceViewAllHref({
     workspace,
     selectedDate,
     branchId: resolvedBranchId,
   });
+  const connection = statusPresentation[realtimeStatus];
 
   return (
     <section
@@ -75,8 +95,11 @@ export function AttendanceScanFeedCard({
             <h2 className="truncate text-sm font-bold text-[var(--cs-text)]">
               Attendance Activity
             </h2>
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-              Live
+            <span
+              className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", connection.className)}
+              aria-label={`Attendance feed connection: ${connection.label}`}
+            >
+              {connection.label}
             </span>
           </div>
           <p className="mt-1 truncate text-xs text-[var(--cs-text-muted)]">
@@ -92,27 +115,27 @@ export function AttendanceScanFeedCard({
         </Link>
       </header>
 
-      {displayError && visibleFeed.items.length === 0 ? (
+      {displayError && feed.items.length === 0 ? (
         <div className="grid gap-3 px-4 py-4 text-sm text-[var(--cs-text-muted)]">
           <p>{REFRESH_ERROR}</p>
           <button
             type="button"
-            onClick={refreshFeed}
+            onClick={onRefresh}
             className="inline-flex h-8 w-fit items-center gap-2 rounded-md border border-[var(--cs-border)] px-3 text-xs font-bold text-[var(--cs-text)]"
           >
             <RefreshCw className="size-3.5" aria-hidden="true" />
             Retry
           </button>
         </div>
-      ) : visibleFeed.items.length === 0 ? (
+      ) : feed.items.length === 0 ? (
         <div className="px-4 py-5 text-sm text-[var(--cs-text-muted)]">
           No attendance scans yet today.
         </div>
       ) : (
         <div className="divide-y divide-[var(--cs-border-soft)] px-3 py-2">
-          {visibleFeed.items.slice(0, maxItems).map((scan) => (
+          {feed.items.slice(0, maxItems).map((scan) => (
             <AttendanceScanFeedRow
-              key={scan.eventId}
+              key={scan.rootOperationId ?? scan.eventId}
               scan={scan}
               workspace={workspace}
               selectedDate={selectedDate}
@@ -124,11 +147,43 @@ export function AttendanceScanFeedCard({
 
       <footer className="flex items-center justify-between gap-3 border-t border-[var(--cs-border-soft)] px-4 py-2 text-xs text-[var(--cs-text-muted)]">
         <span>
-          {visibleFeed.lastHourCount.toLocaleString("en-PH")}{" "}
-          {visibleFeed.lastHourCount === 1 ? "scan" : "scans"} in the last hour
+          {feed.lastHourCount.toLocaleString("en-PH")} {feed.lastHourCount === 1 ? "scan" : "scans"}{" "}
+          in the last hour
         </span>
-        {isValidating ? <span>Refreshing</span> : null}
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="inline-flex items-center gap-1 font-semibold hover:text-[var(--cs-text)]"
+          aria-label="Refresh Attendance activity"
+        >
+          <RefreshCw className={cn("size-3", isValidating && "animate-spin")} aria-hidden="true" />
+          {isValidating ? "Refreshing" : "Refresh"}
+        </button>
       </footer>
     </section>
+  );
+}
+
+export function AttendanceScanFeedCard(props: AttendanceScanFeedCardProps) {
+  const resolvedBranchId = props.branchId ?? props.feed.branchId;
+  const maxItems = props.maxItems ?? 5;
+  const state = useAttendanceScanFeed({
+    workspace: props.workspace,
+    selectedDate: props.selectedDate,
+    branchId: resolvedBranchId,
+    initialFeed: props.feed,
+    maxItems,
+  });
+
+  return (
+    <AttendanceScanFeedPanel
+      {...props}
+      feed={state.feed}
+      maxItems={maxItems}
+      realtimeStatus={state.realtimeStatus}
+      isValidating={state.isValidating}
+      refreshError={state.error}
+      onRefresh={state.refreshFeed}
+    />
   );
 }

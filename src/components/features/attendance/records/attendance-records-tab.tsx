@@ -479,6 +479,7 @@ export function AttendanceRecordsTab({
   const initialDate = initialFilters?.date ?? null;
 
   const [query, setQuery] = useState("");
+  const [dataSet, setDataSet] = useState<"live" | "test">("live");
   const [status, setStatus] = useState<RecordStatusFilter>("all");
   const [staffId, setStaffId] = useState(initialStaffId ?? "all");
   const [selectedDate, setSelectedDate] = useState(initialDate ?? "all");
@@ -486,34 +487,38 @@ export function AttendanceRecordsTab({
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const pageSize = 10;
+  const records = useMemo(
+    () => (dataSet === "test" ? (data.testRecords ?? []) : data.records),
+    [data.records, data.testRecords, dataSet]
+  );
 
   const dateOptions = useMemo(() => {
-    const dates = new Set(data.records.map((record) => record.shift_date));
+    const dates = new Set(records.map((record) => record.shift_date));
     if (initialDate) dates.add(initialDate);
     return Array.from(dates).sort((a, b) => b.localeCompare(a));
-  }, [data.records, initialDate]);
+  }, [initialDate, records]);
 
   const methodOptions = useMemo(() => {
-    return Array.from(
-      new Set(data.records.map((record) => methodLabel(record)).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b));
-  }, [data.records]);
+    return Array.from(new Set(records.map((record) => methodLabel(record)).filter(Boolean))).sort(
+      (a, b) => a.localeCompare(b)
+    );
+  }, [records]);
 
   const highlightedRecordId = useMemo(() => {
     if (!initialStaffId) return null;
 
     return (
-      data.records.find(
+      records.find(
         (record) =>
           record.staff_id === initialStaffId && (!initialDate || record.shift_date === initialDate)
       )?.id ?? null
     );
-  }, [data.records, initialDate, initialStaffId]);
+  }, [initialDate, initialStaffId, records]);
 
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return data.records.filter((record) => {
+    return records.filter((record) => {
       const searchableText = [
         record.staff_name,
         record.staff_nickname ?? "",
@@ -533,7 +538,7 @@ export function AttendanceRecordsTab({
 
       return matchesQuery && matchesStatus && matchesStaff && matchesDate && matchesMethod;
     });
-  }, [data.records, method, query, selectedDate, staffId, status]);
+  }, [method, query, records, selectedDate, staffId, status]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
@@ -552,7 +557,7 @@ export function AttendanceRecordsTab({
   return (
     <div className="grid gap-4">
       <ToolbarShell
-        fieldsClassName="xl:grid-cols-[1fr_1fr_1fr_1fr_1.2fr]"
+        fieldsClassName="xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1.2fr]"
         actions={
           <Button type="button" variant="outline" className="h-10 rounded-lg">
             <Download className="mr-2 size-4" />
@@ -560,6 +565,20 @@ export function AttendanceRecordsTab({
           </Button>
         }
       >
+        <ToolbarSelect
+          label="Data"
+          value={dataSet}
+          onChange={(value) => {
+            setDataSet(value === "test" ? "test" : "live");
+            setSelectedRecordId(null);
+            setSelectedDate("all");
+            resetPage();
+          }}
+        >
+          <option value="live">Live records</option>
+          <option value="test">Test Mode records</option>
+        </ToolbarSelect>
+
         <ToolbarSelect
           label="Date"
           value={selectedDate}
@@ -634,12 +653,22 @@ export function AttendanceRecordsTab({
         />
       </ToolbarShell>
 
+      {dataSet === "test" ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        >
+          <span className="font-bold">Test Mode records.</span> These training records are excluded
+          from live Attendance totals, availability, payroll, and production reports.
+        </div>
+      ) : null}
+
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.95fr)]">
         <section className="overflow-hidden rounded-2xl border border-border bg-white p-4 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-foreground">
-                Attendance History ({rows.length})
+                {dataSet === "test" ? "Test Mode Records" : "Attendance History"} ({rows.length})
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Attendance history, timing issues, and correction review.
@@ -653,7 +682,8 @@ export function AttendanceRecordsTab({
           </div>
 
           {rows.length === 0 ? (
-            data.records.length === 0 &&
+            dataSet === "live" &&
+            records.length === 0 &&
             data.scanEvents.some(
               (event) =>
                 event.scan_type === "attendance" &&

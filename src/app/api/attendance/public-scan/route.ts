@@ -16,7 +16,6 @@ import {
 } from "@/lib/attendance/scan-errors";
 import type { PublicScanResult } from "@/lib/attendance/types";
 import { withAttendanceScanResolution } from "@/lib/attendance/scan-resolution";
-import { isAttendanceMaintenanceResult } from "@/lib/attendance/maintenance-mode";
 
 type PublicScanBody = {
   publicCode?: string | null;
@@ -42,7 +41,6 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     severity: result.severity,
     title: result.title,
     message: result.message,
-    detail: result.detail,
     reviewLabel: result.reviewLabel,
     isTest: result.isTest,
     securityNote: result.securityNote,
@@ -52,8 +50,9 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     nextHref: result.nextHref,
     attendance: result.attendance,
     countdown: result.countdown,
-    branchCorrection: result.branchCorrection,
-    resolution: result.resolution,
+    branchCorrection: result.branchCorrection
+      ? { ...result.branchCorrection, deviceId: undefined }
+      : undefined,
   };
 }
 
@@ -95,9 +94,7 @@ export async function POST(request: NextRequest) {
     });
     revalidatePublicScanResult(result);
     const resolvedResult = withAttendanceScanResolution(result);
-    const response = NextResponse.json(toPublicResult(resolvedResult), {
-      status: isAttendanceMaintenanceResult(result) ? 503 : 200,
-    });
+    const response = NextResponse.json(toPublicResult(resolvedResult));
     if (result.reasonCode === "unknown_device") {
       const temporaryCredential =
         request.cookies.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ?? createDeviceCredential();

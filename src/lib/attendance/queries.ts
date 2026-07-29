@@ -33,11 +33,6 @@ import {
 } from "@/lib/attendance/shift-instance";
 import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
-import {
-  assertAttendanceWritable,
-  getAttendanceMaintenanceState,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 export type AttendanceActionContext = {
   branchId: string;
@@ -291,9 +286,6 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
 
   await requireBranch(admin, branchId);
   const fallback = { branch_id: branchId, ...DEFAULT_SETTINGS };
-  if (isAttendanceMaintenanceMode()) {
-    return normalizeAttendanceSettings(fallback, branchId);
-  }
   const { data: inserted, error: insertError } = await admin
     .from("attendance_settings")
     .insert(fallback)
@@ -315,7 +307,6 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
 export async function ensureBranchAttendanceQrPoint(
   ctx: AttendanceActionContext
 ): Promise<AttendanceQrPoint> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const branch = await requireBranch(admin, ctx.branchId);
   const existing = await admin
@@ -424,7 +415,6 @@ export async function replaceBranchAttendanceQrPoint(params: {
   ctx: AttendanceActionContext;
   qrPointId: string;
 }): Promise<AttendanceQrPoint> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const current = await admin
     .from("qr_points")
@@ -463,7 +453,6 @@ export async function deactivateQrPoint(params: {
     .maybeSingle();
   if (point.error) throw new Error(point.error.message);
   if (!point.data) throw new Error("The selected QR code is no longer available.");
-  if (point.data.point_type === "attendance") assertAttendanceWritable();
 
   const { data, error } = await admin
     .from("qr_points")
@@ -483,7 +472,6 @@ export async function createDeviceActivationLink(params: {
   staffId: string;
   origin?: string | null;
 }): Promise<{ token: string; activationUrl: string; expiresAt: string }> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
 
   const { data: staff, error: staffError } = await admin
@@ -520,7 +508,6 @@ export async function revokeAttendanceDevice(params: {
   ctx: AttendanceActionContext;
   deviceId: string;
 }): Promise<void> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const { error } = await admin
     .from("staff_devices")
@@ -540,7 +527,6 @@ export async function resolveAttendanceException(params: {
   exceptionId: string;
   resolutionNote?: string | null;
 }): Promise<void> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const { error } = await admin
     .from("attendance_exceptions")
@@ -560,7 +546,6 @@ export async function reviewAttendanceException(params: {
   ctx: AttendanceActionContext;
   exceptionId: string;
 }): Promise<void> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const { error } = await admin
     .from("attendance_exceptions")
@@ -617,6 +602,7 @@ export async function getAttendanceWorkspaceData(params: {
     qrPointsResult,
     devicesResult,
     recordsResult,
+    testRecordsResult,
     exceptionsResult,
     scanEventsResult,
     sessionsResult,
@@ -649,6 +635,20 @@ export async function getAttendanceWorkspaceData(params: {
           )
           .eq("branch_id", params.branchId)
           .eq("is_test", false)
+          .gte("shift_date", historyStart)
+          .order("checked_in_at", { ascending: false })
+          .range(from, to) as unknown as PromiseLike<AttendancePageResult>,
+    }),
+    loadAllAttendancePages({
+      label: "Attendance Test Mode records",
+      fetchPage: (from, to) =>
+        admin
+          .from("staff_shift_checkins")
+          .select(
+            "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)"
+          )
+          .eq("branch_id", params.branchId)
+          .eq("is_test", true)
           .gte("shift_date", historyStart)
           .order("checked_in_at", { ascending: false })
           .range(from, to) as unknown as PromiseLike<AttendancePageResult>,
@@ -749,6 +749,7 @@ export async function getAttendanceWorkspaceData(params: {
 
   const devices = (devicesResult.data ?? []).map(mapDevice);
   const records = recordsResult.map(mapRecord);
+  const testRecords = testRecordsResult.map(mapRecord);
   const exceptions = exceptionsResult.map(mapException);
   const scanEvents = (scanEventsResult.data ?? []).map(mapScanEvent);
   const sessions = (sessionsResult.data ?? []).map(mapSession);
@@ -831,6 +832,7 @@ export async function getAttendanceWorkspaceData(params: {
     devices,
     deviceRegistry,
     records,
+    testRecords,
     exceptions,
     corrections,
     scanEvents,
@@ -849,7 +851,6 @@ export async function getAttendanceWorkspaceData(params: {
         is_active: row.is_active,
       })
     ),
-    maintenance: getAttendanceMaintenanceState(),
   };
 }
 

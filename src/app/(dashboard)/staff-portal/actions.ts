@@ -28,12 +28,6 @@ import type { Database } from "@/types/supabase";
 import type { Json } from "@/types/supabase";
 import { DEVICE_COOKIE_NAME, LEGACY_DEVICE_COOKIE_NAME, hashSecret } from "@/lib/attendance/tokens";
 import { resolveClosingInterventionSignals } from "@/lib/attendance/scan-engine";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  ATTENDANCE_MAINTENANCE_REASON_CODE,
-  getAttendanceMaintenanceState,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -115,15 +109,6 @@ function jsonRecord(value: Json | null): Record<string, unknown> {
  * are resolved again by the restricted database transaction.
  */
 export async function clockOutFromStaffPortalAction(): Promise<PortalClockOutActionResult> {
-  if (isAttendanceMaintenanceMode()) {
-    const maintenance = getAttendanceMaintenanceState();
-    return {
-      ok: false,
-      code: ATTENDANCE_MAINTENANCE_REASON_CODE,
-      title: maintenance.title,
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const supabase = await createClient();
   const {
     data: { user },

@@ -157,25 +157,4 @@ describe("BranchAttendanceRulesCard", () => {
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(screen.getByText("No rule changes have been recorded yet.")).toBeInTheDocument();
   });
-
-  it("shows read-only maintenance controls while keeping history available", () => {
-    render(
-      <BranchAttendanceRulesCard
-        branchId="branch-1"
-        data={data}
-        maintenance={{
-          active: true,
-          banner:
-            "Attendance maintenance mode is active. Existing records remain available for review.",
-        }}
-      />
-    );
-
-    expect(screen.getByText(/Attendance maintenance mode is active/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save Attendance rules" })).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "Category overrides" }));
-    expect(screen.getByRole("button", { name: "Save category override" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("tab", { name: "History" }));
-    expect(screen.getByText("No rule changes have been recorded yet.")).toBeInTheDocument();
-  });
 });

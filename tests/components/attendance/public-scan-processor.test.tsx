@@ -78,11 +78,9 @@ describe("PublicScanProcessor first-device continuation", () => {
     render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
     await finishTimers();
 
-    expect(screen.getByRole("heading", { name: "This browser is not connected" })).toBeTruthy();
-    expect(screen.getByText(/original scan will continue automatically/i)).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Sign in, connect this browser and finish scan" })
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Connect this phone" })).toBeTruthy();
+    expect(screen.getByText(/continue your original Attendance scan/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Connect phone and finish scan" })).toBeTruthy();
     expect(screen.queryByText("Device not registered")).toBeNull();
     expect(screen.queryByText("unknown-device-operation")).toBeNull();
   });
@@ -106,11 +104,9 @@ describe("PublicScanProcessor first-device continuation", () => {
       target: { value: "nikki@example.com" },
     });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "correct-password" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Sign in, connect this browser and finish scan" })
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Connect phone and finish scan" }));
 
-    expect(screen.getByRole("button", { name: "Connecting this browser…" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Connecting this phone…" })).toBeTruthy();
     await finishTimers();
 
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).toHaveBeenCalledTimes(1);
@@ -121,7 +117,8 @@ describe("PublicScanProcessor first-device continuation", () => {
         password: "correct-password",
       })
     );
-    expect(screen.getByRole("heading", { name: finalAttendance.title })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+    expect(screen.getByText(finalAttendance.attendance!.staffName)).toBeTruthy();
     expect(screen.queryByText(/scan again/i)).toBeNull();
   });
 
@@ -137,12 +134,10 @@ describe("PublicScanProcessor first-device continuation", () => {
       target: { value: "wrong@example.com" },
     });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong-password" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Sign in, connect this browser and finish scan" })
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Connect phone and finish scan" }));
     await act(async () => Promise.resolve());
 
-    expect(screen.getByRole("heading", { name: "This browser is not connected" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Connect this phone" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("Check your email and password");
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).toHaveBeenCalledTimes(1);
   });
@@ -166,45 +161,44 @@ describe("PublicScanProcessor first-device continuation", () => {
     await finishTimers();
 
     expect(screen.getByRole("heading", { name: "This phone is no longer approved" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "This browser is not connected" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Connect this phone" })).toBeNull();
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).not.toHaveBeenCalled();
   });
 
-  it("renders a friendly typed maintenance result from HTTP 503 without a connection form", async () => {
+  it("renders a successful Test Mode result with an explicit non-live status", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        response(
-          {
-            ok: false,
-            outcome: "noop",
-            reasonCode: "attendance_maintenance",
-            severity: "info",
-            title: "Attendance is temporarily under maintenance",
-            message:
-              "Attendance scanning is temporarily unavailable while we complete system maintenance. Please record your arrival and departure with the front desk.",
-            detail:
-              "Do not scan repeatedly. The front desk will record your arrival and departure during maintenance.",
-            securityNote: "Attendance changed: No",
-            operationId: "safe-maintenance-receipt",
+        response({
+          ok: true,
+          outcome: "success",
+          reasonCode: "clock_in",
+          severity: "success",
+          title: "Clocked in",
+          message: "Attendance recorded.",
+          isTest: true,
+          operationId: "safe-test-receipt",
+          attendance: {
+            action: "clock_in",
+            staffName: "Nicole Santos",
+            branchName: "Cradle Main",
+            branchTimezone: "Asia/Manila",
+            shiftLabel: "single",
+            occurredAt: "2026-07-29T01:52:00.000Z",
+            sessionStartedAt: "2026-07-29T01:52:00.000Z",
           },
-          false
-        )
+        })
       )
     );
 
     render(<PublicScanProcessor mode="scan" publicCode="MAIN-QR" />);
     await finishTimers();
 
-    expect(
-      screen.getByRole("heading", { name: "Attendance is temporarily under maintenance" })
-    ).toBeTruthy();
-    expect(screen.getByText("Attendance changed: No")).toBeTruthy();
-    expect(screen.getByText(/Do not scan repeatedly/i)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Clocked in" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Training Mode" }).textContent).toBe(
+      "Training Mode · Not live Attendance"
+    );
     expect(screen.queryByLabelText("Your staff email")).toBeNull();
     expect(actionMocks.signInAndRegisterAttendanceDeviceAction).not.toHaveBeenCalled();
-    expect(document.body.textContent).not.toMatch(
-      /UNKNOWN_DEVICE|ATTENDANCE_DEVICE_SECRET|commit_attendance|stack trace/i
-    );
   });
 });

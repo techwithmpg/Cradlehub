@@ -8,7 +8,6 @@ import { AttendancePhoneCard } from "@/components/features/staff-portal/attendan
 import { getOwnAttendancePhoneState } from "@/lib/attendance/device-registration";
 import { ATTENDANCE_REGISTRATION_COOKIE_NAME } from "@/lib/attendance/scan-continuation";
 import { DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
-import { getAttendanceMaintenanceState } from "@/lib/attendance/maintenance-mode";
 
 function formatToken(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
@@ -37,8 +36,6 @@ export default async function StaffProfilePage() {
       cookieStore.get(ATTENDANCE_REGISTRATION_COOKIE_NAME)?.value ??
       null
   );
-  const attendanceMaintenance = getAttendanceMaintenanceState();
-
   return (
     <div className="mx-auto max-w-2xl px-4 pb-24 sm:px-0 sm:pb-0">
       <PageHeader
@@ -64,12 +61,7 @@ export default async function StaffProfilePage() {
           tierLabel={tierLabel}
         />
 
-        {phoneState ? (
-          <AttendancePhoneCard
-            state={phoneState}
-            maintenanceActive={attendanceMaintenance.active}
-          />
-        ) : null}
+        {phoneState ? <AttendancePhoneCard state={phoneState} /> : null}
       </div>
     </div>
   );

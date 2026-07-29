@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/features/attendance/attendance-ui";
 import type { AttendanceSettings, AttendanceWorkspaceData } from "@/lib/attendance/types";
 
 export function RulesSafetyPanel({
+  data,
   isPending,
   onArchiveTestData,
   onSaveRules,
@@ -23,6 +24,12 @@ export function RulesSafetyPanel({
   setRules: (settings: AttendanceSettings) => void;
   setRulesReason: (value: string) => void;
 }) {
+  const enabledBy = rules.test_mode_enabled_by
+    ? (data.staffOptions.find((staff) => staff.id === rules.test_mode_enabled_by)?.full_name ??
+      `Staff ${rules.test_mode_enabled_by.slice(0, 8)}`)
+    : "Not recorded";
+  const enabledAt = formatAuditTimestamp(rules.test_mode_enabled_at);
+
   return (
     <section className="grid gap-4 rounded-3xl border border-border bg-card p-5 shadow-sm">
       <div>
@@ -39,15 +46,34 @@ export function RulesSafetyPanel({
             Test / Training Mode Enabled
           </div>
           <p className="mt-1 text-sm">
-            New scans should be treated as training data and excluded from live operational reports.
+            Scans are recorded as test data and do not affect live Attendance.
           </p>
+          <dl className="mt-3 grid gap-1 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="font-semibold">Enabled by</dt>
+              <dd>{enabledBy}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Enabled at</dt>
+              <dd>{enabledAt}</dd>
+            </div>
+            {rules.test_mode_reason ? (
+              <div className="sm:col-span-2">
+                <dt className="font-semibold">Reason</dt>
+                <dd>{rules.test_mode_reason}</dd>
+              </div>
+            ) : null}
+          </dl>
         </div>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <SafetyCard icon={<ShieldCheck className="size-5" />} title="System Mode">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <StatusPill value={rules.test_mode_enabled ? "test mode" : "live mode"} tone={rules.test_mode_enabled ? "warn" : "good"} />
+            <StatusPill
+              value={rules.test_mode_enabled ? "test mode" : "live mode"}
+              tone={rules.test_mode_enabled ? "warn" : "good"}
+            />
             <label className="inline-flex items-center gap-2 text-sm font-semibold">
               <input
                 type="checkbox"
@@ -64,7 +90,8 @@ export function RulesSafetyPanel({
             </label>
           </div>
           <p className="text-sm text-muted-foreground">
-            Live mode affects attendance records, room countdowns, reports, payroll, and owner summaries.
+            Live mode affects attendance records, room countdowns, reports, payroll, and owner
+            summaries.
           </p>
         </SafetyCard>
 
@@ -79,15 +106,26 @@ export function RulesSafetyPanel({
         <SafetyCard icon={<Clock3 className="size-5" />} title="Scan Timing Rules">
           <div className="grid gap-2 sm:grid-cols-2">
             <RuleMini label="Late grace" value={`${rules.late_grace_minutes} min`} />
-            <RuleMini label="Duplicate protection" value={`${rules.duplicate_scan_debounce_minutes} min`} />
-            <RuleMini label="Clock-in before shift" value={`${rules.clock_in_window_before_shift_minutes} min`} />
-            <RuleMini label="Clock-out after end" value={`${rules.clock_out_window_after_shift_end_minutes} min`} />
+            <RuleMini
+              label="Duplicate protection"
+              value={`${rules.duplicate_scan_debounce_minutes} min`}
+            />
+            <RuleMini
+              label="Clock-in before shift"
+              value={`${rules.clock_in_window_before_shift_minutes} min`}
+            />
+            <RuleMini
+              label="Clock-out after end"
+              value={`${rules.clock_out_window_after_shift_end_minutes} min`}
+            />
           </div>
         </SafetyCard>
 
         <SafetyCard icon={<Wrench className="size-5" />} title="Fixed Scan Policy">
           <p className="text-sm text-muted-foreground">
-            Valid ordinary scans record attendance and flag uncertainty. A sole open record is always closed by the next valid scan. First scans near expected closing are captured for review without inventing time.
+            Valid ordinary scans record attendance and flag uncertainty. A sole open record is
+            always closed by the next valid scan. First scans near expected closing are captured for
+            review without inventing time.
           </p>
           <StatusPill value="Record first · Review uncertainty" tone="good" />
         </SafetyCard>
@@ -149,10 +187,18 @@ function SafetyCard({
 function RuleMini({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3">
-      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 font-bold text-foreground">{value}</div>
     </div>
   );
+}
+
+function formatAuditTimestamp(value: string | null): string {
+  if (!value) return "Not recorded";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Not recorded";
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
 }

@@ -7,7 +7,6 @@ import { getAttendanceSettings } from "@/lib/attendance/queries";
 import type { AttendanceActionContext } from "@/lib/attendance/queries";
 import type { AttendanceSettings } from "@/lib/attendance/types";
 import type { Json } from "@/types/supabase";
-import { assertAttendanceWritable } from "@/lib/attendance/maintenance-mode";
 
 export type AttendanceCorrectionActionType =
   | "reclassify_scan"
@@ -415,7 +414,6 @@ export async function applyAttendanceCorrection(params: {
   ctx: AttendanceActionContext;
   input: ApplyAttendanceCorrectionInput;
 }): Promise<{ message: string }> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const reason = params.input.reason?.trim() || "";
 
@@ -542,7 +540,6 @@ export async function updateAttendanceRules(params: {
   ctx: AttendanceActionContext;
   input: UpdateAttendanceRulesInput;
 }): Promise<{ settings: AttendanceSettings }> {
-  assertAttendanceWritable();
   const admin = asAttendanceDb(createAdminClient());
   const previous = await getAttendanceSettings(params.ctx.branchId);
   const rules = coerceRules(params.input.settings);

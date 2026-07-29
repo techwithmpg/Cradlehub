@@ -5,18 +5,11 @@ import type { WorkspaceNotification } from "./types";
 import { logError } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOrUpdateNotification } from "./workflow-notifications-store";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 export async function respondToAttendanceIssueAction(input: {
   notificationId: string;
   response: string;
 }): Promise<{ ok: boolean; message: string }> {
-  if (isAttendanceMaintenanceMode()) {
-    return { ok: false, message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE };
-  }
   const response = input.response.trim();
   if (!response || response.length > 1000)
     return { ok: false, message: "Enter a response up to 1,000 characters." };

@@ -19,11 +19,6 @@ import type {
   BranchAssignmentResolutionType,
   BranchAssignmentRootCause,
 } from "./branch-correction-types";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  assertAttendanceWritable,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 type BranchRelation = { name: string | null } | Array<{ name: string | null }> | null | undefined;
 
@@ -187,7 +182,6 @@ export async function createOrReuseBranchAssignmentIssueForAttendance(params: {
   qrPointId: string;
   isTest: boolean;
 }): Promise<{ id: string; created: boolean }> {
-  assertAttendanceWritable();
   const admin = createAdminClient();
   const dedupeKey = `${params.staffId}:attendance_scan:${params.affectedBranchId}`;
   const { data, error } = await admin
@@ -458,13 +452,6 @@ export async function resolveBranchAssignmentIssueForActor(params: {
   actor: BranchCorrectionActor & { staffId: string; authUserId: string };
   input: BranchAssignmentResolutionInput;
 }): Promise<BranchAssignmentResolutionResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "RESOLUTION_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const admin = createAdminClient();
   const { data, error } = await admin
     .rpc("resolve_staff_branch_assignment_issue", {

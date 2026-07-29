@@ -33,7 +33,6 @@ import { getScheduleWindowAbsoluteRange } from "@/lib/schedule/schedule-coverage
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 const DAY_MINUTES = 24 * 60;
 
@@ -580,7 +579,7 @@ export async function resolveExactCrmBookingTime(params: {
   }
 
   const sameDayWalkin = isSameDayWalkin(params);
-  const useAttendancePreference = sameDayWalkin && !isAttendanceMaintenanceMode();
+  const useAttendancePreference = sameDayWalkin;
   const tierOrder: Record<string, number> = { senior: 0, mid: 1, junior: 2 };
   const providers = branchStaff
     .filter((staff) => capableStaffIds.has(staff.id))

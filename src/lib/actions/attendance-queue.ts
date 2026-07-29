@@ -1,7 +1,6 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 export type AttendanceQueueSuggestion = {
   staffId: string;
@@ -42,12 +41,6 @@ export async function getAttendanceQueueSuggestionAction(
   }
   if (!parsed.date || typeof parsed.date !== "string") {
     return { success: false, error: "Date is required" };
-  }
-
-  // The booking form treats this as an optional preference only. During planned
-  // maintenance, leave provider choice to schedule/service/conflict eligibility.
-  if (isAttendanceMaintenanceMode()) {
-    return { success: true, suggestion: null };
   }
 
   const admin = createAdminClient();

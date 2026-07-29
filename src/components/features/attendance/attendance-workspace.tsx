@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AttendanceHeader } from "@/components/features/attendance/attendance-header";
 import { AttendanceTabContent } from "@/components/features/attendance/attendance-tab-content";
 import { AttendanceTabs } from "@/components/features/attendance/attendance-tabs";
+import { AttendanceTestModeBanner } from "@/components/features/attendance/attendance-test-mode-banner";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { useAttendanceWorkspaceRealtime } from "@/components/features/attendance/use-attendance-workspace-realtime";
 import {
@@ -20,7 +21,6 @@ import type {
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
 import type { QrPrintFormat } from "@/lib/attendance/qr-print-layout";
-import { AttendanceMaintenanceBanner } from "@/components/features/attendance/attendance-maintenance-banner";
 
 type AttendanceWorkspaceProps = {
   data: AttendanceWorkspaceData;
@@ -99,7 +99,6 @@ export function AttendanceWorkspace(props: AttendanceWorkspaceProps) {
     () => workspaceData.exceptions.filter((exception) => exception.status === "open").length,
     [workspaceData.exceptions]
   );
-  const maintenance = workspaceData.maintenance ?? { active: false, banner: "" };
   const activeQrId = useMemo(() => {
     if (selectedQrId && workspaceData.qrPoints.some((point) => point.id === selectedQrId)) {
       return selectedQrId;
@@ -211,7 +210,9 @@ export function AttendanceWorkspace(props: AttendanceWorkspaceProps) {
         onRefresh={() => void handleManualRefresh()}
         onTabChange={setTab}
       />
-      {maintenance.active ? <AttendanceMaintenanceBanner message={maintenance.banner} /> : null}
+      {workspaceData.settings.test_mode_enabled ? (
+        <AttendanceTestModeBanner reason={workspaceData.settings.test_mode_reason} />
+      ) : null}
       <section className="overflow-hidden rounded-[var(--cs-r-lg)] border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
         <div className="border-b border-[var(--cs-border-soft)]">
           <AttendanceTabs activeTab={selectedTab} reviewCount={reviewCount} onTabChange={setTab} />
@@ -222,11 +223,7 @@ export function AttendanceWorkspace(props: AttendanceWorkspaceProps) {
               {notice.message}
             </WorkspaceNotice>
           ) : null}
-          <div
-            inert={maintenance.active}
-            aria-disabled={maintenance.active || undefined}
-            title={maintenance.active ? "Attendance maintenance mode is active" : undefined}
-          >
+          <div>
             <AttendanceTabContent
               data={workspaceData}
               selectedTab={selectedTab}

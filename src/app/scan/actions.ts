@@ -32,11 +32,6 @@ import type {
   BranchCorrectionReviewResult,
   BranchCorrectionScanDetails,
 } from "@/lib/staff/branch-correction-types";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  createAttendanceMaintenanceResult,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 type PublicScanInput = {
   publicCode: string;
@@ -221,7 +216,6 @@ function revalidatePublicScanResult(result: PublicScanResult): void {
 }
 
 function toPublicResult(result: PublicScanResult): PublicScanResult {
-  const resolution = result.resolution ?? withAttendanceScanResolution(result).resolution;
   return {
     ok: result.ok,
     outcome: result.outcome,
@@ -229,8 +223,8 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     severity: result.severity,
     title: result.title,
     message: result.message,
-    detail: result.detail,
     reviewLabel: result.reviewLabel,
+    isTest: result.isTest,
     securityNote: result.securityNote,
     scanEventId: result.scanEventId,
     operationId: result.operationId,
@@ -238,8 +232,9 @@ function toPublicResult(result: PublicScanResult): PublicScanResult {
     nextHref: result.nextHref,
     attendance: result.attendance,
     countdown: result.countdown,
-    branchCorrection: result.branchCorrection,
-    resolution,
+    branchCorrection: result.branchCorrection
+      ? { ...result.branchCorrection, deviceId: undefined }
+      : undefined,
   };
 }
 
@@ -413,13 +408,6 @@ export async function signInAndRegisterAttendanceDeviceAction(
 export async function requestBranchCorrectionAction(
   input: BranchCorrectionRequestInput
 ): Promise<BranchCorrectionRequestResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REQUEST_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const details = validateBranchCorrectionDetails(input);
   if (!details) {
     return {
@@ -467,13 +455,6 @@ export async function createBranchCorrectionRequestAction(
 export async function cancelOwnBranchCorrectionRequestAction(
   input: BranchCorrectionCancelInput
 ): Promise<BranchCorrectionReviewResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REVIEW_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   if (!isUuidLike(input.requestId)) {
     return {
       ok: false,
@@ -534,9 +515,6 @@ export async function processPublicQrScanAction(input: PublicScanInput): Promise
 }
 
 export async function activateDeviceAction(input: ActivationInput): Promise<PublicScanResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return createAttendanceMaintenanceResult({ operationId: input.requestId });
-  }
   const token = input.token?.trim();
   const operationId = normalizeAttendanceOperationId(input.requestId, "attendance-activation");
   if (!token) {
@@ -568,9 +546,6 @@ export async function activateDeviceAction(input: ActivationInput): Promise<Publ
 export async function consumeDeviceRecoveryLinkAction(
   input: RecoveryInput
 ): Promise<PublicScanResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return createAttendanceMaintenanceResult();
-  }
   const token = input.token?.trim();
   const operationId = normalizeAttendanceOperationId(null, "attendance-recovery");
   if (!token) {

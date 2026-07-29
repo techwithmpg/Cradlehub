@@ -6,10 +6,6 @@ import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
 import { z } from "zod";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,13 +13,7 @@ export type CheckinActionResult =
   | { ok: true; id: string; status: "checked_in" | "checked_out"; alreadyCheckedIn?: boolean }
   | {
       ok: false;
-      code:
-        | "UNAUTHORIZED"
-        | "NOT_FOUND"
-        | "CONFLICT"
-        | "ALREADY_CHECKED_OUT"
-        | "DB_ERROR"
-        | "ATTENDANCE_MAINTENANCE";
+      code: "UNAUTHORIZED" | "NOT_FOUND" | "CONFLICT" | "ALREADY_CHECKED_OUT" | "DB_ERROR";
       message: string;
     };
 
@@ -89,13 +79,6 @@ async function getCheckinContext(): Promise<CheckinContext | null> {
 // ── Check-in ──────────────────────────────────────────────────────────────────
 
 export async function checkInStaffForShiftAction(rawInput: unknown): Promise<CheckinActionResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "ATTENDANCE_MAINTENANCE",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const parsed = checkinInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     return {
@@ -193,13 +176,6 @@ export async function checkInStaffForShiftAction(rawInput: unknown): Promise<Che
 // ── Check-out ─────────────────────────────────────────────────────────────────
 
 export async function checkOutStaffForShiftAction(rawInput: unknown): Promise<CheckinActionResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "ATTENDANCE_MAINTENANCE",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const parsed = checkoutInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     return {

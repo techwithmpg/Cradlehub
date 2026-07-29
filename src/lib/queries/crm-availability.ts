@@ -10,7 +10,6 @@ import {
   isTimeWithinScheduleWindows,
   type ResolvedStaffScheduleSource,
 } from "@/lib/schedule/resolve-staff-schedule";
-import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 export type ScheduleStatus = "scheduled" | "off_today" | "no_schedule" | "conflict";
 
@@ -109,8 +108,7 @@ export async function getCrmAvailabilitySnapshot(params: {
   date: string;
   now?: Date;
 }): Promise<CrmAvailabilitySnapshot> {
-  const attendanceEnforcementPaused =
-    isAttendanceMaintenanceMode() || !isAttendanceEnforcementEnabled();
+  const attendanceEnforcementPaused = !isAttendanceEnforcementEnabled();
   const now = params.now ?? new Date();
   const nowTime = getBranchClockTime(now, BRANCH_TIMEZONE);
   const supabase = await createClient();

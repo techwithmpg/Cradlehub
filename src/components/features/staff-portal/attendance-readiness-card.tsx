@@ -52,37 +52,15 @@ function CheckRow({
 export function AttendanceReadinessCard({
   data,
   phoneState,
-  maintenanceActive = false,
 }: {
   data: StaffAttendanceData;
   phoneState: StaffAttendancePhoneState | null;
-  maintenanceActive?: boolean;
 }) {
   const phoneReady = Boolean(phoneState?.registeredDevice);
   const branchIssue = data.issues.some((issue) => issue.kind === "branch");
   const scheduleReady = data.scheduleState === "scheduled" || data.scheduleState === "day_off";
   const unresolvedCount = data.issues.length;
   const ready = phoneReady && !branchIssue && scheduleReady && unresolvedCount === 0;
-
-  if (maintenanceActive) {
-    return (
-      <Card className="border-amber-300 bg-amber-50/40">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <CalendarClock className="size-5 text-amber-700" />
-            Attendance scanning is paused
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-amber-950">
-          <p>Attendance changed: No</p>
-          <p>Attendance readiness and phone connection actions are read-only during maintenance.</p>
-          <p className="font-medium">
-            Record your arrival and departure with the front desk. Do not scan repeatedly.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card className="border-primary/20">

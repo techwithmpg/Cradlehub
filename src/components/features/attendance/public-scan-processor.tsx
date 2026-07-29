@@ -22,10 +22,10 @@ type PublicScanProcessorProps =
   | { mode: "scan"; publicCode: string }
   | { mode: "activation"; token: string };
 
-const RECOGNITION_DURATION_MS = 850;
-const MINIMUM_FLOW_DURATION_MS = 1750;
-const DEVICE_STAGE_DURATION_MS = 620;
-const ATTENDANCE_STAGE_DURATION_MS = 760;
+const RECOGNITION_DURATION_MS = 250;
+const MINIMUM_FLOW_DURATION_MS = 450;
+const DEVICE_STAGE_DURATION_MS = 350;
+const ATTENDANCE_STAGE_DURATION_MS = 450;
 
 type ProcessorStage = PublicScanStageName | "sign_in_required" | "result";
 

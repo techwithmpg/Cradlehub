@@ -15,7 +15,7 @@ export function CradleFlowRecentActivity({
 }) {
   const items = [
     ...attendance.items.slice(0, 4).map((scan) => ({
-      id: scan.eventId,
+      id: scan.rootOperationId ?? scan.eventId,
       time: formatAttendanceScanTime(scan.occurredAt, scan.timezone),
       title: `${scan.staffNickname || scan.staffName} ${getAttendanceScanEventLabel(scan).toLowerCase()}`,
       detail: scan.branchName ?? "Attendance",
@@ -35,7 +35,7 @@ export function CradleFlowRecentActivity({
         <div>
           <h2 className="text-sm font-extrabold">Recent Activity</h2>
           <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-            Live operational events from today.
+            Operational events from today.
           </p>
         </div>
         <Bell className="size-4 text-[var(--cs-sand-dark)]" />

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { CalendarDays, CheckCircle2, ClipboardPlus, LockKeyhole, WalletCards } from "lucide-react";
-import { AttendanceScanFeedCard } from "@/components/features/attendance/attendance-scan-feed-card";
+import { AttendanceScanFeedPanel } from "@/components/features/attendance/attendance-scan-feed-card";
+import type { AttendanceRealtimeStatus } from "@/components/features/attendance/use-attendance-scan-realtime";
 import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attendance/types";
 import type { ReadinessIssue, ReadinessStatus } from "@/types/readiness";
 
@@ -57,6 +58,10 @@ export function CradleFlowSideRail({
   branchName,
   attendanceDate,
   attendanceFeed,
+  attendanceRealtimeStatus,
+  attendanceRefreshing,
+  attendanceRefreshError,
+  onAttendanceRefresh,
   readinessStatus,
   readinessIssues,
   onAttendanceSelect,
@@ -65,6 +70,10 @@ export function CradleFlowSideRail({
   branchName: string;
   attendanceDate: string;
   attendanceFeed: AttendanceScanFeedData;
+  attendanceRealtimeStatus: AttendanceRealtimeStatus;
+  attendanceRefreshing: boolean;
+  attendanceRefreshError: string | null;
+  onAttendanceRefresh: () => void;
   readinessStatus: ReadinessStatus;
   readinessIssues: ReadinessIssue[];
   onAttendanceSelect: (scan: RecentAttendanceScan) => void;
@@ -80,13 +89,17 @@ export function CradleFlowSideRail({
         : "Needs attention";
   return (
     <aside className="grid min-w-0 gap-3 xl:sticky xl:top-4 xl:self-start">
-      <AttendanceScanFeedCard
+      <AttendanceScanFeedPanel
         workspace="crm"
         selectedDate={attendanceDate}
         branchId={attendanceFeed.branchId}
         branchName={branchName}
         feed={attendanceFeed}
         maxItems={4}
+        realtimeStatus={attendanceRealtimeStatus}
+        isValidating={attendanceRefreshing}
+        refreshError={attendanceRefreshError}
+        onRefresh={onAttendanceRefresh}
         onScanSelect={onAttendanceSelect}
         className="rounded-xl"
       />

@@ -3,9 +3,10 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asAttendanceDb, type AttendanceDb } from "@/lib/attendance/db";
 import {
-  mapRecentScan,
-  type RecentScanRow,
-} from "@/lib/attendance/recent-scans-map";
+  collapseRecentAttendanceScans,
+  countAttendanceScanOperations,
+} from "@/lib/attendance/recent-scan-grouping";
+import { mapRecentScan, type RecentScanRow } from "@/lib/attendance/recent-scans-map";
 import { attendanceDateBoundaryIso } from "@/lib/attendance/recent-scans-time";
 import type {
   AttendanceScanFeedData,
@@ -83,6 +84,7 @@ export async function getRecentAttendanceScanFeed(
 ): Promise<AttendanceScanFeedData> {
   const admin = asAttendanceDb(createAdminClient());
   const limit = safeLimit(params.maxItems);
+  const queryLimit = Math.min(100, Math.max(limit * 6, 24));
   const timezone = await resolveFeedTimezone(admin, params.branchId);
   const startIso = attendanceDateBoundaryIso(params.selectedDate, timezone);
   const endIso = attendanceDateBoundaryIso(params.selectedDate, timezone, 1);
@@ -99,6 +101,8 @@ export async function getRecentAttendanceScanFeed(
       "outcome",
       "reason_code",
       "message",
+      "request_id",
+      "operation_id",
       "created_at",
       "staff(id, full_name, nickname, avatar_url)",
       "branches(id, name)",
@@ -109,27 +113,34 @@ export async function getRecentAttendanceScanFeed(
     .gte("created_at", startIso)
     .lt("created_at", endIso)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(queryLimit);
 
-  const countQuery = baseScanQuery(admin, params.branchId, "id", {
-    count: "exact",
-    head: true,
-  })
-    .gte("created_at", oneHourAgoIso);
+  const lastHourQuery = baseScanQuery(admin, params.branchId, "id, request_id, operation_id")
+    .gte("created_at", oneHourAgoIso)
+    .order("created_at", { ascending: false })
+    .limit(500);
 
-  const [scanResult, countResult] = await Promise.all([scanQuery, countQuery]);
+  const [scanResult, lastHourResult] = await Promise.all([scanQuery, lastHourQuery]);
   if (scanResult.error) throw new Error(scanResult.error.message);
-  if (countResult.error) throw new Error(countResult.error.message);
+  if (lastHourResult.error) throw new Error(lastHourResult.error.message);
+
+  const mapped = ((scanResult.data ?? []) as unknown as RecentScanRow[])
+    .map((row) => mapRecentScan(row, { ...params, timezone }))
+    .filter((row): row is RecentAttendanceScan => row !== null);
 
   return {
     selectedDate: params.selectedDate,
     timezone,
     branchId: params.branchId ?? null,
     branchName: params.branchName ?? null,
-    items: ((scanResult.data ?? []) as unknown as RecentScanRow[])
-      .map((row) => mapRecentScan(row, { ...params, timezone }))
-      .filter((row): row is RecentAttendanceScan => row !== null),
-    lastHourCount: countResult.count ?? 0,
+    items: collapseRecentAttendanceScans(mapped, limit),
+    lastHourCount: countAttendanceScanOperations(
+      (lastHourResult.data ?? []) as unknown as Array<{
+        id: string;
+        request_id?: string | null;
+        operation_id?: string | null;
+      }>
+    ),
     error: null,
   };
 }

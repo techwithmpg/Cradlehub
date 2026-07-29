@@ -3,7 +3,6 @@ import { ArrowRight, CalendarClock, CheckCircle2, Clock3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { StaffAttendanceData } from "@/lib/staff-portal/attendance";
 import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staff-attendance-clock-out";
-import { getAttendanceMaintenanceState } from "@/lib/attendance/maintenance-mode";
 
 const DEFAULT_PORTAL_CLOCK_OUT = {
   enabled: false,
@@ -22,7 +21,6 @@ function clockLabel(state: StaffAttendanceData["currentClockState"]): string {
 
 export function StaffAttendanceSummary({ data }: { data: StaffAttendanceData }) {
   const record = data.currentRecord;
-  const maintenance = getAttendanceMaintenanceState();
   return (
     <section
       className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"
@@ -86,7 +84,6 @@ export function StaffAttendanceSummary({ data }: { data: StaffAttendanceData }) 
       <StaffAttendanceClockOut
         availability={data.portalClockOut ?? DEFAULT_PORTAL_CLOCK_OUT}
         timezone={data.todayState.timezone}
-        maintenance={maintenance}
       />
     </section>
   );

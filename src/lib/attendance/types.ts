@@ -373,6 +373,8 @@ export type RecentAttendanceScan = {
   clockInAt: string | null;
   clockOutAt: string | null;
   sourceLabel: string | null;
+  operationId?: string | null;
+  rootOperationId?: string;
 };
 
 export type AttendanceScanFeedData = {
@@ -427,6 +429,7 @@ export type AttendanceWorkspaceData = {
   devices: AttendanceDevice[];
   deviceRegistry: AttendanceDeviceRegistryData;
   records: AttendanceRecord[];
+  testRecords: AttendanceRecord[];
   exceptions: AttendanceException[];
   corrections: AttendanceCorrection[];
   scanEvents: AttendanceScanEvent[];
@@ -434,7 +437,6 @@ export type AttendanceWorkspaceData = {
   dailyStaffStates: import("@/lib/attendance/day-model").AttendanceDayStaffState[];
   staffOptions: Array<{ id: string; full_name: string; staff_type: string | null }>;
   resourceOptions: Array<{ id: string; name: string; type: string | null; is_active: boolean }>;
-  maintenance?: import("@/lib/attendance/maintenance-mode").AttendanceMaintenanceState;
 };
 
 export type PublicScanResult = {

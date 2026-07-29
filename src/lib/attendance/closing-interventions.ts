@@ -3,7 +3,6 @@ import "server-only";
 import { asAttendanceDb } from "@/lib/attendance/db";
 import { logError, logInfo } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 
 export const CLOSING_INTERVENTION_STAGES = [
   "reminder",
@@ -24,7 +23,6 @@ export type ClosingInterventionRunResult = {
   failed: number;
   autoClosed: number;
   activeServiceBlocks: number;
-  maintenanceMode?: boolean;
 };
 
 export function isClosingInterventionStage(value: unknown): value is ClosingInterventionStage {
@@ -58,7 +56,6 @@ function sanitizeSummary(
     failed: numberValue(value.failed),
     autoClosed: numberValue(value.autoClosed),
     activeServiceBlocks: numberValue(value.activeServiceBlocks),
-    maintenanceMode: false,
   };
 }
 
@@ -67,20 +64,6 @@ export async function runClosingAttendanceInterventions(
   processedAt = new Date(),
   batchSize = 50
 ): Promise<ClosingInterventionRunResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      stage,
-      processedAt: processedAt.toISOString(),
-      batchSize: Math.max(0, batchSize),
-      examined: 0,
-      applied: 0,
-      skipped: 0,
-      failed: 0,
-      autoClosed: 0,
-      activeServiceBlocks: 0,
-      maintenanceMode: true,
-    };
-  }
   const admin = asAttendanceDb(createAdminClient());
   const { data, error } = await admin.rpc("process_due_attendance_closing_interventions", {
     p_stage: stage,

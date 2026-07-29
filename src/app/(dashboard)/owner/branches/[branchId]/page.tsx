@@ -11,7 +11,6 @@ import { BranchResourcesManager } from "./branch-resources-manager";
 import { BranchServicesPanel } from "./branch-services-panel";
 import { BranchAttendanceRulesCard } from "./branch-attendance-rules-card";
 import { getBranchAttendanceRulesData } from "@/lib/attendance/branch-attendance-rules";
-import { getAttendanceMaintenanceState } from "@/lib/attendance/maintenance-mode";
 import type { GlobalService } from "./branch-services-panel";
 import type { Database } from "@/types/supabase";
 
@@ -83,7 +82,6 @@ export default async function BranchDetailPage({
   }
 
   const { branch, services, staff, resources } = result;
-  const attendanceMaintenance = getAttendanceMaintenanceState();
   await ensureBranchSetupWarningNotifications(branch.id);
   const activeStaffCount = staff.filter((s) => s.is_active).length;
 
@@ -91,11 +89,7 @@ export default async function BranchDetailPage({
     <div>
       <PageHeader title={branch.name} description={branch.address} />
 
-      <BranchAttendanceRulesCard
-        branchId={branch.id}
-        data={attendanceRules}
-        maintenance={attendanceMaintenance}
-      />
+      <BranchAttendanceRulesCard branchId={branch.id} data={attendanceRules} />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>

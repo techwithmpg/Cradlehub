@@ -8,14 +8,10 @@ import { getOwnAttendancePhoneState } from "@/lib/attendance/device-registration
 import { ATTENDANCE_REGISTRATION_COOKIE_NAME } from "@/lib/attendance/scan-continuation";
 import { DEVICE_COOKIE_NAME } from "@/lib/attendance/tokens";
 import { getMyAttendanceData } from "@/lib/staff-portal/attendance";
-import { getAttendanceMaintenanceState } from "@/lib/attendance/maintenance-mode";
-import { AttendanceMaintenanceBanner } from "@/components/features/attendance/attendance-maintenance-banner";
 
 export default async function StaffAttendancePage() {
   const data = await getMyAttendanceData(90);
   if (!data) redirect("/login");
-  const maintenance = getAttendanceMaintenanceState();
-
   const cookieStore = await cookies();
   let phoneState: Awaited<ReturnType<typeof getOwnAttendancePhoneState>> = null;
   try {
@@ -36,17 +32,7 @@ export default async function StaffAttendancePage() {
         icon="🕒"
       />
       <div className="mt-6 space-y-5">
-        {maintenance.active ? (
-          <AttendanceMaintenanceBanner
-            title={maintenance.title}
-            message={`${maintenance.message} ${maintenance.instruction}`}
-          />
-        ) : null}
-        <AttendanceReadinessCard
-          data={data}
-          phoneState={phoneState}
-          maintenanceActive={maintenance.active}
-        />
+        <AttendanceReadinessCard data={data} phoneState={phoneState} />
         <StaffAttendanceHistory data={data} />
       </div>
       <StaffAttendanceRealtime staffId={data.staffId} />

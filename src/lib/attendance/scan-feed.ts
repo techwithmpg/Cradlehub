@@ -1,7 +1,4 @@
-import type {
-  AttendanceScanFeedWorkspace,
-  RecentAttendanceScan,
-} from "@/lib/attendance/types";
+import type { AttendanceScanFeedWorkspace, RecentAttendanceScan } from "@/lib/attendance/types";
 
 const MAX_COMPLETED_SHIFT_MINUTES = 16 * 60;
 const CLOCK_DIFF_TOLERANCE_MINUTES = 2;
@@ -50,13 +47,14 @@ export function getAttendanceScanInitials(name: string): string {
 }
 
 export function getAttendanceScanEventLabel(scan: RecentAttendanceScan): string {
+  if (scan.reasonCode === "unknown_device" || scan.reasonCode === "device_not_registered") {
+    return "Connecting phone";
+  }
   if (scan.eventType === "clock_out") return "Clocked out";
   if (scan.eventType === "clock_in") return "Clocked in";
   if (scan.eventType === "duplicate_scan") return "Duplicate scan";
   if (scan.eventType === "recovery_required") return "Needs review";
-  return scan.eventType
-    .replaceAll("_", " ")
-    .replace(/^\w/, (letter) => letter.toUpperCase());
+  return scan.eventType.replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
 export function formatAttendanceScanTime(value: string, timezone: string): string {
@@ -119,10 +117,7 @@ function timestampMs(value: string | null): number | null {
 }
 
 export function attendanceCompletedDurationNeedsReview(
-  scan: Pick<
-    RecentAttendanceScan,
-    "eventType" | "workedMinutes" | "clockInAt" | "clockOutAt"
-  >
+  scan: Pick<RecentAttendanceScan, "eventType" | "workedMinutes" | "clockInAt" | "clockOutAt">
 ): boolean {
   if (scan.eventType !== "clock_out") return false;
 
@@ -139,15 +134,10 @@ export function attendanceCompletedDurationNeedsReview(
 
   if (scan.workedMinutes === null) return false;
   const clockDurationMinutes = Math.round((clockOutMs - clockInMs) / 60000);
-  return (
-    Math.abs(clockDurationMinutes - scan.workedMinutes) >
-    CLOCK_DIFF_TOLERANCE_MINUTES
-  );
+  return Math.abs(clockDurationMinutes - scan.workedMinutes) > CLOCK_DIFF_TOLERANCE_MINUTES;
 }
 
-export function getAttendanceScanDurationDetail(
-  scan: RecentAttendanceScan
-): string | null {
+export function getAttendanceScanDurationDetail(scan: RecentAttendanceScan): string | null {
   if (scan.eventType !== "clock_out") return null;
   if (attendanceCompletedDurationNeedsReview(scan)) return null;
   if (scan.workedMinutes === null || scan.workedMinutes <= 0) return null;

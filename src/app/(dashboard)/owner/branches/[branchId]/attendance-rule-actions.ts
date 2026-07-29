@@ -19,10 +19,6 @@ import { logBusinessEvent, logError } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/supabase";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 export type SaveBranchAttendanceRulesInput = {
   branchId: string;
@@ -115,9 +111,6 @@ export async function saveBranchAttendanceRulesAction(
     }
   | { success: false; error: string }
 > {
-  if (isAttendanceMaintenanceMode()) {
-    return { success: false, error: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE };
-  }
   const owner = await requireOwnerContext();
   if (!owner) return { success: false, error: "Unauthorized" };
   if (!input.branchId || !(await branchExists(input.branchId))) {
@@ -187,9 +180,6 @@ export async function saveAttendanceCategoryRuleAction(
     }
   | { success: false; error: string }
 > {
-  if (isAttendanceMaintenanceMode()) {
-    return { success: false, error: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE };
-  }
   const owner = await requireOwnerContext();
   if (!owner) return { success: false, error: "Unauthorized" };
   if (!input.branchId || !(await branchExists(input.branchId))) {

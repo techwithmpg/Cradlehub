@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { AlertCircle, Copy, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
+import { AlertCircle, Copy, Loader2, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { PasswordInput } from "@/components/shared/password-input";
@@ -46,18 +46,13 @@ export function PublicScanLoginForm({
     if (!pending) onSubmit();
   }
 
-  const problemCode =
-    issueResult?.resolution?.safeErrorCode ??
-    issueResult?.reasonCode?.toUpperCase() ??
-    "PHONE_NOT_CONNECTED";
+  const problemCode = issueResult?.reasonCode?.toUpperCase() ?? "PHONE_NOT_CONNECTED";
   const supportReceipt = receipt(issueResult ?? null, requestId);
   const supportText = [
-    "Attendance issue",
-    `Problem: ${issueResult?.resolution?.title ?? "This browser is not connected"}`,
+    "Attendance phone connection",
     `Code: ${problemCode}`,
     `Receipt: ${supportReceipt}`,
     "Attendance changed: No",
-    "Next action: Sign in and connect this browser",
   ].join("\n");
 
   async function copySupportDetails() {
@@ -71,25 +66,8 @@ export function PublicScanLoginForm({
 
       <div className={styles.loginHeading}>
         <p className={styles.eyebrow}>Attendance connection</p>
-        <h1>This browser is not connected</h1>
-        <p>
-          This browser cannot submit Attendance yet. Sign in with your own staff account to connect
-          this browser. Keep this page open; the original scan will continue automatically.
-        </p>
-      </div>
-
-      <div className="grid w-full gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-950">
-        <strong>No Attendance change was made.</strong>
-        <span>Problem code: {problemCode}</span>
-        <span>Scan receipt: {supportReceipt}</span>
-        <span>Scan once. Do not refresh or scan repeatedly.</span>
-        <button
-          type="button"
-          onClick={copySupportDetails}
-          className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 font-semibold"
-        >
-          <Copy size={15} aria-hidden="true" /> Copy support details
-        </button>
+        <h1>Connect this phone</h1>
+        <p>Sign in once to connect this browser and continue your original Attendance scan.</p>
       </div>
 
       <form className={styles.loginForm} onSubmit={handleSubmit}>
@@ -136,25 +114,34 @@ export function PublicScanLoginForm({
           {fieldErrors?.password ? <small>{fieldErrors.password}</small> : null}
         </div>
 
-        <div className={styles.loginTrustNote}>
-          <ShieldCheck size={17} aria-hidden="true" />
-          <span>
-            To keep Attendance connected, do not clear Cookies and site data, Site settings, or all
-            browser storage.
-          </span>
-        </div>
-
         <button type="submit" className={styles.loginSubmitButton} disabled={pending}>
           {pending ? (
             <>
               <Loader2 size={17} className={styles.loginSpinner} aria-hidden="true" />
-              Connecting this browser…
+              Connecting this phone…
             </>
           ) : (
-            "Sign in, connect this browser and finish scan"
+            "Connect phone and finish scan"
           )}
         </button>
       </form>
+
+      <details className="w-full rounded-xl border border-stone-200 bg-white p-3 text-left text-sm text-stone-700">
+        <summary className="cursor-pointer font-semibold text-stone-900">Need help?</summary>
+        <div className="mt-3 grid gap-2">
+          <span>Problem code: {problemCode}</span>
+          <span>Scan receipt: {supportReceipt}</span>
+          <span>Do not refresh or scan repeatedly.</span>
+          <span>Keep browser cookies and site data enabled so this phone stays connected.</span>
+          <button
+            type="button"
+            onClick={copySupportDetails}
+            className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 font-semibold"
+          >
+            <Copy size={15} aria-hidden="true" /> Copy support details
+          </button>
+        </div>
+      </details>
     </section>
   );
 }

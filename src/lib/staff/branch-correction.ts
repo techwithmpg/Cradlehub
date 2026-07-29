@@ -39,10 +39,6 @@ import type {
   BranchCorrectionScanDetails,
   BranchCorrectionStatus,
 } from "./branch-correction-types";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 import type { PublicScanResult } from "@/lib/attendance/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -363,13 +359,6 @@ export async function createBranchCorrectionRequestForScan(params: {
   reason?: string | null;
   userAgent?: string | null;
 }): Promise<BranchCorrectionRequestResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REQUEST_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const admin = createAdminClient();
   const point = await loadAttendanceQrPoint(admin, params.details);
   const pointBranch = first(point?.branches);
@@ -396,7 +385,7 @@ export async function createBranchCorrectionRequestForScan(params: {
     ? await loadStaffForDeviceCredential(admin, params.rawDeviceCredential, params.details.staffId)
     : null;
   const staff = authStaff ?? deviceStaff?.staff ?? null;
-  const deviceId = params.details.deviceId ?? deviceStaff?.deviceId ?? null;
+  const deviceId = deviceStaff?.deviceId ?? params.details.deviceId ?? null;
 
   if (!staff) {
     return {
@@ -1060,13 +1049,6 @@ export async function resolveBranchCorrectionRequestForActor(params: {
   actor: BranchCorrectionActor & { staffId: string; authUserId: string };
   input: BranchCorrectionResolutionInput;
 }): Promise<BranchCorrectionReviewResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REVIEW_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const admin = createAdminClient();
   const request = await loadResolutionRequest(admin, params.input.requestId);
   if (!request) {
@@ -1278,13 +1260,6 @@ export async function rejectBranchCorrectionScanForActor(params: {
   requestId: string;
   reason: string;
 }): Promise<BranchCorrectionReviewResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REVIEW_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const admin = createAdminClient();
   const request = await loadResolutionRequest(admin, params.requestId);
   if (!request) {
@@ -1385,13 +1360,6 @@ export async function reviewBranchCorrectionRequestForActor(params: {
   status: BranchCorrectionReviewStatus;
   reviewerNote?: string | null;
 }): Promise<BranchCorrectionReviewResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REVIEW_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const admin = createAdminClient();
   const { data: request, error: requestError } = await admin
     .from("staff_branch_change_requests")
@@ -1453,13 +1421,6 @@ export async function cancelBranchCorrectionRequestForActor(params: {
   actor: BranchCorrectionActor & { staffId: string };
   requestId: string;
 }): Promise<BranchCorrectionReviewResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REVIEW_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const admin = createAdminClient();
   const { data: request, error } = await admin
     .from("staff_branch_change_requests")
@@ -1532,13 +1493,6 @@ export async function cancelOwnBranchCorrectionRequestForScan(params: {
   rawDeviceCredential?: string | null;
   requestId: string;
 }): Promise<BranchCorrectionReviewResult> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      ok: false,
-      code: "REVIEW_FAILED",
-      message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-    };
-  }
   const admin = createAdminClient();
   const { data: request, error } = await admin
     .from("staff_branch_change_requests")

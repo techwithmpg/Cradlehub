@@ -71,12 +71,10 @@ export function AttendanceCategoryRulesEditor({
   branchId,
   categories,
   onSaved,
-  maintenanceActive = false,
 }: {
   branchId: string;
   categories: BranchAttendanceCategoryRule[];
   onSaved: (data: BranchAttendanceRulesData) => void;
-  maintenanceActive?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const categoryItems = useMemo(
@@ -218,7 +216,6 @@ export function AttendanceCategoryRulesEditor({
                   variant="ghost"
                   size="sm"
                   aria-label={`Edit ${row.label}`}
-                  disabled={maintenanceActive}
                   onClick={() => chooseCategory(row.category)}
                 >
                   Edit
@@ -229,11 +226,7 @@ export function AttendanceCategoryRulesEditor({
         </TableBody>
       </Table>
 
-      <div
-        className="rounded-lg border p-4"
-        inert={maintenanceActive}
-        aria-disabled={maintenanceActive || undefined}
-      >
+      <div className="rounded-lg border p-4">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="grid gap-2 md:col-span-3">
             <Label htmlFor="attendance-category">Edit category</Label>
@@ -368,7 +361,7 @@ export function AttendanceCategoryRulesEditor({
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button type="button" onClick={submit} disabled={isPending || maintenanceActive}>
+          <Button type="button" onClick={submit} disabled={isPending}>
             <Save data-icon="inline-start" />
             {isPending ? "Saving..." : "Save category override"}
           </Button>

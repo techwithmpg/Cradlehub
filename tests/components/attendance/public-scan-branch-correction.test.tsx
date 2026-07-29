@@ -44,19 +44,17 @@ describe("PublicScanResultView branch correction", () => {
   it("shows the wrong-branch correction option with both branch names", () => {
     const onRequest = vi.fn();
 
-    render(
-      <PublicScanResultView
-        result={baseResult}
-        onRequestBranchCorrection={onRequest}
-      />
-    );
+    render(<PublicScanResultView result={baseResult} onRequestBranchCorrection={onRequest} />);
 
-    expect(screen.getByRole("heading", { name: "Wrong branch detected" })).toBeTruthy();
-    expect(screen.getByText("Your profile is currently assigned to")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "This QR belongs to Cradle Wellness Main Spa" })
+    ).toBeTruthy();
     expect(screen.getByText("Cradle Wellness Living SM")).toBeTruthy();
-    expect(screen.getByText("This QR is for")).toBeTruthy();
     expect(screen.getByText("Cradle Wellness Main Spa")).toBeTruthy();
-    expect(screen.getByText("If this is wrong, request branch correction.")).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      "Your profile is assigned to Cradle Wellness Living SM. No Attendance change was made."
+    );
+    expect(screen.getByRole("button", { name: "Use another account" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Request branch correction/i }));
     expect(onRequest).toHaveBeenCalledWith(baseResult.branchCorrection);
@@ -83,10 +81,13 @@ describe("PublicScanResultView branch correction", () => {
       />
     );
 
-    expect(screen.getByText("Branch correction request already pending.")).toBeTruthy();
-    expect(screen.getByText(/Requested branch: Cradle Wellness Main Spa/)).toBeTruthy();
+    expect(screen.getByText("Branch correction is already pending.")).toBeTruthy();
+    expect(screen.getByText("Wait for the front desk. Do not scan again.")).toBeTruthy();
+    expect(document.body.textContent).toContain("No Attendance change was made.");
 
-    const button = screen.getByRole("button", { name: /Request branch correction/i }) as HTMLButtonElement;
+    const button = screen.getByRole("button", {
+      name: /Request branch correction/i,
+    }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     fireEvent.click(button);
     expect(onRequest).not.toHaveBeenCalled();

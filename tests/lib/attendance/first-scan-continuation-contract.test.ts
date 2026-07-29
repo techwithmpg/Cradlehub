@@ -27,9 +27,9 @@ describe("first attendance scan continuation contract", () => {
   });
 
   it("keeps the connection copy and hides unknown-device output behind the login state", () => {
-    expect(loginForm).toContain("This browser is not connected");
-    expect(loginForm).toContain("Sign in, connect this browser and finish scan");
-    expect(loginForm).toContain("Connecting this browser…");
+    expect(loginForm).toContain("Connect this phone");
+    expect(loginForm).toContain("Connect phone and finish scan");
+    expect(loginForm).toContain("Connecting this phone…");
     expect(processor).toContain('if (mode === "scan" && isMissingDeviceResult(nextResult))');
     expect(processor).toContain("setResult(null)");
     expect(processor).toContain('setStage("sign_in_required")');

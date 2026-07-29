@@ -46,10 +46,6 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOrUpdateNotification } from "@/lib/notifications/workflow-notifications-store";
 import { createOrUpdateWorkflowTask } from "@/lib/notifications/workflow-task-store";
-import {
-  ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 export type AttendanceActionResult =
   | { ok: false; tab?: AttendanceTab; message: string }
@@ -187,14 +183,8 @@ export async function loadAttendanceHistoryAction(input: {
 
 async function getContextOrResult(
   tab?: AttendanceTab,
-  branchId?: string | null,
-  allowDuringMaintenance = false
+  branchId?: string | null
 ): Promise<{ ctx: AttendanceContext } | { result: AttendanceActionResult }> {
-  if (!allowDuringMaintenance && isAttendanceMaintenanceMode()) {
-    return {
-      result: { ok: false, tab, message: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE },
-    };
-  }
   const ctx = await getAttendanceActionContext({ branchId });
   if (!ctx) {
     return {
@@ -211,13 +201,6 @@ async function getContextOrResult(
 async function getDeviceContext(
   branchId?: string | null
 ): Promise<DeviceActionResult<AttendanceContext>> {
-  if (isAttendanceMaintenanceMode()) {
-    return {
-      success: false,
-      error: ATTENDANCE_MAINTENANCE_ACTION_MESSAGE,
-      code: "attendance_maintenance",
-    };
-  }
   const ctx = await getAttendanceActionContext({ branchId });
   if (!ctx) {
     return {
@@ -275,7 +258,7 @@ export async function ensureAttendanceQrAction(): Promise<AttendanceActionResult
 }
 
 export async function ensureRoomQrPointsAction(): Promise<AttendanceActionResult> {
-  const context = await getContextOrResult("qr", null, true);
+  const context = await getContextOrResult("qr");
   if ("result" in context) return context.result;
 
   try {
@@ -862,7 +845,7 @@ export async function updateAttendanceRulesAction(
 }
 
 export async function completeDueServiceSessionsAction(): Promise<AttendanceActionResult> {
-  const context = await getContextOrResult("sessions", null, true);
+  const context = await getContextOrResult("sessions");
   if ("result" in context) return context.result;
 
   try {
@@ -885,7 +868,7 @@ export async function completeDueServiceSessionsAction(): Promise<AttendanceActi
 }
 
 export async function deactivateQrPointAction(formData: FormData): Promise<AttendanceActionResult> {
-  const context = await getContextOrResult("qr", null, true);
+  const context = await getContextOrResult("qr");
   if ("result" in context) return context.result;
 
   const qrPointId = String(formData.get("qrPointId") ?? "");

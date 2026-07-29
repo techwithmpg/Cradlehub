@@ -18,10 +18,6 @@ import {
 } from "@/lib/notifications/workflow-task-store";
 import type { AttendanceActionContext } from "@/lib/attendance/queries";
 import type { Json } from "@/types/supabase";
-import {
-  assertAttendanceWritable,
-  isAttendanceMaintenanceMode,
-} from "@/lib/attendance/maintenance-mode";
 
 export type StaffDeviceRegistrationRequestType = "new_phone" | "replacement";
 export type StaffDeviceRegistrationRequestStatus =
@@ -267,14 +263,12 @@ export async function getOwnAttendancePhoneState(
     requestRow.expires_at &&
     new Date(requestRow.expires_at).getTime() <= Date.now()
   ) {
-    if (!isAttendanceMaintenanceMode()) {
-      const admin = asAttendanceDb(createAdminClient());
-      await admin
-        .from("staff_device_registration_requests")
-        .update({ status: "expired" })
-        .eq("id", requestRow.id)
-        .eq("status", "approved");
-    }
+    const admin = asAttendanceDb(createAdminClient());
+    await admin
+      .from("staff_device_registration_requests")
+      .update({ status: "expired" })
+      .eq("id", requestRow.id)
+      .eq("status", "approved");
     requestRow = { ...requestRow, status: "expired" };
   }
   return {
@@ -307,7 +301,6 @@ export async function requestAttendancePhoneRegistration(params: {
   requestType: StaffDeviceRegistrationRequestType;
   existingDeviceId?: string | null;
 }): Promise<StaffDeviceRegistrationRequest> {
-  assertAttendanceWritable();
   const auth = await getAuthenticatedStaff();
   if (!auth) throw new Error("Your staff account is not active.");
   const admin = asAttendanceDb(createAdminClient());
@@ -377,7 +370,6 @@ export async function requestAttendancePhoneRegistration(params: {
 }
 
 export async function cancelOwnAttendancePhoneRequest(requestId: string): Promise<void> {
-  assertAttendanceWritable();
   const auth = await getAuthenticatedStaff();
   if (!auth) throw new Error("Your staff account is not active.");
   const admin = asAttendanceDb(createAdminClient());
@@ -402,7 +394,6 @@ export async function completeOwnAttendancePhoneRequest(params: {
   rawCredential: string;
   userAgent?: string | null;
 }): Promise<{ deviceId: string }> {
-  assertAttendanceWritable();
   const auth = await getAuthenticatedStaff();
   if (!auth) throw new Error("Your staff account is not active.");
   const hints = inferDeviceClientHints(params.userAgent);
@@ -447,7 +438,6 @@ export async function completeOwnAttendancePhoneRequest(params: {
 }
 
 export async function renameOwnAttendanceDevice(deviceId: string, label: string): Promise<void> {
-  assertAttendanceWritable();
   const auth = await getAuthenticatedStaff();
   if (!auth) throw new Error("Your staff account is not active.");
   const trimmed = label.trim();
@@ -505,7 +495,6 @@ export async function reviewStaffDeviceRegistrationRequest(params: {
   rejectionReason?: StaffDeviceRegistrationRejectionReason | null;
   replacementDeviceId?: string | null;
 }): Promise<StaffDeviceRegistrationRequest> {
-  assertAttendanceWritable();
   const supabase = await createClient();
   const {
     data: { user },
@@ -562,7 +551,6 @@ export async function reconcileFirstScanDeviceRegistration(params: {
   deviceId: string;
   rawCredential: string;
 }): Promise<void> {
-  if (isAttendanceMaintenanceMode()) return;
   const admin = asAttendanceDb(createAdminClient());
   const fingerprint = hashSecret(params.rawCredential);
   const result = await admin
@@ -646,7 +634,6 @@ export async function resolveFirstScanUnknownDeviceIncident(params: {
   deviceId: string;
   registrationOperationId?: string | null;
 }): Promise<void> {
-  if (isAttendanceMaintenanceMode()) return;
   const requestId = rootAttendanceScanRequestId(params.registrationOperationId);
   if (!requestId) return;
 

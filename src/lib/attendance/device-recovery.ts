@@ -20,7 +20,6 @@ import type {
   RecoveryLinkResult,
   RecoveryTokenPreview,
 } from "@/lib/attendance/types";
-import { assertAttendanceWritable } from "@/lib/attendance/maintenance-mode";
 
 export type DeviceActionResult<T> =
   | {
@@ -288,7 +287,6 @@ export async function generateDeviceRecoveryLink(params: {
   input: GenerateDeviceRecoveryInput;
   origin?: string | null;
 }): Promise<RecoveryLinkResult> {
-  assertAttendanceWritable();
   const staffId = trimInput(params.input.staffId);
   const branchId = trimInput(params.input.branchId);
   if (!staffId) throw new Error("Choose a staff member.");
@@ -377,7 +375,6 @@ export async function renameAttendanceDevice(params: {
   deviceId: string;
   label: string;
 }): Promise<{ deviceId: string; label: string }> {
-  assertAttendanceWritable();
   const deviceId = trimInput(params.deviceId);
   const label = trimInput(params.label);
   if (!deviceId) throw new Error("Device ID is missing.");
@@ -406,7 +403,6 @@ export async function revokeAttendanceDeviceWithReason(params: {
   deviceId: string;
   reason: DeviceRevocationReason;
 }): Promise<{ deviceId: string; reason: DeviceRevocationReason }> {
-  assertAttendanceWritable();
   const deviceId = trimInput(params.deviceId);
   if (!deviceId) throw new Error("Device ID is missing.");
   if (!isRevocationReason(params.reason)) throw new Error("Choose a valid revocation reason.");
@@ -435,7 +431,6 @@ export async function revokeDeviceRecoveryLink(params: {
   ctx: AttendanceActionContext;
   tokenId: string;
 }): Promise<{ tokenId: string }> {
-  assertAttendanceWritable();
   const tokenId = trimInput(params.tokenId);
   if (!tokenId) throw new Error("Recovery link ID is missing.");
 
@@ -499,7 +494,6 @@ export async function consumeDeviceRecoveryLink(params: {
   rawToken: string;
   userAgent?: string | null;
 }): Promise<ConsumeDeviceRecoveryResult> {
-  assertAttendanceWritable();
   const token = trimInput(params.rawToken);
   if (!token) return consumeFailure("invalid_token");
 
@@ -549,7 +543,6 @@ export async function consumeProfileDeliveredDeviceRecovery(params: {
   tokenId: string;
   userAgent?: string | null;
 }): Promise<ConsumeDeviceRecoveryResult> {
-  assertAttendanceWritable();
   const tokenId = trimInput(params.tokenId);
   if (!tokenId) return consumeFailure("invalid_token");
 

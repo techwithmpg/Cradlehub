@@ -53,7 +53,7 @@ export function CradleFlowCheckoutDialog({
       return "Add an authorization reason for a partial payment.";
     }
     return null;
-  }, [finalSettlement, paymentAction, reason, received]);
+  }, [balance, finalSettlement, paymentAction, reason, received]);
 
   function submit() {
     if (!booking || !paymentAction || error) return;

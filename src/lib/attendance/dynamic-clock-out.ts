@@ -2,7 +2,6 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/supabase";
-import { assertAttendanceWritable } from "@/lib/attendance/maintenance-mode";
 
 export type DynamicClockOutSource =
   | "schedule"
@@ -111,7 +110,6 @@ export async function recalculateAttendanceClockOutPolicy(
   checkinId: string,
   calculatedAt = new Date().toISOString()
 ): Promise<DynamicClockOutPolicy> {
-  assertAttendanceWritable();
   const { data, error } = await db.rpc("recalculate_attendance_clock_out_policy", {
     p_checkin_id: checkinId,
     p_calculated_at: calculatedAt,

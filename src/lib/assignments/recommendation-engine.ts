@@ -6,7 +6,6 @@ import {
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
 import { isAttendanceEnforcementEnabled } from "@/lib/config/mvp-flags";
-import { isAttendanceMaintenanceMode } from "@/lib/attendance/maintenance-mode";
 import {
   doesDurationFitWithinScheduleWindows,
   resolveScheduleForStaffDay,
@@ -305,7 +304,6 @@ function hasActiveCheckinsForDate(bookingDate: string, checkins: CheckinForScori
 
 function shouldUseAttendancePreference(ctx: RecommendationContext): boolean {
   return (
-    !isAttendanceMaintenanceMode() &&
     ctx.bookingMode === "walkin" &&
     !ctx.isHomeService &&
     ctx.bookingDate === getBranchBusinessDate()

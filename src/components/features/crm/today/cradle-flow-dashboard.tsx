@@ -7,6 +7,7 @@ import {
   crmStartServiceAction,
   markBookingArrivedAction,
 } from "@/app/(dashboard)/crm/bookings/actions";
+import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import {
   getCradleFlowCounts,
@@ -58,6 +59,13 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   const [totalsOpen, setTotalsOpen] = useState(false);
   const [collected, setCollected] = useState(props.snapshot.payment?.total_collected ?? 0);
   const [isActing, startAction] = useTransition();
+  const attendanceState = useAttendanceScanFeed({
+    workspace: "crm",
+    selectedDate: props.attendanceScanDate,
+    branchId: props.attendanceScanFeed.branchId,
+    initialFeed: props.attendanceScanFeed,
+    maxItems: 6,
+  });
 
   const counts = useMemo(() => getCradleFlowCounts(bookings), [bookings]);
   const pendingBooking =
@@ -142,7 +150,11 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         <CradleFlowSideRail
           branchName={props.branchName}
           attendanceDate={props.attendanceScanDate}
-          attendanceFeed={props.attendanceScanFeed}
+          attendanceFeed={attendanceState.feed}
+          attendanceRealtimeStatus={attendanceState.realtimeStatus}
+          attendanceRefreshing={attendanceState.isValidating}
+          attendanceRefreshError={attendanceState.error}
+          onAttendanceRefresh={attendanceState.refreshFeed}
           readinessStatus={props.readinessStatus}
           readinessIssues={props.readinessIssues}
           onAttendanceSelect={setAttendance}
@@ -151,7 +163,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.55fr)]">
         <CradleFlowRecentActivity
-          attendance={props.attendanceScanFeed}
+          attendance={attendanceState.feed}
           notifications={props.actionNotifications}
         />
         <CradleFlowMoneySummary

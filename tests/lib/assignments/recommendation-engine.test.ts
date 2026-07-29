@@ -192,60 +192,6 @@ describe("assignment recommendation attendance behavior", () => {
     expect(candidate?.warnings).toContain("Has overlapping booking");
   });
 
-  it("ignores only live Attendance during maintenance and still enforces real conflicts", () => {
-    vi.stubEnv("ATTENDANCE_MAINTENANCE_MODE", "true");
-    const bookingDate = getBranchBusinessDate();
-    const context = makeContext({
-      checkins: [],
-      existingBookings: [
-        {
-          booking_id: "existing-booking",
-          staff_id: "junior-checked-in",
-          start_time: "10:30:00",
-          end_time: "11:30:00",
-          status: "confirmed",
-        },
-      ],
-      schedules: [
-        {
-          staff_id: "senior-not-checked-in",
-          day_of_week: dayOfWeekFromYmd(bookingDate),
-          start_time: "09:00:00",
-          end_time: "18:00:00",
-          is_active: true,
-          shift_type: "regular",
-        },
-        {
-          staff_id: "junior-checked-in",
-          day_of_week: dayOfWeekFromYmd(bookingDate),
-          start_time: "09:00:00",
-          end_time: "13:00:00",
-          is_active: true,
-          shift_type: "opening",
-        },
-        {
-          staff_id: "junior-checked-in",
-          day_of_week: dayOfWeekFromYmd(bookingDate),
-          start_time: "12:00:00",
-          end_time: "18:00:00",
-          is_active: true,
-          shift_type: "closing",
-        },
-      ],
-    });
-
-    const scored = scoreTherapistCandidates(context);
-    const scheduled = scored.find((item) => item.staffId === "senior-not-checked-in");
-    const conflicted = scored.find((item) => item.staffId === "junior-checked-in");
-
-    expect(scheduled?.status).not.toBe("unavailable");
-    expect(scheduled?.warnings).not.toContain(NO_CHECKED_IN_STAFF_WARNING);
-    expect(scheduled?.warnings).not.toContain("Not checked in for today");
-    expect(conflicted?.status).toBe("unavailable");
-    expect(conflicted?.warnings).toContain("Has overlapping booking");
-    expect(conflicted?.warnings).toContain("Schedule has conflicting windows");
-  });
-
   it("marks therapists with conflicting schedule windows unavailable", () => {
     const bookingDate = getBranchBusinessDate();
     const scored = scoreTherapistCandidates(

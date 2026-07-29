@@ -37,7 +37,6 @@ import {
   deriveAttendanceClosingTimeline,
 } from "@/lib/attendance/closing-policy";
 import { AttendanceCategoryRulesEditor } from "./attendance-category-rules-editor";
-import { AttendanceMaintenanceBanner } from "@/components/features/attendance/attendance-maintenance-banner";
 import { saveBranchAttendanceRulesAction } from "./attendance-rule-actions";
 
 function timeValue(value: string): string {
@@ -93,11 +92,9 @@ function historyValueSummary(item: AttendanceRuleHistoryItem, side: "previous" |
 export function BranchAttendanceRulesCard({
   branchId,
   data,
-  maintenance = { active: false, banner: "" },
 }: {
   branchId: string;
   data: BranchAttendanceRulesData;
-  maintenance?: { active: boolean; banner: string };
 }) {
   const [workspaceData, setWorkspaceData] = useState(data);
   const [isPending, startTransition] = useTransition();
@@ -198,9 +195,6 @@ export function BranchAttendanceRulesCard({
       </CardHeader>
 
       <CardContent>
-        {maintenance.active ? (
-          <AttendanceMaintenanceBanner message={maintenance.banner} className="mb-4" />
-        ) : null}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="max-w-full justify-start overflow-x-auto">
             <TabsTrigger value="closing">Branch & closing</TabsTrigger>
@@ -208,12 +202,7 @@ export function BranchAttendanceRulesCard({
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
-          <TabsContent
-            value="closing"
-            className="mt-4 flex flex-col gap-5"
-            inert={maintenance.active}
-            aria-disabled={maintenance.active || undefined}
-          >
+          <TabsContent value="closing" className="mt-4 flex flex-col gap-5">
             <Alert>
               <ShieldCheck />
               <AlertTitle>Raw schedules remain unchanged</AlertTitle>
@@ -446,7 +435,6 @@ export function BranchAttendanceRulesCard({
               branchId={branchId}
               categories={workspaceData.categories}
               onSaved={setWorkspaceData}
-              maintenanceActive={maintenance.active}
             />
           </TabsContent>
 
@@ -498,7 +486,7 @@ export function BranchAttendanceRulesCard({
         </Tabs>
       </CardContent>
 
-      {activeTab === "closing" && !maintenance.active ? (
+      {activeTab === "closing" ? (
         <CardFooter className="justify-end">
           <Button type="button" onClick={save} disabled={isPending}>
             <Save data-icon="inline-start" />
