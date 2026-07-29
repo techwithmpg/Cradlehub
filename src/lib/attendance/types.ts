@@ -92,6 +92,9 @@ export type AttendanceQrPoint = {
   created_at: string;
   updated_at: string;
   resource_name: string | null;
+  resource_capacity: number | null;
+  resource_type: string | null;
+  resource_is_active: boolean | null;
   scan_url: string | null;
   svg: string | null;
 };

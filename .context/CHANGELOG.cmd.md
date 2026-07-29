@@ -1,5 +1,32 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-07-29 - Codex (QR-REALTIME-MARKETING-20260729, Phase 1 scan gate waived)
+
+Implemented the source and automated-QA portion of the reusable Attendance and
+room A4 QR print system. The shared poster primitives preserve the existing QR
+SVG/payload, use the supplied Cradle cream/gold/forest visual language, render
+branch/room/capacity data, and provide an active-room-only batch action with one
+A4 poster per page and no trailing blank page.
+
+Corrected the production CRM Setup integration after rendered QA proved that
+`view=setup&section=qr` still used the legacy raw-QR component. The live Setup
+surface now displays the branded Attendance A4 preview, selected-room A4
+preview, capacities, and active-room batch action while retaining QR settings,
+copy/download, replacement confirmation, and registered-device protections.
+
+Focused tests pass at 5 files / 16 tests. Node 24.14.0 / pnpm 10.33.2
+type-check, zero-warning lint, incremental format check, and the Next.js 16.2.4
+production build with 113 generated pages pass. Authenticated Main Spa browser
+inspection had no console errors. Chrome and Edge each produced a complete
+two-page A4 batch; retained print-render screenshots are recorded in
+`docs/audits/QR_PRINT_PHASE1_VERIFICATION_20260729.md`.
+
+The user explicitly waived the physical phone-scan completion gate on
+2026-07-29 and directed work to continue. Main Spa Attendance, SM Attendance,
+and one active room printed scan remain unverified and are not recorded as
+passed. No production scan was triggered, and no application/database
+deployment or migration action occurred in Phase 1.
+
 ## 2026-07-23 - Codex (PRODUCTION-READINESS-REPAIR-20260723)
 
 **Source release:** Preserved and completed the pending Attendance operational

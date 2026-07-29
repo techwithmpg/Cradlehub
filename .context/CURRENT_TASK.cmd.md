@@ -1,3 +1,56 @@
+# Current Task - QR-REALTIME-MARKETING-20260729
+
+Task ID: QR-REALTIME-MARKETING-20260729
+Description: Deliver production-grade Cradle-branded Attendance and room QR
+print templates, replace healthy Attendance polling with event-driven Realtime
+local merges plus cursor reconciliation, and expand the protected Marketing
+Studio into a governed draft/preview/publish workspace with a dedicated
+digital-marketer role.
+Status: IN PROGRESS
+Started: 2026-07-29
+Last updated: 2026-07-29
+
+## Guardrails
+
+- Preserve every existing QR payload, public code, scan URL, device gate,
+  booking/service lifecycle, branch boundary, and attendance authorization.
+- Match the supplied A4 Cradle Wellness Living poster as the visual authority;
+  keep the QR symbol pure black on white with a clear quiet zone and make each
+  batch page independently printable in Chromium browsers.
+- Treat Realtime as the normal healthy path. Reconcile deltas by a stable
+  cursor, use a disconnected-only fallback no faster than 60 seconds, and do
+  not restore route refreshes or permanent healthy-state feed polling.
+- Keep one notification bell in the shared shell and load its typed items and
+  unread count through one snapshot action/request.
+- Add the `digital_marketer` role and marketing persistence additively with
+  explicit grants and RLS. Never expose a service key or weaken owner/branch
+  protections.
+- Do not blindly push, reset, or repair Supabase migrations while linked
+  history remains 92 local-only / 5 remote-only. A production migration may be
+  applied only after the exact safe history path is proven.
+- Complete and verify each phase before starting the next, update context after
+  each phase, and create an atomic commit per completed phase.
+
+## Work order
+
+1. Record the repository/source/database/design baseline and exact affected
+   files before functional edits.
+2. Build and verify the reusable Attendance + room A4 print system, active-room
+   batching, payload-invariance tests, Chromium preview, screenshot comparison,
+   and real-phone scan evidence; update context and commit Phase 1.
+3. Replace Attendance feed polling with local event merges and cursor deltas,
+   harden stale/disconnected reconciliation, consolidate notification reads,
+   capture request evidence, update context, and commit Phase 2.
+4. Add the protected Digital Marketing Studio role/schema/RLS/storage workflow,
+   draft/preview/publish/revisions/scheduling/rollback, media/brand/SEO/service
+   editors, and public/mobile consumers; generate types and apply migrations
+   only if the linked environment is proven safe; update context and commit the
+   verified Phase 3 slices.
+5. Run full tests, type-check, lint, format, build, authenticated browser QA,
+   review the complete diff, and report verified outcomes and remaining blocks.
+
+---
+
 # Current Task - CRADLE-FLOW-001
 
 Task ID: CRADLE-FLOW-001
@@ -1512,17 +1565,17 @@ Timeline.
 
 ## Internal Diagnostic Matrix
 
-| Stage | Expected result | Actual result | Code path | Database object | Safe error code | Correction | Test |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| QR route request | Public route returns typed scan result or setup state | Catch-all returned HTTP 200 generic `server_action_error` | `src/app/api/attendance/public-scan/route.ts` | n/a | `ATTENDANCE_*`, `SCHEDULE_*`, etc. | Structured safe errors, operation ID, non-200 for backend failures | `tests/app/attendance/public-scan-route.test.ts` |
-| Public scan action/page | Phone UI renders structured known code | Non-OK responses were thrown away and replaced with generic client error | `src/app/scan/actions.ts`, public scan processor | n/a | `UNKNOWN_ATTENDANCE_ERROR` fallback only for invalid/unparseable response | Parse valid non-OK JSON; server actions return structured safe result | Route test + build |
-| Device resolver | Active registered phone resolves staff/branch or setup state | Query errors could look like missing device/QR | `src/lib/attendance/scan-engine.ts` | `staff_devices`, `staff`, `branches`, `qr_points` | `ATTENDANCE_TRANSACTION_FAILED`, `ATTENDANCE_WRITE_FAILED` | Throw structured DB/query errors; keep expected missing-device result | `npx tsc --noEmit`, build |
-| Schedule resolver | Individual schedule state handled deliberately | Override query lacked `ends_next_day`; conflict states could still select a window | `resolved-staff-schedules`, intent engine | `staff_schedules`, `schedule_overrides` | `SCHEDULE_SCHEMA_MISMATCH`, `SCHEDULE_QUERY_FAILED`, `SCHEDULE_STATE_UNSUPPORTED` | Added override `ends_next_day`, explicit conflict/non-operational Recovery intent | attendance intent tests |
-| Intent engine | Current window selects clock-in/out/duplicate/recovery | Shift instance missed source row id/window order; overnight inferred only from time comparison | `attendance-intent-engine.ts`, `shift-instance.ts` | `staff_shift_checkins`, `attendance_settings` | `DUPLICATE_SCAN`, `SHIFT_INSTANCE_CONFLICT` | Source values `weekly/override/recovery/none`; split key includes window order/id; overnight uses authoritative flag | `shift-instance.test.ts` |
-| Transaction RPC | Atomic write returns preserved success/reject code | RPC errors thrown as generic Error and hidden by route/action catch | `src/lib/attendance/db.ts`, scan engine | `commit_attendance_scan_transaction` | `ATTENDANCE_RPC_*`, `ATTENDANCE_CONSTRAINT_FAILED`, `ATTENDANCE_RLS_DENIED` | Generated DB client restored; RPC wrapper classifies db/RPC failures and preserves rejection code | route test; live invalid-request probe |
-| Exception compatibility | Internal exception codes fit DB constraint or mapping | Internal codes such as `missing_schedule`, `ambiguous_scan`, `overtime_clock_out` did not match stable DB CHECK values | scan engine/db/RPC | `attendance_exceptions.exception_type` | `ATTENDANCE_CONSTRAINT_FAILED` before fix | Map internal -> stable DB values; store internal code in metadata for Recovery UI | `exception-codes.test.ts` |
-| Query errors | DB query failures are not treated as empty results | Several helpers ignored `error` and returned null/empty | attendance DB helpers | multiple | `ATTENDANCE_TRANSACTION_FAILED`, `ATTENDANCE_WRITE_FAILED` | Lookup/write helpers throw structured safe errors on Supabase failures | type-check/build |
-| Realtime/cache | Attendance and Daily Timeline refresh from committed changes | Cache refresh path preserved | route/actions | `qr_scan_events`, `staff_shift_checkins`, `attendance_exceptions` | n/a | Revalidation still fires on scan event/attendance/countdown/device restore | build |
+| Stage                   | Expected result                                              | Actual result                                                                                                          | Code path                                          | Database object                                                   | Safe error code                                                                   | Correction                                                                                                           | Test                                             |
+| ----------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| QR route request        | Public route returns typed scan result or setup state        | Catch-all returned HTTP 200 generic `server_action_error`                                                              | `src/app/api/attendance/public-scan/route.ts`      | n/a                                                               | `ATTENDANCE_*`, `SCHEDULE_*`, etc.                                                | Structured safe errors, operation ID, non-200 for backend failures                                                   | `tests/app/attendance/public-scan-route.test.ts` |
+| Public scan action/page | Phone UI renders structured known code                       | Non-OK responses were thrown away and replaced with generic client error                                               | `src/app/scan/actions.ts`, public scan processor   | n/a                                                               | `UNKNOWN_ATTENDANCE_ERROR` fallback only for invalid/unparseable response         | Parse valid non-OK JSON; server actions return structured safe result                                                | Route test + build                               |
+| Device resolver         | Active registered phone resolves staff/branch or setup state | Query errors could look like missing device/QR                                                                         | `src/lib/attendance/scan-engine.ts`                | `staff_devices`, `staff`, `branches`, `qr_points`                 | `ATTENDANCE_TRANSACTION_FAILED`, `ATTENDANCE_WRITE_FAILED`                        | Throw structured DB/query errors; keep expected missing-device result                                                | `npx tsc --noEmit`, build                        |
+| Schedule resolver       | Individual schedule state handled deliberately               | Override query lacked `ends_next_day`; conflict states could still select a window                                     | `resolved-staff-schedules`, intent engine          | `staff_schedules`, `schedule_overrides`                           | `SCHEDULE_SCHEMA_MISMATCH`, `SCHEDULE_QUERY_FAILED`, `SCHEDULE_STATE_UNSUPPORTED` | Added override `ends_next_day`, explicit conflict/non-operational Recovery intent                                    | attendance intent tests                          |
+| Intent engine           | Current window selects clock-in/out/duplicate/recovery       | Shift instance missed source row id/window order; overnight inferred only from time comparison                         | `attendance-intent-engine.ts`, `shift-instance.ts` | `staff_shift_checkins`, `attendance_settings`                     | `DUPLICATE_SCAN`, `SHIFT_INSTANCE_CONFLICT`                                       | Source values `weekly/override/recovery/none`; split key includes window order/id; overnight uses authoritative flag | `shift-instance.test.ts`                         |
+| Transaction RPC         | Atomic write returns preserved success/reject code           | RPC errors thrown as generic Error and hidden by route/action catch                                                    | `src/lib/attendance/db.ts`, scan engine            | `commit_attendance_scan_transaction`                              | `ATTENDANCE_RPC_*`, `ATTENDANCE_CONSTRAINT_FAILED`, `ATTENDANCE_RLS_DENIED`       | Generated DB client restored; RPC wrapper classifies db/RPC failures and preserves rejection code                    | route test; live invalid-request probe           |
+| Exception compatibility | Internal exception codes fit DB constraint or mapping        | Internal codes such as `missing_schedule`, `ambiguous_scan`, `overtime_clock_out` did not match stable DB CHECK values | scan engine/db/RPC                                 | `attendance_exceptions.exception_type`                            | `ATTENDANCE_CONSTRAINT_FAILED` before fix                                         | Map internal -> stable DB values; store internal code in metadata for Recovery UI                                    | `exception-codes.test.ts`                        |
+| Query errors            | DB query failures are not treated as empty results           | Several helpers ignored `error` and returned null/empty                                                                | attendance DB helpers                              | multiple                                                          | `ATTENDANCE_TRANSACTION_FAILED`, `ATTENDANCE_WRITE_FAILED`                        | Lookup/write helpers throw structured safe errors on Supabase failures                                               | type-check/build                                 |
+| Realtime/cache          | Attendance and Daily Timeline refresh from committed changes | Cache refresh path preserved                                                                                           | route/actions                                      | `qr_scan_events`, `staff_shift_checkins`, `attendance_exceptions` | n/a                                                                               | Revalidation still fires on scan event/attendance/countdown/device restore                                           | build                                            |
 
 ## Guardrails
 
@@ -1578,11 +1631,11 @@ configuration for room/resource requirements.
 
 ## Internal Audit Matrix
 
-| Visible warning | Source generator | Data queried | Resolver state | Actual root cause | Correction | Tests |
-| --- | --- | --- | --- | --- | --- | --- |
-| Dante Depaloma "Conflicting staff schedule" / Time: All day | `buildLiveScheduleConflicts` schedule-state mapper and conflict card time fallback | `staff_schedules` for staff `a384447d-5e71-4ee2-809b-d91ef4cfe44b`; Mon-Sat active `single` windows `02:00-22:00` | `INVALID_TIME_WINDOW` | Real invalid 20-hour individual windows, previously collapsed to generic `schedule_rule_conflict` and `All day` | Emit `schedule_invalid_time_window` with `INVALID_TIME_WINDOW`, exact `02:00:00-22:00:00`, source row ids, and stable fingerprint; fallback label is `Time not set`, not `All day` | `tests/lib/schedule/live-schedule-conflicts.test.ts` |
-| Angels Massage "Missing room assignment" | Schedule/Today/Spaces missing-resource checks | Booking `1ea3ce31-6ead-49e0-9ff4-43501d5cf20d`; service `Angels Massage`; `service_metadata={}`, `requires_special_setup=false`, `resource_id=null`, `delivery_type=in_spa` | n/a | Broad `!resource_id && in_spa` rule treated ordinary unassigned resource as missing room even without explicit service/resource requirement | Missing room/resource warning now requires service metadata such as `requires_room` or `required_resource_type`; Manager Today selects service metadata too | `tests/lib/schedule/daily-timeline-operations.test.ts`, `tests/lib/schedule/live-schedule-conflicts.test.ts`, `tests/components/manager-today/manager-today-utils.test.ts` |
-| Coverage gap "Only 27 staff are scheduled today. Minimum required is 29." | `buildCoverageGapConflict` using roster count vs `scheduling_rules.min_daily_staff` | Main Spa `scheduling_rules`: `min_daily_staff=29`, `min_daily_therapists=29`, `min_daily_csr=4`, `min_daily_drivers=3`, `min_daily_utility=2` before cleanup | n/a | Corrupted roster-total minima were used as a live gap rule without time window/category contract | Backed up and restored Main Spa minima to defaults `1/1/1/0/0`; code now requires explicit `coverageRequirement` with category/time/minimum before emitting coverage gap | `tests/lib/schedule/live-schedule-conflicts.test.ts` |
+| Visible warning                                                           | Source generator                                                                    | Data queried                                                                                                                                                                | Resolver state        | Actual root cause                                                                                                                           | Correction                                                                                                                                                                         | Tests                                                                                                                                                                      |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dante Depaloma "Conflicting staff schedule" / Time: All day               | `buildLiveScheduleConflicts` schedule-state mapper and conflict card time fallback  | `staff_schedules` for staff `a384447d-5e71-4ee2-809b-d91ef4cfe44b`; Mon-Sat active `single` windows `02:00-22:00`                                                           | `INVALID_TIME_WINDOW` | Real invalid 20-hour individual windows, previously collapsed to generic `schedule_rule_conflict` and `All day`                             | Emit `schedule_invalid_time_window` with `INVALID_TIME_WINDOW`, exact `02:00:00-22:00:00`, source row ids, and stable fingerprint; fallback label is `Time not set`, not `All day` | `tests/lib/schedule/live-schedule-conflicts.test.ts`                                                                                                                       |
+| Angels Massage "Missing room assignment"                                  | Schedule/Today/Spaces missing-resource checks                                       | Booking `1ea3ce31-6ead-49e0-9ff4-43501d5cf20d`; service `Angels Massage`; `service_metadata={}`, `requires_special_setup=false`, `resource_id=null`, `delivery_type=in_spa` | n/a                   | Broad `!resource_id && in_spa` rule treated ordinary unassigned resource as missing room even without explicit service/resource requirement | Missing room/resource warning now requires service metadata such as `requires_room` or `required_resource_type`; Manager Today selects service metadata too                        | `tests/lib/schedule/daily-timeline-operations.test.ts`, `tests/lib/schedule/live-schedule-conflicts.test.ts`, `tests/components/manager-today/manager-today-utils.test.ts` |
+| Coverage gap "Only 27 staff are scheduled today. Minimum required is 29." | `buildCoverageGapConflict` using roster count vs `scheduling_rules.min_daily_staff` | Main Spa `scheduling_rules`: `min_daily_staff=29`, `min_daily_therapists=29`, `min_daily_csr=4`, `min_daily_drivers=3`, `min_daily_utility=2` before cleanup                | n/a                   | Corrupted roster-total minima were used as a live gap rule without time window/category contract                                            | Backed up and restored Main Spa minima to defaults `1/1/1/0/0`; code now requires explicit `coverageRequirement` with category/time/minimum before emitting coverage gap           | `tests/lib/schedule/live-schedule-conflicts.test.ts`                                                                                                                       |
 
 ## Guardrails
 
@@ -1665,20 +1718,20 @@ effective staff schedules.
 
 ## Internal Implementation Matrix
 
-| System | Current schedule source to verify | Current defect risk | Target shared contract | Files changed | Tests required |
-| --- | --- | --- | --- | --- | --- |
-| Schedule Setup | Existing staff schedule editor/action | Separate DTO/save semantics from Adjust Schedule | Shared canonical draft/DTO and atomic weekly save | TBD | Shared DTO/save tests |
-| Adjust Schedule | `schedule-adjustment` modal and weekly action | UI/server mappings may duplicate shift logic | Shared canonical adapter and save action | TBD | Modal DTO/action tests |
-| Effective resolver | `src/lib/schedule/resolve-staff-schedule.ts` | States may not match required codes exactly | One explicit resolver result with exact windows/issues | TBD | State/split/overnight/conflict tests |
-| Daily Timeline | Daily schedule queries/API/SWR | May rely on legacy RPC or conflate empty windows with day off | Operational roster + shared resolver row adapter | TBD | Timeline row/render tests |
-| Attendance | `attendance-intent-engine` / `shift-instance` | Needs exact resolved window/source id for split/overnight | Effective resolver selects window and stores source snapshot | TBD | Scan/shift-instance tests |
-| Public booking | availability engine / slot APIs | Old RPC may miss split/overnight/overrides | Shared availability service over effective windows | TBD | Slot generation tests |
-| CRM booking | CRM availability route/actions | May independently interpret schedules | Same availability service with richer diagnostics | TBD | CRM availability tests |
-| Dispatch | recommendation engine/query context | May read raw `staff_schedules` directly | Effective resolver eligibility with attendance only ranking | TBD | Recommendation tests |
-| Today / readiness | CRM readiness queries | Direct schedule assumptions | Resolver states and operational staff filter | TBD | Readiness tests |
-| Health / coverage | live conflicts and coverage cards | No schedule/day off may be reported as conflicts | Explicit issue codes, window-based coverage | TBD | Health/coverage tests |
-| Staff portal | staff schedule view | One-row-per-weekday assumptions | Grouped day windows incl split/overnight/day off/no schedule | TBD | Portal render tests |
-| Cache / Realtime | schedule refresh helpers/subscriptions | Duplicate subscriptions or partial invalidation | Central schedule invalidation contract | TBD | Helper/subscription tests |
+| System             | Current schedule source to verify             | Current defect risk                                           | Target shared contract                                       | Files changed | Tests required                       |
+| ------------------ | --------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ | ------------- | ------------------------------------ |
+| Schedule Setup     | Existing staff schedule editor/action         | Separate DTO/save semantics from Adjust Schedule              | Shared canonical draft/DTO and atomic weekly save            | TBD           | Shared DTO/save tests                |
+| Adjust Schedule    | `schedule-adjustment` modal and weekly action | UI/server mappings may duplicate shift logic                  | Shared canonical adapter and save action                     | TBD           | Modal DTO/action tests               |
+| Effective resolver | `src/lib/schedule/resolve-staff-schedule.ts`  | States may not match required codes exactly                   | One explicit resolver result with exact windows/issues       | TBD           | State/split/overnight/conflict tests |
+| Daily Timeline     | Daily schedule queries/API/SWR                | May rely on legacy RPC or conflate empty windows with day off | Operational roster + shared resolver row adapter             | TBD           | Timeline row/render tests            |
+| Attendance         | `attendance-intent-engine` / `shift-instance` | Needs exact resolved window/source id for split/overnight     | Effective resolver selects window and stores source snapshot | TBD           | Scan/shift-instance tests            |
+| Public booking     | availability engine / slot APIs               | Old RPC may miss split/overnight/overrides                    | Shared availability service over effective windows           | TBD           | Slot generation tests                |
+| CRM booking        | CRM availability route/actions                | May independently interpret schedules                         | Same availability service with richer diagnostics            | TBD           | CRM availability tests               |
+| Dispatch           | recommendation engine/query context           | May read raw `staff_schedules` directly                       | Effective resolver eligibility with attendance only ranking  | TBD           | Recommendation tests                 |
+| Today / readiness  | CRM readiness queries                         | Direct schedule assumptions                                   | Resolver states and operational staff filter                 | TBD           | Readiness tests                      |
+| Health / coverage  | live conflicts and coverage cards             | No schedule/day off may be reported as conflicts              | Explicit issue codes, window-based coverage                  | TBD           | Health/coverage tests                |
+| Staff portal       | staff schedule view                           | One-row-per-weekday assumptions                               | Grouped day windows incl split/overnight/day off/no schedule | TBD           | Portal render tests                  |
+| Cache / Realtime   | schedule refresh helpers/subscriptions        | Duplicate subscriptions or partial invalidation               | Central schedule invalidation contract                       | TBD           | Helper/subscription tests            |
 
 ## Planned Verification
 
@@ -1754,16 +1807,16 @@ same ordered-window contract.
 
 ## Reproduction / Audit Checklist
 
-| Area | What to verify | Evidence target |
-| --- | --- | --- |
-| Save path | Adjust Schedule modal payload, server action, normalization, RPC call, result handling | Action name, sanitized payload shape, operation id, structured code |
-| Live schema | `staff_schedules.window_order`, `ends_next_day`, unique constraint, trigger/RPC definitions, grants/RLS | Catalog query results |
-| Migration state | Local migrations vs linked migration history vs live catalog | `pnpm db:status`, migration list/query evidence |
-| Conflict target | No active save path uses `staff_id,day_of_week,shift_type` for staff windows | `rg` output and patches |
-| Payload mapping | UI `regular` maps to DB `single`; ordered windows include explicit overnight | Utility/action tests |
-| Authorization | CRM/owner branch checks, operational-staff filter, no Auth/device/attendance requirement for target | Server action tests |
-| Error handling | Known failure modes become structured safe codes/messages; unknown remains fallback only | Action return tests and UI handling |
-| Consumers | Resolver/Attendance/booking/dispatch/Timeline/health consume same schedule semantics | Focused integration tests |
+| Area            | What to verify                                                                                          | Evidence target                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Save path       | Adjust Schedule modal payload, server action, normalization, RPC call, result handling                  | Action name, sanitized payload shape, operation id, structured code |
+| Live schema     | `staff_schedules.window_order`, `ends_next_day`, unique constraint, trigger/RPC definitions, grants/RLS | Catalog query results                                               |
+| Migration state | Local migrations vs linked migration history vs live catalog                                            | `pnpm db:status`, migration list/query evidence                     |
+| Conflict target | No active save path uses `staff_id,day_of_week,shift_type` for staff windows                            | `rg` output and patches                                             |
+| Payload mapping | UI `regular` maps to DB `single`; ordered windows include explicit overnight                            | Utility/action tests                                                |
+| Authorization   | CRM/owner branch checks, operational-staff filter, no Auth/device/attendance requirement for target     | Server action tests                                                 |
+| Error handling  | Known failure modes become structured safe codes/messages; unknown remains fallback only                | Action return tests and UI handling                                 |
+| Consumers       | Resolver/Attendance/booking/dispatch/Timeline/health consume same schedule semantics                    | Focused integration tests                                           |
 
 ## Planned Verification
 
@@ -1834,16 +1887,16 @@ validation, and refresh behavior.
 
 ## Internal Audit Matrix
 
-| Requirement | Current implementation | Files involved | Safe change | Tests required |
-| --- | --- | --- | --- | --- |
-| Shared Adjust Schedule entry point | Daily Timeline currently opens the existing availability editor; selected card actions need inspection | `src/components/features/schedule/tabs/*`, CRM schedule modal components | Lift one modal target/state contract and reuse it from Quick Actions and selected-staff card | Component tests for both entry points |
-| Individual schedules authoritative | Current resolver/save path is individual-only after simplification | `src/lib/schedule/*`, `src/app/(dashboard)/crm/staff-availability/actions.ts` | Reuse existing weekly save action/adapters; do not add group fallback/actions | Utility/server action coverage |
-| Reference modal layout | Existing editor likely uses older availability modal tabs | `src/components/features/crm/schedule/*`, new `schedule-adjustment` folder | Build reusable dialog with sticky header/footer, left nav, matrix, preview rail, mobile stacking | Modal render/interaction tests |
-| Role-aware shifts | Shift eligibility helper exists from prior task | `src/lib/schedule/shift-eligibility.ts`, staff schedule UI | Use helper/adapters so non-therapist/non-CRM see Regular only | Role eligibility utility and UI tests |
-| Split/overnight/no-schedule states | Current resolver/write path supports ordered windows and day-off markers | `src/lib/schedule/staff-schedule-write.ts`, editor utils | Preserve ordered windows, explicit `ends_next_day`, and unconfigured vs day off | Duration/overlap/day-off tests |
-| Overrides/blocked time/exceptions | Existing actions/components need audit | `src/lib/actions/*schedule*`, CRM schedule editor files | Reuse real override/block actions where available; show honest empty state for exceptions | Focused editor/action tests where changed |
-| Booking impact protection | Existing live conflict/availability helpers exist but need audit | `src/lib/schedule/*`, `src/components/features/schedule/tabs/*` | Surface real available analysis; do not fake counts | Server/utility tests if action changes |
-| Daily Timeline preservation | Daily Timeline UI must stay visually unchanged | `daily-timeline-tab.tsx`, selection/actions cards | Change only action wiring/modal mount and refresh token behavior | Existing Daily Timeline tests plus focused open/refresh test |
+| Requirement                        | Current implementation                                                                                 | Files involved                                                                | Safe change                                                                                      | Tests required                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Shared Adjust Schedule entry point | Daily Timeline currently opens the existing availability editor; selected card actions need inspection | `src/components/features/schedule/tabs/*`, CRM schedule modal components      | Lift one modal target/state contract and reuse it from Quick Actions and selected-staff card     | Component tests for both entry points                        |
+| Individual schedules authoritative | Current resolver/save path is individual-only after simplification                                     | `src/lib/schedule/*`, `src/app/(dashboard)/crm/staff-availability/actions.ts` | Reuse existing weekly save action/adapters; do not add group fallback/actions                    | Utility/server action coverage                               |
+| Reference modal layout             | Existing editor likely uses older availability modal tabs                                              | `src/components/features/crm/schedule/*`, new `schedule-adjustment` folder    | Build reusable dialog with sticky header/footer, left nav, matrix, preview rail, mobile stacking | Modal render/interaction tests                               |
+| Role-aware shifts                  | Shift eligibility helper exists from prior task                                                        | `src/lib/schedule/shift-eligibility.ts`, staff schedule UI                    | Use helper/adapters so non-therapist/non-CRM see Regular only                                    | Role eligibility utility and UI tests                        |
+| Split/overnight/no-schedule states | Current resolver/write path supports ordered windows and day-off markers                               | `src/lib/schedule/staff-schedule-write.ts`, editor utils                      | Preserve ordered windows, explicit `ends_next_day`, and unconfigured vs day off                  | Duration/overlap/day-off tests                               |
+| Overrides/blocked time/exceptions  | Existing actions/components need audit                                                                 | `src/lib/actions/*schedule*`, CRM schedule editor files                       | Reuse real override/block actions where available; show honest empty state for exceptions        | Focused editor/action tests where changed                    |
+| Booking impact protection          | Existing live conflict/availability helpers exist but need audit                                       | `src/lib/schedule/*`, `src/components/features/schedule/tabs/*`               | Surface real available analysis; do not fake counts                                              | Server/utility tests if action changes                       |
+| Daily Timeline preservation        | Daily Timeline UI must stay visually unchanged                                                         | `daily-timeline-tab.tsx`, selection/actions cards                             | Change only action wiring/modal mount and refresh token behavior                                 | Existing Daily Timeline tests plus focused open/refresh test |
 
 ## Planned Verification
 
@@ -1917,16 +1970,16 @@ attendance, booking history, or seeded defaults.
 
 ## Internal Audit Matrix
 
-| Current behavior | Root cause | DB object | Affected files | Correction | Test |
-| --- | --- | --- | --- | --- | --- |
-| Importer/name matching can infer weekly rows and Closing classifications | Paper roster workflow encodes non-authoritative assumptions | `staff_schedules` | Import actions/routes/components/constants | Remove importer and all paper roster/name matching paths | Importer reference search/test |
-| Saves may create placeholder rows instead of exact CRM-entered windows | Old identity is shift type per day, not ordered work window | `staff_schedules` | Schedule save actions/RPC/write helpers | Replace staff weekly pattern atomically with actual windows plus minimal day-off markers | Row count, exact-return, overlap tests |
-| New staff can appear available or conflicting without CRM setup | Missing schedule conflated with fallback/default/conflict | `staff_schedules`, group tables | Resolver and downstream consumers | Return `NO_SCHEDULE_CONFIGURED` and exclude from availability/recommendations without conflict label | No-schedule tests |
-| Opening/Closing can leak to salon/driver/utility/managerial roles | Eligibility checks are duplicated or role/tier-derived | `staff`, schedules | Resolver/save helpers/RPC/migration | Centralize shift eligibility in TS and SQL | Role eligibility tests |
-| Group rules silently influence runtime availability | Runtime fallback treats group templates as effective staff schedules | `staff_group_schedule_rules` | Resolver, realtime, recommendations | Remove group fallback from effective resolver and runtime subscriptions | No source/runtime group references |
-| Split/overnight/conflict output can lose exact window evidence | Resolver normalizes to empty availability too early | `staff_schedules`, `schedule_overrides` | Resolver/adapters/health | Preserve exact affected windows and states while exposing no operational slots for invalid schedules | Split/overnight/conflict tests |
-| Coverage and health can use roster totals or duplicated schedule logic | Requirements and issue generation bypass shared resolver/filter | `scheduling_rules`, `schedule_health_checks` | Health/coverage modules | Route through shared resolver and operational staff filter; repair corrupted deterministic data with backup | Coverage/health tests |
-| Daily Timeline and dependent modules read schedule truth differently | Multiple schedule readers/adapters exist | Schedule tables | Daily Timeline, booking, attendance, dispatch, Today, staff portal | Consolidate on one effective schedule resolver contract | Consumer integration tests |
+| Current behavior                                                         | Root cause                                                           | DB object                                    | Affected files                                                     | Correction                                                                                                  | Test                                   |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Importer/name matching can infer weekly rows and Closing classifications | Paper roster workflow encodes non-authoritative assumptions          | `staff_schedules`                            | Import actions/routes/components/constants                         | Remove importer and all paper roster/name matching paths                                                    | Importer reference search/test         |
+| Saves may create placeholder rows instead of exact CRM-entered windows   | Old identity is shift type per day, not ordered work window          | `staff_schedules`                            | Schedule save actions/RPC/write helpers                            | Replace staff weekly pattern atomically with actual windows plus minimal day-off markers                    | Row count, exact-return, overlap tests |
+| New staff can appear available or conflicting without CRM setup          | Missing schedule conflated with fallback/default/conflict            | `staff_schedules`, group tables              | Resolver and downstream consumers                                  | Return `NO_SCHEDULE_CONFIGURED` and exclude from availability/recommendations without conflict label        | No-schedule tests                      |
+| Opening/Closing can leak to salon/driver/utility/managerial roles        | Eligibility checks are duplicated or role/tier-derived               | `staff`, schedules                           | Resolver/save helpers/RPC/migration                                | Centralize shift eligibility in TS and SQL                                                                  | Role eligibility tests                 |
+| Group rules silently influence runtime availability                      | Runtime fallback treats group templates as effective staff schedules | `staff_group_schedule_rules`                 | Resolver, realtime, recommendations                                | Remove group fallback from effective resolver and runtime subscriptions                                     | No source/runtime group references     |
+| Split/overnight/conflict output can lose exact window evidence           | Resolver normalizes to empty availability too early                  | `staff_schedules`, `schedule_overrides`      | Resolver/adapters/health                                           | Preserve exact affected windows and states while exposing no operational slots for invalid schedules        | Split/overnight/conflict tests         |
+| Coverage and health can use roster totals or duplicated schedule logic   | Requirements and issue generation bypass shared resolver/filter      | `scheduling_rules`, `schedule_health_checks` | Health/coverage modules                                            | Route through shared resolver and operational staff filter; repair corrupted deterministic data with backup | Coverage/health tests                  |
+| Daily Timeline and dependent modules read schedule truth differently     | Multiple schedule readers/adapters exist                             | Schedule tables                              | Daily Timeline, booking, attendance, dispatch, Today, staff portal | Consolidate on one effective schedule resolver contract                                                     | Consumer integration tests             |
 
 ## Planned Verification
 
@@ -1979,18 +2032,18 @@ persisted health all use one ordered-window recurring schedule model.
 
 ## Repair Matrix
 
-| Problem | Root cause | DB object | Source correction | Regression coverage |
-| --- | --- | --- | --- | --- |
-| Paper importer writes 21 rows and infers Closing | Importer encodes paper roster assumptions | `staff_schedules` | Delete importer, action, page wiring, readiness copy | Importer reference removal test/search |
-| Direct saves write 7 x 3 placeholders | Shift-type identity drives persistence | `staff_schedules` | Save actual ordered windows plus minimal day-off markers through RPC | Direct save row-count and payload tests |
-| Split shifts ignored by identity | Unique key is `staff_id,day,shift_type` | `staff_schedules` constraints | Normalize/rank legacy data, use `staff_id,day,window_order` | Split/overlap/overnight resolver tests |
-| Opening/Closing allowed for salon roles | Role checks treat salon staff as therapists | `staff`, schedules, group rules | Shared eligibility helper in SQL and TS | Role eligibility tests |
-| Missing individual schedule inherits group rules | Runtime fallback joins group templates | `staff_group_schedule_rules` | Group rules are templates; no fallback in effective schedule | No-schedule and group fallback tests |
-| Conflict output loses evidence | Resolver returns empty windows on conflict | Schedule resolver | Preserve exact affected windows and state | Conflict window/card tests |
-| Health/coverage duplicate schedule logic | Separate readers and filters | `schedule_health_checks`, suggestions | Route health/coverage through shared resolver and operational filter | Dedup/fingerprint/coverage tests |
-| Test/archived/merged staff enter operations | Filters duplicated inconsistently | `staff` | Reuse `operational-staff` plus SQL helper | Operational filter tests |
-| Corrupted 29-person rule | Roster totals persisted as staffing defaults | `scheduling_rules` | Backup exact signature and restore safe defaults | Migration/source guard test |
-| `staff_duty_assignments` ambiguity | Experimental table exists but no runtime refs | `staff_duty_assignments` | Audit/preserve, document as deprecated | Runtime reference search |
+| Problem                                          | Root cause                                    | DB object                             | Source correction                                                    | Regression coverage                     |
+| ------------------------------------------------ | --------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
+| Paper importer writes 21 rows and infers Closing | Importer encodes paper roster assumptions     | `staff_schedules`                     | Delete importer, action, page wiring, readiness copy                 | Importer reference removal test/search  |
+| Direct saves write 7 x 3 placeholders            | Shift-type identity drives persistence        | `staff_schedules`                     | Save actual ordered windows plus minimal day-off markers through RPC | Direct save row-count and payload tests |
+| Split shifts ignored by identity                 | Unique key is `staff_id,day,shift_type`       | `staff_schedules` constraints         | Normalize/rank legacy data, use `staff_id,day,window_order`          | Split/overlap/overnight resolver tests  |
+| Opening/Closing allowed for salon roles          | Role checks treat salon staff as therapists   | `staff`, schedules, group rules       | Shared eligibility helper in SQL and TS                              | Role eligibility tests                  |
+| Missing individual schedule inherits group rules | Runtime fallback joins group templates        | `staff_group_schedule_rules`          | Group rules are templates; no fallback in effective schedule         | No-schedule and group fallback tests    |
+| Conflict output loses evidence                   | Resolver returns empty windows on conflict    | Schedule resolver                     | Preserve exact affected windows and state                            | Conflict window/card tests              |
+| Health/coverage duplicate schedule logic         | Separate readers and filters                  | `schedule_health_checks`, suggestions | Route health/coverage through shared resolver and operational filter | Dedup/fingerprint/coverage tests        |
+| Test/archived/merged staff enter operations      | Filters duplicated inconsistently             | `staff`                               | Reuse `operational-staff` plus SQL helper                            | Operational filter tests                |
+| Corrupted 29-person rule                         | Roster totals persisted as staffing defaults  | `scheduling_rules`                    | Backup exact signature and restore safe defaults                     | Migration/source guard test             |
+| `staff_duty_assignments` ambiguity               | Experimental table exists but no runtime refs | `staff_duty_assignments`              | Audit/preserve, document as deprecated                               | Runtime reference search                |
 
 ## Planned Verification
 
@@ -2890,6 +2943,7 @@ Fix Attendance QR branch validation so the scanned QR point branch is the source
 ## Completion Checkpoint - 2026-07-09
 
 Completed:
+
 - Booking auto-assignment now prefers checked-in therapists only for same-day walk-ins. If no eligible checked-in therapist exists, it falls back to scheduled availability and returns the exact warning: `No staff has checked in yet. Showing scheduled availability. Confirm staff presence before starting service.`
 - Phone, future, and home-service booking recommendation paths now ignore attendance/check-in status and use schedule/conflict/service capability scoring only.
 - Quick Booking surfaces the fallback warning in the success toast while preserving scheduled-slot validation.
@@ -2899,17 +2953,20 @@ Completed:
 - Applied the migration SQL through linked Supabase `db query --file` because `db push` timed out before SQL execution; recorded migration version `20260709054954` in `supabase_migrations.schema_migrations`.
 
 Live DB verification:
+
 - Migration row `20260709054954 / attendance_device_branch_sync / codex`: present.
 - Trigger `trg_staff_branch_sync_devices` on `public.staff`: present.
 - Active `staff_devices` rows with branch mismatch vs current `staff.branch_id`: `0`.
 
 Verification:
+
 - `pnpm test --run tests/lib/attendance/branch-validation.test.ts tests/lib/assignments/recommendation-engine.test.ts`: PASS, 8 tests.
 - `pnpm type-check`: PASS.
 - `pnpm lint`: PASS.
 - `pnpm build`: PASS, Next.js 16.2.4, 106 app routes.
 
 Notes:
+
 - Safe diagnostics showed the current live wrong-branch scan events for the Main Spa attendance QR involved staff records whose current `staff.branch_id` is Living SM. This patch prevents stale device branch rows from causing false blocks, but staff whose actual current branch is SM will still be blocked by the Main QR unless their staff branch/membership is corrected or cross-branch membership is added.
 - `pnpm db:push` and direct `supabase db push` still timed out to the Supabase Postgres pooler from this environment; linked `supabase db query` succeeded and was used for the migration fallback.
 
@@ -2926,6 +2983,7 @@ Last updated: 2026-07-03
 Build the Device Registry and Recovery Center backend first, then replace the Attendance Devices tab.
 
 Scope:
+
 - Reuse the existing Attendance tables and scan/device architecture.
 - Audit current `staff_devices`, `device_activation_tokens`, attendance events/sessions, activation route, token hashing, device cookie, RLS, and permissions before changing schema.
 - Add only the missing database columns/indexes/constraints/RPC needed for one-time device recovery links, device metadata, rename, revocation, pending links, and atomic recovery consumption.
@@ -2956,6 +3014,7 @@ Scope:
 ## Completion Checkpoint - 2026-07-03
 
 Completed:
+
 - Added migration `supabase/migrations/20260703151111_attendance_device_registry_recovery.sql` and applied it to the linked Supabase database.
 - Extended the existing `staff_devices` and `device_activation_tokens` model instead of creating duplicate attendance/device tables.
 - Added atomic recovery consumption RPC `public.consume_attendance_device_recovery`, granted only to `service_role`.
@@ -2963,6 +3022,7 @@ Completed:
 - Replaced the Attendance Devices tab with the Device Registry and Recovery Center UI, including filters, selected-device panel, pending recovery links, rename, revoke, recovery-link generation, and staff confirmation screen.
 
 Verification:
+
 - Live SQL probe: migration row, new columns, RPC, and `service_role` execute grant all returned `ok`.
 - Live migration-history query also found the earlier local versions `20260703130922`, `20260703144603`, and `20260703145113` present remotely.
 - `pnpm db:types`: PASS.
@@ -2974,6 +3034,7 @@ Verification:
 - `git diff --check`: PASS, line-ending notices only.
 
 Known limitations:
+
 - `pnpm db:status` and `pnpm db:push` still time out on `aws-1-ap-northeast-1.pooler.supabase.com:5432`; live schema was verified directly through linked SQL instead.
 - Authenticated browser QA for `/crm/attendance?tab=devices` and the staff recovery confirmation flow still needs a real CRM/front-desk session and a real phone/browser scan.
 - A temporary SQL probe file `tmp-attendance-device-registry-verify.sql` remains untracked because Windows denied deletion and the elevated delete request was blocked by the environment usage limit.
@@ -2991,6 +3052,7 @@ Last updated: 2026-07-03
 Reset and establish a secure reusable Supabase migration, SQL, and type-generation connection.
 
 Scope:
+
 - Stabilize the project-local Supabase CLI workflow through `pnpm`.
 - Keep linked Supabase CLI as the primary migration/type-generation path.
 - Keep the transaction-pooler URL only as a local, git-ignored diagnostic and emergency fallback.
@@ -3018,6 +3080,7 @@ Scope:
 ## Implementation Checkpoint - 2026-07-03
 
 Completed:
+
 - Added secure project-local Supabase wrappers in `scripts/database/`.
 - Replaced stale hardcoded database package scripts with reusable `pnpm db:*` commands.
 - Added `.env.example` placeholders for Supabase runtime and local-only database tooling variables.
@@ -3026,6 +3089,7 @@ Completed:
 - Updated context, decision, error, handoff, project context, and roadmap notes.
 
 Verified:
+
 - `node --check scripts/database/*.mjs`: PASS
 - `pnpm db:doctor`: RUNS; exits nonzero because DB password rotation is unconfirmed, `SUPABASE_DB_POOLER_URL` is missing, and linked migration history times out through the Supabase pooler.
 - `pnpm db:status`: RUNS; local migration count is 83, remote history read times out, and no remote schema change occurred.
@@ -3040,9 +3104,11 @@ Verified:
 - Secret scan: PASS for tracked files and reviewed project placeholders; only placeholder URLs/variable names were found.
 
 Not run:
+
 - `pnpm db:types` was intentionally not run because `db:push --dry-run` is still blocked and generated types should not be refreshed from unreconciled remote schema history.
 
 Remaining blockers:
+
 - Rotate the Supabase database password outside the repo/session; the previously pasted password must be treated as compromised.
 - Add the rotated pooler URL to `.env.local` or `.env.database.local` as `SUPABASE_DB_POOLER_URL`.
 - Re-run `pnpm db:doctor`, `pnpm db:status`, `pnpm db:push -- --dry-run`, `pnpm db:push`, `pnpm db:types`, and `pnpm db:verify`.
@@ -3061,6 +3127,7 @@ Last updated: 2026-07-03
 Audit and repair all schedule-dependent operational flows before daily-use simulations.
 
 Scope:
+
 - Produce a scheduling dependency map before broad refactoring.
 - Verify canonical schedule precedence across TypeScript and SQL/RPC paths.
 - Repair confirmed timezone, group-membership, duration, blocking-status, realtime/cache, resource, dispatch, attendance, and Staff Portal inconsistencies where safe.
@@ -3086,6 +3153,7 @@ Scope:
 ## Implementation Checkpoint - 2026-07-03
 
 Completed in this slice:
+
 - Added branch-local `YYYY-MM-DD` helpers in `src/lib/engine/slot-time.ts` and rewired touched Schedule pages, week/full-schedule views, coverage cards, CRM availability, and live timeline status away from UTC/machine-date defaults.
 - Repaired Manager and Owner Schedule default selected dates to use branch business date.
 - Repaired Full Schedule and Staff Full Schedule modal date navigation/labels to avoid `Date` + `toISOString()` serialization drift.
@@ -3096,11 +3164,13 @@ Completed in this slice:
 - Completed `docs/SCHEDULING_BACKBONE_AUDIT.md` with source map, consumer map, confirmed defects, repairs, SQL/RPC parity, verification, and remaining follow-ups.
 
 Verified:
+
 - `npx tsc --noEmit --pretty false`: PASS
 - `npx vitest run src/lib/engine/availability.test.ts tests/lib/schedule/resolve-staff-schedule.test.ts tests/lib/schedule/schedule-timeline.test.ts tests/lib/schedule/daily-timeline-operations.test.ts tests/lib/schedule/daily-schedule-query.test.ts tests/lib/actions/staff-schedule-groups.test.ts`: PASS, 11 files / 79 tests
 - `git diff --check`: PASS, line-ending notices only
 
 Remaining follow-ups:
+
 - The new SQL migration has not been applied to the linked database in this pass.
 - `compute_booking_end_time` and `get_available_slots` still need a separate schema/API decision for `branch_services.custom_duration_minutes`, because app code/generated types reference the column but local migrations do not define it.
 - Overnight date-specific overrides/bookings/blocks remain a schema-level follow-up; this pass repaired overnight schedule windows and local UI/status math.
@@ -3119,6 +3189,7 @@ Last updated: 2026-07-03
 Upgrade and fully integrate the existing CradleHub Attendance system without creating a second attendance module.
 
 Scope:
+
 - Preserve existing QR public codes, scan URLs, activation links, device records, scan records, session/check-in rows, correction logic, permission helpers, realtime hooks, QR exports, and print behavior.
 - Inspect the existing Attendance QR implementation before adding or changing schema/UI.
 - Complete the trusted-device first-scan flow where a staff member signs in once, confirms device linking, receives an HttpOnly attendance-device cookie, and completes the first clock-in without a second scan.
@@ -3138,6 +3209,7 @@ Scope:
 ## Implementation Checkpoint - 2026-07-03
 
 Completed in this slice:
+
 - Added a reusable live `AttendanceScanFeedCard` backed by `qr_scan_events` and `staff_shift_checkins`.
 - Wired the card into CRM Work Queue (`/crm/today`) and Owner Overview (`/owner`).
 - Added `/api/attendance/recent-scans` for authenticated SWR refresh and Supabase realtime invalidation.
@@ -3147,6 +3219,7 @@ Completed in this slice:
 - Added focused helper tests for feed record links and badge labels.
 
 Verified:
+
 - `npx tsc --noEmit --pretty false`: PASS
 - `npx vitest run tests/lib/attendance/scan-feed.test.ts tests/lib/attendance/tabs.test.ts`: PASS, 2 files / 9 tests
 - `npm run lint`: PASS
@@ -3154,6 +3227,7 @@ Verified:
 - `git diff --check`: PASS, line-ending notices only
 
 Still not complete from the full pasted prompt:
+
 - First-scan trusted-device sign-in/linking flow was not rebuilt in this slice.
 - Staff Portal "My Attendance" and staff-profile attendance history were not added.
 - Authenticated browser QA still needs a valid CRM/front-desk session.
@@ -3172,6 +3246,7 @@ Last updated: 2026-07-03
 Fix the production Attendance public URL failure and wire CRM Schedule Daily Timeline coverage to fresh live schedule data.
 
 Scope:
+
 - Replace Attendance page-origin resolution from the unreliable browser `Origin` header with a server-only request-origin helper using forwarded host/protocol and host.
 - Resolve QR public URLs through `APP_URL`, public URL fallbacks, Vercel production URL, safe request origin, and development-only localhost.
 - Keep Attendance non-QR data loading even when QR URL configuration is unavailable.
@@ -3201,6 +3276,7 @@ Last updated: 2026-07-03
 Refit only the selected booking right-hand panel in the Bookings module to match the approved compact Selected Booking card mockup.
 
 Scope:
+
 - Keep the booking list, filters, tabs, header, pagination, CRM shell, and workspace layout unchanged except for the selected-panel footprint if needed.
 - Preserve existing booking workflow server actions, status transitions, payment controls, notes, service countdown, recommendation logic, permission checks, and modal flows.
 - Consolidate duplicated selected-booking details into one compact customer/booking summary.
@@ -3227,6 +3303,7 @@ Last updated: 2026-07-02
 Refit the existing CRM Attendance workspace without rebuilding its database, scan engine, service-session engine, device activation flow, or Supabase security model.
 
 Scope:
+
 - Keep `/crm/attendance` as the single Attendance route.
 - Keep one client workspace with instant local tabs for Overview, Records, Sessions, QR Codes, Devices, Exceptions, and Reports.
 - Remove KPI-card rows from Attendance tabs, especially Overview.

@@ -17,6 +17,10 @@ const setup = readFileSync(
   "src/components/features/attendance/setup/attendance-setup-view.tsx",
   "utf8"
 );
+const qrSetup = readFileSync(
+  "src/components/features/attendance/setup/attendance-qr-setup.tsx",
+  "utf8"
+);
 const history = readFileSync(
   "src/components/features/attendance/history/attendance-history-view.tsx",
   "utf8"
@@ -51,5 +55,14 @@ describe("ATTENDANCE-UX-001 preservation contract", () => {
     expect(ownerWorkspace).toContain("AttendanceTabs");
     expect(ownerWorkspace).toContain("AttendanceTabContent");
     expect(workspace).not.toContain("AttendanceTabs");
+  });
+
+  it("renders the branded poster workflow on the live CRM Setup QR route", () => {
+    expect(qrSetup).toContain("QrPrintTemplate");
+    expect(qrSetup).toContain("getActiveRoomQrPoints");
+    expect(qrSetup).toContain("printQrPoints");
+    expect(qrSetup).toContain("Print active rooms");
+    expect(qrSetup).toContain("Selected room A4 preview");
+    expect(qrSetup).not.toContain("dangerouslySetInnerHTML");
   });
 });

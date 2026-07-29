@@ -6,10 +6,23 @@ import { toast } from "sonner";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { QrPointListCard } from "@/components/features/attendance/qr-codes/qr-point-list";
 import { QrSelectedPanel } from "@/components/features/attendance/qr-codes/qr-selected-panel";
-import { QrToolbar, type QrStatusFilter, type QrTypeFilter } from "@/components/features/attendance/qr-codes/qr-toolbar";
-import { downloadQrSvg, printQrPoints } from "@/components/features/attendance/qr-codes/qr-export-client";
-import { deactivateQrPointAction, ensureAttendanceQrAction, ensureRoomQrPointsAction, type AttendanceActionResult } from "@/app/(dashboard)/crm/attendance/actions";
+import {
+  QrToolbar,
+  type QrStatusFilter,
+  type QrTypeFilter,
+} from "@/components/features/attendance/qr-codes/qr-toolbar";
+import {
+  downloadQrSvg,
+  printQrPoints,
+} from "@/components/features/attendance/qr-codes/qr-export-client";
+import {
+  deactivateQrPointAction,
+  ensureAttendanceQrAction,
+  ensureRoomQrPointsAction,
+  type AttendanceActionResult,
+} from "@/app/(dashboard)/crm/attendance/actions";
 import { QR_PRINT_LAYOUTS, type QrPrintFormat } from "@/lib/attendance/qr-print-layout";
+import { getActiveRoomQrPoints, getSelectedQrPoints } from "@/lib/attendance/qr-print-selection";
 import type { AttendanceQrPoint, AttendanceWorkspaceData } from "@/lib/attendance/types";
 
 const FORMAT_OPTIONS = Object.values(QR_PRINT_LAYOUTS);
@@ -34,16 +47,20 @@ export function QrCodesTab({
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<QrTypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<QrStatusFilter>("active");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(selectedQrId ? [selectedQrId] : []));
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(selectedQrId ? [selectedQrId] : [])
+  );
   const [isPending, startTransition] = useTransition();
 
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return data.qrPoints.filter((point) => {
-      const searchText = `${point.label} ${point.description ?? ""} ${point.resource_name ?? ""}`.toLowerCase();
+      const searchText =
+        `${point.label} ${point.description ?? ""} ${point.resource_name ?? ""}`.toLowerCase();
       const matchesQuery = !normalizedQuery || searchText.includes(normalizedQuery);
       const matchesType = typeFilter === "all" || point.point_type === typeFilter;
-      const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? point.is_active : !point.is_active);
+      const matchesStatus =
+        statusFilter === "all" || (statusFilter === "active" ? point.is_active : !point.is_active);
       return matchesQuery && matchesType && matchesStatus;
     });
   }, [data.qrPoints, query, statusFilter, typeFilter]);
@@ -83,7 +100,8 @@ export function QrCodesTab({
   function toggleAllVisible() {
     setSelectedIds((current) => {
       const allVisibleSelected = rows.length > 0 && rows.every((point) => current.has(point.id));
-      if (allVisibleSelected) return new Set([...current].filter((id) => !rows.some((point) => point.id === id)));
+      if (allVisibleSelected)
+        return new Set([...current].filter((id) => !rows.some((point) => point.id === id)));
       return new Set([...current, ...rows.map((point) => point.id)]);
     });
   }
@@ -93,7 +111,8 @@ export function QrCodesTab({
   }
 
   function deactivateSelected(point: AttendanceQrPoint) {
-    if (!window.confirm(`Deactivate ${point.label}? Existing printed signs will stop working.`)) return;
+    if (!window.confirm(`Deactivate ${point.label}? Existing printed signs will stop working.`))
+      return;
     const formData = new FormData();
     formData.set("qrPointId", point.id);
     runAction(() => deactivateQrPointAction(formData));
@@ -108,8 +127,12 @@ export function QrCodesTab({
       toast.error("Select a QR point to export.");
       return;
     }
-    bulkPoints.forEach((point) => downloadQrSvg({ point, branchName: data.branchName, format: selectedFormat }));
-    toast.success(`${bulkPoints.length} QR ${bulkPoints.length === 1 ? "file" : "files"} exported.`);
+    bulkPoints.forEach((point) =>
+      downloadQrSvg({ point, branchName: data.branchName, format: selectedFormat })
+    );
+    toast.success(
+      `${bulkPoints.length} QR ${bulkPoints.length === 1 ? "file" : "files"} exported.`
+    );
   }
 
   function printSelected() {
@@ -122,6 +145,23 @@ export function QrCodesTab({
       return;
     }
     printQrPoints({ points: bulkPoints, branchName: data.branchName, format: selectedFormat });
+  }
+
+  function printActiveRooms() {
+    if (urlActionsDisabled) {
+      toast.error("QR links are unavailable until APP_URL or NEXT_PUBLIC_APP_URL is configured.");
+      return;
+    }
+    const activeRooms = getActiveRoomQrPoints(data.qrPoints);
+    if (activeRooms.length === 0) {
+      toast.error(`No active room QR signs are available for ${data.branchName}.`);
+      return;
+    }
+    if (activeRooms.some((point) => !point.scan_url || !point.svg)) {
+      toast.error("One or more active room QR codes could not be rendered. Nothing was printed.");
+      return;
+    }
+    printQrPoints({ points: activeRooms, branchName: data.branchName, format: "a4" });
   }
 
   return (
@@ -137,7 +177,8 @@ export function QrCodesTab({
           }
         >
           <p className="m-0 leading-5">
-            Configure APP_URL or NEXT_PUBLIC_APP_URL in the Production environment using the canonical Cradle domain, then redeploy.
+            Configure APP_URL or NEXT_PUBLIC_APP_URL in the Production environment using the
+            canonical Cradle domain, then redeploy.
           </p>
           {data.qrConfiguration.error ? (
             <p className="m-0 text-xs text-amber-800">{data.qrConfiguration.error}</p>
@@ -157,6 +198,7 @@ export function QrCodesTab({
         onGenerateQr={() => runAction(ensureAttendanceQrAction)}
         onExportSelected={exportSelected}
         onPrintSelected={printSelected}
+        onPrintActiveRooms={printActiveRooms}
         urlActionsDisabled={urlActionsDisabled}
       />
 
@@ -191,10 +233,4 @@ export function QrCodesTab({
       </div>
     </div>
   );
-}
-
-function getSelectedQrPoints(points: AttendanceQrPoint[], selectedIds: Set<string>, selectedQr: AttendanceQrPoint | null): AttendanceQrPoint[] {
-  const selected = points.filter((point) => selectedIds.has(point.id));
-  if (selected.length > 0) return selected;
-  return selectedQr ? [selectedQr] : [];
 }

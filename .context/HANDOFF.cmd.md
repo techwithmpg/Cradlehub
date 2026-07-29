@@ -1,5 +1,36 @@
 # HANDOFF - Next Agent Session
 
+## QR-REALTIME-MARKETING-20260729 - Phase 1 scan gate explicitly waived
+
+The reusable Attendance/room A4 poster implementation is source-ready and its
+automated/browser/PDF checks pass. The user explicitly waived the real-phone
+gate on 2026-07-29 and directed Phase 2 to begin. Main Spa Attendance, SM
+Attendance, and one active room printed scan remain unverified; never rewrite
+that limitation as a passing result. Preserve it as a follow-up while continuing
+the Realtime phase.
+
+The actual CRM Setup route is now wired. Authenticated rendered QA at
+`/crm/attendance?view=setup&section=qr` shows the branded Attendance preview,
+`Print active rooms`, room capacities, and a selected-room preview; selecting
+CALMANTE 2 updates the rendered room poster. Do not restore the raw standalone QR
+block from the earlier Setup implementation.
+
+Verification already complete under Node 24.14.0 / pnpm 10.33.2: 5 focused
+Vitest files / 16 tests, TypeScript, zero-warning ESLint, incremental format
+check, and Next.js 16.2.4 production build with 113 generated pages. Authenticated
+Main Spa QR workspace inspection had no console warnings/errors. Chrome and Edge
+each produced exactly two A4 pages for a two-poster batch with no trailing page.
+See `docs/audits/QR_PRINT_PHASE1_VERIFICATION_20260729.md` for evidence and
+retained screenshot paths.
+
+The available authenticated session was Main Spa Front Desk only, so SM preview
+and physical-phone evidence remain unverified under the explicit waiver. No live
+scan URL was opened, no attendance mutation was attempted, no deployment
+occurred, and the linked Supabase 92-local-only / 5-remote-only history block
+remains unchanged.
+
+---
+
 ## PRODUCTION-READINESS-REPAIR-20260723 - 2026-07-23
 
 The source release is validated. Preserve the completed Attendance CRM

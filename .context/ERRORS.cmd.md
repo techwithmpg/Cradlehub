@@ -1,3 +1,28 @@
+## 2026-07-29 - QR print Phase 1 validation notes
+
+- **Live route still showed the raw QR UI:** The initial poster work was wired to
+  `QrCodesTab`, but the current CRM `view=setup&section=qr` route renders
+  `AttendanceQrSetup`. The live component now consumes the same branded poster,
+  print client, and active-room selector, and a source regression test prevents
+  the raw `dangerouslySetInnerHTML` QR block from returning there.
+- **Bundled pnpm mismatch:** The desktop fallback launcher exposed pnpm 11.9.0,
+  while the repository correctly requires pnpm 10.33.2. Verification was rerun
+  through the installed pnpm 10.33.2 CLI using bundled Node 24.14.0; all gates
+  passed without changing runtime constraints or dependencies.
+- **Initial batch page clipping:** A break-after-only print rule clipped the
+  second Chromium page. The A4 stylesheet now applies an explicit page break to
+  each sibling poster. Chrome and Edge rerenders both produced exactly two
+  complete A4 pages for two posters and no trailing page.
+- **High-DPI evidence timeout:** A chained 180-DPI Poppler conversion exceeded
+  its bounded timeout after writing page 1. Existing 120-DPI page renders were
+  visually sufficient, both source PDFs had already passed independent A4/page
+  count checks, and no process remained. Temporary render files were removed.
+- **Physical verification waived:** The agent could not perform the required real
+  phone scans, and the authenticated session exposed Main Spa Front Desk rather
+  than SM. On 2026-07-29 the user explicitly instructed Codex to proceed without
+  those scans. Main Attendance, SM Attendance, and one room printed scan remain
+  unverified and must not be reported as passed.
+
 ## 2026-07-23 - Production readiness blockers and resolution
 
 - **Frozen install exit 13:** The system Node 25.2.0 run downloaded and verified

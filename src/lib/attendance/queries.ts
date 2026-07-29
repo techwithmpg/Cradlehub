@@ -311,7 +311,7 @@ export async function ensureBranchAttendanceQrPoint(
   const branch = await requireBranch(admin, ctx.branchId);
   const existing = await admin
     .from("qr_points")
-    .select("*, branch_resources(name)")
+    .select("*, branch_resources(name, capacity, type, is_active)")
     .eq("branch_id", branch.id)
     .eq("point_type", "attendance")
     .eq("is_active", true)
@@ -334,13 +334,13 @@ export async function ensureBranchAttendanceQrPoint(
       scan_behavior: "auto",
       created_by: ctx.actorStaffId,
     })
-    .select("*, branch_resources(name)")
+    .select("*, branch_resources(name, capacity, type, is_active)")
     .single();
 
   if (inserted.error) {
     const retry = await admin
       .from("qr_points")
-      .select("*, branch_resources(name)")
+      .select("*, branch_resources(name, capacity, type, is_active)")
       .eq("branch_id", branch.id)
       .eq("point_type", "attendance")
       .eq("is_active", true)
@@ -403,7 +403,7 @@ export async function ensureRoomQrPoints(ctx: AttendanceActionContext): Promise<
   const { data, error } = await admin
     .from("qr_points")
     .insert(rows)
-    .select("*, branch_resources(name)");
+    .select("*, branch_resources(name, capacity, type, is_active)");
   if (error) throw new Error(error.message);
   return {
     createdCount: rows.length,
@@ -613,7 +613,7 @@ export async function getAttendanceWorkspaceData(params: {
   ] = await Promise.all([
     admin
       .from("qr_points")
-      .select("*, branch_resources(name)")
+      .select("*, branch_resources(name, capacity, type, is_active)")
       .eq("branch_id", params.branchId)
       .order("point_type")
       .order("label"),
@@ -981,8 +981,15 @@ function mapQrPoint(params: {
     scan_behavior: string;
     created_at: string;
     updated_at: string;
-    branch_resources?: Relation<{ name: string | null }>;
+    branch_resources?: Relation<{
+      name: string | null;
+      capacity: number | null;
+      type: string | null;
+      is_active: boolean | null;
+    }>;
   };
+
+  const resource = first(point.branch_resources);
 
   return {
     id: point.id,
@@ -997,7 +1004,10 @@ function mapQrPoint(params: {
     scan_behavior: point.scan_behavior,
     created_at: point.created_at,
     updated_at: point.updated_at,
-    resource_name: first(point.branch_resources)?.name ?? null,
+    resource_name: resource?.name ?? null,
+    resource_capacity: resource?.capacity ?? null,
+    resource_type: resource?.type ?? null,
+    resource_is_active: resource?.is_active ?? null,
     scan_url: params.scanUrl,
     svg: params.svg,
   };

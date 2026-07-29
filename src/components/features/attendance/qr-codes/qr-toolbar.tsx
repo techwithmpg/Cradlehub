@@ -1,4 +1,4 @@
-import { ChevronDown, FileArchive, Plus, Printer, QrCode } from "lucide-react";
+import { ChevronDown, FileArchive, Files, Plus, Printer, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ToolbarSearch,
@@ -23,6 +23,7 @@ export function QrToolbar({
   onGenerateQr,
   onExportSelected,
   onPrintSelected,
+  onPrintActiveRooms,
   urlActionsDisabled,
 }: {
   branchName: string;
@@ -37,6 +38,7 @@ export function QrToolbar({
   onGenerateQr: () => void;
   onExportSelected: () => void;
   onPrintSelected: () => void;
+  onPrintActiveRooms: () => void;
   urlActionsDisabled: boolean;
 }) {
   return (
@@ -44,22 +46,56 @@ export function QrToolbar({
       fieldsClassName="sm:grid-cols-[160px_140px_130px_minmax(220px,1fr)]"
       actions={
         <>
-          <Button type="button" variant="outline" size="lg" disabled={isPending} onClick={onGenerateMissing}>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={isPending}
+            onClick={onGenerateMissing}
+          >
             <QrCode data-icon="inline-start" />
             Generate Missing
           </Button>
-          <Button type="button" size="lg" disabled={isPending} onClick={onGenerateQr} className="bg-[#0B5634] text-white hover:bg-[#0A482D]">
+          <Button
+            type="button"
+            size="lg"
+            disabled={isPending}
+            onClick={onGenerateQr}
+            className="bg-[#0B5634] text-white hover:bg-[#0A482D]"
+          >
             <Plus data-icon="inline-start" />
             Generate QR
           </Button>
-          <Button type="button" variant="outline" size="lg" disabled={urlActionsDisabled} onClick={onExportSelected}>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={urlActionsDisabled}
+            onClick={onExportSelected}
+          >
             <FileArchive data-icon="inline-start" />
             Export Selected
             <ChevronDown data-icon="inline-end" className="size-4" />
           </Button>
-          <Button type="button" variant="outline" size="lg" disabled={urlActionsDisabled} onClick={onPrintSelected}>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={urlActionsDisabled}
+            onClick={onPrintSelected}
+          >
             <Printer data-icon="inline-start" />
             Print Selected
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={urlActionsDisabled}
+            onClick={onPrintActiveRooms}
+          >
+            <Files data-icon="inline-start" />
+            Print Active Rooms
           </Button>
         </>
       }
