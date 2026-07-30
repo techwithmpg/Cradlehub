@@ -2,6 +2,11 @@ import type { Database } from "@/types/supabase";
 
 export type WorkspaceNotification = Database["public"]["Tables"]["workspace_notifications"]["Row"];
 
+export type NotificationBellSnapshot = {
+  items: WorkspaceNotification[];
+  unreadCount: number;
+};
+
 export type WorkflowTask = Database["public"]["Tables"]["workflow_tasks"]["Row"];
 
 export type NotificationType =

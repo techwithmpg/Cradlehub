@@ -32,6 +32,10 @@ import {
 } from "@/lib/attendance/staff-diagnostics";
 import type { AttendanceIssueAction } from "@/lib/attendance/issue-presentation-types";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
+import {
+  mergeAttendanceWorkspaceCheckin,
+  type AttendanceCheckinRealtimeRow,
+} from "@/lib/attendance/attendance-workspace-realtime-merge";
 
 export function CrmAttendanceWorkspace({
   data,
@@ -75,7 +79,21 @@ export function CrmAttendanceWorkspace({
       toast.error(error instanceof Error ? error.message : "Attendance could not be refreshed.")
     );
   }, [mutate]);
-  useAttendanceWorkspaceRealtime({ branchId: current.branchId, onRefresh: refresh });
+  const handleCheckinChange = useCallback(
+    (row: AttendanceCheckinRealtimeRow) => {
+      void mutate(
+        (workspace) =>
+          workspace ? mergeAttendanceWorkspaceCheckin(workspace, row) : workspace,
+        { revalidate: false }
+      );
+    },
+    [mutate]
+  );
+  useAttendanceWorkspaceRealtime({
+    branchId: current.branchId,
+    onCheckinChange: handleCheckinChange,
+    onRefresh: refresh,
+  });
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(timer);

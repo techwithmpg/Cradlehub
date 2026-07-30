@@ -21,6 +21,10 @@ import type {
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
 import type { QrPrintFormat } from "@/lib/attendance/qr-print-layout";
+import {
+  mergeAttendanceWorkspaceCheckin,
+  type AttendanceCheckinRealtimeRow,
+} from "@/lib/attendance/attendance-workspace-realtime-merge";
 
 type AttendanceWorkspaceProps = {
   data: AttendanceWorkspaceData;
@@ -119,8 +123,19 @@ export function AttendanceWorkspace(props: AttendanceWorkspaceProps) {
       });
     });
   }, [refreshAttendance]);
+  const handleCheckinChange = useCallback(
+    (row: AttendanceCheckinRealtimeRow) => {
+      void refreshAttendance(
+        (workspace) =>
+          workspace ? mergeAttendanceWorkspaceCheckin(workspace, row) : workspace,
+        { revalidate: false }
+      );
+    },
+    [refreshAttendance]
+  );
   useAttendanceWorkspaceRealtime({
     branchId: workspaceData.branchId,
+    onCheckinChange: handleCheckinChange,
     onRefresh: refreshFromServer,
   });
 

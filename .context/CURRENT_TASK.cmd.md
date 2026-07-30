@@ -8,7 +8,30 @@ Studio into a governed draft/preview/publish workspace with a dedicated
 digital-marketer role.
 Status: IN PROGRESS
 Started: 2026-07-29
-Last updated: 2026-07-29
+Last updated: 2026-07-30
+
+## Resume checkpoint - 2026-07-30
+
+- Resumed from the dedicated feature branch
+  `codex/qr-realtime-marketing-studio`; no branch switch, reset, or destructive
+  action was performed.
+- Required root files `PROJECT_CONTEXT.md`, `ROADMAP.md`, and
+  `AGENT_RULES.md` are absent in this checkout. Per prior project context,
+  their available equivalents were read: `docs/PROJECT_CONTEXT.md`,
+  `docs/ROADMAP.md`, and `AGENTS.md`. `CLAUDE.md` points to `AGENTS.md`.
+- Phase 1 is already committed at `100939ac` and remains classified as
+  source/print-QA complete with the physical phone-scan gate explicitly waived,
+  not passed. Do not claim Main Spa, SM, or room physical poster scans as
+  verified.
+- Phase 2 is the active resume point. The current worktree contains local
+  Attendance Realtime/recent-scan and NotificationBell optimization edits plus
+  new untracked helper modules. The goal is to finish the event-driven delta
+  behavior, focused tests, verification, context update, and atomic Phase 2
+  commit before any Phase 3 work.
+- Phase 3 Digital Marketing Studio has not started in this resume session and
+  must remain "enhancement in progress" until its own role, migration, RLS,
+  storage, publishing, preview, rollback, public-site integration, and browser
+  gates are genuinely complete.
 
 ## Guardrails
 

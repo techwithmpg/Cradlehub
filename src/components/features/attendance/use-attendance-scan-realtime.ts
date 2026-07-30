@@ -1,60 +1,66 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { AttendanceRealtimeScanRow } from "@/lib/attendance/recent-scan-event";
 import { createClient } from "@/lib/supabase/client";
 
-const LIVE_RECONCILE_INTERVAL_MS = 15_000;
-const DEGRADED_RECONCILE_INTERVAL_MS = 8_000;
-const EVENT_REFRESH_DEBOUNCE_MS = 250;
+export const ATTENDANCE_DISCONNECTED_RECONCILE_MS = 60_000;
+export const ATTENDANCE_VISIBILITY_STALE_MS = 2 * 60_000;
 
 export type AttendanceRealtimeStatus = "connecting" | "live" | "delayed" | "offline";
 
 export function useAttendanceScanRealtime({
   branchId,
   selectedDate,
-  onRefresh,
+  onScanEvent,
+  onReconcile,
 }: {
   branchId: string | null;
   selectedDate: string;
-  onRefresh: () => void;
+  onScanEvent: (row: AttendanceRealtimeScanRow) => void;
+  onReconcile: () => void;
 }) {
   const [status, setStatus] = useState<AttendanceRealtimeStatus>(() =>
     typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "connecting"
   );
   const statusRef = useRef<AttendanceRealtimeStatus>(status);
-  const callbacksRef = useRef({ onRefresh });
-  const refreshTimerRef = useRef<number | null>(null);
+  const callbacksRef = useRef({ onScanEvent, onReconcile });
 
   useEffect(() => {
-    callbacksRef.current = { onRefresh };
-  }, [onRefresh]);
+    callbacksRef.current = { onScanEvent, onReconcile };
+  }, [onReconcile, onScanEvent]);
 
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
 
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current !== null) {
-      window.clearTimeout(refreshTimerRef.current);
-    }
-    refreshTimerRef.current = window.setTimeout(() => {
-      refreshTimerRef.current = null;
-      callbacksRef.current.onRefresh();
-    }, EVENT_REFRESH_DEBOUNCE_MS);
-  }, []);
-
   useEffect(() => {
     const supabase = createClient();
-    const channelSuffix =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const channel = supabase.channel(
-      `attendance-scan-feed-${branchId ?? "all"}-${selectedDate}-${channelSuffix}`
-    );
+    const channel = supabase.channel(`attendance-scan-feed-${branchId ?? "all"}-${selectedDate}`);
     const filter = branchId ? `branch_id=eq.${branchId}` : undefined;
     let disposed = false;
     let subscribedOnce = false;
+    let disconnectedTimer: number | null = null;
+    let hiddenAt: number | null = null;
+
+    const clearDisconnectedFallback = () => {
+      if (disconnectedTimer !== null) {
+        window.clearInterval(disconnectedTimer);
+        disconnectedTimer = null;
+      }
+    };
+    const startDisconnectedFallback = () => {
+      if (disconnectedTimer !== null) return;
+      disconnectedTimer = window.setInterval(() => {
+        if (
+          statusRef.current !== "live" &&
+          navigator.onLine &&
+          document.visibilityState === "visible"
+        ) {
+          callbacksRef.current.onReconcile();
+        }
+      }, ATTENDANCE_DISCONNECTED_RECONCILE_MS);
+    };
 
     queueMicrotask(() => {
       if (!disposed) setStatus(navigator.onLine ? "connecting" : "offline");
@@ -65,60 +71,54 @@ export function useAttendanceScanRealtime({
       table: "qr_scan_events",
       ...(filter ? { filter } : {}),
     } as const;
-    const checkinChange = {
-      schema: "public",
-      table: "staff_shift_checkins",
-      ...(filter ? { filter } : {}),
-    } as const;
+    const handleScanChange = (payload: { new: unknown }) => {
+      const row = payload.new as Partial<AttendanceRealtimeScanRow>;
+      if (row.scan_type === "attendance" && row.is_test === false) {
+        callbacksRef.current.onScanEvent(row as AttendanceRealtimeScanRow);
+      }
+    };
 
     channel
-      .on("postgres_changes", { event: "INSERT", ...scanChange }, (payload) => {
-        const row = payload.new as { scan_type?: string };
-        if (row.scan_type === "attendance") scheduleRefresh();
-      })
-      .on("postgres_changes", { event: "INSERT", ...checkinChange }, scheduleRefresh)
-      .on("postgres_changes", { event: "UPDATE", ...checkinChange }, scheduleRefresh)
+      .on("postgres_changes", { event: "INSERT", ...scanChange }, handleScanChange)
+      .on("postgres_changes", { event: "UPDATE", ...scanChange }, handleScanChange)
       .subscribe((nextStatus) => {
         if (disposed) return;
 
         if (nextStatus === "SUBSCRIBED") {
+          clearDisconnectedFallback();
           setStatus("live");
-          if (subscribedOnce) scheduleRefresh();
+          if (subscribedOnce) callbacksRef.current.onReconcile();
           subscribedOnce = true;
           return;
         }
 
-        if (nextStatus === "CHANNEL_ERROR" || nextStatus === "TIMED_OUT") {
+        if (
+          nextStatus === "CHANNEL_ERROR" ||
+          nextStatus === "TIMED_OUT" ||
+          nextStatus === "CLOSED"
+        ) {
           setStatus(navigator.onLine ? "delayed" : "offline");
-          return;
-        }
-
-        if (nextStatus === "CLOSED") {
-          setStatus(navigator.onLine ? "delayed" : "offline");
+          startDisconnectedFallback();
         }
       });
 
-    const reconcile = () => {
-      if (document.visibilityState === "visible") scheduleRefresh();
-    };
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") reconcile();
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      const stale = hiddenAt !== null && Date.now() - hiddenAt >= ATTENDANCE_VISIBILITY_STALE_MS;
+      hiddenAt = null;
+      if (stale) callbacksRef.current.onReconcile();
     };
     const handleOnline = () => {
       setStatus((current) => (current === "live" ? "live" : "connecting"));
-      reconcile();
+      if (statusRef.current !== "live") startDisconnectedFallback();
     };
-    const handleOffline = () => setStatus("offline");
-
-    let lastReconcileAt = 0;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      const interval =
-        statusRef.current === "live" ? LIVE_RECONCILE_INTERVAL_MS : DEGRADED_RECONCILE_INTERVAL_MS;
-      if (Date.now() - lastReconcileAt < interval) return;
-      lastReconcileAt = Date.now();
-      scheduleRefresh();
-    }, DEGRADED_RECONCILE_INTERVAL_MS);
+    const handleOffline = () => {
+      setStatus("offline");
+      startDisconnectedFallback();
+    };
 
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("online", handleOnline);
@@ -126,17 +126,13 @@ export function useAttendanceScanRealtime({
 
     return () => {
       disposed = true;
-      window.clearInterval(timer);
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+      clearDisconnectedFallback();
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       void supabase.removeChannel(channel);
     };
-  }, [branchId, scheduleRefresh, selectedDate]);
+  }, [branchId, selectedDate]);
 
   return status;
 }

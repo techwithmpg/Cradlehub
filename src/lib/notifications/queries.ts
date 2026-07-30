@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { WorkspaceNotification } from "./types";
+import type { NotificationBellSnapshot, WorkspaceNotification } from "./types";
 import { logError } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOrUpdateNotification } from "./workflow-notifications-store";
@@ -160,6 +160,38 @@ export async function getUnreadCountAction(): Promise<number> {
     .eq("status", "unread");
   if (error) return 0;
   return count ?? 0;
+}
+
+export async function getNotificationBellSnapshot(
+  limit = 20
+): Promise<NotificationBellSnapshot> {
+  const supabase = await createClient();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+  const [itemsResult, countResult] = await Promise.all([
+    supabase
+      .from("workspace_notifications")
+      .select("*")
+      .in("status", ["unread", "read", "resolved"])
+      .gte("created_at", thirtyDaysAgo)
+      .order("created_at", { ascending: false })
+      .limit(safeLimit),
+    supabase
+      .from("workspace_notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "unread"),
+  ]);
+  if (itemsResult.error || countResult.error) {
+    logError("notification.query_failed", {
+      action: "getNotificationBellSnapshot",
+      error: itemsResult.error ?? countResult.error,
+    });
+    return { items: [], unreadCount: 0 };
+  }
+  return {
+    items: (itemsResult.data ?? []) as WorkspaceNotification[],
+    unreadCount: countResult.count ?? 0,
+  };
 }
 
 export async function getNotificationPopoverAction(limit = 8): Promise<WorkspaceNotification[]> {

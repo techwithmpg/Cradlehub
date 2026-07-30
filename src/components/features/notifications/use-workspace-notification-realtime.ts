@@ -8,7 +8,7 @@ import type { WorkspaceNotification } from "@/lib/notifications/types";
 const CHANNEL_NAME = "cradlehub-workspace-notifications";
 const SESSION_HANDLED_KEY = "cradlehub_notification_session_ids";
 const BROWSER_HANDLED_KEY = "cradlehub_notification_browser_ids";
-const RECONCILE_INTERVAL_MS = 5 * 60_000;
+export const NOTIFICATION_VISIBILITY_STALE_MS = 2 * 60_000;
 const MAX_HANDLED_IDS = 200;
 const OLD_INSERT_TOLERANCE_MS = 10_000;
 
@@ -89,6 +89,7 @@ export function useWorkspaceNotificationRealtime({
         : new BroadcastChannel(CHANNEL_NAME);
     let subscribedOnce = false;
     let disposed = false;
+    let hiddenAt: number | null = null;
 
     const rememberInTab = (notificationId: string) => {
       handledInTab.add(notificationId);
@@ -143,7 +144,7 @@ export function useWorkspaceNotificationRealtime({
     });
 
     const channel = supabase
-      .channel(`workspace-notifications-${crypto.randomUUID()}`)
+      .channel("workspace-notifications")
       .on(
         "postgres_changes",
         {
@@ -159,7 +160,7 @@ export function useWorkspaceNotificationRealtime({
           // prevents an old unread row from being presented as a new alert.
           if (!isFreshInsert(payload.new, mountedAt)) {
             rememberInTab(payload.new.id);
-            callbacksRef.current.onReconcile();
+            callbacksRef.current.onInsert(payload.new, { present: false });
             return;
           }
 
@@ -186,17 +187,19 @@ export function useWorkspaceNotificationRealtime({
         subscribedOnce = true;
       });
 
-    const reconcile = () => {
-      if (document.visibilityState === "visible") {
-        callbacksRef.current.onReconcile();
-      }
-    };
-    const timer = window.setInterval(reconcile, RECONCILE_INTERVAL_MS);
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") reconcile();
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      const stale = hiddenAt !== null && Date.now() - hiddenAt >= NOTIFICATION_VISIBILITY_STALE_MS;
+      hiddenAt = null;
+      if (stale) callbacksRef.current.onReconcile();
     };
     const handleServiceWorkerMessage = (event: MessageEvent) => {
-      if (event.data?.type === "CRADLEHUB_PUSH_RECONCILE") reconcile();
+      if (event.data?.type === "CRADLEHUB_PUSH_RECONCILE") {
+        callbacksRef.current.onReconcile();
+      }
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
@@ -204,7 +207,6 @@ export function useWorkspaceNotificationRealtime({
 
     return () => {
       disposed = true;
-      window.clearInterval(timer);
       document.removeEventListener("visibilitychange", handleVisibility);
       navigator.serviceWorker?.removeEventListener("message", handleServiceWorkerMessage);
       coordinationChannel?.close();

@@ -387,7 +387,14 @@ export type AttendanceScanFeedData = {
   branchName: string | null;
   items: RecentAttendanceScan[];
   lastHourCount: number;
+  lastHourOperations: AttendanceScanOperation[];
+  nextCursor: string | null;
   error: string | null;
+};
+
+export type AttendanceScanOperation = {
+  operationId: string;
+  occurredAt: string;
 };
 
 export type AttendanceRecordFilters = {
@@ -459,6 +466,7 @@ export type PublicScanResult = {
   resolution?: import("@/lib/attendance/scan-resolution").AttendanceScanResolution;
   nextHref?: string;
   attendance?: {
+    attendanceId?: string;
     action: "clock_in" | "clock_out";
     staffName: string;
     branchName: string;

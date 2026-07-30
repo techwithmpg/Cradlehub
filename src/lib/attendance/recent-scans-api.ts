@@ -12,6 +12,7 @@ import { resolveSuperAdminContext } from "@/lib/auth/super-admin";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getDevBypassBranchContext } from "@/lib/dev-bypass-server";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { parseAttendanceScanCursor } from "@/lib/attendance/recent-scans-cursor";
 import { createClient } from "@/lib/supabase/server";
 
 const ERROR_MESSAGE = "Attendance activity could not be refreshed.";
@@ -113,10 +114,15 @@ export async function getAttendanceScanFeedRouteResult(params: URLSearchParams):
   const workspace = parseWorkspace(params.get("workspace"));
   const selectedDate = parseDate(params.get("selectedDate"));
   const maxItems = parseMaxItems(params.get("maxItems"));
+  const after = params.get("after");
+  const cursor = parseAttendanceScanCursor(after);
   let branchId = params.get("branchId") || null;
   let branchName: string | null = null;
 
   try {
+    if (after && !cursor) {
+      return fallback({ workspace, selectedDate, branchId, status: 400 });
+    }
     if (workspace === "crm") {
       const context = await resolveCrmFeedContext();
       if (!context) return fallback({ workspace, selectedDate, status: 401 });
@@ -137,6 +143,7 @@ export async function getAttendanceScanFeedRouteResult(params: URLSearchParams):
         branchName,
         selectedDate,
         maxItems,
+        cursor,
       }),
     };
   } catch {

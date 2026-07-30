@@ -12,9 +12,8 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
-  getRecentNotificationsAction,
-  getUnreadCountAction,
   dismissNotificationAction,
+  getNotificationBellSnapshot,
 } from "@/lib/notifications/queries";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
 import { NotificationBellDropdown } from "./notification-bell-dropdown";
@@ -22,6 +21,10 @@ import { BookingNotificationSound } from "./booking-notification-sound";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { getNotificationDisplay } from "./notification-display";
 import { dispatchBookingNotificationSound } from "./notification-sound-preference";
+import {
+  notificationUnreadDelta,
+  upsertNotificationItems,
+} from "@/lib/notifications/notification-state";
 import {
   broadcastNotificationReconciliation,
   useWorkspaceNotificationRealtime,
@@ -69,6 +72,7 @@ export function NotificationBell({ role }: { role: string }) {
   const [open, setOpen] = useState(false);
   const [fetching, setFetching] = useState(false);
   const knownIdsRef = useRef(new Set<string>());
+  const knownStatusRef = useRef(new Map<string, WorkspaceNotification["status"]>());
 
   const canonicalRole = canonicalizeSystemRole(role);
   const href = WORKSPACE_HREF[canonicalRole] ?? "/owner/notifications";
@@ -76,13 +80,13 @@ export function NotificationBell({ role }: { role: string }) {
   const refreshNotifications = useCallback(async () => {
     setFetching(true);
     try {
-      const [notifications, unreadCount] = await Promise.all([
-        getRecentNotificationsAction(20),
-        getUnreadCountAction(),
-      ]);
-      knownIdsRef.current = new Set(notifications.map((notification) => notification.id));
-      setItems(notifications);
-      setCount(unreadCount);
+      const snapshot = await getNotificationBellSnapshot(20);
+      knownIdsRef.current = new Set(snapshot.items.map((notification) => notification.id));
+      knownStatusRef.current = new Map(
+        snapshot.items.map((notification) => [notification.id, notification.status])
+      );
+      setItems(snapshot.items);
+      setCount(snapshot.unreadCount);
     } catch {
       setItems([]);
     } finally {
@@ -106,10 +110,8 @@ export function NotificationBell({ role }: { role: string }) {
       if (!present) {
         const alreadyKnown = knownIdsRef.current.has(notification.id);
         knownIdsRef.current.add(notification.id);
-        setItems((current) => [
-          notification,
-          ...current.filter((item) => item.id !== notification.id),
-        ].slice(0, 20));
+        knownStatusRef.current.set(notification.id, notification.status);
+        setItems((current) => upsertNotificationItems(current, notification));
         if (!alreadyKnown && notification.status === "unread") {
           setCount((current) => current + 1);
         }
@@ -135,9 +137,14 @@ export function NotificationBell({ role }: { role: string }) {
         cancel: {
           label: "Dismiss",
           onClick: () => {
-            void dismissNotificationAction(notification.id).finally(() => {
+            const previousStatus = knownStatusRef.current.get(notification.id);
+            knownStatusRef.current.set(notification.id, "dismissed");
+            setItems((current) => current.filter((item) => item.id !== notification.id));
+            if (previousStatus === "unread") {
+              setCount((current) => Math.max(0, current - 1));
+            }
+            void dismissNotificationAction(notification.id).then(() => {
               broadcastNotificationReconciliation();
-              void refreshNotifications();
             });
           },
         },
@@ -147,17 +154,20 @@ export function NotificationBell({ role }: { role: string }) {
         dispatchBookingNotificationSound(notification.id);
       }
     },
-    [refreshNotifications, router]
+    [router]
   );
 
   const handleRealtimeUpdate = useCallback(
     (notification: WorkspaceNotification) => {
+      const previousStatus = knownStatusRef.current.get(notification.id);
+      knownStatusRef.current.set(notification.id, notification.status);
       setItems((current) =>
-        current.map((item) =>
-          item.id === notification.id ? notification : item
-        )
+        current.some((item) => item.id === notification.id)
+          ? upsertNotificationItems(current, notification)
+          : current
       );
-      void getUnreadCountAction().then(setCount).catch(() => {});
+      const delta = notificationUnreadDelta(previousStatus, notification.status);
+      if (delta !== 0) setCount((current) => Math.max(0, current + delta));
     },
     []
   );
@@ -184,6 +194,7 @@ export function NotificationBell({ role }: { role: string }) {
     if (target?.status === "unread") {
       setCount((current) => Math.max(0, current - 1));
     }
+    knownStatusRef.current.set(id, "dismissed");
   }, [items]);
 
   const markRead = useCallback((id: string) => {
@@ -196,6 +207,7 @@ export function NotificationBell({ role }: { role: string }) {
     if (target?.status === "unread") {
       setCount((current) => Math.max(0, current - 1));
     }
+    knownStatusRef.current.set(id, "read");
     broadcastNotificationReconciliation();
   }, [items]);
 
@@ -206,8 +218,9 @@ export function NotificationBell({ role }: { role: string }) {
       )
     );
     setCount(0);
+    for (const item of items) knownStatusRef.current.set(item.id, "read");
     broadcastNotificationReconciliation();
-  }, []);
+  }, [items]);
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
