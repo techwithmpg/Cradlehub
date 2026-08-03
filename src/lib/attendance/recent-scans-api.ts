@@ -1,10 +1,10 @@
 import "server-only";
 
-import { createAttendanceScanFeedFallback, getRecentAttendanceScanFeed } from "@/lib/attendance/recent-scans";
-import type {
-  AttendanceScanFeedData,
-  AttendanceScanFeedWorkspace,
-} from "@/lib/attendance/types";
+import {
+  createAttendanceScanFeedFallback,
+  getRecentAttendanceScanFeed,
+} from "@/lib/attendance/recent-scans";
+import type { AttendanceScanFeedData, AttendanceScanFeedWorkspace } from "@/lib/attendance/types";
 import { getCurrentUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { hasWorkspaceAccess } from "@/lib/auth/workspace-access";
@@ -110,7 +110,9 @@ function fallback(params: {
   };
 }
 
-export async function getAttendanceScanFeedRouteResult(params: URLSearchParams): Promise<FeedRouteResult> {
+export async function getAttendanceScanFeedRouteResult(
+  params: URLSearchParams
+): Promise<FeedRouteResult> {
   const workspace = parseWorkspace(params.get("workspace"));
   const selectedDate = parseDate(params.get("selectedDate"));
   const maxItems = parseMaxItems(params.get("maxItems"));

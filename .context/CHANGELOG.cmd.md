@@ -1,5 +1,24 @@
 # 📜 CHANGELOG — What Has Been Done
 
+## 2026-08-03 - Codex (QR-REALTIME-MARKETING-20260729, Phase 2 verification)
+
+Verified the committed Attendance Realtime/recent-scan cursor and
+NotificationBell snapshot optimization slice. Fixed the degraded-reconcile
+constant contract and prevented old notification INSERT replays from flowing
+through the bell insert/toast path; stale replay now triggers reconciliation.
+
+Ran the focused Phase 2 regression slice successfully at 8 files / 26 tests,
+plus `pnpm type-check`, `pnpm lint`, `pnpm format:check`, and `pnpm build`.
+The Next.js 16.2.4 production build generated 113 pages. `pnpm test` and the
+format helper had to run outside the sandbox because local process spawning was
+blocked with `spawn EPERM`.
+
+Local unauthenticated HTTP smoke confirmed the protected Attendance Setup QR
+route redirects to `/login` with HTTP 307 and the login page renders with HTTP
+200. Authenticated browser/request-count Realtime evidence remains pending
+because Playwright is not installed in this workspace and no authenticated CRM
+browser session is available. Phase 3 Digital Marketing Studio has not started.
+
 ## 2026-07-29 - Codex (QR-REALTIME-MARKETING-20260729, Phase 1 scan gate waived)
 
 Implemented the source and automated-QA portion of the reusable Attendance and

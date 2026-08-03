@@ -82,8 +82,7 @@ export function CrmAttendanceWorkspace({
   const handleCheckinChange = useCallback(
     (row: AttendanceCheckinRealtimeRow) => {
       void mutate(
-        (workspace) =>
-          workspace ? mergeAttendanceWorkspaceCheckin(workspace, row) : workspace,
+        (workspace) => (workspace ? mergeAttendanceWorkspaceCheckin(workspace, row) : workspace),
         { revalidate: false }
       );
     },

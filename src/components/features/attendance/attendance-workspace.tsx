@@ -126,8 +126,7 @@ export function AttendanceWorkspace(props: AttendanceWorkspaceProps) {
   const handleCheckinChange = useCallback(
     (row: AttendanceCheckinRealtimeRow) => {
       void refreshAttendance(
-        (workspace) =>
-          workspace ? mergeAttendanceWorkspaceCheckin(workspace, row) : workspace,
+        (workspace) => (workspace ? mergeAttendanceWorkspaceCheckin(workspace, row) : workspace),
         { revalidate: false }
       );
     },

@@ -53,7 +53,8 @@ function toAttendanceRecord(
     id: row.id,
     branch_id: row.branch_id,
     staff_id: row.staff_id,
-    staff_name: existing?.staff_name ?? staffState?.staffName ?? staffOption?.full_name ?? "Staff member",
+    staff_name:
+      existing?.staff_name ?? staffState?.staffName ?? staffOption?.full_name ?? "Staff member",
     staff_nickname: existing?.staff_nickname ?? null,
     staff_type: existing?.staff_type ?? staffState?.staffType ?? staffOption?.staff_type ?? null,
     system_role: existing?.system_role ?? null,

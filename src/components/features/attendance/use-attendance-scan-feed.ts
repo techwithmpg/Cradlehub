@@ -166,15 +166,16 @@ export function useAttendanceScanFeed({
       ? new Date(pruned[0].occurredAt).getTime() + ONE_HOUR_MS - Date.now()
       : null;
     if (nextExpiry === null) return;
-    const timer = window.setTimeout(() => {
-      void mutate(
-        (current) =>
-          current
-            ? mergeAttendanceScanFeed(current, [], [], maxItems, Date.now())
-            : current,
-        { revalidate: false }
-      );
-    }, Math.max(1, nextExpiry + 25));
+    const timer = window.setTimeout(
+      () => {
+        void mutate(
+          (current) =>
+            current ? mergeAttendanceScanFeed(current, [], [], maxItems, Date.now()) : current,
+          { revalidate: false }
+        );
+      },
+      Math.max(1, nextExpiry + 25)
+    );
     return () => window.clearTimeout(timer);
   }, [lastHourOperations, maxItems, mutate]);
 

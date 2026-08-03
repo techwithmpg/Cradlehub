@@ -51,11 +51,7 @@ function safeLimit(value: number | undefined): number {
   return Math.max(1, Math.min(10, Math.floor(value)));
 }
 
-function baseScanQuery(
-  admin: AttendanceDb,
-  branchId: string | null | undefined,
-  columns: string
-) {
+function baseScanQuery(admin: AttendanceDb, branchId: string | null | undefined, columns: string) {
   let query = admin
     .from("qr_scan_events")
     .select(columns)

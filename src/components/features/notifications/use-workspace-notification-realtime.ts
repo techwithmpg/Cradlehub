@@ -21,10 +21,7 @@ type NotificationChannelMessage =
   | { type: "reconcile" };
 
 type UseWorkspaceNotificationRealtimeInput = {
-  onInsert: (
-    notification: WorkspaceNotification,
-    context: RealtimeInsertContext
-  ) => void;
+  onInsert: (notification: WorkspaceNotification, context: RealtimeInsertContext) => void;
   onUpdate: (notification: WorkspaceNotification) => void;
   onReconcile: () => void;
 };
@@ -84,9 +81,7 @@ export function useWorkspaceNotificationRealtime({
     const handledInTab = readIds(sessionStorage, SESSION_HANDLED_KEY);
     const supabase = createClient();
     const coordinationChannel =
-      typeof BroadcastChannel === "undefined"
-        ? null
-        : new BroadcastChannel(CHANNEL_NAME);
+      typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(CHANNEL_NAME);
     let subscribedOnce = false;
     let disposed = false;
     let hiddenAt: number | null = null;
@@ -96,9 +91,7 @@ export function useWorkspaceNotificationRealtime({
       writeIds(sessionStorage, SESSION_HANDLED_KEY, handledInTab);
     };
 
-    const claimVisiblePresentation = async (
-      notification: WorkspaceNotification
-    ) => {
+    const claimVisiblePresentation = async (notification: WorkspaceNotification) => {
       if (document.visibilityState !== "visible") {
         rememberInTab(notification.id);
         return;
@@ -124,10 +117,7 @@ export function useWorkspaceNotificationRealtime({
       };
 
       if ("locks" in navigator && navigator.locks) {
-        await navigator.locks.request(
-          `cradlehub-notification:${notification.id}`,
-          claim
-        );
+        await navigator.locks.request(`cradlehub-notification:${notification.id}`, claim);
         return;
       }
 
@@ -160,7 +150,7 @@ export function useWorkspaceNotificationRealtime({
           // prevents an old unread row from being presented as a new alert.
           if (!isFreshInsert(payload.new, mountedAt)) {
             rememberInTab(payload.new.id);
-            callbacksRef.current.onInsert(payload.new, { present: false });
+            callbacksRef.current.onReconcile();
             return;
           }
 

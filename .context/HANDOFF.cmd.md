@@ -1,5 +1,31 @@
 # HANDOFF - Next Agent Session
 
+## QR-REALTIME-MARKETING-20260729 - Phase 2 source verified locally
+
+Attendance Realtime/recent-scan cursor reconciliation and the consolidated
+NotificationBell snapshot path are implemented on
+`codex/qr-realtime-marketing-studio`. The follow-up verification pass fixed two
+focused contract failures: the Attendance disconnected fallback now exposes the
+expected `DEGRADED_RECONCILE_INTERVAL_MS` 60-second interval, and old
+notification INSERT replays now reconcile the bell instead of entering the
+insert/toast state path.
+
+Verification passed under Node 24.14.0 / pnpm 10.33.2: focused Phase 2 tests at
+8 files / 26 tests, `pnpm type-check`, `pnpm lint`, `pnpm format:check`, and
+`pnpm build` with Next.js 16.2.4 generating 113 pages. `pnpm test` and the
+format helper needed to run outside the sandbox because local process spawning
+was blocked with `spawn EPERM`.
+
+Local unauthenticated HTTP smoke reached the expected auth boundary:
+`/crm/attendance?view=setup&section=qr` returns a 307 redirect to `/login`, and
+the login page renders with HTTP 200. Playwright/browser automation is not
+installed in this workspace and no authenticated CRM browser session is
+available, so authenticated Realtime request-count/browser evidence remains
+pending. Do not start Phase 3 until either that gate is accepted as blocked or a
+real authenticated session is available.
+
+---
+
 ## QR-REALTIME-MARKETING-20260729 - Phase 1 scan gate explicitly waived
 
 The reusable Attendance/room A4 poster implementation is source-ready and its

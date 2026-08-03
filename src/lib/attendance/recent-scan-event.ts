@@ -70,7 +70,7 @@ export function isCompleteAttendanceScanPayload(
   if (!row.staff_id) return true;
   return Boolean(
     row.operation_result.attendance?.staffName?.trim() ||
-      row.operation_result.branchCorrection?.staffName?.trim()
+    row.operation_result.branchCorrection?.staffName?.trim()
   );
 }
 
@@ -98,10 +98,7 @@ export function mapStoredAttendanceScan(
     staffAvatarUrl: null,
     branchId: row.branch_id ?? context.branchId ?? null,
     branchName:
-      attendance?.branchName ??
-      branchCorrection?.requestedBranchName ??
-      context.branchName ??
-      null,
+      attendance?.branchName ?? branchCorrection?.requestedBranchName ?? context.branchName ?? null,
     eventType,
     outcome: result.outcome,
     reasonCode: result.reasonCode ?? row.reason_code,
@@ -111,8 +108,7 @@ export function mapStoredAttendanceScan(
     shiftType: attendance?.shiftLabel ?? null,
     attendanceStatus:
       attendance?.action === "clock_in" && result.outcome === "success" ? "on_time" : null,
-    workedMinutes:
-      typeof attendance?.workedMinutes === "number" ? attendance.workedMinutes : null,
+    workedMinutes: typeof attendance?.workedMinutes === "number" ? attendance.workedMinutes : null,
     clockInAt: attendance?.sessionStartedAt ?? null,
     clockOutAt: attendance?.action === "clock_out" ? attendance.occurredAt : null,
     sourceLabel: null,

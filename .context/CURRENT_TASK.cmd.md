@@ -6,7 +6,8 @@ print templates, replace healthy Attendance polling with event-driven Realtime
 local merges plus cursor reconciliation, and expand the protected Marketing
 Studio into a governed draft/preview/publish workspace with a dedicated
 digital-marketer role.
-Status: IN PROGRESS
+Status: IN PROGRESS - PHASE 2 SOURCE/AUTOMATED GATES COMPLETE; AUTHENTICATED
+BROWSER REQUEST EVIDENCE PENDING
 Started: 2026-07-29
 Last updated: 2026-07-30
 
@@ -23,11 +24,18 @@ Last updated: 2026-07-30
   source/print-QA complete with the physical phone-scan gate explicitly waived,
   not passed. Do not claim Main Spa, SM, or room physical poster scans as
   verified.
-- Phase 2 is the active resume point. The current worktree contains local
-  Attendance Realtime/recent-scan and NotificationBell optimization edits plus
-  new untracked helper modules. The goal is to finish the event-driven delta
-  behavior, focused tests, verification, context update, and atomic Phase 2
-  commit before any Phase 3 work.
+- Phase 2 source is now implemented on this branch. A follow-up verification
+  pass fixed the stale degraded-reconcile contract name and changed old
+  notification INSERT replays to trigger reconciliation instead of entering the
+  bell insert path.
+- Phase 2 automated gates pass locally: focused Attendance/notification tests
+  at 8 files / 26 tests, `pnpm type-check`, `pnpm lint`, `pnpm format:check`,
+  and `pnpm build` on Next.js 16.2.4 with 113 generated pages.
+- Local HTTP smoke confirmed `/crm/attendance?view=setup&section=qr` redirects
+  unauthenticated requests to `/login` with HTTP 307, then renders login with
+  HTTP 200. Playwright/browser automation is not installed in this workspace,
+  and no authenticated CRM browser session is available in this run, so live
+  Realtime request-count/browser evidence remains pending.
 - Phase 3 Digital Marketing Studio has not started in this resume session and
   must remain "enhancement in progress" until its own role, migration, RLS,
   storage, publishing, preview, rollback, public-site integration, and browser

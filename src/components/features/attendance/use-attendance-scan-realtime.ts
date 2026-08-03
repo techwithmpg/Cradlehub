@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AttendanceRealtimeScanRow } from "@/lib/attendance/recent-scan-event";
 import { createClient } from "@/lib/supabase/client";
 
-export const ATTENDANCE_DISCONNECTED_RECONCILE_MS = 60_000;
+export const DEGRADED_RECONCILE_INTERVAL_MS = 60_000;
 export const ATTENDANCE_VISIBILITY_STALE_MS = 2 * 60_000;
 
 export type AttendanceRealtimeStatus = "connecting" | "live" | "delayed" | "offline";
@@ -59,7 +59,7 @@ export function useAttendanceScanRealtime({
         ) {
           callbacksRef.current.onReconcile();
         }
-      }, ATTENDANCE_DISCONNECTED_RECONCILE_MS);
+      }, DEGRADED_RECONCILE_INTERVAL_MS);
     };
 
     queueMicrotask(() => {

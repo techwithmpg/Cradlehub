@@ -162,9 +162,7 @@ export async function getUnreadCountAction(): Promise<number> {
   return count ?? 0;
 }
 
-export async function getNotificationBellSnapshot(
-  limit = 20
-): Promise<NotificationBellSnapshot> {
+export async function getNotificationBellSnapshot(limit = 20): Promise<NotificationBellSnapshot> {
   const supabase = await createClient();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
